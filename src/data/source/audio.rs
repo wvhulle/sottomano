@@ -46,7 +46,8 @@ use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source, file_presence::path_present, present_or_absent, while_present,
+        DeliveryCadence, ReadingSource, SourceDelivery, file_presence::path_present,
+        present_or_absent, while_present,
     },
     message_subscriptions::restarting,
 };
@@ -187,19 +188,18 @@ fn socket_present() -> BoxStream<'static, bool> {
     }
 }
 
-impl Source for AudioState {
+impl ReadingSource for AudioState {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "audio";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for AudioState {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(socket_present(), || {
             Box::pin(
                 restarting("audio", connect).filter_map(|event| match event {
-                    AudioEvent::State(state) => Some(Delivery::Reading(Ok(state))),
+                    AudioEvent::State(state) => Some(SourceDelivery::Reading(Ok(state))),
                     AudioEvent::Connected(_) | AudioEvent::Peaks(_) => None,
                 }),
             )

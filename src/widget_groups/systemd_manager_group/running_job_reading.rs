@@ -10,11 +10,10 @@ use crate::{
         source::systemd_manager::running_jobs::{SlowJob, SlowJobs},
     },
     widget_groups::{
-        systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
-        terminal_command::TerminalCommand,
+        systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
@@ -50,11 +49,11 @@ impl SlowJob {
     }
 }
 
-impl<S: ScopeAppearance> SlowJobs<S> {
+impl SlowJobs {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
-        GroupItem::reading(self, S::SLOW_JOBS_TARGET)
+        GroupItem::reading(self, self.scope.slow_jobs_target())
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 open_log(self.follow_log_args()),
@@ -69,32 +68,30 @@ impl<S: ScopeAppearance> SlowJobs<S> {
     ) -> impl Iterator<Item = OngoingToast<M>> {
         self.jobs.iter().map(move |job| OngoingToast {
             widget_name: self.name(),
-            key: OngoingKey::Reading(S::slow_job_target(job.unit.clone()).into()),
+            key: OngoingKey::Reading(self.scope.slow_job_target(job.unit.clone()).into()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
             body: OngoingBody::Text(format!(
                 "since {} · {}",
                 LocalizedTimeFormat::TimeOfDay
                     .format(&DateTime::<Local>::from(job.started_at), locale),
-                S::SCOPE_NAME
+                self.scope.scope_name()
             )),
             progress: None,
             since: job.started_at,
-            on_body_clicked: open_log(S::follow_units_log_args([job.unit.as_str()])),
+            on_body_clicked: open_log(self.scope.follow_units_log_args([job.unit.as_str()])),
             action_buttons: Vec::new(),
         })
     }
 }
 
-impl<S: ScopeAppearance> Occasional for SlowJobs<S> {
-    fn present(&self) -> bool {
+impl BarWidget for SlowJobs {
+    fn visible_in_bar(&self) -> bool {
         !self.is_empty()
     }
-}
 
-impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
     fn name(&self) -> &'static str {
-        S::SLOW_JOBS_LABEL
+        self.scope.slow_jobs_label()
     }
 
     fn icon(&self) -> Glyph {
@@ -118,7 +115,7 @@ impl<S: ScopeAppearance> BarWidget for SlowJobs<S> {
             self.jobs.iter().map(SlowJob::table_record),
         )
         .titled((
-            S::SLOW_JOBS_LABEL,
+            self.scope.slow_jobs_label(),
             "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
         ))])
     }

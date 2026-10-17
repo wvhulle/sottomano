@@ -12,7 +12,7 @@ use iced::{
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
-        Delivery,
+        SourceDelivery,
         audio::WindowAudio,
         job_view::{self, Jobs},
         kitty_windows::{self, WindowProcesses},
@@ -24,9 +24,7 @@ use crate::{
     desktop_shell::{
         hover_tooltips::{PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
-        pointer_drag::{
-            DragMessage, DragView, DraggedItem, SlotClick, SlotDragEvent, SlotList, SlotPress,
-        },
+        pointer_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     },
     widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},
     widgets::{
@@ -39,6 +37,7 @@ use crate::{
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
+            BarSlotList, DragView, DraggedBarSlot,
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
         },
@@ -72,11 +71,11 @@ pub enum WindowListMessage {
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
     Tooltip(TooltipMessage),
-    ProcessTreeScanned(Delivery<Process>),
+    ProcessTreeScanned(SourceDelivery<Process>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
-    ProcessInspected(Box<Delivery<Inspection>>),
-    PackageFactsRead(Box<Delivery<NixPackageFacts>>),
+    ProcessInspected(Box<SourceDelivery<Inspection>>),
+    PackageFactsRead(Box<SourceDelivery<NixPackageFacts>>),
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
@@ -115,17 +114,17 @@ impl WindowList {
         };
         self.hovered_window = Some(watched.window);
         Task::batch([
-            self.process_tree.poll(
+            self.process_tree.start_hover_fetch(
                 watched.clone(),
                 WindowListMessage::ProcessTreeScanned,
                 config,
             ),
-            self.inspection.poll(
+            self.inspection.start_hover_fetch(
                 watched.clone(),
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
             ),
-            self.package_facts.poll(
+            self.package_facts.start_hover_fetch(
                 PackageWatch {
                     watched,
                     upstream_branch: config.widget_groups.window_list.nixpkgs_branch.clone(),
@@ -175,7 +174,7 @@ impl WindowList {
             }
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
-                self.process_tree.receive(fetched);
+                self.process_tree.receive_delivery(fetched);
                 Action::None
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
@@ -187,11 +186,11 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
-                self.inspection.receive(*fetched);
+                self.inspection.receive_delivery(*fetched);
                 Action::None
             }
             WindowListMessage::PackageFactsRead(fetched) => {
-                self.package_facts.receive(*fetched);
+                self.package_facts.receive_delivery(*fetched);
                 Action::None
             }
             WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,
@@ -231,7 +230,7 @@ impl WindowList {
         if windows.is_empty() {
             return None;
         }
-        let dragged_item = |win: &niri::WinEntry| DraggedItem::Window {
+        let dragged_item = |win: &niri::WinEntry| DraggedBarSlot::Window {
             window: win.id,
             workspace,
         };
@@ -264,7 +263,7 @@ impl WindowList {
         )
         .edge(position);
         Some(window_list_viewport(
-            draggable_slot_list(indicated, SlotList::Windows, drag, dragged),
+            draggable_slot_list(indicated, BarSlotList::Windows, drag, dragged),
             self.scroll,
             focused_index,
             WindowListMessage::Scrolled,
@@ -335,7 +334,7 @@ fn dragged(event: SlotDragEvent) -> WindowListMessage {
 
 struct WindowSlot<'w, 'e> {
     win: &'w niri::WinEntry,
-    item: DraggedItem,
+    item: DraggedBarSlot,
     extras: Extras<'e>,
     position_in_bar: usize,
     opacity: f32,

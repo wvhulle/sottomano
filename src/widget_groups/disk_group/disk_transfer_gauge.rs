@@ -5,7 +5,7 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::disk::activity::{DiskTransfer, Reading, Writing},
+    data::source::disk::activity::{DiskActivity, DiskTransfer, DiskTransferDirection},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
@@ -18,29 +18,34 @@ use crate::{
 const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
 const SCALE_END_GIB_PER_S: f64 = 4.0;
 
-pub trait TransferIcon {
-    const NAME: &'static str;
-    const LABEL: &'static str;
-    const ICON: Phosphor;
-}
+impl DiskTransferDirection {
+    const fn widget_name(self) -> &'static str {
+        match self {
+            DiskTransferDirection::Read => "Disk reads",
+            DiskTransferDirection::Write => "Disk writes",
+        }
+    }
 
-impl TransferIcon for Reading {
-    const NAME: &'static str = "Disk reads";
-    const LABEL: &'static str = "Read";
-    const ICON: Phosphor = Phosphor::TrayArrowUp(Weight::Regular);
-}
+    const fn rate_label(self) -> &'static str {
+        match self {
+            DiskTransferDirection::Read => "Read",
+            DiskTransferDirection::Write => "Write",
+        }
+    }
 
-impl TransferIcon for Writing {
-    const NAME: &'static str = "Disk writes";
-    const LABEL: &'static str = "Write";
-    const ICON: Phosphor = Phosphor::TrayArrowDown(Weight::Regular);
+    const fn direction_icon(self) -> Phosphor {
+        match self {
+            DiskTransferDirection::Read => Phosphor::TrayArrowUp(Weight::Regular),
+            DiskTransferDirection::Write => Phosphor::TrayArrowDown(Weight::Regular),
+        }
+    }
 }
 
 fn background_rate() -> InformationRate {
     InformationRate::new::<kibibyte_per_second>(BACKGROUND_TRANSFER_KIB_PER_S)
 }
 
-impl<D> DiskTransfer<D> {
+impl DiskTransfer {
     fn quiet(&self) -> bool {
         self.rate <= background_rate()
     }
@@ -57,13 +62,16 @@ impl<D> DiskTransfer<D> {
     }
 }
 
-impl<D: TransferIcon> BarWidget for DiskTransfer<D> {
+impl BarWidget for DiskTransfer {
     fn name(&self) -> &'static str {
-        D::NAME
+        self.direction.widget_name()
     }
 
     fn icon(&self) -> Glyph {
-        D::ICON.with_weight(self.state().weight()).into()
+        self.direction
+            .direction_icon()
+            .with_weight(self.state().weight())
+            .into()
     }
 
     fn state(&self) -> WidgetState {
@@ -81,11 +89,29 @@ impl<D: TransferIcon> BarWidget for DiskTransfer<D> {
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::dictionary([
             KeyValue::new("Disk", self.disk.clone()),
-            KeyValue::new(D::LABEL, per_second_text(self.rate)),
+            KeyValue::new(self.direction.rate_label(), per_second_text(self.rate)),
             KeyValue::new(
                 "Disk busy",
                 format!("{:.0}%", self.disk_busy.get::<percent>()),
             ),
         ])
+    }
+}
+
+impl BarWidget for DiskActivity {
+    fn name(&self) -> &'static str {
+        "Disk activity"
+    }
+
+    fn icon(&self) -> Glyph {
+        self.read.icon()
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        false
+    }
+
+    fn tooltip(&self) -> TooltipBody {
+        self.read.tooltip()
     }
 }

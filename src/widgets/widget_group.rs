@@ -103,6 +103,40 @@ pub enum HandleFace<'a> {
     FirstItem,
 }
 
+impl<'a> HandleFace<'a> {
+    fn hover_target(&self) -> Option<HoverTarget> {
+        match self {
+            HandleFace::Icon { handle, .. } | HandleFace::IconColoredBy { handle, .. } => {
+                Some(HoverTarget::GroupHandle(*handle))
+            }
+            HandleFace::FirstItem => None,
+        }
+    }
+
+    fn into_face_item<M: Clone + 'a>(
+        self,
+        config: &'a Config,
+        items: &mut Vec<GroupItem<'a, M>>,
+        handle_hints: PressHints,
+    ) -> GroupItem<'a, M> {
+        match self {
+            HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
+                glyph.view(
+                    config.theme.font.icon_size_px,
+                    config.theme.palette.bar_foreground,
+                )
+            }),
+            HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
+                glyph.view(
+                    config.theme.font.icon_size_px,
+                    reading_color(config, reading),
+                )
+            }),
+            HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_hints),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum PreviewedValue<'a> {
     Plain(&'a dyn BarWidget),
@@ -321,31 +355,11 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             ));
         };
         let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
-        let handle_target =
-            preview
-                .as_ref()
-                .and_then(PreviewedValue::hover_target)
-                .or(match &face {
-                    HandleFace::Icon { handle, .. } | HandleFace::IconColoredBy { handle, .. } => {
-                        Some(HoverTarget::GroupHandle(*handle))
-                    }
-                    HandleFace::FirstItem => None,
-                });
-        let face = match face {
-            HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
-                glyph.view(
-                    config.theme.font.icon_size_px,
-                    config.theme.palette.bar_foreground,
-                )
-            }),
-            HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
-                glyph.view(
-                    config.theme.font.icon_size_px,
-                    reading_color(config, reading),
-                )
-            }),
-            HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_hints),
-        };
+        let handle_target = preview
+            .as_ref()
+            .and_then(PreviewedValue::hover_target)
+            .or(face.hover_target());
+        let face = face.into_face_item(config, &mut items, handle_hints);
         let draw_face = move || face.view(config, 1.0);
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
             Row::with_children(items.iter().map(|item| item.view(config, reveal)))

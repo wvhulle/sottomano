@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
-        toggle_control::Toggle,
+        toggle_control::ToggleableSource,
         tooltip_body::TooltipBody,
         widget_state::WidgetState,
     },
@@ -31,16 +31,16 @@ impl BarWidget for Clight {
     }
 }
 
-impl Toggle for Clight {
-    fn toggled(&self) -> Self {
+impl ToggleableSource for Clight {
+    fn toggled_value(&self) -> Self {
         Clight { auto: !self.auto }
     }
 
-    fn toggle(&self) -> bool {
+    fn apply_toggle(&self) -> bool {
         clight::flip()
     }
 
-    fn press_does(&self) -> &'static str {
+    fn press_action_text(&self) -> &'static str {
         if self.auto {
             "stop setting brightness from webcam light; keep the current level"
         } else {

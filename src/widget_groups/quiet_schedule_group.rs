@@ -9,9 +9,9 @@ use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    data::source::{Delivery, focus_ledger::WakingWindow, logind},
+    data::source::{SourceDelivery, focus_ledger::WakingWindow, logind},
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     state::{self, quiet_hours::QuietHoursSchedule},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
@@ -57,7 +57,7 @@ pub enum QuietSlider {
 
 #[derive(Debug, Clone)]
 pub enum QuietScheduleMessage {
-    ScheduleLoaded(Delivery<QuietHoursSchedule>),
+    ScheduleLoaded(SourceDelivery<QuietHoursSchedule>),
     EdgeDue,
     ToggleQuietNow,
     ToggleFollowsSchedule,
@@ -136,7 +136,8 @@ impl Default for QuietScheduleGroup {
 impl QuietScheduleGroup {
     pub fn subscription() -> Subscription<QuietScheduleMessage> {
         Subscription::batch([
-            listening::<QuietHoursSchedule>(()).map(QuietScheduleMessage::ScheduleLoaded),
+            source_subscription::<QuietHoursSchedule>((), None)
+                .map(QuietScheduleMessage::ScheduleLoaded),
             Subscription::run(logind::resumes).map(|()| QuietScheduleMessage::EdgeDue),
         ])
     }
@@ -214,7 +215,7 @@ impl QuietScheduleGroup {
     fn handle(&mut self, msg: QuietScheduleMessage) -> Task<QuietScheduleMessage> {
         match msg {
             QuietScheduleMessage::ScheduleLoaded(delivery) => {
-                self.saved.push_or_keep(delivery);
+                self.saved.receive_keeping_last_reading(delivery);
                 let schedule = self.schedule();
                 self.start_slider
                     .update(ControlMessage::Reading(clock_minutes(schedule.start)));

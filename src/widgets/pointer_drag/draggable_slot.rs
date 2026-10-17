@@ -3,14 +3,14 @@ use iced::{
     widget::{MouseArea, mouse_area},
 };
 
-use crate::widgets::pointer_drag::{DragEvent, DragView, SlotItem, SlotPress};
+use crate::widgets::pointer_drag::{BarSlotList, DragEvent, DragView, SlotPress};
 
-pub fn draggable_slot<'a, Message: Clone + 'a, Item: SlotItem, Click: Copy>(
+pub fn draggable_slot<'a, Message: Clone + 'a, Click: Copy>(
     content: impl Into<Element<'a, Message>>,
-    press: SlotPress<Item, Click>,
+    press: SlotPress<Click>,
     reorders_on_hover: bool,
-    drag: &DragView<Item>,
-    on_drag: impl Fn(DragEvent<Item, Click>) -> Message,
+    drag: &DragView,
+    on_drag: impl Fn(DragEvent<Click>) -> Message,
 ) -> MouseArea<'a, Message> {
     let area = mouse_area(content)
         .interaction(if drag.is_active() {
@@ -29,11 +29,11 @@ pub fn draggable_slot<'a, Message: Clone + 'a, Item: SlotItem, Click: Copy>(
     }
 }
 
-pub fn draggable_slot_list<'a, Message: Clone + 'a, Item: SlotItem, Click>(
+pub fn draggable_slot_list<'a, Message: Clone + 'a, Click>(
     slots: impl Into<Element<'a, Message>>,
-    list: Item::List,
-    drag: &DragView<Item>,
-    on_drag: impl Fn(DragEvent<Item, Click>) -> Message,
+    list: BarSlotList,
+    drag: &DragView,
+    on_drag: impl Fn(DragEvent<Click>) -> Message,
 ) -> Element<'a, Message> {
     let area = mouse_area(slots);
     if drag.is_active() {

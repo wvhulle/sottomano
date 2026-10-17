@@ -1,10 +1,10 @@
-use std::{convert::Infallible, future::ready, marker::PhantomData};
+use std::{convert::Infallible, future::ready};
 
 use iced::futures::{Stream, StreamExt, stream};
 
-use super::{ManagerProxy, UnitProxy, UnitScope, connect};
+use super::{ManagerProxy, ScopedSystemdUnit, UnitProxy, connect};
 use crate::{
-    data::source::{Delivery, LiveSource, Source},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     message_subscriptions::restarting,
 };
 
@@ -58,40 +58,30 @@ impl UnitChange {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnitActiveState<S: UnitScope> {
+pub struct UnitActiveState {
     pub activity: UnitActivity,
-    scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> From<UnitActivity> for UnitActiveState<S> {
-    fn from(activity: UnitActivity) -> Self {
-        Self {
-            activity,
-            scope: PhantomData,
-        }
-    }
-}
-
-impl<S: UnitScope> Source for UnitActiveState<S> {
+impl ReadingSource for UnitActiveState {
     type Error = Infallible;
-    type Key = String;
+    type Key = ScopedSystemdUnit;
 
     const NAME: &'static str = "systemd unit activity";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl<S: UnitScope> LiveSource for UnitActiveState<S> {
-    fn events(unit: String) -> impl Stream<Item = Delivery<Self>> + Send {
-        unit_activity::<S>(unit).map(|activity| Delivery::Reading(Ok(activity.into())))
+    fn delivery_stream(unit: ScopedSystemdUnit) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        unit_activity(unit)
+            .map(|activity| SourceDelivery::Reading(Ok(UnitActiveState { activity })))
     }
 }
 
-pub fn unit_running<S: UnitScope>(unit: String) -> impl Stream<Item = bool> + Send {
-    unit_activity::<S>(unit).map(UnitActivity::running)
+pub fn unit_running(unit: ScopedSystemdUnit) -> impl Stream<Item = bool> + Send {
+    unit_activity(unit).map(UnitActivity::running)
 }
 
-fn unit_activity<S: UnitScope>(unit: String) -> impl Stream<Item = UnitActivity> + Send {
+fn unit_activity(unit: ScopedSystemdUnit) -> impl Stream<Item = UnitActivity> + Send {
     restarting("systemd unit activity", move || {
-        activity_changes(S::PER_USER, unit.clone())
+        activity_changes(unit.scope.per_user(), unit.unit_name.clone())
     })
 }
 

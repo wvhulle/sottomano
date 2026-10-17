@@ -10,33 +10,10 @@ use crate::{
     message_subscriptions::niri_action,
     state::WorkspacesPlacement,
     widgets::pointer_drag::{
-        self, ActiveDrag, DragEvent, DragOutcome, DragTransition, ForeignHover, PointerDrag,
-        SlotItem,
+        self, ActiveDrag, DragEvent, DragOutcome, DragTransition, DragView, DraggedBarSlot,
+        ForeignHover, PointerDrag,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DraggedItem {
-    Workspace(u64),
-    Window { window: u64, workspace: u64 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SlotList {
-    Workspaces,
-    Windows,
-}
-
-impl SlotItem for DraggedItem {
-    type List = SlotList;
-
-    fn list(self) -> SlotList {
-        match self {
-            DraggedItem::Workspace(_) => SlotList::Workspaces,
-            DraggedItem::Window { .. } => SlotList::Windows,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub enum SlotClick {
@@ -45,28 +22,27 @@ pub enum SlotClick {
     MaximizeColumn,
 }
 
-pub type ShellDrag = PointerDrag<DraggedItem, SlotClick>;
-pub type DragView = pointer_drag::DragView<DraggedItem>;
-pub type SlotPress = pointer_drag::SlotPress<DraggedItem, SlotClick>;
-pub type SlotDragEvent = DragEvent<DraggedItem, SlotClick>;
+pub type ShellDrag = PointerDrag<SlotClick>;
+pub type SlotPress = pointer_drag::SlotPress<SlotClick>;
+pub type SlotDragEvent = DragEvent<SlotClick>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DragMessage {
     Pointer(SlotDragEvent),
-    HoverSpringLoaded(ForeignHover<DraggedItem>),
+    HoverSpringLoaded(ForeignHover),
 }
 
 impl DragView {
     pub fn window_source_workspace(&self) -> Option<u64> {
         match self.drag?.item {
-            DraggedItem::Window { workspace, .. } => Some(workspace),
-            DraggedItem::Workspace(_) => None,
+            DraggedBarSlot::Window { workspace, .. } => Some(workspace),
+            DraggedBarSlot::Workspace(_) => None,
         }
     }
 
     pub fn awaits_window_on(&self, workspace: u64) -> bool {
         self.window_source_workspace().is_some()
-            && self.hovers(DraggedItem::Workspace(workspace)).is_some()
+            && self.hovers(DraggedBarSlot::Workspace(workspace)).is_some()
     }
 }
 
@@ -77,7 +53,7 @@ impl DesktopShell {
             && matches!(
                 self.pointer_drag,
                 PointerDrag::Dragging(ActiveDrag {
-                    item: DraggedItem::Workspace(_),
+                    item: DraggedBarSlot::Workspace(_),
                     ..
                 })
             );
@@ -115,7 +91,7 @@ impl DesktopShell {
                 self.follow_drag_outcome(outcome)
             }
             DragMessage::HoverSpringLoaded(hover) => {
-                let DraggedItem::Workspace(workspace) = hover.item else {
+                let DraggedBarSlot::Workspace(workspace) = hover.item else {
                     return Task::none();
                 };
                 if self.drag_view().drag.and_then(|drag| drag.hovered()) != Some(hover) {
@@ -128,29 +104,26 @@ impl DesktopShell {
         }
     }
 
-    fn follow_drag_outcome(
-        &mut self,
-        outcome: DragOutcome<DraggedItem, SlotClick>,
-    ) -> Task<Message> {
+    fn follow_drag_outcome(&mut self, outcome: DragOutcome<SlotClick>) -> Task<Message> {
         match outcome {
             DragOutcome::Unchanged => Task::none(),
             DragOutcome::Started => self.dismiss_tooltip(),
             DragOutcome::Clicked(click) => click_slot(click),
             DragOutcome::Dropped(drag) => self.drop_dragged(drag),
             DragOutcome::HoveringForeign(hover) => match hover.item {
-                DraggedItem::Workspace(_) => {
+                DraggedBarSlot::Workspace(_) => {
                     Task::future(sleep(self.config.panel_bar.drag_spring_load))
                         .map(move |()| Message::PointerDrag(DragMessage::HoverSpringLoaded(hover)))
                 }
-                DraggedItem::Window { .. } => Task::none(),
+                DraggedBarSlot::Window { .. } => Task::none(),
             },
         }
     }
 
-    fn drop_dragged(&mut self, drag: ActiveDrag<DraggedItem>) -> Task<Message> {
+    fn drop_dragged(&mut self, drag: ActiveDrag) -> Task<Message> {
         if let Some(hover) = drag.hovered()
-            && let DraggedItem::Workspace(workspace) = hover.item
-            && let DraggedItem::Window { window, .. } = drag.item
+            && let DraggedBarSlot::Workspace(workspace) = hover.item
+            && let DraggedBarSlot::Window { window, .. } = drag.item
         {
             return self.move_window_to_workspace(window, workspace);
         }
@@ -160,12 +133,12 @@ impl DesktopShell {
         }
     }
 
-    fn reorder(&mut self, drag: ActiveDrag<DraggedItem>, to: usize) -> Task<Message> {
+    fn reorder(&mut self, drag: ActiveDrag, to: usize) -> Task<Message> {
         let Some(snapshot) = self.niri_snapshot.get() else {
             return Task::none();
         };
         match drag.item {
-            DraggedItem::Workspace(workspace) => {
+            DraggedBarSlot::Workspace(workspace) => {
                 let Some(index) = self
                     .surfaces
                     .get(&drag.surface)
@@ -180,7 +153,7 @@ impl DesktopShell {
                     reference: Some(WorkspaceReferenceArg::Id(workspace)),
                 })
             }
-            DraggedItem::Window { window, workspace } => {
+            DraggedBarSlot::Window { window, workspace } => {
                 let Some(index) = snapshot
                     .windows_on_workspace(workspace)
                     .get(to)

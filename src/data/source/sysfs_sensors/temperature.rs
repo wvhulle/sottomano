@@ -23,7 +23,10 @@ use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::{
         severity::Severity,
-        source::{Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls},
+        source::{
+            DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+            present_or_absent,
+        },
     },
     widgets::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
@@ -66,17 +69,20 @@ pub struct CpuCoreTemperatures {
     pub topology: CpuTopology,
 }
 
-impl Source for CpuCoreTemperatures {
+impl ReadingSource for CpuCoreTemperatures {
     type Error = Error;
     type Key = ThresholdOverrides;
 
     const NAME: &'static str = "cpu core temperatures";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for CpuCoreTemperatures {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    async fn poll(overrides: ThresholdOverrides) -> Result<Self, Self::Error> {
+impl CpuCoreTemperatures {
+    async fn poll(overrides: ThresholdOverrides) -> Result<Self, Error> {
         blocking_poll(move || {
             Ok(CpuCoreTemperatures {
                 cores: core_temperatures(overrides),
@@ -149,17 +155,14 @@ impl Temperature {
     }
 }
 
-impl Source for Temperature {
+impl ReadingSource for Temperature {
     type Error = Error;
     type Key = SensorConfig;
 
     const NAME: &'static str = "temperature";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-impl PolledSource for Temperature {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    fn polls(config: SensorConfig) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(config: SensorConfig) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let choice = config.sensor.clone();
         let exposed = async move {
             spawn_blocking(move || cpu_temp_readings(&choice))
@@ -167,23 +170,25 @@ impl PolledSource for Temperature {
                 .is_ok_and(|readings| !readings.is_empty())
         };
         holding_earliest_critical(present_or_absent(stream::once(exposed), move || {
-            ticked_polls::<Self>(config.clone()).boxed()
+            polled_delivery_stream(config.clone(), Self::poll).boxed()
         }))
     }
+}
 
-    async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
+impl Temperature {
+    async fn poll(config: SensorConfig) -> Result<Self, Error> {
         blocking_poll(move || read_temperature(&config)).await
     }
 }
 
 fn holding_earliest_critical(
-    deliveries: impl Stream<Item = Delivery<Temperature>>,
-) -> impl Stream<Item = Delivery<Temperature>> {
+    deliveries: impl Stream<Item = SourceDelivery<Temperature>>,
+) -> impl Stream<Item = SourceDelivery<Temperature>> {
     deliveries.scan(None, |held, delivery| {
         let delivery = match delivery {
-            Delivery::Reading(Ok(reading)) => {
+            SourceDelivery::Reading(Ok(reading)) => {
                 *held = reading.critical_since.map(|now| held.unwrap_or(now));
-                Delivery::Reading(Ok(Temperature {
+                SourceDelivery::Reading(Ok(Temperature {
                     critical_since: *held,
                     ..reading
                 }))
@@ -376,13 +381,13 @@ mod tests {
         let third = first + Duration::from_secs(15);
         let deliveries = stream::iter(
             [Some(first), Some(second), None, Some(third)]
-                .map(|since| Delivery::Reading(Ok(reading_critical_since(since)))),
+                .map(|since| SourceDelivery::Reading(Ok(reading_critical_since(since)))),
         );
         let held: Vec<Option<SystemTime>> = block_on(
             holding_earliest_critical(deliveries)
                 .map(|delivery| match delivery {
-                    Delivery::Reading(Ok(reading)) => reading.critical_since,
-                    Delivery::Reading(Err(_)) | Delivery::Absent => None,
+                    SourceDelivery::Reading(Ok(reading)) => reading.critical_since,
+                    SourceDelivery::Reading(Err(_)) | SourceDelivery::Absent => None,
                 })
                 .collect(),
         );

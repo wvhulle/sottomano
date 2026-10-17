@@ -50,7 +50,7 @@ enum IdleActionConnection {
         attempts_left: usize,
     },
     Connected {
-        notifier: IdleNotifier<SessionAction>,
+        notifier: Box<IdleNotifier<SessionAction>>,
         attempts_left: usize,
     },
 }
@@ -68,7 +68,7 @@ impl IdleActionConnection {
                         Some((
                             Vec::new(),
                             IdleActionConnection::Connected {
-                                notifier,
+                                notifier: Box::new(notifier),
                                 attempts_left,
                             },
                         ))

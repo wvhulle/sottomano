@@ -6,7 +6,8 @@ use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs, cpu_topology::CpuTopology};
 use crate::data::source::{
-    Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    present_or_absent,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -75,28 +76,27 @@ impl CpuClock {
     }
 }
 
-impl Source for CpuClock {
+impl ReadingSource for CpuClock {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "cpu-clock";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-impl PolledSource for CpuClock {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async {
             spawn_blocking(core_freqs)
                 .await
                 .is_ok_and(|cores| !cores.is_empty())
         };
         present_or_absent(stream::once(exposed), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl CpuClock {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_cpu_clock).await
     }
 }

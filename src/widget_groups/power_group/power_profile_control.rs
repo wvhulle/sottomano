@@ -7,12 +7,12 @@ use crate::{
     data::{
         battery_forecast::{Estimate, RegressionState, time_until_empty},
         source::{
-            Delivery,
+            SourceDelivery,
             power_profile::{self, Conditions, Profile, ProfileStatus},
             sysfs_sensors::battery::Battery,
         },
     },
-    message_subscriptions::{ForcedRefresh, listening, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     state::power,
     widget_groups::power_group::{
         PowerTarget,
@@ -74,8 +74,8 @@ impl Default for PowerProfileControl {
 
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
-    Status(Delivery<ProfileStatus>),
-    Conditions(Delivery<Conditions>),
+    Status(SourceDelivery<ProfileStatus>),
+    Conditions(SourceDelivery<Conditions>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     SwitchToProfile(Profile),
@@ -101,15 +101,15 @@ impl PowerProfileControl {
 
     pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<PowerProfileMessage> {
         Subscription::batch([
-            listening::<ProfileStatus>(()).map(PowerProfileMessage::Status),
-            polling::<Conditions>((), forced).map(PowerProfileMessage::Conditions),
+            source_subscription::<ProfileStatus>((), None).map(PowerProfileMessage::Status),
+            source_subscription::<Conditions>((), forced).map(PowerProfileMessage::Conditions),
         ])
     }
 
     pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
         match msg {
             PowerProfileMessage::Status(delivery) => {
-                self.status.push_or_keep(delivery);
+                self.status.receive_keeping_last_reading(delivery);
                 if let Some(profile) = self.active_profile() {
                     self.control
                         .update(ControlMessage::Reading(profile.position()));
@@ -118,12 +118,12 @@ impl PowerProfileControl {
             }
             PowerProfileMessage::Conditions(delivery) => {
                 self.conditions = match delivery {
-                    Delivery::Reading(Ok(conditions)) => Some(conditions),
-                    Delivery::Reading(Err(error)) => {
+                    SourceDelivery::Reading(Ok(conditions)) => Some(conditions),
+                    SourceDelivery::Reading(Err(error)) => {
                         tracing::debug!("power conditions: {error}");
                         None
                     }
-                    Delivery::Absent => None,
+                    SourceDelivery::Absent => None,
                 };
             }
             PowerProfileMessage::Loaded(models) => {

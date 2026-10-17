@@ -8,6 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
+use iced::futures::Stream;
 use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{Clock, PerformanceState, TemperatureSensor, TemperatureThreshold},
@@ -25,7 +26,10 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::{Panicked, PolledSource, Source, blocking_poll},
+    data::source::{
+        DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+        polled_delivery_stream,
+    },
     widgets::tooltip_body::Section,
 };
 
@@ -72,16 +76,19 @@ impl PartialEq for GpuDiscovery {
     }
 }
 
-impl Source for GpuDiscovery {
+impl ReadingSource for GpuDiscovery {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "gpu discovery";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GpuDiscovery {
-    const INTERVAL: Duration = Duration::from_hours(1);
-
+impl GpuDiscovery {
     async fn poll(_key: ()) -> Result<Self, Error> {
         Ok(Self::bound_to_nvidia().await)
     }
@@ -264,17 +271,20 @@ pub struct GpuProcesses {
     pub processes: Vec<GpuProcess>,
 }
 
-impl Source for GpuSnapshot {
+impl ReadingSource for GpuSnapshot {
     type Error = Error;
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GpuSnapshot {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+impl GpuSnapshot {
+    async fn poll(device: NvmlDevice) -> Result<Self, Error> {
         read_device(device, |device| {
             let memory = device.memory_info()?;
             Ok(GpuSnapshot {
@@ -291,17 +301,20 @@ impl PolledSource for GpuSnapshot {
     }
 }
 
-impl Source for GpuClocks {
+impl ReadingSource for GpuClocks {
     type Error = Error;
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu clocks";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GpuClocks {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+impl GpuClocks {
+    async fn poll(device: NvmlDevice) -> Result<Self, Error> {
         read_device(device, |device| {
             let clock = |kind: Clock| {
                 device
@@ -327,17 +340,20 @@ impl PolledSource for GpuClocks {
     }
 }
 
-impl Source for GpuProcesses {
+impl ReadingSource for GpuProcesses {
     type Error = Error;
     type Key = NvmlDevice;
 
     const NAME: &'static str = "gpu processes";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GpuProcesses {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(device: NvmlDevice) -> Result<Self, Self::Error> {
+impl GpuProcesses {
+    async fn poll(device: NvmlDevice) -> Result<Self, Error> {
         read_device(device, |device| {
             Ok(GpuProcesses {
                 processes: gpu_processes(device),

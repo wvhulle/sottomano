@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     convert::Infallible,
-    marker::PhantomData,
     pin::Pin,
     time::SystemTime,
 };
@@ -16,12 +15,13 @@ use zbus::{
 };
 
 use super::{
-    ManagerProxy, UnitRow, UnitScope, connect, manager_signal, signals_matching, state_changed_at,
-    systemd_signal,
+    ManagerProxy, SystemdUnitScope, UnitRow, connect, manager_signal, signals_matching,
+    state_changed_at, systemd_signal,
 };
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source, coredumps::CoredumpEntry, journal::JournalPriority,
+        DeliveryCadence, ReadingSource, SourceDelivery, coredumps::CoredumpEntry,
+        journal::JournalPriority,
     },
     message_subscriptions::restarting,
 };
@@ -60,27 +60,19 @@ pub struct FailedUnitInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct Failed<S: UnitScope> {
+pub struct FailedUnits {
     pub units: Vec<FailedUnitInfo>,
-    scope: PhantomData<S>,
+    pub scope: SystemdUnitScope,
 }
 
-impl<S: UnitScope> From<Vec<FailedUnitInfo>> for Failed<S> {
-    fn from(units: Vec<FailedUnitInfo>) -> Self {
-        Self {
-            units,
-            scope: PhantomData,
-        }
-    }
-}
-
-impl<S: UnitScope> Failed<S> {
+impl FailedUnits {
     pub fn is_empty(&self) -> bool {
         self.units.is_empty()
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {
-        S::follow_units_log_args(self.units.iter().map(|unit| unit.name.as_str()))
+        self.scope
+            .follow_units_log_args(self.units.iter().map(|unit| unit.name.as_str()))
     }
 }
 
@@ -107,18 +99,19 @@ impl FailedUnitRestart {
     }
 }
 
-impl<S: UnitScope> Source for Failed<S> {
+impl ReadingSource for FailedUnits {
     type Error = Infallible;
-    type Key = ();
+    type Key = SystemdUnitScope;
 
-    const NAME: &'static str = S::FAILED_SOURCE;
-}
+    const NAME: &'static str = "failed systemd units";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl<S: UnitScope> LiveSource for Failed<S> {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        restarting("systemd failed units", || watch_failed(S::PER_USER))
-            .map(|units| Ok(Failed::from(units)))
-            .map(Delivery::Reading)
+    fn delivery_stream(scope: SystemdUnitScope) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        restarting("systemd failed units", move || {
+            watch_failed(scope.per_user())
+        })
+        .map(move |units| Ok(FailedUnits { units, scope }))
+        .map(SourceDelivery::Reading)
     }
 }
 

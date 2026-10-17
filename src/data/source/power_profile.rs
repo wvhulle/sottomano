@@ -7,9 +7,9 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            Delivery, LiveSource, PolledSource, Source, blocking_poll,
-            bus::{self, Bus, DeclaredProperties, Properties, name_owned, prop},
-            present_or_absent, sysfs_sensors, ticked_polls,
+            DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+            bus::{self, Bus, DbusPropertyLookup, Properties, name_owned, prop},
+            polled_delivery_stream, present_or_absent, sysfs_sensors,
         },
     },
     message_subscriptions::restarting,
@@ -124,24 +124,23 @@ impl Conditions {
     }
 }
 
-impl Source for Conditions {
+impl ReadingSource for Conditions {
     type Error = sysfs_sensors::Error;
     type Key = ();
 
     const NAME: &'static str = "power-conditions";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), move || {
+            polled_delivery_stream(key, Self::poll).boxed()
+        })
+    }
 }
 
-impl PolledSource for Conditions {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl Conditions {
+    async fn poll(_key: ()) -> Result<Self, sysfs_sensors::Error> {
         blocking_poll(|| Ok(Conditions::current())).await
-    }
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), move || {
-            ticked_polls::<Self>(key).boxed()
-        })
     }
 }
 
@@ -169,18 +168,17 @@ pub struct ProfileStatus {
     pub degraded: Option<String>,
 }
 
-impl Source for ProfileStatus {
+impl ReadingSource for ProfileStatus {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "power profile";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for ProfileStatus {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, DAEMON_SERVICE), || {
             restarting("power profiles", status_changes)
-                .map(Delivery::Reading)
+                .map(SourceDelivery::Reading)
                 .boxed()
         })
     }

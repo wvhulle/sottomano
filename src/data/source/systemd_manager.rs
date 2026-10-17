@@ -7,7 +7,6 @@ pub mod unit_activity;
 pub mod user_service_manager;
 
 use std::{
-    fmt,
     future::pending,
     hash::Hash,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -32,59 +31,77 @@ use crate::data::source::{bus::Bus, journal::either_of};
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
 
-pub trait UnitScope: Clone + fmt::Debug + PartialEq + Eq + Hash + Send + Sync + 'static {
-    const FAILED_SOURCE: &'static str;
-    const SLOW_JOBS_SOURCE: &'static str;
-    const PER_USER: bool;
-    const BUS: Bus;
-    const CLI_FLAG: Option<&'static str>;
-    const LOGGED_BY: &'static str;
-    const LOGGED_ABOUT: &'static str;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ScopedSystemdUnit {
+    pub scope: SystemdUnitScope,
+    pub unit_name: String,
+}
 
-    fn follow_units_log_args<'a>(names: impl IntoIterator<Item = &'a str>) -> Vec<String> {
-        Self::CLI_FLAG
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemdUnitScope {
+    UserSession,
+    SystemWide,
+}
+
+impl SystemdUnitScope {
+    pub const fn per_user(self) -> bool {
+        match self {
+            SystemdUnitScope::UserSession => true,
+            SystemdUnitScope::SystemWide => false,
+        }
+    }
+
+    pub const fn bus(self) -> Bus {
+        match self {
+            SystemdUnitScope::UserSession => Bus::Session,
+            SystemdUnitScope::SystemWide => Bus::System,
+        }
+    }
+
+    pub const fn journal_logged_by_field(self) -> &'static str {
+        match self {
+            SystemdUnitScope::UserSession => "_SYSTEMD_USER_UNIT",
+            SystemdUnitScope::SystemWide => "_SYSTEMD_UNIT",
+        }
+    }
+
+    const fn journal_logged_about_field(self) -> &'static str {
+        match self {
+            SystemdUnitScope::UserSession => "USER_UNIT",
+            SystemdUnitScope::SystemWide => "UNIT",
+        }
+    }
+
+    const fn journalctl_scope_flag(self) -> Option<&'static str> {
+        match self {
+            SystemdUnitScope::UserSession => Some("--user"),
+            SystemdUnitScope::SystemWide => None,
+        }
+    }
+
+    pub fn follow_units_log_args<'a>(
+        self,
+        names: impl IntoIterator<Item = &'a str>,
+    ) -> Vec<String> {
+        self.journalctl_scope_flag()
             .map(String::from)
             .into_iter()
             .chain(["-x", "-b", "-n", "all", "-f"].map(String::from))
-            .chain(either_of(names.into_iter().flat_map(Self::unit_matches)))
+            .chain(either_of(
+                names.into_iter().flat_map(|name| self.unit_matches(name)),
+            ))
             .collect()
     }
 
-    fn unit_matches(name: &str) -> [String; 4] {
+    fn unit_matches(self, name: &str) -> [String; 4] {
         let stem = name.rsplit_once('.').map_or(name, |(stem, _)| stem);
         [
-            format!("{}={name}", Self::LOGGED_BY),
-            format!("{}={name}", Self::LOGGED_ABOUT),
+            format!("{}={name}", self.journal_logged_by_field()),
+            format!("{}={name}", self.journal_logged_about_field()),
             format!("SYSLOG_IDENTIFIER={stem}"),
             format!("SYSLOG_IDENTIFIER={stem}-start"),
         ]
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct User;
-
-impl UnitScope for User {
-    const FAILED_SOURCE: &'static str = "failed user units";
-    const SLOW_JOBS_SOURCE: &'static str = "slow user jobs";
-    const PER_USER: bool = true;
-    const BUS: Bus = Bus::Session;
-    const CLI_FLAG: Option<&'static str> = Some("--user");
-    const LOGGED_BY: &'static str = "_SYSTEMD_USER_UNIT";
-    const LOGGED_ABOUT: &'static str = "USER_UNIT";
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct System;
-
-impl UnitScope for System {
-    const FAILED_SOURCE: &'static str = "failed system units";
-    const SLOW_JOBS_SOURCE: &'static str = "slow system jobs";
-    const PER_USER: bool = false;
-    const BUS: Bus = Bus::System;
-    const CLI_FLAG: Option<&'static str> = None;
-    const LOGGED_BY: &'static str = "_SYSTEMD_UNIT";
-    const LOGGED_ABOUT: &'static str = "UNIT";
 }
 
 #[proxy(

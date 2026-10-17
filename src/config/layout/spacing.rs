@@ -9,19 +9,9 @@ pub enum Spacing {
     Em(f32),
 }
 
-pub trait Length {
-    fn px(value: f32) -> Self;
-}
-
-impl Length for f32 {
-    fn px(value: f32) -> Self {
-        value
-    }
-}
-
-impl Length for Spacing {
-    fn px(value: f32) -> Self {
-        Self::Px(value)
+impl From<f32> for Spacing {
+    fn from(pixels: f32) -> Self {
+        Self::Px(pixels)
     }
 }
 

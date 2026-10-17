@@ -10,7 +10,7 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         hardware::Adapter,
         net_interfaces::{
             ReadingError, device_or_absent, kept_readings, nm, nm_readings, per_burst,
@@ -112,15 +112,14 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     })
 }
 
-impl Source for Wifi {
+impl ReadingSource for Wifi {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Wifi {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
             restarting(NAME, readings_while_access_point_holds).boxed()
         })
@@ -164,15 +163,14 @@ impl Wifi {
     }
 }
 
-impl Source for WifiDetails {
+impl ReadingSource for WifiDetails {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "wifi details";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for WifiDetails {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
             nm_readings(
                 Self::NAME,

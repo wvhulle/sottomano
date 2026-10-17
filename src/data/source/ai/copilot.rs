@@ -17,13 +17,13 @@ pub use self::{
 };
 use crate::{
     data::source::{
-        Delivery, PolledSource,
+        ReadingSource, SourceDelivery,
         ai::{ccusage, read_secret},
         all_of,
         file_presence::path_present,
         http,
         net_interfaces::nm,
-        present_or_absent, ticked_polls,
+        polled_delivery_stream, present_or_absent,
     },
     widgets::tooltip_body::Section,
 };
@@ -114,22 +114,27 @@ impl UserInfo {
     }
 }
 
-fn plan_polls<S>(
+fn plan_polls<S, F>(
     key: PathBuf,
     on_plan: fn(&UserInfo) -> bool,
-) -> impl Stream<Item = Delivery<S>> + Send
+    poll: impl Fn(PathBuf) -> F + Send + Sync + Clone + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
-    S: PolledSource<Key = PathBuf, Error = Error>,
+    S: ReadingSource<Key = PathBuf, Error = Error> + PartialEq,
+    F: Future<Output = Result<S, Error>> + Send + 'static,
 {
     let reachable = all_of([path_present(key.clone()).boxed(), nm::connected().boxed()]);
     present_or_absent(reachable, move || {
         let checked = key.clone();
         let polled = key.clone();
+        let poll = poll.clone();
         stream::once(async move { user_info(&checked).await })
             .flat_map(move |info| match info {
-                Ok(info) if on_plan(&info) => ticked_polls::<S>(polled.clone()).boxed(),
-                Ok(_) => stream::iter([Delivery::Absent]).boxed(),
-                Err(e) => stream::iter([Delivery::Reading(Err(e))]).boxed(),
+                Ok(info) if on_plan(&info) => {
+                    polled_delivery_stream(polled.clone(), poll.clone()).boxed()
+                }
+                Ok(_) => stream::iter([SourceDelivery::Absent]).boxed(),
+                Err(e) => stream::iter([SourceDelivery::Reading(Err(e))]).boxed(),
             })
             .boxed()
     })

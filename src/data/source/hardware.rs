@@ -7,10 +7,12 @@ use std::{
 };
 
 use bytesize::ByteSize;
+use iced::futures::Stream;
 use serde_json::Value;
 
 use crate::data::source::{
-    Panicked, PolledSource, Source, blocking_poll, command, hostname::MachineInfo,
+    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
+    hostname::MachineInfo, polled_delivery_stream,
 };
 
 const UDEV_DATA: &str = "/run/udev/data";
@@ -245,16 +247,19 @@ pub struct HostHardware {
     pub machine: MachineInfo,
 }
 
-impl Source for HostHardware {
+impl ReadingSource for HostHardware {
     type Error = Panicked;
     type Key = ();
 
     const NAME: &'static str = "host hardware";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for HostHardware {
-    const INTERVAL: Duration = Duration::from_hours(1);
-
+impl HostHardware {
     async fn poll(_key: ()) -> Result<Self, Panicked> {
         let machine = MachineInfo::read().await;
         blocking_poll(move || {

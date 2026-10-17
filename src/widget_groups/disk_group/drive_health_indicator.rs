@@ -10,7 +10,6 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius, celsius_text},
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -71,7 +70,7 @@ impl BarWidget for DriveHealth {
         TooltipBody::sections([
             summary,
             threshold_section,
-            self.identity.hardware_section(),
+            Section::hardware_identity(self.identity.hardware_entries()),
             Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
         ])
     }

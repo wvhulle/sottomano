@@ -13,9 +13,7 @@ use crate::{
         Message,
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
-        pointer_drag::{
-            DragMessage, DragView, DraggedItem, SlotClick, SlotDragEvent, SlotList, SlotPress,
-        },
+        pointer_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     },
     widgets::{
         activity_line::edge_activity_line,
@@ -26,6 +24,7 @@ use crate::{
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
+            BarSlotList, DragView, DraggedBarSlot,
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
         },
@@ -88,11 +87,11 @@ pub fn vertical_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let order = drag.previewed(workspaces, |p| DraggedItem::Workspace(p.id));
+    let order = drag.previewed(workspaces, |p| DraggedBarSlot::Workspace(p.id));
     let rows = order.iter().enumerate().map(|(position, p)| {
         let row = sidebar_row(config, niri, p, drag);
         (
-            DraggedItem::Workspace(p.id),
+            DraggedBarSlot::Workspace(p.id),
             hit_area(p, position, row, drag),
         )
     });
@@ -101,7 +100,7 @@ pub fn vertical_view<'a>(
         .into();
     let draggable = draggable_slot_list(
         indicated(list, &order, config, Position::Left),
-        SlotList::Workspaces,
+        BarSlotList::Workspaces,
         drag,
         dragged,
     );
@@ -180,7 +179,7 @@ pub fn inline_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let order = drag.previewed(workspaces, |p| DraggedItem::Workspace(p.id));
+    let order = drag.previewed(workspaces, |p| DraggedBarSlot::Workspace(p.id));
     let slots = order.iter().enumerate().map(|(position_in_bar, p)| {
         let tone = slot_tone(p, drag);
         let slot = PagerSlot::new(
@@ -192,14 +191,14 @@ pub fn inline_view<'a>(
         .view(config, position);
         let tinted = container(slot).style(drop_tint(config, p, drag)).into();
         (
-            DraggedItem::Workspace(p.id),
+            DraggedBarSlot::Workspace(p.id),
             hit_area(p, position_in_bar, tinted, drag),
         )
     });
     let list = keyed_slot_list(slots, position, config).into();
     let draggable = draggable_slot_list(
         indicated(list, &order, config, position),
-        SlotList::Workspaces,
+        BarSlotList::Workspaces,
         drag,
         dragged,
     );
@@ -236,7 +235,7 @@ fn edge_line<'a>(
     drag: &DragView,
 ) -> Element<'a, WorkspacesMessage> {
     let Some(charge) = drag.hover_charge(
-        DraggedItem::Workspace(p.id),
+        DraggedBarSlot::Workspace(p.id),
         config.panel_bar.drag_spring_load,
     ) else {
         return urgency_line(config, p, position, tone);
@@ -273,7 +272,7 @@ impl SlotTone {
 }
 
 fn slot_tone(p: &niri::WorkspaceIndicator, drag: &DragView) -> SlotTone {
-    if drag.is_dragging(DraggedItem::Workspace(p.id)) {
+    if drag.is_dragging(DraggedBarSlot::Workspace(p.id)) {
         SlotTone::Dragged
     } else {
         SlotTone::Regular
@@ -305,7 +304,7 @@ fn hit_area<'a>(
     drag: &DragView,
 ) -> Element<'a, WorkspacesMessage> {
     let press = SlotPress {
-        item: DraggedItem::Workspace(p.id),
+        item: DraggedBarSlot::Workspace(p.id),
         position,
         click: SlotClick::Workspace {
             id: p.id,

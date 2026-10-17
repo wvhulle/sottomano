@@ -7,7 +7,7 @@ use crate::{
     data::{
         money::Money,
         source::{
-            Delivery,
+            SourceDelivery,
             ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
         },
     },
@@ -27,7 +27,7 @@ pub fn live(tick: u32) -> Vec<Message> {
 }
 
 fn usage_windows_delivered(tick: u32) -> ClaudeUsageMessage {
-    ClaudeUsageMessage::UsageWindows(Box::new(Delivery::Reading(Ok(usage_windows(tick)))))
+    ClaudeUsageMessage::UsageWindows(Box::new(SourceDelivery::Reading(Ok(usage_windows(tick)))))
 }
 
 fn window(utilization_percent: f64, resets_in: TimeDelta) -> WindowUsage {

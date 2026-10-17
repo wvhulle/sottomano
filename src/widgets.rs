@@ -28,7 +28,6 @@ pub mod phosphor;
 pub mod pointer_drag;
 pub mod popup_connector;
 pub mod pressable_text;
-pub mod quota_alert_toast;
 
 pub mod rate_text;
 pub mod refresh_dial;

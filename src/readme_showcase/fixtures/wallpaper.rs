@@ -3,7 +3,7 @@ use uom::si::{angle::degree, f64::Angle};
 use crate::{
     config::SecretPaths,
     data::source::{
-        Delivery,
+        SourceDelivery,
         wallpaper::{Position, Wallpaper, WikipediaArticle},
     },
     readme_showcase::showcased_group::ShowcasedGroup,
@@ -12,9 +12,9 @@ use crate::{
 
 pub fn group() -> ShowcasedGroup {
     let mut group = WallpaperGroup::new(&SecretPaths::default());
-    let _ = group.update(WallpaperMessage::Lookup(Box::new(Delivery::Reading(Ok(
-        Lookup::of(&milos()),
-    )))));
+    let _ = group.update(WallpaperMessage::Lookup(Box::new(SourceDelivery::Reading(
+        Ok(Lookup::of(&milos())),
+    ))));
     ShowcasedGroup::Wallpaper(Box::new(group))
 }
 

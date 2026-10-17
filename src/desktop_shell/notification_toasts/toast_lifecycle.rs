@@ -56,7 +56,7 @@ impl From<u32> for ExitPace {
 }
 
 pub enum BodyClick {
-    Shell(Message),
+    Shell(Box<Message>),
     DbusDefaultAction,
 }
 
@@ -133,7 +133,7 @@ impl ToastContent {
                 at: SystemTime::now(),
                 source: EventSource::ShellFailure,
             },
-            body_click: BodyClick::Shell(on_body_clicked),
+            body_click: BodyClick::Shell(Box::new(on_body_clicked)),
         }
     }
 
@@ -147,7 +147,7 @@ impl ToastContent {
                     glyph: reading.glyph,
                 },
             },
-            body_click: BodyClick::Shell(reading.on_body_clicked),
+            body_click: BodyClick::Shell(Box::new(reading.on_body_clicked)),
         }
     }
 
@@ -164,7 +164,7 @@ impl ToastContent {
                     .map(|button| button.on_button_pressed)
                     .collect(),
             },
-            body_click: BodyClick::Shell(toast.on_body_clicked),
+            body_click: BodyClick::Shell(Box::new(toast.on_body_clicked)),
         }
     }
 }

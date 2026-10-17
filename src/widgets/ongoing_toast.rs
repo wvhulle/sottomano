@@ -7,7 +7,7 @@ use crate::{
     data::{
         notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
         severity::Severity,
-        source::ai::quota::{Pace, Quota, QuotaLimited},
+        source::ai::quota::{Pace, Quota},
     },
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
@@ -164,11 +164,11 @@ impl<Message> OngoingToast<Message> {
 
     pub fn from_quota_pace(
         hover_target: impl Into<HoverTarget>,
-        widget: &(impl QuotaLimited + BarWidget),
+        widget: &dyn BarWidget,
         on_body_clicked: Message,
     ) -> Option<Self> {
         let alerting: Vec<Quota> = widget
-            .quotas(Utc::now())
+            .quota_windows(Utc::now())
             .into_iter()
             .filter(|quota| quota.severity() >= Severity::Warning)
             .collect();

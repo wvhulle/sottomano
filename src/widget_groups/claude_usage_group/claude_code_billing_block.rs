@@ -4,7 +4,7 @@ use crate::{
     data::source::ai::claude::ClaudeCcusageBlock,
     widgets::{
         amount_text::{countdown, spend_text},
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -67,10 +67,8 @@ impl BarWidget for ClaudeCcusageBlock {
             .titled("Active 5-Hour Block"),
         ])
     }
-}
 
-impl Occasional for ClaudeCcusageBlock {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.active.is_some()
     }
 }

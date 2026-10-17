@@ -4,7 +4,7 @@ use uom::si::{f64::Power, power::watt};
 
 use crate::data::{
     battery_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
-    source::{PolledSource, power_profile::Conditions, sysfs_sensors::battery::Battery},
+    source::{power_profile::Conditions, sysfs_sensors::battery::BATTERY_POLL_INTERVAL},
 };
 
 const BASE_DRIFT_W2_PER_S: f64 = 2e-7;
@@ -19,7 +19,7 @@ fn regressors(conditions: Conditions) -> Matrix1x3<f64> {
 
 fn coefficient_drift() -> RandomWalk<3> {
     RandomWalk::over(
-        Battery::INTERVAL,
+        BATTERY_POLL_INTERVAL,
         Vector3::new(
             BASE_DRIFT_W2_PER_S,
             COEFFICIENT_DRIFT_W2_PER_S,

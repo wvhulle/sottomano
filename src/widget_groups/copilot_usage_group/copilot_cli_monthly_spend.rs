@@ -1,14 +1,14 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
 
 use crate::{
     data::{
         money::usd,
-        source::ai::{copilot::CopilotCcusage, quota::QuotaLimited},
+        source::ai::{copilot::CopilotCcusage, quota::Quota},
     },
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -38,7 +38,7 @@ impl BarWidget for CopilotCcusage {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .unwrap_or_else(|| level_from_cost(&self.period.usage.cost))
             .into()
     }
@@ -65,10 +65,12 @@ impl BarWidget for CopilotCcusage {
             .titled(self.period.span.month_heading()),
         ])
     }
-}
 
-impl Occasional for CopilotCcusage {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.period.usage.active()
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }

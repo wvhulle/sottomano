@@ -11,7 +11,6 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
-        hardware_section::HardwareEntries,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
     },
@@ -64,8 +63,8 @@ impl GpuClocks {
     }
 }
 
-impl HardwareEntries for GpuModel {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl GpuModel {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         vec![
             KeyValue::new("Model", self.name.as_str()),
             KeyValue::new("Driver", self.driver_version.as_str()),

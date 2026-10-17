@@ -10,7 +10,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
@@ -26,7 +26,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let kernel = self.kernel.present_reading()?;
+        let kernel = self.kernel.visible_reading()?;
         Some(GroupItem::reading(kernel, JournalTarget::Kernel).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalCommand::journal(
@@ -34,12 +34,6 @@ impl JournalEventsGroup {
                 KernelOccurrence::follow_log_args(),
             )),
         ))
-    }
-}
-
-impl Occasional for Vec<KernelOccurrence> {
-    fn present(&self) -> bool {
-        !self.is_empty()
     }
 }
 
@@ -107,6 +101,10 @@ impl BarWidget for Vec<KernelOccurrence> {
             "Kernel log",
             "Kernel messages at warning or worse in the last hour, repeats merged.",
         ))])
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        !self.is_empty()
     }
 }
 

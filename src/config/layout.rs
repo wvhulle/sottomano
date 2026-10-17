@@ -2,13 +2,13 @@ pub mod spacing;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::layout::spacing::{Length, Spacing};
+use crate::config::layout::spacing::Spacing;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct LayoutConfig<L = f32> {
     pub panel: PanelLayout<L>,
@@ -19,7 +19,7 @@ pub struct LayoutConfig<L = f32> {
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct PanelLayout<L = f32> {
     pub height: L,
@@ -32,7 +32,7 @@ pub struct PanelLayout<L = f32> {
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct OverlayLayout<L = f32> {
     pub panel_gap: L,
@@ -40,7 +40,7 @@ pub struct OverlayLayout<L = f32> {
     pub row_spacing: L,
 }
 
-impl<L: Length> Default for LayoutConfig<L> {
+impl<L: From<f32>> Default for LayoutConfig<L> {
     fn default() -> Self {
         Self {
             panel: PanelLayout::default(),
@@ -49,23 +49,23 @@ impl<L: Length> Default for LayoutConfig<L> {
     }
 }
 
-impl<L: Length> Default for PanelLayout<L> {
+impl<L: From<f32>> Default for PanelLayout<L> {
     fn default() -> Self {
         Self {
-            height: L::px(24.0),
-            group_padding: L::px(5.0),
-            widget_spacing: L::px(4.0),
-            group_spacing: L::px(11.0),
+            height: L::from(24.0),
+            group_padding: L::from(5.0),
+            widget_spacing: L::from(4.0),
+            group_spacing: L::from(11.0),
         }
     }
 }
 
-impl<L: Length> Default for OverlayLayout<L> {
+impl<L: From<f32>> Default for OverlayLayout<L> {
     fn default() -> Self {
         Self {
-            panel_gap: L::px(14.0),
-            content_inset: L::px(10.0),
-            row_spacing: L::px(4.0),
+            panel_gap: L::from(14.0),
+            content_inset: L::from(10.0),
+            row_spacing: L::from(4.0),
         }
     }
 }

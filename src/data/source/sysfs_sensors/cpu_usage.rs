@@ -1,5 +1,6 @@
 use std::{fs, thread, time::Duration};
 
+use iced::futures::Stream;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
@@ -7,7 +8,9 @@ use super::{
     cpu_idle::{CoreDeepIdle, IdleSnapshot},
     cpu_topology::CpuTopology,
 };
-use crate::data::source::{PolledSource, Source, blocking_poll};
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 
 const CPU_STAT: &str = "/proc/stat";
 const SAMPLE_GAP: Duration = Duration::from_millis(200);
@@ -31,32 +34,38 @@ pub struct CpuCoreLoads {
     pub topology: CpuTopology,
 }
 
-impl Source for CpuUsage {
+impl ReadingSource for CpuUsage {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "cpu";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for CpuUsage {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl CpuUsage {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_cpu_usage).await
     }
 }
 
-impl Source for CpuCoreLoads {
+impl ReadingSource for CpuCoreLoads {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "cpu cores";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for CpuCoreLoads {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl CpuCoreLoads {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_core_loads).await
     }
 }

@@ -1,10 +1,10 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use iced::futures::Stream;
 
 use super::{Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
-use crate::data::source::{Delivery, PolledSource, Source};
+use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
@@ -14,21 +14,20 @@ pub struct CopilotFree {
     pub reset: Option<DateTime<Utc>>,
 }
 
-impl Source for CopilotFree {
+impl ReadingSource for CopilotFree {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "copilot-usage-free";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
+
+    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        plan_polls(key, UserInfo::free_plan, Self::poll)
+    }
 }
 
-impl PolledSource for CopilotFree {
-    const INTERVAL: Duration = USER_POLL_INTERVAL;
-
-    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
-        plan_polls::<Self>(key, UserInfo::free_plan)
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl CopilotFree {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let info = user_info(&key).await?;
         let quotas = info.limited_user_quotas.as_ref().ok_or(Error::NoQuota)?;
         Ok(CopilotFree {

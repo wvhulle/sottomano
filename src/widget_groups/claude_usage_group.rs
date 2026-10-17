@@ -10,7 +10,7 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         ai::{
             claude::{
                 ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
@@ -20,7 +20,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
@@ -58,11 +58,11 @@ pub struct ClaudeUsageGroup {
 
 #[derive(Debug, Clone)]
 pub enum ClaudeUsageMessage {
-    UsageWindows(Box<Delivery<ClaudeUsageWindows>>),
-    EnterpriseSpend(Delivery<ClaudeEnterpriseSpend>),
-    OrganizationFetched(Delivery<ClaudeOrganization>),
-    CcusagePeriods(Delivery<ClaudeCcusagePeriods>),
-    CcusageBlock(Delivery<ClaudeCcusageBlock>),
+    UsageWindows(Box<SourceDelivery<ClaudeUsageWindows>>),
+    EnterpriseSpend(SourceDelivery<ClaudeEnterpriseSpend>),
+    OrganizationFetched(SourceDelivery<ClaudeOrganization>),
+    CcusagePeriods(SourceDelivery<ClaudeCcusagePeriods>),
+    CcusageBlock(SourceDelivery<ClaudeCcusageBlock>),
     Expansion(ExpansionMessage),
 }
 
@@ -95,8 +95,11 @@ impl ClaudeUsageGroup {
         let Some(credentials) = self.oauth_credentials.clone() else {
             return Task::none();
         };
-        self.organization
-            .poll(credentials, ClaudeUsageMessage::OrganizationFetched, config)
+        self.organization.start_hover_fetch(
+            credentials,
+            ClaudeUsageMessage::OrganizationFetched,
+            config,
+        )
     }
 
     pub fn subscription(
@@ -106,9 +109,9 @@ impl ClaudeUsageGroup {
     ) -> Subscription<ClaudeUsageMessage> {
         let account = self.oauth_credentials.clone().into_iter().flat_map(|key| {
             [
-                polling::<ClaudeUsageWindows>(key.clone(), forced)
+                source_subscription::<ClaudeUsageWindows>(key.clone(), forced)
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
-                polling::<ClaudeEnterpriseSpend>(key, forced)
+                source_subscription::<ClaudeEnterpriseSpend>(key, forced)
                     .map(ClaudeUsageMessage::EnterpriseSpend),
             ]
         });
@@ -118,9 +121,9 @@ impl ClaudeUsageGroup {
         };
         Subscription::batch(
             account.chain([
-                polling::<ClaudeCcusageBlock>(local_logs.clone(), forced)
+                source_subscription::<ClaudeCcusageBlock>(local_logs.clone(), forced)
                     .map(ClaudeUsageMessage::CcusageBlock),
-                polling::<ClaudeCcusagePeriods>(local_logs, forced)
+                source_subscription::<ClaudeCcusagePeriods>(local_logs, forced)
                     .map(ClaudeUsageMessage::CcusagePeriods),
             ]),
         )
@@ -128,11 +131,21 @@ impl ClaudeUsageGroup {
 
     pub fn update(&mut self, message: ClaudeUsageMessage) -> Task<ClaudeUsageMessage> {
         match message {
-            ClaudeUsageMessage::UsageWindows(reading) => self.usage_windows.receive(*reading),
-            ClaudeUsageMessage::EnterpriseSpend(reading) => self.enterprise_spend.receive(reading),
-            ClaudeUsageMessage::OrganizationFetched(fetched) => self.organization.receive(fetched),
-            ClaudeUsageMessage::CcusagePeriods(reading) => self.ccusage_periods.receive(reading),
-            ClaudeUsageMessage::CcusageBlock(reading) => self.ccusage_block.receive(reading),
+            ClaudeUsageMessage::UsageWindows(reading) => {
+                self.usage_windows.receive_delivery(*reading);
+            }
+            ClaudeUsageMessage::EnterpriseSpend(reading) => {
+                self.enterprise_spend.receive_delivery(reading);
+            }
+            ClaudeUsageMessage::OrganizationFetched(fetched) => {
+                self.organization.receive_delivery(fetched);
+            }
+            ClaudeUsageMessage::CcusagePeriods(reading) => {
+                self.ccusage_periods.receive_delivery(reading);
+            }
+            ClaudeUsageMessage::CcusageBlock(reading) => {
+                self.ccusage_block.receive_delivery(reading);
+            }
             ClaudeUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -152,19 +165,18 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ClaudeUsageMessage> {
-        let expand = ClaudeUsageMessage::Expansion(ExpansionMessage::Expand);
         GroupContent::new(
             &self.expansion,
             ClaudeUsageMessage::Expansion,
             [
                 self.usage_windows
-                    .present_quota_group_item(ClaudeUsageTarget::UsageWindows, expand.clone()),
+                    .group_item(ClaudeUsageTarget::UsageWindows),
                 self.enterprise_spend
-                    .present_quota_group_item(ClaudeUsageTarget::EnterpriseSpend, expand.clone()),
+                    .group_item(ClaudeUsageTarget::EnterpriseSpend),
                 self.ccusage_periods
-                    .quota_group_item(ClaudeUsageTarget::CcusagePeriods, expand),
+                    .group_item(ClaudeUsageTarget::CcusagePeriods),
                 self.ccusage_block
-                    .present_group_item(ClaudeUsageTarget::CcusageBlock),
+                    .group_item(ClaudeUsageTarget::CcusageBlock),
             ]
             .into_iter()
             .flatten(),
@@ -173,6 +185,6 @@ impl ClaudeUsageGroup {
             glyph: SimpleIcon::Claude.into(),
             handle: GroupHandle::ClaudeUsage,
         })
-        .preview(self.usage_windows.present().map(PreviewedValue::Plain))
+        .preview(self.usage_windows.display().map(PreviewedValue::Plain))
     }
 }

@@ -1,9 +1,9 @@
 use iced::{Subscription, Task};
 
 use crate::{
-    data::source::{Delivery, PolledSource, Source},
+    data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, blocking, polling},
+    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -69,17 +69,17 @@ impl BarWidget for IconToggle {
     }
 }
 
-pub trait Toggle: PolledSource + BarWidget {
-    fn toggled(&self) -> Self;
-    fn toggle(&self) -> bool;
-    fn press_does(&self) -> &'static str;
+pub trait ToggleableSource: ReadingSource + BarWidget {
+    fn toggled_value(&self) -> Self;
+    fn apply_toggle(&self) -> bool;
+    fn press_action_text(&self) -> &'static str;
 }
 
-pub struct ToggleControl<S: Source> {
+pub struct ToggleControl<S: ReadingSource> {
     reading: ContinuousReading<S>,
 }
 
-impl<S: Source> Default for ToggleControl<S> {
+impl<S: ReadingSource> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
             reading: ContinuousReading::default(),
@@ -88,29 +88,29 @@ impl<S: Source> Default for ToggleControl<S> {
 }
 
 #[derive(Debug, Clone)]
-pub enum ToggleMessage<S: Toggle> {
-    Reading(Delivery<S>),
+pub enum ToggleMessage<S: ToggleableSource> {
+    Reading(SourceDelivery<S>),
     Press,
 }
 
-impl<S: Toggle> ToggleControl<S> {
+impl<S: ToggleableSource> ToggleControl<S> {
     pub fn subscription(
         key: S::Key,
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ToggleMessage<S>> {
-        polling::<S>(key, forced).map(ToggleMessage::Reading)
+        source_subscription::<S>(key, forced).map(ToggleMessage::Reading)
     }
 
     pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
         match message {
             ToggleMessage::Reading(reading) => {
-                self.reading.receive(reading);
+                self.reading.receive_delivery(reading);
                 Task::none()
             }
             ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
-                    self.assume(current.toggled());
-                    blocking(S::NAME, move || current.toggle()).discard()
+                    self.assume(current.toggled_value());
+                    blocking(S::NAME, move || current.apply_toggle()).discard()
                 }
                 None => Task::none(),
             },
@@ -139,7 +139,7 @@ impl<S: Toggle> ToggleControl<S> {
     ) -> Option<GroupItem<'a, M>> {
         self.reading.get().map(|current| {
             GroupItem::reading(current, target)
-                .on_press(current.press_does(), on_toggle(ToggleMessage::Press))
+                .on_press(current.press_action_text(), on_toggle(ToggleMessage::Press))
         })
     }
 }

@@ -30,8 +30,8 @@ use zbus::{
 
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source,
-        bus::{DeclaredProperties, OwnerProcess, Properties},
+        DeliveryCadence, ReadingSource, SourceDelivery,
+        bus::{DbusPropertyLookup, OwnerProcess, Properties},
     },
     message_subscriptions::restarting,
 };
@@ -458,16 +458,17 @@ async fn load_art(url: &str) -> Option<image::Handle> {
     None
 }
 
-impl Source for Vec<Media> {
+impl ReadingSource for Vec<Media> {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "mpris";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Vec<Media> {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        restarting("mpris", connect).map(Ok).map(Delivery::Reading)
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        restarting("mpris", connect)
+            .map(Ok)
+            .map(SourceDelivery::Reading)
     }
 }
 

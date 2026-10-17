@@ -7,7 +7,7 @@ use crate::{
     data::{
         severity::Severity,
         source::{
-            ai::quota::{Pace, Quota, QuotaLimited},
+            ai::quota::{Pace, Quota},
             focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
         },
     },
@@ -149,8 +149,8 @@ impl UnitSpendRecord {
     }
 }
 
-impl QuotaLimited for DailyTotalsGauge {
-    fn quotas(&self, _now: DateTime<Utc>) -> Vec<Quota> {
+impl DailyTotalsGauge {
+    pub fn quotas(&self, _now: DateTime<Utc>) -> Vec<Quota> {
         self.units
             .iter()
             .filter_map(|record| record.budget_status.as_ref())
@@ -177,7 +177,9 @@ impl BarWidget for DailyTotalsGauge {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now()).unwrap_or_default().into()
+        Quota::worst_severity(&self.quotas(Utc::now()))
+            .unwrap_or_default()
+            .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -186,5 +188,9 @@ impl BarWidget for DailyTotalsGauge {
 
     fn tooltip(&self) -> TooltipBody {
         TooltipBody::sections(self.sections())
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }

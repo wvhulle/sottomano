@@ -8,11 +8,11 @@ mod service_error_log;
 use crate::{
     config::Config,
     data::source::{
-        Delivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
+        SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
         oom_kills::OomKillEntry, service_errors::ServiceErrors,
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -53,10 +53,10 @@ pub struct JournalEventsGroup {
 
 #[derive(Debug, Clone)]
 pub enum JournalEventsMessage {
-    Kernel(Delivery<Vec<KernelOccurrence>>),
-    ServiceErrors(Delivery<ServiceErrors>),
-    Coredumps(Delivery<Vec<CoredumpEntry>>),
-    OomKills(Delivery<Vec<OomKillEntry>>),
+    Kernel(SourceDelivery<Vec<KernelOccurrence>>),
+    ServiceErrors(SourceDelivery<ServiceErrors>),
+    Coredumps(SourceDelivery<Vec<CoredumpEntry>>),
+    OomKills(SourceDelivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -68,21 +68,29 @@ impl JournalEventsGroup {
 
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            listening::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
-            listening::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
-            listening::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
-            listening::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
+            source_subscription::<Vec<KernelOccurrence>>((), None)
+                .map(JournalEventsMessage::Kernel),
+            source_subscription::<ServiceErrors>((), None).map(JournalEventsMessage::ServiceErrors),
+            source_subscription::<Vec<CoredumpEntry>>((), None)
+                .map(JournalEventsMessage::Coredumps),
+            source_subscription::<Vec<OomKillEntry>>((), None).map(JournalEventsMessage::OomKills),
         ])
     }
 
     pub fn update(&mut self, msg: JournalEventsMessage) -> Task<JournalEventsMessage> {
         match msg {
-            JournalEventsMessage::Kernel(delivery) => self.kernel.push_or_keep(delivery),
-            JournalEventsMessage::ServiceErrors(delivery) => {
-                self.service_errors.push_or_keep(delivery);
+            JournalEventsMessage::Kernel(delivery) => {
+                self.kernel.receive_keeping_last_reading(delivery);
             }
-            JournalEventsMessage::Coredumps(delivery) => self.coredumps.push_or_keep(delivery),
-            JournalEventsMessage::OomKills(delivery) => self.oom_kills.push_or_keep(delivery),
+            JournalEventsMessage::ServiceErrors(delivery) => {
+                self.service_errors.receive_keeping_last_reading(delivery);
+            }
+            JournalEventsMessage::Coredumps(delivery) => {
+                self.coredumps.receive_keeping_last_reading(delivery);
+            }
+            JournalEventsMessage::OomKills(delivery) => {
+                self.oom_kills.receive_keeping_last_reading(delivery);
+            }
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -93,10 +101,10 @@ impl JournalEventsGroup {
 
     pub fn tooltip_for(&self, target: JournalTarget) -> Option<Tooltip> {
         match target {
-            JournalTarget::Kernel => self.kernel.present_tooltip(),
-            JournalTarget::ServiceErrors => self.service_errors.present_tooltip(),
-            JournalTarget::Coredumps => self.coredumps.present_tooltip(),
-            JournalTarget::OomKills => self.oom_kills.present_tooltip(),
+            JournalTarget::Kernel => self.kernel.tooltip(),
+            JournalTarget::ServiceErrors => self.service_errors.tooltip(),
+            JournalTarget::Coredumps => self.coredumps.tooltip(),
+            JournalTarget::OomKills => self.oom_kills.tooltip(),
             JournalTarget::Events => self
                 .kernel
                 .tooltip_with(self.tooltip())
@@ -118,7 +126,7 @@ impl JournalEventsGroup {
                 has_kinds.then(|| GroupItem::reading(self, JournalTarget::Events)),
                 self.kernel_log_item(config),
                 self.service_errors
-                    .present_reading()
+                    .visible_reading()
                     .map(|service_errors| service_errors.group_item(config)),
                 self.coredump_log_item(config),
                 self.oom_kill_log_item(config),
@@ -130,15 +138,15 @@ impl JournalEventsGroup {
 
     fn kinds(&self) -> [Option<&dyn BarWidget>; 4] {
         [
-            self.kernel.present_reading().map(|w| w as &dyn BarWidget),
+            self.kernel.visible_reading().map(|w| w as &dyn BarWidget),
             self.service_errors
-                .present_reading()
+                .visible_reading()
                 .map(|w| w as &dyn BarWidget),
             self.coredumps
-                .present_reading()
+                .visible_reading()
                 .map(|w| w as &dyn BarWidget),
             self.oom_kills
-                .present_reading()
+                .visible_reading()
                 .map(|w| w as &dyn BarWidget),
         ]
     }
@@ -176,19 +184,19 @@ impl BarWidget for JournalEventsGroup {
     fn tooltip(&self) -> TooltipBody {
         let kernel = self
             .kernel
-            .present_reading()
+            .visible_reading()
             .map(|errors| KeyValue::new("Kernel errors", errors.len().to_string()));
         let service = self
             .service_errors
-            .present_reading()
+            .visible_reading()
             .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
         let coredumps = self
             .coredumps
-            .present_reading()
+            .visible_reading()
             .map(|coredumps| KeyValue::new("Coredumps", coredumps.len().to_string()));
         let oom_kills = self
             .oom_kills
-            .present_reading()
+            .visible_reading()
             .map(|kills| KeyValue::new("OOM kills", kills.len().to_string()));
         TooltipBody::sections([Section::dictionary(
             kernel

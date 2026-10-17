@@ -14,7 +14,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional, OngoingToastThreshold},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
@@ -31,7 +31,7 @@ impl PendingUpgradesGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, PendingUpgradesMessage>> {
-        let upgrades = self.firmware.present_reading()?;
+        let upgrades = self.firmware.visible_reading()?;
         let install = PendingUpgradesMessage::OpenTerminal(TerminalCommand::running(
             config,
             ["fwupdmgr", "update"].map(String::from),
@@ -45,12 +45,6 @@ impl PendingUpgradesGroup {
                     on_button_pressed: install,
                 }]),
         )
-    }
-}
-
-impl Occasional for Vec<FirmwareUpgrade> {
-    fn present(&self) -> bool {
-        !self.is_empty()
     }
 }
 
@@ -104,6 +98,10 @@ impl BarWidget for Vec<FirmwareUpgrade> {
             self.iter().map(FirmwareUpgrade::table_record),
         )
         .titled(LABEL)])
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        !self.is_empty()
     }
 }
 

@@ -4,7 +4,7 @@ use zbus::{Connection, proxy};
 
 use crate::{
     data::source::{
-        Delivery, LiveSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         bus::{self, Bus, Properties, name_owned, prop, service_absent},
         present_or_absent,
     },
@@ -74,17 +74,16 @@ pub struct FirmwareUpgrade {
 
 pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, bus::Error>;
 
-impl Source for Vec<FirmwareUpgrade> {
+impl ReadingSource for Vec<FirmwareUpgrade> {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "firmware upgrades";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Vec<FirmwareUpgrade> {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, FWUPD_SERVICE), || {
-            signalled_upgrades().map(Delivery::Reading).boxed()
+            signalled_upgrades().map(SourceDelivery::Reading).boxed()
         })
     }
 }

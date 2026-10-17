@@ -10,7 +10,7 @@ use uom::si::f64::Ratio;
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         bus::OwnerProcess,
         desktop_entries::DesktopIndex,
         mpris::{self, Command, Media, Progress, Status},
@@ -20,7 +20,7 @@ use crate::{
         AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
-    message_subscriptions::{blocking, listening},
+    message_subscriptions::{blocking, source_subscription},
     widgets::{
         bar_widget::Glyph,
         confirm_button::{ConfirmButton, Press},
@@ -95,7 +95,7 @@ impl Default for MediaGroup {
 
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
-    Reading(Delivery<Vec<Media>>),
+    Reading(SourceDelivery<Vec<Media>>),
     Tick(Instant),
     Expansion(ExpansionMessage),
     Command(Command),
@@ -117,7 +117,7 @@ impl MediaGroup {
     }
 
     pub fn subscription(&self) -> Subscription<MediaMessage> {
-        let readings = listening::<Vec<Media>>(()).map(MediaMessage::Reading);
+        let readings = source_subscription::<Vec<Media>>((), None).map(MediaMessage::Reading);
         if self.is_progressing() {
             Subscription::batch([readings, every(PROGRESS_TICK).map(MediaMessage::Tick)])
         } else {
@@ -145,7 +145,7 @@ impl MediaGroup {
         match msg {
             MediaMessage::Tick(now) => self.now = now,
             MediaMessage::Reading(delivery) => {
-                self.players.push_or_keep(delivery);
+                self.players.receive_keeping_last_reading(delivery);
                 self.now = Instant::now();
                 if let Some(bus) = &self.forced
                     && !self

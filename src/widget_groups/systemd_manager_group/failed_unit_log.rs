@@ -10,16 +10,16 @@ use crate::{
         source::{
             coredumps::CoredumpEntry,
             systemd_manager::failed_units::{
-                Failed, FailedUnitInfo, FailedUnitRestart, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+                FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome,
+                UNIT_FAILURE_PRIORITY,
             },
         },
     },
     widget_groups::{
-        systemd_manager_group::{ScopeAppearance, SystemdManagerMessage},
-        terminal_command::TerminalCommand,
+        systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
@@ -28,11 +28,11 @@ use crate::{
     },
 };
 
-impl<S: ScopeAppearance> Failed<S> {
+impl FailedUnits {
     pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
-        GroupItem::reading(self, S::FAILED_TARGET)
+        GroupItem::reading(self, self.scope.failed_units_target())
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 open_log(self.follow_log_args()),
@@ -47,11 +47,11 @@ impl<S: ScopeAppearance> Failed<S> {
         self.units.iter().map(move |unit| {
             let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
-                S::follow_units_log_args([unit.name.as_str()]),
+                self.scope.follow_units_log_args([unit.name.as_str()]),
             ));
             OngoingToast {
                 widget_name: self.name(),
-                key: OngoingKey::Reading(S::failed_unit_target(unit.name.clone()).into()),
+                key: OngoingKey::Reading(self.scope.failed_unit_target(unit.name.clone()).into()),
                 severity: UNIT_FAILURE_PRIORITY.severity(),
                 summary_text: Cow::Owned(format!("{} failed", unit.name)),
                 body: failure_summary(unit, config.calendar.locale)
@@ -65,7 +65,7 @@ impl<S: ScopeAppearance> Failed<S> {
                         tint: ActionTint::Proceed,
                         on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
                             FailedUnitRestart {
-                                per_user: S::PER_USER,
+                                per_user: self.scope.per_user(),
                                 unit: unit.name.clone(),
                             },
                         ),
@@ -112,19 +112,20 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
     (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
-impl<S: ScopeAppearance> Occasional for Failed<S> {
-    fn present(&self) -> bool {
+impl BarWidget for FailedUnits {
+    fn visible_in_bar(&self) -> bool {
         !self.is_empty()
     }
-}
 
-impl<S: ScopeAppearance> BarWidget for Failed<S> {
     fn name(&self) -> &'static str {
-        S::FAILED_LABEL
+        self.scope.failed_units_label()
     }
 
     fn icon(&self) -> Glyph {
-        S::ICON.with_weight(self.state().weight()).into()
+        self.scope
+            .scope_icon()
+            .with_weight(self.state().weight())
+            .into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -148,7 +149,7 @@ impl<S: ScopeAppearance> BarWidget for Failed<S> {
             units.iter().map(FailedUnitInfo::table_record),
         )
         .titled((
-            S::FAILED_LABEL,
+            self.scope.failed_units_label(),
             "Units in the failed state now; each toasts until it recovers.",
         ))])
     }
@@ -192,7 +193,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::source::systemd_manager::System,
+        data::source::systemd_manager::SystemdUnitScope,
         widgets::tooltip_body::{Section, SectionBody},
     };
 
@@ -218,13 +219,16 @@ mod tests {
     #[test]
     fn units_list_newest_first_with_unknown_times_last() {
         let minutes = |count: u64| Some(Duration::from_secs(count * 60));
-        let units = Failed::<System>::from(vec![
-            failed("undated.service", None),
-            failed("old.service", minutes(180)),
-            failed("fresh.service", minutes(1)),
-            failed("older.service", minutes(300)),
-            failed("recent.service", minutes(20)),
-        ]);
+        let units = FailedUnits {
+            units: vec![
+                failed("undated.service", None),
+                failed("old.service", minutes(180)),
+                failed("fresh.service", minutes(1)),
+                failed("older.service", minutes(300)),
+                failed("recent.service", minutes(20)),
+            ],
+            scope: SystemdUnitScope::SystemWide,
+        };
         let TooltipBody::Sections(sections) = units.tooltip() else {
             panic!("expected sections");
         };

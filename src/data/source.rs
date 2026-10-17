@@ -95,42 +95,50 @@ where
         .unwrap_or_else(|_| Err(E::from(Panicked)))
 }
 
-pub trait Source: Clone + Debug + Sized + Send + 'static {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeliveryCadence {
+    PolledEvery(Duration),
+    PushedLive,
+}
+
+pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
     type Error: Clone + Debug + Display + Send + Into<Section> + 'static;
     type Key: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
+    const DELIVERY_CADENCE: DeliveryCadence;
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send;
 }
 
 #[derive(Debug, Clone)]
-pub enum Delivery<S: Source> {
+pub enum SourceDelivery<S: ReadingSource> {
     Absent,
     Reading(Result<S, S::Error>),
 }
 
-pub trait PolledSource: Source + PartialEq {
-    const INTERVAL: Duration;
-
-    fn poll(key: Self::Key) -> impl Future<Output = Result<Self, Self::Error>> + Send;
-
-    fn polls(key: Self::Key) -> impl Stream<Item = Delivery<Self>> + Send {
-        ticked_polls::<Self>(key)
-    }
+pub fn polled_delivery_stream<S, F>(
+    key: S::Key,
+    poll: impl Fn(S::Key) -> F + Send + Clone + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource + PartialEq,
+    F: Future<Output = Result<S, S::Error>> + Send,
+{
+    let DeliveryCadence::PolledEvery(every) = S::DELIVERY_CADENCE else {
+        return stream::once(poll(key))
+            .map(SourceDelivery::Reading)
+            .left_stream();
+    };
+    drop_unchanged_deliveries(ticked(every, move || poll(key.clone())).map(SourceDelivery::Reading))
+        .right_stream()
 }
 
-pub trait LiveSource: Source {
-    fn events(key: Self::Key) -> impl Stream<Item = Delivery<Self>> + Send;
-}
-
-pub fn ticked_polls<S: PolledSource>(key: S::Key) -> impl Stream<Item = Delivery<S>> + Send {
-    emit_delivery_changes(ticked(S::INTERVAL, move || S::poll(key.clone())).map(Delivery::Reading))
-}
-
-pub fn present_or_absent<S: Source>(
+pub fn present_or_absent<S: ReadingSource>(
     presence: impl Stream<Item = bool> + Send + 'static,
-    readings: impl FnMut() -> BoxStream<'static, Delivery<S>> + Send + 'static,
-) -> impl Stream<Item = Delivery<S>> + Send {
-    while_present(presence, readings).map(|delivery| delivery.unwrap_or(Delivery::Absent))
+    readings: impl FnMut() -> BoxStream<'static, SourceDelivery<S>> + Send + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send {
+    while_present(presence, readings).map(|delivery| delivery.unwrap_or(SourceDelivery::Absent))
 }
 
 pub fn while_present<T: Send + 'static>(
@@ -232,23 +240,23 @@ pub fn emit_changes<T: Clone + PartialEq>(
         .filter_map(ready)
 }
 
-pub fn emit_delivery_changes<S: PolledSource>(
-    deliveries: impl Stream<Item = Delivery<S>> + Send,
-) -> impl Stream<Item = Delivery<S>> + Send {
+pub fn drop_unchanged_deliveries<S: ReadingSource + PartialEq>(
+    deliveries: impl Stream<Item = SourceDelivery<S>> + Send,
+) -> impl Stream<Item = SourceDelivery<S>> + Send {
     deliveries
         .scan(LastDelivery::Nothing, |last, delivery| {
             let emit = match &delivery {
-                Delivery::Absent => {
+                SourceDelivery::Absent => {
                     let changed = !matches!(last, LastDelivery::Absent);
                     *last = LastDelivery::Absent;
                     changed
                 }
-                Delivery::Reading(Ok(value)) => {
+                SourceDelivery::Reading(Ok(value)) => {
                     let changed = !matches!(last, LastDelivery::Value(known) if known == value);
                     *last = LastDelivery::Value(value.clone());
                     changed
                 }
-                Delivery::Reading(Err(_)) => {
+                SourceDelivery::Reading(Err(_)) => {
                     *last = LastDelivery::Nothing;
                     true
                 }

@@ -1,9 +1,9 @@
 use std::{
     fs,
-    marker::PhantomData,
     time::{Duration, Instant},
 };
 
+use iced::futures::Stream;
 use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Ratio, Time},
@@ -13,42 +13,45 @@ use uom::si::{
 };
 
 use super::{Error, mount::RootMount};
-use crate::data::source::{PolledSource, Source};
+use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
 const SECTOR_BYTES: f64 = 512.0;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Reading;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskTransferDirection {
+    Read,
+    Write,
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Writing;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct DiskTransfer<D> {
+pub struct DiskTransfer {
     pub disk: String,
     pub rate: InformationRate,
     pub disk_busy: Ratio,
-    direction: PhantomData<D>,
+    pub direction: DiskTransferDirection,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiskActivity {
-    pub read: DiskTransfer<Reading>,
-    pub write: DiskTransfer<Writing>,
+    pub read: DiskTransfer,
+    pub write: DiskTransfer,
 }
 
-impl Source for DiskActivity {
+impl ReadingSource for DiskActivity {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "disk activity";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for DiskActivity {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
+impl DiskActivity {
     async fn poll(_key: ()) -> Result<Self, Error> {
         let earlier = CounterSample::take()?;
         sleep(SAMPLE_WINDOW).await;
@@ -56,36 +59,6 @@ impl PolledSource for DiskActivity {
         Ok(later
             .counters
             .activity_since(&earlier.counters, later.at - earlier.at, later.disk))
-    }
-}
-
-impl Source for DiskTransfer<Reading> {
-    type Error = Error;
-    type Key = ();
-
-    const NAME: &'static str = "disk read";
-}
-
-impl PolledSource for DiskTransfer<Reading> {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        DiskActivity::poll(()).await.map(|activity| activity.read)
-    }
-}
-
-impl Source for DiskTransfer<Writing> {
-    type Error = Error;
-    type Key = ();
-
-    const NAME: &'static str = "disk write";
-}
-
-impl PolledSource for DiskTransfer<Writing> {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        DiskActivity::poll(()).await.map(|activity| activity.write)
     }
 }
 
@@ -143,27 +116,18 @@ impl BlockCounters {
         );
         let disk_busy = (busy / elapsed).min(Ratio::new::<ratio>(1.0));
         DiskActivity {
-            read: DiskTransfer::new(
-                disk.clone(),
-                rate(self.sectors_read, earlier.sectors_read),
+            read: DiskTransfer {
+                disk: disk.clone(),
+                rate: rate(self.sectors_read, earlier.sectors_read),
                 disk_busy,
-            ),
-            write: DiskTransfer::new(
+                direction: DiskTransferDirection::Read,
+            },
+            write: DiskTransfer {
                 disk,
-                rate(self.sectors_written, earlier.sectors_written),
+                rate: rate(self.sectors_written, earlier.sectors_written),
                 disk_busy,
-            ),
-        }
-    }
-}
-
-impl<D> DiskTransfer<D> {
-    fn new(disk: String, rate: InformationRate, disk_busy: Ratio) -> Self {
-        DiskTransfer {
-            disk,
-            rate,
-            disk_busy,
-            direction: PhantomData,
+                direction: DiskTransferDirection::Write,
+            },
         }
     }
 }

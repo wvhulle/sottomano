@@ -11,19 +11,18 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         gpu::{
             GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
             PciBusId,
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         tooltip_body::{Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -88,10 +87,10 @@ pub struct GpuGroup {
 
 #[derive(Debug, Clone)]
 pub enum GpuMessage {
-    Discovered(Delivery<GpuDiscovery>),
-    Snapshot(PciBusId, Delivery<GpuSnapshot>),
-    ClocksFetched(Delivery<GpuClocks>),
-    ProcessesFetched(Delivery<GpuProcesses>),
+    Discovered(SourceDelivery<GpuDiscovery>),
+    Snapshot(PciBusId, SourceDelivery<GpuSnapshot>),
+    ClocksFetched(SourceDelivery<GpuClocks>),
+    ProcessesFetched(SourceDelivery<GpuProcesses>),
     Expansion(ExpansionMessage),
 }
 
@@ -103,13 +102,13 @@ impl GpuGroup {
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<GpuMessage> {
         let snapshots = self.devices.iter().filter_map(|(bus, device)| {
             Some(
-                polling::<GpuSnapshot>(device.nvml.clone()?, forced)
+                source_subscription::<GpuSnapshot>(device.nvml.clone()?, forced)
                     .with(bus.clone())
                     .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
             )
         });
         Subscription::batch(
-            [polling::<GpuDiscovery>((), forced).map(GpuMessage::Discovered)]
+            [source_subscription::<GpuDiscovery>((), forced).map(GpuMessage::Discovered)]
                 .into_iter()
                 .chain(snapshots),
         )
@@ -132,9 +131,9 @@ impl GpuGroup {
         };
         Task::batch([
             self.clocks
-                .poll(nvml.clone(), GpuMessage::ClocksFetched, config),
+                .start_hover_fetch(nvml.clone(), GpuMessage::ClocksFetched, config),
             self.processes
-                .poll(nvml, GpuMessage::ProcessesFetched, config),
+                .start_hover_fetch(nvml, GpuMessage::ProcessesFetched, config),
         ])
     }
 
@@ -153,7 +152,7 @@ impl GpuGroup {
     pub fn update(&mut self, msg: GpuMessage) -> Task<GpuMessage> {
         match msg {
             GpuMessage::Discovered(reading) => {
-                self.discovery.receive_or_keep(reading);
+                self.discovery.receive_keeping_last_reading(reading);
                 let Some(discovery) = self.discovery.get() else {
                     return Task::none();
                 };
@@ -163,7 +162,8 @@ impl GpuGroup {
                     .map(|gpu| {
                         let mut snapshot = ContinuousReading::default();
                         if let Err(failure) = &discovery.nvml {
-                            snapshot.receive(Delivery::Reading(Err(failure.clone())));
+                            snapshot
+                                .receive_delivery(SourceDelivery::Reading(Err(failure.clone())));
                         }
                         let device = GpuDevice {
                             model: gpu.model.clone(),
@@ -180,11 +180,11 @@ impl GpuGroup {
             }
             GpuMessage::Snapshot(bus, reading) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
-                    device.snapshot.receive(reading);
+                    device.snapshot.receive_delivery(reading);
                 }
             }
-            GpuMessage::ClocksFetched(fetched) => self.clocks.receive(fetched),
-            GpuMessage::ProcessesFetched(fetched) => self.processes.receive(fetched),
+            GpuMessage::ClocksFetched(fetched) => self.clocks.receive_delivery(fetched),
+            GpuMessage::ProcessesFetched(fetched) => self.processes.receive_delivery(fetched),
             GpuMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -229,8 +229,11 @@ impl GpuGroup {
                     self.hovered_sections(&target.bus, |group| {
                         group.clocks.sections(GpuClocks::sections)
                     }),
-                    self.discovery
-                        .sections(|_| vec![device.model.hardware_section()]),
+                    self.discovery.sections(|_| {
+                        vec![Section::hardware_identity(
+                            device.model.iter().flat_map(GpuModel::hardware_entries),
+                        )]
+                    }),
                 ]
                 .concat(),
             ),

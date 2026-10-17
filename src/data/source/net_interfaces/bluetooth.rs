@@ -4,7 +4,7 @@ use iced::futures::{Stream, StreamExt};
 use zbus::fdo::ManagedObjects;
 
 use crate::data::source::{
-    Delivery, LiveSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     bus::prop,
     hardware::Adapter,
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
@@ -100,15 +100,14 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     })
 }
 
-impl Source for Bluetooth {
+impl ReadingSource for Bluetooth {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Bluetooth {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(SERVICE, || {
             managed_objects_readings(NAME, SERVICE, ROOT, reading).boxed()
         })

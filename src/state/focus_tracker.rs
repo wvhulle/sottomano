@@ -110,15 +110,15 @@ impl FocusTracker {
                 self.fold(FocusSignal::WindowFocusChanged(change), now)
             }
             TrackerMessage::Idle(edge) => self.fold(
-                FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifierEdge(edge)),
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifier(edge)),
                 now,
             ),
             TrackerMessage::Sleep(edge) => self.fold(
-                FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleepEdge(edge)),
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleep(edge)),
                 now,
             ),
             TrackerMessage::ScreenPowerChanged(edge) => self.fold(
-                FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPowerEdge(edge)),
+                FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPower(edge)),
                 now,
             ),
         };

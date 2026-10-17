@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Utc};
 
 use crate::{
-    data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::QuotaLimited},
+    data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::Quota},
     widgets::{
         amount_text::{spend_text, token_count},
         bar_widget::{BarWidget, Glyph},
@@ -33,7 +33,7 @@ impl BarWidget for ClaudeCcusagePeriods {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .unwrap_or_else(|| level_from_cost(&self.recent.today.usage.cost))
             .into()
     }
@@ -62,6 +62,10 @@ impl BarWidget for ClaudeCcusagePeriods {
                 now,
             ),
         ])
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }
 

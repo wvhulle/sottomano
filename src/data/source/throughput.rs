@@ -3,7 +3,6 @@ use std::{
     convert::Infallible,
     fs,
     future::ready,
-    marker::PhantomData,
     mem,
     ops::Add,
     path::Path,
@@ -12,7 +11,6 @@ use std::{
 
 use bytesize::ByteSize;
 use iced::futures::{Stream, StreamExt, stream::select};
-use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,
@@ -20,11 +18,10 @@ use uom::si::{
     ratio::ratio,
     time::second,
 };
-use zbus::Connection;
 
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source, emit_delivery_changes,
+        DeliveryCadence, ReadingSource, SourceDelivery, drop_unchanged_deliveries,
         net_interfaces::{
             nm::{self, Connectivity},
             nm_readings,
@@ -34,27 +31,24 @@ use crate::{
 };
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
-const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
 const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
 pub const SCALE_END_MB_PER_S: f64 = 125.0;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Upload;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetworkTrafficDirection {
+    Upload,
+    Download,
+    Combined,
+}
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Download;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Total;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Throughput<D> {
+pub struct Throughput {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
     pub peak_rate: InformationRate,
     pub connectivity: Option<Connectivity>,
-    direction: PhantomData<D>,
+    pub direction: NetworkTrafficDirection,
 }
 
 #[allow(clippy::cast_possible_truncation)]
@@ -69,7 +63,7 @@ pub fn fraction_of_scale(rate: InformationRate) -> f32 {
     ((log_position_of_rate / log_width_of_scale) as f32).clamp(0.0, 1.0)
 }
 
-impl<D> Throughput<D> {
+impl Throughput {
     fn fraction_of_carried(&self, rate: InformationRate) -> f32 {
         if self.interfaces.is_empty() {
             return 0.0;
@@ -92,42 +86,23 @@ impl<D> Throughput<D> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Readings {
-    pub down: Throughput<Download>,
-    pub up: Throughput<Upload>,
-    pub total: Throughput<Total>,
+    pub down: Throughput,
+    pub up: Throughput,
+    pub total: Throughput,
 }
 
-impl Source for Readings {
+impl ReadingSource for Readings {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "throughput";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
 
-impl PolledSource for Readings {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Infallible> {
-        let uplink = match Connection::system().await {
-            Ok(connection) => nm::uplink(connection).await.ok(),
-            Err(_) => None,
-        };
-        let connectivity = uplink.as_ref().and_then(|uplink| uplink.connectivity);
-        let interfaces = uplink
-            .map(|uplink| physical(&uplink.activated_interfaces))
-            .unwrap_or_default();
-        let earlier = capture(&interfaces);
-        sleep(SAMPLE_WINDOW).await;
-        let current = capture(&interfaces);
-        let rates = current.rates_since(&earlier);
-        Ok(readings(&current, rates, rates, connectivity))
-    }
-
-    fn polls(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let uplink_changes = nm_readings("throughput uplink", nm::UPLINK_PROPERTIES, nm::uplink)
             .map(ThroughputEvent::UplinkChanged);
-        let ticks = ticked(Self::INTERVAL, || ready(ThroughputEvent::Tick));
-        emit_delivery_changes(
+        let ticks = ticked(SAMPLE_INTERVAL, || ready(ThroughputEvent::Tick));
+        drop_unchanged_deliveries(
             select(uplink_changes, ticks)
                 .scan(ThroughputSampler::default(), |sampler, event| {
                     let sampled = matches!(event, ThroughputEvent::Tick);
@@ -135,7 +110,7 @@ impl PolledSource for Readings {
                     ready(Some(sampled.then(|| sampler.readings()).flatten()))
                 })
                 .filter_map(ready)
-                .map(|readings| Delivery::Reading(Ok(readings))),
+                .map(|readings| SourceDelivery::Reading(Ok(readings))),
         )
     }
 }
@@ -185,51 +160,6 @@ impl ThroughputSampler {
         self.latest
             .as_ref()
             .map(|latest| readings(latest, self.rates, self.peak, self.connectivity))
-    }
-}
-
-impl Source for Throughput<Download> {
-    type Error = Infallible;
-    type Key = ();
-
-    const NAME: &'static str = "download";
-}
-
-impl PolledSource for Throughput<Download> {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Infallible> {
-        Readings::poll(()).await.map(|readings| readings.down)
-    }
-}
-
-impl Source for Throughput<Upload> {
-    type Error = Infallible;
-    type Key = ();
-
-    const NAME: &'static str = "upload";
-}
-
-impl PolledSource for Throughput<Upload> {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Infallible> {
-        Readings::poll(()).await.map(|readings| readings.up)
-    }
-}
-
-impl Source for Throughput<Total> {
-    type Error = Infallible;
-    type Key = ();
-
-    const NAME: &'static str = "total throughput";
-}
-
-impl PolledSource for Throughput<Total> {
-    const INTERVAL: Duration = SAMPLE_INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Infallible> {
-        Readings::poll(()).await.map(|readings| readings.total)
     }
 }
 
@@ -319,21 +249,21 @@ fn readings(
             rate: rates.rx,
             peak_rate: peak.rx,
             connectivity,
-            direction: PhantomData,
+            direction: NetworkTrafficDirection::Download,
         },
         up: Throughput {
             interfaces: interfaces.clone(),
             rate: rates.tx,
             peak_rate: peak.tx,
             connectivity,
-            direction: PhantomData,
+            direction: NetworkTrafficDirection::Upload,
         },
         total: Throughput {
             interfaces,
             rate: rates.both_directions(),
             peak_rate: peak.both_directions(),
             connectivity,
-            direction: PhantomData,
+            direction: NetworkTrafficDirection::Combined,
         },
     }
 }

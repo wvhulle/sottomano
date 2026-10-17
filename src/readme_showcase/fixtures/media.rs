@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         bus::OwnerProcess,
         desktop_entries::DesktopIndex,
         mpris::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
@@ -19,7 +19,7 @@ pub fn live(_tick: u32) -> Vec<Message> {
 pub fn group() -> ShowcasedGroup {
     let mut group = MediaGroup::default();
     let _ = group.update(MediaMessage::Tick(Instant::now()));
-    let _ = group.update(MediaMessage::Reading(Delivery::Reading(Ok(vec![
+    let _ = group.update(MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![
         now_playing(),
     ]))));
     ShowcasedGroup::Media(Box::new(ShowcasedMedia {

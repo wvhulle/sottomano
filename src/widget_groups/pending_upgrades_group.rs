@@ -4,9 +4,9 @@ mod firmware_upgrade_list;
 
 use crate::{
     config::Config,
-    data::source::{Delivery, fwupd::FirmwareUpgrade},
+    data::source::{SourceDelivery, fwupd::FirmwareUpgrade},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -39,7 +39,7 @@ pub struct PendingUpgradesGroup {
 
 #[derive(Debug, Clone)]
 pub enum PendingUpgradesMessage {
-    Firmware(Delivery<Vec<FirmwareUpgrade>>),
+    Firmware(SourceDelivery<Vec<FirmwareUpgrade>>),
     OpenTerminal(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -50,12 +50,12 @@ impl PendingUpgradesGroup {
     }
 
     pub fn subscription() -> Subscription<PendingUpgradesMessage> {
-        listening::<Vec<FirmwareUpgrade>>(()).map(PendingUpgradesMessage::Firmware)
+        source_subscription::<Vec<FirmwareUpgrade>>((), None).map(PendingUpgradesMessage::Firmware)
     }
 
     pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {
         match msg {
-            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.push(upgrades),
+            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.receive_delivery(upgrades),
             PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
             PendingUpgradesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -92,7 +92,7 @@ impl PendingUpgradesGroup {
     }
 
     fn categories(&self) -> [Option<&dyn BarWidget>; 1] {
-        [self.firmware.present()]
+        [self.firmware.display()]
     }
 }
 
@@ -126,7 +126,7 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::dictionary(self.firmware.present_reading().map(|upgrades| {
+        TooltipBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
             KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
         }))
     }

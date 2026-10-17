@@ -15,9 +15,9 @@ use tokio::time::sleep;
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     config::Config,
-    data::source::{Delivery, PolledSource},
+    data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::Tooltip,
@@ -50,9 +50,9 @@ pub struct ClockGroup {
 
 #[derive(Debug, Clone)]
 pub enum ClockMessage {
-    Time(Delivery<LocalTime>),
-    Date(Delivery<LocalDate>),
-    Zone(Tz, Delivery<ZoneTime>),
+    Time(SourceDelivery<LocalTime>),
+    Date(SourceDelivery<LocalDate>),
+    Zone(Tz, SourceDelivery<ZoneTime>),
     Expansion(ExpansionMessage),
 }
 
@@ -63,9 +63,9 @@ impl ClockGroup {
 
     pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Time(reading) => self.time.receive(reading),
-            ClockMessage::Date(reading) => self.date.receive(reading),
-            ClockMessage::Zone(zone, reading) => self.zone_time_mut(zone).receive(reading),
+            ClockMessage::Time(reading) => self.time.receive_delivery(reading),
+            ClockMessage::Date(reading) => self.date.receive_delivery(reading),
+            ClockMessage::Zone(zone, reading) => self.zone_time_mut(zone).receive_delivery(reading),
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -78,14 +78,14 @@ impl ClockGroup {
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ClockMessage> {
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
-            polling::<ZoneTime>(*zone, forced)
+            source_subscription::<ZoneTime>(*zone, forced)
                 .with(*zone)
                 .map(|(zone, reading)| ClockMessage::Zone(zone, reading))
         });
         Subscription::batch(
             [
-                polling::<LocalTime>((), forced).map(ClockMessage::Time),
-                polling::<LocalDate>((), forced).map(ClockMessage::Date),
+                source_subscription::<LocalTime>((), forced).map(ClockMessage::Time),
+                source_subscription::<LocalDate>((), forced).map(ClockMessage::Date),
             ]
             .into_iter()
             .chain(zones),
@@ -138,18 +138,24 @@ impl ClockGroup {
     }
 }
 
-pub fn polled_at_second_boundaries<S: PolledSource>(
+pub fn polled_at_second_boundaries<S, F>(
     key: S::Key,
-) -> impl Stream<Item = Delivery<S>> + Send {
+    poll: impl Fn(S::Key) -> F + Send + Clone + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource,
+    F: Future<Output = Result<S, S::Error>> + Send,
+{
     stream::repeat_with(move || {
         let key = key.clone();
+        let poll = poll.clone();
         async move {
             sleep(until_next_boundary(Local::now(), TICK)).await;
-            S::poll(key).await
+            poll(key).await
         }
     })
     .then(identity)
-    .map(Delivery::Reading)
+    .map(SourceDelivery::Reading)
 }
 
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {

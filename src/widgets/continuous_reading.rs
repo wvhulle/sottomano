@@ -1,22 +1,22 @@
-use std::{mem::take, time::SystemTime};
+use std::mem::take;
 
 use crate::{
-    data::source::{Delivery, LiveSource, PolledSource, Source},
+    data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         tooltip_body::{Freshness, Readiness, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-pub struct FailedReading<S: Source> {
+pub struct FailedReading<S: ReadingSource> {
     icon: Glyph,
     error: S::Error,
 }
 
-impl<S: Source> BarWidget for FailedReading<S> {
+impl<S: ReadingSource> BarWidget for FailedReading<S> {
     fn name(&self) -> &'static str {
         "Failed reading"
     }
@@ -35,7 +35,7 @@ impl<S: Source> BarWidget for FailedReading<S> {
 }
 
 #[derive(Default)]
-pub enum ContinuousReading<S: Source> {
+pub enum ContinuousReading<S: ReadingSource> {
     #[default]
     Absent,
     Awaiting {
@@ -51,7 +51,7 @@ pub enum ContinuousReading<S: Source> {
     },
 }
 
-impl<S: Source> ContinuousReading<S> {
+impl<S: ReadingSource> ContinuousReading<S> {
     pub fn get(&self) -> Option<&S> {
         match self {
             ContinuousReading::Read { data, .. } => Some(data),
@@ -90,8 +90,8 @@ impl<S: Source> ContinuousReading<S> {
             .collect()
     }
 
-    fn kept(self, delivery: Delivery<S>, freshness: Freshness) -> Self {
-        let Delivery::Reading(reading) = delivery else {
+    fn kept(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
+        let SourceDelivery::Reading(reading) = delivery else {
             return ContinuousReading::Absent;
         };
         match reading {
@@ -115,14 +115,14 @@ impl<S: Source> ContinuousReading<S> {
         }
     }
 
-    fn keep_with(&mut self, delivery: Delivery<S>, freshness: Freshness) {
+    fn keep_with(&mut self, delivery: SourceDelivery<S>, freshness: Freshness) {
         *self = take(self).kept(delivery, freshness);
     }
 }
 
-impl<S: Source + BarWidget> ContinuousReading<S> {
-    fn accepted(self, delivery: Delivery<S>, freshness: Freshness) -> Self {
-        let Delivery::Reading(reading) = delivery else {
+impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
+    fn accepted(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
+        let SourceDelivery::Reading(reading) = delivery else {
             return ContinuousReading::Absent;
         };
         match reading {
@@ -145,54 +145,40 @@ impl<S: Source + BarWidget> ContinuousReading<S> {
         }
     }
 
-    fn accept_with(&mut self, delivery: Delivery<S>, freshness: Freshness) {
+    fn accept_with(&mut self, delivery: SourceDelivery<S>, freshness: Freshness) {
         *self = take(self).accepted(delivery, freshness);
     }
 }
 
-impl<S: LiveSource> ContinuousReading<S> {
+impl<S: ReadingSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S) {
         *self = ContinuousReading::Read {
             data,
-            freshness: Freshness::Live,
+            freshness: Freshness::from_source_cadence::<S>(),
         };
     }
 
-    pub fn push_or_keep(&mut self, delivery: Delivery<S>) {
-        self.keep_with(delivery, Freshness::Live);
+    pub fn receive_keeping_last_reading(&mut self, delivery: SourceDelivery<S>) {
+        self.keep_with(delivery, Freshness::from_source_cadence::<S>());
     }
 }
 
-impl<S: LiveSource + BarWidget> ContinuousReading<S> {
-    pub fn push(&mut self, delivery: Delivery<S>) {
-        self.accept_with(delivery, Freshness::Live);
+impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
+    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>) {
+        self.accept_with(delivery, Freshness::from_source_cadence::<S>());
     }
 }
 
-impl<S: PolledSource> ContinuousReading<S> {
-    fn polled_now() -> Freshness {
-        Freshness::Polled {
-            source: S::NAME,
-            every: S::INTERVAL,
-            last: SystemTime::now(),
-        }
+impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
+    pub fn visible_reading(&self) -> Option<&S> {
+        self.get().filter(|data| S::visible_in_bar(data))
     }
 
-    pub fn receive_or_keep(&mut self, delivery: Delivery<S>) {
-        self.keep_with(delivery, Self::polled_now());
-    }
-}
-
-impl<S: PolledSource + BarWidget> ContinuousReading<S> {
-    pub fn receive(&mut self, delivery: Delivery<S>) {
-        self.accept_with(delivery, Self::polled_now());
-    }
-}
-
-impl<S: Source + BarWidget> ContinuousReading<S> {
     pub fn display(&self) -> Option<&dyn BarWidget> {
         match self {
-            ContinuousReading::Read { data, .. } => Some(data),
+            ContinuousReading::Read { data, .. } => {
+                data.visible_in_bar().then_some(data as &dyn BarWidget)
+            }
             ContinuousReading::Failed { failure, .. } => Some(failure),
             ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => None,
         }
@@ -225,33 +211,5 @@ impl<S: Source + BarWidget> ContinuousReading<S> {
     ) -> Option<Tooltip> {
         let own = self.tooltip_with(self.display()?.tooltip())?;
         Some(own.with_sections(extra))
-    }
-}
-
-impl<S: Source + Occasional> ContinuousReading<S> {
-    pub fn present_reading(&self) -> Option<&S> {
-        self.get().filter(|data| data.present())
-    }
-
-    pub fn present(&self) -> Option<&dyn BarWidget> {
-        match self {
-            ContinuousReading::Read { data, .. } => {
-                data.present().then_some(data as &dyn BarWidget)
-            }
-            ContinuousReading::Failed { failure, .. } => Some(failure),
-            ContinuousReading::Absent | ContinuousReading::Awaiting { .. } => None,
-        }
-    }
-
-    pub fn present_group_item<M: 'static>(
-        &self,
-        target: impl Into<HoverTarget>,
-    ) -> Option<GroupItem<'_, M>> {
-        self.present()
-            .map(|widget| GroupItem::reading(widget, target))
-    }
-
-    pub fn present_tooltip(&self) -> Option<Tooltip> {
-        self.tooltip_with(self.present_reading()?.tooltip())
     }
 }

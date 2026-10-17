@@ -28,8 +28,8 @@ use super::{
 };
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source, blocking_poll, hardware::PowerSupplyIdentity,
-        present_or_absent,
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+        hardware::PowerSupplyIdentity, polled_delivery_stream, present_or_absent,
     },
     message_subscriptions::restarting,
 };
@@ -114,17 +114,20 @@ pub struct ChargerSupply {
     pub limit: Option<ChargerLimit>,
 }
 
-impl Source for ChargerSupply {
+impl ReadingSource for ChargerSupply {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "charger";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for ChargerSupply {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    fn poll(_key: ()) -> impl Future<Output = Result<Self, Self::Error>> + Send {
+impl ChargerSupply {
+    fn poll(_key: ()) -> impl Future<Output = Result<Self, Error>> + Send {
         ready(Ok(ChargerSupply {
             limit: list_dir(POWER_SUPPLY)
                 .iter()
@@ -197,30 +200,31 @@ impl Battery {
     }
 }
 
-impl Source for Battery {
+impl ReadingSource for Battery {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "battery";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(BATTERY_POLL_INTERVAL);
 
-impl PolledSource for Battery {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
-        blocking_poll(read_battery).await
-    }
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(present(), move || {
-            let mut ticks = interval(Battery::INTERVAL);
+            let mut ticks = interval(BATTERY_POLL_INTERVAL);
             ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
             let ticks = IntervalStream::new(ticks).map(|_| ());
             select(ticks, supply_state_changes())
                 .then(move |()| Self::poll(key))
-                .map(Delivery::Reading)
+                .map(SourceDelivery::Reading)
                 .boxed()
         })
+    }
+}
+
+pub const BATTERY_POLL_INTERVAL: Duration = Duration::from_secs(5);
+
+impl Battery {
+    async fn poll(_key: ()) -> Result<Self, Error> {
+        blocking_poll(read_battery).await
     }
 }
 

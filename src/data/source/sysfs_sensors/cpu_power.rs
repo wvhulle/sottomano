@@ -4,10 +4,13 @@ use std::{
     time::Duration,
 };
 
+use iced::futures::Stream;
 use uom::si::{f64::Power, power::watt};
 
 use super::{Error, list_dir, read_i64, read_trimmed};
-use crate::data::source::{PolledSource, Source, blocking_poll};
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 
 const POWERCAP: &str = "/sys/class/powercap";
 const SAMPLE_GAP: Duration = Duration::from_millis(250);
@@ -23,17 +26,20 @@ pub struct PowerZone {
     pub draw: Power,
 }
 
-impl Source for CpuPower {
+impl ReadingSource for CpuPower {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "cpu power";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for CpuPower {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl CpuPower {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(|| Ok(read_cpu_power())).await
     }
 }

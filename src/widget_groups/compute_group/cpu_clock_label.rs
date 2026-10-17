@@ -5,7 +5,7 @@ use uom::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCore},
+    core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
     data::{
@@ -124,8 +124,8 @@ impl CpuClock {
     }
 }
 
-impl PerCore for CoreFreq {
-    fn core(&self) -> u32 {
+impl PerCoreReading for CoreFreq {
+    fn core_index(&self) -> u32 {
         self.core
     }
 

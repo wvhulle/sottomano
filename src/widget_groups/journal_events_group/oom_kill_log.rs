@@ -8,7 +8,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
@@ -47,7 +47,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let kills = self.oom_kills.present_reading()?;
+        let kills = self.oom_kills.visible_reading()?;
         Some(GroupItem::reading(kills, JournalTarget::OomKills).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalCommand::journal(
@@ -55,12 +55,6 @@ impl JournalEventsGroup {
                 OomKillEntry::follow_log_args(),
             )),
         ))
-    }
-}
-
-impl Occasional for Vec<OomKillEntry> {
-    fn present(&self) -> bool {
-        !self.is_empty()
     }
 }
 
@@ -97,5 +91,9 @@ impl BarWidget for Vec<OomKillEntry> {
             "OOM kills",
             "Units whose processes were killed for lack of memory in the last hour.",
         ))])
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        !self.is_empty()
     }
 }

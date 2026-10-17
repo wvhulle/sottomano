@@ -20,9 +20,9 @@ impl GhostPlacement {
     }
 }
 
-pub fn drag_ghost<'a, Message: 'a, Item>(
+pub fn drag_ghost<'a, Message: 'a>(
     card: Element<'a, Message>,
-    drag: &ActiveDrag<Item>,
+    drag: &ActiveDrag,
     placement: GhostPlacement,
     scale: f32,
 ) -> Element<'a, Message> {

@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     convert::Infallible,
-    marker::PhantomData,
     pin::Pin,
     time::{Duration, SystemTime},
 };
@@ -10,11 +9,11 @@ use iced::futures::{Stream, StreamExt, future::join_all, stream};
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{
-    JobRow, ManagerProxy, UnitScope, connect, manager_signal, signals_matching, sleep_until,
+    JobRow, ManagerProxy, SystemdUnitScope, connect, manager_signal, signals_matching, sleep_until,
     state_changed_at,
 };
 use crate::{
-    data::source::{Delivery, LiveSource, Source, emit_changes},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, emit_changes},
     message_subscriptions::restarting,
 };
 
@@ -28,44 +27,42 @@ pub struct SlowJob {
 }
 
 #[derive(Debug, Clone)]
-pub struct SlowJobs<S: UnitScope> {
+pub struct SlowJobs {
     pub jobs: Vec<SlowJob>,
-    scope: PhantomData<S>,
+    pub scope: SystemdUnitScope,
 }
 
-impl<S: UnitScope> From<Vec<SlowJob>> for SlowJobs<S> {
-    fn from(jobs: Vec<SlowJob>) -> Self {
-        Self {
-            jobs,
-            scope: PhantomData,
-        }
-    }
-}
-
-impl<S: UnitScope> SlowJobs<S> {
+impl SlowJobs {
     pub fn is_empty(&self) -> bool {
         self.jobs.is_empty()
     }
 
     pub fn follow_log_args(&self) -> Vec<String> {
-        S::follow_units_log_args(self.jobs.iter().map(|job| job.unit.as_str()))
+        self.scope
+            .follow_units_log_args(self.jobs.iter().map(|job| job.unit.as_str()))
     }
 }
 
-impl<S: UnitScope> Source for SlowJobs<S> {
-    type Error = Infallible;
-    type Key = Duration;
-
-    const NAME: &'static str = S::SLOW_JOBS_SOURCE;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SlowJobsWatch {
+    pub scope: SystemdUnitScope,
+    pub slow_after: Duration,
 }
 
-impl<S: UnitScope> LiveSource for SlowJobs<S> {
-    fn events(slow_after: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+impl ReadingSource for SlowJobs {
+    type Error = Infallible;
+    type Key = SlowJobsWatch;
+
+    const NAME: &'static str = "slow systemd jobs";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
+
+    fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let SlowJobsWatch { scope, slow_after } = watch;
         emit_changes(restarting("systemd running jobs", move || {
-            watch_running_jobs(S::PER_USER, slow_after)
+            watch_running_jobs(scope.per_user(), slow_after)
         }))
-        .map(|jobs| Ok(SlowJobs::from(jobs)))
-        .map(Delivery::Reading)
+        .map(move |jobs| Ok(SlowJobs { jobs, scope }))
+        .map(SourceDelivery::Reading)
     }
 }
 

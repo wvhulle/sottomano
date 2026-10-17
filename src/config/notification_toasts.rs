@@ -3,7 +3,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::layout::spacing::{Length, Spacing},
+    config::layout::spacing::Spacing,
     data::{
         severity::Severity,
         source::niri::{HEdge, VEdge},
@@ -14,7 +14,7 @@ use crate::{
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct NotificationToastsConfig<L = f32> {
     pub placement: ToastPlacementConfig<L>,
@@ -22,7 +22,7 @@ pub struct NotificationToastsConfig<L = f32> {
     pub card: ToastCardConfig<L>,
 }
 
-impl<L: Length> Default for NotificationToastsConfig<L> {
+impl<L: From<f32>> Default for NotificationToastsConfig<L> {
     fn default() -> Self {
         Self {
             placement: ToastPlacementConfig::default(),
@@ -46,7 +46,7 @@ impl NotificationToastsConfig<Spacing> {
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct ToastCardConfig<L = f32> {
     pub width: L,
@@ -63,13 +63,13 @@ pub struct ToastCardConfig<L = f32> {
     pub motion: Duration,
 }
 
-impl<L: Length> Default for ToastCardConfig<L> {
+impl<L: From<f32>> Default for ToastCardConfig<L> {
     fn default() -> Self {
         Self {
-            width: L::px(440.0),
-            icon_size: L::px(44.0),
-            app_badge_size: L::px(20.0),
-            image_preview_max_height: L::px(180.0),
+            width: L::from(440.0),
+            icon_size: L::from(44.0),
+            app_badge_size: L::from(20.0),
+            image_preview_max_height: L::from(180.0),
             appear: Duration::from_millis(90),
             dismiss_fade: Duration::from_millis(140),
             expire_fade: Duration::from_millis(220),
@@ -125,7 +125,7 @@ impl FallbackCorner {
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct ToastPlacementConfig<L = f32> {
     pub fallback_corner: FallbackCorner,
@@ -134,13 +134,13 @@ pub struct ToastPlacementConfig<L = f32> {
     pub window_top_offset: L,
 }
 
-impl<L: Length> Default for ToastPlacementConfig<L> {
+impl<L: From<f32>> Default for ToastPlacementConfig<L> {
     fn default() -> Self {
         Self {
             fallback_corner: FallbackCorner::BottomRight,
-            edge_gap: L::px(24.0),
-            window_right_offset: L::px(12.0),
-            window_top_offset: L::px(48.0),
+            edge_gap: L::from(24.0),
+            window_right_offset: L::from(12.0),
+            window_top_offset: L::from(48.0),
         }
     }
 }

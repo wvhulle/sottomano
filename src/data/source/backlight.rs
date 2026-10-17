@@ -2,14 +2,13 @@ use std::{collections::HashSet, convert::Infallible, fs, future::ready, time::Du
 
 use iced::futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
-use tokio::task::spawn_blocking;
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         bus::{Bus, name_owned},
-        clight, emit_delivery_changes, present_or_absent,
+        clight, drop_unchanged_deliveries, present_or_absent,
     },
     message_subscriptions::{restarting, ticked},
 };
@@ -56,24 +55,17 @@ pub struct Backlight {
 
 const INTERVAL: Duration = Duration::from_secs(10);
 
-impl Source for Vec<Backlight> {
+impl ReadingSource for Vec<Backlight> {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "backlight";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(INTERVAL);
 
-impl PolledSource for Vec<Backlight> {
-    const INTERVAL: Duration = INTERVAL;
-
-    async fn poll(_key: ()) -> Result<Self, Infallible> {
-        Ok(spawn_blocking(poll_all).await.unwrap_or_default())
-    }
-
-    fn polls(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(name_owned(Bus::System, CLIGHTD_SERVICE), move || {
-            emit_delivery_changes(
-                restarting("backlight", backlight_readings).map(Delivery::Reading),
+            drop_unchanged_deliveries(
+                restarting("backlight", backlight_readings).map(SourceDelivery::Reading),
             )
             .boxed()
         })

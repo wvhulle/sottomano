@@ -6,23 +6,9 @@ use crate::{
     widgets::tooltip_body::{Cell, KeyValue, Section},
 };
 
-pub trait HardwareEntries {
-    fn hardware_entries(&self) -> Vec<KeyValue>;
-
-    fn hardware_section(&self) -> Section {
-        Section::dictionary(self.hardware_entries()).titled("Hardware")
-    }
-}
-
-impl<H: HardwareEntries> HardwareEntries for &H {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        (*self).hardware_entries()
-    }
-}
-
-impl<H: HardwareEntries> HardwareEntries for Option<H> {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        self.as_ref().map(H::hardware_entries).unwrap_or_default()
+impl Section {
+    pub fn hardware_identity(entries: impl IntoIterator<Item = KeyValue>) -> Self {
+        Section::dictionary(entries).titled("Hardware")
     }
 }
 
@@ -75,8 +61,8 @@ impl CacheLevel {
     }
 }
 
-impl HardwareEntries for MemoryModules {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl MemoryModules {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         self.0.iter().flat_map(MemoryModuleGroup::entries).collect()
     }
 }
@@ -102,8 +88,8 @@ impl MemoryModuleGroup {
     }
 }
 
-impl HardwareEntries for DriveIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl DriveIdentity {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Model", &self.model),
             ("Serial", &self.serial),
@@ -115,8 +101,8 @@ impl HardwareEntries for DriveIdentity {
     }
 }
 
-impl HardwareEntries for PowerSupplyIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl PowerSupplyIdentity {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Manufacturer", &self.manufacturer),
             ("Model", &self.model),
@@ -129,8 +115,8 @@ impl HardwareEntries for PowerSupplyIdentity {
     }
 }
 
-impl HardwareEntries for ModemIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl ModemIdentity {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Manufacturer", &self.manufacturer),
             ("Model", &self.model),
@@ -143,8 +129,8 @@ impl HardwareEntries for ModemIdentity {
     }
 }
 
-impl HardwareEntries for Adapter {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl Adapter {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         [("Vendor", &self.vendor), ("Model", &self.model)]
             .into_iter()
             .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))

@@ -8,11 +8,11 @@ mod wind_speed;
 
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, listening, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -50,11 +50,11 @@ pub struct WeatherGroup {
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(Delivery<Temperature>),
-    Wind(Delivery<Wind>),
-    Rain(Delivery<Rain>),
-    Pollen(Delivery<Pollen>),
-    Location(Delivery<Location>),
+    Temp(SourceDelivery<Temperature>),
+    Wind(SourceDelivery<Wind>),
+    Rain(SourceDelivery<Rain>),
+    Pollen(SourceDelivery<Pollen>),
+    Location(SourceDelivery<Location>),
     Expansion(ExpansionMessage),
 }
 
@@ -64,29 +64,32 @@ impl WeatherGroup {
     }
 
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<WeatherMessage> {
-        let location = listening::<Location>(()).map(WeatherMessage::Location);
+        let location = source_subscription::<Location>((), None).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };
         Subscription::batch([
             location,
-            polling::<Temperature>(here, forced).map(WeatherMessage::Temp),
-            self.expansion
-                .while_expanded(polling::<Wind>(here, forced).map(WeatherMessage::Wind)),
-            self.expansion
-                .while_expanded(polling::<Rain>(here, forced).map(WeatherMessage::Rain)),
-            self.expansion
-                .while_expanded(polling::<Pollen>(here, forced).map(WeatherMessage::Pollen)),
+            source_subscription::<Temperature>(here, forced).map(WeatherMessage::Temp),
+            self.expansion.while_expanded(
+                source_subscription::<Wind>(here, forced).map(WeatherMessage::Wind),
+            ),
+            self.expansion.while_expanded(
+                source_subscription::<Rain>(here, forced).map(WeatherMessage::Rain),
+            ),
+            self.expansion.while_expanded(
+                source_subscription::<Pollen>(here, forced).map(WeatherMessage::Pollen),
+            ),
         ])
     }
 
     pub fn update(&mut self, msg: WeatherMessage) -> Task<WeatherMessage> {
         match msg {
-            WeatherMessage::Temp(reading) => self.temp.receive(reading),
-            WeatherMessage::Wind(reading) => self.wind.receive(reading),
-            WeatherMessage::Rain(reading) => self.rain.receive(reading),
-            WeatherMessage::Pollen(reading) => self.pollen.receive(reading),
-            WeatherMessage::Location(reading) => self.location.push(reading),
+            WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading),
+            WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading),
+            WeatherMessage::Rain(reading) => self.rain.receive_delivery(reading),
+            WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading),
+            WeatherMessage::Location(reading) => self.location.receive_delivery(reading),
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -122,7 +125,7 @@ impl WeatherGroup {
             [
                 self.temp.group_item(WeatherTarget::Temperature),
                 self.wind.group_item(WeatherTarget::Wind),
-                self.rain.present_group_item(WeatherTarget::Rain),
+                self.rain.group_item(WeatherTarget::Rain),
             ]
             .into_iter()
             .flatten()

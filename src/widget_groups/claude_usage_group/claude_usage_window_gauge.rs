@@ -6,11 +6,11 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     data::source::ai::{
         claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-        quota::{Pace, Quota, QuotaLimited},
+        quota::{Pace, Quota},
     },
     widgets::{
         amount_text::{countdown, percent_text},
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -32,7 +32,7 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .unwrap_or_else(|| level_from_used(self.session_used()))
             .into()
     }
@@ -67,11 +67,13 @@ impl BarWidget for ClaudeUsageWindows {
             .chain([extra_section(self.extra.as_ref())]),
         )
     }
-}
 
-impl Occasional for ClaudeUsageWindows {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.session_used().get::<percent>() > 0.0
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }
 

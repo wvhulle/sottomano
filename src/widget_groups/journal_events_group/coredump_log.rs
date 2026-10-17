@@ -8,7 +8,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
@@ -40,7 +40,7 @@ impl JournalEventsGroup {
         &self,
         config: &Config,
     ) -> Option<GroupItem<'_, JournalEventsMessage>> {
-        let coredumps = self.coredumps.present_reading()?;
+        let coredumps = self.coredumps.visible_reading()?;
         Some(
             GroupItem::reading(coredumps, JournalTarget::Coredumps).on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
@@ -50,12 +50,6 @@ impl JournalEventsGroup {
                 )),
             ),
         )
-    }
-}
-
-impl Occasional for Vec<CoredumpEntry> {
-    fn present(&self) -> bool {
-        !self.is_empty()
     }
 }
 
@@ -94,5 +88,9 @@ impl BarWidget for Vec<CoredumpEntry> {
             "Coredumps",
             "Programs that crashed in the last hour, as recorded by systemd-coredump.",
         ))])
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        !self.is_empty()
     }
 }

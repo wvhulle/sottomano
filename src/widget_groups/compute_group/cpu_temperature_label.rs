@@ -9,7 +9,7 @@ use uom::si::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCore},
+    core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
     data::{
@@ -31,8 +31,8 @@ use crate::{
 
 const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
 
-impl PerCore for CoreTemperature {
-    fn core(&self) -> u32 {
+impl PerCoreReading for CoreTemperature {
+    fn core_index(&self) -> u32 {
         self.core
     }
 

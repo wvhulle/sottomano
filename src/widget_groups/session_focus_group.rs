@@ -25,7 +25,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
-        ongoing_toast::{OngoingToast, OngoingToastActionButton},
+        ongoing_toast::OngoingToastActionButton,
         tooltip_body::{Freshness, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -196,14 +196,10 @@ impl SessionFocusGroup {
             tint: ActionTint::Proceed,
             on_button_pressed: SessionFocusMessage::BreakPledged,
         }]);
-        let gauge = self.daily_totals_gauge(config, waking);
-        let budget_toast = OngoingToast::from_quota_pace(
+        let totals = GroupItem::reading(
+            self.daily_totals_gauge(config, waking),
             SessionFocusTarget::DailyTotals,
-            &gauge,
-            SessionFocusMessage::Expansion(ExpansionMessage::Expand),
         );
-        let totals =
-            GroupItem::reading(gauge, SessionFocusTarget::DailyTotals).ongoing_toasts(budget_toast);
         let switches = GroupItem::reading(
             self.context_switch_rate(config, waking),
             SessionFocusTarget::ContextSwitches,

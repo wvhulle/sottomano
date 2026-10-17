@@ -1,14 +1,17 @@
-use std::{future::ready, marker::PhantomData, path::PathBuf, time::Instant};
+use std::{future::ready, path::PathBuf, time::Instant};
 
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::data::source::{
-    Delivery, LiveSource, Source, http,
+    DeliveryCadence, ReadingSource, SourceDelivery, http,
     journal::unit_log_appends,
     present_or_absent,
-    systemd_manager::{UnitScope, service_commands::ServiceCommand, unit_activity::unit_running},
+    systemd_manager::{
+        ScopedSystemdUnit, SystemdUnitScope, service_commands::ServiceCommand,
+        unit_activity::unit_running,
+    },
 };
 
 const FETCH_TIMEOUT_SECS: u64 = 3;
@@ -17,22 +20,23 @@ const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8080";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LlamaServerUnit<S: UnitScope> {
-    pub unit: String,
+pub struct LlamaServerUnit {
+    pub unit: ScopedSystemdUnit,
     pub endpoint: String,
-    scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> LlamaServerUnit<S> {
-    pub fn discovered(command: &ServiceCommand) -> Option<Self> {
+impl LlamaServerUnit {
+    pub fn discovered(scope: SystemdUnitScope, command: &ServiceCommand) -> Option<Self> {
         command.runs(PROGRAM_NAME).then(|| Self {
-            unit: command.unit.clone(),
+            unit: ScopedSystemdUnit {
+                scope,
+                unit_name: command.unit.clone(),
+            },
             endpoint: format!(
                 "http://{}:{}",
                 command.argument("--host").unwrap_or(DEFAULT_HOST),
                 command.argument("--port").unwrap_or(DEFAULT_PORT),
             ),
-            scope: PhantomData,
         })
     }
 }
@@ -89,15 +93,14 @@ pub struct LlamaSlot {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LlamaServer<S: UnitScope> {
+pub struct LlamaServer {
     pub models: Vec<LlamaModel>,
     pub slots: Vec<LlamaSlot>,
     pub generation_rate: Option<Frequency>,
     sampled_at: Instant,
-    scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> LlamaServer<S> {
+impl LlamaServer {
     pub fn resident_model(&self) -> Option<&LlamaModel> {
         self.models.iter().find(|model| {
             matches!(
@@ -225,7 +228,7 @@ impl From<ListedSlot> for LlamaSlot {
     }
 }
 
-async fn fetch_server<S: UnitScope>(endpoint: &str) -> Result<LlamaServer<S>, http::Error> {
+async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http::Error> {
     let listed: ModelList =
         http::get_json(&format!("{endpoint}/v1/models"), &[], FETCH_TIMEOUT_SECS).await?;
     let models: Vec<LlamaModel> = listed.data.into_iter().map(LlamaModel::from).collect();
@@ -248,32 +251,30 @@ async fn fetch_server<S: UnitScope>(endpoint: &str) -> Result<LlamaServer<S>, ht
         slots,
         generation_rate: None,
         sampled_at: Instant::now(),
-        scope: PhantomData,
     })
 }
 
-impl<S: UnitScope> Source for LlamaServer<S> {
+impl ReadingSource for LlamaServer {
     type Error = http::Error;
-    type Key = LlamaServerUnit<S>;
+    type Key = LlamaServerUnit;
 
     const NAME: &'static str = PROGRAM_NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl<S: UnitScope> LiveSource for LlamaServer<S> {
-    fn events(server: LlamaServerUnit<S>) -> impl Stream<Item = Delivery<Self>> + Send {
-        present_or_absent(unit_running::<S>(server.unit.clone()), move || {
+    fn delivery_stream(server: LlamaServerUnit) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        present_or_absent(unit_running(server.unit.clone()), move || {
             let endpoint = server.endpoint.clone();
-            unit_log_appends::<S>(server.unit.clone())
+            unit_log_appends(server.unit.clone())
                 .then(move |()| {
                     let endpoint = endpoint.clone();
-                    async move { fetch_server::<S>(&endpoint).await }
+                    async move { fetch_server(&endpoint).await }
                 })
                 .scan(None, |previous: &mut Option<Self>, fetched| {
                     let rated = fetched.map(|server| server.rated_since(previous.as_ref()));
                     if let Ok(server) = &rated {
                         *previous = Some(server.clone());
                     }
-                    ready(Some(Delivery::Reading(rated)))
+                    ready(Some(SourceDelivery::Reading(rated)))
                 })
                 .boxed()
         })
@@ -298,17 +299,18 @@ pub struct LlamaModelProps {
     pub modalities: Modalities,
 }
 
-impl Source for LlamaModelProps {
+impl ReadingSource for LlamaModelProps {
     type Error = http::Error;
     type Key = ModelInstance;
 
     const NAME: &'static str = "llama-server model";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for LlamaModelProps {
-    fn events(instance: ModelInstance) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(instance: ModelInstance) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(async move {
-            Delivery::Reading(http::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await)
+            SourceDelivery::Reading(
+                http::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await,
+            )
         })
     }
 }

@@ -1,9 +1,9 @@
-use chrono::Locale;
+use chrono::{DateTime, Locale, Utc};
 use iced::{Color, Element};
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::severity::Severity,
+    data::{severity::Severity, source::ai::quota::Quota},
     widgets::{
         announced_level::AnnouncedLevel,
         ongoing_toast::OngoingBody,
@@ -98,6 +98,14 @@ pub trait BarWidget {
         None
     }
 
+    fn visible_in_bar(&self) -> bool {
+        true
+    }
+
+    fn quota_windows(&self, _now: DateTime<Utc>) -> Vec<Quota> {
+        Vec::new()
+    }
+
     fn tooltip(&self) -> TooltipBody;
 }
 
@@ -142,11 +150,15 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).announced_level()
     }
 
+    fn visible_in_bar(&self) -> bool {
+        (**self).visible_in_bar()
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        (**self).quota_windows(now)
+    }
+
     fn tooltip(&self) -> TooltipBody {
         (**self).tooltip()
     }
-}
-
-pub trait Occasional: BarWidget {
-    fn present(&self) -> bool;
 }

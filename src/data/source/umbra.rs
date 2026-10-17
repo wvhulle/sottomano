@@ -3,7 +3,10 @@ use std::time::Duration;
 use iced::futures::{Stream, StreamExt, stream};
 
 use crate::data::{
-    source::{Delivery, PolledSource, Source, command, present_or_absent, ticked_polls},
+    source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, command, polled_delivery_stream,
+        present_or_absent,
+    },
     sun_schedule::ColorMode,
 };
 
@@ -12,23 +15,22 @@ pub struct Umbra {
     pub dark: bool,
 }
 
-impl Source for Umbra {
+impl ReadingSource for Umbra {
     type Error = command::Error;
     type Key = ();
 
     const NAME: &'static str = "umbra";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(30));
 
-impl PolledSource for Umbra {
-    const INTERVAL: Duration = Duration::from_secs(30);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("umbra")), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll((): ()) -> Result<Self, Self::Error> {
+impl Umbra {
+    async fn poll((): ()) -> Result<Self, command::Error> {
         let mode = command::output("umbra", &["get"]).await?;
         Ok(Umbra {
             dark: mode.trim() == "dark",

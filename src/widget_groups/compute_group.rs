@@ -13,7 +13,7 @@ use x3d_cache_preference_toggle::ChipletRoles;
 use crate::{
     config::{Config, widget_groups::temperature_sensors::SensorConfig},
     data::source::{
-        Delivery,
+        SourceDelivery,
         hardware::HostHardware,
         sysfs_sensors::{
             cpu_clock::CpuClock,
@@ -27,15 +27,14 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::Tooltip,
+        tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -75,18 +74,18 @@ pub struct ComputeGroup {
 
 #[derive(Debug, Clone)]
 pub enum ComputeMessage {
-    Hardware(Box<Delivery<HostHardware>>),
-    Cpu(Delivery<CpuUsage>),
-    Memory(Delivery<Memory>),
-    Clock(Delivery<CpuClock>),
-    Temperature(Delivery<Temperature>),
+    Hardware(Box<SourceDelivery<HostHardware>>),
+    Cpu(SourceDelivery<CpuUsage>),
+    Memory(SourceDelivery<Memory>),
+    Clock(SourceDelivery<CpuClock>),
+    Temperature(SourceDelivery<Temperature>),
     CachePreference(ToggleMessage<X3dCachePreference>),
-    CoreLoadsFetched(Delivery<CpuCoreLoads>),
-    CoreTemperaturesFetched(Delivery<CpuCoreTemperatures>),
-    CpuPowerFetched(Delivery<CpuPower>),
-    CacheTrafficFetched(Delivery<L3CacheTraffic>),
-    MemoryProcessesFetched(Delivery<MemoryProcesses>),
-    ModuleTemperaturesFetched(Delivery<MemoryModuleTemperatures>),
+    CoreLoadsFetched(SourceDelivery<CpuCoreLoads>),
+    CoreTemperaturesFetched(SourceDelivery<CpuCoreTemperatures>),
+    CpuPowerFetched(SourceDelivery<CpuPower>),
+    CacheTrafficFetched(SourceDelivery<L3CacheTraffic>),
+    MemoryProcessesFetched(SourceDelivery<MemoryProcesses>),
+    ModuleTemperaturesFetched(SourceDelivery<MemoryModuleTemperatures>),
     Expansion(ExpansionMessage),
 }
 
@@ -109,21 +108,29 @@ impl ComputeGroup {
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::Cpu)) => Task::batch([
                 self.core_loads
-                    .poll((), ComputeMessage::CoreLoadsFetched, config),
+                    .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
                 self.cpu_power
-                    .poll((), ComputeMessage::CpuPowerFetched, config),
-                self.cache_traffic
-                    .poll((), ComputeMessage::CacheTrafficFetched, config),
+                    .start_hover_fetch((), ComputeMessage::CpuPowerFetched, config),
+                self.cache_traffic.start_hover_fetch(
+                    (),
+                    ComputeMessage::CacheTrafficFetched,
+                    config,
+                ),
             ]),
-            Some(HoverTarget::Compute(ComputeTarget::Temperature)) => self.core_temperatures.poll(
-                config.widget_groups.temperature_sensors.cpu.overrides(),
-                ComputeMessage::CoreTemperaturesFetched,
-                config,
-            ),
+            Some(HoverTarget::Compute(ComputeTarget::Temperature)) => {
+                self.core_temperatures.start_hover_fetch(
+                    config.widget_groups.temperature_sensors.cpu.overrides(),
+                    ComputeMessage::CoreTemperaturesFetched,
+                    config,
+                )
+            }
             Some(HoverTarget::Compute(ComputeTarget::Memory)) => Task::batch([
-                self.memory_processes
-                    .poll((), ComputeMessage::MemoryProcessesFetched, config),
-                self.module_temperatures.poll(
+                self.memory_processes.start_hover_fetch(
+                    (),
+                    ComputeMessage::MemoryProcessesFetched,
+                    config,
+                ),
+                self.module_temperatures.start_hover_fetch(
                     (),
                     ComputeMessage::ModuleTemperaturesFetched,
                     config,
@@ -146,12 +153,13 @@ impl ComputeGroup {
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ComputeMessage> {
         Subscription::batch([
-            polling::<HostHardware>((), forced)
+            source_subscription::<HostHardware>((), forced)
                 .map(|delivery| ComputeMessage::Hardware(Box::new(delivery))),
-            polling::<CpuUsage>((), forced).map(ComputeMessage::Cpu),
-            polling::<Memory>((), forced).map(ComputeMessage::Memory),
-            polling::<CpuClock>((), forced).map(ComputeMessage::Clock),
-            polling::<Temperature>(sensor.clone(), forced).map(ComputeMessage::Temperature),
+            source_subscription::<CpuUsage>((), forced).map(ComputeMessage::Cpu),
+            source_subscription::<Memory>((), forced).map(ComputeMessage::Memory),
+            source_subscription::<CpuClock>((), forced).map(ComputeMessage::Clock),
+            source_subscription::<Temperature>(sensor.clone(), forced)
+                .map(ComputeMessage::Temperature),
             ToggleControl::<X3dCachePreference>::subscription((), forced)
                 .map(ComputeMessage::CachePreference),
         ])
@@ -159,29 +167,33 @@ impl ComputeGroup {
 
     pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
         match msg {
-            ComputeMessage::Hardware(delivery) => self.hardware.receive_or_keep(*delivery),
+            ComputeMessage::Hardware(delivery) => {
+                self.hardware.receive_keeping_last_reading(*delivery);
+            }
             ComputeMessage::CachePreference(m) => {
                 return self
                     .cache_preference
                     .update(m)
                     .map(ComputeMessage::CachePreference);
             }
-            ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive(fetched),
+            ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive_delivery(fetched),
             ComputeMessage::CoreTemperaturesFetched(fetched) => {
-                self.core_temperatures.receive(fetched);
+                self.core_temperatures.receive_delivery(fetched);
             }
-            ComputeMessage::CpuPowerFetched(fetched) => self.cpu_power.receive(fetched),
-            ComputeMessage::CacheTrafficFetched(fetched) => self.cache_traffic.receive(fetched),
+            ComputeMessage::CpuPowerFetched(fetched) => self.cpu_power.receive_delivery(fetched),
+            ComputeMessage::CacheTrafficFetched(fetched) => {
+                self.cache_traffic.receive_delivery(fetched);
+            }
             ComputeMessage::MemoryProcessesFetched(fetched) => {
-                self.memory_processes.receive(fetched);
+                self.memory_processes.receive_delivery(fetched);
             }
             ComputeMessage::ModuleTemperaturesFetched(fetched) => {
-                self.module_temperatures.receive(fetched);
+                self.module_temperatures.receive_delivery(fetched);
             }
-            ComputeMessage::Cpu(reading) => self.cpu.receive(reading),
-            ComputeMessage::Memory(reading) => self.memory.receive(reading),
-            ComputeMessage::Clock(reading) => self.clock.receive(reading),
-            ComputeMessage::Temperature(reading) => self.temperature.receive(reading),
+            ComputeMessage::Cpu(reading) => self.cpu.receive_delivery(reading),
+            ComputeMessage::Memory(reading) => self.memory.receive_delivery(reading),
+            ComputeMessage::Clock(reading) => self.clock.receive_delivery(reading),
+            ComputeMessage::Temperature(reading) => self.temperature.receive_delivery(reading),
             ComputeMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -229,8 +241,11 @@ impl ComputeGroup {
                     self.memory_processes.sections(MemoryProcesses::sections),
                     self.module_temperatures
                         .sections(MemoryModuleTemperatures::sections),
-                    self.hardware
-                        .sections(|hardware| vec![hardware.memory.hardware_section()]),
+                    self.hardware.sections(|hardware| {
+                        vec![Section::hardware_identity(
+                            hardware.memory.hardware_entries(),
+                        )]
+                    }),
                 ]
                 .concat(),
             ),

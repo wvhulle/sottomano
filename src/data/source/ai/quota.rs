@@ -27,15 +27,11 @@ pub enum Pace {
     RunsOut { at: DateTime<Utc> },
 }
 
-pub trait QuotaLimited {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota>;
-
-    fn quota_severity(&self, now: DateTime<Utc>) -> Option<Severity> {
-        self.quotas(now).iter().map(Quota::severity).max()
-    }
-}
-
 impl Quota {
+    pub fn worst_severity(quotas: &[Quota]) -> Option<Severity> {
+        quotas.iter().map(Quota::severity).max()
+    }
+
     pub fn within_window(
         label: impl Into<Cow<'static, str>>,
         used: Ratio,

@@ -4,14 +4,16 @@ use uom::{
 };
 
 use crate::{
-    data::source::net_interfaces::wifi::{Wifi, WifiDetails},
+    data::source::{
+        hardware::Adapter,
+        net_interfaces::wifi::{Wifi, WifiDetails},
+    },
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -82,7 +84,9 @@ impl WifiDetails {
             ]
         });
         addressing
-            .chain([self.adapter.hardware_section()])
+            .chain([Section::hardware_identity(
+                self.adapter.iter().flat_map(Adapter::hardware_entries),
+            )])
             .collect()
     }
 }

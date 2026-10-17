@@ -6,7 +6,7 @@ use crate::{
     },
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -49,10 +49,8 @@ impl BarWidget for OpenRouterStrictBudget {
             .chain(self.key_limits.iter().map(KeyLimit::section)),
         )
     }
-}
 
-impl Occasional for OpenRouterStrictBudget {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.credits.total.is_positive() || !self.key_limits.is_empty()
     }
 }

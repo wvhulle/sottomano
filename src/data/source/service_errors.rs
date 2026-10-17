@@ -7,7 +7,7 @@ use systemd::journal::Journal;
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{
             JournalEvent, JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit,
             either_of, journal_windows,
@@ -15,18 +15,17 @@ use crate::data::{
     },
 };
 
-impl Source for ServiceErrors {
+impl ReadingSource for ServiceErrors {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = ServiceErrorEntry::NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for ServiceErrors {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         journal_windows::<ServiceErrorEntry>()
             .map(|entries| Ok(ServiceErrors::from(entries)))
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 

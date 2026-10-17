@@ -16,12 +16,10 @@ use crate::{
         app_icon::DesktopEntries, audio::WindowAudio, kitty_windows::WindowProcesses, niri,
         process::Watched,
     },
-    desktop_shell::{
-        hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,
-    },
+    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widgets::{
-        continuous_reading::ContinuousReading, tooltip_body::Tooltip, widget_group::GroupEvent,
-        window_icon::WindowAssets,
+        continuous_reading::ContinuousReading, pointer_drag::DragView, tooltip_body::Tooltip,
+        widget_group::GroupEvent, window_icon::WindowAssets,
     },
 };
 

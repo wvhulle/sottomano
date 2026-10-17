@@ -14,7 +14,7 @@ use systemd::journal::{Journal, OpenOptions};
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{
             CoredumpUnit, JournalEvent, JournalPriority, MessageId, OwningUnit, decode_record,
             journal_windows,
@@ -22,18 +22,17 @@ use crate::data::{
     },
 };
 
-impl Source for Vec<CoredumpEntry> {
+impl ReadingSource for Vec<CoredumpEntry> {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = CoredumpEntry::NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Vec<CoredumpEntry> {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         journal_windows::<CoredumpEntry>()
             .map(Ok)
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 

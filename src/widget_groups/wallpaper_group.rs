@@ -12,11 +12,11 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 use crate::{
     config::SecretPaths,
     data::source::{
-        Delivery, LiveSource, Source, command, emit_changes, present_or_absent,
+        DeliveryCadence, ReadingSource, SourceDelivery, command, emit_changes, present_or_absent,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -69,15 +69,14 @@ impl From<Failure> for Section {
     }
 }
 
-impl Source for Lookup {
+impl ReadingSource for Lookup {
     type Error = Failure;
     type Key = PathBuf;
 
     const NAME: &'static str = "wallpaper lookup";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Lookup {
-    fn events(unsplash_key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(wallpaper::daemon_installed()), move || {
             let unsplash_key = unsplash_key.clone();
             emit_changes(wallpaper::displayed())
@@ -85,25 +84,26 @@ impl LiveSource for Lookup {
                     let unsplash_key = unsplash_key.clone();
                     match displayed {
                         Err(failure) => {
-                            stream::iter([Delivery::Reading(Err(Failure::Query(failure)))]).boxed()
+                            stream::iter([SourceDelivery::Reading(Err(Failure::Query(failure)))])
+                                .boxed()
                         }
                         Ok(DisplayedWallpaper::NoImageFile) => {
-                            stream::iter([Delivery::Absent]).boxed()
+                            stream::iter([SourceDelivery::Absent]).boxed()
                         }
                         Ok(DisplayedWallpaper::ImageFile(path)) => {
                             match wallpaper::photo_id(&path) {
-                                None => stream::iter([Delivery::Absent]).boxed(),
+                                None => stream::iter([SourceDelivery::Absent]).boxed(),
                                 Some(id) => {
                                     let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
                                     let resolved = async move {
-                                        Delivery::Reading(
+                                        SourceDelivery::Reading(
                                             wallpaper::resolve(path, id, &unsplash_key)
                                                 .await
                                                 .map(|wallpaper| Lookup::of(&wallpaper))
                                                 .map_err(Failure::Resolve),
                                         )
                                     };
-                                    stream::iter([Delivery::Reading(Ok(unresolved))])
+                                    stream::iter([SourceDelivery::Reading(Ok(unresolved))])
                                         .chain(stream::once(resolved))
                                         .boxed()
                                 }
@@ -320,7 +320,7 @@ pub struct WallpaperGroup {
 
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
-    Lookup(Box<Delivery<Lookup>>),
+    Lookup(Box<SourceDelivery<Lookup>>),
     Expansion(ExpansionMessage),
 }
 
@@ -339,7 +339,7 @@ impl WallpaperGroup {
 
     pub fn subscription(&self) -> Subscription<WallpaperMessage> {
         match &self.unsplash_key {
-            Some(unsplash_key) => listening::<Lookup>(unsplash_key.clone())
+            Some(unsplash_key) => source_subscription::<Lookup>(unsplash_key.clone(), None)
                 .map(|reading| WallpaperMessage::Lookup(Box::new(reading))),
             None => Subscription::none(),
         }
@@ -347,7 +347,7 @@ impl WallpaperGroup {
 
     pub fn update(&mut self, message: WallpaperMessage) -> Task<WallpaperMessage> {
         match message {
-            WallpaperMessage::Lookup(delivery) => self.lookup.push(*delivery),
+            WallpaperMessage::Lookup(delivery) => self.lookup.receive_delivery(*delivery),
             WallpaperMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }

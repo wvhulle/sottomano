@@ -6,9 +6,7 @@ use crate::{
     data::source::{
         desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
     },
-    desktop_shell::{
-        Message, hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,
-    },
+    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     readme_showcase::fixtures::{compute, niri_session},
     widget_groups::{
         audio_group::AudioGroup,
@@ -22,8 +20,8 @@ use crate::{
         workspaces_group::{self, workspace_tooltip},
     },
     widgets::{
-        continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
-        tooltip_body::Tooltip, window_icon::WindowAssets,
+        continuous_reading::ContinuousReading, favicon::Favicons, pointer_drag::DragView,
+        text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 

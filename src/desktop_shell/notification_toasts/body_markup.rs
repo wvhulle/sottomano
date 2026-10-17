@@ -86,7 +86,7 @@ pub fn body_paragraphs<'a>(
                 let resolved = match reference.resolve_char_ref() {
                     Ok(Some(character)) => character.to_string(),
                     _ => {
-                        resolve_xml_entity(&name).map_or_else(|| format!("&{name};"), str::to_owned)
+                        resolve_xml_entity(name).map_or_else(|| format!("&{name};"), str::to_owned)
                     }
                 };
                 push_text(resolved, &stack);

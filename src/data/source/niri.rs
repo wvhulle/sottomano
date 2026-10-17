@@ -13,7 +13,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::data::source::{
-    Delivery, LiveSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     kitty_windows::WindowProcesses,
     window_label::{IconCandidate, WindowLabel},
 };
@@ -60,15 +60,14 @@ pub struct Snapshot {
     active: HashMap<String, u64>,
 }
 
-impl Source for Snapshot {
+impl ReadingSource for Snapshot {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "niri";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Snapshot {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         ReceiverStream::new(spawn_event_thread())
             .scan(EventStreamState::default(), |state, event| {
                 let _ = state.apply(event);
@@ -77,7 +76,7 @@ impl LiveSource for Snapshot {
                     &WindowProcesses::default(),
                 ))))
             })
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 
