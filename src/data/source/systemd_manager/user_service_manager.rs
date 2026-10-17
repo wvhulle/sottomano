@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::{
     data::source::{PolledSource, Source, bus, hostname::at_micros, systemd_manager::ManagerProxy},
     widgets::{
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, KeyValue, Section},
     },
 };
@@ -52,7 +52,7 @@ impl UserServiceManager {
                             "Running since",
                             Cell::Time {
                                 at,
-                                part: TimePart::DateAndTime,
+                                format: LocalizedTimeFormat::DateAndTime,
                             },
                         )
                     }),

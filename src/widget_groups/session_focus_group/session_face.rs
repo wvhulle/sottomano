@@ -13,7 +13,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingBody,
         phosphor::Phosphor,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -134,7 +134,7 @@ impl SessionFace<'_> {
                     format!("{} since", run.unit.label()),
                     Cell::Time {
                         at: run.since,
-                        part: TimePart::TimeOfDay,
+                        format: LocalizedTimeFormat::TimeOfDay,
                     },
                 )
             }),
@@ -147,7 +147,7 @@ impl SessionFace<'_> {
                     "Screen off since",
                     Cell::Time {
                         at: since,
-                        part: TimePart::TimeOfDay,
+                        format: LocalizedTimeFormat::TimeOfDay,
                     },
                 )
             }),
@@ -209,7 +209,7 @@ impl BarWidget for SessionFace<'_> {
             .unwrap_or_default();
         OngoingBody::Text(format!(
             "At the screen since {}, {} without a break.{mostly}",
-            TimePart::TimeOfDay.format(&since, locale),
+            LocalizedTimeFormat::TimeOfDay.format(&since, locale),
             duration_text(now - since)
         ))
     }

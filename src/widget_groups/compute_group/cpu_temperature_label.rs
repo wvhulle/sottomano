@@ -20,7 +20,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingBody,
         phosphor::Phosphor,
         temperature_thresholds::celsius_text,
@@ -109,7 +109,7 @@ impl BarWidget for Temperature {
                 format!(
                     ", above {} since {}",
                     celsius_text(thresholds.critical),
-                    TimePart::TimeOfDay.format(&DateTime::<Local>::from(since), locale)
+                    LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(since), locale)
                 )
             })
             .unwrap_or_default();

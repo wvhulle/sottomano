@@ -9,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         weather_icons::WeatherIcon,
     },
@@ -92,7 +92,7 @@ impl HourlyTemperature {
         TableRecord::new(
             Cell::Time {
                 at: self.time,
-                part: TimePart::TimeOfDay,
+                format: LocalizedTimeFormat::TimeOfDay,
             },
             [Some(celsius_text(self.temp).into()), glyph, text],
         )

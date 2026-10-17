@@ -3,14 +3,14 @@ use std::fmt::Display;
 use chrono::{DateTime, Local, Locale, TimeZone};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum TimePart {
+pub enum LocalizedTimeFormat {
     TimeOfDay,
     Date,
     DateAndTime,
     Weekday,
 }
 
-impl TimePart {
+impl LocalizedTimeFormat {
     pub fn format<Tz: TimeZone>(self, at: &DateTime<Tz>, locale: Locale) -> String
     where
         Tz::Offset: Display,
@@ -27,10 +27,10 @@ impl TimePart {
 
     fn specifier(self) -> &'static str {
         match self {
-            TimePart::TimeOfDay => "%X",
-            TimePart::Date => "%x",
-            TimePart::DateAndTime => "%x %X",
-            TimePart::Weekday => "%A",
+            LocalizedTimeFormat::TimeOfDay => "%X",
+            LocalizedTimeFormat::Date => "%x",
+            LocalizedTimeFormat::DateAndTime => "%x %X",
+            LocalizedTimeFormat::Weekday => "%A",
         }
     }
 }

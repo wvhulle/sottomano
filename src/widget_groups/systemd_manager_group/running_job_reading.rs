@@ -16,7 +16,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
@@ -42,7 +42,7 @@ impl SlowJob {
                 Some(self.job_type.clone().into()),
                 Some(Cell::Time {
                     at: self.started_at.into(),
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 }),
             ],
         )
@@ -74,7 +74,7 @@ impl<S: ScopeAppearance> SlowJobs<S> {
             summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
             body: OngoingBody::Text(format!(
                 "since {} · {}",
-                TimePart::TimeOfDay.format(&DateTime::<Local>::from(job.started_at), locale),
+                LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(job.started_at), locale),
                 S::SCOPE_NAME
             )),
             progress: None,

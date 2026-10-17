@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -48,7 +48,7 @@ impl KernelOccurrence {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
         let at = Cell::Time {
             at: self.latest.into(),
-            part: TimePart::TimeOfDay,
+            format: LocalizedTimeFormat::TimeOfDay,
         };
         TableRecord::new(
             at,

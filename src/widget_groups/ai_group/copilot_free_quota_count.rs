@@ -2,7 +2,7 @@ use crate::{
     data::source::ai::copilot::{CopilotFree, USER_ENDPOINT},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -52,7 +52,7 @@ impl BarWidget for CopilotFree {
                         "Resets",
                         Cell::Time {
                             at,
-                            part: TimePart::Date,
+                            format: LocalizedTimeFormat::Date,
                         },
                     )
                 })),

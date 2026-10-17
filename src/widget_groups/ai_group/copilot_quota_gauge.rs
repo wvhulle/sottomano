@@ -12,7 +12,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -60,7 +60,7 @@ impl BarWidget for CopilotMetered {
                         "Resets",
                         Cell::Time {
                             at,
-                            part: TimePart::Date,
+                            format: LocalizedTimeFormat::Date,
                         },
                     )
                 })),

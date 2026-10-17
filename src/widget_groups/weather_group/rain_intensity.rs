@@ -4,7 +4,7 @@ use crate::{
     data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
     },
@@ -61,7 +61,7 @@ impl BarWidget for Rain {
                 "Peak at",
                 Cell::Time {
                     at: self.peak.at.to_utc(),
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
         ])

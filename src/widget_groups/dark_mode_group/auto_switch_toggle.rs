@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
@@ -190,7 +190,7 @@ impl BarWidget for AutoSwitchToggle {
                 upcoming.target_mode.sun_event_label().to_owned(),
                 Cell::Time {
                     at: upcoming.switch_time - offset,
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
             KeyValue::new(
@@ -201,7 +201,7 @@ impl BarWidget for AutoSwitchToggle {
                 format!("Switch to {}", upcoming.target_mode.umbra_name()),
                 Cell::Time {
                     at: upcoming.switch_time,
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
         ])

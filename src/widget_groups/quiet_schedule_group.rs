@@ -18,7 +18,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         idle::{MAX_POSITION, position, timeout_at},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
@@ -399,7 +399,7 @@ impl QuietScheduleGroup {
                     label,
                     Cell::Time {
                         at: at.with_timezone(&Utc),
-                        part: TimePart::TimeOfDay,
+                        format: LocalizedTimeFormat::TimeOfDay,
                     },
                 ),
                 KeyValue::new("In", format_duration(whole_minutes).to_string()),
