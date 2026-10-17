@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem::take};
 
 use iced::{Subscription, Task};
 
@@ -24,14 +24,16 @@ use crate::{
 };
 
 struct ServerReadings<S: UnitScope> {
+    discovered: LlamaServerUnit<S>,
     switch: UnitSwitch<S>,
     server: ContinuousReading<LlamaServer<S>>,
 }
 
-impl<S: UnitScope> Default for ServerReadings<S> {
-    fn default() -> Self {
+impl<S: UnitScope> ServerReadings<S> {
+    fn new(discovered: LlamaServerUnit<S>) -> Self {
         Self {
-            switch: UnitSwitch::default(),
+            switch: UnitSwitch::new(discovered.unit.clone(), SERVER_SWITCH),
+            discovered,
             server: ContinuousReading::default(),
         }
     }
@@ -59,50 +61,62 @@ pub enum ScopedServersMessage<S: UnitScope> {
 }
 
 impl<S: UnitScope> ScopedLlamaServers<S> {
-    fn discovered(&self) -> impl Iterator<Item = LlamaServerUnit<S>> + '_ {
-        self.services
-            .get()
-            .into_iter()
-            .flat_map(|services| services.services.iter())
-            .filter_map(LlamaServerUnit::discovered)
-    }
-
     pub fn subscription(&self) -> Subscription<ScopedServersMessage<S>> {
         Subscription::batch(
             [listening::<ServiceCommands<S>>(()).map(ScopedServersMessage::Services)]
                 .into_iter()
-                .chain(self.discovered().flat_map(|server| {
+                .chain(self.servers.values().flat_map(|readings| {
+                    let unit = readings.discovered.unit.clone();
                     [
-                        UnitSwitch::<S>::subscription(server.unit.clone())
-                            .with(server.unit.clone())
+                        readings
+                            .switch
+                            .subscription()
+                            .with(unit.clone())
                             .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
-                        listening::<LlamaServer<S>>(server.clone())
-                            .with(server.unit.clone())
+                        listening::<LlamaServer<S>>(readings.discovered.clone())
+                            .with(unit)
                             .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
                     ]
                 })),
         )
     }
 
+    fn adopt_discovered(&mut self) {
+        let mut previous = take(&mut self.servers);
+        self.servers = self
+            .services
+            .get()
+            .into_iter()
+            .flat_map(|services| services.services.iter())
+            .filter_map(LlamaServerUnit::discovered)
+            .map(|discovered| {
+                let readings = previous
+                    .remove(&discovered.unit)
+                    .filter(|readings| readings.discovered == discovered)
+                    .unwrap_or_else(|| ServerReadings::new(discovered));
+                (readings.discovered.unit.clone(), readings)
+            })
+            .collect();
+    }
+
     pub fn update(&mut self, message: ScopedServersMessage<S>) -> Task<ScopedServersMessage<S>> {
         match message {
             ScopedServersMessage::Services(delivery) => {
                 self.services.push_or_keep(delivery);
+                self.adopt_discovered();
                 Task::none()
             }
-            ScopedServersMessage::Switch(unit, message) => self
-                .servers
-                .entry(unit.clone())
-                .or_default()
-                .switch
-                .update(unit.clone(), message)
-                .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
+            ScopedServersMessage::Switch(unit, message) => match self.servers.get_mut(&unit) {
+                Some(readings) => readings
+                    .switch
+                    .update(message)
+                    .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
+                None => Task::none(),
+            },
             ScopedServersMessage::Server(unit, delivery) => {
-                self.servers
-                    .entry(unit)
-                    .or_default()
-                    .server
-                    .push_or_keep(delivery);
+                if let Some(readings) = self.servers.get_mut(&unit) {
+                    readings.server.push_or_keep(delivery);
+                }
                 Task::none()
             }
         }
@@ -127,19 +141,14 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
         let reading = &readings.server;
         let server = reading.get();
         match target.reading {
-            LlamaServerReading::Switch => readings.switch.tooltip(SERVER_SWITCH, server.is_some()),
-            LlamaServerReading::Model => {
-                let discovered = self
-                    .discovered()
-                    .find(|discovered| discovered.unit == target.unit)?;
-                Some(
-                    reading
-                        .tooltip_with(TooltipBody::sections(
-                            server?.model_sections(&discovered.endpoint),
-                        ))?
-                        .with_sections(model_props),
-                )
-            }
+            LlamaServerReading::Switch => readings.switch.tooltip(server.is_some()),
+            LlamaServerReading::Model => Some(
+                reading
+                    .tooltip_with(TooltipBody::sections(
+                        server?.model_sections(&readings.discovered.endpoint),
+                    ))?
+                    .with_sections(model_props),
+            ),
             LlamaServerReading::GenerationRate => {
                 reading.tooltip_with(GenerationRate(server?.generation_rate?).tooltip())
             }
@@ -163,14 +172,14 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
         &'a self,
         lift: fn(ScopedServersMessage<S>) -> M,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
-        self.discovered().flat_map(move |discovered| {
-            let readings = self.servers.get(&discovered.unit);
+        self.servers.values().flat_map(move |readings| {
+            let unit = &readings.discovered.unit;
             let target = |reading| LlamaServerTarget {
                 bus: S::BUS,
-                unit: discovered.unit.clone(),
+                unit: unit.clone(),
                 reading,
             };
-            let running = readings
+            let running = Some(readings)
                 .filter(|readings| readings.switch.running())
                 .and_then(|readings| readings.server.get());
             let busy = running.filter(|server| server.busy_slots().next().is_some());
@@ -199,17 +208,14 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
                     }),
                 busy.and_then(|server| ContextFill::of_busy_slots(&server.slots))
                     .map(|fill| GroupItem::reading(fill, target(LlamaServerReading::ContextFill))),
-                readings.and_then(|readings| {
-                    readings.switch.group_item(
-                        SERVER_SWITCH,
-                        readings.server.get().is_some(),
-                        target(LlamaServerReading::Switch),
-                        lift(ScopedServersMessage::Switch(
-                            discovered.unit.clone(),
-                            UnitSwitchMessage::Press,
-                        )),
-                    )
-                }),
+                readings.switch.group_item(
+                    readings.server.get().is_some(),
+                    target(LlamaServerReading::Switch),
+                    lift(ScopedServersMessage::Switch(
+                        unit.clone(),
+                        UnitSwitchMessage::Press,
+                    )),
+                ),
             ]
             .into_iter()
             .flatten()

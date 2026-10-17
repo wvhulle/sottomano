@@ -4,6 +4,7 @@ mod sun_follow_toggle;
 use std::ops::RangeInclusive;
 
 use iced::{Subscription, Task};
+use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
     data::source::{
         Delivery,
         gamma::{self, Gamma},
-        screen_temperature::{self, SunFollow},
+        systemd_manager::{User, unit_activity::UnitChange},
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{ForcedRefresh, polling},
@@ -21,8 +22,8 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        unit_switch::{UnitSwitch, UnitSwitchMessage},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -48,11 +49,10 @@ impl From<ColorTemperatureTarget> for HoverTarget {
 }
 
 pub struct ColorTemperatureGroup {
-    unit: String,
     gamma: ContinuousReading<Gamma>,
     dim: SliderControl,
     warmth: SliderControl,
-    auto: ToggleControl<SunFollow>,
+    auto: UnitSwitch<User>,
     expansion: GroupExpansion,
 }
 
@@ -62,13 +62,12 @@ pub enum ColorTemperatureMessage {
     Gamma(Delivery<Gamma>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
-    Auto(ToggleMessage<SunFollow>),
+    Auto(UnitSwitchMessage<User>),
 }
 
 impl ColorTemperatureGroup {
     pub fn new(unit: String) -> Self {
         Self {
-            unit,
             gamma: ContinuousReading::default(),
             dim: SliderControl::new(
                 "Screen dimming",
@@ -88,7 +87,7 @@ impl ColorTemperatureGroup {
             .slider_step(WARMTH_STEP)
             .readout(|value| format!("{}K", as_kelvin(value)))
             .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
-            auto: ToggleControl::default(),
+            auto: UnitSwitch::new(unit, SUN_FOLLOW),
             expansion: GroupExpansion::default(),
         }
     }
@@ -99,10 +98,7 @@ impl ColorTemperatureGroup {
     ) -> Subscription<ColorTemperatureMessage> {
         Subscription::batch([
             polling::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma),
-            self.expansion.while_expanded(
-                ToggleControl::<SunFollow>::subscription(self.unit.clone(), forced)
-                    .map(ColorTemperatureMessage::Auto),
-            ),
+            self.auto.subscription().map(ColorTemperatureMessage::Auto),
         ])
     }
 
@@ -156,17 +152,16 @@ impl ColorTemperatureGroup {
                     self.dim.close();
                     Task::none()
                 }
-                Action::Commit(value) => {
-                    self.auto.assume(SunFollow {
-                        auto: false,
-                        unit: self.unit.clone(),
-                    });
-                    let unit = self.unit.clone();
-                    ControlMessage::commit("gamma temperature", value, move || {
-                        screen_temperature::set_manual(&unit, as_kelvin(value))
-                    })
-                    .map(ColorTemperatureMessage::Warmth)
-                }
+                Action::Commit(value) => self
+                    .auto
+                    .request(UnitChange::Stop)
+                    .map(ColorTemperatureMessage::Auto)
+                    .chain(
+                        ControlMessage::commit("gamma temperature", value, move || {
+                            gamma::set_temperature(as_kelvin(value))
+                        })
+                        .map(ColorTemperatureMessage::Warmth),
+                    ),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
             ColorTemperatureMessage::Auto(m) => {
@@ -191,7 +186,7 @@ impl ColorTemperatureGroup {
                         self.warmth.readout_text(),
                     )]))
             }
-            ColorTemperatureTarget::Automatic => self.auto.tooltip(),
+            ColorTemperatureTarget::Automatic => self.auto.tooltip(true),
         }
     }
 
@@ -210,8 +205,9 @@ impl ColorTemperatureGroup {
                 gamma_available
                     .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
                 self.auto.group_item(
+                    true,
                     ColorTemperatureTarget::Automatic,
-                    ColorTemperatureMessage::Auto,
+                    ColorTemperatureMessage::Auto(UnitSwitchMessage::Press),
                 ),
             ]
             .into_iter()

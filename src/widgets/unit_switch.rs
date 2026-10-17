@@ -74,15 +74,9 @@ impl BarWidget for UnitSwitchReading {
 }
 
 pub struct UnitSwitch<S: UnitScope> {
+    unit: String,
+    face: UnitSwitchFace,
     active_state: ContinuousReading<UnitActiveState<S>>,
-}
-
-impl<S: UnitScope> Default for UnitSwitch<S> {
-    fn default() -> Self {
-        Self {
-            active_state: ContinuousReading::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -90,12 +84,20 @@ pub enum UnitSwitchMessage<S: UnitScope> {
     ActiveState(Delivery<UnitActiveState<S>>),
     Press,
     Requested {
-        before: UnitActivity,
+        before: Option<UnitActivity>,
         accepted: bool,
     },
 }
 
 impl<S: UnitScope> UnitSwitch<S> {
+    pub fn new(unit: String, face: UnitSwitchFace) -> Self {
+        Self {
+            unit,
+            face,
+            active_state: ContinuousReading::default(),
+        }
+    }
+
     fn activity(&self) -> Option<UnitActivity> {
         self.active_state.get().map(|state| state.activity)
     }
@@ -104,37 +106,22 @@ impl<S: UnitScope> UnitSwitch<S> {
         self.activity().is_some_and(UnitActivity::running)
     }
 
-    pub fn subscription(unit: String) -> Subscription<UnitSwitchMessage<S>> {
-        listening::<UnitActiveState<S>>(unit).map(UnitSwitchMessage::ActiveState)
+    pub fn subscription(&self) -> Subscription<UnitSwitchMessage<S>> {
+        listening::<UnitActiveState<S>>(self.unit.clone()).map(UnitSwitchMessage::ActiveState)
     }
 
-    pub fn update(
-        &mut self,
-        unit: String,
-        message: UnitSwitchMessage<S>,
-    ) -> Task<UnitSwitchMessage<S>> {
+    pub fn update(&mut self, message: UnitSwitchMessage<S>) -> Task<UnitSwitchMessage<S>> {
         match message {
             UnitSwitchMessage::ActiveState(delivery) => {
                 self.active_state.push_or_keep(delivery);
                 Task::none()
             }
-            UnitSwitchMessage::Press => {
-                let Some(before) = self.activity() else {
-                    return Task::none();
-                };
-                let change = before.press_change();
-                self.active_state
-                    .assume(UnitActiveState::from(change.pending_activity()));
-                let control = UnitControl {
-                    per_user: S::PER_USER,
-                    unit,
-                };
-                Task::perform(control.accepts(change), move |accepted| {
-                    UnitSwitchMessage::Requested { before, accepted }
-                })
-            }
+            UnitSwitchMessage::Press => match self.activity() {
+                Some(activity) => self.request(activity.press_change()),
+                None => Task::none(),
+            },
             UnitSwitchMessage::Requested { before, accepted } => {
-                if !accepted {
+                if let Some(before) = before.filter(|_| !accepted) {
                     self.active_state.assume(UnitActiveState::from(before));
                 }
                 Task::none()
@@ -142,27 +129,42 @@ impl<S: UnitScope> UnitSwitch<S> {
         }
     }
 
-    fn reading(&self, face: UnitSwitchFace, serving: bool) -> Option<UnitSwitchReading> {
+    pub fn request(&mut self, change: UnitChange) -> Task<UnitSwitchMessage<S>> {
+        let before = self.activity();
+        self.active_state
+            .assume(UnitActiveState::from(change.pending_activity()));
+        let control = UnitControl {
+            per_user: S::PER_USER,
+            unit: self.unit.clone(),
+        };
+        Task::perform(control.accepts(change), move |accepted| {
+            UnitSwitchMessage::Requested { before, accepted }
+        })
+    }
+
+    fn reading(&self, serving: bool) -> Option<UnitSwitchReading> {
         let activity = match self.activity()? {
             UnitActivity::Running if !serving => UnitActivity::Starting,
             activity => activity,
         };
-        Some(UnitSwitchReading { face, activity })
+        Some(UnitSwitchReading {
+            face: self.face,
+            activity,
+        })
     }
 
-    pub fn tooltip(&self, face: UnitSwitchFace, serving: bool) -> Option<Tooltip> {
+    pub fn tooltip(&self, serving: bool) -> Option<Tooltip> {
         self.active_state
-            .tooltip_with(self.reading(face, serving)?.tooltip())
+            .tooltip_with(self.reading(serving)?.tooltip())
     }
 
     pub fn group_item<'a, M: 'a>(
         &self,
-        face: UnitSwitchFace,
         serving: bool,
         target: impl Into<HoverTarget>,
         pressed: M,
     ) -> Option<GroupItem<'a, M>> {
-        let reading = self.reading(face, serving)?;
+        let reading = self.reading(serving)?;
         Some(GroupItem::reading(reading, target).on_press(reading.press_does(), pressed))
     }
 }

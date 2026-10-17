@@ -55,7 +55,6 @@ pub mod power_profile;
 pub mod previous_shutdown;
 pub mod process;
 pub mod project_directory;
-pub mod screen_temperature;
 pub mod service_errors;
 pub mod session_action;
 pub mod sysfs_sensors;
