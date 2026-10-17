@@ -38,6 +38,7 @@ use crate::{
             favicons::RawFavicon,
             launch_tracker::{Launch, LaunchTracker},
             niri::{self, WindowOwner},
+            niri_config::{ConfiguredWorkspaces, NiriConfigFile},
         },
     },
     desktop_shell::{
@@ -148,6 +149,8 @@ pub struct DesktopShell {
     pub favicons: Favicons,
     pub font_fallbacks: FontFallbacks,
     pub pointer_drag: ShellDrag,
+    pub niri_config: NiriConfigFile,
+    pub configured_workspaces: Option<ConfiguredWorkspaces>,
 }
 
 #[to_layer_message(multi)]
@@ -213,6 +216,8 @@ pub enum Message {
     SidebarWidthChanged { window: Id, width: f32 },
     PointerDrag(DragMessage),
     NiriActionFailed(niri::ActionFailure),
+    NiriConfigRead(Result<ConfiguredWorkspaces, String>),
+    RestoreWorkspaceOrder { output: String },
 }
 
 impl From<TooltipMessage> for Message {
@@ -237,6 +242,7 @@ impl DesktopShell {
         config_file: ConfigFile,
         secrets: SecretPaths,
         niri_rules: NiriRulesFile,
+        niri_config: NiriConfigFile,
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("desktop shell init").entered();
@@ -289,6 +295,8 @@ impl DesktopShell {
             favicons: Favicons::default(),
             font_fallbacks: FontFallbacks::default(),
             pointer_drag: ShellDrag::Idle,
+            niri_config,
+            configured_workspaces: None,
             shell_settings: ShellSettings::default(),
             theme: iced::Theme::from(&config.theme.palette),
             wayland,
@@ -306,6 +314,10 @@ impl DesktopShell {
             }),
             Task::perform(state::shell_settings::load(), Message::ShellSettingsLoaded),
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
+            shell
+                .niri_config
+                .read_workspaces()
+                .map(Message::NiriConfigRead),
             blocking("sound theme", SoundTheme::read_session).map(Message::SoundThemeLoaded),
             query_outputs(),
         ]);
@@ -470,6 +482,15 @@ impl DesktopShell {
             }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
+            Message::NiriConfigRead(Ok(configured)) => {
+                self.configured_workspaces = Some(configured);
+                Task::none()
+            }
+            Message::NiriConfigRead(Err(reason)) => {
+                tracing::warn!("niri config: {reason}");
+                Task::none()
+            }
+            Message::RestoreWorkspaceOrder { output } => self.restore_workspace_order(&output),
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
             Message::RefreshSource(source) => {
@@ -791,6 +812,13 @@ impl DesktopShell {
                     | niri_ipc::Event::WorkspaceActivated { .. }
             );
             focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
+            if matches!(event, niri_ipc::Event::ConfigLoaded { failed: false }) {
+                tasks.push(
+                    self.niri_config
+                        .read_workspaces()
+                        .map(Message::NiriConfigRead),
+                );
+            }
             if let Some(launch) = self.launch_tracker.observe(&event) {
                 tasks.push(Task::future(state::launches::record(launch)).discard());
             }

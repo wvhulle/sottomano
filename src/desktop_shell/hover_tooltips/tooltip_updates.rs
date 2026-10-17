@@ -166,6 +166,7 @@ impl DesktopShell {
                 &self.font_fallbacks,
                 *workspace,
             ),
+            HoverTarget::WorkspaceOrder => Some(Tooltip::empty()),
         }
     }
 

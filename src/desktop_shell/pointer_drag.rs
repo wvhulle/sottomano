@@ -183,6 +183,25 @@ impl DesktopShell {
         }
     }
 
+    pub fn restore_workspace_order(&self, output: &str) -> Task<Message> {
+        let Some(configured) = &self.configured_workspaces else {
+            return Task::none();
+        };
+        let Some(snapshot) = self.niri_snapshot.get() else {
+            return Task::none();
+        };
+        configured
+            .restoring_moves(snapshot.workspaces_for_output(output))
+            .into_iter()
+            .map(|restored| {
+                niri_action(Action::MoveWorkspaceToIndex {
+                    index: restored.index,
+                    reference: Some(WorkspaceReferenceArg::Name(restored.name)),
+                })
+            })
+            .fold(Task::none(), Task::chain)
+    }
+
     fn move_window_to_workspace(&mut self, window: u64, workspace: u64) -> Task<Message> {
         if self
             .niri

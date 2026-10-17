@@ -46,6 +46,7 @@ pub mod logind;
 pub mod mpris;
 pub mod net_interfaces;
 pub mod niri;
+pub mod niri_config;
 pub mod nix_package_facts;
 pub mod nix_store;
 pub mod oom_kills;

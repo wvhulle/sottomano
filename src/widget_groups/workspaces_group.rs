@@ -3,12 +3,12 @@ pub mod workspace_tooltip;
 
 use iced::{
     Alignment, Color, Element, Length, Theme, border,
-    widget::{Text, column, container, progress_bar, row},
+    widget::{Column, Row, Text, column, container, progress_bar, row},
 };
 
 use crate::{
     config::Config,
-    data::source::niri,
+    data::source::{niri, niri_config::ConfiguredWorkspaces},
     desktop_shell::{
         Message,
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
@@ -20,9 +20,11 @@ use crate::{
     widgets::{
         activity_line::edge_activity_line,
         focus_indicator::focus_indicator,
+        glyph_button,
         marker_track::MarkerTrack,
         pager_slot::PagerSlot,
         panel_frame::panel_frame,
+        phosphor::{Phosphor, Weight},
         pointer_drag::{
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
@@ -37,6 +39,7 @@ const DROP_TARGET_ALPHA: f32 = 0.4;
 pub enum WorkspacesMessage {
     Tooltip(TooltipMessage),
     Drag(DragMessage),
+    RestoreOrder { output: String },
 }
 
 impl From<WorkspacesMessage> for Message {
@@ -44,8 +47,34 @@ impl From<WorkspacesMessage> for Message {
         match message {
             WorkspacesMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
             WorkspacesMessage::Drag(drag) => Message::PointerDrag(drag),
+            WorkspacesMessage::RestoreOrder { output } => Message::RestoreWorkspaceOrder { output },
         }
     }
+}
+
+fn order_restore<'a>(
+    configured: Option<&ConfiguredWorkspaces>,
+    workspaces: &[niri::WorkspaceIndicator],
+    output: &str,
+    config: &Config,
+) -> Option<Element<'a, WorkspacesMessage>> {
+    configured.filter(|configured| !configured.is_followed_on(workspaces))?;
+    Some(hoverable(
+        glyph_button(
+            Phosphor::ArrowCounterClockwise(Weight::Regular),
+            config.theme.font.icon_size_px,
+            config.theme.palette.inactive,
+            WorkspacesMessage::RestoreOrder {
+                output: output.to_owned(),
+            },
+        ),
+        HoverTarget::WorkspaceOrder,
+        PressHints {
+            left: Some("restore the order from niri's config"),
+            ..PressHints::default()
+        },
+        WorkspacesMessage::Tooltip,
+    ))
 }
 
 pub fn vertical_view<'a>(
@@ -53,6 +82,7 @@ pub fn vertical_view<'a>(
     output: &str,
     config: &Config,
     drag: &DragView,
+    configured: Option<&ConfiguredWorkspaces>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
@@ -69,12 +99,20 @@ pub fn vertical_view<'a>(
     let list = keyed_slot_list(rows, Position::Left, config)
         .spacing(config.layout.panel.widget_spacing)
         .into();
-    Some(draggable_slot_list(
+    let draggable = draggable_slot_list(
         indicated(list, &order, config, Position::Left),
         SlotList::Workspaces,
         drag,
         dragged,
-    ))
+    );
+    Some(
+        Column::new()
+            .extend(order_restore(configured, workspaces, output, config))
+            .push(draggable)
+            .spacing(config.layout.panel.widget_spacing)
+            .align_x(Alignment::Center)
+            .into(),
+    )
 }
 
 pub fn drag_ghost<'a>(
@@ -136,6 +174,7 @@ pub fn inline_view<'a>(
     config: &Config,
     position: Position,
     drag: &DragView,
+    configured: Option<&ConfiguredWorkspaces>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
@@ -158,12 +197,21 @@ pub fn inline_view<'a>(
         )
     });
     let list = keyed_slot_list(slots, position, config).into();
-    Some(draggable_slot_list(
+    let draggable = draggable_slot_list(
         indicated(list, &order, config, position),
         SlotList::Workspaces,
         drag,
         dragged,
-    ))
+    );
+    Some(
+        Row::new()
+            .push(draggable)
+            .extend(order_restore(configured, workspaces, output, config))
+            .spacing(config.layout.panel.widget_spacing)
+            .height(Length::Fill)
+            .align_y(Alignment::Center)
+            .into(),
+    )
 }
 
 fn drop_tint(

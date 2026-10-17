@@ -31,7 +31,13 @@ impl DesktopShell {
             .then(|| self.niri_snapshot.get())
             .flatten()
             .and_then(|snapshot| {
-                workspaces_group::vertical_view(snapshot, output, config, &self.drag_view())
+                workspaces_group::vertical_view(
+                    snapshot,
+                    output,
+                    config,
+                    &self.drag_view(),
+                    self.configured_workspaces.as_ref(),
+                )
             })
             .map(|workspaces| {
                 panel_frame(

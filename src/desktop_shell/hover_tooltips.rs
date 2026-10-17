@@ -68,6 +68,7 @@ pub enum HoverTarget {
     Tray(String),
     Window(WindowTarget),
     Workspace(u64),
+    WorkspaceOrder,
     GroupHandle(GroupHandle),
 }
 
