@@ -14,8 +14,9 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::data::source::{
     Delivery, LiveSource, Source,
-    app_rules::{self, AppRule, TitleParts},
+    app_rules::{IconCandidate, WindowLabel},
     delivered,
+    window_agents::WindowProcesses,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -73,14 +74,17 @@ impl LiveSource for Snapshot {
             EventStreamState::default(),
             |state, event| {
                 let _ = state.apply(event);
-                ready(Some(Ok(Snapshot::derive(state))))
+                ready(Some(Ok(Snapshot::derive(
+                    state,
+                    &WindowProcesses::default(),
+                ))))
             },
         ))
     }
 }
 
 impl Snapshot {
-    pub fn derive(state: &EventStreamState) -> Self {
+    pub fn derive(state: &EventStreamState, processes: &WindowProcesses) -> Self {
         let mut workspaces: HashMap<String, Vec<WorkspaceIndicator>> = HashMap::new();
         let mut active = HashMap::new();
         for w in state.workspaces.workspaces.values() {
@@ -120,7 +124,7 @@ impl Snapshot {
                         .unwrap_or((usize::MAX, usize::MAX));
                     (col, tile, w.id)
                 });
-                let entries = group.into_iter().map(titled_entry).collect();
+                let entries = group.into_iter().map(|w| win_entry(w, processes)).collect();
                 (workspace, entries)
             })
             .collect();
@@ -138,6 +142,10 @@ impl Snapshot {
 
     pub fn windows_on_workspace(&self, workspace: u64) -> &[WinEntry] {
         self.windows.get(&workspace).map_or(&[], Vec::as_slice)
+    }
+
+    pub fn all_windows(&self) -> impl Iterator<Item = &WinEntry> {
+        self.windows.values().flatten()
     }
 
     pub fn active_workspace_id(&self, output: &str) -> Option<u64> {
@@ -304,46 +312,47 @@ pub struct WinLayout {
 #[derive(Debug, Clone)]
 pub struct WinEntry {
     pub id: u64,
-    pub title: Option<String>,
     pub app_id: Option<String>,
     pub pid: Option<i32>,
     pub is_focused: bool,
     pub is_urgent: bool,
     pub layout: WinLayout,
-    pub title_parts: Option<TitleParts>,
-    pub lead_first: bool,
+    pub label: Option<WindowLabel>,
 }
 
 impl WinEntry {
-    pub fn app_rule(&self) -> AppRule {
-        self.app_id
-            .as_deref()
-            .map_or(AppRule::Fallback, app_rules::rule_for)
+    pub fn icon_candidates(&self) -> Vec<IconCandidate> {
+        self.label
+            .as_ref()
+            .and_then(WindowLabel::theme_icon)
+            .map(IconCandidate::Theme)
+            .into_iter()
+            .chain(self.app_id.clone().map(IconCandidate::AppId))
+            .collect()
+    }
+
+    pub fn favicon_key(&self) -> Option<&str> {
+        self.label.as_ref()?.favicon_key()
     }
 }
 
-pub fn all_windows(state: &EventStreamState) -> Vec<WinEntry> {
-    state.windows.windows.values().map(win_entry).collect()
-}
-
-fn titled_entry(w: &niri_ipc::Window) -> WinEntry {
-    let mut entry = win_entry(w);
-    let rule = entry.app_rule();
-    entry.title_parts = app_rules::label_for(&entry).map(|label| rule.rewrite(label));
-    entry.lead_first = rule.lead_first();
-    entry
-}
-
-fn win_entry(w: &niri_ipc::Window) -> WinEntry {
+fn win_entry(w: &niri_ipc::Window, processes: &WindowProcesses) -> WinEntry {
+    let title = w.title.clone().filter(|title| !title.is_empty());
+    let app_id = w.app_id.clone().filter(|app_id| !app_id.is_empty());
+    let label = title.as_deref().or(app_id.as_deref()).map(|shown_title| {
+        WindowLabel::classify(
+            app_id.as_deref(),
+            shown_title,
+            processes.kitty_label_in(w.id).cloned(),
+        )
+    });
     WinEntry {
         id: w.id,
-        title: w.title.clone().filter(|title| !title.is_empty()),
-        app_id: w.app_id.clone().filter(|app_id| !app_id.is_empty()),
+        app_id,
         pid: w.pid,
         is_focused: w.is_focused,
         is_urgent: w.is_urgent,
-        title_parts: None,
-        lead_first: false,
+        label,
         layout: WinLayout {
             column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
             tile_size: Size::new(w.layout.tile_size.0 as f32, w.layout.tile_size.1 as f32),

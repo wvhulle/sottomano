@@ -6,10 +6,7 @@ use crate::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::{
-        self, LayerAppearance, ShellLayer, ShellLayout,
-        niri_rules::{NiriRulesFile, NiriStyling},
-    },
+    state::{self, LayerAppearance, ShellLayer, ShellLayout},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -50,24 +47,11 @@ fn pinned_groups_toggle(shell_layout: &ShellLayout) -> IconToggle {
     )
 }
 
-fn xray_toggle(styling: NiriStyling) -> IconToggle {
-    IconToggle::new(
-        "X-ray",
-        Phosphor::Eye(Weight::Regular),
-        styling.xray,
-        SwitchPresses {
-            turning_on: "blur only the wallpaper, hiding windows behind the shell",
-            turning_off: "blur the windows behind the shell too",
-        },
-    )
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelSettingsTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
     FloatOffset,
-    Xray,
     Appearance(AppearanceTarget),
 }
 
@@ -82,7 +66,6 @@ pub enum PanelSettingsMessage {
     Expansion(ExpansionMessage),
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
-    ToggleXray,
     FloatOffset(ControlMessage),
     Appearance(AppearanceMessage),
 }
@@ -118,7 +101,6 @@ impl PanelSettingsGroup {
         target: PanelSettingsTarget,
         shell_layout: &ShellLayout,
         panels: &LayerAppearance,
-        styling: NiriStyling,
     ) -> Tooltip {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
@@ -128,7 +110,6 @@ impl PanelSettingsGroup {
                 pinned_groups_toggle(shell_layout).switch_tooltip()
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
-            PanelSettingsTarget::Xray => xray_toggle(styling).switch_tooltip(),
             PanelSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, panels),
         }
     }
@@ -155,7 +136,6 @@ impl PanelSettingsGroup {
         msg: PanelSettingsMessage,
         shell_layout: &mut ShellLayout,
         panels: &mut LayerAppearance,
-        rules: &mut NiriRulesFile,
     ) -> Action {
         match msg {
             PanelSettingsMessage::Expansion(menu) => {
@@ -182,11 +162,6 @@ impl PanelSettingsGroup {
                     .discard(),
                 )
             }
-            PanelSettingsMessage::ToggleXray => Action::Run(
-                rules
-                    .restyle(|styling| styling.xray = !styling.xray)
-                    .discard(),
-            ),
             PanelSettingsMessage::FloatOffset(control) => {
                 let SliderAction::Commit(value) = self.float_offset.update(control) else {
                     return Action::Run(Task::none());
@@ -213,7 +188,6 @@ impl PanelSettingsGroup {
         config: &'a Config,
         shell_layout: &ShellLayout,
         panels: &LayerAppearance,
-        styling: NiriStyling,
     ) -> GroupContent<'a, PanelSettingsMessage> {
         GroupContent::new(
             &self.expansion,
@@ -233,11 +207,6 @@ impl PanelSettingsGroup {
                     &self.float_offset,
                     config,
                     PanelSettingsMessage::FloatOffset,
-                ),
-                GroupItem::toggle(
-                    xray_toggle(styling),
-                    PanelSettingsTarget::Xray,
-                    PanelSettingsMessage::ToggleXray,
                 ),
             ]
             .into_iter()

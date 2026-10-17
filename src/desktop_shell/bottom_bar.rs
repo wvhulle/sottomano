@@ -4,7 +4,7 @@ use crate::{
     desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
     state::WorkspacesPlacement,
     widget_groups::workspaces_group,
-    widgets::{widget_group::GroupContent, window_icon::WindowAssets},
+    widgets::widget_group::GroupContent,
 };
 
 pub(super) struct BottomBarGroups<'a> {
@@ -34,12 +34,7 @@ impl DesktopShell {
         BottomBarGroups {
             start: [
                 self.panel_settings_group
-                    .group_content(
-                        config,
-                        &shell_settings.layout,
-                        &shell_settings.panels,
-                        self.niri_rules.styling(),
-                    )
+                    .group_content(config, &shell_settings.layout, &shell_settings.panels)
                     .map(Message::PanelSettings),
                 self.sidebar_settings_group
                     .group_content(config, &shell_settings.layout, &shell_settings.sidebar)
@@ -52,7 +47,7 @@ impl DesktopShell {
                     )
                     .map(Message::OverlaySettings),
                 self.niri_window_group
-                    .group_content(config)
+                    .group_content(config, self.niri_rules.styling())
                     .map(Message::NiriWindow),
             ],
             end: [self.tray_group.group_content(config).map(Message::Tray)],
@@ -78,11 +73,7 @@ impl DesktopShell {
         self.window_group
             .view(
                 self.niri_snapshot.get()?,
-                WindowAssets {
-                    entries: &self.desktop_entries,
-                    favicons: &self.favicons,
-                    fallbacks: &self.font_fallbacks,
-                },
+                self.window_assets(),
                 self.audio_group.window_audio(),
                 output,
                 &self.config,

@@ -1,65 +1,15 @@
-use crate::data::source::niri::WinEntry;
+use crate::data::source::window_agents::{
+    KITTY_APP_ID,
+    kitty_window_label::{ForegroundActivity, KittyWindowLabel, WorkingLocation},
+};
 
 const SEPARATORS: [&str; 3] = [" — ", " · ", " - "];
 
-const TERMINAL_KEYWORDS: [&str; 5] = ["kitty", "foot", "alacritty", "wezterm", "ghostty"];
+const FIREFOX_APP_IDS: [&str; 2] = ["firefox", "org.mozilla.firefox"];
 
 const FIREFOX_BRANDS: [&str; 2] = ["Mozilla Firefox", "Firefox"];
 
-#[derive(Debug, Clone, Copy)]
-pub enum AppRule {
-    Terminal,
-    Firefox,
-    Browser { brand: &'static str },
-    Fallback,
-}
-
-pub fn rule_for(app_id: &str) -> AppRule {
-    let id = app_id.to_lowercase();
-    if TERMINAL_KEYWORDS.iter().any(|k| id.contains(k)) {
-        AppRule::Terminal
-    } else if id.contains("firefox") {
-        AppRule::Firefox
-    } else if id.contains("librewolf") {
-        AppRule::Browser { brand: "LibreWolf" }
-    } else if id.contains("chromium") {
-        AppRule::Browser { brand: "Chromium" }
-    } else if id.contains("chrome") {
-        AppRule::Browser {
-            brand: "Google Chrome",
-        }
-    } else if id.contains("brave") {
-        AppRule::Browser { brand: "Brave" }
-    } else {
-        AppRule::Fallback
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TitleParts {
-    pub lead: Option<String>,
-    pub main: String,
-}
-
-impl TitleParts {
-    fn whole(main: &str) -> Self {
-        Self {
-            lead: None,
-            main: main.to_owned(),
-        }
-    }
-
-    fn led(lead: &str, main: &str) -> Self {
-        Self {
-            lead: Some(lead.to_owned()),
-            main: main.to_owned(),
-        }
-    }
-}
-
-pub fn label_for(win: &WinEntry) -> Option<&str> {
-    win.title.as_deref().or(win.app_id.as_deref())
-}
+const SSH_COMMAND: &str = "ssh";
 
 #[derive(Debug, Clone)]
 pub enum IconCandidate {
@@ -67,61 +17,154 @@ pub enum IconCandidate {
     AppId(String),
 }
 
-impl AppRule {
-    pub fn rewrite(self, title: &str) -> TitleParts {
-        match self {
-            AppRule::Terminal => split(title, false).map_or_else(
-                || TitleParts::whole(title),
-                |(head, tail)| TitleParts::led(head, tail),
-            ),
-            AppRule::Firefox => browser_rewrite(title, &FIREFOX_BRANDS),
-            AppRule::Browser { brand } => browser_rewrite(title, &[brand]),
-            AppRule::Fallback => TitleParts::whole(title),
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WindowLabel {
+    KittyAgent(KittyWindowLabel),
+    Firefox {
+        page: BrowserPage,
+        favicon_key: Option<String>,
+    },
+    BrandedBrowser(BrowserPage),
+    Titled(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserPage {
+    pub page: String,
+    pub site: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserBrand {
+    LibreWolf,
+    Chromium,
+    GoogleChrome,
+    Brave,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnbrandedApp;
+
+impl TryFrom<&str> for BrowserBrand {
+    type Error = UnbrandedApp;
+
+    fn try_from(app_id: &str) -> Result<Self, Self::Error> {
+        match app_id {
+            "librewolf" | "io.gitlab.librewolf-community" => Ok(BrowserBrand::LibreWolf),
+            "chromium" | "chromium-browser" | "org.chromium.Chromium" => Ok(BrowserBrand::Chromium),
+            "google-chrome" | "com.google.Chrome" => Ok(BrowserBrand::GoogleChrome),
+            "brave-browser" | "com.brave.Browser" => Ok(BrowserBrand::Brave),
+            _ => Err(UnbrandedApp),
         }
     }
+}
 
-    pub fn lead_first(self) -> bool {
-        !matches!(self, AppRule::Terminal)
-    }
-
-    pub fn favicon_key(self, title: &str) -> Option<String> {
+impl BrowserBrand {
+    fn title_suffix(self) -> &'static str {
         match self {
-            AppRule::Firefox => core(title, &FIREFOX_BRANDS)
-                .map(|c| strip_unread_badge(&c).to_string())
-                .filter(|c| !c.is_empty()),
-            _ => None,
+            BrowserBrand::LibreWolf => "LibreWolf",
+            BrowserBrand::Chromium => "Chromium",
+            BrowserBrand::GoogleChrome => "Google Chrome",
+            BrowserBrand::Brave => "Brave",
         }
     }
+}
 
-    pub fn icon_candidates(self, win: &WinEntry) -> Vec<IconCandidate> {
-        let theme = match self {
-            AppRule::Terminal => terminal_icon(win),
-            AppRule::Firefox | AppRule::Browser { .. } | AppRule::Fallback => None,
+impl WindowLabel {
+    pub fn classify(
+        app_id: Option<&str>,
+        title: &str,
+        kitty_label: Option<KittyWindowLabel>,
+    ) -> Self {
+        let titled = || WindowLabel::Titled(title.to_owned());
+        let Some(app_id) = app_id else {
+            return titled();
         };
-        theme
-            .map(IconCandidate::Theme)
-            .into_iter()
-            .chain(win.app_id.clone().map(IconCandidate::AppId))
-            .collect()
+        if let Some(label) = kitty_label.filter(|_| app_id == KITTY_APP_ID) {
+            return WindowLabel::KittyAgent(label);
+        }
+        if FIREFOX_APP_IDS.contains(&app_id) {
+            let Some(page) = BrowserPage::branded(title, &FIREFOX_BRANDS) else {
+                return titled();
+            };
+            return WindowLabel::Firefox {
+                favicon_key: firefox_favicon_key(title),
+                page,
+            };
+        }
+        let Ok(brand) = BrowserBrand::try_from(app_id) else {
+            return titled();
+        };
+        BrowserPage::branded(title, &[brand.title_suffix()])
+            .map_or_else(titled, WindowLabel::BrandedBrowser)
+    }
+
+    pub fn theme_icon(&self) -> Option<String> {
+        let WindowLabel::KittyAgent(label) = self else {
+            return None;
+        };
+        match &label.working_location {
+            WorkingLocation::RemoteHost(_) => command_icon(SSH_COMMAND),
+            WorkingLocation::LocalDirectory(_) => {
+                command_icon(label.foreground_activity.as_ref()?.command_name()?)
+            }
+        }
+    }
+
+    pub fn favicon_key(&self) -> Option<&str> {
+        let WindowLabel::Firefox { favicon_key, .. } = self else {
+            return None;
+        };
+        favicon_key.as_deref()
+    }
+
+    pub fn shown_texts(&self) -> Vec<&str> {
+        match self {
+            WindowLabel::KittyAgent(label) => [Some(label.working_location.display_text())]
+                .into_iter()
+                .chain([label
+                    .foreground_activity
+                    .as_ref()
+                    .map(ForegroundActivity::display_text)])
+                .flatten()
+                .collect(),
+            WindowLabel::Firefox { page, .. } | WindowLabel::BrandedBrowser(page) => {
+                [Some(page.page.as_str()), page.site.as_deref()]
+                    .into_iter()
+                    .flatten()
+                    .collect()
+            }
+            WindowLabel::Titled(title) => vec![title],
+        }
     }
 }
 
-fn browser_rewrite(title: &str, brands: &[&str]) -> TitleParts {
-    match core(title, brands).filter(|c| !c.is_empty()) {
-        Some(c) => split(&c, true).map_or_else(
-            || TitleParts::whole(&c),
-            |(head, tail)| TitleParts::led(tail, head),
-        ),
-        None => TitleParts::whole(title),
+impl BrowserPage {
+    fn branded(title: &str, brands: &[&str]) -> Option<Self> {
+        let page = page_title(title, brands).filter(|page| !page.is_empty())?;
+        let Some(site_separator) = last_separator(page) else {
+            return Some(BrowserPage {
+                page: page.to_owned(),
+                site: None,
+            });
+        };
+        Some(BrowserPage {
+            page: page[..site_separator.at].to_owned(),
+            site: Some(page[site_separator.at + site_separator.length..].to_owned()),
+        })
     }
 }
 
-fn core(title: &str, brands: &[&str]) -> Option<String> {
+pub fn firefox_favicon_key(title: &str) -> Option<String> {
+    let without_badge = strip_unread_badge(page_title(title, &FIREFOX_BRANDS)?);
+    (!without_badge.is_empty()).then(|| without_badge.to_owned())
+}
+
+fn page_title<'a>(title: &'a str, brands: &[&str]) -> Option<&'a str> {
     brands.iter().find_map(|brand| {
         SEPARATORS
             .iter()
-            .find_map(|sep| title.strip_suffix(&format!("{sep}{brand}")))
-            .map(str::to_string)
+            .find_map(|separator| title.strip_suffix(&format!("{separator}{brand}")))
     })
 }
 
@@ -139,27 +182,21 @@ pub fn strip_unread_badge(title: &str) -> &str {
     tail
 }
 
-fn split(s: &str, from_end: bool) -> Option<(&str, &str)> {
-    let mut best: Option<(usize, usize)> = None;
-    for sep in SEPARATORS {
-        let Some(at) = (if from_end { s.rfind(sep) } else { s.find(sep) }) else {
-            continue;
-        };
-        let better = match best {
-            None => true,
-            Some((b, _)) => {
-                if from_end {
-                    at > b
-                } else {
-                    at < b
-                }
-            }
-        };
-        if better {
-            best = Some((at, sep.len()));
-        }
-    }
-    best.map(|(at, len)| (&s[..at], &s[at + len..]))
+struct SeparatorMatch {
+    at: usize,
+    length: usize,
+}
+
+fn last_separator(text: &str) -> Option<SeparatorMatch> {
+    SEPARATORS
+        .iter()
+        .filter_map(|separator| {
+            Some(SeparatorMatch {
+                at: text.rfind(separator)?,
+                length: separator.len(),
+            })
+        })
+        .max_by_key(|found| found.at)
 }
 
 const CMD_ICONS: &[(&str, &str)] = &[
@@ -347,14 +384,6 @@ const SCRIPT_ICONS: &[(&str, &str)] = &[
     (".py", "python"),
 ];
 
-fn terminal_icon(win: &WinEntry) -> Option<String> {
-    let title = win.title.as_deref()?;
-    if is_claude_session(title) {
-        return Some("claude".to_string());
-    }
-    command_icon(&AppRule::Terminal.rewrite(title).main)
-}
-
 fn command_icon(command: &str) -> Option<String> {
     CMD_ICONS
         .iter()
@@ -367,140 +396,116 @@ fn command_icon(command: &str) -> Option<String> {
         .map(|(_, icon)| (*icon).to_string())
 }
 
-fn is_claude_session(title: &str) -> bool {
-    title
-        .trim()
-        .chars()
-        .next()
-        .is_some_and(|c| c == '\u{2733}' || ('\u{2800}'..='\u{28FF}').contains(&c))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{super::niri::WinLayout, *};
+    use super::*;
 
-    #[test]
-    fn firefox_title_rewrite() {
-        let parts = AppRule::Firefox.rewrite("Inbox — user@example.com — Mozilla Firefox");
-        assert_eq!(parts.lead.as_deref(), Some("user@example.com"));
-        assert_eq!(parts.main, "Inbox");
+    fn page(page: &str, site: Option<&str>) -> BrowserPage {
+        BrowserPage {
+            page: page.to_owned(),
+            site: site.map(str::to_owned),
+        }
+    }
+
+    fn kitty_running(command_line: &str) -> KittyWindowLabel {
+        KittyWindowLabel {
+            working_location: WorkingLocation::LocalDirectory("vetrata".to_owned()),
+            foreground_activity: Some(ForegroundActivity::ShellCommand {
+                command_line: command_line.to_owned(),
+                program_name: None,
+            }),
+        }
+    }
+
+    fn kitty_theme_icon(label: KittyWindowLabel) -> Option<String> {
+        WindowLabel::KittyAgent(label).theme_icon()
     }
 
     #[test]
-    fn firefox_no_brand_suffix_falls_back() {
-        let parts = AppRule::Firefox.rewrite("about:blank");
-        assert_eq!(parts.lead, None);
-        assert_eq!(parts.main, "about:blank");
-    }
-
-    #[test]
-    fn terminal_title_rewrite() {
-        let parts = AppRule::Terminal.rewrite("~/Code/odin-rs — nvim src/main.rs");
-        assert_eq!(parts.lead.as_deref(), Some("~/Code/odin-rs"));
-        assert_eq!(parts.main, "nvim src/main.rs");
-    }
-
-    #[test]
-    fn firefox_favicon_key_matches_core() {
+    fn firefox_titles_split_into_page_and_site() {
         assert_eq!(
-            AppRule::Firefox.favicon_key("Odin-rs · GitHub — Firefox"),
-            Some("Odin-rs · GitHub".to_string())
+            WindowLabel::classify(
+                Some("firefox"),
+                "Inbox — user@example.com — Mozilla Firefox",
+                None
+            ),
+            WindowLabel::Firefox {
+                page: page("Inbox", Some("user@example.com")),
+                favicon_key: Some("Inbox — user@example.com".to_owned()),
+            }
         );
-        assert_eq!(AppRule::Firefox.favicon_key("some plain title"), None);
+    }
+
+    #[test]
+    fn firefox_titles_without_the_brand_stay_whole() {
+        assert_eq!(
+            WindowLabel::classify(Some("firefox"), "about:blank", None),
+            WindowLabel::Titled("about:blank".to_owned())
+        );
     }
 
     #[test]
     fn firefox_favicon_key_ignores_unread_badges() {
         assert_eq!(
-            AppRule::Firefox.favicon_key("(2) WhatsApp — Mozilla Firefox"),
-            Some("WhatsApp".to_string())
+            firefox_favicon_key("(2) WhatsApp — Mozilla Firefox"),
+            Some("WhatsApp".to_owned())
         );
         assert_eq!(
-            AppRule::Firefox.favicon_key("(20+) Facebook — Firefox"),
-            Some("Facebook".to_string())
+            firefox_favicon_key("(20+) Facebook — Firefox"),
+            Some("Facebook".to_owned())
+        );
+        assert_eq!(
+            firefox_favicon_key("(draft) Notes — Firefox"),
+            Some("(draft) Notes".to_owned())
+        );
+        assert_eq!(firefox_favicon_key("some plain title"), None);
+    }
+
+    #[test]
+    fn branded_browsers_are_classified_by_exact_app_id() {
+        assert_eq!(
+            WindowLabel::classify(
+                Some("org.chromium.Chromium"),
+                "Odin-rs · GitHub - Chromium",
+                None
+            ),
+            WindowLabel::BrandedBrowser(page("Odin-rs", Some("GitHub")))
+        );
+        assert_eq!(
+            WindowLabel::classify(Some("chromium-like"), "Odin-rs - Chromium", None),
+            WindowLabel::Titled("Odin-rs - Chromium".to_owned())
         );
     }
 
     #[test]
-    fn firefox_favicon_key_keeps_non_numeric_parentheses() {
+    fn kitty_windows_use_the_agent_label_only_when_one_was_supplied() {
         assert_eq!(
-            AppRule::Firefox.favicon_key("(draft) Notes — Firefox"),
-            Some("(draft) Notes".to_string())
+            WindowLabel::classify(Some("kitty"), "raw title", Some(kitty_running("cargo"))),
+            WindowLabel::KittyAgent(kitty_running("cargo"))
         );
         assert_eq!(
-            AppRule::Firefox.favicon_key("(1)WhatsApp — Firefox"),
-            Some("(1)WhatsApp".to_string())
-        );
-    }
-
-    fn kitty_window(title: &str) -> WinEntry {
-        WinEntry {
-            id: 1,
-            title: Some(title.to_string()),
-            app_id: Some("kitty".to_string()),
-            pid: None,
-            is_focused: false,
-            is_urgent: false,
-            layout: WinLayout::default(),
-            title_parts: None,
-            lead_first: false,
-        }
-    }
-
-    #[test]
-    fn terminals_put_the_command_before_the_directory() {
-        let rule = rule_for("kitty");
-        let parts = rule.rewrite("vetrata — cargo");
-        assert_eq!(parts.lead.as_deref(), Some("vetrata"));
-        assert_eq!(parts.main, "cargo");
-        assert!(!rule.lead_first());
-    }
-
-    #[test]
-    fn browsers_strip_the_brand_and_lead_with_context() {
-        let rule = rule_for("firefox");
-        let parts = rule.rewrite("Odin-rs · GitHub — Mozilla Firefox");
-        assert_eq!(parts.main, "Odin-rs");
-        assert_eq!(parts.lead.as_deref(), Some("GitHub"));
-        assert!(rule.lead_first());
-    }
-
-    #[test]
-    fn terminal_icon_matches_the_command_word() {
-        assert_eq!(
-            terminal_icon(&kitty_window("nixos-config — nixos-rebuild")),
-            Some("nix-snowflake".to_string())
-        );
-        assert_eq!(
-            terminal_icon(&kitty_window("vetrata — cargo")),
-            Some("applications-development".to_string())
-        );
-        assert_eq!(
-            terminal_icon(&kitty_window("nixos-config — sudo")),
-            Some("security-high".to_string())
-        );
-        assert_eq!(terminal_icon(&kitty_window("vetrata — unknown-tool")), None);
-    }
-
-    #[test]
-    fn terminal_icon_matches_script_extensions() {
-        assert_eq!(
-            terminal_icon(&kitty_window("nixos-config — ./scripts/check.nu")),
-            Some("system-run".to_string())
+            WindowLabel::classify(Some("kitty"), "vetrata — cargo", None),
+            WindowLabel::Titled("vetrata — cargo".to_owned())
         );
     }
 
     #[test]
-    fn rule_for_prefers_more_specific_keyword() {
-        assert!(matches!(
-            rule_for("org.chromium.Chromium"),
-            AppRule::Browser { brand: "Chromium" }
-        ));
-        assert!(matches!(
-            rule_for("google-chrome"),
-            AppRule::Browser {
-                brand: "Google Chrome"
-            }
-        ));
+    fn kitty_theme_icon_matches_the_running_command() {
+        assert_eq!(
+            kitty_theme_icon(kitty_running("nixos-rebuild")),
+            Some("nix-snowflake".to_owned())
+        );
+        assert_eq!(kitty_theme_icon(kitty_running("unknown-tool")), None);
+        assert_eq!(
+            kitty_theme_icon(kitty_running("./scripts/check.nu")),
+            Some("system-run".to_owned())
+        );
+        assert_eq!(
+            kitty_theme_icon(KittyWindowLabel {
+                working_location: WorkingLocation::RemoteHost("builder".to_owned()),
+                foreground_activity: None,
+            }),
+            Some("gnome-fs-ssh".to_owned())
+        );
     }
 }

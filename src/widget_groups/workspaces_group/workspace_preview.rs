@@ -2,18 +2,19 @@ use iced::{
     Border, Color, Element, Padding, Shadow, Vector,
     alignment::Vertical,
     border::Radius,
-    widget::{Column, Row as RowWidget, button, button::Status, rich_text, text::Wrapping},
+    widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
 };
 
 use crate::{
     config::Config,
+    data::source::app_rules::WindowLabel,
     desktop_shell::Message,
     widgets::{
         favicon::Favicons,
-        text::LINE_HEIGHT,
+        text::FontFallbacks,
         tooltip_body::{PreviewTile, WorkspacePreview},
-        window_icon::window_icon,
-        window_title::title_spans,
+        window_icon::{WindowAssets, window_icon},
+        window_title::WindowTitle,
     },
 };
 
@@ -34,6 +35,7 @@ pub struct WorkspaceSchematic<'a> {
     config: &'a Config,
     corner_radius: Radius,
     favicons: &'a Favicons,
+    fallbacks: &'a FontFallbacks,
 }
 
 impl<'a> WorkspaceSchematic<'a> {
@@ -41,13 +43,14 @@ impl<'a> WorkspaceSchematic<'a> {
         preview: &'a WorkspacePreview,
         config: &'a Config,
         corner_radius: Radius,
-        favicons: &'a Favicons,
+        assets: WindowAssets<'a>,
     ) -> Self {
         Self {
             preview,
             config,
             corner_radius,
-            favicons,
+            favicons: assets.favicons,
+            fallbacks: assets.fallbacks,
         }
     }
 
@@ -91,7 +94,11 @@ impl<'a> WorkspaceSchematic<'a> {
             side,
             1.0,
         );
-        let label = (width >= side * TILE_LABEL_WIDTH_RATIO).then(|| self.label(tile));
+        let label = tile
+            .label
+            .as_ref()
+            .filter(|_| width >= side * TILE_LABEL_WIDTH_RATIO)
+            .map(|label| self.label(label));
         let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
             .spacing(TILE_LABEL_GAP_PX)
             .align_y(Vertical::Top);
@@ -147,10 +154,9 @@ impl<'a> WorkspaceSchematic<'a> {
         }
     }
 
-    fn label(&self, tile: &PreviewTile) -> Element<'static, Message> {
-        rich_text(title_spans(self.config, &tile.title, 1.0))
+    fn label(&self, label: &WindowLabel) -> Element<'static, Message> {
+        WindowTitle::new(label, self.config, self.fallbacks)
             .size(self.config.theme.font.small_text_size_px)
-            .line_height(LINE_HEIGHT)
             .wrapping(Wrapping::WordOrGlyph)
             .into()
     }

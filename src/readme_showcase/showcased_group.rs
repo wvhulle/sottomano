@@ -120,7 +120,7 @@ impl ShowcasedNiriSession {
         workspaces.into_iter().chain(windows).collect()
     }
 
-    fn tooltip_for(&self, target: &HoverTarget, config: &Config) -> Option<Tooltip> {
+    fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Window(WindowTarget::Pick(window)) => {
                 WindowGroup::pick_tooltip(&self.niri, &self.snapshot, *window)
@@ -128,13 +128,9 @@ impl ShowcasedNiriSession {
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip())
             }
-            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
-                &self.snapshot,
-                &self.desktop_entries,
-                &config.theme.font,
-                &self.font_fallbacks,
-                *workspace,
-            ),
+            HoverTarget::Workspace(workspace) => {
+                workspace_tooltip::tooltip(&self.snapshot, &self.desktop_entries, *workspace)
+            }
             _ => None,
         }
     }
@@ -269,7 +265,7 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget, config: &Config) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 let HoverTarget::Compute(target) = target else {
@@ -314,7 +310,7 @@ impl ShowcasedGroup {
                 group.tooltip_for(*kind)
             }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                session.tooltip_for(target, config)
+                session.tooltip_for(target)
             }
         }
     }

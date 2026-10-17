@@ -1,32 +1,23 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    config::theme::font::ResolvedFont,
-    data::source::{
-        app_rules::{AppRule, IconCandidate},
-        desktop_entries::DesktopIndex,
-        niri,
-    },
+    data::source::{app_rules::IconCandidate, desktop_entries::DesktopIndex, niri},
     widgets::{
         continuous_reading::ContinuousReading,
-        text::FontFallbacks,
         tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
-        window_title::title_runs,
     },
 };
 
 pub fn tooltip(
     snapshot: &ContinuousReading<niri::Snapshot>,
     icons: &DesktopIndex,
-    font: &ResolvedFont,
-    fallbacks: &FontFallbacks,
     workspace: u64,
 ) -> Option<Tooltip> {
     let windows = snapshot.get()?.windows_on_workspace(workspace);
     if windows.is_empty() {
         return None;
     }
-    let tile = |window| preview_tile(icons, font, fallbacks, window);
+    let tile = |window| preview_tile(icons, window);
     snapshot.tooltip_with(TooltipBody::Whole(WholeBody::Workspace(WorkspacePreview {
         columns: scrolling_columns(windows)
             .into_iter()
@@ -51,26 +42,12 @@ fn scrolling_columns(windows: &[niri::WinEntry]) -> Vec<Vec<&niri::WinEntry>> {
         .collect()
 }
 
-fn preview_tile(
-    icons: &DesktopIndex,
-    font: &ResolvedFont,
-    fallbacks: &FontFallbacks,
-    window: &niri::WinEntry,
-) -> PreviewTile {
-    let rule = window.app_rule();
+fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
     PreviewTile {
         window: window.id,
-        title: title_runs(
-            font,
-            fallbacks,
-            window.title_parts.as_ref(),
-            window.lead_first,
-        ),
-        favicon_key: window
-            .title
-            .as_deref()
-            .and_then(|title| rule.favicon_key(title)),
-        icon: icon_path(icons, rule, window),
+        label: window.label.clone(),
+        favicon_key: window.favicon_key().map(str::to_owned),
+        icon: icon_path(icons, window),
         tile_size: window.layout.tile_size,
         is_focused: window.is_focused,
         is_urgent: window.is_urgent,
@@ -78,8 +55,9 @@ fn preview_tile(
     }
 }
 
-fn icon_path(icons: &DesktopIndex, rule: AppRule, window: &niri::WinEntry) -> Option<PathBuf> {
-    rule.icon_candidates(window)
+fn icon_path(icons: &DesktopIndex, window: &niri::WinEntry) -> Option<PathBuf> {
+    window
+        .icon_candidates()
         .into_iter()
         .find_map(|candidate| match candidate {
             IconCandidate::Theme(name) => icons.theme_icon_path(&name),
@@ -97,13 +75,11 @@ mod tests {
     fn window(id: u64, column: Option<usize>) -> niri::WinEntry {
         niri::WinEntry {
             id,
-            title: None,
             app_id: Some("kitty".to_owned()),
             pid: None,
             is_focused: false,
             is_urgent: false,
-            title_parts: None,
-            lead_first: false,
+            label: None,
             layout: niri::WinLayout {
                 column,
                 tile_size: Size::new(800.0, 600.0),

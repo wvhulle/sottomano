@@ -7,7 +7,7 @@ use std::{
 use niri_ipc::state::EventStreamState;
 use rusqlite::Connection;
 
-use crate::data::source::app_rules::{self, AppRule};
+use crate::data::source::app_rules::{self, WindowLabel};
 
 #[derive(Debug, Clone)]
 pub struct RawFavicon {
@@ -27,11 +27,9 @@ pub fn firefox_keys(niri: &EventStreamState) -> Vec<String> {
         .windows
         .values()
         .filter_map(|w| {
-            let app_id = w.app_id.as_deref()?;
             let title = w.title.as_deref()?;
-            matches!(app_rules::rule_for(app_id), AppRule::Firefox)
-                .then(|| AppRule::Firefox.favicon_key(title))
-                .flatten()
+            let label = WindowLabel::classify(w.app_id.as_deref(), title, None);
+            label.favicon_key().map(str::to_owned)
         })
         .collect();
     keys.sort_unstable();

@@ -2,7 +2,6 @@ use std::{collections::HashMap, path::PathBuf};
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
-use niri_ipc::state::EventStreamState;
 
 use super::niri;
 use crate::data::source::app_rules::IconCandidate;
@@ -107,32 +106,27 @@ impl DesktopEntries {
     }
 }
 
-pub fn app_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
-    icon_keys(niri_state, |c| match c {
+pub fn app_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
+    icon_keys(snapshot, |c| match c {
         IconCandidate::AppId(id) => Some(id),
         IconCandidate::Theme(_) => None,
     })
 }
 
-pub fn theme_icon_keys(niri_state: &EventStreamState) -> Vec<String> {
-    icon_keys(niri_state, |c| match c {
+pub fn theme_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
+    icon_keys(snapshot, |c| match c {
         IconCandidate::Theme(name) => Some(name),
         IconCandidate::AppId(_) => None,
     })
 }
 
 fn icon_keys(
-    niri_state: &EventStreamState,
+    snapshot: &niri::Snapshot,
     pick: impl Fn(IconCandidate) -> Option<String>,
 ) -> Vec<String> {
-    let mut keys: Vec<String> = niri::all_windows(niri_state)
-        .iter()
-        .flat_map(|w| {
-            w.app_rule()
-                .icon_candidates(w)
-                .into_iter()
-                .filter_map(&pick)
-        })
+    let mut keys: Vec<String> = snapshot
+        .all_windows()
+        .flat_map(|w| w.icon_candidates().into_iter().filter_map(&pick))
         .collect();
     keys.sort_unstable();
     keys.dedup();

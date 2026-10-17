@@ -6,20 +6,34 @@ use crate::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::niri_rules::{NiriLayout, NiriRulesFile},
+    state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
+fn xray_toggle(styling: NiriStyling) -> IconToggle {
+    IconToggle::new(
+        "X-ray",
+        Phosphor::Eye(Weight::Regular),
+        styling.xray,
+        SwitchPresses {
+            turning_on: "blur only the wallpaper, hiding windows behind the shell",
+            turning_off: "blur the windows behind the shell too",
+        },
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NiriWindowTarget {
     CornerRadius,
     Gaps,
+    Xray,
 }
 
 impl From<NiriWindowTarget> for HoverTarget {
@@ -33,6 +47,7 @@ pub enum NiriWindowMessage {
     Expansion(ExpansionMessage),
     CornerRadius(ControlMessage),
     Gaps(ControlMessage),
+    ToggleXray,
 }
 
 pub struct NiriWindowGroup {
@@ -72,12 +87,13 @@ impl NiriWindowGroup {
         self.gaps.update(ControlMessage::Reading(windows.gaps_px));
     }
 
-    pub fn tooltip_for(&self, target: NiriWindowTarget) -> Tooltip {
+    pub fn tooltip_for(&self, target: NiriWindowTarget, styling: NiriStyling) -> Tooltip {
         match target {
             NiriWindowTarget::CornerRadius => {
                 self.corner_radius.readout_tooltip("Window corner radius")
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
+            NiriWindowTarget::Xray => xray_toggle(styling).switch_tooltip(),
         }
     }
 
@@ -125,16 +141,28 @@ impl NiriWindowGroup {
                         }))
                     })
             }
+            NiriWindowMessage::ToggleXray => rules
+                .restyle(|styling| styling.xray = !styling.xray)
+                .discard(),
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+        styling: NiriStyling,
+    ) -> GroupContent<'a, NiriWindowMessage> {
         GroupContent::new(
             &self.expansion,
             NiriWindowMessage::Expansion,
             [
                 GroupItem::slider(&self.corner_radius, config, NiriWindowMessage::CornerRadius),
                 GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
+                GroupItem::toggle(
+                    xray_toggle(styling),
+                    NiriWindowTarget::Xray,
+                    NiriWindowMessage::ToggleXray,
+                ),
             ],
         )
         .face(HandleFace::Icon {

@@ -6,14 +6,13 @@ use iced::{
     border,
     border::Radius,
     time::every,
-    widget::{Row, container, progress_bar, rich_text, stack, text},
+    widget::{Row, container, progress_bar, stack, text},
 };
 
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
         Delivery,
-        app_rules::AppRule,
         audio::WindowAudio,
         job_view::{self, Jobs},
         launcher_entry::{self, LauncherEntries, LauncherEntry},
@@ -43,12 +42,11 @@ use crate::{
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
         },
-        text::LINE_HEIGHT,
         tooltip_body::{Section, SourcedSection},
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
-        window_title::{title_runs, title_spans},
+        window_title::WindowTitle,
     },
 };
 
@@ -89,6 +87,7 @@ pub enum Action {
     None,
     ToggleAudio(i32),
     RefreshIcons,
+    WindowProcessesPaired,
     Drag(DragMessage),
 }
 
@@ -181,7 +180,7 @@ impl WindowList {
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
                 self.window_processes = window_processes;
-                Action::None
+                Action::WindowProcessesPaired
             }
             WindowListMessage::ProcessFoldToggled(pid) => {
                 self.folding.toggle(pid);
@@ -287,9 +286,8 @@ impl WindowList {
             .windows_on_workspace(drag.window_source_workspace()?)
             .iter()
             .find(|win| win.id == window)?;
-        let rule = win.app_rule();
         if drag.has_left_its_list() {
-            let icon = resolved_icon(config, icons, rule, win, 1.0)?;
+            let icon = resolved_icon(config, icons, win, 1.0)?;
             let inset = config.layout.overlay.content_inset;
             let circle = container::Style {
                 border: Border {
@@ -300,14 +298,7 @@ impl WindowList {
             };
             return Some(panel_frame(container(icon).padding(inset), &circle).into());
         }
-        let content = button_content(
-            config,
-            icons,
-            rule,
-            win,
-            self.extras(win, audio, config),
-            1.0,
-        );
+        let content = button_content(config, icons, win, self.extras(win, audio, config), 1.0);
         Some(
             panel_frame(
                 container(content)
@@ -431,7 +422,6 @@ fn window_slot_content<'a>(
     position: Position,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
-    let rule = win.app_rule();
     let maximize_toggles = win.is_focused && !win.layout.is_floating;
     let audio_pid = win.pid.filter(|_| extras.audio.is_some());
     let press_hints = PressHints {
@@ -444,7 +434,7 @@ fn window_slot_content<'a>(
         ..PressHints::default()
     };
     let picking = hoverable(
-        button_content(config, icons, rule, win, extras, opacity),
+        button_content(config, icons, win, extras, opacity),
         WindowTarget::Pick(win.id).into(),
         press_hints,
         WindowListMessage::Tooltip,
@@ -494,24 +484,18 @@ fn secondary_glyph<'a>(
 fn button_content<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    rule: AppRule,
     win: &niri::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
-    let icon = badged_icon(config, icons, rule, win, extras, opacity);
-    let runs = title_runs(
-        &config.theme.font,
-        icons.fallbacks,
-        win.title_parts.as_ref(),
-        win.lead_first,
-    );
-    let title = rich_text(title_spans(config, &runs, opacity))
-        .size(config.theme.font.text_size_px)
-        .line_height(LINE_HEIGHT);
+    let icon = badged_icon(config, icons, win, extras, opacity);
+    let title = win
+        .label
+        .as_ref()
+        .map(|label| WindowTitle::new(label, config, icons.fallbacks).opacity(opacity));
     Row::new()
         .extend(icon)
-        .push(title)
+        .extend(title.map(Element::from))
         .extend(audio_glyph(config, extras, opacity))
         .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center)
@@ -620,12 +604,11 @@ fn count_badge<'a>(
 fn badged_icon<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    rule: AppRule,
     win: &niri::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
-    let icon = resolved_icon(config, icons, rule, win, opacity)?;
+    let icon = resolved_icon(config, icons, win, opacity)?;
     let badge = extras
         .count(config)
         .and_then(|count| count_badge(config, count, opacity));
@@ -638,17 +621,13 @@ fn badged_icon<'a>(
 fn resolved_icon<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    rule: AppRule,
     win: &niri::WinEntry,
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
-    let path = icons.path_for(rule, win);
+    let path = icons.path_for(win);
     window_icon(
         icons.favicons,
-        win.title
-            .as_deref()
-            .and_then(|title| rule.favicon_key(title))
-            .as_deref(),
+        win.favicon_key(),
         path.as_deref(),
         config.theme.font.icon_size_px,
         opacity,

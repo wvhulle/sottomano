@@ -1,14 +1,17 @@
 mod kitty_remote;
+pub mod kitty_window_label;
+mod shell_title;
 
 use std::{
     collections::{HashMap, HashSet},
-    io,
-    path::Path,
+    env, io,
+    path::{Path, PathBuf},
     thread,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use iced::Subscription;
+use kitty_window_label::KittyWindowLabel;
 use niri_ipc::{
     Event, Request, Response, Window,
     socket::Socket,
@@ -19,6 +22,8 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{config::widget_groups::WindowAgentsConfig, message_subscriptions::emit_changes};
 
+pub const KITTY_APP_ID: &str = "kitty";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentWindow {
     pub id: u64,
@@ -26,12 +31,14 @@ pub struct AgentWindow {
     pub title: String,
     pub shown_pid: i32,
     pub pids: Vec<i32>,
+    pub kitty_label: Option<KittyWindowLabel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PairedWindow {
     shown: i32,
     pids: Vec<i32>,
+    kitty_label: Option<KittyWindowLabel>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -48,6 +55,10 @@ impl WindowProcesses {
 
     pub fn shown_in(&self, window: u64) -> Option<i32> {
         self.by_window.get(&window).map(|paired| paired.shown)
+    }
+
+    pub fn kitty_label_in(&self, window: u64) -> Option<&KittyWindowLabel> {
+        self.by_window.get(&window)?.kitty_label.as_ref()
     }
 }
 
@@ -72,9 +83,9 @@ impl<R> NiriWindows<R> {
     }
 }
 
-#[derive(Default)]
 struct Pairing {
     paired: HashMap<u64, AgentWindowKey>,
+    home: PathBuf,
 }
 
 impl Pairing {
@@ -86,11 +97,11 @@ impl Pairing {
         self.paired
             .retain(|niri_window, _| open.contains(niri_window));
         let mut processes = WindowProcesses::default();
-        for process in processes_with_several_windows(niri.state.windows.windows.values()) {
+        for process in kitty_processes(niri.state.windows.windows.values()) {
             let Some(socket) = kitty_remote::socket_of(process) else {
                 continue;
             };
-            let agent_windows = match kitty_remote::list(&socket) {
+            let agent_windows = match kitty_remote::list(&socket, &self.home) {
                 Ok(agent_windows) => agent_windows,
                 Err(e) => {
                     tracing::debug!("kitty {process} unreachable: {e}");
@@ -123,6 +134,7 @@ impl Pairing {
                         PairedWindow {
                             shown: agent_window.shown_pid,
                             pids: agent_window.pids.clone(),
+                            kitty_label: agent_window.kitty_label.clone(),
                         },
                     );
                 }
@@ -185,15 +197,10 @@ impl Pairing {
     }
 }
 
-fn processes_with_several_windows<'a>(windows: impl Iterator<Item = &'a Window>) -> Vec<i32> {
-    let mut window_counts: HashMap<i32, usize> = HashMap::new();
-    for pid in windows.filter_map(|window| window.pid) {
-        *window_counts.entry(pid).or_default() += 1;
-    }
-    window_counts
-        .into_iter()
-        .filter(|&(_, count)| count > 1)
-        .map(|(pid, _)| pid)
+fn kitty_processes<'a>(windows: impl Iterator<Item = &'a Window>) -> HashSet<i32> {
+    windows
+        .filter(|window| window.app_id.as_deref() == Some(KITTY_APP_ID))
+        .filter_map(|window| window.pid)
         .collect()
 }
 
@@ -225,7 +232,10 @@ fn pair_windows(sender: &mpsc::Sender<WindowProcesses>) -> io::Result<()> {
         state: EventStreamState::default(),
         read: socket.read_events(),
     };
-    let mut pairing = Pairing::default();
+    let mut pairing = Pairing {
+        paired: HashMap::new(),
+        home: env::home_dir().ok_or_else(|| io::Error::other("no home directory"))?,
+    };
     loop {
         let event = (niri.read)()?;
         let windows_changed = changes_windows(&event);
