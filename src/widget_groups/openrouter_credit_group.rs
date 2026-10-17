@@ -1,5 +1,5 @@
-mod credit_balance_remaining;
-mod openrouter_period_spend;
+mod openrouter_soft_budget;
+mod strict_budget_remaining;
 mod top_model_spend;
 
 use std::path::PathBuf;
@@ -11,7 +11,7 @@ use crate::{
     data::source::{
         Delivery,
         ai::{
-            openrouter::{OpenRouterAccount, OpenRouterCreditBalance, OpenRouterSpend},
+            openrouter::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
             working_time_forecast::SpendBudget,
         },
     },
@@ -32,8 +32,8 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpenRouterCreditTarget {
-    Spend,
-    CreditBalance,
+    SoftBudget,
+    StrictBudget,
     TopModel,
 }
 
@@ -45,15 +45,15 @@ impl From<OpenRouterCreditTarget> for HoverTarget {
 
 pub struct OpenRouterCreditGroup {
     spend: ContinuousReading<OpenRouterSpend>,
-    credit_balance: ContinuousReading<OpenRouterCreditBalance>,
+    strict_budget: ContinuousReading<OpenRouterStrictBudget>,
     management_key: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum OpenRouterCreditMessage {
-    Spend(Delivery<OpenRouterSpend>),
-    CreditBalance(Delivery<OpenRouterCreditBalance>),
+    SoftBudget(Delivery<OpenRouterSpend>),
+    StrictBudget(Delivery<OpenRouterStrictBudget>),
     Expansion(ExpansionMessage),
 }
 
@@ -65,7 +65,7 @@ impl OpenRouterCreditGroup {
     pub fn new(management_key: Option<PathBuf>) -> Self {
         Self {
             spend: ContinuousReading::default(),
-            credit_balance: ContinuousReading::default(),
+            strict_budget: ContinuousReading::default(),
             management_key,
             expansion: GroupExpansion::default(),
         }
@@ -84,17 +84,18 @@ impl OpenRouterCreditGroup {
                 daily_warning_usd: budget.daily_warning_usd,
             };
             [
-                polling::<OpenRouterSpend>(account, forced).map(OpenRouterCreditMessage::Spend),
-                polling::<OpenRouterCreditBalance>(key, forced)
-                    .map(OpenRouterCreditMessage::CreditBalance),
+                polling::<OpenRouterSpend>(account, forced)
+                    .map(OpenRouterCreditMessage::SoftBudget),
+                polling::<OpenRouterStrictBudget>(key, forced)
+                    .map(OpenRouterCreditMessage::StrictBudget),
             ]
         }))
     }
 
     pub fn update(&mut self, message: OpenRouterCreditMessage) -> Task<OpenRouterCreditMessage> {
         match message {
-            OpenRouterCreditMessage::Spend(reading) => self.spend.receive(reading),
-            OpenRouterCreditMessage::CreditBalance(reading) => self.credit_balance.receive(reading),
+            OpenRouterCreditMessage::SoftBudget(reading) => self.spend.receive(reading),
+            OpenRouterCreditMessage::StrictBudget(reading) => self.strict_budget.receive(reading),
             OpenRouterCreditMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -112,8 +113,8 @@ impl OpenRouterCreditGroup {
 
     pub fn tooltip_for(&self, target: OpenRouterCreditTarget) -> Option<Tooltip> {
         match target {
-            OpenRouterCreditTarget::Spend => self.spend.tooltip(),
-            OpenRouterCreditTarget::CreditBalance => self.credit_balance.tooltip(),
+            OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(),
+            OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(),
             OpenRouterCreditTarget::TopModel => {
                 self.spend.tooltip_with(self.top_model()?.tooltip())
             }
@@ -126,11 +127,11 @@ impl OpenRouterCreditGroup {
             OpenRouterCreditMessage::Expansion,
             [
                 self.spend.present_quota_group_item(
-                    OpenRouterCreditTarget::Spend,
+                    OpenRouterCreditTarget::SoftBudget,
                     OpenRouterCreditMessage::Expansion(ExpansionMessage::Expand),
                 ),
-                self.credit_balance
-                    .present_group_item(OpenRouterCreditTarget::CreditBalance),
+                self.strict_budget
+                    .present_group_item(OpenRouterCreditTarget::StrictBudget),
                 self.top_model()
                     .map(|top| GroupItem::reading(top, OpenRouterCreditTarget::TopModel)),
             ]

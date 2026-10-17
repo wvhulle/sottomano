@@ -1,5 +1,8 @@
 use crate::{
-    data::source::ai::working_time_forecast::{CalendarSpan, SpendBudget},
+    data::{
+        severity::Severity,
+        source::ai::working_time_forecast::{CalendarSpan, SpendBudget},
+    },
     widgets::{amount_text::dollars, tooltip_body::KeyValue},
 };
 
@@ -26,10 +29,16 @@ impl SpendBudget {
             KeyValue::new("Projection", "cost per working hour elapsed so far"),
         ]
         .into_iter()
-        .chain(
-            self.monthly_limit_usd
-                .map(|limit| KeyValue::new("Monthly Budget", dollars(f64::from(limit)))),
-        )
+    }
+
+    pub fn monthly_budget_entry(&self, spent: f64, projected: Option<f64>) -> Option<KeyValue> {
+        let limit = f64::from(self.monthly_limit_usd?);
+        let entry = KeyValue::new("Monthly Budget", dollars(limit));
+        Some(if projected.unwrap_or(spent) > limit {
+            entry.level(Severity::Warning)
+        } else {
+            entry
+        })
     }
 }
 
