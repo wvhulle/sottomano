@@ -60,7 +60,7 @@ impl DesktopShell {
                 self.clock_group.group_content().map(Message::Clock),
                 self.notification_group
                     .group_content(
-                        &self.shell_settings.notifications,
+                        self.shell_settings.notifications,
                         self.notification_status(),
                     )
                     .map(Message::NotificationGroup),

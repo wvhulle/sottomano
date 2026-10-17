@@ -55,9 +55,12 @@ impl ShowcaseState {
 
     fn group_strip(&self) -> Element<'_, Message> {
         let panel = &self.config.layout.panel;
-        let frame_style = self.shell_settings.frame_style(&self.config);
-        let panels = &self.shell_settings.panels;
         let position = self.group.position();
+        let layer = match position {
+            Position::Left => &self.shell_settings.sidebar,
+            Position::Top | Position::Bottom => &self.shell_settings.panels,
+        };
+        let frame_style = layer.frame_style(&self.config);
         let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
         let framed = self
             .group
@@ -65,13 +68,11 @@ impl ShowcaseState {
             .into_iter()
             .map(|group| {
                 let content = match position {
-                    Position::Left => {
-                        container(group).padding([panels.corner_radius.top_left, 0.0])
-                    }
+                    Position::Left => container(group).padding([layer.corner_radius.top_left, 0.0]),
                     Position::Top | Position::Bottom => container(group)
                         .height(Length::Fixed(panel.height))
                         .align_y(Vertical::Center)
-                        .padding([0.0, panels.frame_corner_inset() + panel.group_padding]),
+                        .padding([0.0, layer.frame_corner_inset() + panel.group_padding]),
                 };
                 panel_frame(content, &frame_style)
                     .outlined_sides(outlined_sides)

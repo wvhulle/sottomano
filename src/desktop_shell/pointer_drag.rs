@@ -8,6 +8,7 @@ use crate::{
     data::source::niri,
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
+    state::WorkspacesPlacement,
     widgets::pointer_drag::{
         self, ActiveDrag, DragEvent, DragOutcome, DragTransition, ForeignHover, PointerDrag,
         SlotItem,
@@ -71,10 +72,21 @@ impl DragView {
 
 impl DesktopShell {
     pub fn drag_view(&self) -> DragView {
-        DragView::new(
-            &self.pointer_drag,
-            &self.shell_settings.frame_style(&self.config),
-        )
+        let dragging_sidebar_workspace = self.shell_settings.layout.workspaces_placement
+            == WorkspacesPlacement::Sidebar
+            && matches!(
+                self.pointer_drag,
+                PointerDrag::Dragging(ActiveDrag {
+                    item: DraggedItem::Workspace(_),
+                    ..
+                })
+            );
+        let ghost_layer = if dragging_sidebar_workspace {
+            &self.shell_settings.sidebar
+        } else {
+            &self.shell_settings.panels
+        };
+        DragView::new(&self.pointer_drag, &ghost_layer.frame_style(&self.config))
     }
 
     pub fn is_dragging(&self) -> bool {

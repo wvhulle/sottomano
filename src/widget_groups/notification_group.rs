@@ -37,7 +37,7 @@ pub struct NotificationGroup {
     expansion: GroupExpansion,
 }
 
-fn sound_toggle(notification_settings: &NotificationSettings) -> IconToggle {
+fn sound_toggle(notification_settings: NotificationSettings) -> IconToggle {
     IconToggle::new(
         "Notification sound",
         if notification_settings.sound {
@@ -56,7 +56,7 @@ fn sound_toggle(notification_settings: &NotificationSettings) -> IconToggle {
 impl NotificationGroup {
     pub fn tooltip_for(
         target: NotificationTarget,
-        notification_settings: &NotificationSettings,
+        notification_settings: NotificationSettings,
         status: NotificationStatus,
     ) -> Tooltip {
         match target {
@@ -73,11 +73,11 @@ impl NotificationGroup {
         self.expansion.update(message);
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        notification_settings: &NotificationSettings,
+    pub fn group_content(
+        &self,
+        notification_settings: NotificationSettings,
         status: NotificationStatus,
-    ) -> GroupContent<'a, NotificationGroupMessage> {
+    ) -> GroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
         GroupContent::new(
             &self.expansion,

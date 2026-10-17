@@ -4,8 +4,8 @@ pub mod focus_spans;
 pub mod focus_tracker;
 pub mod idle;
 pub mod launches;
+pub mod layer_appearance;
 pub mod niri_rules;
-pub mod overlay_settings;
 pub mod power;
 pub mod quiet_hours;
 pub mod rate_limit;
@@ -19,29 +19,31 @@ pub use store::{Columns, StoreError, connect, flag, real, upsert_column, with_ta
 
 use crate::{config::Config, widgets::panel_frame::OutlinedSides};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ShellSettings {
     pub layout: ShellLayout,
-    pub panels: PanelAppearance,
-    pub shadow: ShadowStyle,
-    pub outline: OutlineStyle,
+    pub panels: LayerAppearance,
+    pub sidebar: LayerAppearance,
+    pub overlays: LayerAppearance,
     pub notifications: NotificationSettings,
-    pub overlays: OverlaySettings,
+}
+
+impl Default for ShellSettings {
+    fn default() -> Self {
+        Self {
+            layout: ShellLayout::default(),
+            panels: LayerAppearance::default(),
+            sidebar: LayerAppearance::default(),
+            overlays: LayerAppearance {
+                opacity: 0.85,
+                ..LayerAppearance::default()
+            },
+            notifications: NotificationSettings::default(),
+        }
+    }
 }
 
 impl ShellSettings {
-    pub fn frame_style(&self, config: &Config) -> container::Style {
-        let palette = &config.theme.palette;
-        container::Style::default()
-            .background(palette.surface.scale_alpha(self.panels.opacity))
-            .border(Border {
-                radius: self.panels.corner_radius,
-                ..self.outline.border(config)
-            })
-            .shadow(self.shadow.drop_shadow())
-            .color(palette.bar_foreground)
-    }
-
     pub fn outlined_sides(&self, touching_screen_edges: OutlinedSides) -> OutlinedSides {
         if self.layout.float_offset_px > 0.0 {
             OutlinedSides::ALL
@@ -51,20 +53,49 @@ impl ShellSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct OverlaySettings {
-    pub opacity: f32,
-    pub corner_radius: Radius,
-    pub toast_spatial_layout: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShellLayer {
+    Panels,
+    Sidebar,
+    Overlays,
 }
 
-impl Default for OverlaySettings {
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayerAppearance {
+    pub opacity: f32,
+    pub corner_radius: Radius,
+    pub blurred: bool,
+    pub shadow: ShadowStyle,
+    pub outline: OutlineStyle,
+}
+
+impl Default for LayerAppearance {
     fn default() -> Self {
         Self {
-            opacity: 0.85,
+            opacity: 0.8,
             corner_radius: Radius::from(8.0),
-            toast_spatial_layout: true,
+            blurred: false,
+            shadow: ShadowStyle::default(),
+            outline: OutlineStyle::default(),
         }
+    }
+}
+
+impl LayerAppearance {
+    pub fn frame_style(&self, config: &Config) -> container::Style {
+        let palette = &config.theme.palette;
+        container::Style::default()
+            .background(palette.surface.scale_alpha(self.opacity))
+            .border(Border {
+                radius: self.corner_radius,
+                ..self.outline.border(config)
+            })
+            .shadow(self.shadow.drop_shadow())
+            .color(palette.bar_foreground)
+    }
+
+    pub fn frame_corner_inset(&self) -> f32 {
+        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
     }
 }
 
@@ -156,34 +187,17 @@ impl Default for ShellLayout {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PanelAppearance {
-    pub opacity: f32,
-    pub corner_radius: Radius,
-}
-
-impl Default for PanelAppearance {
-    fn default() -> Self {
-        Self {
-            opacity: 0.8,
-            corner_radius: Radius::from(8.0),
-        }
-    }
-}
-
-impl PanelAppearance {
-    pub fn frame_corner_inset(&self) -> f32 {
-        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct NotificationSettings {
     pub sound: bool,
+    pub toast_spatial_layout: bool,
 }
 
 impl Default for NotificationSettings {
     fn default() -> Self {
-        Self { sound: true }
+        Self {
+            sound: true,
+            toast_spatial_layout: true,
+        }
     }
 }

@@ -6,9 +6,13 @@ use crate::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::{self, ShellLayout, WorkspacesPlacement},
+    state::{
+        self, LayerAppearance, ShellLayer, ShellLayout,
+        niri_rules::{NiriRulesFile, NiriStyling},
+    },
     widgets::{
         group_item::GroupItem,
+        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
@@ -46,98 +50,121 @@ fn pinned_groups_toggle(shell_layout: &ShellLayout) -> IconToggle {
     )
 }
 
-fn workspaces_sidebar_toggle(shell_layout: &ShellLayout) -> IconToggle {
+fn xray_toggle(styling: NiriStyling) -> IconToggle {
     IconToggle::new(
-        "Workspaces sidebar",
-        Phosphor::SidebarSimple(Weight::Regular),
-        shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
+        "X-ray",
+        Phosphor::Eye(Weight::Regular),
+        styling.xray,
         SwitchPresses {
-            turning_on: "move workspaces to a sidebar on the left edge",
-            turning_off: "move workspaces inline into the bottom panel",
+            turning_on: "blur only the wallpaper, hiding windows behind the shell",
+            turning_off: "blur the windows behind the shell too",
         },
     )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShellLayoutTarget {
-    FloatOffset,
+pub enum PanelSettingsTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
-    WorkspacesPlacement,
+    FloatOffset,
+    Xray,
+    Appearance(AppearanceTarget),
 }
 
-impl From<ShellLayoutTarget> for HoverTarget {
-    fn from(target: ShellLayoutTarget) -> Self {
-        HoverTarget::ShellLayout(target)
+impl From<PanelSettingsTarget> for HoverTarget {
+    fn from(target: PanelSettingsTarget) -> Self {
+        HoverTarget::PanelSettings(target)
     }
 }
 
-pub struct ShellLayoutGroup {
-    expansion: GroupExpansion,
-    float_offset: SliderControl,
-}
-
 #[derive(Debug, Clone)]
-pub enum ShellLayoutMessage {
+pub enum PanelSettingsMessage {
     Expansion(ExpansionMessage),
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
-    ToggleWorkspacesPlacement,
+    ToggleXray,
     FloatOffset(ControlMessage),
+    Appearance(AppearanceMessage),
 }
 
-impl Default for ShellLayoutGroup {
+pub struct PanelSettingsGroup {
+    expansion: GroupExpansion,
+    float_offset: SliderControl,
+    appearance: LayerAppearanceControls,
+}
+
+impl Default for PanelSettingsGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
             float_offset: SliderControl::new(
                 "Float offset",
                 0.0..=24.0,
-                ShellLayoutTarget::FloatOffset,
+                PanelSettingsTarget::FloatOffset,
                 Phosphor::ArrowsIn(Weight::Regular),
             )
             .icon_only()
             .readout(|value| format!("{} px", value.round())),
+            appearance: LayerAppearanceControls::new(ShellLayer::Panels, |target| {
+                PanelSettingsTarget::Appearance(target).into()
+            }),
         }
     }
 }
 
-impl ShellLayoutGroup {
-    pub fn tooltip_for(&self, target: ShellLayoutTarget, shell_layout: &ShellLayout) -> Tooltip {
+impl PanelSettingsGroup {
+    pub fn tooltip_for(
+        &self,
+        target: PanelSettingsTarget,
+        shell_layout: &ShellLayout,
+        panels: &LayerAppearance,
+        styling: NiriStyling,
+    ) -> Tooltip {
         match target {
-            ShellLayoutTarget::DisconnectedGroups => {
+            PanelSettingsTarget::DisconnectedGroups => {
                 disconnected_toggle(shell_layout).switch_tooltip()
             }
-            ShellLayoutTarget::AutoCollapseGroups => {
+            PanelSettingsTarget::AutoCollapseGroups => {
                 pinned_groups_toggle(shell_layout).switch_tooltip()
             }
-            ShellLayoutTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(shell_layout).switch_tooltip()
-            }
-            ShellLayoutTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
+            PanelSettingsTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
+            PanelSettingsTarget::Xray => xray_toggle(styling).switch_tooltip(),
+            PanelSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, panels),
         }
+    }
+
+    fn close_sliders(&mut self) {
+        self.float_offset.close();
+        self.appearance.close();
     }
 
     pub fn collapse(&mut self) {
         if self.expansion.collapse() {
-            self.float_offset.close();
+            self.close_sliders();
         }
     }
 
-    pub fn adopt(&mut self, shell_layout: &ShellLayout) {
+    pub fn adopt(&mut self, shell_layout: &ShellLayout, panels: &LayerAppearance) {
         self.float_offset
             .update(ControlMessage::Reading(shell_layout.float_offset_px));
+        self.appearance.adopt(panels);
     }
 
-    pub fn update(&mut self, msg: ShellLayoutMessage, shell_layout: &mut ShellLayout) -> Action {
+    pub fn update(
+        &mut self,
+        msg: PanelSettingsMessage,
+        shell_layout: &mut ShellLayout,
+        panels: &mut LayerAppearance,
+        rules: &mut NiriRulesFile,
+    ) -> Action {
         match msg {
-            ShellLayoutMessage::Expansion(menu) => {
+            PanelSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
-                    self.float_offset.close();
+                    self.close_sliders();
                 }
                 Action::Run(Task::none())
             }
-            ShellLayoutMessage::ToggleDisconnectedGroups => {
+            PanelSettingsMessage::ToggleDisconnectedGroups => {
                 shell_layout.disconnected_groups = !shell_layout.disconnected_groups;
                 Action::Run(
                     Task::future(state::shell_settings::save_disconnected_groups(
@@ -146,7 +173,7 @@ impl ShellLayoutGroup {
                     .discard(),
                 )
             }
-            ShellLayoutMessage::ToggleAutoCollapseGroups => {
+            PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 shell_layout.auto_collapse_groups = !shell_layout.auto_collapse_groups;
                 Action::Run(
                     Task::future(state::shell_settings::save_auto_collapse_groups(
@@ -155,28 +182,29 @@ impl ShellLayoutGroup {
                     .discard(),
                 )
             }
-            ShellLayoutMessage::ToggleWorkspacesPlacement => {
-                shell_layout.workspaces_placement = shell_layout.workspaces_placement.toggled();
-                Action::Run(
-                    Task::future(state::shell_settings::save_workspaces_placement(
-                        shell_layout.workspaces_placement,
-                    ))
+            PanelSettingsMessage::ToggleXray => Action::Run(
+                rules
+                    .restyle(|styling| styling.xray = !styling.xray)
                     .discard(),
-                )
-            }
-            ShellLayoutMessage::FloatOffset(control) => {
+            ),
+            PanelSettingsMessage::FloatOffset(control) => {
                 let SliderAction::Commit(value) = self.float_offset.update(control) else {
                     return Action::Run(Task::none());
                 };
                 shell_layout.float_offset_px = value;
                 Action::Reflow(
                     Task::future(state::shell_settings::save_float_offset(value)).map(move |ok| {
-                        Message::ShellLayout(ShellLayoutMessage::FloatOffset(
+                        Message::PanelSettings(PanelSettingsMessage::FloatOffset(
                             ControlMessage::Persisted { value, ok },
                         ))
                     }),
                 )
             }
+            PanelSettingsMessage::Appearance(msg) => Action::Run(
+                self.appearance
+                    .update(msg, panels)
+                    .map(|msg| Message::PanelSettings(PanelSettingsMessage::Appearance(msg))),
+            ),
         }
     }
 
@@ -184,32 +212,44 @@ impl ShellLayoutGroup {
         &'a self,
         config: &'a Config,
         shell_layout: &ShellLayout,
-    ) -> GroupContent<'a, ShellLayoutMessage> {
+        panels: &LayerAppearance,
+        styling: NiriStyling,
+    ) -> GroupContent<'a, PanelSettingsMessage> {
         GroupContent::new(
             &self.expansion,
-            ShellLayoutMessage::Expansion,
+            PanelSettingsMessage::Expansion,
             [
                 GroupItem::toggle(
                     disconnected_toggle(shell_layout),
-                    ShellLayoutTarget::DisconnectedGroups,
-                    ShellLayoutMessage::ToggleDisconnectedGroups,
+                    PanelSettingsTarget::DisconnectedGroups,
+                    PanelSettingsMessage::ToggleDisconnectedGroups,
                 ),
                 GroupItem::toggle(
                     pinned_groups_toggle(shell_layout),
-                    ShellLayoutTarget::AutoCollapseGroups,
-                    ShellLayoutMessage::ToggleAutoCollapseGroups,
+                    PanelSettingsTarget::AutoCollapseGroups,
+                    PanelSettingsMessage::ToggleAutoCollapseGroups,
+                ),
+                GroupItem::slider(
+                    &self.float_offset,
+                    config,
+                    PanelSettingsMessage::FloatOffset,
                 ),
                 GroupItem::toggle(
-                    workspaces_sidebar_toggle(shell_layout),
-                    ShellLayoutTarget::WorkspacesPlacement,
-                    ShellLayoutMessage::ToggleWorkspacesPlacement,
+                    xray_toggle(styling),
+                    PanelSettingsTarget::Xray,
+                    PanelSettingsMessage::ToggleXray,
                 ),
-                GroupItem::slider(&self.float_offset, config, ShellLayoutMessage::FloatOffset),
-            ],
+            ]
+            .into_iter()
+            .chain(self.appearance.items(
+                config,
+                panels,
+                PanelSettingsMessage::Appearance,
+            )),
         )
         .face(HandleFace::Icon {
-            glyph: Phosphor::Layout(Weight::Regular).into(),
-            handle: GroupHandle::ShellLayout,
+            glyph: Phosphor::Rows(Weight::Regular).into(),
+            handle: GroupHandle::PanelSettings,
         })
     }
 }

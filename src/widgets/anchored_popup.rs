@@ -71,7 +71,8 @@ pub fn anchored_popup<'a>(
         .palette
         .surface
         .scale_alpha(settings.overlays.opacity);
-    let outline = settings.outline.border(config);
+    let overlays = &settings.overlays;
+    let outline = overlays.outline.border(config);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
@@ -82,8 +83,9 @@ pub fn anchored_popup<'a>(
         seq,
         morph: config.tooltips.popup_morph,
         background,
-        radius: settings.overlays.corner_radius.top_left,
-        shadow: settings.shadow.drop_shadow(),
+        radius: overlays.corner_radius.top_left,
+        blurred: overlays.blurred,
+        shadow: overlays.shadow.drop_shadow(),
         outline,
     })
 }
@@ -99,6 +101,7 @@ struct AnchoredPopup<'a> {
     morph: Duration,
     background: Color,
     radius: f32,
+    blurred: bool,
     shadow: Shadow,
     outline: Border,
 }
@@ -464,7 +467,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let frame = self.frame(state, layout);
         let roles = RegionRoles {
             takes_input: frame.settled,
-            blurred: true,
+            blurred: self.blurred,
             corner_radius: self.radius,
         };
         let rects: Vec<Rectangle> = frame.rects().collect();

@@ -21,6 +21,7 @@ use super::{
 };
 use crate::{
     config::{Config, notification_toasts::ToastPlacementConfig},
+    state::LayerAppearance,
     widgets::{
         child_view::{ChildView, ChildViewMut},
         region_reporter::RegionRoles,
@@ -31,7 +32,7 @@ impl<'a> WindowAnchoredToasts<'a> {
     pub fn new(
         toasts: Vec<AnchoredToast<'a>>,
         bar_clearance: Padding,
-        card_corner_radius: f32,
+        overlays: &LayerAppearance,
         config: &Config,
     ) -> Self {
         let card = &config.notification_toasts.card;
@@ -40,8 +41,8 @@ impl<'a> WindowAnchoredToasts<'a> {
                 bar_clearance,
                 card_roles: RegionRoles {
                     takes_input: true,
-                    blurred: true,
-                    corner_radius: card_corner_radius,
+                    blurred: overlays.blurred,
+                    corner_radius: overlays.corner_radius.top_left,
                 },
                 ids: Vec::new(),
                 anchors: Vec::new(),

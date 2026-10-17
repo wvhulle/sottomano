@@ -10,7 +10,7 @@ use crate::{
             niri::{HEdge, Placement, VEdge, WindowOwner},
         },
     },
-    state::OverlaySettings,
+    state::NotificationSettings,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,10 +95,10 @@ fn sender_window(sender: OwnerProcess, placement: &Placement) -> Option<u64> {
 pub fn placement_for(
     window: ToastWindow,
     placement: &Placement,
-    overlays: OverlaySettings,
+    notifications: NotificationSettings,
     config: &Config,
 ) -> ToastPlacement {
-    let id = overlays
+    let id = notifications
         .toast_spatial_layout
         .then(|| window.open_in(placement))
         .flatten();

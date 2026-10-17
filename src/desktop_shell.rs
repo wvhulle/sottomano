@@ -70,15 +70,14 @@ use crate::{
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         niri_window_group::{NiriWindowGroup, NiriWindowMessage},
         notification_group::{NotificationGroup, NotificationGroupMessage},
-        overlay_group::{self, OverlayGroup, OverlayMessage},
-        panel_appearance_group::{PanelAppearanceGroup, PanelAppearanceMessage},
+        overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
+        panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
         power_group::{PowerGroup, PowerMessage},
         quiet_schedule_group::{QuietScheduleGroup, QuietScheduleMessage},
         session_focus_group::{SessionFocusGroup, SessionFocusMessage},
         session_menu::{self, SessionMenu, SessionMessage},
-        shell_layout_group::{self, ShellLayoutGroup, ShellLayoutMessage},
-        surface_effects_group::{SurfaceEffectsGroup, SurfaceEffectsMessage},
+        sidebar_settings_group::{SidebarSettingsGroup, SidebarSettingsMessage},
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},
         tray_group::{self, TrayGroup, TrayMessage},
         wallpaper_group::{WallpaperGroup, WallpaperMessage},
@@ -110,10 +109,9 @@ pub struct DesktopShell {
     pub gpu_group: GpuGroup,
     pub disk_group: DiskGroup,
     pub niri_rules: NiriRulesFile,
-    pub shell_layout_group: ShellLayoutGroup,
-    pub panel_appearance_group: PanelAppearanceGroup,
-    pub overlay_group: OverlayGroup,
-    pub surface_effects_group: SurfaceEffectsGroup,
+    pub panel_settings_group: PanelSettingsGroup,
+    pub sidebar_settings_group: SidebarSettingsGroup,
+    pub overlay_settings_group: OverlaySettingsGroup,
     pub niri_window_group: NiriWindowGroup,
     pub clock_group: ClockGroup,
     pub notification_group: NotificationGroup,
@@ -162,10 +160,9 @@ pub enum Message {
     Compute(ComputeMessage),
     Gpu(GpuMessage),
     Disk(DiskMessage),
-    ShellLayout(ShellLayoutMessage),
-    PanelAppearance(PanelAppearanceMessage),
-    Overlay(OverlayMessage),
-    SurfaceEffects(SurfaceEffectsMessage),
+    PanelSettings(PanelSettingsMessage),
+    SidebarSettings(SidebarSettingsMessage),
+    OverlaySettings(OverlaySettingsMessage),
     NiriWindow(NiriWindowMessage),
     Clock(ClockMessage),
     NotificationGroup(NotificationGroupMessage),
@@ -254,10 +251,9 @@ impl DesktopShell {
             gpu_group: GpuGroup::default(),
             disk_group: DiskGroup::default(),
             niri_rules,
-            shell_layout_group: ShellLayoutGroup::default(),
-            panel_appearance_group: PanelAppearanceGroup::default(),
-            overlay_group: OverlayGroup::default(),
-            surface_effects_group: SurfaceEffectsGroup::default(),
+            panel_settings_group: PanelSettingsGroup::default(),
+            sidebar_settings_group: SidebarSettingsGroup::default(),
+            overlay_settings_group: OverlaySettingsGroup::default(),
             niri_window_group: NiriWindowGroup::default(),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
@@ -395,17 +391,13 @@ impl DesktopShell {
             Message::Compute(msg) => self.compute_group.update(msg).map(Message::Compute),
             Message::Gpu(msg) => self.gpu_group.update(msg).map(Message::Gpu),
             Message::Disk(msg) => self.disk_group.update(msg).map(Message::Disk),
-            Message::ShellLayout(msg) => self.update_shell_layout(msg),
-            Message::PanelAppearance(msg) => self
-                .panel_appearance_group
-                .update(msg, &mut self.shell_settings.panels),
-            Message::Overlay(msg) => self.update_overlay(msg),
-            Message::SurfaceEffects(msg) => self.surface_effects_group.update(
+            Message::PanelSettings(msg) => self.update_panel_settings(msg),
+            Message::SidebarSettings(msg) => self.sidebar_settings_group.update(
                 msg,
-                &mut self.shell_settings.shadow,
-                &mut self.shell_settings.outline,
-                &mut self.niri_rules,
+                &mut self.shell_settings.layout,
+                &mut self.shell_settings.sidebar,
             ),
+            Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
             Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
@@ -536,19 +528,20 @@ impl DesktopShell {
         ])
     }
 
-    fn update_overlay(&mut self, msg: OverlayMessage) -> Task<Message> {
-        match self
-            .overlay_group
-            .update(msg, &mut self.shell_settings.overlays)
-        {
-            overlay_group::Action::Run(task) => task,
-            overlay_group::Action::ReflowToasts(task) => {
+    fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
+        match self.overlay_settings_group.update(
+            msg,
+            &mut self.shell_settings.notifications,
+            &mut self.shell_settings.overlays,
+        ) {
+            overlay_settings_group::Action::Run(task) => task,
+            overlay_settings_group::Action::ReflowToasts(task) => {
                 let placement = niri::Placement::derive(&self.niri);
                 Task::batch([
                     self.notifications.on_niri_changed(
                         &placement,
                         &self.config,
-                        self.shell_settings.overlays,
+                        self.shell_settings.notifications,
                     ),
                     task,
                 ])
@@ -570,8 +563,11 @@ impl DesktopShell {
     fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
         self.outputs = outputs;
         let placement = niri::Placement::derive(&self.niri);
-        self.notifications
-            .on_niri_changed(&placement, &self.config, self.shell_settings.overlays)
+        self.notifications.on_niri_changed(
+            &placement,
+            &self.config,
+            self.shell_settings.notifications,
+        )
     }
 
     fn refocus_session(&mut self) -> Task<Message> {
@@ -657,11 +653,12 @@ impl DesktopShell {
 
     fn apply_saved_shell_settings(&mut self, shell_settings: ShellSettings) -> Task<Message> {
         self.shell_settings = shell_settings;
-        self.shell_layout_group.adopt(&self.shell_settings.layout);
-        self.panel_appearance_group
-            .adopt(&self.shell_settings.panels);
-        self.overlay_group.adopt(self.shell_settings.overlays);
-        self.surface_effects_group.adopt(self.shell_settings.shadow);
+        self.panel_settings_group
+            .adopt(&self.shell_settings.layout, &self.shell_settings.panels);
+        self.sidebar_settings_group
+            .adopt(&self.shell_settings.sidebar);
+        self.overlay_settings_group
+            .adopt(&self.shell_settings.overlays);
         self.reserve()
     }
 
@@ -762,10 +759,9 @@ impl DesktopShell {
         if !self.shell_settings.layout.auto_collapse_groups {
             return;
         }
-        self.shell_layout_group.collapse();
-        self.panel_appearance_group.collapse();
-        self.overlay_group.collapse();
-        self.surface_effects_group.collapse();
+        self.panel_settings_group.collapse();
+        self.sidebar_settings_group.collapse();
+        self.overlay_settings_group.collapse();
         self.niri_window_group.collapse();
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
@@ -840,7 +836,7 @@ impl DesktopShell {
             tasks.push(self.notifications.on_niri_changed(
                 &placement,
                 &self.config,
-                self.shell_settings.overlays,
+                self.shell_settings.notifications,
             ));
         }
         Task::batch(tasks)
@@ -897,13 +893,15 @@ impl DesktopShell {
             .map(Message::IconsResolved)
     }
 
-    fn update_shell_layout(&mut self, msg: ShellLayoutMessage) -> Task<Message> {
-        match self
-            .shell_layout_group
-            .update(msg, &mut self.shell_settings.layout)
-        {
-            shell_layout_group::Action::Run(task) => task,
-            shell_layout_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
+    fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
+        match self.panel_settings_group.update(
+            msg,
+            &mut self.shell_settings.layout,
+            &mut self.shell_settings.panels,
+            &mut self.niri_rules,
+        ) {
+            panel_settings_group::Action::Run(task) => task,
+            panel_settings_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
         }
     }
 

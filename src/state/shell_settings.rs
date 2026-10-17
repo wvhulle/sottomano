@@ -1,6 +1,6 @@
 use crate::state::{
-    Columns, ShellSettings, StoreError, WorkspacesPlacement, flag, overlay_settings, real,
-    upsert_column, with_table,
+    Columns, ShellLayer, ShellSettings, StoreError, WorkspacesPlacement, flag, layer_appearance,
+    real, upsert_column, with_table,
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
@@ -9,64 +9,51 @@ pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
     disconnected_groups INTEGER,
     auto_collapse_groups INTEGER,
     workspaces_in_sidebar INTEGER,
-    panel_opacity REAL,
-    panel_corner_radius_px REAL,
-    surface_outline INTEGER,
-    drop_shadow INTEGER,
-    shadow_softness_px REAL,
-    shadow_opacity REAL,
-    sound INTEGER
+    sound INTEGER,
+    toast_spatial_layout INTEGER
 )";
 
 const SELECT_SHELL_SETTINGS: &str = "SELECT float_offset_px, disconnected_groups,
-        auto_collapse_groups, workspaces_in_sidebar, panel_opacity,
-        panel_corner_radius_px, surface_outline, drop_shadow, shadow_softness_px, shadow_opacity,
-        sound
+        auto_collapse_groups, workspaces_in_sidebar, sound, toast_spatial_layout
     FROM shell_settings WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
 enum Setting {
     FloatOffset,
-    PanelOpacity,
     DisconnectedGroups,
     AutoCollapseGroups,
     Sound,
+    ToastSpatialLayout,
     WorkspacesInSidebar,
-    PanelCornerRadius,
-    SurfaceOutline,
-    DropShadow,
-    ShadowSoftness,
-    ShadowOpacity,
 }
 
 impl Setting {
     fn column(self) -> &'static str {
         match self {
-            Self::PanelCornerRadius => "panel_corner_radius_px",
-            Self::SurfaceOutline => "surface_outline",
-            Self::DropShadow => "drop_shadow",
-            Self::ShadowSoftness => "shadow_softness_px",
-            Self::ShadowOpacity => "shadow_opacity",
             Self::FloatOffset => "float_offset_px",
-            Self::PanelOpacity => "panel_opacity",
             Self::DisconnectedGroups => "disconnected_groups",
             Self::AutoCollapseGroups => "auto_collapse_groups",
             Self::Sound => "sound",
+            Self::ToastSpatialLayout => "toast_spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
         }
     }
 }
 
 pub async fn load() -> ShellSettings {
-    let mut shell_settings = with_table(
+    let shell_settings = with_table(
         "shell settings: load failed",
         &[CREATE_TABLE],
         read_shell_settings,
     )
     .await
     .unwrap_or_default();
-    shell_settings.overlays = overlay_settings::load().await;
-    shell_settings
+    ShellSettings {
+        panels: layer_appearance::load(ShellLayer::Panels, shell_settings.panels).await,
+        sidebar: layer_appearance::load(ShellLayer::Sidebar, shell_settings.sidebar).await,
+        overlays: layer_appearance::load(ShellLayer::Overlays, shell_settings.overlays).await,
+        ..shell_settings
+    }
 }
 
 pub async fn save_float_offset(offset: f32) -> bool {
@@ -89,32 +76,12 @@ pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
     .await;
 }
 
-pub async fn save_panel_opacity(opacity: f32) -> bool {
-    put(Setting::PanelOpacity, real(opacity)).await
-}
-
-pub async fn save_panel_corner_radius(radius: f32) -> bool {
-    put(Setting::PanelCornerRadius, real(radius)).await
-}
-
-pub async fn save_surface_outline(drawn: bool) {
-    put(Setting::SurfaceOutline, flag(drawn)).await;
-}
-
-pub async fn save_drop_shadow(cast: bool) {
-    put(Setting::DropShadow, flag(cast)).await;
-}
-
-pub async fn save_shadow_softness(softness: f32) -> bool {
-    put(Setting::ShadowSoftness, real(softness)).await
-}
-
-pub async fn save_shadow_opacity(opacity: f32) -> bool {
-    put(Setting::ShadowOpacity, real(opacity)).await
-}
-
 pub async fn save_sound(sound: bool) {
     put(Setting::Sound, flag(sound)).await;
+}
+
+pub async fn save_toast_spatial_layout(spatial: bool) {
+    put(Setting::ToastSpatialLayout, flag(spatial)).await;
 }
 
 async fn put(setting: Setting, value: turso::Value) -> bool {
@@ -159,28 +126,12 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
             WorkspacesPlacement::BottomPanel
         };
     }
+    let notifications = &mut shell_settings.notifications;
     if let Some(sound) = columns.optional_flag(&row, "sound") {
-        shell_settings.notifications.sound = sound;
+        notifications.sound = sound;
     }
-    let panels = &mut shell_settings.panels;
-    if let Some(opacity) = columns.optional_real(&row, "panel_opacity") {
-        panels.opacity = opacity as f32;
-    }
-    if let Some(radius) = columns.optional_real(&row, "panel_corner_radius_px") {
-        panels.corner_radius = (radius as f32).into();
-    }
-    if let Some(drawn) = columns.optional_flag(&row, "surface_outline") {
-        shell_settings.outline.drawn = drawn;
-    }
-    let shadow = &mut shell_settings.shadow;
-    if let Some(cast) = columns.optional_flag(&row, "drop_shadow") {
-        shadow.cast = cast;
-    }
-    if let Some(softness) = columns.optional_real(&row, "shadow_softness_px") {
-        shadow.softness_px = softness as f32;
-    }
-    if let Some(opacity) = columns.optional_real(&row, "shadow_opacity") {
-        shadow.opacity = opacity as f32;
+    if let Some(spatial) = columns.optional_flag(&row, "toast_spatial_layout") {
+        notifications.toast_spatial_layout = spatial;
     }
     Ok(shell_settings)
 }
@@ -202,34 +153,22 @@ mod tests {
         let conn = connection().await;
         for (setting, value) in [
             (Setting::FloatOffset, real(3.25)),
-            (Setting::PanelOpacity, real(0.75)),
             (Setting::DisconnectedGroups, flag(true)),
             (Setting::AutoCollapseGroups, flag(false)),
             (Setting::Sound, flag(false)),
+            (Setting::ToastSpatialLayout, flag(false)),
             (Setting::WorkspacesInSidebar, flag(false)),
-            (Setting::PanelCornerRadius, real(6.5)),
-            (Setting::SurfaceOutline, flag(false)),
-            (Setting::DropShadow, flag(false)),
-            (Setting::ShadowSoftness, real(33.0)),
-            (Setting::ShadowOpacity, real(0.5)),
         ] {
             write_setting(&conn, setting, value).await.unwrap();
         }
 
         let shell_settings = read_shell_settings(&conn).await.unwrap();
-        let panels = &shell_settings.panels;
         let layout = &shell_settings.layout;
-        assert!((panels.corner_radius.top_left - 6.5).abs() < f32::EPSILON);
-        assert!(!shell_settings.outline.drawn);
-        let shadow = shell_settings.shadow;
-        assert!(!shadow.cast);
-        assert!((shadow.softness_px - 33.0).abs() < f32::EPSILON);
-        assert!((shadow.opacity - 0.5).abs() < f32::EPSILON);
         assert!((layout.float_offset_px - 3.25).abs() < f32::EPSILON);
-        assert!((panels.opacity - 0.75).abs() < f32::EPSILON);
         assert!(layout.disconnected_groups);
         assert!(!layout.auto_collapse_groups);
         assert!(!shell_settings.notifications.sound);
+        assert!(!shell_settings.notifications.toast_spatial_layout);
         assert_eq!(
             layout.workspaces_placement,
             WorkspacesPlacement::BottomPanel
