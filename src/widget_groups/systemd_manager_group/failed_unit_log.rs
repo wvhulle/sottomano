@@ -21,7 +21,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -102,7 +102,7 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
         .map(ServiceOutcome::description);
     let failed_at = unit
         .at
-        .map(|at| TimePart::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
+        .map(|at| LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
     let outcome: Vec<String> = reason.into_iter().chain(failed_at).collect();
     let outcome_line = (!outcome.is_empty()).then(|| outcome.join(" · "));
     let lines: Vec<String> = outcome_line
@@ -162,7 +162,7 @@ impl FailedUnitInfo {
             .map(|outcome| outcome.description().into());
         let failed = self.at.map(|at| Cell::Time {
             at: at.into(),
-            part: TimePart::DateAndTime,
+            format: LocalizedTimeFormat::DateAndTime,
         });
         TableRecord::new(self.name.clone(), [reason, failed])
             .level(UNIT_FAILURE_PRIORITY.severity())

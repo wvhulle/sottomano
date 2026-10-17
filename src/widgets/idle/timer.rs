@@ -11,7 +11,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
@@ -115,7 +115,7 @@ impl IdleTimer {
                 format!("{} at", self.action.verb()),
                 Cell::Time {
                     at: Utc::now() + chrono::Duration::from_std(timeout).unwrap_or_default(),
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
         };

@@ -12,7 +12,7 @@ use crate::{
     widget_groups::clock_group::{TICK, polled_at_second_boundaries},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
     },
@@ -50,7 +50,7 @@ impl BarWidget for LocalTime {
     }
 
     fn localized_label(&self, locale: Locale) -> Option<String> {
-        Some(TimePart::TimeOfDay.format(&self.0, locale))
+        Some(LocalizedTimeFormat::TimeOfDay.format(&self.0, locale))
     }
 
     fn tooltip(&self) -> TooltipBody {

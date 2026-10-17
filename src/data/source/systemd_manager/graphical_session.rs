@@ -14,7 +14,7 @@ use crate::{
         },
     },
     widgets::{
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, KeyValue, Section},
     },
 };
@@ -134,7 +134,7 @@ impl GraphicalSessionTarget {
                         "Ready since",
                         Cell::Time {
                             at,
-                            part: TimePart::DateAndTime,
+                            format: LocalizedTimeFormat::DateAndTime,
                         },
                     )
                 }),

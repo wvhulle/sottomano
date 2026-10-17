@@ -16,7 +16,7 @@ use crate::{
         },
     },
     widgets::{
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord},
     },
 };
@@ -310,7 +310,7 @@ impl SessionInfo {
                         "Logged in",
                         Cell::Time {
                             at: self.since,
-                            part: TimePart::DateAndTime,
+                            format: LocalizedTimeFormat::DateAndTime,
                         },
                     )),
                     self.idle_since.map(|at| {
@@ -318,7 +318,7 @@ impl SessionInfo {
                             "Idle since",
                             Cell::Time {
                                 at,
-                                part: TimePart::TimeOfDay,
+                                format: LocalizedTimeFormat::TimeOfDay,
                             },
                         )
                     }),
@@ -385,7 +385,7 @@ impl PowerPolicy {
                     key,
                     Cell::Time {
                         at,
-                        part: TimePart::DateAndTime,
+                        format: LocalizedTimeFormat::DateAndTime,
                     },
                 ),
                 None => KeyValue::new(key, shutdown.kind.clone()),

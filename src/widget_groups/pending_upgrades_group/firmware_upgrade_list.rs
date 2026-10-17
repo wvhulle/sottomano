@@ -16,7 +16,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional, OngoingToastThreshold},
         group_item::GroupItem,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
@@ -117,7 +117,7 @@ impl FirmwareUpgrade {
                 Some(self.offered_version.clone().into()),
                 self.offered_released.map(|at| Cell::Time {
                     at,
-                    part: TimePart::Date,
+                    format: LocalizedTimeFormat::Date,
                 }),
                 self.urgency.map(|urgency| urgency.title().into()),
                 self.summary.clone().map(Cell::from),

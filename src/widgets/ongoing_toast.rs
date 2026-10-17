@@ -13,7 +13,7 @@ use crate::{
     widget_groups::ai_group::amount_text::{duration_text, percent_text},
     widgets::{
         bar_widget::{BarWidget, OngoingToastThreshold},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         widget_state::WidgetState,
     },
 };
@@ -46,12 +46,12 @@ fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String 
     let used = percent_text(quota.used);
     let elapsed = duration_text(now - quota.starts_at);
     let window = duration_text(quota.resets_at - quota.starts_at);
-    let reset_at = TimePart::TimeOfDay.format(&quota.resets_at.with_timezone(&Local), locale);
+    let reset_at = LocalizedTimeFormat::TimeOfDay.format(&quota.resets_at.with_timezone(&Local), locale);
     match quota.pace() {
         Some(Pace::RunsOut { at }) => format!(
             "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets at \
              {reset_at}.",
-            TimePart::TimeOfDay.format(&at.with_timezone(&Local), locale)
+            LocalizedTimeFormat::TimeOfDay.format(&at.with_timezone(&Local), locale)
         ),
         Some(Pace::Lasts { at_reset }) => format!(
             "{label}: {used} used after {elapsed} of {window}.\nReaches {} by the reset at \

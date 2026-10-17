@@ -10,7 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, Occasional},
         group_item::GroupItem,
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -34,7 +34,7 @@ impl UnitErrors {
             [
                 Some(Cell::Time {
                     at: self.latest.into(),
-                    part: TimePart::TimeOfDay,
+                    format: LocalizedTimeFormat::TimeOfDay,
                 }),
                 Some(Cell::Hint(self.count.to_string())),
                 Some(message.into()),

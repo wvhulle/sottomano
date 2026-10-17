@@ -553,8 +553,8 @@ impl CellView {
             }
             Cell::Path(path) => self.path(&path, color, &row),
             Cell::Hint(text) => self.text(text, self.hint, &row),
-            Cell::Time { at, part } => {
-                self.copyable_text(part.format(&at, self.locale), color, &row)
+            Cell::Time { at, format } => {
+                self.copyable_text(format.format(&at, self.locale), color, &row)
             }
         }
     }
@@ -600,8 +600,8 @@ impl CellView {
             Cell::Glyph(icon) => self.glyph(icon, color),
             Cell::Text(text) => self.copyable_text(text, color, row),
             Cell::Path(path) => self.path(&path, color, row),
-            Cell::Time { at, part } => {
-                self.copyable_text(part.format(&at, self.locale), color, row)
+            Cell::Time { at, format } => {
+                self.copyable_text(format.format(&at, self.locale), color, row)
             }
             Cell::Link { label, url } => self.openable_link(label, url, row),
             Cell::Hint(text) => self.text(text, self.hint, row),

@@ -19,7 +19,7 @@ use crate::{
     desktop_shell::hover_tooltips::PressHints,
     state::idle::ScheduledAfterIdle,
     widget_groups::window_group::process_tree::Folding,
-    widgets::{bar_widget::Glyph, localized_time::TimePart},
+    widgets::{bar_widget::Glyph, localized_time::LocalizedTimeFormat},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,7 +27,7 @@ pub enum Cell {
     Text(String),
     Path(PathBuf),
     Glyph(Glyph),
-    Time { at: DateTime<Utc>, part: TimePart },
+    Time { at: DateTime<Utc>, format: LocalizedTimeFormat },
     Link { label: String, url: String },
     Hint(String),
 }

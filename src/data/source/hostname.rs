@@ -10,7 +10,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
@@ -118,7 +118,7 @@ impl MachineInfo {
         ]);
         let firmware_date = self.firmware_date.map(|at| Cell::Time {
             at,
-            part: TimePart::Date,
+            format: LocalizedTimeFormat::Date,
         });
         Section::dictionary(
             [

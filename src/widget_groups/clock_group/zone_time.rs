@@ -14,7 +14,7 @@ use crate::{
     widget_groups::clock_group::{TICK, polled_at_second_boundaries},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
     },
@@ -77,7 +77,7 @@ impl BarWidget for ZoneTime {
         Some(format!(
             "{} {}",
             city_name(self.zone()),
-            TimePart::TimeOfDay.format_in_own_zone(&self.0, locale)
+            LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.0, locale)
         ))
     }
 

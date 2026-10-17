@@ -14,7 +14,7 @@ use crate::{
     widget_groups::ai_group::amount_text::{coarse_duration_text, duration_text},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        localized_time::TimePart,
+        localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -55,7 +55,7 @@ impl DailyTotalsGauge {
         match quota.pace()? {
             Pace::RunsOut { at } => Some(Cell::Time {
                 at,
-                part: TimePart::TimeOfDay,
+                format: LocalizedTimeFormat::TimeOfDay,
             }),
             Pace::Lasts { .. } => Some(Cell::from("lasts")),
         }
