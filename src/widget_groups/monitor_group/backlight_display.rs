@@ -2,7 +2,6 @@ use crate::{
     data::source::backlight::{Backlight, Kind},
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
-        hardware_section::HardwareEntries,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
     },
@@ -32,6 +31,6 @@ pub fn tooltip(
     let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
     TooltipBody::sections([
         Section::dictionary(display_entries.into_iter().chain(output_entries)),
-        output.hardware_section(),
+        Section::hardware_identity(output.iter().flat_map(|output| output.hardware_entries())),
     ])
 }

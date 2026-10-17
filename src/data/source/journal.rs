@@ -20,7 +20,7 @@ use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::data::{severity::Severity, source::systemd_manager::UnitScope};
+use crate::data::{severity::Severity, source::systemd_manager::ScopedSystemdUnit};
 
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
@@ -61,22 +61,26 @@ fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Vec<E>> {
     rx
 }
 
-pub fn unit_log_appends<S: UnitScope>(unit: String) -> impl Stream<Item = ()> + Send {
+pub fn unit_log_appends(unit: ScopedSystemdUnit) -> impl Stream<Item = ()> + Send {
     let (tx, rx) = mpsc::channel(1);
     thread::spawn(move || {
-        if let Err(e) = signal_unit_log_appends::<S>(&unit, &tx) {
-            tracing::warn!("journal: following {unit} ended: {e}");
+        if let Err(e) = signal_unit_log_appends(&unit, &tx) {
+            tracing::warn!("journal: following {} ended: {e}", unit.unit_name);
         }
     });
     stream::once(ready(())).chain(ReceiverStream::new(rx))
 }
 
-fn signal_unit_log_appends<S: UnitScope>(unit: &str, tx: &mpsc::Sender<()>) -> io::Result<()> {
+fn signal_unit_log_appends(unit: &ScopedSystemdUnit, tx: &mpsc::Sender<()>) -> io::Result<()> {
+    let per_user = unit.scope.per_user();
     let mut journal = OpenOptions::default()
-        .system(!S::PER_USER)
-        .current_user(S::PER_USER)
+        .system(!per_user)
+        .current_user(per_user)
         .open()?;
-    journal.match_add(S::LOGGED_BY, unit)?;
+    journal.match_add(
+        unit.scope.journal_logged_by_field(),
+        unit.unit_name.as_str(),
+    )?;
     journal.seek_tail()?;
     journal.previous()?;
     while !tx.is_closed() {
@@ -530,6 +534,14 @@ impl OwningUnit {
 }
 
 #[cfg(test)]
+pub fn journal_record<'a>(fields: impl IntoIterator<Item = (&'a str, &'a str)>) -> JournalRecord {
+    fields
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value.to_owned()))
+        .collect()
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -645,12 +657,4 @@ mod tests {
                 .is_err()
         );
     }
-}
-
-#[cfg(test)]
-pub fn journal_record<'a>(fields: impl IntoIterator<Item = (&'a str, &'a str)>) -> JournalRecord {
-    fields
-        .into_iter()
-        .map(|(name, value)| (name.to_owned(), value.to_owned()))
-        .collect()
 }

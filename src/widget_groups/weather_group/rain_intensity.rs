@@ -3,7 +3,7 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 use crate::{
     data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
@@ -66,10 +66,8 @@ impl BarWidget for Rain {
             ),
         ])
     }
-}
 
-impl Occasional for Rain {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.outlook != RainOutlook::Dry
     }
 }

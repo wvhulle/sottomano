@@ -7,7 +7,8 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Error, cpu_topology::cpulist, read_trimmed};
 use crate::data::source::{
-    Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    present_or_absent,
 };
 
 const L3_PMU: &str = "amd_l3";
@@ -29,28 +30,27 @@ pub struct SharedCacheTraffic {
     pub hit_rate: Ratio,
 }
 
-impl Source for L3CacheTraffic {
+impl ReadingSource for L3CacheTraffic {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "l3 cache traffic";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-impl PolledSource for L3CacheTraffic {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let countable = async {
             spawn_blocking(|| read_l3_cache_traffic().is_ok())
                 .await
                 .unwrap_or(false)
         };
         present_or_absent(stream::once(countable), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl L3CacheTraffic {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_l3_cache_traffic).await
     }
 }

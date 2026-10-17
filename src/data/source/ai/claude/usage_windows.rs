@@ -13,10 +13,7 @@ use super::{
 };
 use crate::data::{
     money::{Money, from_minor_units},
-    source::{
-        Delivery, PolledSource, Source,
-        ai::quota::{Quota, QuotaLimited},
-    },
+    source::{DeliveryCadence, ReadingSource, SourceDelivery, ai::quota::Quota},
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -110,8 +107,8 @@ impl WindowUsage {
     }
 }
 
-impl QuotaLimited for ClaudeUsageWindows {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl ClaudeUsageWindows {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         let extra = self
             .extra
             .as_ref()
@@ -130,21 +127,20 @@ impl QuotaLimited for ClaudeUsageWindows {
     }
 }
 
-impl Source for ClaudeUsageWindows {
+impl ReadingSource for ClaudeUsageWindows {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-usage-windows";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(1));
+
+    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(key, LoginKind::Subscription, Self::poll)
+    }
 }
 
-impl PolledSource for ClaudeUsageWindows {
-    const INTERVAL: Duration = Duration::from_mins(1);
-
-    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
-        login_polls::<Self>(key, LoginKind::Subscription)
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl ClaudeUsageWindows {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { plan, reply: usage } =
             oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
         Ok(ClaudeUsageWindows {

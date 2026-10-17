@@ -5,7 +5,7 @@ use iced::{Function, Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         audio::{
             self, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading, Target, WindowAudio,
         },
@@ -138,7 +138,8 @@ impl AudioGroup {
             }
             AudioMessage::Disconnected => {
                 self.commands = None;
-                self.state.push_or_keep(Delivery::Absent);
+                self.state
+                    .receive_keeping_last_reading(SourceDelivery::Absent);
                 Task::none()
             }
             AudioMessage::State(state) => {

@@ -1,7 +1,11 @@
 use std::{path::Path, time::Duration};
 
+use iced::futures::Stream;
+
 use super::{CPU_FREQ, Error, read_field, read_trimmed};
-use crate::data::source::{PolledSource, Source, blocking_poll};
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";
 
@@ -44,17 +48,20 @@ fn read_cpu_tuning() -> Result<CpuTuning, Error> {
     })
 }
 
-impl Source for CpuTuning {
+impl ReadingSource for CpuTuning {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "cpu-tuning";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for CpuTuning {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl CpuTuning {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_cpu_tuning).await
     }
 }

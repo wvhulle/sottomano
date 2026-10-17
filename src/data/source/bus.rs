@@ -23,7 +23,7 @@ pub fn prop<T: TryFrom<OwnedValue>>(properties: &Properties, key: &str) -> Optio
         .and_then(|value| T::try_from(value).ok())
 }
 
-pub trait DeclaredProperties {
+pub trait DbusPropertyLookup {
     fn flag(&self, key: &str) -> bool;
     fn boolean(&self, key: &str) -> Option<bool>;
     fn text(&self, key: &str) -> Option<String>;
@@ -33,7 +33,7 @@ pub trait DeclaredProperties {
     fn object_path(&self, key: &str) -> Option<OwnedObjectPath>;
 }
 
-impl DeclaredProperties for Properties {
+impl DbusPropertyLookup for Properties {
     fn flag(&self, key: &str) -> bool {
         self.boolean(key).unwrap_or(false)
     }

@@ -23,7 +23,7 @@ use zbus::{
 
 use crate::{
     data::source::{
-        Delivery, Source,
+        ReadingSource, SourceDelivery,
         bus::{Bus, Properties, name_owned},
         present_or_absent,
     },
@@ -38,14 +38,18 @@ pub enum ReadingError {
     Absent,
 }
 
-pub fn device_or_absent<S: Source>(
+pub fn device_or_absent<S: ReadingSource>(
     service: &'static str,
     readings: impl FnMut() -> BoxStream<'static, Option<S>> + Send + 'static,
-) -> impl Stream<Item = Delivery<S>> + Send {
+) -> impl Stream<Item = SourceDelivery<S>> + Send {
     let mut readings = readings;
     present_or_absent(name_owned(Bus::System, service), move || {
         readings()
-            .map(|device| device.map_or(Delivery::Absent, |device| Delivery::Reading(Ok(device))))
+            .map(|device| {
+                device.map_or(SourceDelivery::Absent, |device| {
+                    SourceDelivery::Reading(Ok(device))
+                })
+            })
             .boxed()
     })
 }

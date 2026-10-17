@@ -14,10 +14,7 @@ use super::{
 };
 use crate::data::{
     money::{Money, from_minor_units},
-    source::{
-        Delivery, PolledSource, Source,
-        ai::quota::{Quota, QuotaLimited},
-    },
+    source::{DeliveryCadence, ReadingSource, SourceDelivery, ai::quota::Quota},
 };
 
 #[derive(Deserialize)]
@@ -93,50 +90,48 @@ impl From<Organization> for ClaudeOrganization {
     }
 }
 
-impl Source for ClaudeOrganization {
+impl ReadingSource for ClaudeOrganization {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-organization";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
+
+    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(key, LoginKind::Enterprise, Self::poll)
+    }
 }
 
-impl PolledSource for ClaudeOrganization {
-    const INTERVAL: Duration = Duration::from_mins(5);
-
-    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
-        login_polls::<Self>(key, LoginKind::Enterprise)
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl ClaudeOrganization {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { reply: profile, .. } =
             oauth_api::fetch::<Profile>(&key, oauth_api::PROFILE_URL).await?;
         Ok(profile.organization.into())
     }
 }
 
-impl Source for ClaudeEnterpriseSpend {
+impl ReadingSource for ClaudeEnterpriseSpend {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "claude-enterprise-spend";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
+
+    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        login_polls(key, LoginKind::Enterprise, Self::poll)
+    }
 }
 
-impl PolledSource for ClaudeEnterpriseSpend {
-    const INTERVAL: Duration = Duration::from_mins(5);
-
-    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
-        login_polls::<Self>(key, LoginKind::Enterprise)
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl ClaudeEnterpriseSpend {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { reply: usage, .. } =
             oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
         ClaudeEnterpriseSpend::try_from(usage.spend)
     }
 }
 
-impl QuotaLimited for ClaudeEnterpriseSpend {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl ClaudeEnterpriseSpend {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.limit
             .as_ref()
             .and_then(|_| {

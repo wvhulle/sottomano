@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use iced::futures::Stream;
@@ -7,10 +7,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 use super::{
     Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, plan_polls, quota_reset, user_info,
 };
-use crate::data::source::{
-    Delivery, PolledSource, Source,
-    ai::quota::{Quota, QuotaLimited},
-};
+use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery, ai::quota::Quota};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
@@ -23,8 +20,8 @@ pub struct CopilotMetered {
     pub reset: Option<DateTime<Utc>>,
 }
 
-impl QuotaLimited for CopilotMetered {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl CopilotMetered {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.reset
             .and_then(|resets_at| {
                 Quota::within_month_before(
@@ -39,21 +36,20 @@ impl QuotaLimited for CopilotMetered {
     }
 }
 
-impl Source for CopilotMetered {
+impl ReadingSource for CopilotMetered {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "copilot-usage-metered";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
+
+    fn delivery_stream(key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        plan_polls(key, UserInfo::metered_plan, Self::poll)
+    }
 }
 
-impl PolledSource for CopilotMetered {
-    const INTERVAL: Duration = USER_POLL_INTERVAL;
-
-    fn polls(key: PathBuf) -> impl Stream<Item = Delivery<Self>> + Send {
-        plan_polls::<Self>(key, UserInfo::metered_plan)
-    }
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl CopilotMetered {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let info = user_info(&key).await?;
         let (snapshot, label) = info.metered_quota().ok_or(Error::NoQuota)?;
         Ok(CopilotMetered {

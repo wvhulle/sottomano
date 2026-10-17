@@ -5,12 +5,15 @@ use std::{
 };
 
 use bytesize::ByteSize;
+use iced::futures::Stream;
 
 use self::{
     btrfs::{BtrfsFilesystem, BtrfsSpace},
     mount::RootMount,
 };
-use super::{Panicked, PolledSource, Source, blocking_poll};
+use super::{
+    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 use crate::widgets::tooltip_body::Section;
 
 pub mod activity;
@@ -80,17 +83,20 @@ impl Disk {
     }
 }
 
-impl Source for Disk {
+impl ReadingSource for Disk {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "disk";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Disk {
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl Disk {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_root_disk).await
     }
 }

@@ -5,8 +5,8 @@ use iced::futures::{Stream, StreamExt, stream};
 use serde_json::Value as Json;
 
 use crate::data::source::{
-    Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
-    ticked_polls,
+    DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
+    polled_delivery_stream, present_or_absent,
 };
 
 const CONNECTED_WINDOW: u64 = 180;
@@ -40,17 +40,20 @@ pub struct TunnelAddress {
     pub ip: Option<String>,
 }
 
-impl Source for TunnelAddress {
+impl ReadingSource for TunnelAddress {
     type Error = command::Error;
     type Key = String;
 
     const NAME: &'static str = "wireguard tunnel address";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for TunnelAddress {
-    const INTERVAL: Duration = Duration::from_secs(10);
-
-    async fn poll(tunnel: String) -> Result<Self, Self::Error> {
+impl TunnelAddress {
+    async fn poll(tunnel: String) -> Result<Self, command::Error> {
         Ok(TunnelAddress {
             ip: interface_ip(&tunnel).await,
         })
@@ -68,23 +71,22 @@ pub struct Wireguard {
     pub tunnels: Vec<Tunnel>,
 }
 
-impl Source for Wireguard {
+impl ReadingSource for Wireguard {
     type Error = command::Error;
     type Key = ();
 
     const NAME: &'static str = "wireguard";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-impl PolledSource for Wireguard {
-    const INTERVAL: Duration = Duration::from_secs(10);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("wg")), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl Wireguard {
+    async fn poll(_key: ()) -> Result<Self, command::Error> {
         let interfaces = command::output("wg", &["show", "interfaces"]).await?;
         let mut tunnels = Vec::new();
         for iface in interfaces.split_whitespace() {

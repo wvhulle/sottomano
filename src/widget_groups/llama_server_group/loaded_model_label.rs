@@ -1,8 +1,5 @@
 use crate::{
-    data::source::{
-        llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer},
-        systemd_manager::UnitScope,
-    },
+    data::source::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
@@ -83,7 +80,7 @@ impl BarWidget for ServedModel<'_> {
     }
 }
 
-impl<S: UnitScope> LlamaServer<S> {
+impl LlamaServer {
     pub fn model_sections(&self, endpoint: &str) -> Vec<Section> {
         let resident = self.resident_model();
         vec![

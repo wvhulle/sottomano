@@ -13,31 +13,46 @@ use iced::{
     window,
 };
 
-pub trait SlotItem: Copy + Eq + Hash + Debug + Send + 'static {
-    type List: Copy + Eq + Debug + Send + 'static;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DraggedBarSlot {
+    Workspace(u64),
+    Window { window: u64, workspace: u64 },
+}
 
-    fn list(self) -> Self::List;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarSlotList {
+    Workspaces,
+    Windows,
+}
+
+impl DraggedBarSlot {
+    fn list(self) -> BarSlotList {
+        match self {
+            DraggedBarSlot::Workspace(_) => BarSlotList::Workspaces,
+            DraggedBarSlot::Window { .. } => BarSlotList::Windows,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SlotPress<Item, Click> {
-    pub item: Item,
+pub struct SlotPress<Click> {
+    pub item: DraggedBarSlot,
     pub position: usize,
     pub click: Click,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum PointerDrag<Item, Click> {
+pub enum PointerDrag<Click> {
     Idle,
-    Pressed(SlotPress<Item, Click>),
+    Pressed(SlotPress<Click>),
     Held {
-        press: SlotPress<Item, Click>,
+        press: SlotPress<Click>,
         origin: Point,
     },
-    Dragging(ActiveDrag<Item>),
+    Dragging(ActiveDrag),
 }
 
-impl<Item, Click> PointerDrag<Item, Click> {
+impl<Click> PointerDrag<Click> {
     pub fn is_idle(&self) -> bool {
         matches!(self, PointerDrag::Idle)
     }
@@ -48,22 +63,22 @@ impl<Item, Click> PointerDrag<Item, Click> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ActiveDrag<Item> {
-    pub item: Item,
+pub struct ActiveDrag {
+    pub item: DraggedBarSlot,
     pub surface: window::Id,
     pub cursor: Point,
     pub from: usize,
-    pub target: DragTarget<Item>,
+    pub target: DragTarget,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DragTarget<Item> {
+pub enum DragTarget {
     OwnList(usize),
-    ForeignSlot(ForeignHover<Item>),
+    ForeignSlot(ForeignHover),
     Outside,
 }
 
-impl<Item: SlotItem> ActiveDrag<Item> {
+impl ActiveDrag {
     pub fn reordered_to(&self) -> Option<usize> {
         match self.target {
             DragTarget::OwnList(to) if to != self.from => Some(to),
@@ -71,14 +86,14 @@ impl<Item: SlotItem> ActiveDrag<Item> {
         }
     }
 
-    pub fn hovered(&self) -> Option<ForeignHover<Item>> {
+    pub fn hovered(&self) -> Option<ForeignHover> {
         match self.target {
             DragTarget::ForeignSlot(hover) => Some(hover),
             DragTarget::OwnList(_) | DragTarget::Outside => None,
         }
     }
 
-    fn left(self, list: Item::List) -> Self {
+    fn left(self, list: BarSlotList) -> Self {
         let target = match self.target {
             DragTarget::OwnList(_) if self.item.list() == list => DragTarget::Outside,
             DragTarget::ForeignSlot(hover) if hover.item.list() == list => DragTarget::Outside,
@@ -89,42 +104,42 @@ impl<Item: SlotItem> ActiveDrag<Item> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ForeignHover<Item> {
-    pub item: Item,
+pub struct ForeignHover {
+    pub item: DraggedBarSlot,
     pub since: Instant,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DragEvent<Item: SlotItem, Click> {
-    Pressed(SlotPress<Item, Click>),
+pub enum DragEvent<Click> {
+    Pressed(SlotPress<Click>),
     PointerMoved {
         surface: window::Id,
         position: Point,
     },
     Released,
     EnteredSlot {
-        item: Item,
+        item: DraggedBarSlot,
         position: usize,
     },
-    LeftList(Item::List),
+    LeftList(BarSlotList),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DragOutcome<Item, Click> {
+pub enum DragOutcome<Click> {
     Unchanged,
     Started,
     Clicked(Click),
-    Dropped(ActiveDrag<Item>),
-    HoveringForeign(ForeignHover<Item>),
+    Dropped(ActiveDrag),
+    HoveringForeign(ForeignHover),
 }
 
-pub struct DragTransition<Item, Click> {
-    pub drag: PointerDrag<Item, Click>,
-    pub outcome: DragOutcome<Item, Click>,
+pub struct DragTransition<Click> {
+    pub drag: PointerDrag<Click>,
+    pub outcome: DragOutcome<Click>,
 }
 
-impl<Item, Click> From<PointerDrag<Item, Click>> for DragTransition<Item, Click> {
-    fn from(drag: PointerDrag<Item, Click>) -> Self {
+impl<Click> From<PointerDrag<Click>> for DragTransition<Click> {
+    fn from(drag: PointerDrag<Click>) -> Self {
         Self {
             drag,
             outcome: DragOutcome::Unchanged,
@@ -132,11 +147,11 @@ impl<Item, Click> From<PointerDrag<Item, Click>> for DragTransition<Item, Click>
     }
 }
 
-pub fn advance<Item: SlotItem, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
-    event: DragEvent<Item, Click>,
+pub fn advance<Click: Copy>(
+    drag: PointerDrag<Click>,
+    event: DragEvent<Click>,
     start_distance: f32,
-) -> DragTransition<Item, Click> {
+) -> DragTransition<Click> {
     match event {
         DragEvent::Pressed(press) => PointerDrag::Pressed(press).into(),
         DragEvent::PointerMoved { surface, position } => {
@@ -160,12 +175,12 @@ pub fn advance<Item: SlotItem, Click: Copy>(
     }
 }
 
-fn pointer_moved<Item: SlotItem, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
+fn pointer_moved<Click: Copy>(
+    drag: PointerDrag<Click>,
     surface: window::Id,
     position: Point,
     start_distance: f32,
-) -> DragTransition<Item, Click> {
+) -> DragTransition<Click> {
     match drag {
         PointerDrag::Pressed(press) => PointerDrag::Held {
             press,
@@ -193,11 +208,11 @@ fn pointer_moved<Item: SlotItem, Click: Copy>(
     }
 }
 
-fn entered_slot<Item: SlotItem, Click: Copy>(
-    drag: PointerDrag<Item, Click>,
-    item: Item,
+fn entered_slot<Click: Copy>(
+    drag: PointerDrag<Click>,
+    item: DraggedBarSlot,
     position: usize,
-) -> DragTransition<Item, Click> {
+) -> DragTransition<Click> {
     let PointerDrag::Dragging(active) = drag else {
         return drag.into();
     };
@@ -224,9 +239,9 @@ fn entered_slot<Item: SlotItem, Click: Copy>(
     }
 }
 
-pub fn pointer_events<Item: SlotItem, Click: Copy + Send + 'static>(
+pub fn pointer_events<Click: Copy + Send + 'static>(
     tracks_moves: bool,
-) -> Subscription<DragEvent<Item, Click>> {
+) -> Subscription<DragEvent<Click>> {
     let releases = listen_with(|event, _status, _surface| match event {
         Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
             Some(DragEvent::Released)
@@ -246,13 +261,13 @@ pub fn pointer_events<Item: SlotItem, Click: Copy + Send + 'static>(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct DragView<Item> {
-    pub drag: Option<ActiveDrag<Item>>,
+pub struct DragView {
+    pub drag: Option<ActiveDrag>,
     pub ghost_frame: container::Style,
 }
 
-impl<Item: SlotItem> DragView<Item> {
-    pub fn new<Click>(drag: &PointerDrag<Item, Click>, ghost_frame: &container::Style) -> Self {
+impl DragView {
+    pub fn new<Click>(drag: &PointerDrag<Click>, ghost_frame: &container::Style) -> Self {
         Self {
             drag: match drag {
                 PointerDrag::Dragging(active) => Some(*active),
@@ -266,7 +281,7 @@ impl<Item: SlotItem> DragView<Item> {
         self.drag.is_some()
     }
 
-    pub fn is_dragging(&self, item: Item) -> bool {
+    pub fn is_dragging(&self, item: DraggedBarSlot) -> bool {
         self.drag.is_some_and(|drag| drag.item == item)
     }
 
@@ -275,11 +290,11 @@ impl<Item: SlotItem> DragView<Item> {
             .is_some_and(|drag| !matches!(drag.target, DragTarget::OwnList(_)))
     }
 
-    pub fn hovers(&self, item: Item) -> Option<ForeignHover<Item>> {
+    pub fn hovers(&self, item: DraggedBarSlot) -> Option<ForeignHover> {
         self.drag?.hovered().filter(|hover| hover.item == item)
     }
 
-    pub fn hover_charge(&self, item: Item, full_after: Duration) -> Option<f32> {
+    pub fn hover_charge(&self, item: DraggedBarSlot, full_after: Duration) -> Option<f32> {
         let hover = self.hovers(item)?;
         Some(
             (hover.since.elapsed().as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON))
@@ -287,7 +302,11 @@ impl<Item: SlotItem> DragView<Item> {
         )
     }
 
-    pub fn previewed<'s, T>(&self, items: &'s [T], identity: impl Fn(&T) -> Item) -> Vec<&'s T> {
+    pub fn previewed<'s, T>(
+        &self,
+        items: &'s [T],
+        identity: impl Fn(&T) -> DraggedBarSlot,
+    ) -> Vec<&'s T> {
         let mut order: Vec<&T> = items.iter().collect();
         let Some(drag) = self.drag else {
             return order;

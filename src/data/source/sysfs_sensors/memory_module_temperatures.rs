@@ -1,9 +1,12 @@
 use std::time::Duration;
 
+use iced::futures::Stream;
 use uom::si::f64::ThermodynamicTemperature;
 
 use super::{Error, hwmon::HwmonChip};
-use crate::data::source::{PolledSource, Source, blocking_poll};
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 
 const MEMORY_MODULE_SENSOR_CHIPS: [&str; 2] = ["spd5118", "jc42"];
 
@@ -18,17 +21,20 @@ pub struct MemoryModuleTemperature {
     pub temperature: ThermodynamicTemperature,
 }
 
-impl Source for MemoryModuleTemperatures {
+impl ReadingSource for MemoryModuleTemperatures {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "memory module temperatures";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for MemoryModuleTemperatures {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl MemoryModuleTemperatures {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(|| Ok(read_memory_module_temperatures())).await
     }
 }

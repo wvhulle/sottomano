@@ -7,10 +7,12 @@ use iced::{
 use crate::{
     desktop_shell::{
         DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
-        pointer_drag::DraggedItem,
     },
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
-    widgets::pointer_drag::drag_ghost::{GhostPlacement, drag_ghost},
+    widgets::pointer_drag::{
+        DraggedBarSlot,
+        drag_ghost::{GhostPlacement, drag_ghost},
+    },
 };
 
 impl DesktopShell {
@@ -54,11 +56,11 @@ impl DesktopShell {
         let drag = view.drag.filter(|drag| drag.surface == window)?;
         let snapshot = self.niri_snapshot.get()?;
         let card = match drag.item {
-            DraggedItem::Workspace(workspace) => {
+            DraggedBarSlot::Workspace(workspace) => {
                 workspaces_group::drag_ghost(snapshot, output, workspace, &self.config, &view)?
                     .map(Message::from)
             }
-            DraggedItem::Window { window, .. } => self
+            DraggedBarSlot::Window { window, .. } => self
                 .window_group
                 .window_list
                 .drag_ghost(
@@ -72,12 +74,14 @@ impl DesktopShell {
                 .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
         };
         let placement = match drag.item {
-            DraggedItem::Window { .. } if view.has_left_its_list() => {
+            DraggedBarSlot::Window { .. } if view.has_left_its_list() => {
                 GhostPlacement::BesideCursor {
                     gap: self.config.theme.font.icon_size_px,
                 }
             }
-            DraggedItem::Window { .. } | DraggedItem::Workspace(_) => GhostPlacement::UnderCursor,
+            DraggedBarSlot::Window { .. } | DraggedBarSlot::Workspace(_) => {
+                GhostPlacement::UnderCursor
+            }
         };
         Some(drag_ghost(
             card,

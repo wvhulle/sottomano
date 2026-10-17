@@ -16,7 +16,7 @@ use tokio::task::spawn_blocking;
 use crate::data::{
     severity::Severity,
     source::{
-        Delivery, LiveSource, Source,
+        DeliveryCadence, ReadingSource, SourceDelivery,
         journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
     },
 };
@@ -280,15 +280,14 @@ impl Display for ShutdownReadError {
     }
 }
 
-impl Source for LastShutdown {
+impl ReadingSource for LastShutdown {
     type Error = Infallible;
     type Key = Duration;
 
     const NAME: &'static str = "last shutdown";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for LastShutdown {
-    fn events(slow_stop: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(slow_stop: Duration) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(spawn_blocking(move || read_last_shutdown(slow_stop)))
             .filter_map(|read| {
                 ready(match read {
@@ -306,7 +305,7 @@ impl LiveSource for LastShutdown {
                     }
                 })
             })
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 
@@ -346,6 +345,7 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::source::journal::journal_record;
 
     #[test]
     fn stops_pair_by_job_and_a_stop_that_never_ended_ranks_first() {
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn a_stopped_unit_record_decodes_its_job_and_result() {
-        let record = decode_record(crate::data::source::journal::journal_record([
+        let record = decode_record(journal_record([
             ("MESSAGE_ID", "9d1aaa27d60140bd96365438aad20286"),
             ("UNIT", "docker.service"),
             ("JOB_ID", "8"),

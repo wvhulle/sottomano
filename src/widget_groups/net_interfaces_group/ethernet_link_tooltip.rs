@@ -1,11 +1,13 @@
 use crate::{
-    data::source::net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
+    data::source::{
+        hardware::Adapter,
+        net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
+    },
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -74,6 +76,7 @@ fn link_sections(port: &Port, link: &Link, prefixed: bool) -> [Section; 6] {
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
         link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
-        Section::dictionary(port.adapter.hardware_entries()).titled(key("Hardware")),
+        Section::dictionary(port.adapter.iter().flat_map(Adapter::hardware_entries))
+            .titled(key("Hardware")),
     ]
 }

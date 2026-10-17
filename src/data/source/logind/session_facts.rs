@@ -2,7 +2,7 @@ use std::{num::NonZeroU32, str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use humantime::format_duration;
-use iced::alignment::Horizontal;
+use iced::{alignment::Horizontal, futures::Stream};
 use procfs::process::Process as Proc;
 use zbus::{proxy, zvariant::OwnedObjectPath};
 
@@ -10,9 +10,10 @@ use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            PolledSource, Source, bus,
+            DeliveryCadence, ReadingSource, SourceDelivery, bus,
             hostname::{at_micros, entry},
             logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
+            polled_delivery_stream,
         },
     },
     widgets::{
@@ -69,16 +70,19 @@ pub struct SessionIdentity {
     pub session_type: String,
 }
 
-impl Source for SessionIdentity {
+impl ReadingSource for SessionIdentity {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "logind session identity";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for SessionIdentity {
-    const INTERVAL: Duration = Duration::from_hours(1);
-
+impl SessionIdentity {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let session = own_session().await?;
         Ok(SessionIdentity {
@@ -197,31 +201,37 @@ pub struct ScheduledShutdown {
     pub at: Option<DateTime<Utc>>,
 }
 
-impl Source for SessionInfo {
+impl ReadingSource for SessionInfo {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "logind session";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for SessionInfo {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
+impl SessionInfo {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         read_session(&own_session().await?).await
     }
 }
 
-impl Source for PowerPolicy {
+impl ReadingSource for PowerPolicy {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "logind power policy";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for PowerPolicy {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
+impl PowerPolicy {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let connection = system_bus().await?;
         let manager = ManagerProxy::new(&connection).await?;

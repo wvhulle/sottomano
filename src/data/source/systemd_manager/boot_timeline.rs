@@ -10,7 +10,7 @@ use zbus::proxy::CacheProperties;
 use super::{ManagerProxy, UnitRow, connect, manager_signal, signals_matching, unit_proxy};
 use crate::data::{
     severity::Severity,
-    source::{Delivery, LiveSource, Source},
+    source::{DeliveryCadence, ReadingSource, SourceDelivery},
 };
 
 const SLOWEST_UNIT_COUNT: usize = 10;
@@ -141,18 +141,17 @@ pub struct BootTimeline {
     pub user_startup: Option<UserStartup>,
 }
 
-impl Source for BootTimeline {
+impl ReadingSource for BootTimeline {
     type Error = Infallible;
     type Key = Duration;
 
     const NAME: &'static str = "boot timeline";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for BootTimeline {
-    fn events(slow_unit: Duration) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(slow_unit: Duration) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         boot_timeline_stream(slow_unit)
             .map(Ok)
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 

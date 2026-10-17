@@ -2,14 +2,14 @@ use iced::{Subscription, Task};
 
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         systemd_manager::{
-            UnitScope,
+            ScopedSystemdUnit,
             unit_activity::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
         },
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -73,15 +73,15 @@ impl BarWidget for UnitSwitchReading {
     }
 }
 
-pub struct UnitSwitch<S: UnitScope> {
-    unit: String,
+pub struct UnitSwitch {
+    unit: ScopedSystemdUnit,
     face: UnitSwitchFace,
-    active_state: ContinuousReading<UnitActiveState<S>>,
+    active_state: ContinuousReading<UnitActiveState>,
 }
 
 #[derive(Debug, Clone)]
-pub enum UnitSwitchMessage<S: UnitScope> {
-    ActiveState(Delivery<UnitActiveState<S>>),
+pub enum UnitSwitchMessage {
+    ActiveState(SourceDelivery<UnitActiveState>),
     Press,
     Requested {
         before: Option<UnitActivity>,
@@ -89,8 +89,8 @@ pub enum UnitSwitchMessage<S: UnitScope> {
     },
 }
 
-impl<S: UnitScope> UnitSwitch<S> {
-    pub fn new(unit: String, face: UnitSwitchFace) -> Self {
+impl UnitSwitch {
+    pub fn new(unit: ScopedSystemdUnit, face: UnitSwitchFace) -> Self {
         Self {
             unit,
             face,
@@ -106,14 +106,15 @@ impl<S: UnitScope> UnitSwitch<S> {
         self.activity().is_some_and(UnitActivity::running)
     }
 
-    pub fn subscription(&self) -> Subscription<UnitSwitchMessage<S>> {
-        listening::<UnitActiveState<S>>(self.unit.clone()).map(UnitSwitchMessage::ActiveState)
+    pub fn subscription(&self) -> Subscription<UnitSwitchMessage> {
+        source_subscription::<UnitActiveState>(self.unit.clone(), None)
+            .map(UnitSwitchMessage::ActiveState)
     }
 
-    pub fn update(&mut self, message: UnitSwitchMessage<S>) -> Task<UnitSwitchMessage<S>> {
+    pub fn update(&mut self, message: UnitSwitchMessage) -> Task<UnitSwitchMessage> {
         match message {
             UnitSwitchMessage::ActiveState(delivery) => {
-                self.active_state.push_or_keep(delivery);
+                self.active_state.receive_keeping_last_reading(delivery);
                 Task::none()
             }
             UnitSwitchMessage::Press => match self.activity() {
@@ -121,21 +122,22 @@ impl<S: UnitScope> UnitSwitch<S> {
                 None => Task::none(),
             },
             UnitSwitchMessage::Requested { before, accepted } => {
-                if let Some(before) = before.filter(|_| !accepted) {
-                    self.active_state.assume(UnitActiveState::from(before));
+                if let Some(activity) = before.filter(|_| !accepted) {
+                    self.active_state.assume(UnitActiveState { activity });
                 }
                 Task::none()
             }
         }
     }
 
-    pub fn request(&mut self, change: UnitChange) -> Task<UnitSwitchMessage<S>> {
+    pub fn request(&mut self, change: UnitChange) -> Task<UnitSwitchMessage> {
         let before = self.activity();
-        self.active_state
-            .assume(UnitActiveState::from(change.pending_activity()));
+        self.active_state.assume(UnitActiveState {
+            activity: change.pending_activity(),
+        });
         let control = UnitControl {
-            per_user: S::PER_USER,
-            unit: self.unit.clone(),
+            per_user: self.unit.scope.per_user(),
+            unit: self.unit.unit_name.clone(),
         };
         Task::perform(control.accepts(change), move |accepted| {
             UnitSwitchMessage::Requested { before, accepted }

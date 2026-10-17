@@ -11,14 +11,14 @@ use crate::{
     config::Config,
     data::{
         source::{
-            Delivery, logind,
+            SourceDelivery, logind,
             umbra::{self, Umbra},
             weather::Location,
         },
         sun_schedule::ColorMode,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, blocking, listening},
+    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
@@ -70,8 +70,8 @@ struct ArmedSwitch {
 
 #[derive(Debug, Clone)]
 pub enum DarkModeMessage {
-    ScheduleLoaded(Delivery<DarkModeSchedule>),
-    LocationFix(Delivery<Location>),
+    ScheduleLoaded(SourceDelivery<DarkModeSchedule>),
+    LocationFix(SourceDelivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<Umbra>),
     ToggleAutoSwitch,
@@ -104,8 +104,8 @@ impl DarkModeGroup {
     pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<DarkModeMessage> {
         Subscription::batch([
             ToggleControl::<Umbra>::subscription((), forced).map(DarkModeMessage::ModeToggle),
-            listening::<DarkModeSchedule>(()).map(DarkModeMessage::ScheduleLoaded),
-            listening::<Location>(()).map(DarkModeMessage::LocationFix),
+            source_subscription::<DarkModeSchedule>((), None).map(DarkModeMessage::ScheduleLoaded),
+            source_subscription::<Location>((), None).map(DarkModeMessage::LocationFix),
             Subscription::run(logind::resumes).map(|()| DarkModeMessage::SwitchDue),
         ])
     }
@@ -160,7 +160,7 @@ impl DarkModeGroup {
             DarkModeMessage::ScheduleLoaded(delivery) => {
                 self.auto_switch_toggle
                     .saved_schedule
-                    .push_or_keep(delivery);
+                    .receive_keeping_last_reading(delivery);
                 let saved = self
                     .auto_switch_toggle
                     .saved_schedule
@@ -176,7 +176,7 @@ impl DarkModeGroup {
                 Task::none()
             }
             DarkModeMessage::LocationFix(delivery) => {
-                if let Delivery::Reading(Ok(location)) = delivery {
+                if let SourceDelivery::Reading(Ok(location)) = delivery {
                     self.auto_switch_toggle.update_location(location.position());
                 }
                 Task::none()

@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::layout::spacing::{Length, Spacing};
+use crate::config::layout::spacing::Spacing;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct TooltipsConfig<L = f32> {
     pub value_width: L,
@@ -19,10 +19,10 @@ pub struct TooltipsConfig<L = f32> {
     pub loading: TooltipLoading,
 }
 
-impl<L: Length> Default for TooltipsConfig<L> {
+impl<L: From<f32>> Default for TooltipsConfig<L> {
     fn default() -> Self {
         Self {
-            value_width: L::px(620.0),
+            value_width: L::from(620.0),
             popup_morph: Duration::from_millis(160),
             copy_flash: Duration::from_millis(700),
             loading: TooltipLoading::default(),

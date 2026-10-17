@@ -7,12 +7,12 @@ use crate::{
         severity::Severity,
         source::ai::{
             openrouter::{OpenRouterSpend, SpanSpend},
-            quota::QuotaLimited,
+            quota::Quota,
         },
     },
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -40,7 +40,7 @@ impl BarWidget for OpenRouterSpend {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .map_or(self.daily_severity(), |monthly| {
                 monthly.max(self.daily_severity())
             })
@@ -71,11 +71,13 @@ impl BarWidget for OpenRouterSpend {
             ),
         ])
     }
-}
 
-impl Occasional for OpenRouterSpend {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.month.cost().is_positive()
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }
 

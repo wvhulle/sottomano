@@ -9,7 +9,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         desktop_entries::DesktopIndex,
         kitty_windows::WindowProcesses,
         niri::Snapshot,
@@ -62,10 +62,10 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
     match target {
         HoverTarget::Window(WindowTarget::Inspect(TERMINAL_WINDOW)) => vec![
             WindowGroupMessage::WindowList(WindowListMessage::ProcessTreeScanned(
-                Delivery::Reading(Ok(terminal_processes())),
+                SourceDelivery::Reading(Ok(terminal_processes())),
             )),
             WindowGroupMessage::WindowList(WindowListMessage::ProcessInspected(Box::new(
-                Delivery::Reading(Ok(terminal_inspection())),
+                SourceDelivery::Reading(Ok(terminal_inspection())),
             ))),
         ],
         _ => Vec::new(),

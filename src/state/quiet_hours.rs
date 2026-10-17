@@ -4,7 +4,7 @@ use chrono::{NaiveTime, TimeDelta, Timelike};
 use iced::futures::{Stream, StreamExt, stream};
 
 use crate::{
-    data::source::{Delivery, LiveSource, Source},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     state::{Columns, StoreError, with_table},
 };
 
@@ -35,16 +35,15 @@ impl Default for QuietHoursSchedule {
     }
 }
 
-impl Source for QuietHoursSchedule {
+impl ReadingSource for QuietHoursSchedule {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "quiet hours schedule";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for QuietHoursSchedule {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        stream::once(load()).map(Ok).map(Delivery::Reading)
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(load()).map(Ok).map(SourceDelivery::Reading)
     }
 }
 

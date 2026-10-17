@@ -10,11 +10,10 @@ use serde::Deserialize;
 
 use crate::{
     data::source::{
-        Delivery, Panicked, PolledSource, Source, blocking_poll, command,
+        DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
         nix_store::{Provenance, StorePackage, below_derivation},
-        present_or_absent,
+        polled_delivery_stream, present_or_absent,
         process::{Watched, launch},
-        ticked_polls,
     },
     widgets::tooltip_body::Section,
 };
@@ -165,24 +164,24 @@ struct EvaluatedVersion {
     version: String,
 }
 
-impl Source for NixPackageFacts {
+impl ReadingSource for NixPackageFacts {
     type Error = Error;
     type Key = PackageWatch;
 
     const NAME: &'static str = "nix store";
-}
+    const DELIVERY_CADENCE: DeliveryCadence =
+        DeliveryCadence::PolledEvery(Duration::from_secs(600));
 
-impl PolledSource for NixPackageFacts {
-    const INTERVAL: Duration = Duration::from_secs(600);
-
-    fn polls(key: PackageWatch) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("nix")), move || {
-            ticked_polls::<Self>(key.clone())
+            polled_delivery_stream(key.clone(), Self::poll)
                 .map(absent_outside_store)
                 .boxed()
         })
     }
+}
 
+impl NixPackageFacts {
     async fn poll(key: PackageWatch) -> Result<Self, Error> {
         let watched = key.watched;
         let package = blocking_poll(move || hovered_package(&watched)).await?;
@@ -213,9 +212,11 @@ impl PolledSource for NixPackageFacts {
     }
 }
 
-fn absent_outside_store(delivery: Delivery<NixPackageFacts>) -> Delivery<NixPackageFacts> {
+fn absent_outside_store(
+    delivery: SourceDelivery<NixPackageFacts>,
+) -> SourceDelivery<NixPackageFacts> {
     match delivery {
-        Delivery::Reading(Err(Error::OutsideStore)) => Delivery::Absent,
+        SourceDelivery::Reading(Err(Error::OutsideStore)) => SourceDelivery::Absent,
         delivered => delivered,
     }
 }

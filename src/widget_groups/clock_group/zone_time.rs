@@ -2,7 +2,6 @@ use std::{
     cmp::Ordering,
     convert::Infallible,
     future::{Future, ready},
-    time::Duration,
 };
 
 use chrono::{DateTime, Local, Locale, Offset};
@@ -10,7 +9,7 @@ use chrono_tz::Tz;
 use iced::futures::Stream;
 
 use crate::{
-    data::source::{Delivery, PolledSource, Source},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     widget_groups::clock_group::{TICK, polled_at_second_boundaries},
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -23,22 +22,21 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct ZoneTime(pub DateTime<Tz>);
 
-impl Source for ZoneTime {
+impl ReadingSource for ZoneTime {
     type Error = Infallible;
     type Key = Tz;
 
     const NAME: &'static str = "zone time";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
+
+    fn delivery_stream(zone: Tz) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_at_second_boundaries(zone, Self::poll)
+    }
 }
 
-impl PolledSource for ZoneTime {
-    const INTERVAL: Duration = TICK;
-
+impl ZoneTime {
     fn poll(zone: Tz) -> impl Future<Output = Result<Self, Infallible>> + Send {
         ready(Ok(ZoneTime(Local::now().with_timezone(&zone))))
-    }
-
-    fn polls(zone: Tz) -> impl Stream<Item = Delivery<Self>> + Send {
-        polled_at_second_boundaries::<Self>(zone)
     }
 }
 

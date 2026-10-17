@@ -1,12 +1,13 @@
 use std::{str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
+use iced::futures::Stream;
 use zbus::proxy;
 
 use crate::{
     data::{
         empty_text::non_empty,
-        source::{PolledSource, Source, bus},
+        source::{DeliveryCadence, ReadingSource, SourceDelivery, bus, polled_delivery_stream},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -50,16 +51,19 @@ pub struct OperatingSystemIdentity {
     pub chassis: Option<Chassis>,
 }
 
-impl Source for OperatingSystemIdentity {
+impl ReadingSource for OperatingSystemIdentity {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "hostnamed";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for OperatingSystemIdentity {
-    const INTERVAL: Duration = Duration::from_hours(1);
-
+impl OperatingSystemIdentity {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let connection = zbus::Connection::system()
             .await

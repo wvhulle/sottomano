@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        toggle_control::Toggle,
+        toggle_control::ToggleableSource,
         tooltip_body::TooltipBody,
     },
 };
@@ -26,16 +26,16 @@ impl BarWidget for Umbra {
     }
 }
 
-impl Toggle for Umbra {
-    fn toggled(&self) -> Self {
+impl ToggleableSource for Umbra {
+    fn toggled_value(&self) -> Self {
         Umbra { dark: !self.dark }
     }
 
-    fn toggle(&self) -> bool {
+    fn apply_toggle(&self) -> bool {
         umbra::toggle_mode()
     }
 
-    fn press_does(&self) -> &'static str {
+    fn press_action_text(&self) -> &'static str {
         if self.dark {
             "switch apps and the desktop to the light theme"
         } else {

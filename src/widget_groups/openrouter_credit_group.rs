@@ -9,14 +9,14 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         ai::{
             openrouter::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
             working_time_forecast::SpendBudget,
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,
     widgets::{
         bar_widget::BarWidget,
@@ -52,8 +52,8 @@ pub struct OpenRouterCreditGroup {
 
 #[derive(Debug, Clone)]
 pub enum OpenRouterCreditMessage {
-    SoftBudget(Delivery<OpenRouterSpend>),
-    StrictBudget(Delivery<OpenRouterStrictBudget>),
+    SoftBudget(SourceDelivery<OpenRouterSpend>),
+    StrictBudget(SourceDelivery<OpenRouterStrictBudget>),
     Expansion(ExpansionMessage),
 }
 
@@ -84,9 +84,9 @@ impl OpenRouterCreditGroup {
                 daily_warning_usd: budget.daily_warning_usd,
             };
             [
-                polling::<OpenRouterSpend>(account, forced)
+                source_subscription::<OpenRouterSpend>(account, forced)
                     .map(OpenRouterCreditMessage::SoftBudget),
-                polling::<OpenRouterStrictBudget>(key, forced)
+                source_subscription::<OpenRouterStrictBudget>(key, forced)
                     .map(OpenRouterCreditMessage::StrictBudget),
             ]
         }))
@@ -94,8 +94,10 @@ impl OpenRouterCreditGroup {
 
     pub fn update(&mut self, message: OpenRouterCreditMessage) -> Task<OpenRouterCreditMessage> {
         match message {
-            OpenRouterCreditMessage::SoftBudget(reading) => self.spend.receive(reading),
-            OpenRouterCreditMessage::StrictBudget(reading) => self.strict_budget.receive(reading),
+            OpenRouterCreditMessage::SoftBudget(reading) => self.spend.receive_delivery(reading),
+            OpenRouterCreditMessage::StrictBudget(reading) => {
+                self.strict_budget.receive_delivery(reading);
+            }
             OpenRouterCreditMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -105,7 +107,7 @@ impl OpenRouterCreditGroup {
 
     fn model_breakdown(&self) -> Option<ModelSpendBreakdown<'_>> {
         self.spend
-            .present_reading()
+            .visible_reading()
             .filter(|spend| !spend.month.models.is_empty())
             .map(ModelSpendBreakdown)
     }
@@ -125,12 +127,9 @@ impl OpenRouterCreditGroup {
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
             [
-                self.spend.present_quota_group_item(
-                    OpenRouterCreditTarget::SoftBudget,
-                    OpenRouterCreditMessage::Expansion(ExpansionMessage::Expand),
-                ),
+                self.spend.group_item(OpenRouterCreditTarget::SoftBudget),
                 self.strict_budget
-                    .present_group_item(OpenRouterCreditTarget::StrictBudget),
+                    .group_item(OpenRouterCreditTarget::StrictBudget),
                 self.model_breakdown().map(|breakdown| {
                     GroupItem::reading(breakdown, OpenRouterCreditTarget::ModelBreakdown)
                 }),
@@ -142,6 +141,6 @@ impl OpenRouterCreditGroup {
             glyph: SimpleIcon::OpenRouter.into(),
             handle: GroupHandle::OpenRouterCredit,
         })
-        .preview(self.spend.present().map(PreviewedValue::Plain))
+        .preview(self.spend.display().map(PreviewedValue::Plain))
     }
 }

@@ -5,7 +5,7 @@ use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::data::source::{
-    Delivery, LiveSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     hardware::Adapter,
     net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
 };
@@ -121,30 +121,28 @@ async fn read_details(connection: Connection) -> Result<EthernetDetails, Reading
     Ok(EthernetDetails { ports })
 }
 
-impl Source for Ethernet {
+impl ReadingSource for Ethernet {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Ethernet {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
             nm_readings(NAME, nm::UPLINK_PROPERTIES, read).boxed()
         })
     }
 }
 
-impl Source for EthernetDetails {
+impl ReadingSource for EthernetDetails {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "ethernet details";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for EthernetDetails {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(nm::SERVICE, || {
             nm_readings(
                 Self::NAME,

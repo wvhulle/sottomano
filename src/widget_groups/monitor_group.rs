@@ -13,13 +13,13 @@ use output_details::ConnectedOutput;
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         backlight::{self, Backlight},
         clight::Clight,
         niri::OutputInfo,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, blocking, polling},
+    message_subscriptions::{ForcedRefresh, blocking, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -60,7 +60,7 @@ pub struct MonitorGroup {
 #[derive(Debug, Clone)]
 pub enum MonitorMessage {
     Expansion(ExpansionMessage),
-    Backlights(Delivery<Vec<Backlight>>),
+    Backlights(SourceDelivery<Vec<Backlight>>),
     Backlight(String, ControlMessage),
     Clight(ToggleMessage<Clight>),
 }
@@ -68,7 +68,7 @@ pub enum MonitorMessage {
 impl MonitorGroup {
     pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<MonitorMessage> {
         Subscription::batch([
-            polling::<Vec<Backlight>>((), forced).map(MonitorMessage::Backlights),
+            source_subscription::<Vec<Backlight>>((), forced).map(MonitorMessage::Backlights),
             ToggleControl::<Clight>::subscription((), forced).map(MonitorMessage::Clight),
         ])
     }
@@ -95,7 +95,7 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlights(delivery) => {
-                self.backlights.receive_or_keep(delivery);
+                self.backlights.receive_keeping_last_reading(delivery);
                 let list = self.backlights.get().into_iter().flatten();
                 self.sliders
                     .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
@@ -151,7 +151,7 @@ impl MonitorGroup {
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => {
                 blocking("backlight reread", backlight::poll_all)
-                    .map(|list| MonitorMessage::Backlights(Delivery::Reading(Ok(list))))
+                    .map(|list| MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list))))
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }

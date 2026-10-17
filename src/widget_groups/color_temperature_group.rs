@@ -10,12 +10,12 @@ use uom::si::thermodynamic_temperature::kelvin;
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         gamma::{self, Gamma},
-        systemd_manager::{User, unit_activity::UnitChange},
+        systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -52,17 +52,17 @@ pub struct ColorTemperatureGroup {
     gamma: ContinuousReading<Gamma>,
     dim: SliderControl,
     warmth: SliderControl,
-    auto: UnitSwitch<User>,
+    auto: UnitSwitch,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
     Expansion(ExpansionMessage),
-    Gamma(Delivery<Gamma>),
+    Gamma(SourceDelivery<Gamma>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
-    Auto(UnitSwitchMessage<User>),
+    Auto(UnitSwitchMessage),
 }
 
 impl ColorTemperatureGroup {
@@ -87,7 +87,13 @@ impl ColorTemperatureGroup {
             .slider_step(WARMTH_STEP)
             .readout(|value| format!("{}K", as_kelvin(value)))
             .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
-            auto: UnitSwitch::new(unit, SUN_FOLLOW),
+            auto: UnitSwitch::new(
+                ScopedSystemdUnit {
+                    scope: SystemdUnitScope::UserSession,
+                    unit_name: unit,
+                },
+                SUN_FOLLOW,
+            ),
             expansion: GroupExpansion::default(),
         }
     }
@@ -97,7 +103,7 @@ impl ColorTemperatureGroup {
         forced: Option<ForcedRefresh>,
     ) -> Subscription<ColorTemperatureMessage> {
         Subscription::batch([
-            polling::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma),
+            source_subscription::<Gamma>((), forced).map(ColorTemperatureMessage::Gamma),
             self.auto.subscription().map(ColorTemperatureMessage::Auto),
         ])
     }
@@ -126,7 +132,7 @@ impl ColorTemperatureGroup {
                 Task::none()
             }
             ColorTemperatureMessage::Gamma(reading) => {
-                self.gamma.receive(reading);
+                self.gamma.receive_delivery(reading);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
                         .update(ControlMessage::Reading(percent_f(gamma.brightness)));

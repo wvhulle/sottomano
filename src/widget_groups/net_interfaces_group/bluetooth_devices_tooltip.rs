@@ -1,12 +1,14 @@
 use uom::si::f64::Ratio;
 
 use crate::{
-    data::{severity::Severity, source::net_interfaces::bluetooth::Bluetooth},
+    data::{
+        severity::Severity,
+        source::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth},
+    },
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -42,7 +44,8 @@ impl BarWidget for Bluetooth {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let hardware = self.adapter.hardware_section();
+        let hardware =
+            Section::hardware_identity(self.adapter.iter().flat_map(Adapter::hardware_entries));
         let Some(radio) = &self.radio else {
             return TooltipBody::sections([
                 Section::dictionary([KeyValue::new("Bluetooth", "off")]),

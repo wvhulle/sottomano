@@ -24,7 +24,7 @@ use tokio::{
 
 use crate::data::{
     empty_text::non_empty,
-    source::{Delivery, LiveSource, Source, app_icon::DesktopEntries},
+    source::{DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -270,15 +270,14 @@ fn updates() -> impl Stream<Item = TrayUpdate> + Send {
     })
 }
 
-impl Source for Vec<TrayItem> {
+impl ReadingSource for Vec<TrayItem> {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "tray";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Vec<TrayItem> {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         updates()
             .filter_map(|update| {
                 ready(match update {
@@ -286,7 +285,7 @@ impl LiveSource for Vec<TrayItem> {
                     TrayUpdate::Connected(_) => None,
                 })
             })
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
 

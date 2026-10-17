@@ -5,7 +5,7 @@ use iced::futures::{Stream, StreamExt, stream};
 
 use crate::{
     data::{
-        source::{Delivery, LiveSource, Source},
+        source::{DeliveryCadence, ReadingSource, SourceDelivery},
         sun_schedule::SunEventOffsets,
     },
     state::{Columns, StoreError, with_table},
@@ -33,16 +33,15 @@ impl Default for DarkModeSchedule {
     }
 }
 
-impl Source for DarkModeSchedule {
+impl ReadingSource for DarkModeSchedule {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "dark mode schedule";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for DarkModeSchedule {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        stream::once(load()).map(Ok).map(Delivery::Reading)
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(load()).map(Ok).map(SourceDelivery::Reading)
     }
 }
 

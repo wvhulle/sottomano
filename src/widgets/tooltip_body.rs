@@ -14,8 +14,8 @@ use crate::{
     data::{
         severity::Severity,
         source::{
-            process::Process, session_action::SessionAction, tray::MenuNode,
-            window_label::WindowLabel,
+            DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
+            tray::MenuNode, window_label::WindowLabel,
         },
     },
     desktop_shell::hover_tooltips::PressHints,
@@ -502,6 +502,19 @@ pub enum Freshness {
         last: SystemTime,
     },
     Live,
+}
+
+impl Freshness {
+    pub fn from_source_cadence<S: ReadingSource>() -> Self {
+        match S::DELIVERY_CADENCE {
+            DeliveryCadence::PolledEvery(every) => Freshness::Polled {
+                source: S::NAME,
+                every,
+                last: SystemTime::now(),
+            },
+            DeliveryCadence::PushedLive => Freshness::Live,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -4,9 +4,9 @@ use iced::futures::{Stream, StreamExt};
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
-    Delivery, PolledSource, Source, backlight, bus,
+    DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
     bus::{Error, name_owned},
-    present_or_absent, ticked_polls,
+    polled_delivery_stream, present_or_absent,
 };
 
 const CLIGHT_SERVICE: &str = "org.clight.clight";
@@ -37,23 +37,22 @@ pub struct Clight {
     pub auto: bool,
 }
 
-impl Source for Clight {
+impl ReadingSource for Clight {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "clight";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-impl PolledSource for Clight {
-    const INTERVAL: Duration = Duration::from_secs(10);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(name_owned(bus::Bus::Session, CLIGHT_SERVICE), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll((): ()) -> Result<Self, Self::Error> {
+impl Clight {
+    async fn poll((): ()) -> Result<Self, Error> {
         let proxy: ConfBacklightProxy = bus::session_proxy().await?;
         Ok(Clight {
             auto: !proxy.no_auto_calib().await?,

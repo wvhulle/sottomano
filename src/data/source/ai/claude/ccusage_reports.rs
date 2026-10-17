@@ -1,14 +1,14 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 use chrono::{DateTime, Local, Utc};
 use iced::futures::Stream;
 
 use super::{Error, local_log_polls};
 use crate::data::source::{
-    Delivery, PolledSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     ai::{
         ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage},
-        quota::{Quota, QuotaLimited},
+        quota::Quota,
         working_time_forecast::SpendBudget,
     },
 };
@@ -25,8 +25,8 @@ pub struct ClaudeLocalLogs {
     pub credentials: Option<PathBuf>,
 }
 
-impl QuotaLimited for ClaudeCcusagePeriods {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl ClaudeCcusagePeriods {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.recent
             .month
             .budget_quota(
@@ -39,21 +39,20 @@ impl QuotaLimited for ClaudeCcusagePeriods {
     }
 }
 
-impl Source for ClaudeCcusagePeriods {
+impl ReadingSource for ClaudeCcusagePeriods {
     type Error = Error;
     type Key = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-periods";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
+
+    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        local_log_polls(logs, false, Self::poll)
+    }
 }
 
-impl PolledSource for ClaudeCcusagePeriods {
-    const INTERVAL: Duration = POLL_INTERVAL;
-
-    fn polls(logs: ClaudeLocalLogs) -> impl Stream<Item = Delivery<Self>> + Send {
-        local_log_polls::<Self>(logs, false)
-    }
-
-    async fn poll(logs: ClaudeLocalLogs) -> Result<Self, Self::Error> {
+impl ClaudeCcusagePeriods {
+    async fn poll(logs: ClaudeLocalLogs) -> Result<Self, Error> {
         Ok(ClaudeCcusagePeriods {
             recent: ccusage::recent(Agent::ClaudeCode).await?,
             budget: logs.budget,
@@ -66,21 +65,20 @@ pub struct ClaudeCcusageBlock {
     pub active: Option<BillingBlock>,
 }
 
-impl Source for ClaudeCcusageBlock {
+impl ReadingSource for ClaudeCcusageBlock {
     type Error = Error;
     type Key = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-block";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
+
+    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        local_log_polls(logs, true, Self::poll)
+    }
 }
 
-impl PolledSource for ClaudeCcusageBlock {
-    const INTERVAL: Duration = POLL_INTERVAL;
-
-    fn polls(logs: ClaudeLocalLogs) -> impl Stream<Item = Delivery<Self>> + Send {
-        local_log_polls::<Self>(logs, true)
-    }
-
-    async fn poll(_logs: ClaudeLocalLogs) -> Result<Self, Self::Error> {
+impl ClaudeCcusageBlock {
+    async fn poll(_logs: ClaudeLocalLogs) -> Result<Self, Error> {
         Ok(ClaudeCcusageBlock {
             active: ccusage::active_blocks(Agent::ClaudeCode)
                 .await?

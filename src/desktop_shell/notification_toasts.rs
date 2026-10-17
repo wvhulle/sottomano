@@ -183,7 +183,7 @@ impl NotificationLayer {
         let notif = self.showing().find(|n| n.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
             return match &notif.body_click {
-                BodyClick::Shell(message) => Some(message.clone()),
+                BodyClick::Shell(message) => Some(message.as_ref().clone()),
                 BodyClick::DbusDefaultAction => None,
             };
         }

@@ -8,7 +8,7 @@ use uom::si::{
 
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         weather::{HourlyForecast, HourlyTemperature, Location, Temperature, WeatherCondition},
     },
     readme_showcase::showcased_group::ShowcasedGroup,
@@ -42,7 +42,7 @@ fn hourly(hours_from_now: i64, degrees: f64, condition: WeatherCondition) -> Hou
 
 fn readings() -> [WeatherMessage; 2] {
     [
-        WeatherMessage::Temp(Delivery::Reading(Ok(Temperature {
+        WeatherMessage::Temp(SourceDelivery::Reading(Ok(Temperature {
             condition: Some(WeatherCondition::PartlyCloudy),
             temp: celsius(18.0),
             feels: celsius(17.0),
@@ -61,7 +61,7 @@ fn readings() -> [WeatherMessage; 2] {
                 ],
             },
         }))),
-        WeatherMessage::Location(Delivery::Reading(Ok(Location {
+        WeatherMessage::Location(SourceDelivery::Reading(Ok(Location {
             geo: Fix {
                 position: Position {
                     latitude: 51.0533,

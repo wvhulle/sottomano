@@ -9,7 +9,7 @@ mod wifi_link_tooltip;
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         net_interfaces::{
             bluetooth::Bluetooth,
             ethernet::{Ethernet, EthernetDetails},
@@ -18,7 +18,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -59,12 +59,12 @@ pub struct NetInterfacesGroup {
 
 #[derive(Debug, Clone)]
 pub enum NetInterfacesMessage {
-    Bluetooth(Delivery<Bluetooth>),
-    Ethernet(Delivery<Ethernet>),
-    Wifi(Delivery<Wifi>),
-    Mobile(Box<Delivery<Mobile>>),
-    WifiDetailsFetched(Box<Delivery<WifiDetails>>),
-    EthernetDetailsFetched(Delivery<EthernetDetails>),
+    Bluetooth(SourceDelivery<Bluetooth>),
+    Ethernet(SourceDelivery<Ethernet>),
+    Wifi(SourceDelivery<Wifi>),
+    Mobile(Box<SourceDelivery<Mobile>>),
+    WifiDetailsFetched(Box<SourceDelivery<WifiDetails>>),
+    EthernetDetailsFetched(SourceDelivery<EthernetDetails>),
     Expansion(ExpansionMessage),
 }
 
@@ -75,27 +75,29 @@ impl NetInterfacesGroup {
 
     pub fn subscription(&self) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
-            self.expansion
-                .while_expanded(listening::<Bluetooth>(()).map(NetInterfacesMessage::Bluetooth)),
-            self.expansion
-                .while_expanded(listening::<Ethernet>(()).map(NetInterfacesMessage::Ethernet)),
-            listening::<Wifi>(()).map(NetInterfacesMessage::Wifi),
-            listening::<Mobile>(())
+            self.expansion.while_expanded(
+                source_subscription::<Bluetooth>((), None).map(NetInterfacesMessage::Bluetooth),
+            ),
+            self.expansion.while_expanded(
+                source_subscription::<Ethernet>((), None).map(NetInterfacesMessage::Ethernet),
+            ),
+            source_subscription::<Wifi>((), None).map(NetInterfacesMessage::Wifi),
+            source_subscription::<Mobile>((), None)
                 .map(|delivery| NetInterfacesMessage::Mobile(Box::new(delivery))),
         ])
     }
 
     pub fn update(&mut self, msg: NetInterfacesMessage) -> Task<NetInterfacesMessage> {
         match msg {
-            NetInterfacesMessage::Bluetooth(delivery) => self.bluetooth.push(delivery),
-            NetInterfacesMessage::Ethernet(delivery) => self.ethernet.push(delivery),
-            NetInterfacesMessage::Wifi(delivery) => self.wifi.push(delivery),
-            NetInterfacesMessage::Mobile(delivery) => self.mobile.push(*delivery),
+            NetInterfacesMessage::Bluetooth(delivery) => self.bluetooth.receive_delivery(delivery),
+            NetInterfacesMessage::Ethernet(delivery) => self.ethernet.receive_delivery(delivery),
+            NetInterfacesMessage::Wifi(delivery) => self.wifi.receive_delivery(delivery),
+            NetInterfacesMessage::Mobile(delivery) => self.mobile.receive_delivery(*delivery),
             NetInterfacesMessage::WifiDetailsFetched(fetched) => {
-                self.wifi_details.receive(*fetched);
+                self.wifi_details.receive_delivery(*fetched);
             }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
-                self.ethernet_details.receive(fetched);
+                self.ethernet_details.receive_delivery(fetched);
             }
             NetInterfacesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -112,14 +114,16 @@ impl NetInterfacesGroup {
         self.wifi_details.stop();
         self.ethernet_details.stop();
         match hovered {
-            Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => self.wifi_details.listen(
-                (),
-                |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
-                config,
-            ),
+            Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => {
+                self.wifi_details.start_hover_fetch(
+                    (),
+                    |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
+                    config,
+                )
+            }
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => self
                 .ethernet_details
-                .listen((), NetInterfacesMessage::EthernetDetailsFetched, config),
+                .start_hover_fetch((), NetInterfacesMessage::EthernetDetailsFetched, config),
             _ => Task::none(),
         }
     }

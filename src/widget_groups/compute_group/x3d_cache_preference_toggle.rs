@@ -7,7 +7,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        toggle_control::Toggle,
+        toggle_control::ToggleableSource,
         tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
@@ -89,16 +89,16 @@ impl ChipletRoles<'_> {
     }
 }
 
-impl Toggle for X3dCachePreference {
-    fn toggled(&self) -> Self {
+impl ToggleableSource for X3dCachePreference {
+    fn toggled_value(&self) -> Self {
         self.other()
     }
 
-    fn toggle(&self) -> bool {
+    fn apply_toggle(&self) -> bool {
         self.other().write()
     }
 
-    fn press_does(&self) -> &'static str {
+    fn press_action_text(&self) -> &'static str {
         match self {
             X3dCachePreference::Cache => "favour the high-clock cores instead",
             X3dCachePreference::Frequency => "favour the stacked-cache cores instead",

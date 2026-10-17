@@ -7,13 +7,13 @@ mod wireguard_tunnel_tooltip;
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         tailscale::{Tailscale, open_admin},
-        throughput::{Download, Readings, Throughput, Total, Upload},
+        throughput::Readings,
         wireguard::{TunnelAddress, Wireguard, disconnect},
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -44,9 +44,7 @@ impl From<InternetTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct InternetGroup {
-    down: ContinuousReading<Throughput<Download>>,
-    up: ContinuousReading<Throughput<Upload>>,
-    total: ContinuousReading<Throughput<Total>>,
+    throughput: ContinuousReading<Readings>,
     wireguard: ContinuousReading<Wireguard>,
     tailscale: ContinuousReading<Tailscale>,
     tunnel_address: OnHoverReading<TunnelAddress>,
@@ -55,10 +53,10 @@ pub struct InternetGroup {
 
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
-    Throughput(Delivery<Readings>),
-    Wireguard(Delivery<Wireguard>),
-    TunnelAddressFetched(Delivery<TunnelAddress>),
-    Tailscale(Delivery<Tailscale>),
+    Throughput(SourceDelivery<Readings>),
+    Wireguard(SourceDelivery<Wireguard>),
+    TunnelAddressFetched(SourceDelivery<TunnelAddress>),
+    Tailscale(SourceDelivery<Tailscale>),
     Expansion(ExpansionMessage),
     Disconnect(String),
     OpenTailscale,
@@ -71,31 +69,27 @@ impl InternetGroup {
 
     pub fn subscription(&self, forced: Option<ForcedRefresh>) -> Subscription<InternetMessage> {
         Subscription::batch([
-            polling::<Readings>((), forced).map(InternetMessage::Throughput),
-            self.expansion
-                .while_expanded(polling::<Wireguard>((), forced).map(InternetMessage::Wireguard)),
-            self.expansion
-                .while_expanded(polling::<Tailscale>((), forced).map(InternetMessage::Tailscale)),
+            source_subscription::<Readings>((), forced).map(InternetMessage::Throughput),
+            self.expansion.while_expanded(
+                source_subscription::<Wireguard>((), forced).map(InternetMessage::Wireguard),
+            ),
+            self.expansion.while_expanded(
+                source_subscription::<Tailscale>((), forced).map(InternetMessage::Tailscale),
+            ),
         ])
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
         use crate::message_subscriptions::blocking;
         match msg {
-            InternetMessage::Throughput(Delivery::Reading(Ok(readings))) => {
-                self.down.receive(Delivery::Reading(Ok(readings.down)));
-                self.up.receive(Delivery::Reading(Ok(readings.up)));
-                self.total.receive(Delivery::Reading(Ok(readings.total)));
+            InternetMessage::Throughput(delivery) => {
+                self.throughput.receive_keeping_last_reading(delivery);
             }
-            InternetMessage::Throughput(Delivery::Reading(Err(never))) => match never {},
-            InternetMessage::Throughput(Delivery::Absent) => {
-                self.down.receive(Delivery::Absent);
-                self.up.receive(Delivery::Absent);
-                self.total.receive(Delivery::Absent);
+            InternetMessage::Wireguard(reading) => self.wireguard.receive_delivery(reading),
+            InternetMessage::TunnelAddressFetched(fetched) => {
+                self.tunnel_address.receive_delivery(fetched);
             }
-            InternetMessage::Wireguard(reading) => self.wireguard.receive(reading),
-            InternetMessage::TunnelAddressFetched(fetched) => self.tunnel_address.receive(fetched),
-            InternetMessage::Tailscale(reading) => self.tailscale.receive(reading),
+            InternetMessage::Tailscale(reading) => self.tailscale.receive_delivery(reading),
             InternetMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -118,7 +112,7 @@ impl InternetGroup {
         let Some(HoverTarget::Internet(InternetTarget::Wireguard(tunnel))) = hovered else {
             return Task::none();
         };
-        self.tunnel_address.poll(
+        self.tunnel_address.start_hover_fetch(
             tunnel.clone(),
             InternetMessage::TunnelAddressFetched,
             config,
@@ -140,9 +134,15 @@ impl InternetGroup {
                         .with_sections(self.tunnel_address.sections(TunnelAddress::sections)),
                 )
             }
-            InternetTarget::Down => self.down.tooltip(),
-            InternetTarget::Up => self.up.tooltip(),
-            InternetTarget::Total => self.total.tooltip(),
+            InternetTarget::Down => self
+                .throughput
+                .tooltip_with(self.throughput.get()?.down.tooltip()),
+            InternetTarget::Up => self
+                .throughput
+                .tooltip_with(self.throughput.get()?.up.tooltip()),
+            InternetTarget::Total => self
+                .throughput
+                .tooltip_with(self.throughput.get()?.total.tooltip()),
             InternetTarget::Tailscale => self.tailscale.tooltip(),
         }
     }
@@ -152,38 +152,37 @@ impl InternetGroup {
             .wireguard
             .get()
             .map_or(&[][..], |wireguard| &wireguard.tunnels);
+        let throughput = self.throughput.get();
         GroupContent::new(
             &self.expansion,
             InternetMessage::Expansion,
-            [
-                self.down.group_item(InternetTarget::Down),
-                self.up.group_item(InternetTarget::Up),
-            ]
-            .into_iter()
-            .flatten()
-            .chain(tunnels.iter().map(|tunnel| {
-                GroupItem::reading(tunnel, InternetTarget::Wireguard(tunnel.name.clone()))
-                    .on_right_press(
-                        "disconnect the tunnel",
-                        InternetMessage::Disconnect(tunnel.name.clone()),
-                    )
-            }))
-            .chain(self.tailscale.display().map(|tailscale| {
-                GroupItem::reading(tailscale, InternetTarget::Tailscale)
-                    .on_press("open Tailscale", InternetMessage::OpenTailscale)
-            })),
+            throughput
+                .into_iter()
+                .flat_map(|readings| {
+                    [
+                        GroupItem::reading(&readings.down, InternetTarget::Down),
+                        GroupItem::reading(&readings.up, InternetTarget::Up),
+                    ]
+                })
+                .chain(tunnels.iter().map(|tunnel| {
+                    GroupItem::reading(tunnel, InternetTarget::Wireguard(tunnel.name.clone()))
+                        .on_right_press(
+                            "disconnect the tunnel",
+                            InternetMessage::Disconnect(tunnel.name.clone()),
+                        )
+                }))
+                .chain(self.tailscale.display().map(|tailscale| {
+                    GroupItem::reading(tailscale, InternetTarget::Tailscale)
+                        .on_press("open Tailscale", InternetMessage::OpenTailscale)
+                })),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::ArrowsDownUp(Weight::Regular).into(),
             handle: GroupHandle::Internet,
         })
-        .preview(
-            self.total
-                .display()
-                .map(|widget| PreviewedValue::Hoverable {
-                    widget,
-                    target: InternetTarget::Total.into(),
-                }),
-        )
+        .preview(throughput.map(|readings| PreviewedValue::Hoverable {
+            widget: &readings.total,
+            target: InternetTarget::Total.into(),
+        }))
     }
 }

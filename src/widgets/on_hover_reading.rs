@@ -2,26 +2,26 @@ use std::time::SystemTime;
 
 use iced::{
     Task,
-    futures::{Stream, StreamExt, stream},
+    futures::{StreamExt, stream},
     task::Handle,
 };
 use tokio::time::sleep;
 
 use crate::{
     config::Config,
-    data::source::{Delivery, LiveSource, PolledSource, Source},
+    data::source::{ReadingSource, SourceDelivery},
     widgets::tooltip_body::{Freshness, Readiness, Section},
 };
 
 #[derive(Debug)]
-pub struct OnHoverReading<S: Source> {
+pub struct OnHoverReading<S: ReadingSource> {
     latest: Option<Result<S, S::Error>>,
     shape: Option<S>,
     fetching: Option<Handle>,
     freshness: Option<Freshness>,
 }
 
-impl<S: Source> Default for OnHoverReading<S> {
+impl<S: ReadingSource> Default for OnHoverReading<S> {
     fn default() -> Self {
         Self {
             latest: None,
@@ -32,49 +32,19 @@ impl<S: Source> Default for OnHoverReading<S> {
     }
 }
 
-impl<S: Source> OnHoverReading<S> {
-    pub fn poll<Message: Send + 'static>(
+impl<S: ReadingSource> OnHoverReading<S> {
+    pub fn start_hover_fetch<Message: Send + 'static>(
         &mut self,
         key: S::Key,
-        delivered: fn(Delivery<S>) -> Message,
-        config: &Config,
-    ) -> Task<Message>
-    where
-        S: PolledSource,
-    {
-        let freshness = Freshness::Polled {
-            source: S::NAME,
-            every: S::INTERVAL,
-            last: SystemTime::now(),
-        };
-        self.start(S::polls(key), freshness, delivered, config)
-    }
-
-    pub fn listen<Message: Send + 'static>(
-        &mut self,
-        key: S::Key,
-        delivered: fn(Delivery<S>) -> Message,
-        config: &Config,
-    ) -> Task<Message>
-    where
-        S: LiveSource,
-    {
-        self.start(S::events(key), Freshness::Live, delivered, config)
-    }
-
-    fn start<Message: Send + 'static>(
-        &mut self,
-        deliveries: impl Stream<Item = Delivery<S>> + Send + 'static,
-        freshness: Freshness,
-        delivered: fn(Delivery<S>) -> Message,
+        delivered: fn(SourceDelivery<S>) -> Message,
         config: &Config,
     ) -> Task<Message> {
         self.keep_shape();
-        self.freshness = Some(freshness);
+        self.freshness = Some(Freshness::from_source_cadence::<S>());
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
-            deliveries
+            S::delivery_stream(key)
         })
         .flatten();
         let (task, fetching) = Task::run(delayed, delivered).abortable();
@@ -93,16 +63,16 @@ impl<S: Source> OnHoverReading<S> {
         }
     }
 
-    pub fn receive(&mut self, delivery: Delivery<S>) {
+    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>) {
         if self.fetching.is_none() {
             return;
         }
         match delivery {
-            Delivery::Absent => {
+            SourceDelivery::Absent => {
                 self.latest = None;
                 self.shape = None;
             }
-            Delivery::Reading(reading) => self.latest = Some(reading),
+            SourceDelivery::Reading(reading) => self.latest = Some(reading),
         }
         if let Some(Freshness::Polled { last, .. }) = &mut self.freshness {
             *last = SystemTime::now();

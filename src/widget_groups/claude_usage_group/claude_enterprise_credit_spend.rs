@@ -1,14 +1,14 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
     data::source::ai::{
         claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
-        quota::QuotaLimited,
+        quota::Quota,
     },
     widgets::{
         amount_text::{percent_text, spend_text},
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         tooltip_body::{KeyValue, Section, TooltipBody},
@@ -34,7 +34,7 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .unwrap_or_else(|| level_from_used(self.used_share))
             .into()
     }
@@ -63,6 +63,14 @@ impl BarWidget for ClaudeEnterpriseSpend {
         )
         .titled("Usage Credits")])
     }
+
+    fn visible_in_bar(&self) -> bool {
+        self.used.is_positive() || self.limit.is_some()
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
+    }
 }
 
 impl ClaudeOrganization {
@@ -72,11 +80,5 @@ impl ClaudeOrganization {
             KeyValue::new("Seat Tier", self.seat_tier.as_str()),
             KeyValue::new("Subscription Status", self.subscription_status.as_str()),
         ])]
-    }
-}
-
-impl Occasional for ClaudeEnterpriseSpend {
-    fn present(&self) -> bool {
-        self.used.is_positive() || self.limit.is_some()
     }
 }

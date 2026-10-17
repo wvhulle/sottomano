@@ -8,7 +8,7 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
@@ -41,12 +41,6 @@ impl UnitErrors {
             ],
         )
         .level(self.severity)
-    }
-}
-
-impl Occasional for ServiceErrors {
-    fn present(&self) -> bool {
-        !self.is_empty()
     }
 }
 
@@ -88,5 +82,9 @@ impl BarWidget for ServiceErrors {
             "Journal entries at err or worse from .service units in the last hour, newest message \
              per service.",
         ))])
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        !self.is_empty()
     }
 }

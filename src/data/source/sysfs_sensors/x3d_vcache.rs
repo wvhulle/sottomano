@@ -4,7 +4,8 @@ use iced::futures::{Stream, StreamExt, stream};
 
 use super::{Error, list_dir, read_trimmed};
 use crate::data::source::{
-    Delivery, PolledSource, Source, blocking_poll, present_or_absent, ticked_polls,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    present_or_absent,
 };
 
 const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";
@@ -76,24 +77,23 @@ impl X3dCachePreference {
     }
 }
 
-impl Source for X3dCachePreference {
+impl ReadingSource for X3dCachePreference {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "x3d-cache-preference";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-impl PolledSource for X3dCachePreference {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
         present_or_absent(stream::once(exposed), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl X3dCachePreference {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(Self::read).await
     }
 }

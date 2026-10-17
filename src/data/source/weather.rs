@@ -16,7 +16,7 @@ use uom::si::{
 };
 
 use crate::{
-    data::source::{Delivery, LiveSource, PolledSource, Source, http},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, http, polled_delivery_stream},
     widgets::tooltip_body::Section,
 };
 
@@ -305,17 +305,21 @@ pub struct HourlyTemperature {
     pub condition: Option<WeatherCondition>,
 }
 
-impl Source for Temperature {
+impl ReadingSource for Temperature {
     type Error = Error;
     type Key = Position;
 
     const NAME: &'static str = "weather-temp";
+    const DELIVERY_CADENCE: DeliveryCadence =
+        DeliveryCadence::PolledEvery(Duration::from_secs(300));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Temperature {
-    const INTERVAL: Duration = Duration::from_secs(300);
-
-    async fn poll(here: Position) -> Result<Self, Self::Error> {
+impl Temperature {
+    async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
         "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
         here.latitude, here.longitude
@@ -343,17 +347,21 @@ pub struct Wind {
     pub direction: Angle,
 }
 
-impl Source for Wind {
+impl ReadingSource for Wind {
     type Error = Error;
     type Key = Position;
 
     const NAME: &'static str = "weather-wind";
+    const DELIVERY_CADENCE: DeliveryCadence =
+        DeliveryCadence::PolledEvery(Duration::from_secs(300));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Wind {
-    const INTERVAL: Duration = Duration::from_secs(300);
-
-    async fn poll(here: Position) -> Result<Self, Self::Error> {
+impl Wind {
+    async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
         "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
         here.latitude, here.longitude
@@ -488,17 +496,20 @@ fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
     })
 }
 
-impl Source for Rain {
+impl ReadingSource for Rain {
     type Error = Error;
     type Key = Position;
 
     const NAME: &'static str = "weather-rain";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Rain {
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn poll(here: Position) -> Result<Self, Self::Error> {
+impl Rain {
+    async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             here.latitude, here.longitude
@@ -604,17 +615,20 @@ impl Pollen {
     }
 }
 
-impl Source for Pollen {
+impl ReadingSource for Pollen {
     type Error = Error;
     type Key = Position;
 
     const NAME: &'static str = "pollen";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(30));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Pollen {
-    const INTERVAL: Duration = Duration::from_mins(30);
-
-    async fn poll(here: Position) -> Result<Self, Self::Error> {
+impl Pollen {
+    async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
         "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
         here.latitude, here.longitude
@@ -635,20 +649,20 @@ impl Location {
     }
 }
 
-impl Source for Location {
+impl ReadingSource for Location {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "location";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Location {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         fix_updates()
             .map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
-            .map(Delivery::Reading)
+            .map(SourceDelivery::Reading)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;

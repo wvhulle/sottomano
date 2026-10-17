@@ -9,8 +9,8 @@ use serde::Deserialize;
 
 use crate::{
     data::source::{
-        Delivery, PolledSource, Source, command, command::blocking::run, present_or_absent,
-        ticked_polls,
+        DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
+        polled_delivery_stream, present_or_absent,
     },
     widgets::tooltip_body::Section,
 };
@@ -98,23 +98,22 @@ impl From<&Node> for Peer {
     }
 }
 
-impl Source for Tailscale {
+impl ReadingSource for Tailscale {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "tailscale";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-impl PolledSource for Tailscale {
-    const INTERVAL: Duration = Duration::from_secs(10);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(command::exists("tailscale")), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl Tailscale {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         let raw = command::output("tailscale", &["status", "--json"]).await?;
         let status: Status = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
         if status.backend_state != RUNNING_BACKEND_STATE {

@@ -44,15 +44,15 @@ pub(super) fn no_window_focused() -> FocusSignal {
 }
 
 pub(super) fn idle_edge(edge: IdleEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifierEdge(edge))
+    FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifier(edge))
 }
 
 pub(super) fn sleep_edge(edge: SleepEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleepEdge(edge))
+    FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleep(edge))
 }
 
 pub(super) fn screen_power_edge(edge: ScreenEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPowerEdge(edge))
+    FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPower(edge))
 }
 
 pub(super) fn kitty() -> FocusScope {

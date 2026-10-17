@@ -5,7 +5,7 @@ use crate::{
         backlight::{Backlight, Kind},
         niri::{OutputInfo, OutputMode},
     },
-    widgets::{hardware_section::HardwareEntries, tooltip_body::KeyValue},
+    widgets::tooltip_body::KeyValue,
 };
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
@@ -52,8 +52,8 @@ impl<'a> ConnectedOutput<'a> {
     }
 }
 
-impl HardwareEntries for ConnectedOutput<'_> {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
+impl ConnectedOutput<'_> {
+    pub fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Make", &self.info.make),
             ("Model", &self.info.model),
@@ -111,7 +111,7 @@ mod tests {
             ]
         );
         assert_eq!(
-            output.hardware_section(),
+            Section::hardware_identity(output.hardware_entries()),
             Section::dictionary([KeyValue::new("Make", "LG Display")]).titled("Hardware")
         );
     }
@@ -119,9 +119,11 @@ mod tests {
     #[test]
     fn placeholder_model_is_not_shown() {
         let outputs = laptop_panel();
-        let hardware = ConnectedOutput::driving(&internal_backlight(), &outputs)
-            .expect("internal panel")
-            .hardware_section();
+        let hardware = Section::hardware_identity(
+            ConnectedOutput::driving(&internal_backlight(), &outputs)
+                .expect("internal panel")
+                .hardware_entries(),
+        );
         let SectionBody::Dictionary(entries) = hardware.body() else {
             panic!("expected dictionary");
         };

@@ -250,7 +250,7 @@ mod tests {
     }
 
     fn idle_edge(edge: IdleEdge) -> FocusSignal {
-        FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifierEdge(edge))
+        FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifier(edge))
     }
 
     fn config() -> FocusTimeConfig {

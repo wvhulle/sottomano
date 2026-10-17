@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, convert::Infallible, marker::PhantomData, path::PathBuf};
+use std::{collections::BTreeMap, convert::Infallible, path::PathBuf};
 
 use iced::futures::{
     Stream, StreamExt,
@@ -7,9 +7,9 @@ use iced::futures::{
 };
 use zbus::{names::MemberName, proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
-use super::{ManagerProxy, UnitScope, connect, manager_signal, signals_matching};
+use super::{ManagerProxy, SystemdUnitScope, connect, manager_signal, signals_matching};
 use crate::{
-    data::source::{Delivery, LiveSource, Source},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     message_subscriptions::restarting,
 };
 
@@ -51,30 +51,23 @@ impl ServiceCommand {
 }
 
 #[derive(Debug, Clone)]
-pub struct ServiceCommands<S: UnitScope> {
+pub struct ServiceCommands {
     pub services: Vec<ServiceCommand>,
-    scope: PhantomData<S>,
 }
 
-impl<S: UnitScope> Source for ServiceCommands<S> {
+impl ReadingSource for ServiceCommands {
     type Error = Infallible;
-    type Key = ();
+    type Key = SystemdUnitScope;
 
     const NAME: &'static str = "systemd service commands";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl<S: UnitScope> LiveSource for ServiceCommands<S> {
-    fn events((): ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        restarting("systemd service commands", || {
-            watch_service_commands(S::PER_USER)
+    fn delivery_stream(scope: SystemdUnitScope) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        restarting("systemd service commands", move || {
+            watch_service_commands(scope.per_user())
         })
-        .map(|services| {
-            Ok(Self {
-                services,
-                scope: PhantomData,
-            })
-        })
-        .map(Delivery::Reading)
+        .map(|services| Ok(Self { services }))
+        .map(SourceDelivery::Reading)
     }
 }
 

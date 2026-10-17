@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::layout::spacing::{Length, Spacing};
+use crate::config::layout::spacing::Spacing;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(
     default,
     deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + Length")
+    bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
 pub struct PanelBarConfig<L = f32> {
     pub slider_width: L,
@@ -26,13 +26,13 @@ pub struct PanelBarConfig<L = f32> {
     pub focus_indicator_motion: Duration,
 }
 
-impl<L: Length> Default for PanelBarConfig<L> {
+impl<L: From<f32>> Default for PanelBarConfig<L> {
     fn default() -> Self {
         Self {
-            slider_width: L::px(60.0),
-            indicator_thickness: L::px(2.4),
-            frame_outline: L::px(1.0),
-            drag_start_distance: L::px(6.0),
+            slider_width: L::from(60.0),
+            indicator_thickness: L::from(2.4),
+            frame_outline: L::from(1.0),
+            drag_start_distance: L::from(6.0),
             drag_ghost_scale: 1.08,
             drag_spring_load: Duration::from_millis(600),
             group_expansion: Duration::from_millis(90),

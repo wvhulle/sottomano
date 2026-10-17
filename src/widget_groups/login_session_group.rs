@@ -12,7 +12,7 @@ use iced::{Subscription, Task};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
+        SourceDelivery,
         hostname::OperatingSystemIdentity,
         logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
         systemd_manager::{
@@ -21,7 +21,7 @@ use crate::{
         },
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{ForcedRefresh, polling},
+    message_subscriptions::{ForcedRefresh, source_subscription},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,
         desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
@@ -71,13 +71,13 @@ pub struct LoginSessionGroup {
 
 #[derive(Debug, Clone)]
 pub enum LoginSessionMessage {
-    SystemFetched(Delivery<OperatingSystemIdentity>),
-    IdentityFetched(Delivery<SessionIdentity>),
-    SessionFetched(Box<Delivery<SessionInfo>>),
-    ServiceManagerFetched(Delivery<UserServiceManager>),
-    GraphicalFetched(Delivery<GraphicalSession>),
-    GraphicalTargetFetched(Delivery<GraphicalSessionTarget>),
-    PowerFetched(Box<Delivery<PowerPolicy>>),
+    SystemFetched(SourceDelivery<OperatingSystemIdentity>),
+    IdentityFetched(SourceDelivery<SessionIdentity>),
+    SessionFetched(Box<SourceDelivery<SessionInfo>>),
+    ServiceManagerFetched(SourceDelivery<UserServiceManager>),
+    GraphicalFetched(SourceDelivery<GraphicalSession>),
+    GraphicalTargetFetched(SourceDelivery<GraphicalSessionTarget>),
+    PowerFetched(Box<SourceDelivery<PowerPolicy>>),
     Expansion(ExpansionMessage),
 }
 
@@ -88,8 +88,10 @@ impl LoginSessionGroup {
 
     pub fn subscription(forced: Option<ForcedRefresh>) -> Subscription<LoginSessionMessage> {
         Subscription::batch([
-            polling::<OperatingSystemIdentity>((), forced).map(LoginSessionMessage::SystemFetched),
-            polling::<SessionIdentity>((), forced).map(LoginSessionMessage::IdentityFetched),
+            source_subscription::<OperatingSystemIdentity>((), forced)
+                .map(LoginSessionMessage::SystemFetched),
+            source_subscription::<SessionIdentity>((), forced)
+                .map(LoginSessionMessage::IdentityFetched),
         ])
     }
 
@@ -104,45 +106,54 @@ impl LoginSessionGroup {
         self.graphical_target.stop();
         self.power.stop();
         match hovered {
-            Some(HoverTarget::LoginSession(LoginSessionTarget::Login)) => self.session.poll(
-                (),
-                |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
-                config,
-            ),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::Login)) => {
+                self.session.start_hover_fetch(
+                    (),
+                    |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
+                    config,
+                )
+            }
             Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => self
                 .service_manager
-                .poll((), LoginSessionMessage::ServiceManagerFetched, config),
-            Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => {
-                self.graphical
-                    .poll((), LoginSessionMessage::GraphicalFetched, config)
-            }
+                .start_hover_fetch((), LoginSessionMessage::ServiceManagerFetched, config),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
+                .graphical
+                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config),
             Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => self
                 .graphical_target
-                .poll((), LoginSessionMessage::GraphicalTargetFetched, config),
-            Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => self.power.poll(
-                (),
-                |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
-                config,
-            ),
+                .start_hover_fetch((), LoginSessionMessage::GraphicalTargetFetched, config),
+            Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
+                self.power.start_hover_fetch(
+                    (),
+                    |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
+                    config,
+                )
+            }
             _ => Task::none(),
         }
     }
 
     pub fn update(&mut self, message: LoginSessionMessage) -> Task<LoginSessionMessage> {
         match message {
-            LoginSessionMessage::SystemFetched(delivery) => self.system.receive_or_keep(delivery),
+            LoginSessionMessage::SystemFetched(delivery) => {
+                self.system.receive_keeping_last_reading(delivery);
+            }
             LoginSessionMessage::IdentityFetched(delivery) => {
-                self.identity.receive_or_keep(delivery);
+                self.identity.receive_keeping_last_reading(delivery);
             }
-            LoginSessionMessage::SessionFetched(delivery) => self.session.receive(*delivery),
+            LoginSessionMessage::SessionFetched(delivery) => {
+                self.session.receive_delivery(*delivery);
+            }
             LoginSessionMessage::ServiceManagerFetched(delivery) => {
-                self.service_manager.receive(delivery);
+                self.service_manager.receive_delivery(delivery);
             }
-            LoginSessionMessage::GraphicalFetched(delivery) => self.graphical.receive(delivery),
+            LoginSessionMessage::GraphicalFetched(delivery) => {
+                self.graphical.receive_delivery(delivery);
+            }
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
-                self.graphical_target.receive(delivery);
+                self.graphical_target.receive_delivery(delivery);
             }
-            LoginSessionMessage::PowerFetched(delivery) => self.power.receive(*delivery),
+            LoginSessionMessage::PowerFetched(delivery) => self.power.receive_delivery(*delivery),
             LoginSessionMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
             }

@@ -1,5 +1,6 @@
 use std::{path::Path, time::Duration};
 
+use iced::futures::Stream;
 use uom::si::f64::ThermodynamicTemperature;
 
 use super::{
@@ -10,8 +11,9 @@ use super::{
 use crate::{
     config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
     data::source::{
-        PolledSource, Source, blocking_poll,
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
         hardware::DriveIdentity,
+        polled_delivery_stream,
         sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
     },
 };
@@ -44,17 +46,20 @@ pub enum MissingSensor {
     NotExposed,
 }
 
-impl Source for DriveHealth {
+impl ReadingSource for DriveHealth {
     type Error = Error;
     type Key = SensorConfig;
 
     const NAME: &'static str = "drive_health";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for DriveHealth {
-    const INTERVAL: Duration = Duration::from_secs(60);
-
-    async fn poll(config: SensorConfig) -> Result<Self, Self::Error> {
+impl DriveHealth {
+    async fn poll(config: SensorConfig) -> Result<Self, Error> {
         blocking_poll(move || read_drive_health(&config)).await
     }
 }

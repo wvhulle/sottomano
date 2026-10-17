@@ -5,9 +5,9 @@ use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
 use crate::data::source::{
-    Delivery, PolledSource, Source, bus,
+    DeliveryCadence, ReadingSource, SourceDelivery, bus,
     bus::{Error, name_owned},
-    present_or_absent, ticked_polls,
+    polled_delivery_stream, present_or_absent,
 };
 
 const RELAY_SERVICE: &str = "rs.wl-gammarelay";
@@ -36,23 +36,22 @@ pub struct Gamma {
     pub temperature: ThermodynamicTemperature,
 }
 
-impl Source for Gamma {
+impl ReadingSource for Gamma {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "gamma";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-impl PolledSource for Gamma {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(name_owned(bus::Bus::Session, RELAY_SERVICE), move || {
-            ticked_polls::<Self>(key).boxed()
+            polled_delivery_stream(key, Self::poll).boxed()
         })
     }
+}
 
-    async fn poll((): ()) -> Result<Self, Self::Error> {
+impl Gamma {
+    async fn poll((): ()) -> Result<Self, Error> {
         let proxy: GammaRelayProxy = bus::session_proxy().await?;
         let brightness = proxy.brightness().await?;
         let temperature = proxy.temperature().await?;

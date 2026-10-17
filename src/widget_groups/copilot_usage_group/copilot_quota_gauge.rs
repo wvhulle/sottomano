@@ -1,14 +1,14 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use uom::si::f64::Ratio;
 
 use crate::{
     data::source::ai::{
         copilot::{CopilotMetered, USER_ENDPOINT},
-        quota::QuotaLimited,
+        quota::Quota,
     },
     widgets::{
         amount_text::{percent_text, two_decimals},
-        bar_widget::{BarWidget, Glyph, Occasional},
+        bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
@@ -31,7 +31,7 @@ impl BarWidget for CopilotMetered {
     }
 
     fn state(&self) -> WidgetState {
-        self.quota_severity(Utc::now())
+        Quota::worst_severity(&self.quotas(Utc::now()))
             .unwrap_or_else(|| level_from_used(self.used_share))
             .into()
     }
@@ -70,10 +70,12 @@ impl BarWidget for CopilotMetered {
             .titled(self.quota.clone()),
         ])
     }
-}
 
-impl Occasional for CopilotMetered {
-    fn present(&self) -> bool {
+    fn visible_in_bar(&self) -> bool {
         self.used > 0.0
+    }
+
+    fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.quotas(now)
     }
 }

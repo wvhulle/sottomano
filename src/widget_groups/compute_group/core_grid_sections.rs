@@ -5,8 +5,8 @@ use crate::{
     widgets::tooltip_body::{ChipletCells, KeyValue, PhysicalCoreCells, Section, ThreadCell},
 };
 
-pub trait PerCore {
-    fn core(&self) -> u32;
+pub trait PerCoreReading {
+    fn core_index(&self) -> u32;
     fn thread_cell(&self) -> ThreadCell;
 }
 
@@ -15,11 +15,11 @@ pub struct CoreGridSection<'a, Reading> {
     pub readings: &'a [Reading],
 }
 
-impl<Reading: PerCore> CoreGridSection<'_, Reading> {
+impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
     pub fn members<'r>(&'r self, group: &CoreGroup) -> Vec<&'r Reading> {
         self.readings
             .iter()
-            .filter(|reading| group.contains(reading.core()))
+            .filter(|reading| group.contains(reading.core_index()))
             .collect()
     }
 
@@ -40,7 +40,7 @@ impl<Reading: PerCore> CoreGridSection<'_, Reading> {
                         .filter_map(|thread| {
                             members
                                 .iter()
-                                .find(|reading| reading.core() == *thread)
+                                .find(|reading| reading.core_index() == *thread)
                                 .map(|reading| reading.thread_cell())
                         })
                         .collect(),

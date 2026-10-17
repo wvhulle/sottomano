@@ -9,7 +9,7 @@ use crate::{
         severity::Severity,
         source::{
             net_interfaces::nm::Connectivity,
-            throughput::{Download, SCALE_END_MB_PER_S, Throughput, Total, Upload},
+            throughput::{NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput},
         },
     },
     widgets::{
@@ -24,44 +24,49 @@ use crate::{
 const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
 const HI_RES_VIDEO_STREAM_KB_PER_S: f64 = 3_125.0;
 
-pub trait DirectionIcon {
-    const NAME: &'static str;
-    const LABEL: &'static str;
-    const ICON: Phosphor;
+impl NetworkTrafficDirection {
+    const fn widget_name(self) -> &'static str {
+        match self {
+            NetworkTrafficDirection::Upload => "Upload",
+            NetworkTrafficDirection::Download => "Download",
+            NetworkTrafficDirection::Combined => "Network throughput",
+        }
+    }
+
+    const fn rate_label(self) -> &'static str {
+        match self {
+            NetworkTrafficDirection::Upload => "Up",
+            NetworkTrafficDirection::Download => "Down",
+            NetworkTrafficDirection::Combined => "Total",
+        }
+    }
+
+    const fn direction_icon(self) -> Phosphor {
+        match self {
+            NetworkTrafficDirection::Upload => Phosphor::UploadSimple(Weight::Regular),
+            NetworkTrafficDirection::Download => Phosphor::DownloadSimple(Weight::Regular),
+            NetworkTrafficDirection::Combined => Phosphor::ArrowsDownUp(Weight::Regular),
+        }
+    }
 }
 
-impl DirectionIcon for Upload {
-    const NAME: &'static str = "Upload";
-    const LABEL: &'static str = "Up";
-    const ICON: Phosphor = Phosphor::UploadSimple(Weight::Regular);
-}
-
-impl DirectionIcon for Download {
-    const NAME: &'static str = "Download";
-    const LABEL: &'static str = "Down";
-    const ICON: Phosphor = Phosphor::DownloadSimple(Weight::Regular);
-}
-
-impl DirectionIcon for Total {
-    const NAME: &'static str = "Network throughput";
-    const LABEL: &'static str = "Total";
-    const ICON: Phosphor = Phosphor::ArrowsDownUp(Weight::Regular);
-}
-
-fn severity<D>(throughput: &Throughput<D>) -> Severity {
+fn severity(throughput: &Throughput) -> Severity {
     if throughput.interfaces.is_empty() {
         return Severity::Critical;
     }
     connectivity_level(throughput.connectivity).max(throughput.link_level())
 }
 
-impl<D: DirectionIcon> BarWidget for Throughput<D> {
+impl BarWidget for Throughput {
     fn name(&self) -> &'static str {
-        D::NAME
+        self.direction.widget_name()
     }
 
     fn icon(&self) -> Glyph {
-        D::ICON.with_weight(self.state().weight()).into()
+        self.direction
+            .direction_icon()
+            .with_weight(self.state().weight())
+            .into()
     }
 
     fn state(&self) -> WidgetState {
@@ -90,7 +95,7 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
             .map(|connectivity| KeyValue::new("Connectivity", connectivity.label()));
         TooltipBody::dictionary(
             [
-                KeyValue::new(D::LABEL, per_second_text(self.rate)),
+                KeyValue::new(self.direction.rate_label(), per_second_text(self.rate)),
                 KeyValue::new("Peak", per_second_text(self.peak_rate)),
                 KeyValue::new("Interfaces", self.interfaces.join(", ")),
             ]
@@ -106,7 +111,7 @@ impl<D: DirectionIcon> BarWidget for Throughput<D> {
     }
 }
 
-impl<D> Throughput<D> {
+impl Throughput {
     fn link_level(&self) -> Severity {
         if self.unused() {
             return Severity::Normal;

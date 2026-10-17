@@ -12,7 +12,7 @@ use zbus::{
 };
 
 use crate::{
-    data::{empty_text::non_empty, source::bus::DeclaredProperties},
+    data::{empty_text::non_empty, source::bus::DbusPropertyLookup},
     message_subscriptions::restarting_subscription,
 };
 

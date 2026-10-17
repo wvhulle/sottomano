@@ -1,10 +1,14 @@
 use std::{cmp::Reverse, fs, time::Duration};
 
 use bytesize::ByteSize;
+use iced::futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use super::Error;
-use crate::data::source::{PolledSource, Source, blocking_poll, process::binary_name};
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    process::binary_name,
+};
 
 const MEMINFO: &str = "/proc/meminfo";
 const PROC: &str = "/proc";
@@ -22,17 +26,20 @@ impl Memory {
     }
 }
 
-impl Source for Memory {
+impl ReadingSource for Memory {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "memory";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Memory {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl Memory {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_meminfo).await
     }
 }
@@ -59,17 +66,20 @@ pub struct MemoryProcesses {
     pub processes: Vec<MemoryProcess>,
 }
 
-impl Source for MemoryProcesses {
+impl ReadingSource for MemoryProcesses {
     type Error = Error;
     type Key = ();
 
     const NAME: &'static str = "memory processes";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for MemoryProcesses {
-    const INTERVAL: Duration = Duration::from_secs(3);
-
-    async fn poll(_key: ()) -> Result<Self, Self::Error> {
+impl MemoryProcesses {
+    async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_memory_processes).await
     }
 }

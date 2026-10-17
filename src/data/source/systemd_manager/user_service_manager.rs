@@ -1,9 +1,13 @@
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use iced::futures::Stream;
 
 use crate::{
-    data::source::{PolledSource, Source, bus, hostname::at_micros, systemd_manager::ManagerProxy},
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, bus, hostname::at_micros,
+        polled_delivery_stream, systemd_manager::ManagerProxy,
+    },
     widgets::{
         localized_time::LocalizedTimeFormat,
         tooltip_body::{Cell, KeyValue, Section},
@@ -17,16 +21,19 @@ pub struct UserServiceManager {
     pub started_at: Option<DateTime<Utc>>,
 }
 
-impl Source for UserServiceManager {
+impl ReadingSource for UserServiceManager {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "user service manager";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for UserServiceManager {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
+impl UserServiceManager {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let connection = zbus::Connection::session()
             .await

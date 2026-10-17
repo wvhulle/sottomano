@@ -1,15 +1,16 @@
 use std::{env, time::Duration};
 
 use chrono::{DateTime, Utc};
+use iced::futures::Stream;
 use tokio::task::spawn_blocking;
 
 use crate::{
     data::{
         empty_text::non_empty,
         source::{
-            PolledSource, Source, bus,
+            DeliveryCadence, ReadingSource, SourceDelivery, bus,
             hostname::{at_micros, entry},
-            niri,
+            niri, polled_delivery_stream,
             systemd_manager::{ManagerProxy, unit_proxy},
         },
     },
@@ -39,16 +40,19 @@ pub enum GraphicalSessionTarget {
     },
 }
 
-impl Source for GraphicalSession {
+impl ReadingSource for GraphicalSession {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "graphical session";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GraphicalSession {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
+impl GraphicalSession {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let compositor_version = spawn_blocking(niri::version)
             .await
@@ -68,16 +72,19 @@ impl PolledSource for GraphicalSession {
     }
 }
 
-impl Source for GraphicalSessionTarget {
+impl ReadingSource for GraphicalSessionTarget {
     type Error = bus::Error;
     type Key = ();
 
     const NAME: &'static str = "graphical session target";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for GraphicalSessionTarget {
-    const INTERVAL: Duration = Duration::from_secs(5);
-
+impl GraphicalSessionTarget {
     async fn poll(_key: ()) -> Result<Self, bus::Error> {
         let connection = zbus::Connection::session()
             .await

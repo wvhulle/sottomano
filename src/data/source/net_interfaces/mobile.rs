@@ -8,7 +8,7 @@ use zbus::{
 };
 
 use crate::data::source::{
-    Delivery, LiveSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     bus::{Properties, prop},
     hardware::{Adapter, ModemIdentity, reported},
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
@@ -246,15 +246,14 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-impl Source for Mobile {
+impl ReadingSource for Mobile {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = NAME;
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-impl LiveSource for Mobile {
-    fn events(_key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         device_or_absent(SERVICE, || {
             managed_objects_readings(NAME, SERVICE, ROOT, reading).boxed()
         })

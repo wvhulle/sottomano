@@ -7,7 +7,7 @@ use uom::si::{
     ratio::ratio,
 };
 
-use crate::data::source::{PolledSource, sysfs_sensors::battery::Battery};
+use crate::data::source::sysfs_sensors::battery::BATTERY_POLL_INTERVAL;
 
 pub const CHARGE_BINS: usize = 20;
 const BIN_DRIFT_W2_PER_S: f64 = 2e-7;
@@ -29,7 +29,7 @@ impl PowerBin {
     }
 
     fn updated_with(self, observed_w: f64) -> Self {
-        let drifted = self.variance + BIN_DRIFT_W2_PER_S * Battery::INTERVAL.as_secs_f64();
+        let drifted = self.variance + BIN_DRIFT_W2_PER_S * BATTERY_POLL_INTERVAL.as_secs_f64();
         let gain = drifted / (drifted + MEASUREMENT_VARIANCE_W2);
         PowerBin {
             mean_w: self.mean_w + gain * (observed_w - self.mean_w),

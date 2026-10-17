@@ -8,6 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
+use iced::futures::Stream;
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
@@ -19,7 +20,10 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     data::{
         empty_text::non_empty,
-        source::{Panicked, PolledSource, Source, nix_store::Provenance},
+        source::{
+            DeliveryCadence, Panicked, ReadingSource, SourceDelivery, nix_store::Provenance,
+            polled_delivery_stream,
+        },
     },
     widgets::tooltip_body::Section,
 };
@@ -260,16 +264,19 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     Forest { roots }
 }
 
-impl Source for Process {
+impl ReadingSource for Process {
     type Error = Error;
     type Key = Watched;
 
     const NAME: &'static str = "process scan";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SCAN_INTERVAL);
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Process {
-    const INTERVAL: Duration = SCAN_INTERVAL;
-
+impl Process {
     async fn poll(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
         let capacity = CpuCapacity::current();
@@ -350,16 +357,19 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-impl Source for Inspection {
+impl ReadingSource for Inspection {
     type Error = Error;
     type Key = Watched;
 
     const NAME: &'static str = "process inspection";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(30));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for Inspection {
-    const INTERVAL: Duration = Duration::from_secs(30);
-
+impl Inspection {
     async fn poll(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
         spawn_blocking(move || inspect(&watched))

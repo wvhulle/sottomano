@@ -1,17 +1,15 @@
-use std::time::Duration;
-
 use chrono::{DateTime, Local, Utc};
 use iced::futures::{Stream, StreamExt, stream};
 
 use super::Error;
 use crate::data::source::{
-    Delivery, PolledSource, Source,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     ai::{
         ccusage::{self, Agent, POLL_INTERVAL, Period},
-        quota::{Quota, QuotaLimited},
+        quota::Quota,
         working_time_forecast::SpendBudget,
     },
-    present_or_absent, ticked_polls,
+    polled_delivery_stream, present_or_absent,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,8 +18,8 @@ pub struct CopilotCcusage {
     pub budget: SpendBudget,
 }
 
-impl QuotaLimited for CopilotCcusage {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl CopilotCcusage {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.period
             .budget_quota(
                 "Copilot CLI monthly budget",
@@ -33,23 +31,22 @@ impl QuotaLimited for CopilotCcusage {
     }
 }
 
-impl Source for CopilotCcusage {
+impl ReadingSource for CopilotCcusage {
     type Error = Error;
     type Key = SpendBudget;
 
     const NAME: &'static str = "copilot-usage-ccusage";
-}
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
 
-impl PolledSource for CopilotCcusage {
-    const INTERVAL: Duration = POLL_INTERVAL;
-
-    fn polls(budget: SpendBudget) -> impl Stream<Item = Delivery<Self>> + Send {
+    fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         present_or_absent(stream::once(ccusage::installed()), move || {
-            ticked_polls::<Self>(budget.clone()).boxed()
+            polled_delivery_stream(budget.clone(), Self::poll).boxed()
         })
     }
+}
 
-    async fn poll(budget: SpendBudget) -> Result<Self, Self::Error> {
+impl CopilotCcusage {
+    async fn poll(budget: SpendBudget) -> Result<Self, Error> {
         let recent = ccusage::recent(Agent::CopilotCli).await?;
         Ok(CopilotCcusage {
             period: recent.month,

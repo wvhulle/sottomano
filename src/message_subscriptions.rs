@@ -29,7 +29,7 @@ use crate::{
             server,
         },
         sink::clipboard,
-        source::{Delivery, LiveSource, PolledSource, desktop_entries, niri},
+        source::{ReadingSource, SourceDelivery, desktop_entries, niri},
     },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
@@ -223,16 +223,14 @@ impl ForcedRefresh {
     }
 }
 
-pub fn polling<S: PolledSource>(
+pub fn source_subscription<S: ReadingSource>(
     key: S::Key,
     forced: Option<ForcedRefresh>,
-) -> Subscription<Delivery<S>> {
+) -> Subscription<SourceDelivery<S>> {
     let restart = forced.filter(|forced| forced.source == S::NAME);
-    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| S::polls(key.clone()))
-}
-
-pub fn listening<S: LiveSource>(key: S::Key) -> Subscription<Delivery<S>> {
-    Subscription::run_with((S::NAME, key), |(_, key)| S::events(key.clone()))
+    Subscription::run_with((S::NAME, key, restart), |(_, key, _)| {
+        S::delivery_stream(key.clone())
+    })
 }
 
 pub fn restarting_subscription<F, S, E>(

@@ -10,10 +10,7 @@ use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use crate::{
     config::Config,
     data::source::{
-        Delivery,
-        bus::Bus,
-        llama_server::LlamaModelProps,
-        systemd_manager::{System, User},
+        SourceDelivery, bus::Bus, llama_server::LlamaModelProps, systemd_manager::SystemdUnitScope,
     },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
@@ -59,19 +56,29 @@ impl From<LlamaServerTarget> for HoverTarget {
     }
 }
 
-#[derive(Default)]
 pub struct LlamaServerGroup {
-    user: ScopedLlamaServers<User>,
-    system: ScopedLlamaServers<System>,
+    user: ScopedLlamaServers,
+    system: ScopedLlamaServers,
     model_props: OnHoverReading<LlamaModelProps>,
     expansion: GroupExpansion,
 }
 
+impl Default for LlamaServerGroup {
+    fn default() -> Self {
+        Self {
+            user: ScopedLlamaServers::new(SystemdUnitScope::UserSession),
+            system: ScopedLlamaServers::new(SystemdUnitScope::SystemWide),
+            model_props: OnHoverReading::default(),
+            expansion: GroupExpansion::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum LlamaServerMessage {
-    User(ScopedServersMessage<User>),
-    System(ScopedServersMessage<System>),
-    ModelPropsFetched(Delivery<LlamaModelProps>),
+    User(ScopedServersMessage),
+    System(ScopedServersMessage),
+    ModelPropsFetched(SourceDelivery<LlamaModelProps>),
     Expansion(ExpansionMessage),
 }
 
@@ -110,7 +117,7 @@ impl LlamaServerGroup {
             return Task::none();
         };
         self.model_props
-            .listen(instance, LlamaServerMessage::ModelPropsFetched, config)
+            .start_hover_fetch(instance, LlamaServerMessage::ModelPropsFetched, config)
     }
 
     pub fn update(&mut self, message: LlamaServerMessage) -> Task<LlamaServerMessage> {
@@ -122,7 +129,7 @@ impl LlamaServerGroup {
                 self.system.update(message).map(LlamaServerMessage::System)
             }
             LlamaServerMessage::ModelPropsFetched(delivery) => {
-                self.model_props.receive(delivery);
+                self.model_props.receive_delivery(delivery);
                 Task::none()
             }
             LlamaServerMessage::Expansion(message) => {

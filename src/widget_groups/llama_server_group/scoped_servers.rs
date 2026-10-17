@@ -9,11 +9,11 @@ use super::{
 };
 use crate::{
     data::source::{
-        Delivery,
+        SourceDelivery,
         llama_server::{LlamaModel, LlamaServer, LlamaServerUnit, ModelInstance},
-        systemd_manager::{UnitScope, service_commands::ServiceCommands},
+        systemd_manager::{SystemdUnitScope, service_commands::ServiceCommands},
     },
-    message_subscriptions::listening,
+    message_subscriptions::source_subscription,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -23,14 +23,14 @@ use crate::{
     },
 };
 
-struct ServerReadings<S: UnitScope> {
-    discovered: LlamaServerUnit<S>,
-    switch: UnitSwitch<S>,
-    server: ContinuousReading<LlamaServer<S>>,
+struct ServerReadings {
+    discovered: LlamaServerUnit,
+    switch: UnitSwitch,
+    server: ContinuousReading<LlamaServer>,
 }
 
-impl<S: UnitScope> ServerReadings<S> {
-    fn new(discovered: LlamaServerUnit<S>) -> Self {
+impl ServerReadings {
+    fn new(discovered: LlamaServerUnit) -> Self {
         Self {
             switch: UnitSwitch::new(discovered.unit.clone(), SERVER_SWITCH),
             discovered,
@@ -39,45 +39,46 @@ impl<S: UnitScope> ServerReadings<S> {
     }
 }
 
-pub struct ScopedLlamaServers<S: UnitScope> {
-    services: ContinuousReading<ServiceCommands<S>>,
-    servers: BTreeMap<String, ServerReadings<S>>,
+pub struct ScopedLlamaServers {
+    scope: SystemdUnitScope,
+    services: ContinuousReading<ServiceCommands>,
+    servers: BTreeMap<String, ServerReadings>,
 }
 
-impl<S: UnitScope> Default for ScopedLlamaServers<S> {
-    fn default() -> Self {
+#[derive(Debug, Clone)]
+pub enum ScopedServersMessage {
+    Services(SourceDelivery<ServiceCommands>),
+    Switch(String, UnitSwitchMessage),
+    Server(String, SourceDelivery<LlamaServer>),
+}
+
+impl ScopedLlamaServers {
+    pub fn new(scope: SystemdUnitScope) -> Self {
         Self {
+            scope,
             services: ContinuousReading::default(),
             servers: BTreeMap::new(),
         }
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum ScopedServersMessage<S: UnitScope> {
-    Services(Delivery<ServiceCommands<S>>),
-    Switch(String, UnitSwitchMessage<S>),
-    Server(String, Delivery<LlamaServer<S>>),
-}
-
-impl<S: UnitScope> ScopedLlamaServers<S> {
-    pub fn subscription(&self) -> Subscription<ScopedServersMessage<S>> {
+    pub fn subscription(&self) -> Subscription<ScopedServersMessage> {
         Subscription::batch(
-            [listening::<ServiceCommands<S>>(()).map(ScopedServersMessage::Services)]
-                .into_iter()
-                .chain(self.servers.values().flat_map(|readings| {
-                    let unit = readings.discovered.unit.clone();
-                    [
-                        readings
-                            .switch
-                            .subscription()
-                            .with(unit.clone())
-                            .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
-                        listening::<LlamaServer<S>>(readings.discovered.clone())
-                            .with(unit)
-                            .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
-                    ]
-                })),
+            [source_subscription::<ServiceCommands>(self.scope, None)
+                .map(ScopedServersMessage::Services)]
+            .into_iter()
+            .chain(self.servers.values().flat_map(|readings| {
+                let unit = readings.discovered.unit.unit_name.clone();
+                [
+                    readings
+                        .switch
+                        .subscription()
+                        .with(unit.clone())
+                        .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
+                    source_subscription::<LlamaServer>(readings.discovered.clone(), None)
+                        .with(unit)
+                        .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
+                ]
+            })),
         )
     }
 
@@ -88,21 +89,21 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
             .get()
             .into_iter()
             .flat_map(|services| services.services.iter())
-            .filter_map(LlamaServerUnit::discovered)
+            .filter_map(|command| LlamaServerUnit::discovered(self.scope, command))
             .map(|discovered| {
                 let readings = previous
-                    .remove(&discovered.unit)
+                    .remove(&discovered.unit.unit_name)
                     .filter(|readings| readings.discovered == discovered)
                     .unwrap_or_else(|| ServerReadings::new(discovered));
-                (readings.discovered.unit.clone(), readings)
+                (readings.discovered.unit.unit_name.clone(), readings)
             })
             .collect();
     }
 
-    pub fn update(&mut self, message: ScopedServersMessage<S>) -> Task<ScopedServersMessage<S>> {
+    pub fn update(&mut self, message: ScopedServersMessage) -> Task<ScopedServersMessage> {
         match message {
             ScopedServersMessage::Services(delivery) => {
-                self.services.push_or_keep(delivery);
+                self.services.receive_keeping_last_reading(delivery);
                 self.adopt_discovered();
                 Task::none()
             }
@@ -115,7 +116,7 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
             },
             ScopedServersMessage::Server(unit, delivery) => {
                 if let Some(readings) = self.servers.get_mut(&unit) {
-                    readings.server.push_or_keep(delivery);
+                    readings.server.receive_keeping_last_reading(delivery);
                 }
                 Task::none()
             }
@@ -170,12 +171,12 @@ impl<S: UnitScope> ScopedLlamaServers<S> {
 
     pub fn items<'a, M: 'a>(
         &'a self,
-        lift: fn(ScopedServersMessage<S>) -> M,
+        lift: fn(ScopedServersMessage) -> M,
     ) -> impl Iterator<Item = GroupItem<'a, M>> + 'a {
         self.servers.values().flat_map(move |readings| {
-            let unit = &readings.discovered.unit;
+            let unit = &readings.discovered.unit.unit_name;
             let target = |reading| LlamaServerTarget {
-                bus: S::BUS,
+                bus: self.scope.bus(),
                 unit: unit.clone(),
                 reading,
             };

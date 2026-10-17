@@ -1,14 +1,13 @@
 use std::{
     convert::Infallible,
     future::{Future, ready},
-    time::Duration,
 };
 
 use chrono::{DateTime, Local, Locale};
 use iced::futures::Stream;
 
 use crate::{
-    data::source::{Delivery, PolledSource, Source},
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     widget_groups::clock_group::{TICK, polled_at_second_boundaries},
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -21,22 +20,21 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub struct LocalTime(pub DateTime<Local>);
 
-impl Source for LocalTime {
+impl ReadingSource for LocalTime {
     type Error = Infallible;
     type Key = ();
 
     const NAME: &'static str = "local time";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
+
+    fn delivery_stream(key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_at_second_boundaries(key, Self::poll)
+    }
 }
 
-impl PolledSource for LocalTime {
-    const INTERVAL: Duration = TICK;
-
+impl LocalTime {
     fn poll(_key: ()) -> impl Future<Output = Result<Self, Infallible>> + Send {
         ready(Ok(LocalTime(Local::now())))
-    }
-
-    fn polls(key: ()) -> impl Stream<Item = Delivery<Self>> + Send {
-        polled_at_second_boundaries::<Self>(key)
     }
 }
 

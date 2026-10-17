@@ -5,6 +5,7 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
+use iced::futures::Stream;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::json;
@@ -13,13 +14,13 @@ use crate::{
     data::{
         money::{Money, deserialize_usd, usd},
         source::{
-            PolledSource, Source,
+            DeliveryCadence, ReadingSource, SourceDelivery,
             ai::{
-                quota::{Quota, QuotaLimited},
+                quota::Quota,
                 read_secret,
                 working_time_forecast::{CalendarSpan, SpendBudget},
             },
-            http,
+            http, polled_delivery_stream,
         },
     },
     widgets::tooltip_body::Section,
@@ -166,8 +167,8 @@ pub struct OpenRouterSpend {
     pub month: SpanSpend,
 }
 
-impl QuotaLimited for OpenRouterSpend {
-    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+impl OpenRouterSpend {
+    pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.month
             .span
             .budget_quota(
@@ -181,17 +182,20 @@ impl QuotaLimited for OpenRouterSpend {
     }
 }
 
-impl Source for OpenRouterSpend {
+impl ReadingSource for OpenRouterSpend {
     type Error = Error;
     type Key = OpenRouterAccount;
 
     const NAME: &'static str = "openrouter-spend";
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(1));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for OpenRouterSpend {
-    const INTERVAL: Duration = Duration::from_mins(1);
-
-    async fn poll(account: OpenRouterAccount) -> Result<Self, Self::Error> {
+impl OpenRouterSpend {
+    async fn poll(account: OpenRouterAccount) -> Result<Self, Error> {
         let key = read_secret(&account.management_key).ok_or(Error::Secret)?;
         let today = Local::now().date_naive();
         let week = CalendarSpan::week_containing(today);
@@ -275,17 +279,21 @@ impl OpenRouterStrictBudget {
     }
 }
 
-impl Source for OpenRouterStrictBudget {
+impl ReadingSource for OpenRouterStrictBudget {
     type Error = Error;
     type Key = PathBuf;
 
     const NAME: &'static str = "openrouter-strict-budget";
+    const DELIVERY_CADENCE: DeliveryCadence =
+        DeliveryCadence::PolledEvery(Duration::from_secs(300));
+
+    fn delivery_stream(key: Self::Key) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_stream(key, Self::poll)
+    }
 }
 
-impl PolledSource for OpenRouterStrictBudget {
-    const INTERVAL: Duration = Duration::from_secs(300);
-
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+impl OpenRouterStrictBudget {
+    async fn poll(key: PathBuf) -> Result<Self, Error> {
         let key = read_secret(&key).ok_or(Error::Secret)?;
         Ok(Self {
             credits: credits(&key).await?,
