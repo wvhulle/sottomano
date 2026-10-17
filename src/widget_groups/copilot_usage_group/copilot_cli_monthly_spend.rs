@@ -2,10 +2,11 @@ use chrono::Utc;
 
 use crate::{
     data::source::ai::{copilot::CopilotCcusage, quota::QuotaLimited},
-    widget_groups::ai_group::{amount_text::dollars, spend_to_level::level_from_cost},
     widgets::{
+        amount_text::dollars,
         bar_widget::{BarWidget, Glyph, Occasional},
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_cost,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -17,12 +18,16 @@ impl BarWidget for CopilotCcusage {
     }
 
     fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
+        Phosphor::TerminalWindow(self.state().weight()).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::TerminalWindow(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {
         Some(if self.period.usage.cost > 0.0 {
-            dollars(self.period.usage.cost)
+            format!("{} cli", dollars(self.period.usage.cost))
         } else {
             "cli".to_owned()
         })

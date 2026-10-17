@@ -7,6 +7,7 @@ pub mod claude;
 pub mod copilot;
 pub mod openrouter;
 pub mod quota;
+pub mod working_time_forecast;
 
 pub fn read_secret(path: &Path) -> Option<String> {
     non_empty(fs::read_to_string(path).ok()?.trim().to_owned())

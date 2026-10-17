@@ -7,8 +7,9 @@ use super::{Error, local_log_polls};
 use crate::data::source::{
     Delivery, PolledSource, Source,
     ai::{
-        ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage, SpendBudget},
+        ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage},
         quota::{Quota, QuotaLimited},
+        working_time_forecast::SpendBudget,
     },
 };
 

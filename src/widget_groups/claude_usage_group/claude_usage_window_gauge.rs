@@ -8,13 +8,11 @@ use crate::{
         claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
         quota::{Pace, Quota, QuotaLimited},
     },
-    widget_groups::ai_group::{
-        amount_text::{countdown, percent_text},
-        spend_to_level::level_from_used,
-    },
     widgets::{
+        amount_text::{countdown, percent_text},
         bar_widget::{BarWidget, Glyph, Occasional},
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -26,7 +24,11 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn icon(&self) -> Glyph {
-        SimpleIcon::Claude.into()
+        Phosphor::Gauge(self.state().weight()).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::Gauge(Weight::Regular).into()
     }
 
     fn state(&self) -> WidgetState {

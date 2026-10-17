@@ -3,7 +3,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -15,11 +15,15 @@ impl BarWidget for CopilotFree {
     }
 
     fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
+        Phosphor::ChatCircleDots(self.state().weight()).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {
-        Some(self.chat.to_string())
+        Some(format!("{} chats", self.chat))
     }
 
     fn state(&self) -> WidgetState {

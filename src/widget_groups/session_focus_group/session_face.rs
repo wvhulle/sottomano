@@ -7,11 +7,9 @@ use crate::{
             Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
         },
     },
-    widget_groups::{
-        ai_group::amount_text::{coarse_duration_text, duration_text},
-        session_focus_group::BreakPledge,
-    },
+    widget_groups::session_focus_group::BreakPledge,
     widgets::{
+        amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingBody,

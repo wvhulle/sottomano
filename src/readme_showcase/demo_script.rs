@@ -5,15 +5,15 @@ use crate::{
     },
     readme_showcase::{
         fixtures::{
-            ai_usage, audio, compute, idle_lock, media, niri_session, unchanging, wallpaper,
+            audio, claude_usage, compute, idle_lock, media, niri_session, unchanging, wallpaper,
             weather,
         },
         showcased_group::ShowcasedGroup,
     },
     widget_groups::{
-        ai_group::AiTarget, audio_group::ControlKind, compute_group::ComputeTarget,
-        idle_timeouts_group::TimerKind, media_group::MediaTarget, wallpaper_group::WallpaperTarget,
-        weather_group::WeatherTarget, window_group::WindowTarget,
+        audio_group::ControlKind, claude_usage_group::ClaudeUsageTarget,
+        compute_group::ComputeTarget, idle_timeouts_group::TimerKind, media_group::MediaTarget,
+        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
     },
 };
 
@@ -52,11 +52,11 @@ pub const DEMOS: &[Demo] = &[
     },
     Demo {
         name: "ai-usage",
-        group: ai_usage::group,
-        live: ai_usage::live,
+        group: claude_usage::group,
+        live: claude_usage::live,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::Ai)),
-            Step::Hover(HoverTarget::Ai(AiTarget::ClaudeUsageWindows)),
+            Step::Press(HoverTarget::GroupHandle(GroupHandle::ClaudeUsage)),
+            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
         ],
     },
     Demo {

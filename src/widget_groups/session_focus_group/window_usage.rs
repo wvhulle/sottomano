@@ -2,8 +2,10 @@ use chrono::{DateTime, Utc};
 
 use crate::{
     data::source::focus_ledger::{Accounting, FocusScope, FocusUnit, Interval, WakingWindow},
-    widget_groups::ai_group::amount_text::duration_text,
-    widgets::tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+    widgets::{
+        amount_text::duration_text,
+        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+    },
 };
 
 pub struct WindowUsage<'a> {

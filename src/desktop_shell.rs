@@ -54,11 +54,12 @@ use crate::{
         niri_rules::{NiriRulesFile, StoredRules},
     },
     widget_groups::{
-        ai_group::{AiGroup, AiMessage},
         audio_group::{AudioGroup, AudioMessage},
+        claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
         clock_group::{ClockGroup, ClockMessage},
         color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
         compute_group::{ComputeGroup, ComputeMessage},
+        copilot_usage_group::{CopilotUsageGroup, CopilotUsageMessage},
         dark_mode_group::{DarkModeGroup, DarkModeMessage},
         disk_group::{DiskGroup, DiskMessage},
         gpu_group::{GpuGroup, GpuMessage},
@@ -71,6 +72,7 @@ use crate::{
         net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
         niri_window_group::{NiriWindowGroup, NiriWindowMessage},
         notification_group::{NotificationGroup, NotificationGroupMessage},
+        openrouter_credit_group::{OpenRouterCreditGroup, OpenRouterCreditMessage},
         overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
@@ -129,7 +131,9 @@ pub struct DesktopShell {
     pub idle_timeouts_group: IdleTimeoutsGroup,
     pub media_group: MediaGroup,
     pub audio_group: AudioGroup,
-    pub ai_group: AiGroup,
+    pub claude_usage_group: ClaudeUsageGroup,
+    pub copilot_usage_group: CopilotUsageGroup,
+    pub openrouter_credit_group: OpenRouterCreditGroup,
     pub session_focus_group: SessionFocusGroup,
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
@@ -186,7 +190,9 @@ pub enum Message {
     ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
     SoundThemeLoaded(SoundTheme),
     Audio(AudioMessage),
-    Ai(AiMessage),
+    ClaudeUsage(ClaudeUsageMessage),
+    CopilotUsage(CopilotUsageMessage),
+    OpenRouterCredit(OpenRouterCreditMessage),
     SessionFocus(SessionFocusMessage),
     LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),
@@ -273,7 +279,9 @@ impl DesktopShell {
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
-            ai_group: AiGroup::new(secrets),
+            claude_usage_group: ClaudeUsageGroup::new(secrets.claude_code_oauth),
+            copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
+            openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
             session_focus_group: SessionFocusGroup::started_at(Utc::now()),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
@@ -450,7 +458,18 @@ impl DesktopShell {
             Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
             Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
-            Message::Ai(msg) => self.ai_group.update(msg).map(Message::Ai),
+            Message::ClaudeUsage(msg) => self
+                .claude_usage_group
+                .update(msg)
+                .map(Message::ClaudeUsage),
+            Message::CopilotUsage(msg) => self
+                .copilot_usage_group
+                .update(msg)
+                .map(Message::CopilotUsage),
+            Message::OpenRouterCredit(msg) => self
+                .openrouter_credit_group
+                .update(msg)
+                .map(Message::OpenRouterCredit),
             Message::SessionFocus(msg) => self
                 .session_focus_group
                 .update(msg, self.quiet_schedule_group.waking_window())
@@ -792,7 +811,9 @@ impl DesktopShell {
         self.net_interfaces_group.collapse();
         self.window_group.collapse();
         self.tray_group.collapse();
-        self.ai_group.collapse();
+        self.claude_usage_group.collapse();
+        self.copilot_usage_group.collapse();
+        self.openrouter_credit_group.collapse();
         self.session_focus_group.collapse();
         self.login_session_group.collapse();
         self.notification_group.collapse();

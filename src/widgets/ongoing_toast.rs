@@ -10,8 +10,8 @@ use crate::{
         source::ai::quota::{Pace, Quota, QuotaLimited},
     },
     desktop_shell::hover_tooltips::HoverTarget,
-    widget_groups::ai_group::amount_text::{duration_text, percent_text},
     widgets::{
+        amount_text::{duration_text, percent_text},
         bar_widget::{BarWidget, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
         widget_state::WidgetState,
@@ -61,8 +61,8 @@ fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String 
         Some(Pace::RunsOut { at }) => {
             let runs_out_at = at.with_timezone(&Local);
             format!(
-                "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets \
-                 at {reset_at}.",
+                "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets at \
+                 {reset_at}.",
                 if runs_out_at.date_naive() == today {
                     LocalizedTimeFormat::TimeOfDay.format(&runs_out_at, locale)
                 } else {

@@ -5,8 +5,8 @@ use crate::{
         severity::Severity,
         source::focus_ledger::{Accounting, Interval, WakingWindow},
     },
-    widget_groups::ai_group::amount_text::duration_text,
     widgets::{
+        amount_text::duration_text,
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},

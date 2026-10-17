@@ -4,11 +4,19 @@ use std::{
     time::Duration,
 };
 
-use chrono::{Local, SecondsFormat, TimeZone, Utc};
+use chrono::{DateTime, Local, SecondsFormat, Utc};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::data::source::{PolledSource, Source, ai::read_secret, http};
+use crate::data::source::{
+    PolledSource, Source,
+    ai::{
+        quota::{Quota, QuotaLimited},
+        read_secret,
+        working_time_forecast::{CalendarSpan, SpendBudget},
+    },
+    http,
+};
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
 const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
@@ -16,6 +24,7 @@ const CREDITS_URL: &str = "https://openrouter.ai/api/v1/credits";
 #[derive(Debug, Clone)]
 pub enum Error {
     Secret,
+    LocalMidnight,
     Fetch(http::Error),
     Api(String),
 }
@@ -24,6 +33,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Secret => write!(f, "management key unreadable"),
+            Error::LocalMidnight => write!(f, "local midnight does not exist today"),
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Api(message) => write!(f, "{message}"),
         }
@@ -61,46 +71,117 @@ pub struct Credits {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OpenRouter {
-    pub spend: f64,
-    pub models: Vec<(String, f64)>,
-    pub credits: Credits,
+pub struct ModelSpend {
+    pub model: String,
+    pub cost: f64,
 }
 
-impl OpenRouter {
-    pub fn overspent(&self) -> bool {
-        self.credits.used > self.credits.total
+#[derive(Debug, Clone, PartialEq)]
+pub struct SpanSpend {
+    pub span: CalendarSpan,
+    pub models: Vec<ModelSpend>,
+}
+
+impl SpanSpend {
+    pub fn cost(&self) -> f64 {
+        self.models.iter().map(|model| model.cost).sum()
+    }
+
+    pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
+        self.span.projected_cost(self.cost(), now, budget)
     }
 }
 
-impl Source for OpenRouter {
-    type Error = Error;
-    type Key = PathBuf;
-
-    const NAME: &'static str = "openrouter-usage";
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct OpenRouterAccount {
+    pub management_key: PathBuf,
+    pub budget: SpendBudget,
+    pub daily_warning_usd: u32,
 }
 
-impl PolledSource for OpenRouter {
-    const INTERVAL: Duration = Duration::from_secs(20);
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenRouterSpend {
+    pub budget: SpendBudget,
+    pub daily_warning_usd: u32,
+    pub today: SpanSpend,
+    pub week: SpanSpend,
+    pub month: SpanSpend,
+}
 
-    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
-        let key = read_secret(&key).ok_or(Error::Secret)?;
+impl QuotaLimited for OpenRouterSpend {
+    fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        self.month
+            .span
+            .budget_quota(
+                "OpenRouter monthly budget",
+                self.month.cost(),
+                &self.budget,
+                now.with_timezone(&Local),
+            )
+            .into_iter()
+            .collect()
+    }
+}
 
-        let models = spend_by_model(&key).await?;
+impl Source for OpenRouterSpend {
+    type Error = Error;
+    type Key = OpenRouterAccount;
+
+    const NAME: &'static str = "openrouter-spend";
+}
+
+impl PolledSource for OpenRouterSpend {
+    const INTERVAL: Duration = Duration::from_mins(1);
+
+    async fn poll(account: OpenRouterAccount) -> Result<Self, Self::Error> {
+        let key = read_secret(&account.management_key).ok_or(Error::Secret)?;
+        let today = Local::now().date_naive();
         Ok(Self {
-            spend: models.iter().map(|(_, cost)| cost).sum(),
-            models,
-            credits: credits(&key).await?,
+            today: spend_within(&key, CalendarSpan::day(today)).await?,
+            week: spend_within(&key, CalendarSpan::week_containing(today)).await?,
+            month: spend_within(&key, CalendarSpan::month_containing(today)).await?,
+            budget: account.budget,
+            daily_warning_usd: account.daily_warning_usd,
         })
     }
 }
 
-async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenRouterCreditBalance(pub Credits);
+
+impl OpenRouterCreditBalance {
+    pub fn remaining(&self) -> f64 {
+        self.0.total - self.0.used
+    }
+
+    pub fn overspent(&self) -> bool {
+        self.0.used > self.0.total
+    }
+}
+
+impl Source for OpenRouterCreditBalance {
+    type Error = Error;
+    type Key = PathBuf;
+
+    const NAME: &'static str = "openrouter-credit-balance";
+}
+
+impl PolledSource for OpenRouterCreditBalance {
+    const INTERVAL: Duration = Duration::from_secs(300);
+
+    async fn poll(key: PathBuf) -> Result<Self, Self::Error> {
+        let key = read_secret(&key).ok_or(Error::Secret)?;
+        Ok(Self(credits(&key).await?))
+    }
+}
+
+async fn spend_within(key: &str, span: CalendarSpan) -> Result<SpanSpend, Error> {
+    let start = span.starts_at().ok_or(Error::LocalMidnight)?;
     let payload = json!({
         "metrics": ["total_usage"],
         "dimensions": ["model"],
-        "granularity": "hour",
-        "time_range": { "start": local_midnight_utc(), "end": now_utc() },
+        "granularity": "day",
+        "time_range": { "start": rfc3339(start), "end": rfc3339(Utc::now()) },
         "limit": 1000,
     });
     let auth = format!("Bearer {key}");
@@ -112,19 +193,25 @@ async fn spend_by_model(key: &str) -> Result<Vec<(String, f64)>, Error> {
     }
     let analytics: Envelope<Analytics> = http::decode(resp.body)?;
 
-    let mut per_model: Vec<(String, f64)> = Vec::new();
+    let mut per_model: Vec<ModelSpend> = Vec::new();
     for usage in analytics.data.data {
         let Some(slug) = usage.model.as_deref() else {
             continue;
         };
         let name = short_model(slug);
-        match per_model.iter_mut().find(|(existing, _)| *existing == name) {
-            Some((_, total)) => *total += usage.total_usage,
-            None => per_model.push((name, usage.total_usage)),
+        match per_model.iter_mut().find(|existing| existing.model == name) {
+            Some(existing) => existing.cost += usage.total_usage,
+            None => per_model.push(ModelSpend {
+                model: name,
+                cost: usage.total_usage,
+            }),
         }
     }
-    per_model.sort_by(|a, b| b.1.total_cmp(&a.1));
-    Ok(per_model)
+    per_model.sort_by(|a, b| b.cost.total_cmp(&a.cost));
+    Ok(SpanSpend {
+        span,
+        models: per_model,
+    })
 }
 
 async fn credits(key: &str) -> Result<Credits, Error> {
@@ -134,20 +221,8 @@ async fn credits(key: &str) -> Result<Credits, Error> {
     Ok(envelope.data)
 }
 
-fn local_midnight_utc() -> String {
-    let today = Local::now().date_naive();
-    Local
-        .from_local_datetime(&today.and_hms_opt(0, 0, 0).unwrap_or_default())
-        .single()
-        .map_or_else(now_utc, |midnight| {
-            midnight
-                .with_timezone(&Utc)
-                .to_rfc3339_opts(SecondsFormat::Secs, true)
-        })
-}
-
-fn now_utc() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
+fn rfc3339(at: DateTime<Utc>) -> String {
+    at.to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 fn short_model(slug: &str) -> String {
@@ -177,15 +252,11 @@ mod tests {
 
     #[test]
     fn credits_within_budget_are_not_overspent() {
-        let reading = OpenRouter {
-            spend: 0.0,
-            models: Vec::new(),
-            credits: Credits {
-                total: 25.0,
-                used: 4.5,
-            },
-        };
-        assert!(reading.spend.abs() < f64::EPSILON);
+        let reading = OpenRouterCreditBalance(Credits {
+            total: 25.0,
+            used: 4.5,
+        });
+        assert!((reading.remaining() - 20.5).abs() < f64::EPSILON);
         assert!(!reading.overspent());
     }
 }

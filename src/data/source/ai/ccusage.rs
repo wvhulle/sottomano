@@ -5,21 +5,19 @@ use std::{
     time::Duration,
 };
 
-use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, Weekday};
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use serde::Deserialize;
-use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::{
-    config::calendar::WorkingHours,
-    data::source::{
-        ai::quota::Quota,
-        command::{self, exists},
+use crate::data::source::{
+    ai::{
+        quota::Quota,
+        working_time_forecast::{CalendarSpan, SpendBudget},
     },
+    command::{self, exists},
 };
 
 const PROGRAM: &str = "ccusage";
 pub const POLL_INTERVAL: Duration = Duration::from_secs(15);
-const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -78,42 +76,13 @@ impl Usage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Period {
-    pub since: NaiveDate,
-    pub until: NaiveDate,
+    pub span: CalendarSpan,
     pub usage: Usage,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SpendBudget {
-    pub working_days: Vec<Weekday>,
-    pub working_hours: WorkingHours,
-    pub monthly_limit_usd: Option<u32>,
-}
-
 impl Period {
-    fn elapsed_working_days(&self, now: DateTime<Local>, budget: &SpendBudget) -> f64 {
-        let today = now.date_naive();
-        let whole_days_before_today =
-            count_working_days(self.since, today.min(self.until), &budget.working_days);
-        let today_is_working = (self.since..self.until).contains(&today)
-            && budget.working_days.contains(&today.weekday());
-        let today_share = budget
-            .working_hours
-            .elapsed_share(now.time())
-            .filter(|_| today_is_working)
-            .unwrap_or(0.0);
-        f64::from(whole_days_before_today) + today_share
-    }
-
-    fn elapsed_working_share(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
-        let elapsed = self.elapsed_working_days(now, budget);
-        let whole = count_working_days(self.since, self.until, &budget.working_days);
-        (elapsed >= MIN_ELAPSED_WORKING_DAYS && whole > 0).then(|| elapsed / f64::from(whole))
-    }
-
     pub fn projected_cost(&self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
-        self.elapsed_working_share(now, budget)
-            .map(|share| self.usage.cost / share)
+        self.span.projected_cost(self.usage.cost, now, budget)
     }
 
     pub fn budget_quota(
@@ -122,32 +91,8 @@ impl Period {
         budget: &SpendBudget,
         now: DateTime<Local>,
     ) -> Option<Quota> {
-        let limit_usd = budget.monthly_limit_usd?;
-        let elapsed = self.elapsed_working_share(now, budget)?;
-        Some(Quota {
-            label: label.into(),
-            used: Ratio::new::<ratio>(self.usage.cost / f64::from(limit_usd)),
-            elapsed: Ratio::new::<ratio>(elapsed),
-            starts_at: local_midnight(self.since)?,
-            resets_at: local_midnight(self.until)?,
-        })
+        self.span.budget_quota(label, self.usage.cost, budget, now)
     }
-}
-
-fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
-    Local
-        .from_local_datetime(&day.and_time(NaiveTime::MIN))
-        .earliest()
-        .map(|midnight| midnight.with_timezone(&Utc))
-}
-
-fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: &[Weekday]) -> u32 {
-    since
-        .iter_days()
-        .take_while(|day| *day < until)
-        .filter(|day| working_days.contains(&day.weekday()))
-        .map(|_| 1)
-        .sum()
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -246,11 +191,11 @@ impl From<Totals> for Usage {
 }
 
 impl DailyReport {
-    fn period(&self, since: NaiveDate, until: NaiveDate) -> Period {
+    fn period(&self, span: CalendarSpan) -> Period {
         let days: Vec<&Totals> = self
             .daily
             .iter()
-            .filter(|day| (since..until).contains(&day.date))
+            .filter(|day| span.contains(day.date))
             .map(|day| &day.totals)
             .collect();
         let models: BTreeSet<&str> = days
@@ -258,8 +203,7 @@ impl DailyReport {
             .flat_map(|totals| totals.models_used.iter().map(String::as_str))
             .collect();
         Period {
-            since,
-            until,
+            span,
             usage: Usage {
                 tokens: days.iter().map(|totals| totals.total_tokens).sum(),
                 cost: days.iter().map(|totals| totals.total_cost).sum(),
@@ -269,26 +213,12 @@ impl DailyReport {
     }
 
     fn recent(&self, today: NaiveDate) -> RecentUsage {
-        let week = week_start(today);
-        let month = month_start(today);
         RecentUsage {
-            today: self.period(today, today + TimeDelta::days(1)),
-            week: self.period(week, week + TimeDelta::weeks(1)),
-            month: self.period(month, next_month_start(month)),
+            today: self.period(CalendarSpan::day(today)),
+            week: self.period(CalendarSpan::week_containing(today)),
+            month: self.period(CalendarSpan::month_containing(today)),
         }
     }
-}
-
-fn week_start(day: NaiveDate) -> NaiveDate {
-    day - TimeDelta::days(i64::from(day.weekday().num_days_from_monday()))
-}
-
-fn month_start(day: NaiveDate) -> NaiveDate {
-    day - TimeDelta::days(i64::from(day.day0()))
-}
-
-fn next_month_start(first_of_month: NaiveDate) -> NaiveDate {
-    month_start(first_of_month + TimeDelta::days(31))
 }
 
 impl MonthlyReport {
@@ -312,7 +242,9 @@ pub async fn installed() -> bool {
 
 pub async fn recent(agent: Agent) -> Result<RecentUsage, Error> {
     let today = Local::now().date_naive();
-    let since = week_start(today).min(month_start(today));
+    let since = CalendarSpan::week_containing(today)
+        .since
+        .min(CalendarSpan::month_containing(today).since);
     let raw = report(agent, "daily", &since.format("%Y%m%d").to_string()).await?;
     let report: DailyReport = serde_json::from_str(&raw)?;
     Ok(report.recent(today))
@@ -331,11 +263,9 @@ pub async fn this_month(agent: Agent) -> Result<CurrentMonth, Error> {
     let name = now.format("%Y-%m").to_string();
     let raw = report(agent, "monthly", &first_of_month).await?;
     let report: MonthlyReport = serde_json::from_str(&raw)?;
-    let since = month_start(now.date_naive());
     Ok(CurrentMonth {
         period: Period {
-            since,
-            until: next_month_start(since),
+            span: CalendarSpan::month_containing(now.date_naive()),
             usage: report.month(&name),
         },
         name,
@@ -350,7 +280,10 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
 
 #[cfg(test)]
 mod tests {
+    use chrono::Weekday;
+
     use super::*;
+    use crate::config::calendar::WorkingHours;
 
     const OLD_MONTH_REPORT: &str = r#"{"monthly":[{
         "month": "2026-06", "totalTokens": 5000, "totalCost": 1.25,
@@ -401,13 +334,13 @@ mod tests {
         let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
         let recent = report.recent(date("2026-10-01"));
         assert_eq!(recent.today.usage.tokens, 40);
-        assert_eq!(recent.week.since, date("2026-09-28"));
-        assert_eq!(recent.week.until, date("2026-10-05"));
+        assert_eq!(recent.week.span.since, date("2026-09-28"));
+        assert_eq!(recent.week.span.until, date("2026-10-05"));
         assert_eq!(recent.week.usage.tokens, 70);
         assert!((recent.week.usage.cost - 7.0).abs() < f64::EPSILON);
         assert_eq!(recent.week.usage.models, "claude-opus-5-5, claude-sonnet-5");
-        assert_eq!(recent.month.since, date("2026-10-01"));
-        assert_eq!(recent.month.until, date("2026-11-01"));
+        assert_eq!(recent.month.span.since, date("2026-10-01"));
+        assert_eq!(recent.month.span.until, date("2026-11-01"));
         assert_eq!(recent.month.usage.tokens, 40);
     }
 
@@ -415,12 +348,6 @@ mod tests {
     fn an_idle_day_reports_no_usage() {
         let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
         assert!(!report.recent(date("2026-10-02")).today.usage.active());
-    }
-
-    #[test]
-    fn december_rolls_over_into_january() {
-        assert_eq!(next_month_start(date("2026-12-01")), date("2027-01-01"));
-        assert_eq!(next_month_start(date("2026-02-01")), date("2026-03-01"));
     }
 
     fn weekday_budget() -> SpendBudget {

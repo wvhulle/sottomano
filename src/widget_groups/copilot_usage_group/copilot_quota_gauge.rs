@@ -6,14 +6,12 @@ use crate::{
         copilot::{CopilotMetered, USER_ENDPOINT},
         quota::QuotaLimited,
     },
-    widget_groups::ai_group::{
-        amount_text::{percent_text, to_cents},
-        spend_to_level::level_from_used,
-    },
     widgets::{
+        amount_text::{percent_text, to_cents},
         bar_widget::{BarWidget, Glyph, Occasional},
         localized_time::LocalizedTimeFormat,
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -25,7 +23,11 @@ impl BarWidget for CopilotMetered {
     }
 
     fn icon(&self) -> Glyph {
-        SimpleIcon::GithubCopilot.into()
+        Phosphor::Gauge(self.state().weight()).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::Gauge(Weight::Regular).into()
     }
 
     fn state(&self) -> WidgetState {
