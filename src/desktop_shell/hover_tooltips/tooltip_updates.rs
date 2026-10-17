@@ -24,6 +24,9 @@ impl DesktopShell {
                 anchor,
                 press_hints,
             } => {
+                if self.is_dragging() {
+                    return Task::none();
+                }
                 let Some(host) = self.surfaces.get(&surface).filter(|_| {
                     self.tooltip_for(&target).is_some_and(|tooltip| {
                         !tooltip.is_empty() || !press_hints.gestures().is_empty()

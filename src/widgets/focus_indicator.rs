@@ -69,43 +69,18 @@ impl<Message> FocusIndicator<'_, Message> {
         }
     }
 
-    fn band(&self, slots: Rectangle, slot: Rectangle, travelled: Travelled) -> Rectangle {
-        match self.edge {
-            Position::Bottom => Rectangle {
-                x: travelled.start,
-                y: slot.y,
-                width: travelled.extent,
-                height: self.thickness,
-            },
-            Position::Top => Rectangle {
-                x: travelled.start,
-                y: slot.y + slot.height - self.thickness,
-                width: travelled.extent,
-                height: self.thickness,
-            },
-            Position::Left => Rectangle {
-                x: slots.x + slots.width - self.thickness,
-                y: travelled.start,
-                width: self.thickness,
-                height: travelled.extent,
-            },
-        }
-    }
-
-    fn backdrop(&self, slots: Rectangle, travelled: Travelled) -> Rectangle {
+    fn travelled_slot(&self, slot: Rectangle, travelled: Travelled) -> Rectangle {
         if self.edge.is_vertical() {
             Rectangle {
-                x: slots.x,
                 y: travelled.start,
-                width: slots.width,
                 height: travelled.extent,
+                ..slot
             }
         } else {
             Rectangle {
                 x: travelled.start,
-                y: slots.y,
                 width: travelled.extent,
-                height: slots.height,
+                ..slot
             }
         }
     }
@@ -114,6 +89,41 @@ impl<Message> FocusIndicator<'_, Message> {
         self.active_slot(layout)?;
         let travel = tree.state.downcast_ref::<State>().travel.as_ref()?;
         Some(travel.travelled(Instant::now()))
+    }
+}
+
+fn edge_band(edge: Position, slots: Rectangle, slot: Rectangle, thickness: f32) -> Rectangle {
+    match edge {
+        Position::Bottom => Rectangle {
+            height: thickness,
+            ..slot
+        },
+        Position::Top => Rectangle {
+            y: slot.y + slot.height - thickness,
+            height: thickness,
+            ..slot
+        },
+        Position::Left => Rectangle {
+            x: slots.x + slots.width - thickness,
+            width: thickness,
+            ..slot
+        },
+    }
+}
+
+fn edge_backdrop(edge: Position, slots: Rectangle, slot: Rectangle) -> Rectangle {
+    if edge.is_vertical() {
+        Rectangle {
+            x: slots.x,
+            width: slots.width,
+            ..slot
+        }
+    } else {
+        Rectangle {
+            y: slots.y,
+            height: slots.height,
+            ..slot
+        }
     }
 }
 
@@ -201,11 +211,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let travelled = self.travelled(tree, layout);
-        if let Some(travelled) = travelled {
+        let slots = layout.bounds();
+        let travelled_slot = self
+            .travelled(tree, layout)
+            .and_then(|travelled| Some(self.travelled_slot(self.active_slot(layout)?, travelled)));
+        if let Some(slot) = travelled_slot {
             renderer.fill_quad(
                 renderer::Quad {
-                    bounds: self.backdrop(layout.bounds(), travelled),
+                    bounds: edge_backdrop(self.edge, slots, slot),
                     snap: false,
                     ..renderer::Quad::default()
                 },
@@ -221,15 +234,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
             cursor,
             viewport,
         );
-        let Some(travelled) = travelled else {
-            return;
-        };
-        let Some(slot) = self.active_slot(layout) else {
+        let Some(slot) = travelled_slot else {
             return;
         };
         renderer.fill_quad(
             renderer::Quad {
-                bounds: self.band(layout.bounds(), slot, travelled),
+                bounds: edge_band(self.edge, slots, slot, self.thickness),
                 border: border::rounded(self.thickness / 2.0),
                 snap: false,
                 ..renderer::Quad::default()

@@ -1,10 +1,12 @@
-use iced::Element;
+use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
 
 use crate::{
     config::Config,
     data::source::{desktop_entries::DesktopIndex, niri::Snapshot},
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{
+        Message, hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,
+    },
     readme_showcase::fixtures::{compute, niri_session},
     widget_groups::{
         ai_group::AiGroup,
@@ -24,6 +26,13 @@ use crate::{
 };
 
 pub const SHOWCASE_OUTPUT: &str = "readme-showcase";
+
+fn undragged() -> DragView {
+    DragView {
+        drag: None,
+        ghost_frame: container::Style::default(),
+    }
+}
 
 pub enum ShowcasedGroup {
     Compute(Box<ComputeGroup>),
@@ -55,7 +64,9 @@ impl ShowcasedNiriSession {
     fn sidebar_groups<'a>(&'a self, config: &'a Config) -> Vec<Element<'a, Message>> {
         self.snapshot
             .get()
-            .and_then(|snapshot| workspaces_group::vertical_view(snapshot, SHOWCASE_OUTPUT, config))
+            .and_then(|snapshot| {
+                workspaces_group::vertical_view(snapshot, SHOWCASE_OUTPUT, config, &undragged())
+            })
             .map(|workspaces| workspaces.map(Message::from))
             .into_iter()
             .collect()
@@ -65,9 +76,14 @@ impl ShowcasedNiriSession {
         let Some(snapshot) = self.snapshot.get() else {
             return Vec::new();
         };
-        let workspaces =
-            workspaces_group::inline_view(snapshot, SHOWCASE_OUTPUT, config, Position::Bottom)
-                .map(|workspaces| workspaces.map(Message::from));
+        let workspaces = workspaces_group::inline_view(
+            snapshot,
+            SHOWCASE_OUTPUT,
+            config,
+            Position::Bottom,
+            &undragged(),
+        )
+        .map(|workspaces| workspaces.map(Message::from));
         let windows = self
             .window_group
             .view(
@@ -81,6 +97,7 @@ impl ShowcasedNiriSession {
                 SHOWCASE_OUTPUT,
                 config,
                 Position::Bottom,
+                &undragged(),
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))));
         workspaces.into_iter().chain(windows).collect()

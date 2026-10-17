@@ -62,6 +62,7 @@ pub enum BodyClick {
 
 pub enum EventSource {
     DbusClient,
+    ShellFailure,
     LevelAnnouncement {
         hover_target: HoverTarget,
         glyph: Glyph,
@@ -99,7 +100,7 @@ impl ToastKind {
                 ..
             } => Some(*glyph),
             Self::Event {
-                source: EventSource::DbusClient,
+                source: EventSource::DbusClient | EventSource::ShellFailure,
                 ..
             }
             | Self::Ongoing { .. } => None,
@@ -122,6 +123,17 @@ impl ToastContent {
                 source: EventSource::DbusClient,
             },
             body_click: BodyClick::DbusDefaultAction,
+        }
+    }
+
+    pub(super) fn shell_failure(data: NotificationData, on_body_clicked: Message) -> Self {
+        Self {
+            data,
+            kind: ToastKind::Event {
+                at: SystemTime::now(),
+                source: EventSource::ShellFailure,
+            },
+            body_click: BodyClick::Shell(on_body_clicked),
         }
     }
 

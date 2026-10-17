@@ -23,7 +23,7 @@ use crate::{
         notifications::model::{NotificationData, Outbound, close_reason},
         severity::Severity,
         sink::sound::{self, SoundTheme},
-        source::niri::Placement,
+        source::niri::{self, Placement},
     },
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
@@ -313,6 +313,27 @@ impl NotificationLayer {
                 on_body_clicked: Message::OpenUrl(path.display().to_string()),
                 action_buttons: Vec::new(),
             },
+            context,
+        )
+    }
+
+    pub fn show_niri_failure(
+        &mut self,
+        failure: &niri::ActionFailure,
+        context: &ToastContext,
+    ) -> Task<Message> {
+        let toast_id = self.fresh_shell_toast_id();
+        let data = NotificationData {
+            severity: Severity::Warning,
+            body: Some(format!(
+                "{}<pre>{}</pre>",
+                escape(failure.reason()),
+                escape(failure.action())
+            )),
+            ..NotificationData::from_shell(toast_id, failure.summary())
+        };
+        self.serve(
+            ToastContent::shell_failure(data, Message::CopyText(failure.to_string())),
             context,
         )
     }

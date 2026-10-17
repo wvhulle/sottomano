@@ -167,6 +167,101 @@ impl Snapshot {
         ids.dedup();
         ids
     }
+
+    #[must_use]
+    pub fn with_workspace_moved(mut self, workspace: u64, to_idx: usize) -> Self {
+        let Some(indicators) = self
+            .workspaces
+            .values_mut()
+            .find(|indicators| indicators.iter().any(|indicator| indicator.id == workspace))
+        else {
+            return self;
+        };
+        let Some(from) = indicators
+            .iter()
+            .position(|indicator| indicator.id == workspace)
+        else {
+            return self;
+        };
+        let moved = indicators.remove(from);
+        indicators.insert(to_idx.saturating_sub(1).min(indicators.len()), moved);
+        indicators
+            .iter_mut()
+            .zip(1..)
+            .for_each(|(indicator, idx)| indicator.idx = idx);
+        self
+    }
+
+    #[must_use]
+    pub fn with_column_moved(mut self, window: u64, to_column: usize) -> Self {
+        let Some(from_column) = self
+            .windows
+            .values()
+            .flatten()
+            .find(|entry| entry.id == window)
+            .and_then(|entry| entry.layout.column)
+        else {
+            return self;
+        };
+        self.windows.values_mut().for_each(|entries| {
+            let holds_window = entries.iter().any(|entry| entry.id == window);
+            entries.iter_mut().for_each(|entry| {
+                entry.is_focused = entry.id == window;
+                if holds_window {
+                    entry.layout.column = entry
+                        .layout
+                        .column
+                        .map(|column| column_after_move(column, from_column, to_column));
+                }
+            });
+            if holds_window {
+                entries.sort_by_key(column_order);
+            }
+        });
+        self
+    }
+
+    #[must_use]
+    pub fn with_window_moved_to_workspace(mut self, window: u64, workspace: u64) -> Self {
+        let Some(moved) = self.windows.values_mut().find_map(|entries| {
+            let index = entries.iter().position(|entry| entry.id == window)?;
+            Some(entries.remove(index))
+        }) else {
+            return self;
+        };
+        let target = self.windows.entry(workspace).or_default();
+        let next_column = target
+            .iter()
+            .filter_map(|entry| entry.layout.column)
+            .max()
+            .map_or(1, |column| column + 1);
+        target.push(WinEntry {
+            is_focused: false,
+            layout: WinLayout {
+                column: moved.layout.column.map(|_| next_column),
+                ..moved.layout.clone()
+            },
+            ..moved
+        });
+        target.sort_by_key(column_order);
+        self
+    }
+}
+
+fn column_order(entry: &WinEntry) -> usize {
+    entry.layout.column.unwrap_or(usize::MAX)
+}
+
+fn column_after_move(column: usize, from: usize, to: usize) -> usize {
+    if column == from {
+        to
+    } else if from < column && column <= to {
+        column - 1
+    } else if to <= column && column < from {
+        column + 1
+    } else {
+        column
+    }
 }
 
 fn exit_without_niri(reason: &dyn fmt::Display) -> ! {
@@ -477,13 +572,68 @@ fn unique<T>(iter: &mut impl Iterator<Item = T>) -> Option<T> {
     }
 }
 
-pub fn send_action(action: &niri_ipc::Action) {
+#[derive(Debug, Clone)]
+pub enum ActionFailure {
+    Rejected { action: String, reason: String },
+    Unreachable { action: String, reason: String },
+}
+
+impl ActionFailure {
+    pub fn summary(&self) -> &'static str {
+        match self {
+            ActionFailure::Rejected { .. } => "niri refused a request from the bar",
+            ActionFailure::Unreachable { .. } => "The bar could not reach niri",
+        }
+    }
+
+    pub fn reason(&self) -> &str {
+        match self {
+            ActionFailure::Rejected { reason, .. } | ActionFailure::Unreachable { reason, .. } => {
+                reason
+            }
+        }
+    }
+
+    pub fn action(&self) -> &str {
+        match self {
+            ActionFailure::Rejected { action, .. } | ActionFailure::Unreachable { action, .. } => {
+                action
+            }
+        }
+    }
+}
+
+impl fmt::Display for ActionFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}: {} ({})",
+            self.summary(),
+            self.reason(),
+            self.action()
+        )
+    }
+}
+
+pub fn send_action(action: &niri_ipc::Action) -> Result<(), ActionFailure> {
     let sent =
         Socket::connect().and_then(|mut socket| socket.send(Request::Action(action.clone())));
     match sent {
-        Ok(Ok(_)) => {}
-        Ok(Err(rejection)) => tracing::warn!("niri rejected {action:?}: {rejection}"),
-        Err(e) => tracing::warn!("niri unreachable for {action:?}: {e}"),
+        Ok(Ok(_)) => Ok(()),
+        Ok(Err(rejection)) => Err(ActionFailure::Rejected {
+            action: format!("{action:?}"),
+            reason: rejection,
+        }),
+        Err(e) => Err(ActionFailure::Unreachable {
+            action: format!("{action:?}"),
+            reason: e.to_string(),
+        }),
+    }
+}
+
+pub fn send_action_or_warn(action: &niri_ipc::Action) {
+    if let Err(failure) = send_action(action) {
+        tracing::warn!("{failure}");
     }
 }
 
