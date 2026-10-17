@@ -13,10 +13,9 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::data::source::{
-    Delivery, LiveSource, Source,
-    app_rules::{IconCandidate, WindowLabel},
-    delivered,
-    window_agents::WindowProcesses,
+    Delivery, LiveSource, Source, delivered,
+    kitty_windows::WindowProcesses,
+    window_label::{IconCandidate, WindowLabel},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

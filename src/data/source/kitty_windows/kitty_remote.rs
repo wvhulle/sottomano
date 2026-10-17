@@ -226,7 +226,7 @@ mod tests {
     use std::path::Path;
 
     use super::OsWindow;
-    use crate::data::source::window_agents::kitty_window_label::{
+    use crate::data::source::kitty_windows::kitty_window_label::{
         ForegroundActivity, KittyWindowLabel, WorkingLocation,
     };
 

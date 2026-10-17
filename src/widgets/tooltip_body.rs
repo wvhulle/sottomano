@@ -12,7 +12,8 @@ use crate::{
     data::{
         severity::Severity,
         source::{
-            app_rules::WindowLabel, process::Process, session_action::SessionAction, tray::MenuNode,
+            process::Process, session_action::SessionAction, tray::MenuNode,
+            window_label::WindowLabel,
         },
     },
     desktop_shell::hover_tooltips::PressHints,

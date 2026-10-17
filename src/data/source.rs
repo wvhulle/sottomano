@@ -17,7 +17,6 @@ use crate::message_subscriptions::ticked;
 
 pub mod ai;
 pub mod app_icon;
-pub mod app_rules;
 pub mod audio;
 pub mod backlight;
 pub mod bus;
@@ -40,6 +39,7 @@ pub mod idle_notify;
 pub mod job_view;
 pub mod journal;
 pub mod kernel_errors;
+pub mod kitty_windows;
 pub mod launch_tracker;
 pub mod launcher_entry;
 pub mod logind;
@@ -65,7 +65,7 @@ pub mod tray;
 pub mod umbra;
 pub mod wallpaper;
 pub mod weather;
-pub mod window_agents;
+pub mod window_label;
 pub mod wireguard;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

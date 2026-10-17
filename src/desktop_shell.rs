@@ -33,13 +33,13 @@ use crate::{
         sink::sound::SoundTheme,
         source::{
             app_icon::{self, DesktopEntries},
-            app_rules::WindowLabel,
             command::blocking::run,
             desktop_entries::{self, DesktopIndex, ResolvedIcons},
             favicons::RawFavicon,
             launch_tracker::{Launch, LaunchTracker},
             niri::{self, WindowOwner},
             niri_config::{ConfiguredWorkspaces, NiriConfigFile},
+            window_label::WindowLabel,
         },
     },
     desktop_shell::{

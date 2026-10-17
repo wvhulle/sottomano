@@ -4,7 +4,7 @@ use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
 use super::niri;
-use crate::data::source::app_rules::IconCandidate;
+use crate::data::source::window_label::IconCandidate;
 
 #[derive(Debug)]
 pub struct DesktopEntries {

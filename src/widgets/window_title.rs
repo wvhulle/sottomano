@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Font,
+    Element, Font,
     widget::{
         rich_text,
         text::{Span, Wrapping},
@@ -8,7 +8,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::app_rules::WindowLabel,
+    data::source::window_label::WindowLabel,
     widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span},
 };
 
@@ -48,33 +48,28 @@ impl<'a> WindowTitle<'a> {
     }
 
     fn main_spans(&self, content: &str) -> Vec<Span<'static>> {
-        let font = &self.config.theme.font;
-        self.styled(
-            content,
-            font.iced_font,
-            self.config.theme.palette.bar_foreground,
-        )
+        self.styled(content, self.config.theme.font.iced_font)
     }
 
     fn context_spans(&self, content: &str) -> Vec<Span<'static>> {
-        let font = &self.config.theme.font;
-        self.styled(content, font.italic(), self.config.theme.palette.inactive)
+        self.styled(content, self.config.theme.font.italic())
     }
 
     fn separator_spans(&self) -> Vec<Span<'static>> {
-        let font = &self.config.theme.font;
-        self.styled(
-            SEPARATOR,
-            font.iced_font,
-            self.config.theme.palette.inactive,
-        )
+        self.styled(SEPARATOR, self.config.theme.font.iced_font)
     }
 
-    fn styled(&self, content: &str, base: Font, color: Color) -> Vec<Span<'static>> {
+    fn styled(&self, content: &str, base: Font) -> Vec<Span<'static>> {
+        let color = self
+            .config
+            .theme
+            .palette
+            .bar_foreground
+            .scale_alpha(self.opacity);
         self.fallbacks
             .runs(&self.config.theme.font, content, base)
             .into_iter()
-            .map(|(text, font)| colored_span(text, font, color.scale_alpha(self.opacity)))
+            .map(|(text, font)| colored_span(text, font, color))
             .collect()
     }
 

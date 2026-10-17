@@ -13,8 +13,8 @@ use window_list::{WindowList, WindowListMessage};
 use crate::{
     config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
-        app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched,
-        window_agents::WindowProcesses,
+        app_icon::DesktopEntries, audio::WindowAudio, kitty_windows::WindowProcesses, niri,
+        process::Watched,
     },
     desktop_shell::{
         hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,

@@ -7,7 +7,7 @@ use iced::{
 
 use crate::{
     config::Config,
-    data::source::app_rules::WindowLabel,
+    data::source::window_label::WindowLabel,
     desktop_shell::Message,
     widgets::{
         favicon::Favicons,
