@@ -145,7 +145,9 @@ impl SessionAction {
         match self {
             SessionAction::Lock => logind::lock(),
             SessionAction::LockAllSessions => logind::lock_all_sessions(),
-            SessionAction::ScreenOff => niri::send_action(&niri_ipc::Action::PowerOffMonitors {}),
+            SessionAction::ScreenOff => {
+                niri::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
+            }
             SessionAction::Sleep => logind::sleep(),
             SessionAction::Suspend => logind::suspend(),
             SessionAction::Hibernate => logind::hibernate(),
@@ -157,7 +159,7 @@ impl SessionAction {
             SessionAction::Halt => logind::halt(),
             SessionAction::PowerOff => logind::power_off(),
             SessionAction::CancelScheduledShutdown => logind::cancel_scheduled_shutdown(),
-            SessionAction::LogOut => niri::send_action(&niri_ipc::Action::Quit {
+            SessionAction::LogOut => niri::send_action_or_warn(&niri_ipc::Action::Quit {
                 skip_confirmation: true,
             }),
             SessionAction::TerminateSession => logind::terminate_session(),

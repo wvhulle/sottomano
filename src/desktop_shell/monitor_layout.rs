@@ -4,8 +4,16 @@ use iced::{
     window::Id,
 };
 
-use crate::desktop_shell::{
-    DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
+use crate::{
+    desktop_shell::{
+        DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
+        pointer_drag::DraggedItem,
+    },
+    widget_groups::{window_group::WindowGroupMessage, workspaces_group},
+    widgets::{
+        pointer_drag::drag_ghost::{GhostPlacement, drag_ghost},
+        window_icon::WindowAssets,
+    },
 };
 
 impl DesktopShell {
@@ -40,6 +48,49 @@ impl DesktopShell {
             ]
             .padding(float)
         ]
+        .extend(self.drag_ghost_layer(window, output))
         .into()
+    }
+
+    fn drag_ghost_layer<'a>(&'a self, window: Id, output: &'a str) -> Option<Element<'a, Message>> {
+        let view = self.drag_view();
+        let drag = view.drag.filter(|drag| drag.surface == window)?;
+        let snapshot = self.niri_snapshot.get()?;
+        let card = match drag.item {
+            DraggedItem::Workspace(workspace) => {
+                workspaces_group::drag_ghost(snapshot, output, workspace, &self.config, &view)?
+                    .map(Message::from)
+            }
+            DraggedItem::Window { window, .. } => self
+                .window_group
+                .window_list
+                .drag_ghost(
+                    snapshot,
+                    WindowAssets {
+                        entries: &self.desktop_entries,
+                        favicons: &self.favicons,
+                        fallbacks: &self.font_fallbacks,
+                    },
+                    self.audio_group.window_audio(),
+                    window,
+                    &self.config,
+                    &view,
+                )?
+                .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
+        };
+        let placement = match drag.item {
+            DraggedItem::Window { .. } if view.has_left_its_list() => {
+                GhostPlacement::BesideCursor {
+                    gap: self.config.theme.font.icon_size_px,
+                }
+            }
+            DraggedItem::Window { .. } | DraggedItem::Workspace(_) => GhostPlacement::UnderCursor,
+        };
+        Some(drag_ghost(
+            card,
+            &drag,
+            placement,
+            self.config.panel_bar.drag_ghost_scale,
+        ))
     }
 }

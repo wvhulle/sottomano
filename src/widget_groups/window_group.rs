@@ -16,7 +16,9 @@ use crate::{
         app_icon::DesktopEntries, audio::WindowAudio, niri, process::Watched,
         window_agents::WindowProcesses,
     },
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{
+        hover_tooltips::HoverTarget, monitor_surfaces::Position, pointer_drag::DragView,
+    },
     widgets::{
         continuous_reading::ContinuousReading, tooltip_body::Tooltip, widget_group::GroupEvent,
         window_icon::WindowAssets,
@@ -118,6 +120,7 @@ impl WindowGroup {
         self.quick_launch.icon_keys()
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
@@ -126,6 +129,7 @@ impl WindowGroup {
         output: &str,
         config: &'a Config,
         position: Position,
+        drag: &DragView,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let quick_launch = self
             .quick_launch
@@ -134,7 +138,7 @@ impl WindowGroup {
             .view(config, position);
         let window_list = self
             .window_list
-            .view(niri, icons, audio, output, config, position)
+            .view(niri, icons, audio, output, config, position, drag)
             .map(|element| {
                 element.map(|message| match message {
                     WindowListMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),

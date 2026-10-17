@@ -66,6 +66,7 @@ impl DesktopShell {
                 output,
                 &self.config,
                 Position::Bottom,
+                &self.drag_view(),
             )
             .map(|workspaces| workspaces.map(Message::from)),
         }
@@ -84,6 +85,7 @@ impl DesktopShell {
                 output,
                 &self.config,
                 Position::Bottom,
+                &self.drag_view(),
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }

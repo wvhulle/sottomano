@@ -30,7 +30,9 @@ impl DesktopShell {
             == WorkspacesPlacement::Sidebar)
             .then(|| self.niri_snapshot.get())
             .flatten()
-            .and_then(|snapshot| workspaces_group::vertical_view(snapshot, output, config))
+            .and_then(|snapshot| {
+                workspaces_group::vertical_view(snapshot, output, config, &self.drag_view())
+            })
             .map(|workspaces| {
                 panel_frame(
                     container(workspaces.map(Message::from))

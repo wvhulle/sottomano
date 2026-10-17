@@ -1,12 +1,12 @@
 use std::{collections::HashMap, time::Duration};
 
 use iced::{
-    Alignment, Element, Length, Subscription, Task,
+    Alignment, Border, Element, Length, Subscription, Task,
     alignment::{Horizontal, Vertical},
     border,
     border::Radius,
     time::every,
-    widget::{Row, button, container, mouse_area, progress_bar, rich_text, stack, text},
+    widget::{Row, container, progress_bar, rich_text, stack, text},
 };
 
 use crate::{
@@ -25,16 +25,24 @@ use crate::{
     desktop_shell::{
         hover_tooltips::{PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
+        pointer_drag::{
+            DragMessage, DragView, DraggedItem, SlotClick, SlotDragEvent, SlotList, SlotPress,
+        },
     },
     widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},
     widgets::{
+        DISABLED_ALPHA,
         activity_line::activity_line,
         bar_widget::Glyph,
-        flat_button,
         focus_indicator::focus_indicator,
         on_hover_reading::OnHoverReading,
         pager_slot::PagerSlot,
+        panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
+        pointer_drag::{
+            draggable_slot::{draggable_slot, draggable_slot_list},
+            keyed_slot_list::keyed_slot_list,
+        },
         text::LINE_HEIGHT,
         tooltip_body::{Section, SourcedSection},
         widget_state::WidgetState,
@@ -62,8 +70,6 @@ pub struct WindowList {
 
 #[derive(Debug, Clone)]
 pub enum WindowListMessage {
-    Clicked(u64),
-    MaximizeToggled,
     ToggleAudio(i32),
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(Jobs),
@@ -76,14 +82,14 @@ pub enum WindowListMessage {
     IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
+    Drag(DragMessage),
 }
 
 pub enum Action {
     None,
-    FocusWindow(u64),
-    MaximizeColumn,
     ToggleAudio(i32),
     RefreshIcons,
+    Drag(DragMessage),
 }
 
 impl WindowList {
@@ -159,8 +165,6 @@ impl WindowList {
 
     pub fn update(&mut self, msg: WindowListMessage) -> Action {
         match msg {
-            WindowListMessage::Clicked(window) => Action::FocusWindow(window),
-            WindowListMessage::MaximizeToggled => Action::MaximizeColumn,
             WindowListMessage::ToggleAudio(pid) => Action::ToggleAudio(pid),
             WindowListMessage::LauncherEntriesChanged(entries) => {
                 self.launcher = entries;
@@ -201,9 +205,11 @@ impl WindowList {
                 self.scroll = self.scroll.clamp(0.0, self.metrics.max_scroll());
                 Action::None
             }
+            WindowListMessage::Drag(drag) => Action::Drag(drag),
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
         niri: &niri::Snapshot,
@@ -212,47 +218,136 @@ impl WindowList {
         output: &str,
         config: &Config,
         position: Position,
+        drag: &DragView,
     ) -> Option<Element<'a, WindowListMessage>> {
-        let workspace = niri.active_workspace_id(output)?;
+        let workspace = drag
+            .window_source_workspace()
+            .filter(|source| {
+                niri.workspaces_for_output(output)
+                    .iter()
+                    .any(|indicator| indicator.id == *source)
+            })
+            .or_else(|| niri.active_workspace_id(output))?;
         let windows = niri.windows_on_workspace(workspace);
         if windows.is_empty() {
             return None;
         }
-        let focused_index = windows.iter().position(|win| win.is_focused);
-        let buttons = windows.iter().enumerate().map(|(i, win)| {
-            let opacity = self.metrics.item_opacity(self.scroll, i);
-            let extras = Extras {
-                audio: config
-                    .widget_groups
-                    .window_list
-                    .audio_indicator
-                    .then(|| win.pid.and_then(|pid| audio?.get(&pid)).copied())
-                    .flatten(),
-                launcher: win.app_id.as_deref().and_then(|id| self.launcher.get(id)),
-                job: win.app_id.as_deref().and_then(|id| self.jobs.get(id)),
+        let dragged_item = |win: &niri::WinEntry| DraggedItem::Window {
+            window: win.id,
+            workspace,
+        };
+        let order = drag.previewed(windows, dragged_item);
+        let focused_index = order.iter().position(|win| win.is_focused);
+        let slots = order.iter().enumerate().map(|(position_in_bar, win)| {
+            let item = dragged_item(win);
+            let dimming = if drag.is_dragging(item) {
+                DISABLED_ALPHA
+            } else {
+                1.0
             };
-            window_button(config, icons, win, extras, position, opacity)
+            let opacity = self.metrics.item_opacity(self.scroll, position_in_bar) * dimming;
+            let slot = WindowSlot {
+                win,
+                item,
+                extras: self.extras(win, audio, config),
+                position_in_bar,
+                opacity,
+            };
+            (item, slot.view(config, icons, position, drag))
         });
-        let row = Row::with_children(buttons)
-            .height(Length::Fill)
-            .align_y(Alignment::Center);
         let focus_opacity =
             focused_index.map_or(1.0, |i| self.metrics.item_opacity(self.scroll, i));
         let indicated = focus_indicator(
-            row,
+            keyed_slot_list(slots, position, config),
             focused_index,
             config.theme.palette.focus.scale_alpha(focus_opacity),
             config,
         )
         .edge(position);
         Some(window_list_viewport(
-            indicated,
+            draggable_slot_list(indicated, SlotList::Windows, drag, dragged),
             self.scroll,
             focused_index,
             WindowListMessage::Scrolled,
             WindowListMessage::MetricsChanged,
         ))
     }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn drag_ghost<'a>(
+        &'a self,
+        niri: &niri::Snapshot,
+        icons: WindowAssets<'a>,
+        audio: Option<&HashMap<i32, WindowAudio>>,
+        window: u64,
+        config: &Config,
+        drag: &DragView,
+    ) -> Option<Element<'a, WindowListMessage>> {
+        let win = niri
+            .windows_on_workspace(drag.window_source_workspace()?)
+            .iter()
+            .find(|win| win.id == window)?;
+        let rule = win.app_rule();
+        if drag.has_left_its_list() {
+            let icon = resolved_icon(config, icons, rule, win, 1.0)?;
+            let inset = config.layout.overlay.content_inset;
+            let circle = container::Style {
+                border: Border {
+                    radius: (config.theme.font.icon_size_px / 2.0 + inset).into(),
+                    ..drag.ghost_frame.border
+                },
+                ..drag.ghost_frame
+            };
+            return Some(panel_frame(container(icon).padding(inset), &circle).into());
+        }
+        let content = button_content(
+            config,
+            icons,
+            rule,
+            win,
+            self.extras(win, audio, config),
+            1.0,
+        );
+        Some(
+            panel_frame(
+                container(content)
+                    .padding([0.0, config.layout.panel.group_padding])
+                    .center_y(config.layout.panel.height),
+                &drag.ghost_frame,
+            )
+            .into(),
+        )
+    }
+
+    fn extras(
+        &self,
+        win: &niri::WinEntry,
+        audio: Option<&HashMap<i32, WindowAudio>>,
+        config: &Config,
+    ) -> Extras<'_> {
+        Extras {
+            audio: config
+                .widget_groups
+                .window_list
+                .audio_indicator
+                .then(|| win.pid.and_then(|pid| audio?.get(&pid)).copied())
+                .flatten(),
+            launcher: win.app_id.as_deref().and_then(|id| self.launcher.get(id)),
+            job: win.app_id.as_deref().and_then(|id| self.jobs.get(id)),
+        }
+    }
+}
+
+fn dragged(event: SlotDragEvent) -> WindowListMessage {
+    WindowListMessage::Drag(DragMessage::Pointer(event))
+}
+
+struct WindowSlot<'w, 'e> {
+    win: &'w niri::WinEntry,
+    item: DraggedItem,
+    extras: Extras<'e>,
+    position_in_bar: usize,
+    opacity: f32,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -286,7 +381,49 @@ impl Extras<'_> {
     }
 }
 
-fn window_button<'a>(
+impl WindowSlot<'_, '_> {
+    fn view<'a>(
+        self,
+        config: &Config,
+        icons: WindowAssets<'a>,
+        position: Position,
+        drag: &DragView,
+    ) -> Element<'a, WindowListMessage> {
+        let WindowSlot {
+            win,
+            item,
+            extras,
+            position_in_bar,
+            opacity,
+        } = self;
+        let maximize_toggles = win.is_focused && !win.layout.is_floating;
+        let press = SlotPress {
+            item,
+            position: position_in_bar,
+            click: if maximize_toggles {
+                SlotClick::MaximizeColumn
+            } else {
+                SlotClick::FocusWindow(win.id)
+            },
+        };
+        let tiled = win.layout.column.is_some() && !win.layout.is_floating;
+        let pressable = draggable_slot(
+            window_slot_content(config, icons, win, extras, position, opacity),
+            press,
+            tiled,
+            drag,
+            dragged,
+        );
+        match win.pid.filter(|_| extras.audio.is_some()) {
+            Some(pid) => pressable
+                .on_middle_press(WindowListMessage::ToggleAudio(pid))
+                .into(),
+            None => pressable.into(),
+        }
+    }
+}
+
+fn window_slot_content<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
     win: &niri::WinEntry,
@@ -341,20 +478,7 @@ fn window_button<'a>(
         Some(ticks) => slot.ticks(ticks),
         None => slot,
     };
-    let pressable = button(slot.view(config, position))
-        .padding(0)
-        .style(flat_button(config.theme.palette.bar_foreground))
-        .on_press(if maximize_toggles {
-            WindowListMessage::MaximizeToggled
-        } else {
-            WindowListMessage::Clicked(win.id)
-        });
-    let Some(pid) = audio_pid else {
-        return pressable.into();
-    };
-    mouse_area(pressable)
-        .on_middle_press(WindowListMessage::ToggleAudio(pid))
-        .into()
+    slot.view(config, position)
 }
 
 fn secondary_glyph<'a>(

@@ -4,6 +4,7 @@ pub mod monitor_layout;
 pub mod monitor_surfaces;
 pub mod notification_toasts;
 pub mod panel_bar;
+pub mod pointer_drag;
 pub mod top_bar;
 pub mod workspace_sidebar;
 
@@ -43,6 +44,7 @@ use crate::{
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
+        pointer_drag::{DragMessage, ShellDrag},
     },
     message_subscriptions::{ForcedRefresh, blocking, copy_to_clipboard, niri_action},
     state::{
@@ -145,6 +147,7 @@ pub struct DesktopShell {
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub font_fallbacks: FontFallbacks,
+    pub pointer_drag: ShellDrag,
 }
 
 #[to_layer_message(multi)]
@@ -192,7 +195,6 @@ pub enum Message {
     FaviconsResolved(HashMap<String, RawFavicon>),
     FallbackFontsResolved(HashMap<char, Font>),
     DismissPressed,
-    WorkspaceClicked { id: u64, is_active: bool },
     Niri(Vec<niri_ipc::Event>),
     Redraw,
     WindowClosed(Id),
@@ -209,6 +211,8 @@ pub enum Message {
     Output(OutputChange),
     ReloadDesktopEntries,
     SidebarWidthChanged { window: Id, width: f32 },
+    PointerDrag(DragMessage),
+    NiriActionFailed(niri::ActionFailure),
 }
 
 impl From<TooltipMessage> for Message {
@@ -284,6 +288,7 @@ impl DesktopShell {
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             font_fallbacks: FontFallbacks::default(),
+            pointer_drag: ShellDrag::Idle,
             shell_settings: ShellSettings::default(),
             theme: iced::Theme::from(&config.theme.palette),
             wayland,
@@ -453,19 +458,18 @@ impl DesktopShell {
                 self.collapse_groups();
                 Task::none()
             }
-            Message::WorkspaceClicked {
-                is_active: true, ..
-            } => niri_action(niri_ipc::Action::ToggleOverview {}),
-            Message::WorkspaceClicked { id, .. } => niri_action(niri_ipc::Action::FocusWorkspace {
-                reference: niri_ipc::WorkspaceReferenceArg::Id(id),
-            }),
             Message::Niri(events) => self.apply_niri_events(events),
             Message::WindowClosed(window) => self.forget_window(window),
             Message::SidebarWidthChanged { window, width } => {
                 self.update_sidebar_width(window, width)
             }
             Message::Tooltip(msg) => self.update_tooltip(msg),
-            Message::PointerLeft => self.tooltip.leave_after_grace(),
+            Message::PointerLeft => {
+                self.pointer_drag = ShellDrag::Idle;
+                self.tooltip.leave_after_grace()
+            }
+            Message::PointerDrag(msg) => self.update_pointer_drag(msg),
+            Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
             Message::CopyText(text) => copy_to_clipboard(text),
             Message::OpenUrl(url) => self.open_url(url),
             Message::RefreshSource(source) => {
@@ -567,12 +571,6 @@ impl DesktopShell {
     fn dispatch_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
         match self.window_group.update(msg) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
-            window_group::Action::WindowList(window_list::Action::FocusWindow(window)) => {
-                niri_action(niri_ipc::Action::FocusWindow { id: window })
-            }
-            window_group::Action::WindowList(window_list::Action::MaximizeColumn) => {
-                niri_action(niri_ipc::Action::MaximizeColumn {})
-            }
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
             }
@@ -583,6 +581,9 @@ impl DesktopShell {
                 self.resolve_icons(),
             ]),
             window_group::Action::WindowList(window_list::Action::None) => Task::none(),
+            window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
+                self.update_pointer_drag(drag)
+            }
         }
     }
 
@@ -711,6 +712,21 @@ impl DesktopShell {
         self.notifications.show_config_error(
             path,
             error,
+            &ToastContext::new(
+                &self.niri,
+                self.desktop_entries.get(),
+                &self.config,
+                &self.shell_settings,
+                self.quiet_schedule_group.is_quiet(),
+            ),
+        )
+    }
+
+    fn show_niri_failure(&mut self, failure: &niri::ActionFailure) -> Task<Message> {
+        tracing::warn!("{failure}");
+        self.niri_snapshot.load(niri::Snapshot::derive(&self.niri));
+        self.notifications.show_niri_failure(
+            failure,
             &ToastContext::new(
                 &self.niri,
                 self.desktop_entries.get(),

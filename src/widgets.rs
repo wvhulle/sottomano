@@ -23,6 +23,7 @@ pub mod ongoing_toast;
 pub mod pager_slot;
 pub mod panel_frame;
 pub mod phosphor;
+pub mod pointer_drag;
 pub mod popup_connector;
 pub mod pressable_text;
 

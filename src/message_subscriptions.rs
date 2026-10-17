@@ -140,6 +140,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         niri_subscription(),
         notifications_subscription(),
         animation,
+        state.pointer_drag_subscription(),
         tooltip_tick,
         expiry_tick,
     ])
@@ -289,7 +290,8 @@ where
 }
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
-    blocking("niri action", move || niri::send_action(&action)).discard()
+    blocking("niri action", move || niri::send_action(&action).err())
+        .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
 }
 
 pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
