@@ -105,6 +105,7 @@ uom = { version = "0.38.0", default-features = false, features = [
   "std",
 ] }
 kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
+club-kdl = { version = "0.14.1", features = ["kdl-rs"] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 nvml-wrapper = "0.13.0"
 humantime-serde = "1.1.1"

@@ -1,10 +1,11 @@
 use std::{
-    io,
+    fmt, io,
     path::{Path, PathBuf},
+    str::FromStr,
 };
 
+use club_kdl::{KdlDeserialize, KdlSerialize};
 use iced::Task;
-use kdl::{KdlDocument, KdlEntry, KdlNode, KdlValue};
 use tokio::fs;
 
 use crate::{data::source::niri_config::parse_niri_kdl, desktop_shell::monitor_surfaces::Position};
@@ -55,10 +56,209 @@ impl StyledSurface {
         }
     }
 
-    fn rule(self, styling: &NiriStyling) -> KdlNode {
+    fn rule(self, styling: NiriStyling) -> LayerRule {
+        let matches = NamespaceMatch::from(self);
         match self {
-            Self::Backdrop(position) => backdrop_rule(self, position),
-            Self::Panel | Self::Tooltip => background_effect_rule(self, styling),
+            Self::Backdrop(position) => LayerRule {
+                matches,
+                background_effects: Vec::new(),
+                shadows: vec![BackdropShadow::from(position)],
+            },
+            Self::Panel | Self::Tooltip => LayerRule {
+                matches,
+                background_effects: vec![BackgroundEffect {
+                    blur: true,
+                    xray: styling.xray,
+                }],
+                shadows: Vec::new(),
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+enum RulesError {
+    Syntax(kdl::KdlError),
+    Schema(club_kdl::Error),
+}
+
+impl fmt::Display for RulesError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Syntax(e) => write!(f, "not valid KDL: {e}"),
+            Self::Schema(e) => write!(f, "not the expected rules: {e}"),
+        }
+    }
+}
+
+impl From<kdl::KdlError> for RulesError {
+    fn from(e: kdl::KdlError) -> Self {
+        Self::Syntax(e)
+    }
+}
+
+impl From<club_kdl::Error> for RulesError {
+    fn from(e: club_kdl::Error) -> Self {
+        Self::Schema(e)
+    }
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(document)]
+struct VetrataRules {
+    #[kdl(children)]
+    layer_rules: Vec<LayerRule>,
+    #[kdl(child)]
+    layout: LayoutSection,
+    #[kdl(child)]
+    window_rule: WindowRule,
+}
+
+impl FromStr for VetrataRules {
+    type Err = RulesError;
+
+    fn from_str(text: &str) -> Result<Self, RulesError> {
+        Ok(club_kdl::from_kdl_document(&parse_niri_kdl(text)?)?)
+    }
+}
+
+impl VetrataRules {
+    fn to_kdl_v1(&self) -> club_kdl::Result<String> {
+        let mut document = club_kdl::to_kdl_document(self)?;
+        document.autoformat();
+        document.ensure_v1();
+        Ok(document.to_string())
+    }
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "layer-rule")]
+struct LayerRule {
+    #[kdl(child)]
+    matches: NamespaceMatch,
+    #[kdl(children)]
+    background_effects: Vec<BackgroundEffect>,
+    #[kdl(children)]
+    shadows: Vec<BackdropShadow>,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "match")]
+struct NamespaceMatch {
+    #[kdl(property)]
+    namespace: String,
+}
+
+impl From<StyledSurface> for NamespaceMatch {
+    fn from(surface: StyledSurface) -> Self {
+        Self {
+            namespace: format!("^{}$", surface.namespace()),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "background-effect")]
+struct BackgroundEffect {
+    #[kdl(child, unwrap_arg)]
+    blur: bool,
+    #[kdl(child, unwrap_arg)]
+    xray: bool,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "shadow")]
+struct BackdropShadow {
+    #[kdl(child)]
+    on: ShadowOn,
+    #[kdl(child, unwrap_arg)]
+    softness: i64,
+    #[kdl(child, unwrap_arg)]
+    spread: i64,
+    #[kdl(child, unwrap_arg)]
+    color: String,
+    #[kdl(child)]
+    offset: ShadowOffset,
+}
+
+impl From<Position> for BackdropShadow {
+    fn from(position: Position) -> Self {
+        let lift = match position {
+            Position::Top => -3,
+            Position::Bottom => 3,
+            Position::Left => 0,
+        };
+        Self {
+            on: ShadowOn {},
+            softness: 27,
+            spread: 25,
+            color: "#00000060".to_owned(),
+            offset: ShadowOffset { x: 0, y: lift },
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "on")]
+struct ShadowOn {}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "offset")]
+struct ShadowOffset {
+    #[kdl(property)]
+    x: i64,
+    #[kdl(property)]
+    y: i64,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "layout")]
+struct LayoutSection {
+    #[kdl(child, unwrap_arg)]
+    gaps: f32,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "window-rule")]
+struct WindowRule {
+    #[kdl(child(name = "geometry-corner-radius"), unwrap_arg)]
+    geometry_corner_radius: f32,
+    #[kdl(child(name = "clip-to-geometry"), unwrap_arg)]
+    clip_to_geometry: bool,
+}
+
+impl From<NiriStyling> for VetrataRules {
+    fn from(styling: NiriStyling) -> Self {
+        Self {
+            layer_rules: StyledSurface::ALL
+                .into_iter()
+                .map(|surface| surface.rule(styling))
+                .collect(),
+            layout: LayoutSection {
+                gaps: styling.layout.gaps_px,
+            },
+            window_rule: WindowRule {
+                geometry_corner_radius: styling.layout.window_corner_radius_px,
+                clip_to_geometry: true,
+            },
+        }
+    }
+}
+
+impl From<VetrataRules> for NiriStyling {
+    fn from(rules: VetrataRules) -> Self {
+        let panel = NamespaceMatch::from(StyledSurface::Panel);
+        Self {
+            xray: rules
+                .layer_rules
+                .into_iter()
+                .filter(|rule| rule.matches == panel)
+                .flat_map(|rule| rule.background_effects)
+                .any(|effect| effect.xray),
+            layout: NiriLayout {
+                window_corner_radius_px: rules.window_rule.geometry_corner_radius,
+                gaps_px: rules.layout.gaps,
+            },
         }
     }
 }
@@ -105,7 +305,12 @@ impl NiriRulesFile {
     }
 
     pub fn adopt(&mut self, stored: StoredRules) -> Task<bool> {
-        apply(&stored.0, &mut self.styling);
+        if !stored.0.is_empty() {
+            match stored.0.parse::<VetrataRules>() {
+                Ok(rules) => self.styling = NiriStyling::from(rules),
+                Err(e) => tracing::warn!("niri rules: keeping the current look, file is {e}"),
+            }
+        }
         self.written = Written::Known(stored.0);
         self.write()
     }
@@ -114,7 +319,13 @@ impl NiriRulesFile {
         let Written::Known(last) = &self.written else {
             return Task::done(false);
         };
-        let rules = render(&self.styling);
+        let rules = match VetrataRules::from(self.styling).to_kdl_v1() {
+            Ok(rules) => rules,
+            Err(e) => {
+                tracing::warn!("niri rules: rendering failed: {e}");
+                return Task::done(false);
+            }
+        };
         if rules == *last {
             return Task::done(true);
         }
@@ -131,71 +342,6 @@ impl NiriRulesFile {
     }
 }
 
-fn apply(text: &str, styling: &mut NiriStyling) {
-    let document = match parse_niri_kdl(text) {
-        Ok(document) => document,
-        Err(e) => {
-            tracing::warn!("niri rules: unreadable, keeping defaults: {e}");
-            return;
-        }
-    };
-    apply_background_effect(&document, styling);
-    apply_window_layout(&document, &mut styling.layout);
-}
-
-fn apply_background_effect(document: &KdlDocument, niri: &mut NiriStyling) {
-    let Some(effect) = rule_of(document, StyledSurface::Panel)
-        .and_then(|rule| rule.get("background-effect"))
-        .and_then(KdlNode::children)
-    else {
-        return;
-    };
-    niri.xray = effect
-        .get_arg("xray")
-        .and_then(KdlValue::as_bool)
-        .unwrap_or(niri.xray);
-}
-
-fn apply_window_layout(document: &KdlDocument, windows: &mut NiriLayout) {
-    let setting = |section: &str, name: &str| {
-        document
-            .get(section)
-            .and_then(KdlNode::children)
-            .and_then(|children| children.get_arg(name))
-            .and_then(number)
-    };
-    windows.gaps_px = setting("layout", "gaps").unwrap_or(windows.gaps_px);
-    windows.window_corner_radius_px =
-        setting("window-rule", "geometry-corner-radius").unwrap_or(windows.window_corner_radius_px);
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn number(value: &KdlValue) -> Option<f32> {
-    value
-        .as_float()
-        .or_else(|| value.as_integer().map(|integer| integer as f64))
-        .map(|float| float as f32)
-}
-
-fn rule_of(document: &KdlDocument, surface: StyledSurface) -> Option<&KdlDocument> {
-    let pattern = namespace_pattern(surface);
-    document
-        .nodes()
-        .iter()
-        .filter(|node| node.name().value() == "layer-rule")
-        .filter_map(KdlNode::children)
-        .find(|rule| {
-            rule.get("match")
-                .and_then(|matcher| matcher.get("namespace"))
-                .and_then(KdlValue::as_string)
-                == Some(pattern.as_str())
-        })
-}
-
-fn namespace_pattern(surface: StyledSurface) -> String {
-    format!("^{}$", surface.namespace())
-}
-
 async fn replace(path: &Path, contents: &str) -> io::Result<()> {
     if let Some(directory) = path.parent() {
         fs::create_dir_all(directory).await?;
@@ -205,103 +351,14 @@ async fn replace(path: &Path, contents: &str) -> io::Result<()> {
     fs::rename(&staged, path).await
 }
 
-fn render(styling: &NiriStyling) -> String {
-    let mut document = KdlDocument::new();
-    document.nodes_mut().extend(
-        StyledSurface::ALL
-            .into_iter()
-            .map(|surface| surface.rule(styling))
-            .chain(window_layout(styling.layout)),
-    );
-    document.autoformat();
-    document.ensure_v1();
-    document.to_string()
-}
-
-fn background_effect_rule(surface: StyledSurface, styling: &NiriStyling) -> KdlNode {
-    block(
-        "layer-rule",
-        [
-            node(
-                "match",
-                [KdlEntry::new_prop("namespace", namespace_pattern(surface))],
-            ),
-            block(
-                "background-effect",
-                [leaf("blur", true), leaf("xray", styling.xray)],
-            ),
-        ],
-    )
-}
-
-fn window_layout(windows: NiriLayout) -> [KdlNode; 2] {
-    [
-        block("layout", [leaf("gaps", f64::from(windows.gaps_px))]),
-        block(
-            "window-rule",
-            [
-                leaf(
-                    "geometry-corner-radius",
-                    f64::from(windows.window_corner_radius_px),
-                ),
-                leaf("clip-to-geometry", true),
-            ],
-        ),
-    ]
-}
-
-fn backdrop_rule(surface: StyledSurface, position: Position) -> KdlNode {
-    let lift: i128 = match position {
-        Position::Top => -3,
-        Position::Bottom => 3,
-        Position::Left => 0,
-    };
-    block(
-        "layer-rule",
-        [
-            node(
-                "match",
-                [KdlEntry::new_prop("namespace", namespace_pattern(surface))],
-            ),
-            block(
-                "shadow",
-                [
-                    KdlNode::new("on"),
-                    leaf("softness", 27_i128),
-                    leaf("spread", 25_i128),
-                    leaf("color", "#00000060"),
-                    node(
-                        "offset",
-                        [
-                            KdlEntry::new_prop("x", 0_i128),
-                            KdlEntry::new_prop("y", lift),
-                        ],
-                    ),
-                ],
-            ),
-        ],
-    )
-}
-
-fn leaf(name: &str, value: impl Into<KdlValue>) -> KdlNode {
-    node(name, [KdlEntry::new(value)])
-}
-
-fn node(name: &str, entries: impl IntoIterator<Item = KdlEntry>) -> KdlNode {
-    let mut node = KdlNode::new(name);
-    node.entries_mut().extend(entries);
-    node
-}
-
-fn block(name: &str, children: impl IntoIterator<Item = KdlNode>) -> KdlNode {
-    let mut node = KdlNode::new(name);
-    node.ensure_children().nodes_mut().extend(children);
-    node
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{NiriLayout, NiriStyling, apply, render};
+    use std::path::Path;
+
+    use super::{
+        BackgroundEffect, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+        StyledSurface, VetrataRules,
+    };
 
     fn styled() -> NiriStyling {
         NiriStyling {
@@ -316,27 +373,31 @@ mod tests {
     #[test]
     fn a_rendered_look_reads_back_unchanged() {
         let written = styled();
-        let mut read = NiriStyling::default();
-        apply(&render(&written), &mut read);
+        let text = VetrataRules::from(written).to_kdl_v1().unwrap();
+        let read = NiriStyling::from(text.parse::<VetrataRules>().unwrap());
         assert_eq!(read, written);
     }
 
     #[test]
     fn an_empty_file_keeps_the_defaults() {
-        let mut read = NiriStyling::default();
-        apply("", &mut read);
-        assert_eq!(read, NiriStyling::default());
+        let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
+        let _ = rules.adopt(StoredRules(String::new()));
+        assert_eq!(rules.styling(), NiriStyling::default());
     }
 
     #[test]
     fn the_panel_leaves_shadows_and_corners_to_vetrata() {
-        let rules = render(&styled());
-        let start = rules.find("\"^vetrata-panel$\"").expect("panel rule");
-        let panel_rule = rules[start..]
-            .split("layer-rule")
-            .next()
-            .unwrap_or_default();
-        assert!(panel_rule.contains("blur true"));
-        assert!(!panel_rule.contains("shadow") && !panel_rule.contains("corner"));
+        let panel = NamespaceMatch::from(StyledSurface::Panel);
+        let rules = VetrataRules::from(styled());
+        let panel_rule = rules
+            .layer_rules
+            .iter()
+            .find(|rule| rule.matches == panel)
+            .expect("panel rule");
+        assert!(matches!(
+            panel_rule.background_effects.as_slice(),
+            [BackgroundEffect { blur: true, .. }]
+        ));
+        assert!(panel_rule.shadows.is_empty());
     }
 }
