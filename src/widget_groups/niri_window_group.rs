@@ -2,6 +2,7 @@ use iced::Task;
 
 use crate::{
     config::Config,
+    data::severity::Severity,
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
@@ -12,7 +13,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::Tooltip,
+        tooltip_body::{Cell, KeyValue, Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -87,14 +88,22 @@ impl NiriWindowGroup {
         self.gaps.update(ControlMessage::Reading(windows.gaps_px));
     }
 
-    pub fn tooltip_for(&self, target: NiriWindowTarget, styling: NiriStyling) -> Tooltip {
-        match target {
+    pub fn tooltip_for(&self, target: NiriWindowTarget, rules: &NiriRulesFile) -> Tooltip {
+        let control = match target {
             NiriWindowTarget::CornerRadius => {
                 self.corner_radius.readout_tooltip("Window corner radius")
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
-            NiriWindowTarget::Xray => xray_toggle(styling).switch_tooltip(),
-        }
+            NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(),
+        };
+        control.with_live_sections(rules.unreadable().map(|unreadable| {
+            Section::dictionary([KeyValue::new(
+                Cell::Path(unreadable.path.to_path_buf()),
+                unreadable.kind.to_string(),
+            )
+            .level(Severity::Critical)])
+            .titled("Changes are not saved")
+        }))
     }
 
     fn close_sliders(&mut self) {
