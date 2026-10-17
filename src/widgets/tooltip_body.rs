@@ -526,6 +526,15 @@ impl Tooltip {
         self
     }
 
+    #[must_use]
+    pub fn with_live_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
+        self.with_sections(
+            extra
+                .into_iter()
+                .map(|section| SourcedSection::new(section, Readiness::Settled, Freshness::Live)),
+        )
+    }
+
     pub fn has_polled_data(&self) -> bool {
         self.body.has_polled_data()
     }

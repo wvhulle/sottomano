@@ -267,12 +267,19 @@ impl From<VetrataRules> for NiriStyling {
 pub enum StoredRules {
     Absent,
     Text(String),
-    Unreadable,
+    Unreadable(io::ErrorKind),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct UnreadableRules<'a> {
+    pub path: &'a Path,
+    pub kind: io::ErrorKind,
 }
 
 #[derive(Clone)]
 enum Written {
     Unread,
+    Unreadable(io::ErrorKind),
     Absent,
     Known(String),
 }
@@ -297,6 +304,16 @@ impl NiriRulesFile {
         self.styling
     }
 
+    pub fn unreadable(&self) -> Option<UnreadableRules<'_>> {
+        match self.written {
+            Written::Unreadable(kind) => Some(UnreadableRules {
+                path: &self.path,
+                kind,
+            }),
+            Written::Unread | Written::Absent | Written::Known(_) => None,
+        }
+    }
+
     pub fn restyle(&mut self, change: impl FnOnce(&mut NiriStyling)) -> Task<bool> {
         change(&mut self.styling);
         self.write()
@@ -310,7 +327,7 @@ impl NiriRulesFile {
                 Err(e) if e.kind() == io::ErrorKind::NotFound => StoredRules::Absent,
                 Err(e) => {
                     tracing::warn!("niri rules: reading {} failed: {e}", path.display());
-                    StoredRules::Unreadable
+                    StoredRules::Unreadable(e.kind())
                 }
             }
         })
@@ -318,7 +335,7 @@ impl NiriRulesFile {
 
     pub fn adopt(&mut self, stored: StoredRules) -> Task<bool> {
         self.written = match stored {
-            StoredRules::Unreadable => return Task::done(false),
+            StoredRules::Unreadable(kind) => Written::Unreadable(kind),
             StoredRules::Absent => Written::Absent,
             StoredRules::Text(text) => {
                 match text.parse::<VetrataRules>() {
@@ -332,7 +349,7 @@ impl NiriRulesFile {
     }
 
     fn write(&mut self) -> Task<bool> {
-        if matches!(self.written, Written::Unread) {
+        if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
             return Task::done(false);
         }
         let rules = match VetrataRules::from(self.styling).to_kdl_v1() {

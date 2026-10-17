@@ -105,7 +105,7 @@ impl DesktopShell {
             )),
             HoverTarget::NiriWindow(target) => Some(
                 self.niri_window_group
-                    .tooltip_for(*target, self.niri_rules.styling()),
+                    .tooltip_for(*target, &self.niri_rules),
             ),
             HoverTarget::Systemd(target) => self.systemd_manager_group.tooltip_for(target),
             HoverTarget::Journal(target) => self.journal_events_group.tooltip_for(*target),
