@@ -7,8 +7,9 @@ use super::Error;
 use crate::data::source::{
     Delivery, PolledSource, Source,
     ai::{
-        ccusage::{self, Agent, POLL_INTERVAL, Period, SpendBudget},
+        ccusage::{self, Agent, POLL_INTERVAL, Period},
         quota::{Quota, QuotaLimited},
+        working_time_forecast::SpendBudget,
     },
     present_or_absent, ticked_polls,
 };

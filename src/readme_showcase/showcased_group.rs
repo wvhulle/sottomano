@@ -11,8 +11,8 @@ use crate::{
     },
     readme_showcase::fixtures::{compute, niri_session},
     widget_groups::{
-        ai_group::AiGroup,
         audio_group::AudioGroup,
+        claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
         idle_timeouts_group::IdleTimeoutsGroup,
         media_group::MediaGroup,
@@ -47,7 +47,7 @@ fn undragged() -> DragView {
 pub enum ShowcasedGroup {
     Compute(Box<ComputeGroup>),
     Weather(Box<WeatherGroup>),
-    Ai(Box<AiGroup>),
+    ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdleTimeoutsGroup>),
     Wallpaper(Box<WallpaperGroup>),
@@ -143,7 +143,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
             | ShowcasedGroup::Weather(_)
-            | ShowcasedGroup::Ai(_)
+            | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
@@ -162,9 +162,9 @@ impl ShowcasedGroup {
                 .group_content()
                 .map(Message::Weather)
                 .view(config, position),
-            ShowcasedGroup::Ai(group) => group
+            ShowcasedGroup::ClaudeUsage(group) => group
                 .group_content()
-                .map(Message::Ai)
+                .map(Message::ClaudeUsage)
                 .view(config, position),
             ShowcasedGroup::Media(media) => media
                 .group
@@ -201,8 +201,8 @@ impl ShowcasedGroup {
                     let _ = group.update(message);
                 }
             }
-            ShowcasedGroup::Ai(group) => {
-                if let Message::Ai(message) = message {
+            ShowcasedGroup::ClaudeUsage(group) => {
+                if let Message::ClaudeUsage(message) = message {
                     let _ = group.update(message);
                 }
             }
@@ -244,7 +244,7 @@ impl ShowcasedGroup {
                     });
                 }
             }
-            ShowcasedGroup::Ai(group) => {
+            ShowcasedGroup::ClaudeUsage(group) => {
                 let _ = group.hover(Some(target), config);
             }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
@@ -279,8 +279,8 @@ impl ShowcasedGroup {
                 };
                 group.tooltip_for(*target)
             }
-            ShowcasedGroup::Ai(group) => {
-                let HoverTarget::Ai(target) = target else {
+            ShowcasedGroup::ClaudeUsage(group) => {
+                let HoverTarget::ClaudeUsage(target) = target else {
                     return None;
                 };
                 group.tooltip_for(*target)

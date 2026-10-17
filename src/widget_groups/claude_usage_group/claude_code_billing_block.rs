@@ -2,13 +2,11 @@ use chrono::Utc;
 
 use crate::{
     data::source::ai::claude::ClaudeCcusageBlock,
-    widget_groups::ai_group::{
-        amount_text::{countdown, dollars},
-        spend_to_level::level_from_cost,
-    },
     widgets::{
+        amount_text::{countdown, dollars},
         bar_widget::{BarWidget, Glyph, Occasional},
         phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_cost,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -20,15 +18,17 @@ impl BarWidget for ClaudeCcusageBlock {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::TerminalWindow(self.state().weight()).into()
+        Phosphor::Timer(self.state().weight()).into()
     }
 
     fn fallback_icon() -> Glyph {
-        Phosphor::TerminalWindow(Weight::Regular).into()
+        Phosphor::Timer(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {
-        self.active.as_ref().map(|block| dollars(block.cost))
+        self.active
+            .as_ref()
+            .map(|block| format!("{} block", dollars(block.cost)))
     }
 
     fn state(&self) -> WidgetState {

@@ -1,5 +1,5 @@
-pub mod ai_usage;
 pub mod focus_time;
+pub mod spend_budget;
 pub mod systemd_manager;
 pub mod temperature_sensors;
 pub mod tray;
@@ -7,8 +7,11 @@ pub mod tray;
 use serde::{Deserialize, Serialize};
 
 use crate::config::widget_groups::{
-    ai_usage::AiUsageConfig, focus_time::FocusTimeConfig, systemd_manager::SystemdManagerConfig,
-    temperature_sensors::TemperatureSensorsConfig, tray::TrayConfig,
+    focus_time::FocusTimeConfig,
+    spend_budget::{OpenRouterBudgetConfig, SpendBudgetConfig},
+    systemd_manager::SystemdManagerConfig,
+    temperature_sensors::TemperatureSensorsConfig,
+    tray::TrayConfig,
 };
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -19,7 +22,9 @@ pub struct WidgetGroupsConfig {
     pub tray: TrayConfig,
     pub temperature_sensors: TemperatureSensorsConfig,
     pub systemd_manager: SystemdManagerConfig,
-    pub ai_usage: AiUsageConfig,
+    pub claude_usage: SpendBudgetConfig,
+    pub copilot_usage: SpendBudgetConfig,
+    pub openrouter_credit: OpenRouterBudgetConfig,
     pub focus_time: FocusTimeConfig,
 }
 

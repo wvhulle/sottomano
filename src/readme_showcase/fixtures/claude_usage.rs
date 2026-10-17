@@ -2,28 +2,27 @@ use chrono::{TimeDelta, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
-    config::SecretPaths,
     data::source::{
         Delivery,
         ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, Money, WindowUsage},
     },
     desktop_shell::Message,
     readme_showcase::showcased_group::ShowcasedGroup,
-    widget_groups::ai_group::{AiGroup, AiMessage},
+    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 
 pub fn group() -> ShowcasedGroup {
-    let mut group = AiGroup::new(SecretPaths::default());
+    let mut group = ClaudeUsageGroup::new(None);
     let _ = group.update(usage_windows_delivered(0));
-    ShowcasedGroup::Ai(Box::new(group))
+    ShowcasedGroup::ClaudeUsage(Box::new(group))
 }
 
 pub fn live(tick: u32) -> Vec<Message> {
-    vec![Message::Ai(usage_windows_delivered(tick))]
+    vec![Message::ClaudeUsage(usage_windows_delivered(tick))]
 }
 
-fn usage_windows_delivered(tick: u32) -> AiMessage {
-    AiMessage::ClaudeUsageWindows(Box::new(Delivery::Reading(Ok(usage_windows(f64::from(
+fn usage_windows_delivered(tick: u32) -> ClaudeUsageMessage {
+    ClaudeUsageMessage::UsageWindows(Box::new(Delivery::Reading(Ok(usage_windows(f64::from(
         tick,
     ))))))
 }

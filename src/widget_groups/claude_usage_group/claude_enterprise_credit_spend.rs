@@ -6,10 +6,11 @@ use crate::{
         claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
         quota::QuotaLimited,
     },
-    widget_groups::ai_group::{amount_text::percent_text, spend_to_level::level_from_used},
     widgets::{
+        amount_text::percent_text,
         bar_widget::{BarWidget, Glyph, Occasional},
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -21,11 +22,15 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn icon(&self) -> Glyph {
-        SimpleIcon::Claude.into()
+        Phosphor::Buildings(self.state().weight()).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::Buildings(Weight::Regular).into()
     }
 
     fn label(&self) -> Option<String> {
-        Some(self.used.short_text())
+        Some(format!("{} month", self.used.short_text()))
     }
 
     fn state(&self) -> WidgetState {

@@ -125,9 +125,17 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
         state
-            .ai_group
+            .claude_usage_group
             .subscription(&state.config, forced)
-            .map(Message::Ai),
+            .map(Message::ClaudeUsage),
+        state
+            .copilot_usage_group
+            .subscription(&state.config, forced)
+            .map(Message::CopilotUsage),
+        state
+            .openrouter_credit_group
+            .subscription(&state.config, forced)
+            .map(Message::OpenRouterCredit),
         WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
             .map(Message::WindowGroup),
         SessionFocusGroup::subscription().map(Message::SessionFocus),

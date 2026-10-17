@@ -11,8 +11,8 @@ use crate::{
             focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
         },
     },
-    widget_groups::ai_group::amount_text::{coarse_duration_text, duration_text},
     widgets::{
+        amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,

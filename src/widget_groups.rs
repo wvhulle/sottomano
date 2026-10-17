@@ -1,8 +1,9 @@
-pub mod ai_group;
 pub mod audio_group;
+pub mod claude_usage_group;
 pub mod clock_group;
 pub mod color_temperature_group;
 pub mod compute_group;
+pub mod copilot_usage_group;
 pub mod dark_mode_group;
 pub mod disk_group;
 pub mod gpu_group;
@@ -15,6 +16,7 @@ pub mod monitor_group;
 pub mod net_interfaces_group;
 pub mod niri_window_group;
 pub mod notification_group;
+pub mod openrouter_credit_group;
 pub mod overlay_settings_group;
 pub mod panel_settings_group;
 pub mod pending_upgrades_group;

@@ -1,4 +1,5 @@
 pub mod activity_line;
+pub mod amount_text;
 pub mod anchored_popup;
 pub mod announced_level;
 pub mod bar_widget;
@@ -27,6 +28,7 @@ pub mod phosphor;
 pub mod pointer_drag;
 pub mod popup_connector;
 pub mod pressable_text;
+pub mod quota_alert_toast;
 
 pub mod rate_text;
 pub mod refresh_dial;
@@ -36,6 +38,8 @@ pub mod reveal;
 pub mod simple_icons;
 pub mod slider_control;
 pub mod source_reading;
+pub mod spend_forecast_basis;
+pub mod spend_to_level;
 pub mod svg_icon;
 pub mod temperature_thresholds;
 pub mod text;

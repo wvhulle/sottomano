@@ -126,7 +126,11 @@ impl DesktopShell {
             HoverTarget::Media(target) => {
                 self.media_group.tooltip_for(target, &self.desktop_entries)
             }
-            HoverTarget::Ai(target) => self.ai_group.tooltip_for(*target),
+            HoverTarget::ClaudeUsage(target) => self.claude_usage_group.tooltip_for(*target),
+            HoverTarget::CopilotUsage(target) => self.copilot_usage_group.tooltip_for(*target),
+            HoverTarget::OpenRouterCredit(target) => {
+                self.openrouter_credit_group.tooltip_for(*target)
+            }
             HoverTarget::SessionFocus(target) => Some(self.session_focus_group.tooltip_for(
                 *target,
                 &self.config,
@@ -190,7 +194,9 @@ impl DesktopShell {
             self.power_group
                 .hover(hovered, &self.config)
                 .map(Message::Power),
-            self.ai_group.hover(hovered, &self.config).map(Message::Ai),
+            self.claude_usage_group
+                .hover(hovered, &self.config)
+                .map(Message::ClaudeUsage),
             self.login_session_group
                 .hover(hovered, &self.config)
                 .map(Message::LoginSession),

@@ -27,6 +27,9 @@ options in `rustfmt.toml`. Version control is jj, not the `git` CLI.
   intuitive; where help or explanation is needed, keep it next to the widget
   in question through descriptive labels, tooltip cards and visual indicators
   rather than prose in the docs.
+- No config keys, defaults or TOML snippets in `README.md`. Users get a
+  complete default config from `vetrata --print-default-config` and start
+  from there, so every option must show up in that output with its default.
 
 ## README GIFs
 
