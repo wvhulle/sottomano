@@ -1,4 +1,4 @@
-use std::{error::Error, thread};
+use std::error::Error;
 
 use clap::Parser;
 use vetrata_config::Config;
@@ -29,14 +29,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(iced_winit::run(iced_tester::attach(program))?);
     }
     let only = command_line.demo;
-    let recordings: Vec<_> = DEMOS
+    let recorded: Vec<_> = DEMOS
         .iter()
         .filter(|demo| only.as_deref().is_none_or(|name| name == demo.name))
-        .map(|demo| thread::spawn(|| animation_recording::record(demo)))
-        .collect();
-    let recorded: Vec<_> = recordings
-        .into_iter()
-        .map(|recording| recording.join().expect("every demo records without panicking"))
+        .map(animation_recording::record)
         .collect();
     if only.is_none() {
         readme_embedding::assert_embedded(&recorded);
