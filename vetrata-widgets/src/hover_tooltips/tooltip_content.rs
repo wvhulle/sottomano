@@ -198,12 +198,13 @@ impl<'a> TooltipContent<'a> {
                     self.small_dim_text(humantime::format_duration(every).to_string()),
                     RefreshDial::new(
                         Ratio::new::<ratio>(
-                            self.now
+                            (self
+                                .now
                                 .duration_since(last)
                                 .unwrap_or(Duration::ZERO)
                                 .as_secs_f64()
-                                % every.as_secs_f64()
-                                / every.as_secs_f64(),
+                                / every.as_secs_f64())
+                            .min(1.0),
                         ),
                         glyph_size,
                         dim,

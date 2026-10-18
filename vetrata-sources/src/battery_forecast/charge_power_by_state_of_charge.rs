@@ -1,5 +1,6 @@
 #[cfg(test)]
 use std::iter::repeat_n;
+use std::time::Duration;
 
 use uom::si::{
     f64::{Power, Ratio},
@@ -7,6 +8,7 @@ use uom::si::{
     ratio::ratio,
 };
 
+#[cfg(test)]
 use crate::sysfs_sensors::battery::BATTERY_POLL_INTERVAL;
 
 pub const CHARGE_BINS: usize = 20;
@@ -28,8 +30,8 @@ impl PowerBin {
         }
     }
 
-    fn updated_with(self, observed_w: f64) -> Self {
-        let drifted = self.variance + BIN_DRIFT_W2_PER_S * BATTERY_POLL_INTERVAL.as_secs_f64();
+    fn updated_with(self, observed_w: f64, since_previous: Duration) -> Self {
+        let drifted = self.variance + BIN_DRIFT_W2_PER_S * since_previous.as_secs_f64();
         let gain = drifted / (drifted + MEASUREMENT_VARIANCE_W2);
         PowerBin {
             mean_w: self.mean_w + gain * (observed_w - self.mean_w),
@@ -51,12 +53,17 @@ pub struct ChargeCurve {
 
 impl ChargeCurve {
     #[must_use]
-    pub fn observe(self, state_of_charge: Ratio, observed: Power) -> Self {
+    pub fn observe(
+        self,
+        state_of_charge: Ratio,
+        observed: Power,
+        since_previous: Duration,
+    ) -> Self {
         let observed_w = observed.get::<watt>();
         let bin = bin_of(state_of_charge);
         let prior = self.bins[bin].unwrap_or_else(|| PowerBin::seeded_at(observed_w));
         let mut bins = self.bins;
-        bins[bin] = Some(prior.updated_with(observed_w));
+        bins[bin] = Some(prior.updated_with(observed_w, since_previous));
         ChargeCurve { bins }
     }
 
@@ -97,7 +104,11 @@ pub(super) fn learned_curve(power_at: impl Fn(Ratio) -> Power) -> ChargeCurve {
         ChargeCurve::default(),
         |curve, bin| {
             let state_of_charge = Ratio::new::<ratio>(bin as f64 / CHARGE_BINS as f64) + half_bin;
-            curve.observe(state_of_charge, power_at(state_of_charge))
+            curve.observe(
+                state_of_charge,
+                power_at(state_of_charge),
+                BATTERY_POLL_INTERVAL,
+            )
         },
     )
 }
@@ -137,7 +148,11 @@ mod tests {
     #[test]
     fn unobserved_bin_borrows_its_neighbour() {
         let curve = ChargeCurve::default()
-            .observe(ratio_of(0.52), Power::new::<watt>(25.0))
+            .observe(
+                ratio_of(0.52),
+                Power::new::<watt>(25.0),
+                BATTERY_POLL_INTERVAL,
+            )
             .learned()
             .expect("learned");
         assert_eq!(

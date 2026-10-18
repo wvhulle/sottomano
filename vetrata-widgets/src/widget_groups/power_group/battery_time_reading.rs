@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use iced::Task;
 use uom::si::{
@@ -31,6 +31,7 @@ const EMPTY_WARNING: Duration = Duration::from_mins(20);
 pub struct BatteryTimeReading {
     curve: Option<ChargeCurve>,
     load_started: bool,
+    previous_sample_at: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,9 +43,17 @@ impl BatteryTimeReading {
             return self.start_loading(&battery.serial);
         };
         let Some(sample) = battery.charging_sample(Power::new::<watt>(MIN_SAMPLE_W)) else {
+            self.previous_sample_at = None;
             return Task::none();
         };
-        let curve = curve.clone().observe(sample.state_of_charge, sample.power);
+        let now = Instant::now();
+        let since_previous = self
+            .previous_sample_at
+            .replace(now)
+            .map_or(Duration::ZERO, |previous| now - previous);
+        let curve = curve
+            .clone()
+            .observe(sample.state_of_charge, sample.power, since_previous);
         self.curve = Some(curve.clone());
         Task::future(charge_power_curve::save(
             battery.serial.clone(),

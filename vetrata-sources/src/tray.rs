@@ -319,14 +319,7 @@ async fn run(output: &mut Sender<TrayUpdate>) {
     }
 
     let entries = DesktopEntries::empty();
-    let mut items: Vec<TrayItem> = Vec::new();
-
-    if let Ok(map) = client.items().lock() {
-        items = map
-            .iter()
-            .map(|(address, (item, menu))| build_item(address, item, menu.as_ref(), &entries))
-            .collect();
-    }
+    let mut items = listed_items(&client, &entries);
     if output.send(TrayUpdate::Items(items.clone())).await.is_err() {
         return;
     }
@@ -340,7 +333,12 @@ async fn run(output: &mut Sender<TrayUpdate>) {
                         break;
                     }
                 }
-                Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Lagged(_)) => {
+                    items = listed_items(&client, &entries);
+                    if output.send(TrayUpdate::Items(items.clone())).await.is_err() {
+                        break;
+                    }
+                }
                 Err(RecvError::Closed) => break,
             },
             command = command_rx.recv() => match command {
@@ -349,6 +347,17 @@ async fn run(output: &mut Sender<TrayUpdate>) {
             },
         }
     }
+}
+
+fn listed_items(client: &Client, entries: &DesktopEntries) -> Vec<TrayItem> {
+    client.items().lock().map_or_else(
+        |_| Vec::new(),
+        |map| {
+            map.iter()
+                .map(|(address, (item, menu))| build_item(address, item, menu.as_ref(), entries))
+                .collect()
+        },
+    )
 }
 
 fn find_mut<'a>(items: &'a mut [TrayItem], address: &str) -> Option<&'a mut TrayItem> {

@@ -230,6 +230,7 @@ fn holding_earliest_critical(
                     ..reading
                 }))
             }
+            SourceDelivery::Unchanged => SourceDelivery::Unchanged,
             interrupted => {
                 *held = None;
                 interrupted
@@ -424,7 +425,9 @@ mod tests {
             holding_earliest_critical(deliveries)
                 .map(|delivery| match delivery {
                     SourceDelivery::Reading(Ok(reading)) => reading.critical_since,
-                    SourceDelivery::Reading(Err(_)) | SourceDelivery::Absent => None,
+                    SourceDelivery::Reading(Err(_))
+                    | SourceDelivery::Absent
+                    | SourceDelivery::Unchanged => None,
                 })
                 .collect(),
         );

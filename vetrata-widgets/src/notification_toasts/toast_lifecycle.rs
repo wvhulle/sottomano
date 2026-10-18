@@ -366,8 +366,11 @@ impl Countdown {
     }
 
     #[must_use]
-    pub fn is_running(self) -> bool {
-        matches!(self, Self::Running { .. })
+    pub fn deadline(self) -> Option<Instant> {
+        match self {
+            Self::Running { deadline } => Some(deadline),
+            Self::Paused { .. } => None,
+        }
     }
 }
 
@@ -472,6 +475,6 @@ mod tests {
         let start = Instant::now();
         let paused = Countdown::started(Duration::from_secs(1), start).paused(start);
         assert!(!paused.has_elapsed(start + Duration::from_secs(600)));
-        assert!(!paused.is_running());
+        assert_eq!(paused.deadline(), None);
     }
 }

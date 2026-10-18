@@ -92,10 +92,19 @@ impl DesktopShell {
             DragOutcome::Dropped(drag) => self.drop_dragged(drag),
             DragOutcome::HoveringForeign(hover) => match hover.item {
                 DraggedBarSlot::Workspace(_) => {
-                    Task::future(sleep(self.config.panel_bar.drag_spring_load))
-                        .map(move |()| Message::PointerDrag(DragMessage::HoverSpringLoaded(hover)))
+                    let (task, handle) =
+                        Task::future(sleep(self.config.panel_bar.drag_spring_load))
+                            .map(move |()| {
+                                Message::PointerDrag(DragMessage::HoverSpringLoaded(hover))
+                            })
+                            .abortable();
+                    self.spring_load = Some(handle.abort_on_drop());
+                    task
                 }
-                DraggedBarSlot::Window { .. } => Task::none(),
+                DraggedBarSlot::Window { .. } => {
+                    self.spring_load = None;
+                    Task::none()
+                }
             },
         }
     }

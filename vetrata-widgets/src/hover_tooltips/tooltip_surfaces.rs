@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use iced::{
     Element, Rectangle, Task,
     border::Radius,
+    task::Handle,
     time::Duration,
     widget::{container, mouse_area},
     window::Id,
@@ -44,6 +45,7 @@ pub struct TooltipHost {
     transition: TooltipTransition,
     pending_switch: Option<PendingSwitch>,
     switch_seq: u64,
+    hide_grace: Option<Handle>,
 }
 
 impl TooltipHost {
@@ -52,6 +54,7 @@ impl TooltipHost {
             TooltipMessage::Exit { target } => self.exit(&target),
             TooltipMessage::EnterTooltip => {
                 self.pending_switch = None;
+                self.hide_grace = None;
                 self.transition.cancel_leave();
                 Task::none()
             }
@@ -147,7 +150,11 @@ impl TooltipHost {
 
     pub fn leave_after_grace(&mut self) -> Task<Message> {
         self.transition.request_leave();
-        Task::future(sleep(HIDE_GRACE)).map(|()| Message::TooltipHideElapsed)
+        let (task, handle) = Task::future(sleep(HIDE_GRACE))
+            .map(|()| Message::TooltipHideElapsed)
+            .abortable();
+        self.hide_grace = Some(handle.abort_on_drop());
+        task
     }
 
     pub fn leave_elapsed(&mut self, departing: Option<Departed>) {

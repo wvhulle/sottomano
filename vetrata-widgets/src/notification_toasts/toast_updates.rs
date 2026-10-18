@@ -94,7 +94,7 @@ impl NotificationLayer {
                 self.drop_held(id),
                 self.close_all([id], close_reason::CLOSED_BY_CALL, context.config),
             ]),
-            NotificationMessage::Tick => self.expire(context.config),
+            NotificationMessage::ExpiryDue => self.expire(context.config),
             NotificationMessage::Reply { id, message } => {
                 self.update_reply(id, message, panel_on, context.config)
             }

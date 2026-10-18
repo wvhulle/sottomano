@@ -9,7 +9,7 @@ use std::{
         mpsc::{SyncSender, sync_channel},
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
 use futures::Stream;
@@ -165,10 +165,16 @@ impl Commands {
                 target,
                 kind,
                 reply,
-                expires_at: Instant::now() + REPLY_TIMEOUT,
             })
             .ok()?;
-        outcome.recv_timeout(REPLY_TIMEOUT).ok()?
+        outcome
+            .recv_timeout(REPLY_TIMEOUT)
+            .inspect_err(|_| {
+                tracing::warn!(
+                    "audio: pipewire loop did not answer {kind:?} within {REPLY_TIMEOUT:?}"
+                );
+            })
+            .ok()?
     }
 }
 
@@ -280,7 +286,6 @@ struct Command {
     target: Target,
     kind: CommandKind,
     reply: SyncSender<Option<i64>>,
-    expires_at: Instant,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -824,9 +829,7 @@ fn serve(
     let _attached = commands.attach(main_loop.loop_(), {
         let session = session.clone();
         move |command: Command| {
-            let outcome = (Instant::now() <= command.expires_at)
-                .then(|| apply(&session.borrow(), command.target, command.kind))
-                .flatten();
+            let outcome = apply(&session.borrow(), command.target, command.kind);
             let _ = command.reply.send(outcome);
         }
     });
