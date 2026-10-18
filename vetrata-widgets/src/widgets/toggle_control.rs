@@ -95,6 +95,7 @@ impl<S: ReadingSource> Default for ToggleControl<S> {
 pub enum ToggleMessage<S: ToggleableSource> {
     Reading(SourceDelivery<S>),
     Press,
+    Applied { before: S, accepted: bool },
 }
 
 impl<S: ToggleableSource> ToggleControl<S> {
@@ -115,10 +116,22 @@ impl<S: ToggleableSource> ToggleControl<S> {
             ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
                     self.assume(current.toggled_value());
-                    Task::future(blocking(S::NAME, move || current.apply_toggle())).discard()
+                    let before = current.clone();
+                    Task::future(blocking(S::NAME, move || current.apply_toggle())).map(
+                        move |accepted| ToggleMessage::Applied {
+                            before: before.clone(),
+                            accepted,
+                        },
+                    )
                 }
                 None => Task::none(),
             },
+            ToggleMessage::Applied { before, accepted } => {
+                if !accepted {
+                    self.assume(before);
+                }
+                Task::none()
+            }
         }
     }
 

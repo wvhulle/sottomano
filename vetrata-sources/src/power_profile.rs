@@ -193,6 +193,23 @@ impl ReadingSource for ProfileStatus {
     }
 }
 
+pub fn active_profile_changes(system: zbus::Connection) -> impl Stream<Item = ()> + Send {
+    stream::once(async move {
+        match PowerProfilesProxy::new(&system).await {
+            Ok(daemon) => daemon
+                .receive_active_profile_changed()
+                .await
+                .map(drop)
+                .left_stream(),
+            Err(e) => {
+                tracing::debug!("power profiles: no daemon to follow: {e}");
+                stream::empty().right_stream()
+            }
+        }
+    })
+    .flatten()
+}
+
 async fn status_changes(
     system: zbus::Connection,
 ) -> Result<impl Stream<Item = Result<ProfileStatus, bus::Error>>, bus::Error> {

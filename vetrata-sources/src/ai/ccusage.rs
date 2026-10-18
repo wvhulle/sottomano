@@ -1,11 +1,14 @@
 use std::{
     collections::BTreeSet,
+    env,
     fmt::{Display, Formatter, Result as FmtResult},
+    path::PathBuf,
     sync::Arc,
-    time::Duration,
+    time::Instant,
 };
 
 use chrono::{DateTime, Local, NaiveDate, Utc};
+use futures::Stream;
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
@@ -15,11 +18,38 @@ use crate::{
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
     command::{self, exists},
+    directory_changes::{WatchTarget, changes},
     money::{Money, usd},
 };
 
 const PROGRAM: &str = "ccusage";
-pub const POLL_INTERVAL: Duration = Duration::from_secs(15);
+
+pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
+    changes(
+        agent
+            .transcript_roots()
+            .into_iter()
+            .map(WatchTarget::OneLevelTree)
+            .collect(),
+    )
+}
+
+#[must_use]
+pub fn next_local_midnight() -> Option<Instant> {
+    let now = Local::now();
+    let midnight = now
+        .date_naive()
+        .succ_opt()?
+        .and_hms_opt(0, 0, 0)?
+        .and_local_timezone(Local)
+        .earliest()?;
+    Some(Instant::now() + (midnight - now).to_std().ok()?)
+}
+
+#[must_use]
+pub fn instant_of(moment: DateTime<Utc>) -> Instant {
+    Instant::now() + (moment - Utc::now()).to_std().unwrap_or_default()
+}
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -55,6 +85,19 @@ pub enum Agent {
 }
 
 impl Agent {
+    fn transcript_roots(self) -> Vec<PathBuf> {
+        let Some(home) = env::home_dir() else {
+            return Vec::new();
+        };
+        match self {
+            Agent::ClaudeCode => vec![
+                home.join(".config/claude/projects"),
+                home.join(".claude/projects"),
+            ],
+            Agent::CopilotCli => vec![home.join(".copilot/session-state")],
+        }
+    }
+
     fn report_args(self, period: &'static str) -> Vec<&'static str> {
         match self {
             Agent::ClaudeCode => vec!["claude", period],

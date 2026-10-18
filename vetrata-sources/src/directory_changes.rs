@@ -7,7 +7,7 @@ use std::{
 };
 
 use futures::{Stream, StreamExt};
-use inotify::{Inotify, WatchDescriptor, WatchMask};
+use inotify::{EventMask, Inotify, WatchDescriptor, WatchMask};
 
 use crate::stream_operators::restarting;
 
@@ -17,20 +17,36 @@ const EVENT_BUFFER_BYTES: usize = 4096;
 pub enum WatchTarget {
     EntriesOf(PathBuf),
     File(PathBuf),
+    OneLevelTree(PathBuf),
 }
 
 impl WatchTarget {
     fn directory(&self) -> PathBuf {
         match self {
-            WatchTarget::EntriesOf(directory) => directory.clone(),
+            WatchTarget::EntriesOf(directory) | WatchTarget::OneLevelTree(directory) => {
+                directory.clone()
+            }
             WatchTarget::File(file) => file.parent().unwrap_or(Path::new("/")).to_path_buf(),
         }
     }
 
     fn entry_name(&self) -> Option<OsString> {
         match self {
-            WatchTarget::EntriesOf(_) => None,
+            WatchTarget::EntriesOf(_) | WatchTarget::OneLevelTree(_) => None,
             WatchTarget::File(file) => file.file_name().map(OsString::from),
+        }
+    }
+
+    fn subdirectories(&self) -> Vec<PathBuf> {
+        match self {
+            WatchTarget::OneLevelTree(directory) => fs::read_dir(directory)
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| path.is_dir())
+                .collect(),
+            WatchTarget::EntriesOf(_) | WatchTarget::File(_) => Vec::new(),
         }
     }
 }
@@ -48,6 +64,7 @@ struct NamedEntry {
 struct Accepted {
     descriptor: WatchDescriptor,
     name: Option<OsString>,
+    grows_subdirectories: Option<PathBuf>,
 }
 
 impl Accepted {
@@ -57,6 +74,17 @@ impl Accepted {
                 .name
                 .as_ref()
                 .is_none_or(|name| event.name.as_ref() == Some(name))
+    }
+
+    fn new_subdirectory(&self, event: &inotify::Event<OsString>) -> Option<PathBuf> {
+        let root = self.grows_subdirectories.as_ref()?;
+        let appeared = event.mask.contains(EventMask::ISDIR)
+            && event
+                .mask
+                .intersects(EventMask::CREATE | EventMask::MOVED_TO);
+        (event.wd == self.descriptor && appeared)
+            .then(|| event.name.as_ref().map(|name| root.join(name)))
+            .flatten()
     }
 }
 
@@ -72,7 +100,18 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
             accepted.push(Accepted {
                 descriptor,
                 name: target.entry_name(),
+                grows_subdirectories: matches!(target, WatchTarget::OneLevelTree(_))
+                    .then(|| directory.clone()),
             });
+        }
+        for subdirectory in target.subdirectories() {
+            if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
+                accepted.push(Accepted {
+                    descriptor,
+                    name: None,
+                    grows_subdirectories: None,
+                });
+            }
         }
     }
     for symlink in symlinks {
@@ -80,17 +119,34 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
             accepted.push(Accepted {
                 descriptor,
                 name: Some(symlink.name),
+                grows_subdirectories: None,
             });
         }
     }
     Ok(inotify
         .into_event_stream([0u8; EVENT_BUFFER_BYTES])?
         .filter_map(move |event| {
+            let Ok(event) = event else {
+                return ready(None);
+            };
+            let appeared: Vec<PathBuf> = accepted
+                .iter()
+                .filter_map(|watched| watched.new_subdirectory(&event))
+                .collect();
+            for subdirectory in appeared {
+                if let Ok(descriptor) = watches.add(&subdirectory, entry_events()) {
+                    accepted.push(Accepted {
+                        descriptor,
+                        name: None,
+                        grows_subdirectories: None,
+                    });
+                }
+            }
             ready(
-                event
-                    .ok()
-                    .filter(|event| accepted.iter().any(|watched| watched.matches(event)))
-                    .map(drop),
+                accepted
+                    .iter()
+                    .any(|watched| watched.matches(&event))
+                    .then_some(()),
             )
         }))
 }

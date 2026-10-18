@@ -10,7 +10,7 @@ use vetrata_sources::{
     bus::DesktopBuses,
     tailscale::{self, Tailscale, open_admin},
     throughput::Readings,
-    wireguard::{TunnelAddress, Wireguard, disconnect},
+    wireguard::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
 };
 
 use crate::{
@@ -130,13 +130,20 @@ impl InternetGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        buses: Option<&DesktopBuses>,
     ) -> Task<InternetMessage> {
         self.tunnel_address.stop();
         let Some(HoverTarget::Internet(InternetTarget::Wireguard(tunnel))) = hovered else {
             return Task::none();
         };
+        let Some(buses) = buses else {
+            return Task::none();
+        };
         self.tunnel_address.start_hover_fetch(
-            tunnel.clone(),
+            TunnelOnBus {
+                buses: buses.clone(),
+                tunnel: tunnel.clone(),
+            },
             InternetMessage::TunnelAddressFetched,
             config,
         )

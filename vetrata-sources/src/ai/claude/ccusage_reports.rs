@@ -1,16 +1,18 @@
-use std::path::PathBuf;
+use std::{future::ready, path::PathBuf};
 
 use chrono::{DateTime, Local, Utc};
 use futures::Stream;
 
-use super::{Error, local_log_polls};
+use super::{Error, local_log_readings};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     ai::{
-        ccusage::{self, Agent, BillingBlock, POLL_INTERVAL, RecentUsage},
+        ccusage::{self, Agent, BillingBlock, RecentUsage},
         quota::Quota,
         working_time_forecast::SpendBudget,
     },
+    pushed_delivery_stream,
+    stream_operators::reread_on_trigger_or_deadline,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -45,15 +47,21 @@ impl ReadingSource for ClaudeCcusagePeriods {
     type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-periods";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        local_log_polls(logs, false, Self::poll)
+        local_log_readings(logs, false, |logs| {
+            pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
+                ccusage::transcript_changes(Agent::ClaudeCode),
+                move || Self::read(logs.clone()),
+                |_| ccusage::next_local_midnight(),
+            ))))
+        })
     }
 }
 
 impl ClaudeCcusagePeriods {
-    async fn poll(logs: ClaudeLocalLogs) -> Result<Self, Error> {
+    async fn read(logs: ClaudeLocalLogs) -> Result<Self, Error> {
         Ok(ClaudeCcusagePeriods {
             recent: ccusage::recent(Agent::ClaudeCode).await?,
             budget: logs.budget,
@@ -71,15 +79,27 @@ impl ReadingSource for ClaudeCcusageBlock {
     type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-block";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        local_log_polls(logs, true, Self::poll)
+        local_log_readings(logs, true, |_| {
+            pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
+                ccusage::transcript_changes(Agent::ClaudeCode),
+                Self::read,
+                |block| {
+                    block
+                        .as_ref()
+                        .ok()
+                        .and_then(|block| block.active.as_ref())
+                        .map(|active| ccusage::instant_of(active.ends_at))
+                },
+            ))))
+        })
     }
 }
 
 impl ClaudeCcusageBlock {
-    async fn poll(_logs: ClaudeLocalLogs) -> Result<Self, Error> {
+    async fn read() -> Result<Self, Error> {
         Ok(ClaudeCcusageBlock {
             active: ccusage::active_blocks(Agent::ClaudeCode)
                 .await?

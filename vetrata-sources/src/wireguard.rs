@@ -1,12 +1,17 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytesize::ByteSize;
-use futures::{Stream, stream};
+use futures::{Stream, StreamExt, stream};
 use serde_json::Value as Json;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
-    polled_delivery_stream, stream_operators::StreamOperators,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    bus::DesktopBuses,
+    command,
+    command::blocking::run,
+    net_interfaces::{nm, per_burst},
+    polled_delivery_stream, pushed_delivery_stream,
+    stream_operators::{StreamOperators, read_once_then_per_burst},
 };
 
 const CONNECTED_WINDOW: u64 = 180;
@@ -41,27 +46,45 @@ pub struct TunnelAddress {
     pub ip: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TunnelOnBus {
+    pub buses: DesktopBuses,
+    pub tunnel: String,
+}
+
 impl ReadingSource for TunnelAddress {
     type Error = command::Error;
-    type StreamInputs = String;
+    type StreamInputs = TunnelOnBus;
 
     const NAME: &'static str = "wireguard tunnel address";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(address_changes(watched))
     }
 }
 
-impl TunnelAddress {
-    async fn poll(tunnel: String) -> Result<Self, command::Error> {
-        Ok(TunnelAddress {
-            ip: interface_ip(&tunnel).await,
-        })
-    }
+async fn address_changes(
+    watched: TunnelOnBus,
+) -> Result<impl Stream<Item = Result<TunnelAddress, command::Error>> + Send, command::Error> {
+    let addressing = match nm::changes(&watched.buses.system, ADDRESSING_PROPERTIES).await {
+        Ok(signals) => per_burst(signals).left_stream(),
+        Err(e) => {
+            tracing::debug!("wireguard: no NetworkManager to follow: {e}");
+            stream::empty().right_stream()
+        }
+    };
+    Ok(read_once_then_per_burst(addressing, move || {
+        let tunnel = watched.tunnel.clone();
+        async move {
+            Ok(TunnelAddress {
+                ip: interface_ip(&tunnel).await,
+            })
+        }
+    }))
 }
+
+const ADDRESSING_PROPERTIES: &[&str] = &[nm::DEVICE_PROPERTIES, nm::IP4_CONFIG_PROPERTIES];
 
 impl Tunnel {
     #[must_use]

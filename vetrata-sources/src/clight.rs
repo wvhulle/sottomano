@@ -1,13 +1,17 @@
-use std::{env, fs, time::Duration};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use futures::Stream;
-use zbus::{blocking::Connection, proxy};
+use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
     bus::{DesktopBuses, Error, name_owned},
-    polled_delivery_stream,
-    stream_operators::StreamOperators,
+    directory_changes::{WatchTarget, changes},
+    pushed_delivery_stream,
+    stream_operators::{StreamOperators, read_once_then_per_burst},
 };
 
 const CLIGHT_SERVICE: &str = "org.clight.clight";
@@ -43,23 +47,40 @@ impl ReadingSource for Clight {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "clight";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         name_owned(buses.session.clone(), CLIGHT_SERVICE).while_held(
-            move || polled_delivery_stream(buses.clone(), Self::poll),
+            move || pushed_delivery_stream(calibration_changes(buses.clone())),
             SourceDelivery::Absent,
         )
     }
 }
 
-impl Clight {
-    async fn poll(buses: DesktopBuses) -> Result<Self, Error> {
-        let proxy: ConfBacklightProxy = buses.proxy(bus::Bus::Session).await?;
-        Ok(Clight {
-            auto: !proxy.no_auto_calib().await?,
-        })
-    }
+async fn calibration_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<Clight, Error>> + Send, Error> {
+    let conf = ConfBacklightProxy::builder(buses.on(bus::Bus::Session))
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let config_written = changes(config_file().map(WatchTarget::File).into_iter().collect());
+    Ok(read_once_then_per_burst(config_written, move || {
+        let conf = conf.clone();
+        async move {
+            Ok(Clight {
+                auto: !conf.no_auto_calib().await?,
+            })
+        }
+    }))
+}
+
+fn config_file() -> Option<PathBuf> {
+    let config_home = env::var_os("XDG_CONFIG_HOME")
+        .filter(|dir| !dir.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| env::home_dir().map(|home| home.join(".config")))?;
+    Some(config_home.join("clight.conf"))
 }
 
 fn no_auto_calib() -> Option<bool> {
@@ -88,16 +109,12 @@ fn capture() {
 }
 
 fn persist(manual: bool) {
-    let dir = env::var("XDG_CONFIG_HOME")
-        .ok()
-        .filter(|dir| !dir.is_empty())
-        .or_else(|| env::var("HOME").ok().map(|home| format!("{home}/.config")));
-    let Some(dir) = dir else {
+    let Some(file) = config_file() else {
         return;
     };
     let value = if manual { "true" } else { "false" };
     let contents = format!("backlight:\n{{\n    no_auto_calibration = {value};\n}};\n");
-    let _ = fs::write(format!("{dir}/clight.conf"), contents);
+    let _ = fs::write::<&Path, String>(&file, contents);
 }
 
 pub fn pause_auto_calib() {

@@ -1,10 +1,10 @@
-use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
+use std::{fmt, fs, path::PathBuf, str::FromStr};
 
-use futures::{Stream, stream};
+use futures::{Stream, StreamExt, stream};
 
 use super::{Error, list_dir, read_trimmed};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
     stream_operators::StreamOperators,
 };
 
@@ -85,19 +85,13 @@ impl ReadingSource for X3dCachePreference {
     type StreamInputs = ();
 
     const NAME: &'static str = "x3d-cache-preference";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
         stream::once(exposed).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
+            || stream::once(blocking_poll(Self::read)).map(SourceDelivery::Reading),
             SourceDelivery::Absent,
         )
-    }
-}
-
-impl X3dCachePreference {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(Self::read).await
     }
 }

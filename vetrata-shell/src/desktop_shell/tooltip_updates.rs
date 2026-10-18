@@ -260,6 +260,7 @@ impl DesktopShell {
 
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
         let hovered = self.tooltip.target();
+        let buses = self.desktop_buses.as_ref();
         Task::batch([
             self.window_group
                 .hover(&self.niri, hovered, &self.config)
@@ -275,13 +276,13 @@ impl DesktopShell {
                         .map(Message::NetInterfaces)
                 }),
             self.internet_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, buses)
                 .map(Message::Internet),
             self.compute_group
                 .hover(hovered, &self.config)
                 .map(Message::Compute),
             self.power_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, buses)
                 .map(Message::Power),
             self.claude_usage_group
                 .hover(hovered, &self.config)

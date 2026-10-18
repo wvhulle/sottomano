@@ -1,10 +1,13 @@
-use std::time::Duration;
+use std::{env, future::ready, path::PathBuf};
 
 use futures::{Stream, stream};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, command, polled_delivery_stream,
-    stream_operators::StreamOperators, sun_schedule::ColorMode,
+    DeliveryCadence, ReadingSource, SourceDelivery, command,
+    directory_changes::{WatchTarget, changes},
+    pushed_delivery_stream,
+    stream_operators::{StreamOperators, read_once_then_per_burst},
+    sun_schedule::ColorMode,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,23 +20,35 @@ impl ReadingSource for Umbra {
     type StreamInputs = ();
 
     const NAME: &'static str = "umbra";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(30));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(command::exists("umbra")).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
+            || {
+                pushed_delivery_stream(ready(Ok(read_once_then_per_burst(
+                    changes(mode_file().map(WatchTarget::File).into_iter().collect()),
+                    Self::read,
+                ))))
+            },
             SourceDelivery::Absent,
         )
     }
 }
 
 impl Umbra {
-    async fn poll((): ()) -> Result<Self, command::Error> {
+    async fn read() -> Result<Self, command::Error> {
         let mode = command::output("umbra", &["get"]).await?;
         Ok(Umbra {
             dark: mode.trim() == "dark",
         })
     }
+}
+
+fn mode_file() -> Option<PathBuf> {
+    let state_home = env::var_os("XDG_STATE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::home_dir().map(|home| home.join(".local/state")))?;
+    Some(state_home.join("umbra/mode.env"))
 }
 
 #[must_use]
