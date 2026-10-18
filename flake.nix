@@ -159,7 +159,8 @@
             ];
           };
           LANG = "en_US.UTF-8";
-          ICED_BACKEND = "tiny-skia";
+          VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader ];
           doInstallCargoArtifacts = false;
           buildPhaseCargoCommand = ''
             mkdir -p recordings

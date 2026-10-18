@@ -252,7 +252,7 @@ async fn finished_startup(
         .await?;
     let mut startup_finished =
         signals_matching(&connection, [manager_signal("StartupFinished")?]).await?;
-    manager.subscribe().await?;
+    manager.ensure_subscribed().await?;
     let mut timestamps = ManagerTimestamps::read(&manager).await?;
     let finish = loop {
         if let Some(finish) = timestamps.finish {

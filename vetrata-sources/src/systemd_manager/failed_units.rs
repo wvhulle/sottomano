@@ -120,7 +120,7 @@ async fn watch_failed(
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    manager.subscribe().await?;
+    manager.ensure_subscribed().await?;
     let unit_signals = signals_matching(
         &connection,
         [
