@@ -117,6 +117,7 @@ pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
 pub enum SourceDelivery<S: ReadingSource> {
     Absent,
     Reading(Result<S, S::Error>),
+    Unchanged,
 }
 
 pub fn polled_delivery_stream<S, I, F>(
@@ -135,7 +136,18 @@ where
     };
     ticked(every, move || poll(inputs.clone()))
         .map(SourceDelivery::Reading)
-        .distinct_until_changed()
+        .scan(
+            None,
+            |previous: &mut Option<SourceDelivery<S>>, delivery| {
+                let repeated = previous.as_ref() == Some(&delivery);
+                *previous = Some(delivery.clone());
+                ready(Some(if repeated {
+                    SourceDelivery::Unchanged
+                } else {
+                    delivery
+                }))
+            },
+        )
         .right_stream()
 }
 
@@ -174,6 +186,7 @@ impl<S: ReadingSource + PartialEq> PartialEq for SourceDelivery<S> {
                 matches!(other, SourceDelivery::Reading(Ok(known)) if known == value)
             }
             SourceDelivery::Reading(Err(_)) => false,
+            SourceDelivery::Unchanged => matches!(other, SourceDelivery::Unchanged),
         }
     }
 }

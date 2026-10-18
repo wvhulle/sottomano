@@ -17,6 +17,7 @@ use std::{
 use chrono::Utc;
 use iced::{
     Color, Element, Length, Task, font,
+    task::Handle,
     theme::Style,
     widget::{Space, container},
     window::Id,
@@ -147,6 +148,7 @@ pub struct DesktopShell {
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub pointer_drag: ShellDrag,
+    pub spring_load: Option<Handle>,
     pub niri_config: NiriConfigFile,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
 }
@@ -212,6 +214,7 @@ impl DesktopShell {
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             pointer_drag: ShellDrag::Idle,
+            spring_load: None,
             niri_config,
             configured_workspaces: None,
             shell_settings: ShellSettings::default(),

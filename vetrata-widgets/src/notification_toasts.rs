@@ -11,7 +11,8 @@ use std::cmp::Reverse;
 
 use iced::{
     Padding, Subscription, Theme,
-    time::{Duration, Instant, every},
+    futures::{StreamExt, stream},
+    time::Instant,
 };
 use niri_ipc::state::EventStreamState;
 use toast_card::ToastCard;
@@ -19,7 +20,7 @@ pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, time::sleep_until};
 use vetrata_config::{Config, severity::Severity};
 use vetrata_sources::{
     app_icon::DesktopEntries,
@@ -37,7 +38,6 @@ use crate::{
 };
 
 const DEFAULT_ACTION: &str = "default";
-const EXPIRY_TICK: Duration = Duration::from_millis(250);
 
 pub struct ToastContext<'a> {
     pub placement: Placement,
@@ -142,19 +142,16 @@ impl NotificationLayer {
         self.held.len()
     }
 
-    #[must_use]
-    pub fn has_running_countdown(&self) -> bool {
-        self.live
-            .iter()
-            .any(|n| n.countdown.is_some_and(Countdown::is_running))
-    }
-
-    pub fn expiry_ticks(&self) -> Subscription<NotificationMessage> {
-        if self.has_running_countdown() {
-            every(EXPIRY_TICK).map(|_| NotificationMessage::Tick)
-        } else {
-            Subscription::none()
-        }
+    pub fn expiry_subscription(&self) -> Subscription<NotificationMessage> {
+        let earliest = self
+            .showing()
+            .filter_map(|n| n.countdown.and_then(Countdown::deadline))
+            .min();
+        earliest.map_or_else(Subscription::none, |deadline| {
+            Subscription::run_with(deadline, |&deadline| {
+                stream::once(sleep_until(deadline.into())).map(|()| NotificationMessage::ExpiryDue)
+            })
+        })
     }
 
     fn showing(&self) -> impl Iterator<Item = &Notification> {

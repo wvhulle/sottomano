@@ -71,6 +71,7 @@ impl<S: ReadingSource> OnHoverReading<S> {
                 self.shape = None;
             }
             SourceDelivery::Reading(reading) => self.latest = Some(reading),
+            SourceDelivery::Unchanged => {}
         }
         if let Some(Freshness::Polled { last, .. }) = &mut self.freshness {
             *last = SystemTime::now();

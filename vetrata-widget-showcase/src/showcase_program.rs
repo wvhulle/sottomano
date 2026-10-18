@@ -300,7 +300,7 @@ impl Program for ShowcaseProgram {
             Subscription::run_with(state.demo.live, |&live| live_readings(live)),
             state
                 .notifications
-                .expiry_ticks()
+                .expiry_subscription()
                 .map(Message::Notification),
         ])
     }

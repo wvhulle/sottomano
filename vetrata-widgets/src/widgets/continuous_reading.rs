@@ -92,12 +92,11 @@ impl<S: ReadingSource> ContinuousReading<S> {
     }
 
     fn kept(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
-        let SourceDelivery::Reading(reading) = delivery else {
-            return ContinuousReading::Absent;
-        };
-        match reading {
-            Ok(data) => ContinuousReading::Read { data, freshness },
-            Err(error) => {
+        match delivery {
+            SourceDelivery::Absent => ContinuousReading::Absent,
+            SourceDelivery::Unchanged => self.restamped(freshness),
+            SourceDelivery::Reading(Ok(data)) => ContinuousReading::Read { data, freshness },
+            SourceDelivery::Reading(Err(error)) => {
                 tracing::warn!("{}: {error}", S::NAME);
                 self.restamped(freshness)
             }
@@ -129,12 +128,11 @@ impl<S: ReadingSource + ReadingSections> ContinuousReading<S> {
 
 impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
     fn accepted(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
-        let SourceDelivery::Reading(reading) = delivery else {
-            return ContinuousReading::Absent;
-        };
-        match reading {
-            Ok(data) => ContinuousReading::Read { data, freshness },
-            Err(error) => ContinuousReading::Failed {
+        match delivery {
+            SourceDelivery::Absent => ContinuousReading::Absent,
+            SourceDelivery::Unchanged => self.restamped(freshness),
+            SourceDelivery::Reading(Ok(data)) => ContinuousReading::Read { data, freshness },
+            SourceDelivery::Reading(Err(error)) => ContinuousReading::Failed {
                 failure: FailedReading {
                     icon: self.last_icon(),
                     error,

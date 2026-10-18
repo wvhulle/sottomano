@@ -1,4 +1,8 @@
-use std::{collections::HashMap, ops::RangeInclusive};
+use std::{
+    collections::HashMap,
+    ops::RangeInclusive,
+    time::{Duration, Instant},
+};
 
 use iced::{Subscription, Task};
 use uom::si::{f64::Power, power::watt};
@@ -45,6 +49,7 @@ pub struct PowerProfileControl {
     profile_models: Option<HashMap<Profile, RegressionState>>,
     estimates: HashMap<Profile, Option<Estimate>>,
     load_started: bool,
+    previous_sample_at: Option<Instant>,
 }
 
 impl Default for PowerProfileControl {
@@ -67,6 +72,7 @@ impl Default for PowerProfileControl {
             profile_models: None,
             estimates: HashMap::new(),
             load_started: false,
+            previous_sample_at: None,
         }
     }
 }
@@ -130,6 +136,7 @@ impl PowerProfileControl {
                         None
                     }
                     SourceDelivery::Absent => None,
+                    SourceDelivery::Unchanged => self.conditions,
                 };
             }
             PowerProfileMessage::Loaded(models) => {
@@ -183,12 +190,18 @@ impl PowerProfileControl {
             return self.start_loading(&battery.serial);
         };
         let Some(sample) = sample else {
+            self.previous_sample_at = None;
             return Task::none();
         };
+        let now = Instant::now();
+        let since_previous = self
+            .previous_sample_at
+            .replace(now)
+            .map_or(Duration::ZERO, |previous| now - previous);
         let next = models
             .remove(&sample.profile)
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
-            .observe(sample.conditions, sample.draw);
+            .observe(sample.conditions, sample.draw, since_previous);
         models.insert(sample.profile, next);
         Task::future(power::save(battery.serial.clone(), sample.profile, next)).discard()
     }

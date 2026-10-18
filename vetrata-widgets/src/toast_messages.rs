@@ -22,7 +22,7 @@ pub enum NotificationMessage {
     Reply { id: u32, message: ReplyMessage },
     OpenFile(u32),
     CopyFilePath(u32),
-    Tick,
+    ExpiryDue,
 }
 
 impl From<ServerEvent> for NotificationMessage {

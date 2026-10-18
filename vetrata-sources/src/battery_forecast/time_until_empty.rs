@@ -103,7 +103,7 @@ mod tests {
     use crate::{
         battery_forecast::discharge_power_regression::trained,
         hardware::PowerSupplyIdentity,
-        sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
+        sysfs_sensors::battery::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
     };
 
     fn on_battery(energy_wh: f64) -> Battery {
@@ -156,8 +156,8 @@ mod tests {
         let bright = Conditions::new(0.9, 0.0);
         let model = (0..80).fold(RegressionState::seed(true_draw(dim)), |model, _| {
             model
-                .observe(dim, true_draw(dim))
-                .observe(bright, true_draw(bright))
+                .observe(dim, true_draw(dim), BATTERY_POLL_INTERVAL)
+                .observe(bright, true_draw(bright), BATTERY_POLL_INTERVAL)
         });
         let life = |conditions| hrs(balanced_life(&on_battery(50.0), conditions, model).time);
         assert!(

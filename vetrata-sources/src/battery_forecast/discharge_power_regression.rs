@@ -1,11 +1,14 @@
+use std::time::Duration;
+
 use adskalman::{KalmanFilterNoControl, StateAndCovariance};
 use nalgebra::{Matrix1x3, Matrix3, Vector1, Vector3};
 use uom::si::{f64::Power, power::watt};
 
+#[cfg(test)]
+use crate::sysfs_sensors::battery::BATTERY_POLL_INTERVAL;
 use crate::{
     battery_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
     power_profile::Conditions,
-    sysfs_sensors::battery::BATTERY_POLL_INTERVAL,
 };
 
 const BASE_DRIFT_W2_PER_S: f64 = 2e-7;
@@ -18,9 +21,9 @@ fn regressors(conditions: Conditions) -> Matrix1x3<f64> {
     Matrix1x3::new(1.0, conditions.brightness_frac, conditions.cpu_busy_frac)
 }
 
-fn coefficient_drift() -> RandomWalk<3> {
+fn coefficient_drift(since_previous: Duration) -> RandomWalk<3> {
     RandomWalk::over(
-        BATTERY_POLL_INTERVAL,
+        since_previous,
         Vector3::new(
             BASE_DRIFT_W2_PER_S,
             COEFFICIENT_DRIFT_W2_PER_S,
@@ -49,8 +52,13 @@ impl RegressionState {
     }
 
     #[must_use]
-    pub fn observe(self, conditions: Conditions, observed: Power) -> Self {
-        let drift = coefficient_drift();
+    pub fn observe(
+        self,
+        conditions: Conditions,
+        observed: Power,
+        since_previous: Duration,
+    ) -> Self {
+        let drift = coefficient_drift(since_previous);
         let observation = LinearObservation::new(regressors(conditions), MEASUREMENT_VARIANCE_W2);
         let filter = KalmanFilterNoControl::new(&drift, &observation);
         let prior = StateAndCovariance::new(self.coefficients, self.covariance);
@@ -75,7 +83,7 @@ pub(super) fn trained(
 ) -> RegressionState {
     draws.into_iter().fold(
         RegressionState::seed(Power::new::<watt>(10.0)),
-        |model, draw| model.observe(conditions, draw),
+        |model, draw| model.observe(conditions, draw, BATTERY_POLL_INTERVAL),
     )
 }
 
@@ -90,7 +98,7 @@ mod tests {
         let conditions = Conditions::new(0.5, 0.3);
         let settled = trained(conditions, repeat_n(Power::new::<watt>(10.0), 2000));
         let after_burst = (0..12).fold(settled, |model, _| {
-            model.observe(conditions, Power::new::<watt>(20.0))
+            model.observe(conditions, Power::new::<watt>(20.0), BATTERY_POLL_INTERVAL)
         });
         assert!(
             after_burst.expected_draw(conditions) < Power::new::<watt>(11.0),
@@ -106,8 +114,8 @@ mod tests {
         let bright = Conditions::new(0.9, 0.0);
         let model = (0..80).fold(RegressionState::seed(true_draw(dim)), |model, _| {
             model
-                .observe(dim, true_draw(dim))
-                .observe(bright, true_draw(bright))
+                .observe(dim, true_draw(dim), BATTERY_POLL_INTERVAL)
+                .observe(bright, true_draw(bright), BATTERY_POLL_INTERVAL)
         });
         assert!(model.expected_draw(bright) > model.expected_draw(dim) + Power::new::<watt>(10.0));
     }
