@@ -14,6 +14,7 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         group_item::GroupItem,
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             Freshness, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody, WholeBody,
@@ -128,7 +129,9 @@ impl SessionMenu {
                 pressable_card(
                     glyph.view(
                         config.theme.font.icon_size_px,
-                        config.theme.palette.bar_foreground.scale_alpha(reveal),
+                        PaletteColors::from(&config.theme.palette)
+                            .bar_foreground
+                            .scale_alpha(reveal),
                     ),
                     SessionTarget::Menu.into(),
                     GroupEvent::Tooltip,

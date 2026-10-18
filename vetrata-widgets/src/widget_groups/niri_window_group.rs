@@ -127,30 +127,32 @@ impl NiriWindowGroup {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
-                rules
-                    .restyle(|styling| styling.layout.window_corner_radius_px = value)
-                    .map(move |ok| {
+                Task::perform(
+                    rules.restyle(move |styling| styling.layout.window_corner_radius_px = value),
+                    move |ok| {
                         Message::NiriWindow(NiriWindowMessage::CornerRadius(
                             ControlMessage::Persisted { value, ok },
                         ))
-                    })
+                    },
+                )
             }
             NiriWindowMessage::Gaps(control) => {
                 let SliderAction::Commit(value) = self.gaps.update(control) else {
                     return Task::none();
                 };
-                rules
-                    .restyle(|styling| styling.layout.gaps_px = value)
-                    .map(move |ok| {
+                Task::perform(
+                    rules.restyle(move |styling| styling.layout.gaps_px = value),
+                    move |ok| {
                         Message::NiriWindow(NiriWindowMessage::Gaps(ControlMessage::Persisted {
                             value,
                             ok,
                         }))
-                    })
+                    },
+                )
             }
-            NiriWindowMessage::ToggleXray => rules
-                .restyle(|styling| styling.xray = !styling.xray)
-                .discard(),
+            NiriWindowMessage::ToggleXray => {
+                Task::future(rules.restyle(move |styling| styling.xray = !styling.xray)).discard()
+            }
         }
     }
 

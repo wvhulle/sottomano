@@ -1,14 +1,14 @@
 use std::{mem::replace, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use iced::{Subscription, Task};
+use futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use vetrata_sources::{
     background_work::blocking,
     bus::DesktopBuses,
     focus_ledger::{
         AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans, ScreenEdge,
-        WakingWindow, WindowFocusChange,
+        SpanWrite, WakingWindow, WindowFocusChange,
     },
     idle_notify::{IdleEdge, idle_edges},
     kitty_windows::WindowProcesses,
@@ -54,59 +54,56 @@ impl FocusTracker {
         &self.ledger
     }
 
-    pub fn load() -> Task<TrackerMessage> {
-        Task::perform(
-            focus_spans::load_since(Utc::now() - LOADED_HISTORY),
-            TrackerMessage::Loaded,
-        )
+    pub async fn load() -> TrackerMessage {
+        TrackerMessage::Loaded(focus_spans::load_since(Utc::now() - LOADED_HISTORY).await)
     }
 
-    pub fn subscription() -> Subscription<TrackerMessage> {
-        Subscription::run(|| idle_edges(PRESENCE_RESOLUTION)).map(TrackerMessage::Idle)
+    pub fn idle_messages() -> impl Stream<Item = TrackerMessage> + Send {
+        idle_edges(PRESENCE_RESOLUTION).map(TrackerMessage::Idle)
     }
 
-    pub fn sleep_subscription(buses: &DesktopBuses) -> Subscription<TrackerMessage> {
-        Subscription::run_with(buses.clone(), logind::sleep_edges).map(TrackerMessage::Sleep)
+    pub fn sleep_messages(
+        buses: &DesktopBuses,
+    ) -> impl Stream<Item = TrackerMessage> + Send + use<> {
+        logind::sleep_edges(buses).map(TrackerMessage::Sleep)
     }
 
     pub fn refocus(
         &mut self,
         niri: &EventStreamState,
         processes: &WindowProcesses,
-        waking: WakingWindow,
-    ) -> Task<TrackerMessage> {
+    ) -> Option<impl Future<Output = TrackerMessage> + Send + use<>> {
         let probed = FocusIdentity::of(niri, processes).map_or(
             ProbedWindowFocus::NoWindowFocused,
             ProbedWindowFocus::FocusedWindowIdentity,
         );
         if probed == self.last_probed_window_focus {
-            return Task::none();
+            return None;
         }
         self.last_probed_window_focus = probed.clone();
-        match probed {
-            ProbedWindowFocus::FocusedWindowIdentity(identity) => Task::perform(
-                blocking("focus probe", move || {
-                    WindowFocusChange::WindowGainedFocus(identity.probed())
-                }),
-                TrackerMessage::WindowFocusChanged,
-            ),
-            ProbedWindowFocus::NoWindowFocused => self.update(
-                TrackerMessage::WindowFocusChanged(WindowFocusChange::NoWindowFocused),
-                waking,
-            ),
-        }
+        Some(async move {
+            TrackerMessage::WindowFocusChanged(match probed {
+                ProbedWindowFocus::FocusedWindowIdentity(identity) => {
+                    blocking("focus probe", move || {
+                        WindowFocusChange::WindowGainedFocus(identity.probed())
+                    })
+                    .await
+                }
+                ProbedWindowFocus::NoWindowFocused => WindowFocusChange::NoWindowFocused,
+            })
+        })
     }
 
     pub fn update(
         &mut self,
         message: TrackerMessage,
         waking: WakingWindow,
-    ) -> Task<TrackerMessage> {
+    ) -> impl Future<Output = ()> + Send + use<> {
         let now = Utc::now();
-        let recorded = match message {
+        let span_writes = match message {
             TrackerMessage::Loaded(loaded) => {
                 self.ledger = self.taken_ledger().with_history(loaded);
-                Task::none()
+                Vec::new()
             }
             TrackerMessage::WindowFocusChanged(change) => {
                 self.fold(FocusSignal::WindowFocusChanged(change), now)
@@ -127,23 +124,19 @@ impl FocusTracker {
         self.ledger = self
             .taken_ledger()
             .with_settled_unit_totals(waking.around(now), now);
-        recorded
+        stream::iter(span_writes).for_each(focus_spans::record)
     }
 
     fn taken_ledger(&mut self) -> FocusLedger {
         replace(&mut self.ledger, FocusLedger::started_at(Utc::now()))
     }
 
-    fn fold(&mut self, signal: FocusSignal, now: DateTime<Utc>) -> Task<TrackerMessage> {
+    fn fold(&mut self, signal: FocusSignal, now: DateTime<Utc>) -> Vec<SpanWrite> {
         let Folded {
             ledger,
             span_writes,
         } = self.taken_ledger().fold(signal, now);
         self.ledger = ledger;
-        Task::batch(
-            span_writes
-                .into_iter()
-                .map(|write| Task::future(focus_spans::record(write)).discard()),
-        )
+        span_writes
     }
 }

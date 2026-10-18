@@ -12,7 +12,9 @@ use vetrata_config::{
     severity::Severity,
 };
 use vetrata_sources::notifications::model::{ExpireTimeout, NotificationData, close_reason};
-use vetrata_widgets::{
+
+use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
+use crate::{
     hover_tooltips::HoverTarget,
     shell_message::Message,
     widgets::{
@@ -21,8 +23,6 @@ use vetrata_widgets::{
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
     },
 };
-
-use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 
 const SHRUNK_SCALE: f32 = 0.95;
 

@@ -1,7 +1,7 @@
 use core::slice;
 
 use iced::{
-    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Shadow, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -12,7 +12,119 @@ use iced::{
     mouse::Cursor,
     widget::container,
 };
-use vetrata_state::OutlinedSides;
+use vetrata_config::{Config, screen_edges::Position};
+use vetrata_state::{LayerAppearance, ShellLayout};
+
+use crate::widgets::palette_colors::PaletteColors;
+
+pub struct LayerFrameStyle<'a> {
+    appearance: &'a LayerAppearance,
+    config: &'a Config,
+}
+
+impl<'a> LayerFrameStyle<'a> {
+    #[must_use]
+    pub fn new(appearance: &'a LayerAppearance, config: &'a Config) -> Self {
+        Self { appearance, config }
+    }
+
+    #[must_use]
+    pub fn container_style(&self) -> container::Style {
+        let colors = PaletteColors::from(&self.config.theme.palette);
+        container::Style::default()
+            .background(colors.surface.scale_alpha(self.appearance.opacity))
+            .border(Border {
+                radius: Radius::from(self.appearance.corner_radius_px),
+                ..self.outline_border()
+            })
+            .shadow(self.drop_shadow())
+            .color(colors.bar_foreground)
+    }
+
+    #[must_use]
+    pub fn outline_border(&self) -> Border {
+        if !self.appearance.outline.drawn {
+            return Border::default();
+        }
+        Border {
+            color: PaletteColors::from(&self.config.theme.palette).frame_outline,
+            width: self.config.panel_bar.frame_outline,
+            radius: Radius::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn drop_shadow(&self) -> Shadow {
+        let shadow = &self.appearance.shadow;
+        if !shadow.cast {
+            return Shadow::default();
+        }
+        Shadow {
+            color: Color::BLACK.scale_alpha(shadow.opacity),
+            offset: Vector::ZERO,
+            blur_radius: shadow.softness_px,
+        }
+    }
+}
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy)]
+pub struct OutlinedSides {
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+    pub left: bool,
+}
+
+impl OutlinedSides {
+    pub const ALL: Self = Self {
+        top: true,
+        right: true,
+        bottom: true,
+        left: true,
+    };
+
+    #[must_use]
+    pub fn inward_of(panel_position: Position) -> Self {
+        Self {
+            top: panel_position != Position::Top,
+            right: true,
+            bottom: panel_position != Position::Bottom,
+            left: panel_position != Position::Left,
+        }
+    }
+
+    #[must_use]
+    pub fn all_when_floating(self, layout: &ShellLayout) -> Self {
+        if layout.float_offset_px > 0.0 {
+            Self::ALL
+        } else {
+            self
+        }
+    }
+
+    fn square_unoutlined_corners(self, radius: Radius) -> Radius {
+        let rounded_between = |first: bool, second: bool, corner: f32| {
+            if first && second { corner } else { 0.0 }
+        };
+        Radius {
+            top_left: rounded_between(self.top, self.left, radius.top_left),
+            top_right: rounded_between(self.top, self.right, radius.top_right),
+            bottom_right: rounded_between(self.bottom, self.right, radius.bottom_right),
+            bottom_left: rounded_between(self.bottom, self.left, radius.bottom_left),
+        }
+    }
+
+    fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
+        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
+        bounds.expand(Padding {
+            top: beyond_antialiasing(self.top),
+            right: beyond_antialiasing(self.right),
+            bottom: beyond_antialiasing(self.bottom),
+            left: beyond_antialiasing(self.left),
+        })
+    }
+}
 
 pub fn panel_frame<'a, Message>(
     content: impl Into<Element<'a, Message>>,

@@ -24,6 +24,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         icon_handle::PixmapHandles,
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip, TooltipBody, TrayMenuBody, WholeBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
@@ -233,7 +234,9 @@ fn item_view<'a>(
         Some(source) => pixmap_handles.icon_handle(source).view(side, reveal),
         None => Glyph::from(Phosphor::Question(Weight::Regular)).view(
             side,
-            config.theme.palette.bar_foreground.scale_alpha(reveal),
+            PaletteColors::from(&config.theme.palette)
+                .bar_foreground
+                .scale_alpha(reveal),
         ),
     };
 
@@ -241,7 +244,7 @@ fn item_view<'a>(
         Column::with_children([
             glyph,
             activity_line(
-                config.theme.palette.focus,
+                PaletteColors::from(&config.theme.palette).focus,
                 reveal,
                 config.panel_bar.indicator_thickness,
             ),

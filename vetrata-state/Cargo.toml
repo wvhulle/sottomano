@@ -11,7 +11,7 @@ vetrata-config = { path = "../vetrata-config" }
 vetrata-sources = { path = "../vetrata-sources" }
 chrono.workspace = true
 club-kdl = { version = "0.14.1", features = ["kdl-rs"] }
-iced.workspace = true
+futures.workspace = true
 kdl.workspace = true
 nalgebra.workspace = true
 niri-ipc.workspace = true

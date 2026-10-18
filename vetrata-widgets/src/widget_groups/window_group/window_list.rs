@@ -33,6 +33,7 @@ use crate::{
         focus_indicator::focus_indicator,
         on_hover_reading::OnHoverReading,
         pager_slot::PagerSlot,
+        palette_colors::PaletteColors,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
@@ -40,6 +41,7 @@ use crate::{
             draggable_slot::{draggable_slot, draggable_slot_list},
             keyed_slot_list::keyed_slot_list,
         },
+        text::FontFaces,
         tooltip_body::Section,
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
@@ -267,7 +269,9 @@ impl WindowList {
         let indicated = focus_indicator(
             keyed_slot_list(slots, position, config),
             focused_index,
-            config.theme.palette.focus.scale_alpha(focus_opacity),
+            PaletteColors::from(&config.theme.palette)
+                .focus
+                .scale_alpha(focus_opacity),
             config,
         )
         .edge(position);
@@ -486,7 +490,9 @@ fn secondary_glyph<'a>(
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
     let state = WidgetState::Off;
-    let color = state.color(&config.theme.palette).scale_alpha(opacity);
+    let color = state
+        .color(&PaletteColors::from(&config.theme.palette))
+        .scale_alpha(opacity);
     Glyph::from(icon(state.weight())).view(config.theme.font.icon_size_px, color)
 }
 
@@ -526,7 +532,9 @@ fn audio_glyph<'a>(
     } else {
         Phosphor::SpeakerHigh(Weight::Regular)
     };
-    let color = state.color(&config.theme.palette).scale_alpha(opacity);
+    let color = state
+        .color(&PaletteColors::from(&config.theme.palette))
+        .scale_alpha(opacity);
     Some(Glyph::from(icon.with_weight(state.weight())).view(config.theme.font.icon_size_px, color))
 }
 
@@ -542,7 +550,7 @@ fn indicator_line<'a>(
         0.0
     };
     activity_line(
-        config.theme.palette.urgent,
+        PaletteColors::from(&config.theme.palette).urgent,
         severity * opacity,
         config.panel_bar.indicator_thickness,
     )
@@ -555,8 +563,12 @@ fn progress_ticks<'a>(
 ) -> Option<Element<'a, WindowListMessage>> {
     let fraction = extras.progress(config)?;
     let thickness = config.panel_bar.indicator_thickness;
-    let filled = config.theme.palette.warning.scale_alpha(opacity);
-    let track = config.theme.palette.dim.scale_alpha(opacity);
+    let filled = PaletteColors::from(&config.theme.palette)
+        .warning
+        .scale_alpha(opacity);
+    let track = PaletteColors::from(&config.theme.palette)
+        .dim
+        .scale_alpha(opacity);
     Some(
         progress_bar(0.0..=1.0, fraction)
             .girth(thickness)
@@ -582,13 +594,17 @@ fn count_badge<'a>(
     } else {
         count.to_string()
     };
-    let background = config.theme.palette.urgent.scale_alpha(opacity);
-    let foreground = config.theme.palette.surface.scale_alpha(opacity);
+    let background = PaletteColors::from(&config.theme.palette)
+        .urgent
+        .scale_alpha(opacity);
+    let foreground = PaletteColors::from(&config.theme.palette)
+        .surface
+        .scale_alpha(opacity);
     let size = config.theme.font.text_size_px;
     let badge = container(
         text(label)
             .size(size)
-            .font(config.theme.font.iced_font)
+            .font(FontFaces::from(&config.theme.font).regular)
             .color(foreground),
     )
     .padding([0.0, config.layout.panel.widget_spacing])

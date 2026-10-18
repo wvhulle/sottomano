@@ -15,17 +15,17 @@ use iced::{
 };
 use vetrata_config::{Config, notification_toasts::ToastPlacementConfig};
 use vetrata_state::LayerAppearance;
-use vetrata_widgets::{
+
+use super::{
+    toast_anchor_geometry,
+    toast_placement::{AnchoredToast, ToastAnchor},
+};
+use crate::{
     toast_messages::NotificationMessage,
     widgets::{
         child_view::{ChildView, ChildViewMut},
         region_reporter::RegionRoles,
     },
-};
-
-use super::{
-    toast_anchor_geometry,
-    toast_placement::{AnchoredToast, ToastAnchor},
 };
 
 impl<'a> WindowAnchoredToasts<'a> {
@@ -43,7 +43,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 card_roles: RegionRoles {
                     takes_input: true,
                     blurred: overlays.blurred,
-                    corner_radius: overlays.corner_radius.top_left,
+                    corner_radius: overlays.corner_radius_px,
                 },
                 ids: Vec::new(),
                 anchors: Vec::new(),

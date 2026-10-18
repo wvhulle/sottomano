@@ -16,6 +16,7 @@ use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 use vetrata_config::{Config, ConfigFile, SecretPaths};
 use vetrata_sources::niri_config::NiriConfigFile;
 use vetrata_state::niri_rules::NiriRulesFile;
+use vetrata_widgets::widgets::text::FontFaces;
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
@@ -57,7 +58,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         with_connection: wayland.clone().map(Into::into),
         ..Default::default()
     };
-    let default_font = config.theme.font.iced_font;
+    let default_font = FontFaces::from(&config.theme.font).regular;
     let font_data = config.theme.font.data.to_vec();
 
     daemon(

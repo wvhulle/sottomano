@@ -18,6 +18,7 @@ use crate::{
         glyph_button,
         marker_track::MarkerTrack,
         pager_slot::PagerSlot,
+        palette_colors::PaletteColors,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
@@ -59,7 +60,7 @@ fn order_restore<'a>(
         glyph_button(
             Phosphor::ArrowCounterClockwise(Weight::Regular),
             config.theme.font.icon_size_px,
-            config.theme.palette.inactive,
+            PaletteColors::from(&config.theme.palette).inactive,
             WorkspacesMessage::RestoreOrder {
                 output: output.to_owned(),
             },
@@ -216,9 +217,11 @@ fn drop_tint(
     p: &niri::WorkspaceIndicator,
     drag: &DragView,
 ) -> impl Fn(&Theme) -> container::Style + 'static {
-    let tint = drag
-        .awaits_window_on(p.id)
-        .then(|| config.theme.palette.focus.scale_alpha(DROP_TARGET_ALPHA));
+    let tint = drag.awaits_window_on(p.id).then(|| {
+        PaletteColors::from(&config.theme.palette)
+            .focus
+            .scale_alpha(DROP_TARGET_ALPHA)
+    });
     move |_| container::Style {
         background: tint.map(Into::into),
         ..container::Style::default()
@@ -238,7 +241,7 @@ fn edge_line<'a>(
     ) else {
         return urgency_line(config, p, position, tone);
     };
-    let focus = config.theme.palette.focus;
+    let focus = PaletteColors::from(&config.theme.palette).focus;
     let thickness = config.panel_bar.indicator_thickness;
     let bar = progress_bar(0.0..=1.0, charge)
         .girth(thickness)
@@ -264,7 +267,7 @@ impl SlotTone {
     fn tint(self, config: &Config, regular: Color) -> Color {
         match self {
             SlotTone::Regular => regular,
-            SlotTone::Dragged => config.theme.palette.dim,
+            SlotTone::Dragged => PaletteColors::from(&config.theme.palette).dim,
         }
     }
 }
@@ -286,9 +289,9 @@ fn indicated<'a>(
     let active = workspaces.iter().position(|p| p.is_active);
     let active_is_urgent = workspaces.iter().any(|p| p.is_active && p.is_urgent);
     let color = if active_is_urgent {
-        config.theme.palette.urgent
+        PaletteColors::from(&config.theme.palette).urgent
     } else {
-        config.theme.palette.focus
+        PaletteColors::from(&config.theme.palette).focus
     };
     focus_indicator(slots, active, color, config)
         .edge(position)
@@ -327,9 +330,9 @@ fn hit_area<'a>(
 
 fn window_color(config: &Config, w: &niri::WinEntry, unfocused: Color) -> Color {
     if w.is_urgent {
-        config.theme.palette.urgent
+        PaletteColors::from(&config.theme.palette).urgent
     } else if w.is_focused {
-        config.theme.palette.focus
+        PaletteColors::from(&config.theme.palette).focus
     } else {
         unfocused
     }
@@ -345,14 +348,18 @@ fn window_markers(
 ) -> MarkerTrack {
     let incoming = drag
         .awaits_window_on(workspace)
-        .then_some(config.theme.palette.focus);
+        .then_some(PaletteColors::from(&config.theme.palette).focus);
     let colors = niri
         .windows_on_workspace(workspace)
         .iter()
         .map(|w| {
             tone.tint(
                 config,
-                window_color(config, w, config.theme.palette.inactive),
+                window_color(
+                    config,
+                    w,
+                    PaletteColors::from(&config.theme.palette).inactive,
+                ),
             )
         })
         .chain(incoming)
@@ -369,7 +376,7 @@ fn urgency_line<'a>(
     let opacity = if p.is_urgent { 1.0 } else { 0.0 };
     edge_activity_line(
         position,
-        tone.tint(config, config.theme.palette.urgent),
+        tone.tint(config, PaletteColors::from(&config.theme.palette).urgent),
         opacity,
         config.panel_bar.indicator_thickness,
     )
@@ -390,7 +397,7 @@ fn has_superscript(p: &niri::WorkspaceIndicator) -> bool {
 fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator, tone: SlotTone) -> Text<'a> {
     bar_text(&config.theme.font, p.idx.to_string())
         .size(config.theme.font.small_text_size_px)
-        .color(tone.tint(config, config.theme.palette.inactive))
+        .color(tone.tint(config, PaletteColors::from(&config.theme.palette).inactive))
 }
 
 fn inline_label<'a>(
@@ -398,8 +405,10 @@ fn inline_label<'a>(
     p: &niri::WorkspaceIndicator,
     tone: SlotTone,
 ) -> Element<'a, WorkspacesMessage> {
-    let name = bar_text(&config.theme.font, display_name(p))
-        .color(tone.tint(config, config.theme.palette.bar_foreground));
+    let name = bar_text(&config.theme.font, display_name(p)).color(tone.tint(
+        config,
+        PaletteColors::from(&config.theme.palette).bar_foreground,
+    ));
     if !has_superscript(p) {
         return name.into();
     }

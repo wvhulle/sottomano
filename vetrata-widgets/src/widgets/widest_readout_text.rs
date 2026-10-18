@@ -15,7 +15,7 @@ use iced::{
 };
 use vetrata_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::LINE_HEIGHT;
+use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 
@@ -61,7 +61,7 @@ pub fn widest_readout_text<'a, Message, Owner>(
             owner: labels.owner,
             range: labels.range,
             step: labels.step,
-            font: font.iced_font,
+            font: FontFaces::from(font).regular,
             text_size_px: font.text_size_px,
         },
         format: labels.format,

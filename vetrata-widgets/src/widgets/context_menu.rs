@@ -9,6 +9,7 @@ use crate::widgets::{
     DISABLED_ALPHA,
     activity_line::activity_line,
     bar_widget::Glyph,
+    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
     text::bar_text,
 };
@@ -56,9 +57,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
 fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
     let row_spacing = config.layout.overlay.row_spacing;
-    let color = config
-        .theme
-        .palette
+    let color = PaletteColors::from(&config.theme.palette)
         .bar_foreground
         .scale_alpha(if row.enabled { 1.0 } else { DISABLED_ALPHA });
 
@@ -78,7 +77,7 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
             content = content.push(Space::new().width(Length::Fill)).push(
                 bar_text(&config.theme.font, note)
                     .size(config.theme.font.small_text_size_px)
-                    .color(config.theme.palette.dim),
+                    .color(PaletteColors::from(&config.theme.palette).dim),
             );
         }
         Trailing::Submenu { open } => {
@@ -101,7 +100,7 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
         bottom: row_spacing,
         left: inset + row.depth as f32 * glyph_column,
     };
-    let accent = config.theme.palette.focus;
+    let accent = PaletteColors::from(&config.theme.palette).focus;
     let styled = button(content)
         .width(Length::Fill)
         .padding(padding)
@@ -123,7 +122,11 @@ fn button_style(status: button::Status, text: Color, accent: Color) -> button::S
 }
 
 fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    activity_line(config.theme.palette.surface_raised, 1.0, DIVIDER_THICKNESS)
+    activity_line(
+        PaletteColors::from(&config.theme.palette).surface_raised,
+        1.0,
+        DIVIDER_THICKNESS,
+    )
 }
 
 fn without_redundant_dividers<M>(lines: Vec<MenuLine<'_, M>>) -> Vec<MenuLine<'_, M>> {

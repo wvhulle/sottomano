@@ -1,7 +1,7 @@
 use iced::Color;
-use vetrata_config::{severity::Severity, theme::palette::Palette};
+use vetrata_config::severity::Severity;
 
-use crate::widgets::phosphor::Weight;
+use crate::widgets::{palette_colors::PaletteColors, phosphor::Weight};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WidgetState {
@@ -38,7 +38,7 @@ impl WidgetState {
     }
 
     #[must_use]
-    pub const fn color(self, palette: &Palette) -> Color {
+    pub const fn color(self, palette: &PaletteColors) -> Color {
         match self {
             WidgetState::Failed | WidgetState::Critical => palette.urgent,
             WidgetState::Off => palette.inactive,
@@ -72,11 +72,13 @@ impl From<Severity> for WidgetState {
 
 #[cfg(test)]
 mod tests {
+    use vetrata_config::theme::palette::Palette;
+
     use super::*;
 
     #[test]
     fn severity_states_share_the_severity_colours() {
-        let palette = Palette::default();
+        let palette = PaletteColors::from(&Palette::default());
         assert_eq!(WidgetState::Failed.color(&palette), palette.urgent);
         assert_eq!(WidgetState::Critical.color(&palette), palette.urgent);
         assert_eq!(WidgetState::Warning.color(&palette), palette.warning);

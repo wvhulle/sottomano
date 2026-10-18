@@ -7,6 +7,7 @@ use crate::{
     widget_groups::media_group::MediaTarget,
     widgets::{
         glyph_button,
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         widget_state::WidgetState,
@@ -50,7 +51,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
 
     fn foreground(&self) -> Color {
         WidgetState::On
-            .color(&self.config.theme.palette)
+            .color(&PaletteColors::from(&self.config.theme.palette))
             .scale_alpha(self.reveal)
     }
 
@@ -67,7 +68,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.control(
             icon.with_weight(state.weight()),
             state
-                .color(&self.config.theme.palette)
+                .color(&PaletteColors::from(&self.config.theme.palette))
                 .scale_alpha(self.reveal),
             press,
         )

@@ -23,6 +23,7 @@ pub mod marker_track;
 pub mod on_hover_reading;
 pub mod ongoing_toast;
 pub mod pager_slot;
+pub mod palette_colors;
 pub mod panel_frame;
 pub mod phosphor;
 pub mod pointer_drag;

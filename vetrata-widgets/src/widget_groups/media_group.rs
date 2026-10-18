@@ -28,9 +28,10 @@ use crate::{
         gauge::Gauge,
         group_item::GroupItem,
         icon_handle::PixmapHandles,
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
-        text::{LINE_HEIGHT, colored_span},
+        text::{FontFaces, LINE_HEIGHT, colored_span},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
@@ -291,7 +292,9 @@ impl MediaGroup {
                 hoverable(
                     button(icon)
                         .padding(0)
-                        .style(flat_button(config.theme.palette.bar_foreground))
+                        .style(flat_button(
+                            PaletteColors::from(&config.theme.palette).bar_foreground,
+                        ))
                         .on_press(GroupEvent::Group(MediaMessage::Source(m.bus.clone())))
                         .into(),
                     MediaTarget::Source(m.bus.clone()).into(),
@@ -474,7 +477,9 @@ fn track_face<'a>(
     let Some(fraction) = gauge_fraction else {
         return cover;
     };
-    let color = config.theme.palette.bar_foreground.scale_alpha(opacity);
+    let color = PaletteColors::from(&config.theme.palette)
+        .bar_foreground
+        .scale_alpha(opacity);
     Row::with_children([cover, Gauge::new(fraction, color, side).into()])
         .spacing(icon_value_gap(config))
         .align_y(Alignment::Center)
@@ -493,7 +498,9 @@ fn track_cover<'a>(
     }
     Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
         side,
-        config.theme.palette.bar_foreground.scale_alpha(opacity),
+        PaletteColors::from(&config.theme.palette)
+            .bar_foreground
+            .scale_alpha(opacity),
     )
 }
 
@@ -528,7 +535,9 @@ fn source_icon<'a>(
     }
     Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
         side,
-        config.theme.palette.bar_foreground.scale_alpha(opacity),
+        PaletteColors::from(&config.theme.palette)
+            .bar_foreground
+            .scale_alpha(opacity),
     )
 }
 
@@ -536,7 +545,9 @@ fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>>
     let title = media.title.as_ref().unwrap_or(&media.identity);
     vec![colored_span(
         title.clone(),
-        config.theme.font.iced_font,
-        config.theme.palette.bar_foreground.scale_alpha(reveal),
+        FontFaces::from(&config.theme.font).regular,
+        PaletteColors::from(&config.theme.palette)
+            .bar_foreground
+            .scale_alpha(reveal),
     )]
 }

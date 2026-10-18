@@ -20,6 +20,7 @@ iced.workspace = true
 iced_exwlshell.workspace = true
 image.workspace = true
 niri-ipc.workspace = true
+quick-xml = "0.42"
 reqwest.workspace = true
 rust_decimal.workspace = true
 rusty-money.workspace = true

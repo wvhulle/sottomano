@@ -5,9 +5,18 @@ use iced::{
     futures::{Stream, StreamExt},
 };
 use vetrata_sources::{
-    ReadingSource, SourceDelivery, background_work::blocking, sink::clipboard,
+    ReadingSource, SourceDelivery, background_work::blocking, niri, sink::clipboard,
     stream_operators::restarting,
 };
+
+use crate::shell_message::Message;
+
+pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
+    Task::future(blocking("niri action", move || {
+        niri::send_action(&action).err()
+    }))
+    .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
+}
 
 pub fn restarting_subscription<F, S, E>(
     source: &'static str,

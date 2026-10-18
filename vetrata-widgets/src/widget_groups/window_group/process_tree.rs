@@ -19,9 +19,10 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
+        palette_colors::PaletteColors,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
-        text::{bar_text, column_heading},
+        text::{FontFaces, bar_text, column_heading},
         transitioning_text::{TransitionStyle, TransitioningText},
         widget_state::WidgetState,
     },
@@ -163,7 +164,7 @@ impl<'a> ProcessTree<'a> {
         let tint = self.tint();
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
-        let bold = monospace.bold();
+        let bold = FontFaces::from(&monospace).bold;
         let transition = self.transition;
         let copy_flash = self.copy_flash();
 
@@ -229,7 +230,7 @@ impl<'a> ProcessTree<'a> {
         column_heading(
             &self.config.theme.font,
             title.to_owned(),
-            self.config.theme.palette.inactive,
+            PaletteColors::from(&self.config.theme.palette).inactive,
         )
         .into()
     }
@@ -273,19 +274,19 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn tint(&self) -> Tint {
-        let palette = &self.config.theme.palette;
+        let palette = PaletteColors::from(&self.config.theme.palette);
         Tint {
-            warning: WidgetState::Warning.color(palette),
-            critical: WidgetState::Critical.color(palette),
+            warning: WidgetState::Warning.color(&palette),
+            critical: WidgetState::Critical.color(&palette),
         }
     }
 
     fn foreground(&self) -> Color {
-        self.config.theme.palette.bar_foreground
+        PaletteColors::from(&self.config.theme.palette).bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.theme.palette.success
+        PaletteColors::from(&self.config.theme.palette).success
     }
 
     fn copy_flash(&self) -> Duration {
@@ -295,7 +296,7 @@ impl<'a> ProcessTree<'a> {
     fn dim(&self) -> Color {
         Color {
             a: DIM_ALPHA,
-            ..self.config.theme.palette.bar_foreground
+            ..PaletteColors::from(&self.config.theme.palette).bar_foreground
         }
     }
 }

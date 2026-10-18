@@ -3,6 +3,7 @@ use vetrata_config::Config;
 
 use crate::widgets::{
     glyph_button,
+    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
     source_reading::icon_value_gap,
     widget_state::WidgetState,
@@ -56,7 +57,11 @@ impl ConfirmButton {
         on_cancel: Message,
     ) -> Element<'a, Message> {
         let size = config.theme.font.icon_size_px;
-        let color = |state: WidgetState| state.color(&config.theme.palette).scale_alpha(opacity);
+        let color = |state: WidgetState| {
+            state
+                .color(&PaletteColors::from(&config.theme.palette))
+                .scale_alpha(opacity)
+        };
         if !self.armed {
             let state = WidgetState::of_toggle(active);
             return glyph_button(

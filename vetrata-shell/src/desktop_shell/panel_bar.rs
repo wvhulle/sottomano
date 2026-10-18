@@ -4,11 +4,11 @@ use iced::{
     widget::{Row, column, container, mouse_area, row},
 };
 use vetrata_config::screen_edges::Position;
-use vetrata_state::OutlinedSides;
 use vetrata_widgets::{
     shell_message::Message,
     widgets::{
-        panel_frame::panel_frame,
+        palette_colors::PaletteColors,
+        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
 };
@@ -42,7 +42,7 @@ impl DesktopShell {
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let panels = &self.shell_settings.panels;
-        let palette = &self.config.theme.palette;
+        let palette = PaletteColors::from(&self.config.theme.palette);
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -52,15 +52,16 @@ impl DesktopShell {
         .on_press(Message::DismissPressed);
         let groups_joined = !self.shell_settings.layout.disconnected_groups;
         let band_style = if groups_joined {
-            panels.frame_style(&self.config)
+            LayerFrameStyle::new(panels, &self.config).container_style()
         } else {
             container::Style::default().color(palette.bar_foreground)
         };
-        let outlined_sides = self.shell_settings.outlined_sides(OutlinedSides {
+        let outlined_sides = OutlinedSides {
             left: false,
             right: false,
-            ..OutlinedSides::from(position)
-        });
+            ..OutlinedSides::inward_of(position)
+        }
+        .all_when_floating(&self.shell_settings.layout);
         let strip = panel_frame(
             container(centered)
                 .width(Length::Fill)
@@ -71,7 +72,7 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: true,
             blurred: panels.blurred && groups_joined,
-            corner_radius: panels.corner_radius.top_left,
+            corner_radius: panels.corner_radius_px,
         };
         region_reporter(column![strip], roles).into()
     }
@@ -84,10 +85,9 @@ impl DesktopShell {
         let config = &self.config;
         let panels = &self.shell_settings.panels;
         let groups_disconnected = self.shell_settings.layout.disconnected_groups;
-        let frame_style = panels.frame_style(config);
-        let outlined_sides = self
-            .shell_settings
-            .outlined_sides(OutlinedSides::from(position));
+        let frame_style = LayerFrameStyle::new(panels, config).container_style();
+        let outlined_sides =
+            OutlinedSides::inward_of(position).all_when_floating(&self.shell_settings.layout);
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;
@@ -117,7 +117,7 @@ impl DesktopShell {
         let roles = RegionRoles {
             takes_input: false,
             blurred: panels.blurred && groups_disconnected,
-            corner_radius: panels.corner_radius.top_left,
+            corner_radius: panels.corner_radius_px,
         };
         region_reporter(cluster, roles).into()
     }

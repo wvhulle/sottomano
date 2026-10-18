@@ -1,7 +1,7 @@
 use std::{convert::Infallible, time::Duration};
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use vetrata_sources::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     store::{Columns, StoreError, with_table},

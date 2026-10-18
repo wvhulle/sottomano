@@ -119,11 +119,7 @@ async fn read_layer_appearance(
     };
     Ok(LayerAppearance {
         opacity: real(AppearanceSetting::Opacity, defaults.opacity),
-        corner_radius: real(
-            AppearanceSetting::CornerRadius,
-            defaults.corner_radius.top_left,
-        )
-        .into(),
+        corner_radius_px: real(AppearanceSetting::CornerRadius, defaults.corner_radius_px),
         blurred: flag(AppearanceSetting::Blurred, defaults.blurred),
         shadow: ShadowStyle {
             cast: flag(AppearanceSetting::DropShadow, defaults.shadow.cast),
@@ -170,7 +166,7 @@ mod tests {
             .await
             .unwrap();
         assert!((sidebar.opacity - 0.4).abs() < f32::EPSILON);
-        assert!((sidebar.corner_radius.top_left - 9.0).abs() < f32::EPSILON);
+        assert!((sidebar.corner_radius_px - 9.0).abs() < f32::EPSILON);
         assert!(sidebar.blurred);
         assert!(!sidebar.shadow.cast);
         assert!((sidebar.shadow.softness_px - 33.0).abs() < f32::EPSILON);

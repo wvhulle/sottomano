@@ -1,31 +1,31 @@
-use iced::{Color, Theme, theme};
+use color::{AlphaColor, Srgb};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct Palette {
     #[serde(with = "css_color")]
-    pub surface: Color,
+    pub surface: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub bar_foreground: Color,
+    pub bar_foreground: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub inactive: Color,
+    pub inactive: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub urgent: Color,
+    pub urgent: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub warning: Color,
+    pub warning: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub focus: Color,
+    pub focus: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub success: Color,
+    pub success: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub info: Color,
+    pub info: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub dim: Color,
+    pub dim: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub surface_raised: Color,
+    pub surface_raised: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub frame_outline: Color,
+    pub frame_outline: AlphaColor<Srgb>,
 }
 
 impl Default for Palette {
@@ -46,51 +46,33 @@ impl Default for Palette {
     }
 }
 
-impl From<&Palette> for Theme {
-    fn from(palette: &Palette) -> Self {
-        Theme::custom(
-            String::from("umbra"),
-            theme::Palette {
-                background: palette.surface,
-                text: palette.bar_foreground,
-                primary: palette.focus,
-                success: palette.success,
-                warning: palette.warning,
-                danger: palette.urgent,
-            },
-        )
-    }
+fn css(s: &str) -> AlphaColor<Srgb> {
+    in_srgb(color::parse_color(s).expect("invalid default color"))
 }
 
-fn css(s: &str) -> Color {
-    to_iced(color::parse_color(s).expect("invalid default color"))
-}
-
-fn to_iced(dynamic: color::DynamicColor) -> Color {
-    let [r, g, b, a] = dynamic
+fn in_srgb(dynamic: color::DynamicColor) -> AlphaColor<Srgb> {
+    dynamic
         .convert(color::ColorSpaceTag::Srgb)
-        .to_alpha_color::<color::Srgb>()
-        .components;
-    Color { r, g, b, a }
+        .to_alpha_color::<Srgb>()
 }
 
 mod css_color {
     use std::str::FromStr;
 
+    use color::{AlphaColor, Srgb};
     use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
 
-    use super::{Color, to_iced};
+    use super::in_srgb;
 
     #[allow(clippy::trivially_copy_pass_by_ref)]
-    pub fn serialize<S: Serializer>(iced: &Color, s: S) -> Result<S::Ok, S::Error> {
-        let srgb = color::AlphaColor::<color::Srgb>::new([iced.r, iced.g, iced.b, iced.a]);
+    pub fn serialize<S: Serializer>(srgb: &AlphaColor<Srgb>, s: S) -> Result<S::Ok, S::Error> {
         s.collect_str(&format_args!("{:x}", srgb.to_rgba8()))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Color, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<AlphaColor<Srgb>, D::Error> {
         let s = String::deserialize(d)?;
         color::DynamicColor::from_str(&s)
-            .map(to_iced)
+            .map(in_srgb)
             .map_err(D::Error::custom)
     }
 }

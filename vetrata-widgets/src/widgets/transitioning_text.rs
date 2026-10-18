@@ -26,7 +26,7 @@ use vetrata_config::{
     tooltips::{IntroEffect, PlaceholderEffect, ReplaceEffect, TooltipLoading},
 };
 
-use crate::widgets::text::LINE_HEIGHT;
+use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
@@ -75,7 +75,7 @@ impl<'a, Message> TransitioningText<'a, Message> {
             text,
             identity: 0,
             style,
-            font: font.iced_font,
+            font: FontFaces::from(font).regular,
             size: font.text_size_px,
             color,
         }

@@ -2,14 +2,18 @@ use std::collections::HashMap;
 
 use iced::{
     Color, Font, Task,
-    advanced::text as advanced_text,
+    advanced::{graphics::text::font_system, text as advanced_text},
+    font::{Family, Style, Weight},
     task::Handle,
     widget::{
         Text, span, text,
         text::{IntoFragment, Shaping, Span},
     },
 };
-use vetrata_config::theme::font::{ResolvedFont, fallback_font};
+use vetrata_config::theme::{
+    Theme,
+    font::{FontRole, ResolvedFont, fallback_family},
+};
 use vetrata_sources::background_work::blocking;
 
 pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
@@ -19,7 +23,9 @@ pub fn column_heading<'a>(
     title: impl IntoFragment<'a>,
     color: Color,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
-    bar_text(font, title).font(font.italic()).color(color)
+    bar_text(font, title)
+        .font(FontFaces::from(font).italic)
+        .color(color)
 }
 
 pub fn bar_text<'a>(
@@ -28,9 +34,39 @@ pub fn bar_text<'a>(
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     text(content)
         .size(font.text_size_px)
-        .font(font.iced_font)
+        .font(FontFaces::from(font).regular)
         .line_height(LINE_HEIGHT)
         .shaping(Shaping::Advanced)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FontFaces {
+    pub regular: Font,
+    pub bold: Font,
+    pub italic: Font,
+}
+
+impl From<&ResolvedFont> for FontFaces {
+    fn from(font: &ResolvedFont) -> Self {
+        let regular = Font {
+            family: match font.role {
+                FontRole::Text => Family::SansSerif,
+                FontRole::Monospace => Family::Monospace,
+            },
+            ..Font::DEFAULT
+        };
+        Self {
+            regular,
+            bold: Font {
+                weight: Weight::Bold,
+                ..regular
+            },
+            italic: Font {
+                style: Style::Italic,
+                ..regular
+            },
+        }
+    }
 }
 
 #[derive(Default)]
@@ -40,6 +76,15 @@ pub struct FontFallbacks {
 }
 
 impl FontFallbacks {
+    #[must_use]
+    pub fn naming_theme_families(theme: &Theme) -> Self {
+        let mut fonts = font_system().write().expect("font system lock poisoned");
+        let database = fonts.raw().db_mut();
+        database.set_sans_serif_family(theme.font.family.clone());
+        database.set_monospace_family(theme.monospace_font.family.clone());
+        Self::default()
+    }
+
     fn font_for(&self, ch: char, base: Font) -> Font {
         self.fonts.get(&ch).copied().unwrap_or(base)
     }
@@ -59,11 +104,15 @@ impl FontFallbacks {
         if pending.is_empty() {
             return Task::none();
         }
-        let base = font.iced_font;
+        let base = FontFaces::from(font).regular;
         let (task, handle) = Task::future(blocking("fallback fonts", move || {
             pending
                 .into_iter()
-                .map(|ch| (ch, fallback_font(ch).unwrap_or(base)))
+                .map(|ch| {
+                    let fallback = fallback_family(ch)
+                        .map_or(base, |family| Font::with_name(String::leak(family)));
+                    (ch, fallback)
+                })
                 .collect::<HashMap<char, Font>>()
         }))
         .abortable();
