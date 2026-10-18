@@ -1,9 +1,12 @@
 use std::{num::NonZeroU32, str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{
+    Stream, StreamExt,
+    stream::{BoxStream, select_all},
+};
 use procfs::process::Process as Proc;
-use zbus::{proxy, zvariant::OwnedObjectPath};
+use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
@@ -11,7 +14,7 @@ use crate::{
     empty_text::non_empty,
     hostname::at_micros,
     logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
-    polled_delivery_stream,
+    pushed_delivery_stream,
 };
 
 #[proxy(
@@ -67,28 +70,36 @@ impl ReadingSource for SessionIdentity {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session identity";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(identity_changes(buses))
     }
 }
 
-impl SessionIdentity {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        let session = own_session(&buses.system).await?;
-        Ok(SessionIdentity {
-            user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
-            uid: session.user().await?.0,
-            seat: non_empty(session.seat().await?.0).ok_or(bus::Error::Absent)?,
-            virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
-            login_manager: session.service().await?,
-            desktop: session.desktop().await.ok().and_then(non_empty),
-            session_type: session.session_type().await?,
-        })
-    }
+async fn identity_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<SessionIdentity, bus::Error>> + Send, bus::Error> {
+    let session = own_session(&buses.system).await?;
+    let identity = SessionIdentity {
+        user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
+        uid: session.user().await?.0,
+        seat: non_empty(session.seat().await?.0).ok_or(bus::Error::Absent)?,
+        virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
+        login_manager: session.service().await?,
+        desktop: session.desktop().await.ok().and_then(non_empty),
+        session_type: session.session_type().await?,
+    };
+    let changes = session.receive_session_type_changed().await;
+    Ok(changes.then(move |session_type| {
+        let identity = identity.clone();
+        async move {
+            Ok(SessionIdentity {
+                session_type: session_type.get().await?,
+                ..identity
+            })
+        }
+    }))
 }
 
 async fn own_session(system: &zbus::Connection) -> Result<SessionProxy<'static>, bus::Error> {
@@ -189,19 +200,51 @@ impl ReadingSource for SessionInfo {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(session_changes(buses))
     }
 }
 
-impl SessionInfo {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        read_session(&own_session(&buses.system).await?).await
-    }
+async fn session_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<SessionInfo, bus::Error>> + Send, bus::Error> {
+    let session = own_session(&buses.system).await?;
+    let leader = session.leader().await?;
+    let info = SessionInfo {
+        id: session.id().await?,
+        scope: session.scope().await?,
+        leader,
+        leader_name: process_name(leader),
+        greeter: greeter_program(leader),
+        state: session.state().await?,
+        since: at_micros(session.timestamp().await?).ok_or(bus::Error::Absent)?,
+        idle_since: None,
+    };
+    let changes = select_all([
+        session.receive_state_changed().await.map(drop).boxed(),
+        session.receive_idle_hint_changed().await.map(drop).boxed(),
+        session
+            .receive_idle_since_hint_changed()
+            .await
+            .map(drop)
+            .boxed(),
+    ]);
+    Ok(changes.then(move |()| {
+        let session = session.clone();
+        let info = info.clone();
+        async move {
+            let idle = session.idle_hint().await?;
+            Ok(SessionInfo {
+                state: session.state().await?,
+                idle_since: idle
+                    .then_some(session.idle_since_hint().await?)
+                    .and_then(at_micros),
+                ..info
+            })
+        }
+    }))
 }
 
 impl ReadingSource for PowerPolicy {
@@ -209,20 +252,81 @@ impl ReadingSource for PowerPolicy {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind power policy";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(power_changes(buses))
     }
 }
 
-impl PowerPolicy {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        let manager = ManagerProxy::new(&buses.system).await?;
-        read_power(&manager).await
-    }
+async fn power_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<PowerPolicy, bus::Error>> + Send, bus::Error> {
+    let signalled = ManagerProxy::new(&buses.system).await?;
+    let uncached = ManagerProxy::builder(&buses.system)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let configured = ConfiguredPowerPolicy {
+        power_key: uncached.handle_power_key().await?,
+        suspend_key: uncached.handle_suspend_key().await?,
+        hibernate_key: uncached.handle_hibernate_key().await?,
+        reboot_key: uncached.handle_reboot_key().await?,
+        lid_switch: uncached.handle_lid_switch().await?,
+        idle_action: uncached.idle_action().await?,
+        idle_action_after: Some(uncached.idle_action_usec().await?)
+            .filter(|usec| *usec > 0 && *usec < u64::MAX)
+            .map(Duration::from_micros),
+        sleep_order: uncached.sleep_operation().await?,
+    };
+    let changes = select_all(power_triggers(&signalled).await?);
+    Ok(changes.then(move |()| {
+        let manager = uncached.clone();
+        let configured = configured.clone();
+        async move { read_power(&manager, configured).await }
+    }))
+}
+
+#[derive(Clone)]
+struct ConfiguredPowerPolicy {
+    power_key: String,
+    suspend_key: String,
+    hibernate_key: String,
+    reboot_key: String,
+    lid_switch: String,
+    idle_action: String,
+    idle_action_after: Option<Duration>,
+    sleep_order: Vec<String>,
+}
+
+async fn power_triggers(
+    manager: &ManagerProxy<'static>,
+) -> zbus::Result<[BoxStream<'static, ()>; 7]> {
+    Ok([
+        manager.receive_lid_closed_changed().await.map(drop).boxed(),
+        manager
+            .receive_scheduled_shutdown_changed()
+            .await
+            .map(drop)
+            .boxed(),
+        manager
+            .receive_block_inhibited_changed()
+            .await
+            .map(drop)
+            .boxed(),
+        manager
+            .receive_delay_inhibited_changed()
+            .await
+            .map(drop)
+            .boxed(),
+        manager
+            .receive_prepare_for_shutdown()
+            .await?
+            .map(drop)
+            .boxed(),
+        manager.receive_session_new().await?.map(drop).boxed(),
+        manager.receive_session_removed().await?.map(drop).boxed(),
+    ])
 }
 
 fn process_name(pid: u32) -> Option<String> {
@@ -230,42 +334,25 @@ fn process_name(pid: u32) -> Option<String> {
     non_empty(process.stat().ok()?.comm)
 }
 
-async fn read_session(session: &SessionProxy<'_>) -> Result<SessionInfo, bus::Error> {
-    let idle = session.idle_hint().await?;
-    let since = session.timestamp().await?;
-    let leader = session.leader().await?;
-    Ok(SessionInfo {
-        id: session.id().await?,
-        scope: session.scope().await?,
-        leader,
-        leader_name: process_name(leader),
-        greeter: greeter_program(leader),
-        state: session.state().await?,
-        since: at_micros(since).ok_or(bus::Error::Absent)?,
-        idle_since: idle
-            .then_some(session.idle_since_hint().await?)
-            .and_then(at_micros),
-    })
-}
-
-async fn read_power(manager: &ManagerProxy<'_>) -> Result<PowerPolicy, bus::Error> {
+async fn read_power(
+    manager: &ManagerProxy<'_>,
+    configured: ConfiguredPowerPolicy,
+) -> Result<PowerPolicy, bus::Error> {
     let (kind, usec) = manager.scheduled_shutdown().await?;
     Ok(PowerPolicy {
-        power_key: manager.handle_power_key().await?,
-        suspend_key: manager.handle_suspend_key().await?,
-        hibernate_key: manager.handle_hibernate_key().await?,
-        reboot_key: manager.handle_reboot_key().await?,
-        lid_switch: manager.handle_lid_switch().await?,
+        power_key: configured.power_key,
+        suspend_key: configured.suspend_key,
+        hibernate_key: configured.hibernate_key,
+        reboot_key: configured.reboot_key,
+        lid_switch: configured.lid_switch,
+        idle_action: configured.idle_action,
+        idle_action_after: configured.idle_action_after,
+        sleep_order: configured.sleep_order,
         chassis: Chassis {
             docked: manager.docked().await?,
             lid_closed: manager.lid_closed().await?,
             on_external_power: manager.on_external_power().await?,
         },
-        idle_action: manager.idle_action().await?,
-        idle_action_after: Some(manager.idle_action_usec().await?)
-            .filter(|usec| *usec > 0 && *usec < u64::MAX)
-            .map(Duration::from_micros),
-        sleep_order: manager.sleep_operation().await?,
         inhibitor_locks: manager
             .list_inhibitors()
             .await?

@@ -32,24 +32,20 @@ impl BarWidget for DesktopServicesFace {
 
 impl ReadingSections for GraphicalSessionTarget {
     fn sections(&self) -> Vec<Section> {
-        let entries = match self {
-            Self::NotLoaded => vec![KeyValue::new("State", "not loaded")],
-            Self::Loaded { state, reached_at } => [
-                Some(KeyValue::new("State", state.clone())),
-                reached_at.map(|at| {
-                    KeyValue::new(
-                        "Ready since",
-                        Cell::Time {
-                            at,
-                            format: LocalizedTimeFormat::DateAndTime,
-                        },
-                    )
-                }),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
-        };
+        let entries = [
+            Some(KeyValue::new("State", self.state.clone())),
+            self.reached_at.map(|at| {
+                KeyValue::new(
+                    "Ready since",
+                    Cell::Time {
+                        at,
+                        format: LocalizedTimeFormat::DateAndTime,
+                    },
+                )
+            }),
+        ]
+        .into_iter()
+        .flatten();
         vec![Section::dictionary(entries).titled((
             "Desktop startup progress",
             "graphical-session.target is reached once the compositor is ready for services.",

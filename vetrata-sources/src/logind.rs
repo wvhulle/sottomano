@@ -86,8 +86,19 @@ trait Manager {
     fn sleep_operation(&self) -> zbus::Result<Vec<String>>;
     #[zbus(property)]
     fn preparing_for_shutdown(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn block_inhibited(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn delay_inhibited(&self) -> zbus::Result<String>;
     #[zbus(signal)]
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn prepare_for_shutdown(&self, start: bool) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn session_new(&self, session_id: String, object_path: OwnedObjectPath) -> zbus::Result<()>;
+    #[zbus(signal)]
+    fn session_removed(&self, session_id: String, object_path: OwnedObjectPath)
+    -> zbus::Result<()>;
 }
 
 fn manager() -> Option<ManagerProxyBlocking<'static>> {

@@ -1,7 +1,7 @@
-use std::{env, time::Duration};
+use std::env;
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::{
@@ -9,16 +9,11 @@ use crate::{
     bus::{self, DesktopBuses},
     empty_text::non_empty,
     hostname::at_micros,
-    niri, polled_delivery_stream,
-    systemd_manager::{ManagerProxy, unit_proxy},
+    niri, pushed_delivery_stream,
+    systemd_manager::{ManagerProxy, UnitProxy},
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";
-const NO_SUCH_UNIT: &str = "org.freedesktop.systemd1.NoSuchUnit";
-
-fn unit_not_loaded(failure: &zbus::Error) -> bool {
-    matches!(failure, zbus::Error::MethodError(name, _, _) if name.as_str() == NO_SUCH_UNIT)
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GraphicalSession {
@@ -30,12 +25,9 @@ pub struct GraphicalSession {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GraphicalSessionTarget {
-    NotLoaded,
-    Loaded {
-        state: String,
-        reached_at: Option<DateTime<Utc>>,
-    },
+pub struct GraphicalSessionTarget {
+    pub state: String,
+    pub reached_at: Option<DateTime<Utc>>,
 }
 
 impl ReadingSource for GraphicalSession {
@@ -43,17 +35,15 @@ impl ReadingSource for GraphicalSession {
     type StreamInputs = ();
 
     const NAME: &'static str = "graphical session";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(Self::read()).map(SourceDelivery::Reading)
     }
 }
 
 impl GraphicalSession {
-    async fn poll(_key: ()) -> Result<Self, bus::Error> {
+    async fn read() -> Result<Self, bus::Error> {
         let compositor_version = spawn_blocking(niri::version)
             .await
             .ok()
@@ -77,27 +67,35 @@ impl ReadingSource for GraphicalSessionTarget {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "graphical session target";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(target_changes(buses))
     }
 }
 
-impl GraphicalSessionTarget {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        let manager = ManagerProxy::new(&buses.session).await?;
-        let path = match manager.get_unit(GRAPHICAL_TARGET).await {
-            Ok(path) => path,
-            Err(failure) if unit_not_loaded(&failure) => return Ok(Self::NotLoaded),
-            Err(failure) => return Err(failure.into()),
-        };
-        let unit = unit_proxy(&buses.session, path).await?;
-        Ok(Self::Loaded {
-            state: unit.active_state().await?,
-            reached_at: at_micros(unit.active_enter_timestamp().await?),
-        })
-    }
+async fn target_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<GraphicalSessionTarget, bus::Error>> + Send, bus::Error> {
+    let manager = ManagerProxy::new(&buses.session).await?;
+    manager.ensure_subscribed().await?;
+    let unit = UnitProxy::builder(&buses.session)
+        .path(manager.load_unit(GRAPHICAL_TARGET).await?)?
+        .build()
+        .await?;
+    let changes = stream::select(
+        unit.receive_active_state_changed().await.map(drop),
+        unit.receive_active_enter_timestamp_changed()
+            .await
+            .map(drop),
+    );
+    Ok(changes.then(move |()| {
+        let unit = unit.clone();
+        async move {
+            Ok(GraphicalSessionTarget {
+                state: unit.active_state().await?,
+                reached_at: at_micros(unit.active_enter_timestamp().await?),
+            })
+        }
+    }))
 }

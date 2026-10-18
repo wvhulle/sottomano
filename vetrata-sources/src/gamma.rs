@@ -1,13 +1,13 @@
-use std::{ops::RangeInclusive, time::Duration};
+use std::ops::RangeInclusive;
 
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, bus,
     bus::{DesktopBuses, Error, name_owned},
-    polled_delivery_stream,
+    pushed_delivery_stream,
     stream_operators::StreamOperators,
 };
 
@@ -42,21 +42,34 @@ impl ReadingSource for Gamma {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "gamma";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         name_owned(buses.session.clone(), RELAY_SERVICE).while_held(
-            move || polled_delivery_stream(buses.clone(), Self::poll),
+            move || pushed_delivery_stream(relay_changes(buses.clone())),
             SourceDelivery::Absent,
         )
     }
 }
 
+async fn relay_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<Gamma, Error>> + Send, Error> {
+    let relay: GammaRelayProxy = buses.proxy(bus::Bus::Session).await?;
+    let changes = stream::select(
+        relay.receive_brightness_changed().await.map(drop),
+        relay.receive_temperature_changed().await.map(drop),
+    );
+    Ok(changes.then(move |()| {
+        let relay = relay.clone();
+        async move { Gamma::read(&relay).await }
+    }))
+}
+
 impl Gamma {
-    async fn poll(buses: DesktopBuses) -> Result<Self, Error> {
-        let proxy: GammaRelayProxy = buses.proxy(bus::Bus::Session).await?;
-        let brightness = proxy.brightness().await?;
-        let temperature = proxy.temperature().await?;
+    async fn read(relay: &GammaRelayProxy<'_>) -> Result<Self, Error> {
+        let brightness = relay.brightness().await?;
+        let temperature = relay.temperature().await?;
         #[allow(clippy::cast_possible_truncation)]
         Ok(Gamma {
             brightness: (brightness * 100.0).round() as i64,

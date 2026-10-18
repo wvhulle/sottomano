@@ -14,7 +14,7 @@ use zbus::{
 };
 
 use super::{
-    ManagerProxy, SystemdOnBus, SystemdUnitScope, UnitRow, connect, manager_signal,
+    ManagerProxy, SystemdOnBus, SystemdUnitScope, UNIT_INTERFACE, UnitRow, connect, manager_signal,
     signals_matching, state_changed_at, systemd_signal,
 };
 use crate::{
@@ -24,7 +24,6 @@ use crate::{
 
 pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;
 
-const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
 const ACTIVE_STATE_PROPERTY: &str = "ActiveState";
 const FAILED_STATE: &str = "failed";
 const CORE_DUMP_RESULT: &str = "core-dump";
