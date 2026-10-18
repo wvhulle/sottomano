@@ -322,7 +322,7 @@ impl ReadingSource for LlamaModelProps {
     type StreamInputs = ModelInstance;
 
     const NAME: &'static str = "llama-server model";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
     fn delivery_stream(instance: ModelInstance) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(async move {

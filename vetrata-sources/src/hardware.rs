@@ -3,16 +3,15 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     path::{Path, PathBuf},
-    time::Duration,
 };
 
 use bytesize::ByteSize;
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use serde_json::Value;
 
 use crate::{
     DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
-    command, hostname::MachineInfo, polled_delivery_stream,
+    command, hostname::MachineInfo,
 };
 
 const UDEV_DATA: &str = "/run/udev/data";
@@ -287,17 +286,15 @@ impl ReadingSource for HostHardware {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "host hardware";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(Self::read(buses)).map(SourceDelivery::Reading)
     }
 }
 
 impl HostHardware {
-    async fn poll(buses: DesktopBuses) -> Result<Self, HostHardwareError> {
+    async fn read(buses: DesktopBuses) -> Result<Self, HostHardwareError> {
         let machine = MachineInfo::read(&buses.system).await?;
         blocking_poll(move || {
             Ok(HostHardware {

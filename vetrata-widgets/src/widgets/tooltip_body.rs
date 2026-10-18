@@ -534,6 +534,7 @@ impl From<Infallible> for Section {
 pub enum Freshness {
     Polled { every: Duration, last: SystemTime },
     Live,
+    Fixed,
 }
 
 impl Freshness {
@@ -545,6 +546,7 @@ impl Freshness {
                 last: SystemTime::now(),
             },
             DeliveryCadence::PushedLive => Freshness::Live,
+            DeliveryCadence::ReadOnce => Freshness::Fixed,
         }
     }
 }

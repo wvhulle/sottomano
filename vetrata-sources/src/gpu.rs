@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{Clock, PerformanceState, TemperatureSensor, TemperatureThreshold},
@@ -77,18 +77,11 @@ impl ReadingSource for GpuDiscovery {
     type StreamInputs = ();
 
     const NAME: &'static str = "gpu discovery";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
-    }
-}
-
-impl GpuDiscovery {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        Ok(Self::bound_to_nvidia().await)
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(Self::bound_to_nvidia())
+            .map(|discovered| SourceDelivery::Reading(Ok(discovered)))
     }
 }
 

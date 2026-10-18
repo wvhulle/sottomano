@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::{
     DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
     nix_store::{Provenance, StorePackage, below_derivation},
-    polled_delivery_stream,
+    polled_delivery_after_setup,
     process::{Watched, launch},
     stream_operators::StreamOperators,
 };
@@ -166,14 +166,28 @@ impl ReadingSource for NixPackageFacts {
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(command::exists("nix")).while_held(
-            move || polled_delivery_stream(inputs.clone(), Self::poll).map(absent_outside_store),
+            move || {
+                polled_delivery_after_setup(
+                    InstalledPackage::read(inputs.clone()),
+                    Self::poll_upstream,
+                )
+                .map(absent_outside_store)
+            },
             SourceDelivery::Absent,
         )
     }
 }
 
-impl NixPackageFacts {
-    async fn poll(key: PackageWatch) -> Result<Self, Error> {
+#[derive(Debug, Clone)]
+pub struct InstalledPackage {
+    package: StorePackage,
+    root: String,
+    upstream_branch: String,
+    facts: NixPackageFacts,
+}
+
+impl InstalledPackage {
+    async fn read(key: PackageWatch) -> Result<Self, Error> {
         let watched = key.watched;
         let package = blocking_poll(move || hovered_package(&watched)).await?;
         let root = package.root.to_string_lossy().into_owned();
@@ -182,23 +196,40 @@ impl NixPackageFacts {
             .await?
             .lines()
             .count();
-        let (nixpkgs, upstream) = tokio::join!(
-            nixpkgs_entry(&package, &root),
-            upstream_state(&package, &root, &key.upstream_branch)
-        );
+        let nixpkgs = nixpkgs_entry(&package, &root).await;
         Ok(Self {
-            closure: ClosureFacts {
-                closure_size: ByteSize::b(info.closure_size),
-                path_count,
-                own_size: ByteSize::b(info.nar_size),
+            facts: NixPackageFacts {
+                closure: ClosureFacts {
+                    closure_size: ByteSize::b(info.closure_size),
+                    path_count,
+                    own_size: ByteSize::b(info.nar_size),
+                },
+                origin: origin(&info),
+                registered: SystemTime::UNIX_EPOCH + Duration::from_secs(info.registration_time),
+                nixpkgs,
+                upstream: None,
             },
-            origin: origin(&info),
-            registered: SystemTime::UNIX_EPOCH + Duration::from_secs(info.registration_time),
-            nixpkgs,
-            upstream: upstream.map(|state| Upstream {
-                branch: key.upstream_branch,
+            package,
+            root,
+            upstream_branch: key.upstream_branch,
+        })
+    }
+}
+
+impl NixPackageFacts {
+    async fn poll_upstream(installed: InstalledPackage) -> Result<Self, Error> {
+        let state = upstream_state(
+            &installed.package,
+            &installed.root,
+            &installed.upstream_branch,
+        )
+        .await;
+        Ok(Self {
+            upstream: state.map(|state| Upstream {
+                branch: installed.upstream_branch,
                 state,
             }),
+            ..installed.facts
         })
     }
 }

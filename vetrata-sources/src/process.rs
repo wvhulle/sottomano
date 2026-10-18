@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},
@@ -355,17 +355,15 @@ impl ReadingSource for Inspection {
     type StreamInputs = Watched;
 
     const NAME: &'static str = "process inspection";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(30));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(watched: Watched) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        stream::once(Self::read(watched)).map(SourceDelivery::Reading)
     }
 }
 
 impl Inspection {
-    async fn poll(watched: Watched) -> Result<Self, Error> {
+    async fn read(watched: Watched) -> Result<Self, Error> {
         let pid = watched.pid;
         spawn_blocking(move || inspect(&watched))
             .await

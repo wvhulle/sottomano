@@ -9,7 +9,8 @@ use super::{
     cpu_topology::CpuTopology,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
+    polled_delivery_stream,
 };
 
 const CPU_STAT: &str = "/proc/stat";
@@ -61,16 +62,14 @@ impl ReadingSource for CpuCoreLoads {
     const NAME: &'static str = "cpu cores";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        polled_delivery_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
     }
 }
 
 impl CpuCoreLoads {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_core_loads).await
+    async fn poll(topology: CpuTopology) -> Result<Self, Error> {
+        blocking_poll(move || read_core_loads(topology)).await
     }
 }
 
@@ -85,14 +84,14 @@ fn read_cpu_usage() -> Result<CpuUsage, Error> {
     })
 }
 
-fn read_core_loads() -> Result<CpuCoreLoads, Error> {
+fn read_core_loads(topology: CpuTopology) -> Result<CpuCoreLoads, Error> {
     let earlier_idle = IdleSnapshot::read();
     let sample = CpuStatSample::take().ok_or_else(unreadable)?;
     let later_idle = IdleSnapshot::read();
     Ok(CpuCoreLoads {
         cores: sample.core_loads(),
         deep_idle: later_idle.deep_idle_since(&earlier_idle),
-        topology: CpuTopology::detect(),
+        topology,
     })
 }
 

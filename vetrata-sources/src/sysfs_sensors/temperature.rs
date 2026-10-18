@@ -24,7 +24,7 @@ use super::{
     list_dir, read_trimmed,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
     stream_operators::StreamOperators,
     temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
@@ -75,18 +75,32 @@ impl ReadingSource for CpuCoreTemperatures {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        overrides: ThresholdOverrides,
     ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        polled_delivery_after_setup(
+            blocking_poll(move || {
+                Ok(CoreSensorLayout {
+                    overrides,
+                    topology: CpuTopology::detect(),
+                })
+            }),
+            Self::poll,
+        )
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct CoreSensorLayout {
+    overrides: ThresholdOverrides,
+    topology: CpuTopology,
+}
+
 impl CpuCoreTemperatures {
-    async fn poll(overrides: ThresholdOverrides) -> Result<Self, Error> {
+    async fn poll(layout: CoreSensorLayout) -> Result<Self, Error> {
         blocking_poll(move || {
             Ok(CpuCoreTemperatures {
-                cores: core_temperatures(overrides),
-                topology: CpuTopology::detect(),
+                cores: core_temperatures(layout.overrides),
+                topology: layout.topology,
             })
         })
         .await
@@ -170,20 +184,37 @@ impl ReadingSource for Temperature {
     fn delivery_stream(config: SensorConfig) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let choice = config.sensor.clone();
         let exposed = async move {
-            spawn_blocking(move || cpu_temp_readings(&choice))
+            spawn_blocking(move || cpu_sensors(&choice))
                 .await
-                .is_ok_and(|readings| !readings.is_empty())
+                .is_ok_and(|sensors| !sensors.is_empty())
         };
         holding_earliest_critical(stream::once(exposed).while_held(
-            move || polled_delivery_stream(config.clone(), Self::poll),
+            move || {
+                let config = config.clone();
+                polled_delivery_after_setup(
+                    blocking_poll(move || {
+                        Ok(TemperatureProbe {
+                            sensors: cpu_sensors(&config.sensor),
+                            config,
+                        })
+                    }),
+                    Self::poll,
+                )
+            },
             SourceDelivery::Absent,
         ))
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TemperatureProbe {
+    sensors: Vec<ChosenSensors>,
+    config: SensorConfig,
+}
+
 impl Temperature {
-    async fn poll(config: SensorConfig) -> Result<Self, Error> {
-        blocking_poll(move || read_temperature(&config)).await
+    async fn poll(probe: TemperatureProbe) -> Result<Self, Error> {
+        blocking_poll(move || read_temperature(&probe)).await
     }
 }
 
@@ -208,15 +239,19 @@ fn holding_earliest_critical(
     })
 }
 
-fn read_temperature(config: &SensorConfig) -> Result<Temperature, Error> {
-    let readings = cpu_temp_readings(&config.sensor);
+fn read_temperature(probe: &TemperatureProbe) -> Result<Temperature, Error> {
+    let readings: Vec<TempReading> = probe
+        .sensors
+        .iter()
+        .flat_map(ChosenSensors::readings)
+        .collect();
     if readings.is_empty() {
         return Err(Error::NoTemperatureSensor);
     }
     let temperature = Temperature {
         throttle_limit: throttle_limit(&readings),
         readings,
-        overrides: config.overrides(),
+        overrides: probe.config.overrides(),
         critical_since: None,
     };
     Ok(Temperature {
@@ -225,25 +260,23 @@ fn read_temperature(config: &SensorConfig) -> Result<Temperature, Error> {
     })
 }
 
-fn cpu_temp_readings(choice: &SensorChoice) -> Vec<TempReading> {
+fn cpu_sensors(choice: &SensorChoice) -> Vec<ChosenSensors> {
     match choice {
-        SensorChoice::Automatic => detected_cpu_readings(),
-        SensorChoice::Chip { .. } => HwmonChip::chosen(choice)
-            .iter()
-            .flat_map(ChosenSensors::readings)
-            .collect(),
+        SensorChoice::Automatic => detected_cpu_sensors(),
+        SensorChoice::Chip { .. } => HwmonChip::chosen(choice),
     }
 }
 
-fn detected_cpu_readings() -> Vec<TempReading> {
+fn detected_cpu_sensors() -> Vec<ChosenSensors> {
     let chips = HwmonChip::all();
-    let package_readings: Vec<TempReading> = chips
+    let package_sensors: Vec<ChosenSensors> = chips
         .iter()
         .filter(|chip| is_cpu_package_chip(chip))
-        .flat_map(package_chip_readings)
+        .map(package_chip_sensors)
+        .filter(|chosen| !chosen.sensors.is_empty())
         .collect();
-    if !package_readings.is_empty() {
-        return package_readings;
+    if !package_sensors.is_empty() {
+        return package_sensors;
     }
     chips
         .into_iter()
@@ -252,7 +285,6 @@ fn detected_cpu_readings() -> Vec<TempReading> {
             sensors: chip.temperature_sensors(),
             chip,
         })
-        .flat_map(|chosen| chosen.readings())
         .collect()
 }
 
@@ -268,7 +300,7 @@ fn is_soc_thermal_zone(chip: &HwmonChip) -> bool {
         .any(|marker| chip.name.contains(marker))
 }
 
-fn package_chip_readings(chip: &HwmonChip) -> Vec<TempReading> {
+fn package_chip_sensors(chip: &HwmonChip) -> ChosenSensors {
     let sensors = chip.temperature_sensors();
     let core_prefix = if chip.name.starts_with("coretemp") {
         "Core "
@@ -294,7 +326,6 @@ fn package_chip_readings(chip: &HwmonChip) -> Vec<TempReading> {
         chip: chip.clone(),
         sensors: chosen,
     }
-    .readings()
 }
 
 impl ChosenSensors {
