@@ -72,7 +72,7 @@ use std::{
 use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
-use crate::stream_operators::{StreamOperators, ticked};
+use crate::stream_operators::{StreamOperators, connected_until_failure, ticked};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Panicked;
@@ -134,6 +134,18 @@ where
         .map(SourceDelivery::Reading)
         .distinct_until_changed()
         .right_stream()
+}
+
+pub fn pushed_delivery_stream<S, R>(
+    connect: impl Future<Output = Result<R, S::Error>> + Send,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource + PartialEq,
+    R: Stream<Item = Result<S, S::Error>> + Send,
+{
+    connected_until_failure(connect)
+        .map(SourceDelivery::Reading)
+        .distinct_until_changed()
 }
 
 impl<S: ReadingSource + PartialEq> PartialEq for SourceDelivery<S> {

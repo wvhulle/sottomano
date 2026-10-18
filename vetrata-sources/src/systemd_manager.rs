@@ -33,6 +33,7 @@ use crate::{
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.systemd1.Manager";
+const UNIT_INTERFACE: &str = "org.freedesktop.systemd1.Unit";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScopedSystemdUnit {

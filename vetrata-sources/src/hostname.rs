@@ -1,14 +1,14 @@
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
 use zbus::proxy;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::{self, DesktopBuses},
     empty_text::non_empty,
-    polled_delivery_stream,
+    pushed_delivery_stream,
 };
 
 #[proxy(
@@ -50,25 +50,36 @@ impl ReadingSource for OperatingSystemIdentity {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "hostnamed";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_hours(1));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(identity_changes(buses))
     }
 }
 
-impl OperatingSystemIdentity {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        let hostname = HostnameProxy::new(&buses.system).await?;
-        Ok(Self {
-            hostname: hostname.hostname().await?,
-            kernel: hostname.kernel_release().await?,
-            operating_system: hostname.operating_system_pretty_name().await?,
-            chassis: hostname.chassis().await?.parse().ok(),
-        })
-    }
+async fn identity_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<OperatingSystemIdentity, bus::Error>> + Send, bus::Error> {
+    let hostname = HostnameProxy::new(&buses.system).await?;
+    let kernel = hostname.kernel_release().await?;
+    let operating_system = hostname.operating_system_pretty_name().await?;
+    let changes = stream::select(
+        hostname.receive_hostname_changed().await.map(drop),
+        hostname.receive_chassis_changed().await.map(drop),
+    );
+    Ok(changes.then(move |()| {
+        let hostname = hostname.clone();
+        let kernel = kernel.clone();
+        let operating_system = operating_system.clone();
+        async move {
+            Ok(OperatingSystemIdentity {
+                hostname: hostname.hostname().await?,
+                kernel,
+                operating_system,
+                chassis: hostname.chassis().await?.parse().ok(),
+            })
+        }
+    }))
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

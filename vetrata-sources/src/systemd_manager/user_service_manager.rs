@@ -1,14 +1,15 @@
-use std::time::Duration;
-
 use chrono::{DateTime, Utc};
-use futures::Stream;
+use futures::{Stream, StreamExt, stream};
+use zbus::proxy::CacheProperties;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::{self, DesktopBuses},
     hostname::at_micros,
-    polled_delivery_stream,
-    systemd_manager::ManagerProxy,
+    pushed_delivery_stream,
+    systemd_manager::{
+        ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,22 +24,51 @@ impl ReadingSource for UserServiceManager {
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "user service manager";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(manager_state_changes(buses))
     }
 }
 
-impl UserServiceManager {
-    async fn poll(buses: DesktopBuses) -> Result<Self, bus::Error> {
-        let manager = ManagerProxy::new(&buses.session).await?;
-        Ok(Self {
-            version: manager.version().await?,
-            state: manager.system_state().await?,
-            started_at: at_micros(manager.userspace_timestamp().await?),
-        })
-    }
+async fn manager_state_changes(
+    buses: DesktopBuses,
+) -> Result<impl Stream<Item = Result<UserServiceManager, bus::Error>> + Send, bus::Error> {
+    let manager = ManagerProxy::builder(&buses.session)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    manager.ensure_subscribed().await?;
+    let launched = UserServiceManager {
+        version: manager.version().await?,
+        state: manager.system_state().await?,
+        started_at: at_micros(manager.userspace_timestamp().await?),
+    };
+    let state_triggers = signals_matching(
+        &buses.session,
+        [
+            manager_signal("StartupFinished")?,
+            manager_signal("JobRemoved")?,
+            systemd_signal()?
+                .interface("org.freedesktop.DBus.Properties")?
+                .member("PropertiesChanged")?
+                .arg(0, UNIT_INTERFACE)?
+                .build(),
+        ],
+    )
+    .await?
+    .ready_chunks(64)
+    .map(drop);
+    Ok(stream::once(async {})
+        .chain(state_triggers)
+        .then(move |()| {
+            let manager = manager.clone();
+            let launched = launched.clone();
+            async move {
+                Ok(UserServiceManager {
+                    state: manager.system_state().await?,
+                    ..launched
+                })
+            }
+        }))
 }
