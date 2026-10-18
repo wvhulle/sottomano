@@ -60,6 +60,47 @@ impl SessionFace<'_> {
         self.accounting.dominant_run(now)
     }
 
+    fn screen_run_summary(&self, now: DateTime<Utc>, locale: Locale) -> Option<String> {
+        let ScreenRun { since } = self.accounting.screen_run(now)?;
+        let totals = self.accounting.unit_totals(
+            Interval {
+                from: since,
+                until: now,
+            },
+            now,
+        );
+        let most_used_project = totals.iter().find(|total| match total.unit {
+            FocusUnit::Project(_) => true,
+            FocusUnit::App(_) => false,
+        });
+        let most_used_app = totals.iter().find(|total| match total.unit {
+            FocusUnit::App(_) => true,
+            FocusUnit::Project(_) => false,
+        });
+        let lines = [
+            Some(format!(
+                "At the screen since {}, {} without a break.",
+                LocalizedTimeFormat::TimeOfDay.format(&since, locale),
+                duration_text(now - since)
+            )),
+            most_used_project.map(|total| {
+                format!(
+                    "Project: {} ({})",
+                    total.unit.label(),
+                    duration_text(total.spent)
+                )
+            }),
+            most_used_app.map(|total| {
+                format!(
+                    "App: {} ({})",
+                    total.unit.label(),
+                    duration_text(total.spent)
+                )
+            }),
+        ];
+        Some(lines.into_iter().flatten().collect::<Vec<_>>().join("\n"))
+    }
+
     fn thresholds(&self) -> Section {
         let config = self.accounting.config;
         Section::dictionary([
@@ -189,25 +230,8 @@ impl BarWidget for SessionFace<'_> {
     }
 
     fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
-        let now = Utc::now();
-        let Some(ScreenRun { since }) = self.accounting.screen_run(now) else {
-            return OngoingBody::None;
-        };
-        let mostly = self
-            .dominant(now)
-            .map(|run| {
-                format!(
-                    " Mostly {} ({}).",
-                    run.unit.label(),
-                    duration_text(now - run.since)
-                )
-            })
-            .unwrap_or_default();
-        OngoingBody::Text(format!(
-            "At the screen since {}, {} without a break.{mostly}",
-            LocalizedTimeFormat::TimeOfDay.format(&since, locale),
-            duration_text(now - since)
-        ))
+        self.screen_run_summary(Utc::now(), locale)
+            .map_or(OngoingBody::None, OngoingBody::Text)
     }
 
     fn tooltip(&self) -> TooltipBody {
@@ -238,10 +262,10 @@ mod tests {
         }
     }
 
-    fn focused() -> FocusSignal {
+    fn focused(window: u64, app_id: &str) -> FocusSignal {
         FocusSignal::WindowFocusChanged(WindowFocusChange::WindowGainedFocus(Focused {
-            window: 1,
-            app_id: "kitty".to_owned(),
+            window,
+            app_id: app_id.to_owned(),
             project: None,
         }))
     }
@@ -261,7 +285,9 @@ mod tests {
     #[test]
     fn a_pledge_without_a_break_turns_critical_after_the_grace() {
         let config = config();
-        let ledger = FocusLedger::started_at(at(0)).fold(focused(), at(0)).ledger;
+        let ledger = FocusLedger::started_at(at(0))
+            .fold(focused(1, "kitty"), at(0))
+            .ledger;
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             waking: all_day(),
@@ -275,7 +301,7 @@ mod tests {
     fn a_break_after_the_pledge_honours_it() {
         let config = config();
         let ledger = [
-            (focused(), 0),
+            (focused(1, "kitty"), 0),
             (idle_edge(IdleEdge::Idled), 11),
             (idle_edge(IdleEdge::Resumed), 15),
         ]
@@ -290,5 +316,22 @@ mod tests {
             pledge: Some(BreakPledge { at: at(10) }),
         };
         assert_eq!(face.severity(at(30)), Severity::Normal);
+    }
+
+    #[test]
+    fn the_summary_names_the_most_used_app_not_the_latest_focus() {
+        let config = config();
+        let ledger = FocusLedger::started_at(at(0))
+            .fold(focused(1, "firefox"), at(0))
+            .ledger
+            .fold(focused(2, "kitty"), at(40))
+            .ledger;
+        let face = SessionFace {
+            accounting: ledger.accounted(&config),
+            waking: all_day(),
+            pledge: None,
+        };
+        let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();
+        assert_eq!(summary.lines().nth(1), Some("App: firefox (40m)"));
     }
 }
