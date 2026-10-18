@@ -114,7 +114,7 @@ async fn watch_running_jobs(
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    manager.subscribe().await?;
+    manager.ensure_subscribed().await?;
     let job_signals = signals_matching(
         &connection,
         [manager_signal("JobNew")?, manager_signal("JobRemoved")?],

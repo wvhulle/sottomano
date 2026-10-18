@@ -93,7 +93,7 @@ async fn activity_changes(
     unit: String,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<UnitActivity>> + Send> {
     let manager = ManagerProxy::new(&connection).await?;
-    manager.subscribe().await?;
+    manager.ensure_subscribed().await?;
     let unit = UnitProxy::builder(&connection)
         .path(manager.load_unit(&unit).await?)?
         .build()
@@ -132,7 +132,7 @@ impl UnitControl {
     async fn job_result(&self, change: UnitChange) -> zbus::Result<String> {
         let connection = connect(self.per_user).await?;
         let manager = ManagerProxy::new(&connection).await?;
-        manager.subscribe().await?;
+        manager.ensure_subscribed().await?;
         let mut removed_jobs = manager.receive_job_removed().await?;
         let job = match change {
             UnitChange::Start => manager.start_unit(&self.unit, "replace").await?,

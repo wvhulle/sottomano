@@ -220,6 +220,17 @@ struct JobRow {
     unit_path: OwnedObjectPath,
 }
 
+const ALREADY_SUBSCRIBED: &str = "org.freedesktop.systemd1.AlreadySubscribed";
+
+impl ManagerProxy<'_> {
+    async fn ensure_subscribed(&self) -> zbus::Result<()> {
+        match self.subscribe().await {
+            Err(zbus::Error::MethodError(name, _, _)) if name == ALREADY_SUBSCRIBED => Ok(()),
+            outcome => outcome,
+        }
+    }
+}
+
 async fn connect(user: bool) -> zbus::Result<zbus::Connection> {
     if user {
         zbus::Connection::session().await

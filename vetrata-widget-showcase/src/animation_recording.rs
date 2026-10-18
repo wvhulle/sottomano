@@ -53,7 +53,7 @@ const LOSSLESS_METHOD: usize = 4;
 const EMULATOR_EVENT_CAPACITY: usize = 256;
 
 struct CapturedFrame {
-    rgba: Vec<u8>,
+    content: Option<ContentRows>,
     captured_at: Instant,
 }
 
@@ -64,13 +64,14 @@ struct DemoRecorder {
     events: Receiver<Event<ShowcaseProgram>>,
     layout_renderer: iced::Renderer,
     pointer: Point,
+    background: [u8; 4],
 }
 
 impl DemoRecorder {
     fn start(demo: &'static Demo, config: &Config) -> Self {
         let program = ShowcaseProgram::new(config);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
-        let emulator = Emulator::with_preset(
+        let mut emulator = Emulator::with_preset(
             sender,
             &program,
             Mode::Immediate,
@@ -84,6 +85,14 @@ impl DemoRecorder {
             None,
         ))
         .expect("a headless renderer is available");
+        let theme = emulator
+            .theme(&program)
+            .expect("the showcase program always sets a theme");
+        let top_right = (usize::from(FrameSize::of_canvas().width) - 1) * 4;
+        let background = emulator.screenshot(&program, &theme, SCALE_FACTOR).rgba
+            [top_right..top_right + 4]
+            .try_into()
+            .expect("a pixel has four channels");
         let mut recorder = DemoRecorder {
             demo,
             program,
@@ -91,6 +100,7 @@ impl DemoRecorder {
             events,
             layout_renderer,
             pointer: REST_POINTER,
+            background,
         };
         recorder.settle();
         recorder
@@ -253,107 +263,113 @@ impl DemoRecorder {
 
     fn capture_during(&mut self, hold: Duration) -> Vec<CapturedFrame> {
         let deadline = Instant::now() + hold;
-        from_fn(|| (Instant::now() < deadline).then(|| self.capture())).collect()
+        from_fn(|| (Instant::now() < deadline).then(|| self.capture())).fold(
+            Vec::new(),
+            |mut frames: Vec<CapturedFrame>, frame| {
+                if frames
+                    .last()
+                    .is_none_or(|previous| previous.content != frame.content)
+                {
+                    frames.push(frame);
+                }
+                frames
+            },
+        )
+    }
+
+    fn screenshot(&mut self) -> Vec<u8> {
+        let theme = self
+            .emulator
+            .theme(&self.program)
+            .expect("the showcase program always sets a theme");
+        self.emulator
+            .screenshot(&self.program, &theme, SCALE_FACTOR)
+            .rgba
+            .to_vec()
     }
 
     fn capture(&mut self) -> CapturedFrame {
         let frame_started = Instant::now();
         self.settle();
-        let theme = self
-            .emulator
-            .theme(&self.program)
-            .expect("the showcase program always sets a theme");
         let captured_at = Instant::now();
-        let screenshot = self
-            .emulator
-            .screenshot(&self.program, &theme, SCALE_FACTOR);
+        let rgba = self.screenshot();
         sleep(FRAME_INTERVAL.saturating_sub(frame_started.elapsed()));
         CapturedFrame {
-            rgba: screenshot.rgba.to_vec(),
+            content: ContentRows::differing_from(self.background, &rgba, FrameSize::of_canvas()),
             captured_at,
         }
     }
 }
 
-#[derive(Clone, Copy)]
-struct PixelRegion {
-    left: u16,
+#[derive(Clone, Copy, PartialEq)]
+struct RowSpan {
     top: u16,
-    right: u16,
     bottom: u16,
 }
 
-impl PixelRegion {
-    fn whole(width: u16, height: u16) -> Self {
-        PixelRegion {
-            left: 0,
+impl RowSpan {
+    fn whole(height: u16) -> Self {
+        RowSpan {
             top: 0,
-            right: width - 1,
             bottom: height - 1,
         }
     }
 
-    fn pixel(x: u16, y: u16) -> Self {
-        PixelRegion {
-            left: x,
-            top: y,
-            right: x,
-            bottom: y,
-        }
+    fn row(y: u16) -> Self {
+        RowSpan { top: y, bottom: y }
     }
 
     fn union(self, other: Self) -> Self {
-        PixelRegion {
-            left: self.left.min(other.left),
+        RowSpan {
             top: self.top.min(other.top),
-            right: self.right.max(other.right),
             bottom: self.bottom.max(other.bottom),
         }
     }
 
     fn widened(self, margin: u16, within: Self) -> Self {
-        PixelRegion {
-            left: self.left.saturating_sub(margin).max(within.left),
+        RowSpan {
             top: self.top.saturating_sub(margin).max(within.top),
-            right: self.right.saturating_add(margin).min(within.right),
             bottom: self.bottom.saturating_add(margin).min(within.bottom),
         }
-    }
-
-    fn differing(reference: &[u8], current: &[u8], width: u16) -> Option<Self> {
-        reference
-            .as_chunks::<4>()
-            .0
-            .iter()
-            .zip(current.as_chunks::<4>().0)
-            .enumerate()
-            .filter(|(_, (before, after))| before != after)
-            .map(|(index, _)| {
-                let x = u16::try_from(index % usize::from(width)).expect("column fits a GIF");
-                let y = u16::try_from(index / usize::from(width)).expect("row fits a GIF");
-                PixelRegion::pixel(x, y)
-            })
-            .reduce(PixelRegion::union)
-    }
-
-    fn width(self) -> u16 {
-        self.right - self.left + 1
     }
 
     fn height(self) -> u16 {
         self.bottom - self.top + 1
     }
 
-    fn crop(self, rgba: &[u8], canvas_width: u16) -> Vec<u8> {
-        (self.top..=self.bottom)
-            .flat_map(|row| {
-                let start =
-                    (usize::from(row) * usize::from(canvas_width) + usize::from(self.left)) * 4;
-                rgba[start..start + usize::from(self.width()) * 4]
-                    .iter()
-                    .copied()
-            })
-            .collect()
+    fn contains(self, y: u16) -> bool {
+        (self.top..=self.bottom).contains(&y)
+    }
+}
+
+#[derive(PartialEq)]
+struct ContentRows {
+    span: RowSpan,
+    rgba: Vec<u8>,
+}
+
+impl ContentRows {
+    fn differing_from(background: [u8; 4], rgba: &[u8], canvas: FrameSize) -> Option<Self> {
+        let row_bytes = usize::from(canvas.width) * 4;
+        let span = rgba
+            .chunks_exact(row_bytes)
+            .enumerate()
+            .filter(|(_, row)| row.as_chunks::<4>().0.iter().any(|pixel| *pixel != background))
+            .map(|(y, _)| RowSpan::row(u16::try_from(y).expect("row fits a recording")))
+            .reduce(RowSpan::union)?;
+        let start = usize::from(span.top) * row_bytes;
+        let end = (usize::from(span.bottom) + 1) * row_bytes;
+        Some(ContentRows {
+            span,
+            rgba: rgba[start..end].to_vec(),
+        })
+    }
+
+    fn row(&self, y: u16, row_bytes: usize) -> Option<&[u8]> {
+        self.span.contains(y).then(|| {
+            let start = usize::from(y - self.span.top) * row_bytes;
+            &self.rgba[start..start + row_bytes]
+        })
     }
 }
 
@@ -376,44 +392,51 @@ impl FrameSize {
     }
 }
 
+struct CroppedFrame {
+    rgba: Vec<u8>,
+    captured_at: Instant,
+}
+
 struct CroppedRecording {
-    frames: Vec<CapturedFrame>,
+    frames: Vec<CroppedFrame>,
     size: FrameSize,
 }
 
 fn cropped_to_content(
-    frames: Vec<CapturedFrame>,
+    frames: &[CapturedFrame],
     canvas: FrameSize,
+    background: [u8; 4],
     margin: u16,
 ) -> CroppedRecording {
-    let whole = PixelRegion::whole(canvas.width, canvas.height);
-    let background: Vec<u8> = frames
-        .first()
-        .map(|frame| {
-            let top_right = (usize::from(canvas.width) - 1) * 4;
-            frame.rgba[top_right..top_right + 4].repeat(frame.rgba.len() / 4)
-        })
-        .unwrap_or_default();
-    let content = frames
+    let whole = RowSpan::whole(canvas.height);
+    let shown = frames
         .iter()
-        .filter_map(|frame| PixelRegion::differing(&background, &frame.rgba, canvas.width))
-        .reduce(PixelRegion::union)
-        .map_or(whole, |content| PixelRegion {
-            left: whole.left,
-            right: whole.right,
-            ..content.widened(margin, whole)
-        });
+        .filter_map(|frame| frame.content.as_ref().map(|content| content.span))
+        .reduce(RowSpan::union)
+        .map_or(whole, |span| span.widened(margin, whole));
+    let row_bytes = usize::from(canvas.width) * 4;
+    let background_row = background.repeat(usize::from(canvas.width));
     CroppedRecording {
         frames: frames
-            .into_iter()
-            .map(|frame| CapturedFrame {
-                rgba: content.crop(&frame.rgba, canvas.width),
+            .iter()
+            .map(|frame| CroppedFrame {
+                rgba: (shown.top..=shown.bottom)
+                    .flat_map(|y| {
+                        frame
+                            .content
+                            .as_ref()
+                            .and_then(|content| content.row(y, row_bytes))
+                            .unwrap_or(&background_row)
+                            .iter()
+                            .copied()
+                    })
+                    .collect(),
                 captured_at: frame.captured_at,
             })
             .collect(),
         size: FrameSize {
-            width: content.width(),
-            height: content.height(),
+            width: canvas.width,
+            height: shown.height(),
         },
     }
 }
@@ -425,7 +448,7 @@ fn register_font(config: &Config) {
         .load_font(Cow::Owned(config.theme.font.data.to_vec()));
 }
 
-fn encode_animation(frames: &[CapturedFrame], size: FrameSize, animation: &Path) {
+fn encode_animation(frames: &[CroppedFrame], size: FrameSize, animation: &Path) {
     let Some(first) = frames.first() else {
         return;
     };
@@ -476,7 +499,12 @@ pub fn record(demo: &'static Demo) -> RecordedAnimation {
         .collect();
     let closing = recorder.rest();
     let frames: Vec<CapturedFrame> = opening.into_iter().chain(scripted).chain(closing).collect();
-    let cropped = cropped_to_content(frames, FrameSize::of_canvas(), margin_pixels);
+    let cropped = cropped_to_content(
+        &frames,
+        FrameSize::of_canvas(),
+        recorder.background,
+        margin_pixels,
+    );
     let animation = Path::new(WORKSPACE_ROOT)
         .join(RECORDINGS_DIRECTORY)
         .join(format!("{}.{RECORDING_EXTENSION}", demo.name));

@@ -76,7 +76,7 @@ async fn watch_service_commands(
         .cache_properties(CacheProperties::No)
         .build()
         .await?;
-    manager.subscribe().await?;
+    manager.ensure_subscribed().await?;
     let signals = signals_matching(
         &connection,
         [
