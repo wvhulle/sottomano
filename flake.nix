@@ -1,5 +1,5 @@
 {
-  description = "vetrata — iced + iced_layershell bar for niri";
+  description = "sottomano — iced + iced_layershell bar for niri";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -69,17 +69,17 @@
       };
 
       shellArgs = commonArgs // {
-        pname = "vetrata";
-        cargoExtraArgs = "--locked -p vetrata-shell";
+        pname = "sottomano";
+        cargoExtraArgs = "--locked -p sottomano-shell";
       };
 
       showcaseArgs = commonArgs // {
-        pname = "vetrata-widget-showcase";
-        cargoExtraArgs = "--locked -p vetrata-widget-showcase";
+        pname = "sottomano-widget-showcase";
+        cargoExtraArgs = "--locked -p sottomano-widget-showcase";
       };
 
       workspaceArgs = commonArgs // {
-        pname = "vetrata-workspace";
+        pname = "sottomano-workspace";
         cargoExtraArgs = "--locked --workspace";
       };
 
@@ -117,13 +117,13 @@
 
       runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
 
-      vetrata = craneLib.buildPackage (
+      sottomano = craneLib.buildPackage (
         shellArgs
         // {
           cargoArtifacts = shellArtifacts;
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
           postInstall = ''
-            wrapProgram $out/bin/vetrata \
+            wrapProgram $out/bin/sottomano \
               --prefix PATH : ${gsettingsRuntime.binPath} \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
               --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
@@ -131,7 +131,7 @@
               --prefix XDG_DATA_DIRS : ${soundThemeShare} \
               --prefix GIO_EXTRA_MODULES : ${gsettingsRuntime.gioModules}
           '';
-          meta.mainProgram = "vetrata";
+          meta.mainProgram = "sottomano";
           meta.platforms = pkgs.lib.platforms.linux;
         }
       );
@@ -177,8 +177,8 @@
     in
     {
       packages.${system} = {
-        default = vetrata;
-        vetrata = vetrata;
+        default = sottomano;
+        sottomano = sottomano;
         deps = showcaseArtifacts;
         readme-recordings = readmeRecordings;
       };

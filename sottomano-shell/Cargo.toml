@@ -1,0 +1,35 @@
+[package]
+name = "sottomano-shell"
+edition.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "sottomano"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-config = { path = "../sottomano-config" }
+sottomano-sources = { path = "../sottomano-sources" }
+sottomano-state = { path = "../sottomano-state" }
+sottomano-widgets = { path = "../sottomano-widgets" }
+chrono.workspace = true
+clap.workspace = true
+iced.workspace = true
+iced_exwlshell.workspace = true
+iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
+wayland-client = "0.31.15"
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+niri-ipc.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+zbus.workspace = true
+uom.workspace = true
+
+[features]
+devtools = ["iced_exwlshell/debug"]
+time-travel = ["iced_exwlshell/time-travel"]

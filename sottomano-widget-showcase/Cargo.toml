@@ -1,0 +1,28 @@
+[package]
+name = "sottomano-widget-showcase"
+edition.workspace = true
+version.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+sottomano-config = { path = "../sottomano-config" }
+sottomano-sources = { path = "../sottomano-sources" }
+sottomano-state = { path = "../sottomano-state" }
+sottomano-widgets = { path = "../sottomano-widgets" }
+bytesize.workspace = true
+chrono.workspace = true
+clap.workspace = true
+iced.workspace = true
+iced_test = "0.14.0"
+iced_tester = "0.14.0"
+iced_winit = "0.14.0"
+niri-ipc.workspace = true
+rust_decimal.workspace = true
+rusty-money.workspace = true
+situo-client.workspace = true
+tokio.workspace = true
+uom.workspace = true
+webp-animation = { version = "0.10.0", features = ["static"] }

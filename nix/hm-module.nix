@@ -6,7 +6,7 @@
   ...
 }:
 let
-  cfg = config.services.vetrata;
+  cfg = config.services.sottomano;
   themeCfg = config.services.umbra or null;
   tomlFormat = pkgs.formats.toml { };
 
@@ -26,29 +26,29 @@ let
 
   variantToml =
     modePalette:
-    tomlFormat.generate "vetrata.toml" (
+    tomlFormat.generate "sottomano.toml" (
       lib.recursiveUpdate cfg.settings {
         theme.palette = modeToPalette modePalette // (cfg.settings.theme.palette or { });
       }
     );
 in
 {
-  options.services.vetrata = {
-    enable = lib.mkEnableOption "vetrata bar";
+  options.services.sottomano = {
+    enable = lib.mkEnableOption "sottomano bar";
 
     package = lib.mkOption {
       type = lib.types.package;
       default = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-      defaultText = lib.literalExpression "vetrata.packages.\${system}.default";
-      description = "The vetrata package to install.";
+      defaultText = lib.literalExpression "sottomano.packages.\${system}.default";
+      description = "The sottomano package to install.";
     };
 
     systemdUnit = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = ''
-        Whether to create a systemd user service that starts vetrata with
-        graphical-session.target. Disable to spawn vetrata from a
+        Whether to create a systemd user service that starts sottomano with
+        graphical-session.target. Disable to spawn sottomano from a
         compositor-specific hook instead.
       '';
     };
@@ -57,8 +57,8 @@ in
       type = tomlFormat.type;
       default = { };
       description = ''
-        Contents of ~/.config/vetrata.toml, written verbatim. The running bar
-        watches the file and applies changes in place. `vetrata
+        Contents of ~/.config/sottomano.toml, written verbatim. The running bar
+        watches the file and applies changes in place. `sottomano
         --print-default-config` prints every key with its default value.
       '';
     };
@@ -71,7 +71,7 @@ in
           Path to a file containing an OpenRouter **management** key as plain
           text. A regular API key is not enough: the usage widget calls
           `/analytics/query`, which only management keys may access. Symlinked
-          into ~/.config/vetrata/, where the bar looks for it. When unset, the
+          into ~/.config/sottomano/, where the bar looks for it. When unset, the
           OpenRouter pill is hidden.
         '';
       };
@@ -84,7 +84,7 @@ in
           `~/.claude/.credentials.json` blob with `claudeAiOauth.accessToken`).
           Drives the Claude subscription gauge; on API-key machines (no OAuth
           token) it instead surfaces `ccusage` daily spend. Symlinked into
-          ~/.config/vetrata/. When unset, the Claude pills are hidden.
+          ~/.config/sottomano/. When unset, the Claude pills are hidden.
         '';
       };
 
@@ -96,7 +96,7 @@ in
           output of `gh auth token` after `gh auth login` stored as an agenix
           secret. The Copilot usage pills read it and call
           `/copilot_internal/user` directly.
-          Symlinked into ~/.config/vetrata/. When unset, the Copilot quota pills
+          Symlinked into ~/.config/sottomano/. When unset, the Copilot quota pills
           are hidden (the local-`ccusage` Copilot pill needs no token and still
           shows if `ccusage` is installed).
         '';
@@ -113,7 +113,7 @@ in
           `/photos/{id}` to turn the Unsplash photo id embedded in the current
           wallpaper's filename into a caption, photographer and place, then looks
           that place up on the Wikipedia edition matching the session locale.
-          Symlinked into ~/.config/vetrata/. The pill needs no configuration: it
+          Symlinked into ~/.config/sottomano/. The pill needs no configuration: it
           shows when this key and a wallpaper daemon (`awww` or `swww`, tried in
           that order) are both present, and hides otherwise.
         '';
@@ -126,11 +126,11 @@ in
       description = ''
         Runtime dark/light palette switching via the umbra app registry.
         Requires services.umbra (from umbra.homeModules) in the same
-        home-manager config: registers services.umbra.apps.vetrata with
+        home-manager config: registers services.umbra.apps.sottomano with
         dark/light palette variants derived from services.umbra.palettes.*. On
-        a mode switch umbra re-points ~/.config/vetrata.toml and the running
+        a mode switch umbra re-points ~/.config/sottomano.toml and the running
         bar reloads it in place. Set false for a standalone
-        install with no umbra — vetrata then falls back to the static
+        install with no umbra — sottomano then falls back to the static
         palette in settings.
       '';
     };
@@ -153,9 +153,9 @@ in
       {
         assertion = themeCfg != null && themeCfg ? palettes;
         message = ''
-          services.vetrata.umbra.enable requires services.umbra (provided by
+          services.sottomano.umbra.enable requires services.umbra (provided by
           umbra.homeModules.default/schema). Import it in the same home-manager
-          config, or set services.vetrata.umbra.enable = false.
+          config, or set services.sottomano.umbra.enable = false.
         '';
       }
     ];
@@ -163,45 +163,45 @@ in
     home.packages = [ cfg.package ];
 
     xdg.configFile = {
-      "vetrata.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
-        source = tomlFormat.generate "vetrata.toml" cfg.settings;
+      "sottomano.toml" = lib.mkIf (!cfg.umbra.enable && cfg.settings != { }) {
+        source = tomlFormat.generate "sottomano.toml" cfg.settings;
       };
 
-      "vetrata/openrouter-management-key" =
+      "sottomano/openrouter-management-key" =
         lib.mkIf (cfg.secretFiles."openrouter-management-key" != null)
           {
             source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."openrouter-management-key";
           };
 
-      "vetrata/claude-code-oauth" = lib.mkIf (cfg.secretFiles."claude-code-oauth" != null) {
+      "sottomano/claude-code-oauth" = lib.mkIf (cfg.secretFiles."claude-code-oauth" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."claude-code-oauth";
       };
 
-      "vetrata/gh-auth-token" = lib.mkIf (cfg.secretFiles."gh-auth-token" != null) {
+      "sottomano/gh-auth-token" = lib.mkIf (cfg.secretFiles."gh-auth-token" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."gh-auth-token";
       };
 
-      "vetrata/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
+      "sottomano/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
       };
     };
 
-    services.umbra.apps.vetrata = lib.mkIf cfg.umbra.enable {
-      target = "vetrata.toml";
+    services.umbra.apps.sottomano = lib.mkIf cfg.umbra.enable {
+      target = "sottomano.toml";
       dark.source = variantToml themeCfg.palettes.dark;
       light.source = variantToml themeCfg.palettes.light;
     };
 
     services.niri.settings.includes = [
       {
-        path = "${config.xdg.configHome}/vetrata/niri.kdl";
+        path = "${config.xdg.configHome}/sottomano/niri.kdl";
         optional = true;
       }
     ];
 
-    systemd.user.services.vetrata = lib.mkIf cfg.systemdUnit {
+    systemd.user.services.sottomano = lib.mkIf cfg.systemdUnit {
       Unit = {
-        Description = "vetrata bar";
+        Description = "sottomano bar";
         PartOf = [ "graphical-session.target" ];
         After = [ "graphical-session.target" ];
       };

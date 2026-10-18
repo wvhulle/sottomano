@@ -1,16 +1,16 @@
 # Contributing
 
-Conventions and workflow for working on vetrata.
+Conventions and workflow for working on sottomano.
 
 ## Workflow
 
 Work inside the Nix devshell (`nix develop`). The repository is a cargo
-workspace: `vetrata-config/` holds the TOML config types and their loading,
-`vetrata-sources/` holds the data sources and sinks the shell reads and writes,
-`vetrata-state/` holds the runtime state the shell persists and restores,
-`vetrata-widgets/` holds the widgets, widget groups, hover tooltips and the
-`Message` they produce, `vetrata-shell/` composes them into the running shell
-(binary `vetrata`) and `vetrata-widget-showcase/` plays widget fixtures for the
+workspace: `sottomano-config/` holds the TOML config types and their loading,
+`sottomano-sources/` holds the data sources and sinks the shell reads and writes,
+`sottomano-state/` holds the runtime state the shell persists and restores,
+`sottomano-widgets/` holds the widgets, widget groups, hover tooltips and the
+`Message` they produce, `sottomano-shell/` composes them into the running shell
+(binary `sottomano`) and `sottomano-widget-showcase/` plays widget fixtures for the
 README recordings, the `.ice` scenarios and the windowed tester. `cargo r` for a
 debug run, `cargo clippy --workspace --all-targets` before committing — the
 workspace warns on clippy pedantic plus `absolute_paths` — and `cargo fmt`, which
@@ -48,12 +48,12 @@ a pull request when the recordings changed.
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;
   code that cannot be made self-evident that way is restructured, not annotated.
 - Strict config/state separation: no field appears in both the TOML config
-  (`vetrata-config/src/`) and runtime state (`vetrata-state/src/`).
+  (`sottomano-config/src/`) and runtime state (`sottomano-state/src/`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and
-  methods on the owning type (`vetrata-widgets/src/widgets/`,
-  `vetrata-widgets/src/widget_groups/`).
+  methods on the owning type (`sottomano-widgets/src/widgets/`,
+  `sottomano-widgets/src/widget_groups/`).
 - Widget state lives in its widget and routes through its group's `Action` —
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
@@ -63,13 +63,13 @@ a pull request when the recordings changed.
   in question through descriptive labels, tooltip cards and visual indicators
   rather than prose in the docs.
 - No config keys, defaults or TOML snippets in `README.md`. Users get a
-  complete default config from `vetrata --print-default-config` and start
+  complete default config from `sottomano --print-default-config` and start
   from there, so every option must show up in that output with its default.
 
 ## README recordings
 
 The tour recordings in `recordings/` are rendered offscreen by the
-`vetrata-widget-showcase` crate (`nix build .#readme-recordings` renders them all
+`sottomano-widget-showcase` crate (`nix build .#readme-recordings` renders them all
 the way CI does). Each entry of `DEMOS` in `demo_script.rs` shows one
 widget, is named `<group>_<widget>` and sits in `README.md` under the heading of its
 panel and group. The name is also the demo's iced `Preset`, which boots its fixture
@@ -87,14 +87,14 @@ none yet, and add a `Demo` entry. A target that is not on screen fails the run
 and lists the targets that are.
 
 ```bash
-cargo run -p vetrata-widget-showcase
-cargo run -p vetrata-widget-showcase -- weather_location
-cargo run -p vetrata-widget-showcase -- --window
+cargo run -p sottomano-widget-showcase
+cargo run -p sottomano-widget-showcase -- weather_location
+cargo run -p sottomano-widget-showcase -- --window
 ```
 
 `--window` opens the presets in a real window with the iced tester attached,
 which switches between presets and records interactions as `.ice` scenarios.
-Scenarios saved in `vetrata-widget-showcase/tests/ice/` run with `cargo test`
+Scenarios saved in `sottomano-widget-showcase/tests/ice/` run with `cargo test`
 (and so in CI); `expect` sees plain text widgets, not rich text such as toast
 bodies.
 

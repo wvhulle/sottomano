@@ -1,7 +1,7 @@
 when:
-  - repo: wvhulle/vetrata
+  - repo: wvhulle/sottomano
     event: pull_request
-  - repo: wvhulle/vetrata
+  - repo: wvhulle/sottomano
     event: [push, manual]
     branch: main
 
