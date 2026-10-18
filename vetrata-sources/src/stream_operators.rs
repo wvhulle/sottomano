@@ -1,18 +1,21 @@
 use std::{
     convert::identity,
     fmt::Display,
-    future::{Future, ready},
+    future::{Future, pending, ready},
     pin::Pin,
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use futures::{
-    Stream, StreamExt, TryStreamExt,
+    FutureExt, Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::time::{MissedTickBehavior, interval};
+use tokio::{
+    select,
+    time::{MissedTickBehavior, interval, sleep_until},
+};
 use tokio_stream::wrappers::IntervalStream;
 
 pub fn ticked<T, F>(
@@ -26,6 +29,56 @@ where
     let mut timer = interval(every);
     timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
     IntervalStream::new(timer).then(move |_| work())
+}
+
+pub fn read_once_then_per_burst<T, F>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    read: impl Fn() -> F + Send + 'static,
+) -> impl Stream<Item = T> + Send
+where
+    T: Send + 'static,
+    F: Future<Output = T> + Send,
+{
+    reread_on_trigger_or_deadline(triggers, read, |_| None)
+}
+
+enum NextRead {
+    Immediately,
+    OnTriggerOrAt(Option<Instant>),
+}
+
+pub fn reread_on_trigger_or_deadline<T, F>(
+    triggers: impl Stream<Item = ()> + Send + 'static,
+    read: impl Fn() -> F + Send + 'static,
+    deadline_after: impl Fn(&T) -> Option<Instant> + Send + 'static,
+) -> impl Stream<Item = T> + Send
+where
+    T: Send + 'static,
+    F: Future<Output = T> + Send,
+{
+    let triggers = triggers.fuse().boxed();
+    stream::unfold(
+        (triggers, read, deadline_after, NextRead::Immediately),
+        |(mut triggers, read, deadline_after, next)| async move {
+            if let NextRead::OnTriggerOrAt(deadline) = next {
+                select! {
+                    triggered = triggers.next() => triggered?,
+                    () = sleep_until_or_forever(deadline) => {}
+                }
+                while matches!(triggers.next().now_or_never(), Some(Some(()))) {}
+            }
+            let produced = read().await;
+            let next = NextRead::OnTriggerOrAt(deadline_after(&produced));
+            Some((produced, (triggers, read, deadline_after, next)))
+        },
+    )
+}
+
+async fn sleep_until_or_forever(deadline: Option<Instant>) {
+    match deadline {
+        Some(deadline) => sleep_until(deadline.into()).await,
+        None => pending().await,
+    }
 }
 
 pub fn connected_until_failure<S, T, E>(

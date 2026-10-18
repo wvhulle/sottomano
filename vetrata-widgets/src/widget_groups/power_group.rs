@@ -98,7 +98,12 @@ impl PowerGroup {
         }
     }
 
-    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<PowerMessage> {
+    pub fn hover(
+        &mut self,
+        hovered: Option<&HoverTarget>,
+        config: &Config,
+        buses: Option<&DesktopBuses>,
+    ) -> Task<PowerMessage> {
         self.charger.stop();
         self.cpu_tuning.stop();
         match hovered {
@@ -107,8 +112,13 @@ impl PowerGroup {
                     .start_hover_fetch((), PowerMessage::ChargerFetched, config)
             }
             Some(HoverTarget::Power(PowerTarget::Profile)) => {
-                self.cpu_tuning
-                    .start_hover_fetch((), PowerMessage::CpuTuningFetched, config)
+                buses.map_or_else(Task::none, |buses| {
+                    self.cpu_tuning.start_hover_fetch(
+                        buses.clone(),
+                        PowerMessage::CpuTuningFetched,
+                        config,
+                    )
+                })
             }
             _ => Task::none(),
         }

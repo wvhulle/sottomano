@@ -1,10 +1,12 @@
-use std::{path::Path, time::Duration};
+use std::{future::ready, path::Path};
 
 use futures::Stream;
 
 use super::{CPU_FREQ, Error, read_field, read_trimmed};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
+    power_profile::active_profile_changes, pushed_delivery_stream,
+    stream_operators::read_once_then_per_burst,
 };
 
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";
@@ -50,20 +52,15 @@ fn read_cpu_tuning() -> Result<CpuTuning, Error> {
 
 impl ReadingSource for CpuTuning {
     type Error = Error;
-    type StreamInputs = ();
+    type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "cpu-tuning";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
-    }
-}
-
-impl CpuTuning {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_cpu_tuning).await
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        pushed_delivery_stream(ready(Ok(read_once_then_per_burst(
+            active_profile_changes(buses.system),
+            || blocking_poll(read_cpu_tuning),
+        ))))
     }
 }

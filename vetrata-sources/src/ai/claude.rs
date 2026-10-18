@@ -144,14 +144,14 @@ where
         )
 }
 
-fn local_log_polls<S, F>(
+fn local_log_readings<S, R>(
     logs: ClaudeLocalLogs,
     metered_by_subscription: bool,
-    poll: impl Fn(ClaudeLocalLogs) -> F + Send + Clone + 'static,
+    readings: impl Fn(ClaudeLocalLogs) -> R + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
     S: ReadingSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
-    F: Future<Output = Result<S, S::Error>> + Send + 'static,
+    R: Stream<Item = SourceDelivery<S>> + Send,
 {
     stream::once(ccusage::installed()).while_held(
         move || {
@@ -164,11 +164,8 @@ where
                 None => stream::iter([!metered_by_subscription]).right_stream(),
             };
             let logs = logs.clone();
-            let poll = poll.clone();
-            login_matches.while_held(
-                move || polled_delivery_stream(logs.clone(), poll.clone()),
-                SourceDelivery::Absent,
-            )
+            let readings = readings.clone();
+            login_matches.while_held(move || readings(logs.clone()), SourceDelivery::Absent)
         },
         SourceDelivery::Absent,
     )
