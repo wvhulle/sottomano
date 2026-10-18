@@ -6,7 +6,7 @@ use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs, cpu_topology::CpuTopology};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
     stream_operators::StreamOperators,
 };
 
@@ -96,34 +96,33 @@ impl ReadingSource for CpuClock {
     const NAME: &'static str = "cpu-clock";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async {
             spawn_blocking(core_freqs)
                 .await
                 .is_ok_and(|cores| !cores.is_empty())
         };
         stream::once(exposed).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
+            move || {
+                polled_delivery_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
+            },
             SourceDelivery::Absent,
         )
     }
 }
 
 impl CpuClock {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        blocking_poll(read_cpu_clock).await
+    async fn poll(topology: CpuTopology) -> Result<Self, Error> {
+        blocking_poll(move || read_cpu_clock(topology)).await
     }
 }
 
-fn read_cpu_clock() -> Result<CpuClock, Error> {
+fn read_cpu_clock(topology: CpuTopology) -> Result<CpuClock, Error> {
     let cores = core_freqs();
     if cores.is_empty() {
         return Err(Error::Unreadable(CPU_FREQ.to_owned()));
     }
-    Ok(CpuClock {
-        cores,
-        topology: CpuTopology::detect(),
-    })
+    Ok(CpuClock { cores, topology })
 }
 
 #[cfg(test)]

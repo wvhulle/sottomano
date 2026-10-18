@@ -64,7 +64,7 @@ pub mod wireguard;
 
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
-    future::Future,
+    future::{Future, ready},
     hash::Hash,
     time::Duration,
 };
@@ -99,6 +99,7 @@ where
 pub enum DeliveryCadence {
     PolledEvery(Duration),
     PushedLive,
+    ReadOnce,
 }
 
 pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
@@ -117,12 +118,13 @@ pub enum SourceDelivery<S: ReadingSource> {
     Reading(Result<S, S::Error>),
 }
 
-pub fn polled_delivery_stream<S, F>(
-    inputs: S::StreamInputs,
-    poll: impl Fn(S::StreamInputs) -> F + Send + Clone + 'static,
+pub fn polled_delivery_stream<S, I, F>(
+    inputs: I,
+    poll: impl Fn(I) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
     S: ReadingSource + PartialEq,
+    I: Clone + Send + 'static,
     F: Future<Output = Result<S, S::Error>> + Send,
 {
     let DeliveryCadence::PolledEvery(every) = S::DELIVERY_CADENCE else {
@@ -134,6 +136,21 @@ where
         .map(SourceDelivery::Reading)
         .distinct_until_changed()
         .right_stream()
+}
+
+pub fn polled_delivery_after_setup<S, P, F>(
+    setup: impl Future<Output = Result<P, S::Error>> + Send,
+    poll: impl Fn(P) -> F + Send + Clone + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send
+where
+    S: ReadingSource + PartialEq,
+    P: Clone + Send + 'static,
+    F: Future<Output = Result<S, S::Error>> + Send,
+{
+    stream::once(setup).flat_map(move |prepared| match prepared {
+        Ok(prepared) => polled_delivery_stream(prepared, poll.clone()).left_stream(),
+        Err(failure) => stream::once(ready(SourceDelivery::Reading(Err(failure)))).right_stream(),
+    })
 }
 
 pub fn pushed_delivery_stream<S, R>(

@@ -35,7 +35,7 @@ impl ReadingSource for GraphicalSession {
     type StreamInputs = ();
 
     const NAME: &'static str = "graphical session";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
     fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(Self::read()).map(SourceDelivery::Reading)

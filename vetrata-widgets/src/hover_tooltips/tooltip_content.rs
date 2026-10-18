@@ -221,6 +221,10 @@ impl<'a> TooltipContent<'a> {
                 self.annotation("live".to_owned()),
                 Phosphor::Pulse(Weight::Regular).view(glyph_size, dim),
             ),
+            Freshness::Fixed => labelled(
+                self.annotation("read once".to_owned()),
+                Phosphor::PushPin(Weight::Regular).view(glyph_size, dim),
+            ),
         };
         container(shown).align_right(Length::Fill).into()
     }
