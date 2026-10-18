@@ -1,4 +1,4 @@
-use iced::futures::Stream;
+use futures::Stream;
 use zbus::fdo::ManagedObjects;
 
 use crate::{

@@ -98,8 +98,8 @@ impl CardIcon {
 pub fn resolve_icons(data: &NotificationData, entries: Option<&DesktopEntries>) -> CardIcons {
     let app_icon_file = data.app_icon.as_deref().and_then(icon_file);
     let image = match &data.image {
-        Some(NotifImage::Rgba(handle)) => Some(CardImage::Icon(CardIcon::Handle(
-            IconHandle::Raster(handle.clone()),
+        Some(NotifImage::Rgba(pixels)) => Some(CardImage::Icon(CardIcon::Handle(
+            IconHandle::from(pixels.as_ref()),
         ))),
         Some(NotifImage::Named(name)) => CardImage::named(name, entries),
         None => app_icon_file.map(CardImage::of_file),

@@ -6,7 +6,7 @@ pub mod wifi;
 
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use iced::futures::{
+use futures::{
     Stream, StreamExt,
     stream::{self, select},
 };

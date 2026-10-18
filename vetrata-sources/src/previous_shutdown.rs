@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use systemd::{id128::Id128, journal::OpenOptions};
 use vetrata_config::severity::Severity;

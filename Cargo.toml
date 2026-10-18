@@ -53,6 +53,13 @@ iced = { version = "0.14.0", default-features = false, features = [
   "svg",
   "canvas",
 ] }
+image = { version = "0.25.10", default-features = false, features = [
+  "png",
+  "jpeg",
+  "webp",
+  "ico",
+  "gif",
+] }
 kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
 nalgebra = "0.35"
 niri-ipc = "26.4.0"

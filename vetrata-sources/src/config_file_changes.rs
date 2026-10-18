@@ -1,9 +1,6 @@
 use std::{ffi::OsStr, io, path::Path};
 
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, future::ready},
-};
+use futures::{Stream, StreamExt, future::ready};
 use inotify::{Inotify, WatchMask};
 use vetrata_config::ConfigFile;
 
@@ -11,11 +8,7 @@ use crate::stream_operators::restarting;
 
 const EVENT_BUFFER_BYTES: usize = 1024;
 
-pub fn subscription(file: &ConfigFile) -> Subscription<()> {
-    Subscription::run_with(file.clone(), file_changes)
-}
-
-fn file_changes(file: &ConfigFile) -> impl Stream<Item = ()> + use<> {
+pub fn file_changes(file: &ConfigFile) -> impl Stream<Item = ()> + use<> {
     let path = file.path().to_path_buf();
     restarting("config watch", move || ready(watch_parent_directory(&path)))
 }
@@ -42,7 +35,7 @@ fn watch_parent_directory(path: &Path) -> io::Result<impl Stream<Item = ()> + us
 mod tests {
     use std::{env, fs, os::unix::fs::symlink, path::PathBuf, pin::pin, process, time::Duration};
 
-    use iced::futures::StreamExt;
+    use futures::StreamExt;
     use tokio::time::timeout;
 
     use super::watch_parent_directory;

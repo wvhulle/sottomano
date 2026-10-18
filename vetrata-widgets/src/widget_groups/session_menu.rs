@@ -77,7 +77,10 @@ pub enum Action {
 
 impl SessionMenu {
     pub fn load() -> Task<SessionMessage> {
-        blocking("logind permissions", permissions::read).map(SessionMessage::PermissionsLoaded)
+        Task::perform(
+            blocking("logind permissions", permissions::read),
+            SessionMessage::PermissionsLoaded,
+        )
     }
 
     pub fn update(&mut self, message: SessionMessage) -> Action {
@@ -87,10 +90,10 @@ impl SessionMenu {
                 Action::Run(Task::none())
             }
             SessionMessage::Press(action) => Action::Performed(
-                blocking("session action", move || {
+                Task::future(blocking("session action", move || {
                     thread::sleep(PRESS_SETTLE_DELAY);
                     action.perform();
-                })
+                }))
                 .discard(),
             ),
         }

@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 use nvml_wrapper::{
     Device, Nvml,
     enum_wrappers::device::{Clock, PerformanceState, TemperatureSensor, TemperatureThreshold},

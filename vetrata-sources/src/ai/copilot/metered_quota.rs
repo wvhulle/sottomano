@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{

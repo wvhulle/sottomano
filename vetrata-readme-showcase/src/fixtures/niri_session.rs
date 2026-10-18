@@ -8,13 +8,13 @@ use niri_ipc::{
 use uom::si::{f64::Ratio, ratio::percent};
 use vetrata_sources::{
     SourceDelivery,
-    desktop_entries::DesktopIndex,
     kitty_windows::WindowProcesses,
     niri::Snapshot,
     nix_store::{Provenance, StorePackage},
     process::{Inspection, Launch, Process},
 };
 use vetrata_widgets::{
+    desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
     widget_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,

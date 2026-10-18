@@ -9,7 +9,7 @@ use tokio::time::sleep;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{blocking, first_delivery, source_subscription},
+    background_work::blocking,
     bus::DesktopBuses,
     logind,
     sun_schedule::ColorMode,
@@ -19,6 +19,7 @@ use vetrata_sources::{
 use vetrata_state::dark_mode::{self, DarkModeSchedule};
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
@@ -263,7 +264,7 @@ impl DarkModeGroup {
         self.mode_toggle.assume(Umbra {
             dark: mode == ColorMode::Dark,
         });
-        blocking("umbra set", move || umbra::set_mode(mode)).discard()
+        Task::future(blocking("umbra set", move || umbra::set_mode(mode))).discard()
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {

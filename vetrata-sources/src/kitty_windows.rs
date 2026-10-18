@@ -10,7 +10,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use iced::Subscription;
+use futures::Stream;
 use kitty_window_label::KittyWindowLabel;
 use niri_ipc::{
     Event, Request, Response, Window,
@@ -19,7 +19,6 @@ use niri_ipc::{
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use vetrata_config::widget_groups::WindowAgentsConfig;
 
 use crate::stream_operators::StreamOperators;
 
@@ -253,17 +252,12 @@ fn pair_windows(sender: &mpsc::Sender<WindowProcesses>) -> io::Result<()> {
     }
 }
 
-pub fn subscription(config: &WindowAgentsConfig) -> Subscription<WindowProcesses> {
-    if !config.kitty {
-        return Subscription::none();
-    }
-    Subscription::run_with(config.clone(), |_| {
-        let (sender, receiver) = mpsc::channel(16);
-        thread::spawn(move || {
-            if let Err(e) = pair_windows(&sender) {
-                tracing::warn!("window pairing stopped: {e}");
-            }
-        });
-        ReceiverStream::new(receiver).distinct_until_changed()
-    })
+pub fn window_pairings() -> impl Stream<Item = WindowProcesses> + Send {
+    let (sender, receiver) = mpsc::channel(16);
+    thread::spawn(move || {
+        if let Err(e) = pair_windows(&sender) {
+            tracing::warn!("window pairing stopped: {e}");
+        }
+    });
+    ReceiverStream::new(receiver).distinct_until_changed()
 }

@@ -3,10 +3,10 @@ use std::time::{Duration, Instant};
 use vetrata_sources::{
     SourceDelivery,
     bus::OwnerProcess,
-    desktop_entries::DesktopIndex,
     mpris::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
 };
 use vetrata_widgets::{
+    desktop_index::DesktopIndex,
     shell_message::Message,
     widget_groups::media_group::{MediaGroup, MediaMessage},
 };

@@ -269,5 +269,8 @@ impl DesktopShell {
 }
 
 pub fn query_outputs() -> Task<Message> {
-    blocking("niri outputs", niri::output_info).map(Message::OutputsResolved)
+    Task::perform(
+        blocking("niri outputs", niri::output_info),
+        Message::OutputsResolved,
+    )
 }

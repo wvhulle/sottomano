@@ -74,7 +74,8 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
 
     Subscription::batch([
         outputs(state.wayland.as_ref()),
-        config_file_changes::subscription(&state.config_file).map(|()| Message::ConfigFileChanged),
+        Subscription::run_with(state.config_file.clone(), config_file_changes::file_changes)
+            .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
@@ -160,8 +161,10 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
 }
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
-    blocking("niri action", move || niri::send_action(&action).err())
-        .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
+    Task::future(blocking("niri action", move || {
+        niri::send_action(&action).err()
+    }))
+    .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
 }
 
 fn niri_subscription() -> Subscription<Message> {

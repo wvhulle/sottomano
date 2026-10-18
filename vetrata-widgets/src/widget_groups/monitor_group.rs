@@ -12,7 +12,7 @@ use output_details::ConnectedOutput;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{blocking, first_delivery, source_subscription},
+    background_work::blocking,
     backlight::{self, Backlight},
     bus::DesktopBuses,
     clight::Clight,
@@ -20,6 +20,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -162,8 +163,9 @@ impl MonitorGroup {
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => {
-                blocking("backlight reread", backlight::poll_all)
-                    .map(|list| MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list))))
+                Task::perform(blocking("backlight reread", backlight::poll_all), |list| {
+                    MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list)))
+                })
             }
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }

@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::{f64::Power, power::watt};
 
 use super::{Error, list_dir, read_i64, read_trimmed};

@@ -1,6 +1,6 @@
 use std::{error::Error as StdError, fmt, io, mem::take, time::Duration};
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use wayrs_client::{Connection, EventCtx, global::GlobalExt, protocol::WlSeat};
 use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,

@@ -7,13 +7,11 @@ use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
 use vetrata_config::Config;
-use vetrata_sources::{
-    SourceDelivery, background_work::source_subscription, bus::DesktopBuses,
-    focus_ledger::WakingWindow, logind,
-};
+use vetrata_sources::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind};
 use vetrata_state::quiet_hours::{self, QuietHoursSchedule};
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{

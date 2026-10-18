@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::futures::Stream;
+use futures::Stream;
 use tokio::time::sleep;
 use uom::si::{
     f64::{Information, InformationRate, Ratio, Time},

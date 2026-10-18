@@ -5,7 +5,7 @@ use std::{
     time::SystemTime,
 };
 
-use iced::futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt};
 use libc::{c_int, pid_t};
 use serde::Deserialize;
 use systemd::journal::{Journal, OpenOptions};

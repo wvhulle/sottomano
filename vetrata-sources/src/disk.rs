@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 
 use self::{
     btrfs::{BtrfsFilesystem, BtrfsSpace},

@@ -1,10 +1,8 @@
 use iced::{Subscription, Task};
-use vetrata_sources::{
-    ReadingSource, SourceDelivery,
-    background_work::{blocking, first_delivery, source_subscription},
-};
+use vetrata_sources::{ReadingSource, SourceDelivery, background_work::blocking};
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -117,7 +115,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
             ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
                     self.assume(current.toggled_value());
-                    blocking(S::NAME, move || current.apply_toggle()).discard()
+                    Task::future(blocking(S::NAME, move || current.apply_toggle())).discard()
                 }
                 None => Task::none(),
             },

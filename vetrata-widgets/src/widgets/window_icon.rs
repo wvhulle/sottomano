@@ -1,9 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use iced::Element;
-use vetrata_sources::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate};
+use vetrata_sources::{niri, window_label::IconCandidate};
 
-use crate::widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks};
+use crate::{
+    desktop_index::DesktopIndex,
+    widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks},
+};
 
 #[derive(Clone, Copy)]
 pub struct WindowAssets<'a> {

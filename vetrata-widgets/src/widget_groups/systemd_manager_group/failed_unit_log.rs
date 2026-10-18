@@ -6,7 +6,7 @@ use vetrata_config::Config;
 use vetrata_sources::{
     notifications::model::ActionTint,
     systemd_manager::failed_units::{
-        FailedUnitInfo, FailedUnitRestart, FailedUnits, UNIT_FAILURE_PRIORITY,
+        FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome, UNIT_FAILURE_PRIORITY,
     },
 };
 
@@ -87,8 +87,23 @@ impl ConfiguredGroupItem<SystemdManagerMessage> for FailedUnits {
     }
 }
 
+fn service_outcome_reason(outcome: &ServiceOutcome) -> String {
+    let status = outcome.exit_status;
+    match outcome.result.as_str() {
+        "exit-code" => format!("exited with code {status}"),
+        "signal" => format!("killed by signal {status}"),
+        "core-dump" => "crashed (core dumped)".to_owned(),
+        "timeout" => "timed out".to_owned(),
+        "watchdog" => "watchdog timeout".to_owned(),
+        "oom-kill" => "killed (out of memory)".to_owned(),
+        "start-limit-hit" => "too many restarts".to_owned(),
+        "resources" => "could not start (resources)".to_owned(),
+        other => other.to_owned(),
+    }
+}
+
 fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
-    let reason = unit.service_outcome.as_ref().map(ToString::to_string);
+    let reason = unit.service_outcome.as_ref().map(service_outcome_reason);
     let failed_at = unit
         .at
         .map(|at| LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
@@ -153,7 +168,7 @@ impl TableRow<2> for FailedUnitInfo {
         let reason = self
             .service_outcome
             .as_ref()
-            .map(|outcome| outcome.to_string().into());
+            .map(|outcome| service_outcome_reason(outcome).into());
         let failed = self.at.map(|at| Cell::Time {
             at: at.into(),
             format: LocalizedTimeFormat::DateAndTime,
@@ -167,7 +182,7 @@ impl TableRow<2> for FailedUnitInfo {
 mod tests {
     use std::time::{Duration, SystemTime};
 
-    use vetrata_sources::systemd_manager::{SystemdUnitScope, failed_units::ServiceOutcome};
+    use vetrata_sources::systemd_manager::SystemdUnitScope;
 
     use super::*;
     use crate::widgets::tooltip_body::{Section, SectionBody};

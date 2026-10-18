@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 pub use self::{

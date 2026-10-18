@@ -8,7 +8,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 use procfs::{
     Current, CurrentSI, KernelStats, Uptime, WithCurrentSystemInfo,
     process::{Process as Proc, Stat, all_processes},

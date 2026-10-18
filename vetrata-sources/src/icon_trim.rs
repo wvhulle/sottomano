@@ -6,7 +6,7 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-use image::imageops::crop_imm;
+use image::{RgbaImage, imageops::crop_imm};
 use sha2::{Digest, Sha256};
 
 const MIN_MARGIN_FRACTION: f32 = 0.02;
@@ -25,14 +25,13 @@ pub fn trimmed(path: &Path) -> PathBuf {
 }
 
 #[must_use]
-pub fn trim_rgba(width: u32, height: u32, rgba: Vec<u8>) -> (u32, u32, Vec<u8>) {
-    match significant_ink_bounds(width, height, &rgba) {
-        Some(bounds) => (
-            bounds.width,
-            bounds.height,
-            crop_rgba(width, &rgba, &bounds),
-        ),
-        None => (width, height, rgba),
+pub fn trim_rgba(image: RgbaImage) -> RgbaImage {
+    let (width, height) = image.dimensions();
+    match significant_ink_bounds(width, height, image.as_raw()) {
+        Some(bounds) => {
+            crop_imm(&image, bounds.x, bounds.y, bounds.width, bounds.height).to_image()
+        }
+        None => image,
     }
 }
 
@@ -149,16 +148,6 @@ fn ink_bounds(width: u32, height: u32, rgba: &[u8]) -> Option<InkBounds> {
         width: max_x - min_x + 1,
         height: max_y - min_y + 1,
     })
-}
-
-fn crop_rgba(width: u32, rgba: &[u8], bounds: &InkBounds) -> Vec<u8> {
-    let row_bytes = bounds.width as usize * 4;
-    let mut cropped = Vec::with_capacity(row_bytes * bounds.height as usize);
-    for y in bounds.y..bounds.y + bounds.height {
-        let start = (y as usize * width as usize + bounds.x as usize) * 4;
-        cropped.extend_from_slice(&rgba[start..start + row_bytes]);
-    }
-    cropped
 }
 
 fn cache_dir() -> Option<PathBuf> {

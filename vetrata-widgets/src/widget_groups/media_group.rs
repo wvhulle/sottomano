@@ -9,14 +9,15 @@ use uom::si::f64::Ratio;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{blocking, source_subscription},
+    background_work::blocking,
     bus::{DesktopBuses, OwnerProcess},
-    desktop_entries::DesktopIndex,
     mpris::{self, Command, Media, Progress, Status},
     niri::WindowOwner,
 };
 
 use crate::{
+    background_work::source_subscription,
+    desktop_index::DesktopIndex,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     shell_message::AppWindowFocus,
     widgets::{
@@ -26,6 +27,7 @@ use crate::{
         flat_button,
         gauge::Gauge,
         group_item::GroupItem,
+        icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         text::{LINE_HEIGHT, colored_span},
@@ -71,6 +73,7 @@ impl From<MediaTarget> for HoverTarget {
 
 pub struct MediaGroup {
     players: ContinuousReading<Vec<Media>>,
+    cover_art_handles: PixmapHandles,
     forced: Option<String>,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
@@ -82,6 +85,7 @@ impl Default for MediaGroup {
     fn default() -> Self {
         Self {
             players: ContinuousReading::default(),
+            cover_art_handles: PixmapHandles::default(),
             forced: None,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(true),
@@ -144,6 +148,13 @@ impl MediaGroup {
             MediaMessage::Tick(now) => self.now = now,
             MediaMessage::Reading(delivery) => {
                 self.players.receive_keeping_last_reading(delivery);
+                self.cover_art_handles = self.cover_art_handles.refreshed(
+                    self.players
+                        .get()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|media| media.art.as_ref()),
+                );
                 self.now = Instant::now();
                 if let Some(bus) = &self.forced
                     && !self
@@ -239,7 +250,9 @@ impl MediaGroup {
             return Task::none();
         };
         let bus = media.bus.clone();
-        blocking("mpris control", move || mpris::control(&bus, command))
+        Task::future(blocking("mpris control", move || {
+            mpris::control(&bus, command)
+        }))
     }
 
     #[must_use]
@@ -373,7 +386,14 @@ impl MediaGroup {
                 Some(GroupItem::hoverable_element(
                     HoverTarget::Media(MediaTarget::Track),
                     move |_| {
-                        track_face(config, media, opacity, gauge_fraction).map(GroupEvent::Group)
+                        track_face(
+                            config,
+                            media,
+                            &self.cover_art_handles,
+                            opacity,
+                            gauge_fraction,
+                        )
+                        .map(GroupEvent::Group)
                     },
                 )),
                 Some(track_label(config, media)),
@@ -445,11 +465,12 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
 fn track_face<'a>(
     config: &Config,
     media: &Media,
+    cover_art_handles: &PixmapHandles,
     opacity: f32,
     gauge_fraction: Option<Ratio>,
 ) -> Element<'a, MediaMessage> {
     let side = config.theme.font.icon_size_px;
-    let cover = track_cover(config, media, opacity, side);
+    let cover = track_cover(config, media, cover_art_handles, opacity, side);
     let Some(fraction) = gauge_fraction else {
         return cover;
     };
@@ -463,15 +484,12 @@ fn track_face<'a>(
 fn track_cover<'a>(
     config: &Config,
     media: &Media,
+    cover_art_handles: &PixmapHandles,
     opacity: f32,
     side: f32,
 ) -> Element<'a, MediaMessage> {
     if let Some(art) = &media.art {
-        return image(art.clone())
-            .width(side)
-            .height(side)
-            .opacity(opacity)
-            .into();
+        return cover_art_handles.pixmap_handle(art).view(side, opacity);
     }
     Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
         side,

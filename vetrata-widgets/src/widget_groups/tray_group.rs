@@ -22,7 +22,7 @@ use crate::{
         bar_widget::Glyph,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        icon_handle::IconHandle,
+        icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Tooltip, TooltipBody, TrayMenuBody, WholeBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
@@ -32,6 +32,7 @@ use crate::{
 #[derive(Default)]
 pub struct TrayGroup {
     items: ContinuousReading<Vec<TrayItem>>,
+    pixmap_handles: PixmapHandles,
     commands: Option<mpsc::Sender<TrayCommand>>,
     open_submenus: HashSet<i32>,
     expansion: GroupExpansion,
@@ -67,7 +68,7 @@ impl TrayGroup {
     }
 
     pub fn subscription() -> iced::Subscription<TrayMessage> {
-        tray::subscription().map(TrayMessage::Update)
+        iced::Subscription::run(tray::updates).map(TrayMessage::Update)
     }
 
     pub fn update(&mut self, message: TrayMessage) -> Action {
@@ -77,6 +78,9 @@ impl TrayGroup {
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::Items(items)) => {
+                self.pixmap_handles = self
+                    .pixmap_handles
+                    .refreshed(items.iter().flat_map(TrayItem::pixmaps));
                 self.items.load(items);
                 Action::None
             }
@@ -155,6 +159,7 @@ impl TrayGroup {
                 title,
                 body,
                 nodes: item.menu.clone(),
+                pixmap_handles: self.pixmap_handles.clone(),
                 open_submenus: self.open_submenus.clone(),
             }),
             None => WholeBody::Text { title, body },
@@ -181,9 +186,11 @@ impl TrayGroup {
         GroupContent::new(
             &self.expansion,
             TrayMessage::Expansion,
-            self.visible(config)
-                .into_iter()
-                .map(|item| GroupItem::element(move |reveal| item_view(config, item, reveal))),
+            self.visible(config).into_iter().map(|item| {
+                GroupItem::element(move |reveal| {
+                    item_view(config, &self.pixmap_handles, item, reveal)
+                })
+            }),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
@@ -210,12 +217,13 @@ fn click_message(
 
 fn item_view<'a>(
     config: &Config,
+    pixmap_handles: &PixmapHandles,
     item: &TrayItem,
     reveal: f32,
 ) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.theme.font.icon_size_px;
     let glyph: Element<'a, GroupEvent<TrayMessage>> = match &item.icon {
-        Some(source) => IconHandle::from(source).view(side, reveal),
+        Some(source) => pixmap_handles.icon_handle(source).view(side, reveal),
         None => Glyph::from(Phosphor::Question(Weight::Regular)).view(
             side,
             config.theme.palette.bar_foreground.scale_alpha(reveal),

@@ -28,10 +28,10 @@ use vetrata_config::{
 };
 use vetrata_sources::{
     app_icon::{self, DesktopEntries},
-    background_work::{blocking, copy_to_clipboard},
+    background_work::blocking,
     bus::{DesktopBusEvent, DesktopBuses},
     command::blocking::run,
-    desktop_entries::{self, DesktopIndex},
+    desktop_entries,
     launch_tracker::{Launch, LaunchTracker},
     niri,
     niri_config::{ConfiguredWorkspaces, NiriConfigFile},
@@ -44,6 +44,8 @@ use vetrata_state::{
     shell_settings,
 };
 use vetrata_widgets::{
+    background_work::copy_to_clipboard,
+    desktop_index::DesktopIndex,
     hover_tooltips::TooltipHost,
     shell_message::{AppWindowFocus, Message},
     widget_groups::{
@@ -226,7 +228,7 @@ impl DesktopShell {
         };
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
-            desktop_entries::load().map(Message::DesktopEntriesLoaded),
+            Task::perform(desktop_entries::load(), Message::DesktopEntriesLoaded),
             Task::perform(launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
@@ -235,11 +237,11 @@ impl DesktopShell {
             }),
             Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
-            shell
-                .niri_config
-                .read_workspaces()
-                .map(Message::NiriConfigRead),
-            blocking("sound theme", SoundTheme::read_session).map(Message::SoundThemeLoaded),
+            Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
+            Task::perform(
+                blocking("sound theme", SoundTheme::read_session),
+                Message::SoundThemeLoaded,
+            ),
             query_outputs(),
         ]);
         (shell, init)
@@ -296,7 +298,7 @@ impl DesktopShell {
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
             Message::ReloadDesktopEntries => {
-                desktop_entries::load().map(Message::DesktopEntriesLoaded)
+                Task::perform(desktop_entries::load(), Message::DesktopEntriesLoaded)
             }
             Message::IconsResolved(resolved) => {
                 self.desktop_entries.merge(resolved);
@@ -487,7 +489,7 @@ impl DesktopShell {
     fn open_url(&mut self, url: String) -> Task<Message> {
         Task::batch([
             self.dismiss_tooltip(),
-            blocking("open url", move || run("xdg-open", &[&url])).discard(),
+            Task::future(blocking("open url", move || run("xdg-open", &[&url]))).discard(),
         ])
     }
 
@@ -638,7 +640,7 @@ impl DesktopShell {
 
     fn reload_config(&self) -> Task<Message> {
         let file = self.config_file.clone();
-        blocking("config reload", move || Some(file.load())).and_then(|loaded| {
+        Task::future(blocking("config reload", move || Some(file.load()))).and_then(|loaded| {
             Task::done(Message::ConfigLoaded(
                 loaded.map(Box::new).map_err(Arc::new),
             ))
@@ -786,11 +788,10 @@ impl DesktopShell {
             );
             focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
             if matches!(event, niri_ipc::Event::ConfigLoaded { failed: false }) {
-                tasks.push(
-                    self.niri_config
-                        .read_workspaces()
-                        .map(Message::NiriConfigRead),
-                );
+                tasks.push(Task::perform(
+                    self.niri_config.read_workspaces(),
+                    Message::NiriConfigRead,
+                ));
             }
             if let Some(launch) = self.launch_tracker.observe(&event) {
                 tasks.push(Task::future(launches::record(launch)).discard());

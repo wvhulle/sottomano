@@ -3,7 +3,7 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-use iced::futures::{Stream, StreamExt, future::try_join_all, stream, try_join};
+use futures::{Stream, StreamExt, future::try_join_all, stream, try_join};
 use uom::si::{
     f64::{Frequency, InformationRate},
     frequency::megahertz,

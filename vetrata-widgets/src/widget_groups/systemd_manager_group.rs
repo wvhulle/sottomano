@@ -12,7 +12,6 @@ use boot_timeline_reading::StartupUnits;
 use vetrata_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{copy_to_clipboard, source_subscription},
     bus::DesktopBuses,
     previous_shutdown::LastShutdown,
     systemd_manager::{
@@ -24,6 +23,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{copy_to_clipboard, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{

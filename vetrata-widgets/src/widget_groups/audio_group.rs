@@ -136,7 +136,7 @@ pub enum AudioMessage {
 
 impl AudioGroup {
     pub fn subscription() -> Subscription<AudioMessage> {
-        audio::subscription().map(|event| match event {
+        Subscription::run(audio::connection_events).map(|event| match event {
             Some(Ok(AudioEvent::Connected(commands))) => AudioMessage::Connected(commands),
             Some(Ok(AudioEvent::State(state))) => AudioMessage::State(state),
             Some(Ok(AudioEvent::Peaks(peaks))) => AudioMessage::Peaks(peaks),
@@ -231,25 +231,28 @@ impl AudioGroup {
             return Task::none();
         };
         let step = as_percent(delta);
-        blocking("audio adjust volume", move || {
-            slow_write_delay();
-            commands.adjust_volume(target, step)
-        })
-        .map(move |resolved| {
-            AudioMessage::Control(
-                kind,
-                resolved.map_or(ControlMessage::AdjustFailed, |percent| {
-                    ControlMessage::Adjusted(percent_f(percent))
-                }),
-            )
-        })
+        Task::perform(
+            blocking("audio adjust volume", move || {
+                slow_write_delay();
+                commands.adjust_volume(target, step)
+            }),
+            move |resolved| {
+                AudioMessage::Control(
+                    kind,
+                    resolved.map_or(ControlMessage::AdjustFailed, |percent| {
+                        ControlMessage::Adjusted(percent_f(percent))
+                    }),
+                )
+            },
+        )
     }
 
     fn mute(&self, target: Target) -> Task<AudioMessage> {
         match self.commands.clone() {
-            Some(commands) => {
-                blocking("audio toggle mute", move || commands.toggle_mute(target)).discard()
-            }
+            Some(commands) => Task::future(blocking("audio toggle mute", move || {
+                commands.toggle_mute(target)
+            }))
+            .discard(),
             None => Task::none(),
         }
     }

@@ -55,7 +55,7 @@ impl Favicons {
             return Task::none();
         }
         let (task, handle) =
-            blocking("favicons", move || favicons::resolve(unresolved)).abortable();
+            Task::future(blocking("favicons", move || favicons::resolve(unresolved))).abortable();
         self.poll = Some(handle.abort_on_drop());
         task
     }

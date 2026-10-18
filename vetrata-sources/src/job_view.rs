@@ -6,10 +6,7 @@ use std::{
     },
 };
 
-use iced::{
-    Subscription,
-    futures::{Stream, stream},
-};
+use futures::{Stream, stream};
 use tokio::sync::watch;
 use zbus::{
     Connection, connection,
@@ -17,8 +14,6 @@ use zbus::{
     object_server::ObjectServer,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
-
-use crate::background_work::restarting_subscription;
 
 const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
@@ -318,10 +313,6 @@ impl JobView {
     }
 }
 
-pub fn subscription() -> Subscription<Jobs> {
-    restarting_subscription("job view", serve)
-}
-
 struct Served {
     _connection: Connection,
     updates: watch::Receiver<Jobs>,
@@ -334,7 +325,7 @@ impl Served {
     }
 }
 
-async fn serve() -> zbus::Result<impl Stream<Item = Jobs>> {
+pub async fn serve() -> zbus::Result<impl Stream<Item = Jobs>> {
     let (states, updates) = watch::channel(Jobs::default());
     let tracker = Arc::new(Tracker {
         jobs: Mutex::default(),

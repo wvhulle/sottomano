@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
-use iced::widget::image;
+use image::RgbaImage;
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
 
@@ -52,7 +52,7 @@ pub struct NotifAction {
 
 #[derive(Debug, Clone)]
 pub enum NotifImage {
-    Rgba(image::Handle),
+    Rgba(Arc<RgbaImage>),
     Named(String),
 }
 

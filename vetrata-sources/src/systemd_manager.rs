@@ -12,7 +12,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use iced::futures::{
+use futures::{
     future::join_all,
     stream::{SelectAll, select_all},
 };

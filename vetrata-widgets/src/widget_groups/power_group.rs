@@ -13,7 +13,6 @@ use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
     notifications::model::ActionTint,
     sysfs_sensors::{
@@ -23,6 +22,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,

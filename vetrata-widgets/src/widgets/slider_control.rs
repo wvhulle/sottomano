@@ -126,7 +126,9 @@ impl ControlMessage {
         value: f32,
         write: impl FnOnce() -> bool + Send + 'static,
     ) -> Task<ControlMessage> {
-        blocking(label, write).map(move |ok| ControlMessage::DeviceAccepted { value, ok })
+        Task::perform(blocking(label, write), move |ok| {
+            ControlMessage::DeviceAccepted { value, ok }
+        })
     }
 }
 

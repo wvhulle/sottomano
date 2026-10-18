@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local, Utc};
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 
 use super::Error;
 use crate::{

@@ -1,6 +1,6 @@
 use std::{cmp::Reverse, time::Duration};
 
-use iced::futures::{
+use futures::{
     Stream, StreamExt, TryStreamExt,
     future::{join_all, ready},
     stream,

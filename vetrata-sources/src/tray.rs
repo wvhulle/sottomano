@@ -4,12 +4,12 @@ use std::{
     sync::Arc,
 };
 
-use iced::{
-    Subscription,
-    futures::{SinkExt, Stream, StreamExt, channel::mpsc::Sender},
+use futures::{
+    SinkExt, Stream, StreamExt,
+    channel::mpsc::{Sender, channel},
     stream,
-    widget::image,
 };
+use image::RgbaImage;
 pub use system_tray::item::Status;
 use system_tray::{
     client::{ActivateRequest, Client, Event, UpdateEvent},
@@ -28,8 +28,17 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconSource {
-    Pixmap(image::Handle),
+    Pixmap(Arc<RgbaImage>),
     Themed(PathBuf),
+}
+
+impl IconSource {
+    fn pixmap(&self) -> Option<&Arc<RgbaImage>> {
+        match self {
+            Self::Pixmap(pixmap) => Some(pixmap),
+            Self::Themed(_) => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +49,16 @@ pub struct MenuNode {
     pub kind: MenuKind,
     pub icon: Option<IconSource>,
     pub children: Vec<MenuNode>,
+}
+
+impl MenuNode {
+    fn pixmaps(&self) -> Vec<&Arc<RgbaImage>> {
+        self.icon
+            .iter()
+            .filter_map(IconSource::pixmap)
+            .chain(self.children.iter().flat_map(MenuNode::pixmaps))
+            .collect()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,8 +98,16 @@ pub struct TrayItem {
 }
 
 impl TrayItem {
+    #[must_use]
     pub fn name(&self) -> &str {
         self.title.as_deref().unwrap_or(&self.id)
+    }
+
+    pub fn pixmaps(&self) -> impl Iterator<Item = &Arc<RgbaImage>> {
+        self.icon
+            .iter()
+            .filter_map(IconSource::pixmap)
+            .chain(self.menu.iter().flat_map(MenuNode::pixmaps))
     }
 }
 
@@ -102,7 +129,7 @@ pub enum TrayCommand {
     },
 }
 
-fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
+fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
     let best = pixmaps
         .iter()
         .filter(|p| {
@@ -120,8 +147,7 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<image::Handle> {
     for pixel in bytes.as_chunks_mut::<4>().0 {
         pixel.rotate_left(1);
     }
-    let (width, height, bytes) = super::icon_trim::trim_rgba(width, height, bytes);
-    Some(image::Handle::from_rgba(width, height, bytes))
+    RgbaImage::from_raw(width, height, bytes).map(super::icon_trim::trim_rgba)
 }
 
 const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
@@ -139,8 +165,8 @@ fn resolve_visual(
     icon_theme_path: Option<&str>,
     entries: &DesktopEntries,
 ) -> Option<IconSource> {
-    if let Some(handle) = icon_pixmap.and_then(best_pixmap) {
-        return Some(IconSource::Pixmap(handle));
+    if let Some(pixmap) = icon_pixmap.and_then(best_pixmap) {
+        return Some(IconSource::Pixmap(Arc::new(pixmap)));
     }
     icon_name
         .filter(|n| !n.is_empty())
@@ -154,28 +180,19 @@ fn resolve_visual(
 }
 
 fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
-    if let Some(data) = &item.icon_data
-        && !data.is_empty()
+    if let Some(decoded) = item
+        .icon_data
+        .as_deref()
+        .and_then(|data| image::load_from_memory(data).ok())
     {
-        return Some(IconSource::Pixmap(trimmed_encoded(data)));
+        return Some(IconSource::Pixmap(Arc::new(super::icon_trim::trim_rgba(
+            decoded.into_rgba8(),
+        ))));
     }
     let name = item.icon_name.as_deref().filter(|n| !n.is_empty())?;
     entries
         .theme_icon(name)
         .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
-}
-
-fn trimmed_encoded(data: &[u8]) -> image::Handle {
-    match ::image::load_from_memory(data) {
-        Ok(decoded) => {
-            let rgba = decoded.into_rgba8();
-            let (width, height) = rgba.dimensions();
-            let (width, height, bytes) =
-                super::icon_trim::trim_rgba(width, height, rgba.into_raw());
-            image::Handle::from_rgba(width, height, bytes)
-        }
-        Err(_) => image::Handle::from_bytes(data.to_vec()),
-    }
 }
 
 fn adapt_menu_item(item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode> {
@@ -257,14 +274,10 @@ fn build_item(
     }
 }
 
-pub fn subscription() -> Subscription<TrayUpdate> {
-    Subscription::run(updates)
-}
-
-fn updates() -> impl Stream<Item = TrayUpdate> + Send {
-    stream::channel(64, |mut output: Sender<TrayUpdate>| async move {
-        run(&mut output).await;
-    })
+pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
+    let (mut output, received) = channel(64);
+    let hosting = stream::once(async move { run(&mut output).await }).filter_map(|()| ready(None));
+    stream::select(received, hosting)
 }
 
 impl ReadingSource for Vec<TrayItem> {

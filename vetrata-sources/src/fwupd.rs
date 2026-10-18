@@ -1,7 +1,7 @@
 use std::future::ready;
 
 use chrono::{DateTime, Utc};
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use vetrata_config::severity::Severity;
 use zbus::proxy;
 

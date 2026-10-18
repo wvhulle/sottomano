@@ -1,7 +1,7 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 use serde_json::Value as Json;
 
 use crate::{

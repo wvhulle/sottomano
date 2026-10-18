@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::f64::ThermodynamicTemperature;
 use vetrata_config::{
     severity::Severity,

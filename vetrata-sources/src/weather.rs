@@ -4,7 +4,7 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveTime, TimeDelta, Utc};
-use iced::futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt};
 use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
 use situo_client::{Fix, Position, fix_updates};
 use uom::si::{

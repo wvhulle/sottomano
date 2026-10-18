@@ -8,11 +8,11 @@ mod wind_speed;
 
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,

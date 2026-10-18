@@ -455,7 +455,7 @@ impl NotificationLayer {
             shown.replace_content(toast, icons, countdown, place);
         } else {
             if notifications.sound && !data.suppress_sound {
-                tasks.push(sound::play(data, &self.sound_theme));
+                tasks.push(Task::future(sound::play(data, &self.sound_theme)).discard());
             }
             self.live.retain(|n| n.data.id != id);
             let seq = self.next_seq;

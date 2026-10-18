@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 

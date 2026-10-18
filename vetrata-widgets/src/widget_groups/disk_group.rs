@@ -6,11 +6,11 @@ use iced::{Subscription, Task};
 use vetrata_config::widget_groups::temperature_sensors::SensorConfig;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     disk::{Disk, activity::DiskActivity, health::DriveHealth},
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,

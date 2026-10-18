@@ -2,17 +2,16 @@ use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
     str::FromStr,
+    sync::Arc,
     time::Instant,
 };
 
-use iced::{
-    futures::{
-        Stream, StreamExt,
-        future::ready,
-        stream::{self, select},
-    },
-    widget::image,
+use futures::{
+    Stream, StreamExt,
+    future::ready,
+    stream::{self, select},
 };
+use image::{DynamicImage, RgbaImage};
 use reqwest::Url;
 use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
@@ -29,6 +28,7 @@ use zbus::{
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
+    background_work::blocking,
     bus::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
     stream_operators::connected_until_failure,
 };
@@ -267,7 +267,7 @@ pub struct Media {
     pub url: Option<Url>,
     pub status: Status,
     pub progress: Progress,
-    pub art: Option<image::Handle>,
+    pub art: Option<Arc<RgbaImage>>,
     pub capabilities: Capabilities,
     pub shuffle: Option<bool>,
     pub loop_mode: Option<LoopMode>,
@@ -365,8 +365,8 @@ async fn read_media(
     };
     let status = status.parse()?;
     let metadata = player.dictionary("Metadata").unwrap_or_default();
-    let art_handle = if let Some(url) = metadata.text("mpris:artUrl") {
-        art_handle(&url, bus, art).await
+    let cover_art = if let Some(url) = metadata.text("mpris:artUrl") {
+        cover_art(&url, bus, art).await
     } else {
         art.remove(bus);
         None
@@ -382,7 +382,7 @@ async fn read_media(
         url: parsed(&metadata, "xesam:url"),
         status,
         progress: Progress::declared(&player, &metadata),
-        art: art_handle,
+        art: cover_art,
         capabilities: Capabilities::declared(&player, &root),
         shuffle: controllable_setting(&player, player.boolean("Shuffle")),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
@@ -418,25 +418,25 @@ async fn read_all(
 
 struct CachedArt {
     url: String,
-    handle: image::Handle,
+    pixels: Arc<RgbaImage>,
 }
 
 type ArtCache = HashMap<String, CachedArt>;
 
-async fn art_handle(url: &str, bus: &str, cache: &mut ArtCache) -> Option<image::Handle> {
+async fn cover_art(url: &str, bus: &str, cache: &mut ArtCache) -> Option<Arc<RgbaImage>> {
     if let Some(cached) = cache.get(bus)
         && cached.url == url
     {
-        return Some(cached.handle.clone());
+        return Some(cached.pixels.clone());
     }
-    let handle = load_art(url).await;
-    match handle.clone() {
-        Some(handle) => {
+    let pixels = load_art(url).await.map(Arc::new);
+    match pixels.clone() {
+        Some(pixels) => {
             cache.insert(
                 bus.to_owned(),
                 CachedArt {
                     url: url.to_owned(),
-                    handle,
+                    pixels,
                 },
             );
         }
@@ -444,12 +444,16 @@ async fn art_handle(url: &str, bus: &str, cache: &mut ArtCache) -> Option<image:
             cache.remove(bus);
         }
     }
-    handle
+    pixels
 }
 
-async fn load_art(url: &str) -> Option<image::Handle> {
+async fn load_art(url: &str) -> Option<RgbaImage> {
     if let Some(path) = url.strip_prefix("file://") {
-        return Some(image::Handle::from_path(path));
+        let path = path.to_owned();
+        return blocking("cover art file", move || {
+            image::open(path).ok().map(DynamicImage::into_rgba8)
+        })
+        .await;
     }
     if url.starts_with("http://") || url.starts_with("https://") {
         let bytes = reqwest::get(url)
@@ -460,7 +464,12 @@ async fn load_art(url: &str) -> Option<image::Handle> {
             .bytes()
             .await
             .ok()?;
-        return Some(image::Handle::from_bytes(bytes.to_vec()));
+        return blocking("cover art download", move || {
+            image::load_from_memory(&bytes)
+                .ok()
+                .map(DynamicImage::into_rgba8)
+        })
+        .await;
     }
     None
 }

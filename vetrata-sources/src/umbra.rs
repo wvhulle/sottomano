@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, command, polled_delivery_stream,

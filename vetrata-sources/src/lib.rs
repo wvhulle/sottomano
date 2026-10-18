@@ -69,7 +69,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::stream_operators::{StreamOperators, ticked};

@@ -12,13 +12,11 @@ use iced::{
 };
 use tokio::time::sleep;
 use vetrata_config::Config;
-use vetrata_sources::{
-    ReadingSource, SourceDelivery,
-    background_work::{first_delivery, source_subscription},
-};
+use vetrata_sources::{ReadingSource, SourceDelivery};
 
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         continuous_reading::ContinuousReading,
