@@ -27,6 +27,5 @@ niri-ipc.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
-quick-xml = "0.42"
 zbus.workspace = true
 uom.workspace = true

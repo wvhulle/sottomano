@@ -20,6 +20,8 @@ use crate::{
     shell_message::Message,
     widgets::{
         child_view::{ChildView, ChildViewMut},
+        palette_colors::PaletteColors,
+        panel_frame::LayerFrameStyle,
         popup_connector::ConnectorTriangle,
         region_reporter::RegionRoles,
     },
@@ -69,13 +71,11 @@ pub fn anchored_popup<'a>(
     config: &Config,
     settings: &ShellSettings,
 ) -> Element<'a, Message> {
-    let background = config
-        .theme
-        .palette
+    let background = PaletteColors::from(&config.theme.palette)
         .surface
         .scale_alpha(settings.overlays.opacity);
     let overlays = &settings.overlays;
-    let outline = overlays.outline.border(config);
+    let overlay_frame = LayerFrameStyle::new(overlays, config);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
@@ -86,10 +86,10 @@ pub fn anchored_popup<'a>(
         seq,
         morph: config.tooltips.popup_morph,
         background,
-        radius: overlays.corner_radius.top_left,
+        radius: overlays.corner_radius_px,
         blurred: overlays.blurred,
-        shadow: overlays.shadow.drop_shadow(),
-        outline,
+        shadow: overlay_frame.drop_shadow(),
+        outline: overlay_frame.outline_border(),
     })
 }
 

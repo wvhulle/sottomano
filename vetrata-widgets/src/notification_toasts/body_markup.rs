@@ -6,6 +6,8 @@ use iced::{
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
 use vetrata_config::theme::font::ResolvedFont;
 
+use crate::widgets::text::FontFaces;
+
 #[derive(Clone, Copy)]
 struct Emphasis {
     font: Font,
@@ -52,7 +54,7 @@ pub fn body_paragraphs<'a>(
     let mut stack: Vec<String> = Vec::new();
     let mut paragraphs: Vec<BodyParagraph> = Vec::new();
     let mut push_text = |text: String, stack: &[String]| {
-        let emphasis = Emphasis::from_stack(stack, font.iced_font, mono);
+        let emphasis = Emphasis::from_stack(stack, FontFaces::from(font).regular, mono);
         let styled = span(text)
             .font(emphasis.font)
             .size(size)
@@ -130,11 +132,14 @@ fn lowercase_name(name: &LocalName) -> String {
 mod tests {
     use std::{collections::HashSet, sync::Arc};
 
+    use vetrata_config::theme::font::FontRole;
+
     use super::*;
 
     fn render(body: &str) -> String {
         let font = ResolvedFont {
-            iced_font: Font::DEFAULT,
+            role: FontRole::Text,
+            family: String::from("sans-serif"),
             text_size_px: 14.0,
             small_text_size_px: 12.0,
             icon_size_px: 14.0,

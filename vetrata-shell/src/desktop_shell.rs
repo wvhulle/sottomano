@@ -1,7 +1,7 @@
 pub mod bottom_bar;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
-pub mod notification_toasts;
+pub mod notification_updates;
 pub mod panel_bar;
 pub mod pointer_drag;
 pub mod tooltip_updates;
@@ -24,7 +24,7 @@ use iced::{
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use vetrata_config::{
     Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig, screen_edges::Position,
-    theme::font::ResolvedFont,
+    theme::Theme,
 };
 use vetrata_sources::{
     app_icon::{self, DesktopEntries},
@@ -44,9 +44,10 @@ use vetrata_state::{
     shell_settings,
 };
 use vetrata_widgets::{
-    background_work::copy_to_clipboard,
+    background_work::{copy_to_clipboard, niri_action},
     desktop_index::DesktopIndex,
     hover_tooltips::TooltipHost,
+    notification_toasts::{NotificationLayer, ToastContext},
     shell_message::{AppWindowFocus, Message},
     widget_groups::{
         audio_group::AudioGroup,
@@ -84,18 +85,14 @@ use vetrata_widgets::{
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
-        continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
-        tooltip_body::Tooltip, window_icon::WindowAssets,
+        continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
+        text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
-use crate::{
-    desktop_shell::{
-        monitor_surfaces::{Surface, SurfaceRole, query_outputs},
-        notification_toasts::{NotificationLayer, ToastContext},
-        pointer_drag::ShellDrag,
-    },
-    message_subscriptions::niri_action,
+use crate::desktop_shell::{
+    monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+    pointer_drag::ShellDrag,
 };
 
 pub struct DesktopShell {
@@ -215,12 +212,12 @@ impl DesktopShell {
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
-            font_fallbacks: FontFallbacks::default(),
+            font_fallbacks: FontFallbacks::naming_theme_families(&config.theme),
             pointer_drag: ShellDrag::Idle,
             niri_config,
             configured_workspaces: None,
             shell_settings: ShellSettings::default(),
-            theme: iced::Theme::from(&config.theme.palette),
+            theme: iced::Theme::from(&PaletteColors::from(&config.theme.palette)),
             wayland,
             desktop_buses: None,
             config,
@@ -236,7 +233,7 @@ impl DesktopShell {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
             Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
-            shell.niri_rules.read().map(Message::NiriRulesLoaded),
+            Task::perform(shell.niri_rules.read(), Message::NiriRulesLoaded),
             Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),
@@ -537,11 +534,7 @@ impl DesktopShell {
 
     fn refocus_session(&mut self) -> Task<Message> {
         self.session_focus_group
-            .refocus(
-                &self.niri,
-                self.window_group.window_processes(),
-                self.quiet_schedule_group.waking_window(),
-            )
+            .refocus(&self.niri, self.window_group.window_processes())
             .map(Message::SessionFocus)
     }
 
@@ -635,7 +628,7 @@ impl DesktopShell {
         let written = self.niri_rules.adopt(stored);
         self.niri_window_group
             .adopt(self.niri_rules.styling().layout);
-        written.discard()
+        Task::future(written).discard()
     }
 
     fn reload_config(&self) -> Task<Message> {
@@ -649,10 +642,10 @@ impl DesktopShell {
 
     fn adopt_config(&mut self, config: Config) -> Task<Message> {
         let previous = mem::replace(&mut self.config, config);
-        self.theme = iced::Theme::from(&self.config.theme.palette);
+        self.theme = iced::Theme::from(&PaletteColors::from(&self.config.theme.palette));
         Task::batch([
             self.notifications.withdraw_config_error(&self.config),
-            self.adopt_font(&previous.theme.font),
+            self.adopt_fonts(&previous.theme),
             self.adopt_panel_bar(&previous.panel_bar),
             self.adopt_color_temperature_service(
                 &previous.launched_programs.color_temperature_service,
@@ -660,11 +653,14 @@ impl DesktopShell {
         ])
     }
 
-    fn adopt_font(&mut self, previous: &ResolvedFont) -> Task<Message> {
-        if self.config.theme.font.has_same_face_as(previous) {
+    fn adopt_fonts(&mut self, previous: &Theme) -> Task<Message> {
+        let theme = &self.config.theme;
+        if theme.font.has_same_face_as(&previous.font)
+            && theme.monospace_font.family == previous.monospace_font.family
+        {
             return Task::none();
         }
-        self.font_fallbacks = FontFallbacks::default();
+        self.font_fallbacks = FontFallbacks::naming_theme_families(theme);
         font::load(self.config.theme.font.data.to_vec()).map(|loaded| {
             if let Err(e) = loaded {
                 tracing::warn!("config reload: font not loaded: {e:?}");
@@ -927,7 +923,7 @@ impl DesktopShell {
     pub fn style(&self, _theme: &iced::Theme) -> Style {
         Style {
             background_color: Color::TRANSPARENT,
-            text_color: self.config.theme.palette.bar_foreground,
+            text_color: PaletteColors::from(&self.config.theme.palette).bar_foreground,
         }
     }
 }

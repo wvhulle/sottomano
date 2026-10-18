@@ -12,62 +12,6 @@ pub mod shell_settings;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
-use iced::{Border, Color, Padding, Rectangle, Shadow, Vector, border::Radius, widget::container};
-use vetrata_config::{Config, screen_edges::Position};
-
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Copy)]
-pub struct OutlinedSides {
-    pub top: bool,
-    pub right: bool,
-    pub bottom: bool,
-    pub left: bool,
-}
-
-impl OutlinedSides {
-    pub const ALL: Self = Self {
-        top: true,
-        right: true,
-        bottom: true,
-        left: true,
-    };
-
-    #[must_use]
-    pub fn square_unoutlined_corners(self, radius: Radius) -> Radius {
-        let rounded_between = |first: bool, second: bool, corner: f32| {
-            if first && second { corner } else { 0.0 }
-        };
-        Radius {
-            top_left: rounded_between(self.top, self.left, radius.top_left),
-            top_right: rounded_between(self.top, self.right, radius.top_right),
-            bottom_right: rounded_between(self.bottom, self.right, radius.bottom_right),
-            bottom_left: rounded_between(self.bottom, self.left, radius.bottom_left),
-        }
-    }
-
-    #[must_use]
-    pub fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
-        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
-        bounds.expand(Padding {
-            top: beyond_antialiasing(self.top),
-            right: beyond_antialiasing(self.right),
-            bottom: beyond_antialiasing(self.bottom),
-            left: beyond_antialiasing(self.left),
-        })
-    }
-}
-
-impl From<Position> for OutlinedSides {
-    fn from(panel_position: Position) -> Self {
-        Self {
-            top: panel_position != Position::Top,
-            right: true,
-            bottom: panel_position != Position::Bottom,
-            left: panel_position != Position::Left,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ShellSettings {
     pub layout: ShellLayout,
@@ -92,17 +36,6 @@ impl Default for ShellSettings {
     }
 }
 
-impl ShellSettings {
-    #[must_use]
-    pub fn outlined_sides(&self, touching_screen_edges: OutlinedSides) -> OutlinedSides {
-        if self.layout.float_offset_px > 0.0 {
-            OutlinedSides::ALL
-        } else {
-            touching_screen_edges
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellLayer {
     Panels,
@@ -113,7 +46,7 @@ pub enum ShellLayer {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerAppearance {
     pub opacity: f32,
-    pub corner_radius: Radius,
+    pub corner_radius_px: f32,
     pub blurred: bool,
     pub shadow: ShadowStyle,
     pub outline: OutlineStyle,
@@ -123,7 +56,7 @@ impl Default for LayerAppearance {
     fn default() -> Self {
         Self {
             opacity: 0.8,
-            corner_radius: Radius::from(8.0),
+            corner_radius_px: 8.0,
             blurred: false,
             shadow: ShadowStyle::default(),
             outline: OutlineStyle::default(),
@@ -133,21 +66,8 @@ impl Default for LayerAppearance {
 
 impl LayerAppearance {
     #[must_use]
-    pub fn frame_style(&self, config: &Config) -> container::Style {
-        let palette = &config.theme.palette;
-        container::Style::default()
-            .background(palette.surface.scale_alpha(self.opacity))
-            .border(Border {
-                radius: self.corner_radius,
-                ..self.outline.border(config)
-            })
-            .shadow(self.shadow.drop_shadow())
-            .color(palette.bar_foreground)
-    }
-
-    #[must_use]
     pub fn frame_corner_inset(&self) -> f32 {
-        self.corner_radius.top_left * (1.0 - FRAC_1_SQRT_2)
+        self.corner_radius_px * (1.0 - FRAC_1_SQRT_2)
     }
 }
 
@@ -184,20 +104,6 @@ impl Default for ShadowStyle {
     }
 }
 
-impl ShadowStyle {
-    #[must_use]
-    pub fn drop_shadow(&self) -> Shadow {
-        if !self.cast {
-            return Shadow::default();
-        }
-        Shadow {
-            color: Color::BLACK.scale_alpha(self.opacity),
-            offset: Vector::ZERO,
-            blur_radius: self.softness_px,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OutlineStyle {
     pub drawn: bool,
@@ -206,20 +112,6 @@ pub struct OutlineStyle {
 impl Default for OutlineStyle {
     fn default() -> Self {
         Self { drawn: true }
-    }
-}
-
-impl OutlineStyle {
-    #[must_use]
-    pub fn border(self, config: &Config) -> Border {
-        if !self.drawn {
-            return Border::default();
-        }
-        Border {
-            color: config.theme.palette.frame_outline,
-            width: config.panel_bar.frame_outline,
-            radius: Radius::default(),
-        }
     }
 }
 

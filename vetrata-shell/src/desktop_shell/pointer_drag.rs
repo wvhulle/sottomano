@@ -6,14 +6,18 @@ use tokio::time::sleep;
 use vetrata_sources::niri;
 use vetrata_state::WorkspacesPlacement;
 use vetrata_widgets::{
+    background_work::niri_action,
     bar_slot_drag::{DragMessage, SlotClick},
     shell_message::Message,
-    widgets::pointer_drag::{
-        self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedBarSlot, PointerDrag,
+    widgets::{
+        panel_frame::LayerFrameStyle,
+        pointer_drag::{
+            self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedBarSlot, PointerDrag,
+        },
     },
 };
 
-use crate::{desktop_shell::DesktopShell, message_subscriptions::niri_action};
+use crate::desktop_shell::DesktopShell;
 
 pub type ShellDrag = PointerDrag<SlotClick>;
 
@@ -34,7 +38,10 @@ impl DesktopShell {
         } else {
             &self.shell_settings.panels
         };
-        DragView::new(&self.pointer_drag, &ghost_layer.frame_style(&self.config))
+        DragView::new(
+            &self.pointer_drag,
+            &LayerFrameStyle::new(ghost_layer, &self.config).container_style(),
+        )
     }
 
     #[must_use]

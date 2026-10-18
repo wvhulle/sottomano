@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, iter, mem, path::Path, time::SystemTime};
+use std::{borrow::Cow, iter, mem, path::Path, time::SystemTime};
 
 use iced::{
     Task,
@@ -14,20 +14,7 @@ use vetrata_sources::{
     notifications::model::{NotificationData, Outbound, close_reason},
     sink::sound::{self, SoundTheme},
 };
-use vetrata_state::{NotificationSettings, shell_settings};
-use vetrata_widgets::{
-    shell_message::Message,
-    toast_messages::NotificationMessage,
-    widget_groups::{
-        notification_group::NotificationGroupMessage,
-        quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
-    },
-    widgets::{
-        announced_level::LevelReading,
-        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
-        widget_group::GroupToastRequests,
-    },
-};
+use vetrata_state::NotificationSettings;
 
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
@@ -35,82 +22,21 @@ use super::{
     toast_lifecycle::{Countdown, ExitPace, Notification, ToastContent, ToastKind, lifetime},
     toast_placement::{ToastWindow, placement_for},
 };
-use crate::{desktop_shell::DesktopShell, message_subscriptions::niri_action};
+use crate::{
+    background_work::niri_action,
+    shell_message::Message,
+    toast_messages::NotificationMessage,
+    widgets::{
+        announced_level::LevelReading,
+        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
+        widget_group::GroupToastRequests,
+    },
+};
 
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
 
 fn is_window_owned_action(key: &str) -> bool {
     matches!(key, "move" | "quit")
-}
-
-impl DesktopShell {
-    pub fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
-        let panels: HashMap<String, Id> = self
-            .panels()
-            .map(|(id, output)| (output.to_owned(), id))
-            .collect();
-        self.notifications.update(
-            msg,
-            &ToastContext::new(
-                &self.niri,
-                self.desktop_entries.get(),
-                &self.config,
-                &self.shell_settings,
-                self.quiet_schedule_group.is_quiet(),
-            ),
-            &|output| panels.get(output).copied(),
-        )
-    }
-
-    pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match msg {
-            NotificationGroupMessage::Expansion(menu) => {
-                self.notification_group.update(menu);
-                Task::none()
-            }
-            NotificationGroupMessage::ToggleSound => {
-                let notifications = &mut self.shell_settings.notifications;
-                notifications.sound = !notifications.sound;
-                Task::future(shell_settings::save_sound(notifications.sound)).discard()
-            }
-            NotificationGroupMessage::ToggleDoNotDisturb => {
-                self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
-            }
-        }
-    }
-
-    pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
-        let QuietUpdate { task, change } = self.quiet_schedule_group.update(msg);
-        Task::batch([
-            task.map(Message::QuietSchedule),
-            self.apply_quiet_change(change),
-        ])
-    }
-
-    fn apply_quiet_change(&mut self, change: QuietChange) -> Task<Message> {
-        match change {
-            QuietChange::None => Task::none(),
-            QuietChange::Began { screen_off } => self
-                .idle_timeouts_group
-                .override_screen_off(screen_off)
-                .map(Message::IdleTimeouts),
-            QuietChange::Ended => {
-                let released = self.notifications.release_held(&ToastContext::new(
-                    &self.niri,
-                    self.desktop_entries.get(),
-                    &self.config,
-                    &self.shell_settings,
-                    false,
-                ));
-                Task::batch([
-                    released,
-                    self.idle_timeouts_group
-                        .override_screen_off(None)
-                        .map(Message::IdleTimeouts),
-                ])
-            }
-        }
-    }
 }
 
 impl NotificationLayer {

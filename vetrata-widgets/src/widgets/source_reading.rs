@@ -7,8 +7,9 @@ use vetrata_config::Config;
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
     gauge::Gauge,
+    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
-    text::bar_text,
+    text::{FontFaces, bar_text},
     widget_state::WidgetState,
 };
 
@@ -57,7 +58,9 @@ pub fn icon_value_gap(config: &Config) -> f32 {
 }
 
 pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
-    widget.state().color(&config.theme.palette)
+    widget
+        .state()
+        .color(&PaletteColors::from(&config.theme.palette))
 }
 
 pub fn reading_value<'a, Message: 'a>(
@@ -114,7 +117,7 @@ fn badged<'a, Message: 'a>(
         Some(count) if count > 0 => {
             let superscript = text(count.to_string())
                 .size(config.theme.font.small_text_size_px)
-                .font(config.theme.font.iced_font)
+                .font(FontFaces::from(&config.theme.font).regular)
                 .color(color);
             Row::with_children([reading, superscript.into()])
                 .spacing(1.0)

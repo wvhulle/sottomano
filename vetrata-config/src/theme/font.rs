@@ -1,9 +1,5 @@
 use std::{collections::HashSet, fmt, fs, io, process::Command, sync::Arc};
 
-use iced::{
-    Font,
-    font::{Style, Weight},
-};
 use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
 
@@ -42,7 +38,8 @@ impl FontChoice {
 
 #[derive(Debug, Clone)]
 pub struct ResolvedFont {
-    pub iced_font: Font,
+    pub role: FontRole,
+    pub family: String,
     pub text_size_px: f32,
     pub small_text_size_px: f32,
     pub icon_size_px: f32,
@@ -51,22 +48,6 @@ pub struct ResolvedFont {
 }
 
 impl ResolvedFont {
-    #[must_use]
-    pub fn bold(&self) -> Font {
-        Font {
-            weight: Weight::Bold,
-            ..self.iced_font
-        }
-    }
-
-    #[must_use]
-    pub fn italic(&self) -> Font {
-        Font {
-            style: Style::Italic,
-            ..self.iced_font
-        }
-    }
-
     #[must_use]
     pub fn has_same_face_as(&self, other: &Self) -> bool {
         self.data == other.data
@@ -105,8 +86,8 @@ impl fmt::Display for FontError {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum FontRole {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FontRole {
     Text,
     Monospace,
 }
@@ -132,10 +113,10 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
         error,
     })?;
     let covered = covered_chars(&face);
-    let name = configured.map_or(matched.family, str::to_owned);
     let text_size_px = config.text_size_px()?;
     Ok(ResolvedFont {
-        iced_font: Font::with_name(String::leak(name)),
+        role,
+        family: configured.map_or(matched.family, str::to_owned),
         text_size_px,
         small_text_size_px: config.small_text_size.resolve(text_size_px),
         icon_size_px: config.icon_size.resolve(text_size_px),
@@ -161,9 +142,8 @@ fn covered_chars(face: &ttf_parser::Face) -> HashSet<char> {
 }
 
 #[must_use]
-pub fn fallback_font(ch: char) -> Option<Font> {
+pub fn fallback_family(ch: char) -> Option<String> {
     fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
-        .map(|family| Font::with_name(String::leak(family)))
 }
 
 fn fc_match_stdout(pattern: &str, format: &str) -> Option<String> {

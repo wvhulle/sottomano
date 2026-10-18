@@ -128,7 +128,7 @@ impl LayerAppearanceControls {
         self.opacity
             .update(ControlMessage::Reading(appearance.opacity * 100.0));
         self.corner_radius
-            .update(ControlMessage::Reading(appearance.corner_radius.top_left));
+            .update(ControlMessage::Reading(appearance.corner_radius_px));
         self.shadow_softness
             .update(ControlMessage::Reading(appearance.shadow.softness_px));
         self.shadow_opacity
@@ -181,7 +181,7 @@ impl LayerAppearanceControls {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
-                appearance.corner_radius = value.into();
+                appearance.corner_radius_px = value;
                 self.persist_slider(
                     AppearanceSetting::CornerRadius,
                     value,

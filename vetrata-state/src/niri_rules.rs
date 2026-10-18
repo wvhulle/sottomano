@@ -5,7 +5,6 @@ use std::{
 };
 
 use club_kdl::{KdlDeserialize, KdlSerialize};
-use iced::Task;
 use tokio::fs;
 use vetrata_config::screen_edges::Position;
 use vetrata_sources::niri_config::parse_niri_kdl;
@@ -318,14 +317,17 @@ impl NiriRulesFile {
         }
     }
 
-    pub fn restyle(&mut self, change: impl FnOnce(&mut NiriStyling)) -> Task<bool> {
+    pub fn restyle<Change: FnOnce(&mut NiriStyling)>(
+        &mut self,
+        change: Change,
+    ) -> impl Future<Output = bool> + Send + use<Change> {
         change(&mut self.styling);
-        self.write()
+        self.write().persisted()
     }
 
-    pub fn read(&self) -> Task<StoredRules> {
+    pub fn read(&self) -> impl Future<Output = StoredRules> + Send + use<> {
         let path = self.path.clone();
-        Task::future(async move {
+        async move {
             match fs::read_to_string(&path).await {
                 Ok(text) => StoredRules::Text(text),
                 Err(e) if e.kind() == io::ErrorKind::NotFound => StoredRules::Absent,
@@ -334,10 +336,10 @@ impl NiriRulesFile {
                     StoredRules::Unreadable(e.kind())
                 }
             }
-        })
+        }
     }
 
-    pub fn adopt(&mut self, stored: StoredRules) -> Task<bool> {
+    pub fn adopt(&mut self, stored: StoredRules) -> impl Future<Output = bool> + Send + use<> {
         self.written = match stored {
             StoredRules::Unreadable(kind) => Written::Unreadable(kind),
             StoredRules::Absent => Written::Absent,
@@ -349,33 +351,49 @@ impl NiriRulesFile {
                 Written::Known(text)
             }
         };
-        self.write()
+        self.write().persisted()
     }
 
-    fn write(&mut self) -> Task<bool> {
+    fn write(&mut self) -> RulesWrite {
         if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
-            return Task::done(false);
+            return RulesWrite::Withheld;
         }
         let rules = match VetrataRules::from(self.styling).to_kdl_v1() {
             Ok(rules) => rules,
             Err(e) => {
                 tracing::warn!("niri rules: rendering failed: {e}");
-                return Task::done(false);
+                return RulesWrite::Withheld;
             }
         };
         if matches!(&self.written, Written::Known(last) if *last == rules) {
-            return Task::done(true);
+            return RulesWrite::AlreadyOnDisk;
         }
         self.written = Written::Known(rules.clone());
-        let path = self.path.clone();
-        Task::future(async move {
-            replace(&path, &rules)
+        RulesWrite::Replace {
+            path: self.path.clone(),
+            rules,
+        }
+    }
+}
+
+enum RulesWrite {
+    Withheld,
+    AlreadyOnDisk,
+    Replace { path: PathBuf, rules: String },
+}
+
+impl RulesWrite {
+    async fn persisted(self) -> bool {
+        match self {
+            Self::Withheld => false,
+            Self::AlreadyOnDisk => true,
+            Self::Replace { path, rules } => replace(&path, &rules)
                 .await
                 .inspect_err(|e| {
                     tracing::warn!("niri rules: writing {} failed: {e}", path.display());
                 })
-                .is_ok()
-        })
+                .is_ok(),
+        }
     }
 }
 
@@ -418,7 +436,7 @@ mod tests {
     #[test]
     fn an_absent_file_keeps_the_defaults() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        let _ = rules.adopt(StoredRules::Absent);
+        drop(rules.adopt(StoredRules::Absent));
         assert_eq!(rules.styling(), NiriStyling::default());
     }
 

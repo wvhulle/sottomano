@@ -34,10 +34,11 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
-        text::{bar_text, column_heading},
+        text::{FontFaces, bar_text, column_heading},
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells,
             Section, SectionBody, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
@@ -168,17 +169,17 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn foreground(&self) -> Color {
-        self.config.theme.palette.bar_foreground
+        PaletteColors::from(&self.config.theme.palette).bar_foreground
     }
 
     fn flash(&self) -> Color {
-        self.config.theme.palette.success
+        PaletteColors::from(&self.config.theme.palette).success
     }
 
     fn dim(&self) -> Color {
         Color {
             a: DIM_ALPHA,
-            ..self.config.theme.palette.bar_foreground
+            ..PaletteColors::from(&self.config.theme.palette).bar_foreground
         }
     }
 
@@ -232,7 +233,7 @@ impl<'a> TooltipContent<'a> {
 
     fn annotation(&self, text: String) -> Text<'static> {
         self.small_dim_text(text)
-            .font(self.config.theme.font.italic())
+            .font(FontFaces::from(&self.config.theme.font).italic)
     }
 
     fn grid(&self) -> Element<'static, Message> {
@@ -336,7 +337,7 @@ impl<'a> TooltipContent<'a> {
 
     fn bold_title(&self, title: &str) -> Text<'static> {
         bar_text(&self.config.theme.font, title.to_owned())
-            .font(self.config.theme.font.bold())
+            .font(FontFaces::from(&self.config.theme.font).bold)
             .color(self.foreground())
     }
 
@@ -367,7 +368,7 @@ impl<'a> TooltipContent<'a> {
                     .section(section, self.freshness(section.freshness()))
             });
 
-        let dim = self.config.theme.palette.dim;
+        let dim = PaletteColors::from(&self.config.theme.palette).dim;
         let divider = move || {
             rule::horizontal(DIVIDER_THICKNESS_PX)
                 .style(move |_| rule::Style {
@@ -434,7 +435,7 @@ impl<'a> TooltipContent<'a> {
             wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
             flash: self.flash(),
-            link: self.config.theme.palette.info,
+            link: PaletteColors::from(&self.config.theme.palette).info,
             hint: self.dim(),
             transition: self.transition(self.presence),
             copy_flash: self.config.tooltips.copy_flash,
@@ -442,7 +443,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn dictionary(&self, entries: &[KeyValue]) -> Element<'static, Message> {
-        let palette = self.config.theme.palette.clone();
+        let palette = PaletteColors::from(&self.config.theme.palette);
         let cell_view = self.cell_view();
         let value_column = table::column(Space::new(), move |entry: KeyValue| {
             cell_view.value(
@@ -485,7 +486,7 @@ impl<'a> TooltipContent<'a> {
         headings: &[ColumnHeading],
         records: &[RecordCells],
     ) -> Element<'static, Message> {
-        let heading_color = self.config.theme.palette.inactive;
+        let heading_color = PaletteColors::from(&self.config.theme.palette).inactive;
 
         self.keyed_table(
             records,
@@ -529,7 +530,7 @@ impl<'a> TooltipContent<'a> {
         position: usize,
         heading: Element<'static, Message>,
     ) -> table::Column<'static, 'static, RecordCells, Message> {
-        let palette = self.config.theme.palette.clone();
+        let palette = PaletteColors::from(&self.config.theme.palette);
         let cell_view = self.cell_view();
 
         table::column(heading, move |record: RecordCells| {

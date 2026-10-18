@@ -9,7 +9,10 @@ pub mod window_anchored_toasts;
 
 use std::cmp::Reverse;
 
-use iced::{Padding, Theme, time::Instant};
+use iced::{
+    Padding, Subscription, Theme,
+    time::{Duration, Instant, every},
+};
 use niri_ipc::state::EventStreamState;
 use toast_card::ToastCard;
 pub use toast_lifecycle::Notification;
@@ -25,18 +28,16 @@ use vetrata_sources::{
     sink::sound::SoundTheme,
 };
 use vetrata_state::ShellSettings;
-use vetrata_widgets::{
-    shell_message::Message,
-    widgets::{
-        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
-        widget_group::GroupToastRequests,
-    },
-};
 use window_anchored_toasts::WindowAnchoredToasts;
 
-use crate::desktop_shell::{DesktopShell, bottom_bar::BottomBarGroups, top_bar::TopBarGroups};
+use crate::{
+    shell_message::Message,
+    toast_messages::NotificationMessage,
+    widgets::{announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y},
+};
 
 const DEFAULT_ACTION: &str = "default";
+const EXPIRY_TICK: Duration = Duration::from_millis(250);
 
 pub struct ToastContext<'a> {
     pub placement: Placement,
@@ -81,25 +82,6 @@ pub struct NotificationLayer {
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
     previous_levels: Vec<LevelReading<Message>>,
-}
-
-impl DesktopShell {
-    pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {
-        let locale = self.config.calendar.locale;
-        let TopBarGroups { start, center, end } = self.top_bar_groups();
-        let BottomBarGroups {
-            start: bottom_start,
-            end: bottom_end,
-        } = self.bottom_bar_groups();
-        start
-            .iter()
-            .chain(&center)
-            .chain(&end)
-            .chain(&bottom_start)
-            .chain(&bottom_end)
-            .map(|group| group.toast_requests(locale))
-            .collect()
-    }
 }
 
 impl NotificationLayer {
@@ -165,6 +147,15 @@ impl NotificationLayer {
         self.live
             .iter()
             .any(|n| n.countdown.is_some_and(Countdown::is_running))
+    }
+
+    #[must_use]
+    pub fn expiry_ticks(&self) -> Subscription<NotificationMessage> {
+        if self.has_running_countdown() {
+            every(EXPIRY_TICK).map(|_| NotificationMessage::Tick)
+        } else {
+            Subscription::none()
+        }
     }
 
     fn showing(&self) -> impl Iterator<Item = &Notification> {

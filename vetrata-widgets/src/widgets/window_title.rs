@@ -8,7 +8,10 @@ use iced::{
 use vetrata_config::Config;
 use vetrata_sources::window_label::WindowLabel;
 
-use crate::widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span};
+use crate::widgets::{
+    palette_colors::PaletteColors,
+    text::{FontFaces, FontFallbacks, LINE_HEIGHT, colored_span},
+};
 
 const SEPARATOR: &str = " · ";
 
@@ -50,22 +53,19 @@ impl<'a> WindowTitle<'a> {
     }
 
     fn main_spans(&self, content: &str) -> Vec<Span<'static>> {
-        self.styled(content, self.config.theme.font.iced_font)
+        self.styled(content, FontFaces::from(&self.config.theme.font).regular)
     }
 
     fn context_spans(&self, content: &str) -> Vec<Span<'static>> {
-        self.styled(content, self.config.theme.font.italic())
+        self.styled(content, FontFaces::from(&self.config.theme.font).italic)
     }
 
     fn separator_spans(&self) -> Vec<Span<'static>> {
-        self.styled(SEPARATOR, self.config.theme.font.iced_font)
+        self.styled(SEPARATOR, FontFaces::from(&self.config.theme.font).regular)
     }
 
     fn styled(&self, content: &str, base: Font) -> Vec<Span<'static>> {
-        let color = self
-            .config
-            .theme
-            .palette
+        let color = PaletteColors::from(&self.config.theme.palette)
             .bar_foreground
             .scale_alpha(self.opacity);
         self.fallbacks

@@ -11,6 +11,7 @@ use crate::{
     shell_message::Message,
     widgets::{
         favicon::Favicons,
+        palette_colors::PaletteColors,
         text::FontFallbacks,
         tooltip_body::{PreviewTile, WorkspacePreview},
         window_icon::{WindowAssets, window_icon},
@@ -106,18 +107,18 @@ impl<'a> WorkspaceSchematic<'a> {
             .align_y(Vertical::Top);
 
         let outline = self.outline(tile);
-        let highlight = self.config.theme.palette.focus;
+        let highlight = PaletteColors::from(&self.config.theme.palette).focus;
         let fill = Color {
             a: TILE_FILL_ALPHA,
-            ..self.config.theme.palette.dim
+            ..PaletteColors::from(&self.config.theme.palette).dim
         };
         let hovered_fill = Color {
             a: TILE_HOVER_FILL_ALPHA,
-            ..self.config.theme.palette.dim
+            ..PaletteColors::from(&self.config.theme.palette).dim
         };
         let radius = self.corner_radius;
         let shadow = self.lift(tile);
-        let text_color = self.config.theme.palette.bar_foreground;
+        let text_color = PaletteColors::from(&self.config.theme.palette).bar_foreground;
 
         button(content)
             .width(width)
@@ -149,7 +150,7 @@ impl<'a> WorkspaceSchematic<'a> {
         Shadow {
             color: Color {
                 a: FLOATING_SHADOW_ALPHA,
-                ..self.config.theme.palette.surface
+                ..PaletteColors::from(&self.config.theme.palette).surface
             },
             offset: FLOATING_SHADOW_OFFSET,
             blur_radius: FLOATING_SHADOW_BLUR_PX,
@@ -165,13 +166,13 @@ impl<'a> WorkspaceSchematic<'a> {
 
     fn outline(&self, tile: &PreviewTile) -> Color {
         if tile.is_urgent {
-            self.config.theme.palette.urgent
+            PaletteColors::from(&self.config.theme.palette).urgent
         } else if tile.is_focused {
-            self.config.theme.palette.focus
+            PaletteColors::from(&self.config.theme.palette).focus
         } else {
             Color {
                 a: TILE_OUTLINE_ALPHA,
-                ..self.config.theme.palette.bar_foreground
+                ..PaletteColors::from(&self.config.theme.palette).bar_foreground
             }
         }
     }

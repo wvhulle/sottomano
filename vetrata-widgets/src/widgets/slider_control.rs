@@ -19,6 +19,7 @@ use crate::{
         expand_animation::expand_animation,
         flat_button,
         inline_slider::inline_slider,
+        palette_colors::PaletteColors,
         phosphor::Phosphor,
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
@@ -385,10 +386,12 @@ impl SliderControl {
         let state = self.state();
         let glyph = button(self.effective_icon().with_weight(state.weight()).view(
             config.theme.font.icon_size_px,
-            state.color(&config.theme.palette),
+            state.color(&PaletteColors::from(&config.theme.palette)),
         ))
         .padding(0)
-        .style(flat_button(config.theme.palette.bar_foreground))
+        .style(flat_button(
+            PaletteColors::from(&config.theme.palette).bar_foreground,
+        ))
         .on_press(ControlMessage::Press);
         let slider = inline_slider(
             config,
@@ -413,10 +416,12 @@ impl SliderControl {
                 .wrapping(Wrapping::None)
                 .width(Length::Fill)
                 .align_x(Horizontal::Center)
-                .color(config.theme.palette.bar_foreground),
+                .color(PaletteColors::from(&config.theme.palette).bar_foreground),
         ))
         .padding(0)
-        .style(flat_button(config.theme.palette.bar_foreground))
+        .style(flat_button(
+            PaletteColors::from(&config.theme.palette).bar_foreground,
+        ))
         .on_press(ControlMessage::Press);
         let gap = config.layout.panel.widget_spacing;
         let revealed = Row::with_children([slider, readout.into()])

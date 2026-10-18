@@ -18,17 +18,19 @@ use vetrata_sources::{
     notifications::model::{ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt},
 };
 use vetrata_state::ShellSettings;
-use vetrata_widgets::{
+
+use super::{Notification, body_markup, toast_lifecycle::ToastKind};
+use crate::{
     hover_tooltips::{ongoing_for, relative},
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         bar_widget::Glyph,
         icon_handle::IconHandle,
-        text::{LINE_HEIGHT, bar_text},
+        palette_colors::PaletteColors,
+        panel_frame::LayerFrameStyle,
+        text::{FontFaces, LINE_HEIGHT, bar_text},
     },
 };
-
-use super::{Notification, body_markup, toast_lifecycle::ToastKind};
 
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
@@ -222,11 +224,11 @@ impl ToastCard<'_> {
         } else {
             self.settings.overlays.opacity
         };
-        let shadow = self.settings.overlays.shadow.drop_shadow();
+        let shadow = LayerFrameStyle::new(&self.settings.overlays, self.config).drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
-                border::rounded(self.settings.overlays.corner_radius)
+                border::rounded(self.settings.overlays.corner_radius_px)
                     .color(urgency.color.scale_alpha(self.reveal))
                     .width(BORDER_WIDTH_PX),
             )
@@ -241,7 +243,7 @@ impl ToastCard<'_> {
 impl ToastCard<'_> {
     fn body_paragraphs<'b>(&self, body: &str, text: Color) -> Column<'b, NotificationMessage> {
         let font = &self.config.theme.font;
-        let corner_radius = self.settings.overlays.corner_radius;
+        let corner_radius = self.settings.overlays.corner_radius_px;
         Column::with_children(
             body_markup::body_paragraphs(
                 body,
@@ -297,7 +299,7 @@ impl ToastCard<'_> {
             visible.then(|| {
                 bar_text(font, reltime.clone())
                     .size(font.small_text_size_px)
-                    .font(font.italic())
+                    .font(FontFaces::from(font).italic)
                     .color(text)
             })
         };
@@ -308,14 +310,14 @@ impl ToastCard<'_> {
             .push(
                 bar_text(font, data.summary.clone())
                     .color(text)
-                    .font(font.bold())
+                    .font(FontFaces::from(font).bold)
                     .width(Length::Fill),
             );
         if let Some(app_name) = &data.app_name {
             title = title.push(
                 bar_text(font, app_name.clone())
                     .size(font.small_text_size_px)
-                    .font(font.italic())
+                    .font(FontFaces::from(font).italic)
                     .color(text),
             );
         }
@@ -376,7 +378,7 @@ impl ToastCard<'_> {
         text: Color,
     ) -> Row<'b, NotificationMessage> {
         let id = self.notif.data.id;
-        let palette = &self.config.theme.palette;
+        let palette = PaletteColors::from(&self.config.theme.palette);
         let app_buttons = button_actions.iter().map(|action| {
             self.action_button(
                 action.label.clone(),
@@ -425,10 +427,10 @@ impl ToastCard<'_> {
     ) -> Element<'b, NotificationMessage> {
         let id = self.notif.data.id;
         let font = &self.config.theme.font;
-        let radius = self.settings.overlays.corner_radius;
+        let radius = self.settings.overlays.corner_radius_px;
         let reply = move |message| NotificationMessage::Reply { id, message };
         let field = text_input(placeholder, &self.notif.reply_draft)
-            .font(font.iced_font)
+            .font(FontFaces::from(font).regular)
             .size(font.text_size_px)
             .padding(BUTTON_PADDING)
             .on_input(move |draft| reply(ReplyMessage::Edited(draft)))
@@ -450,7 +452,7 @@ impl ToastCard<'_> {
             .push(self.action_button(
                 submit,
                 reply(ReplyMessage::Submitted),
-                self.config.theme.palette.success,
+                PaletteColors::from(&self.config.theme.palette).success,
                 text,
             ));
         mouse_area(row)
@@ -467,7 +469,7 @@ impl ToastCard<'_> {
         text: Color,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.theme.font;
-        let radius = self.settings.overlays.corner_radius;
+        let radius = self.settings.overlays.corner_radius_px;
         button(bar_text(font, label).size(font.text_size_px).color(text))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {
@@ -482,7 +484,7 @@ impl ToastCard<'_> {
                     ),
                     text_color: text,
                     border: Border {
-                        radius,
+                        radius: radius.into(),
                         ..Default::default()
                     },
                     ..Default::default()

@@ -4,9 +4,9 @@ use iced::{Task, time::Instant, window::Id};
 use iced_exwlshell::reexport::KeyboardInteractivity;
 use vetrata_config::Config;
 use vetrata_sources::notifications::model::{Outbound, close_reason};
-use vetrata_widgets::{shell_message::Message, toast_messages::ReplyMessage};
 
 use super::{NotificationLayer, toast_lifecycle::ExitPace};
+use crate::{shell_message::Message, toast_messages::ReplyMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReplyFocus {

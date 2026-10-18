@@ -8,6 +8,7 @@ use crate::{
     widgets::{
         confirm_button::ConfirmButton,
         glyph_button,
+        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
         widget_state::WidgetState,
@@ -59,7 +60,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         self.stoppable().then(|| {
             let state = WidgetState::of_toggle(false);
             let color = state
-                .color(&self.config.theme.palette)
+                .color(&PaletteColors::from(&self.config.theme.palette))
                 .scale_alpha(self.reveal);
             hoverable(
                 glyph_button(

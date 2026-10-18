@@ -19,6 +19,7 @@ use crate::{
         group_item::GroupItem,
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
+        palette_colors::PaletteColors,
         reveal::reveal_x,
         source_reading::{icon_value_gap, reading_color, reading_value},
         widget_state::WidgetState,
@@ -121,7 +122,7 @@ impl<'a> HandleFace<'a> {
             HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
                 glyph.view(
                     config.theme.font.icon_size_px,
-                    config.theme.palette.bar_foreground,
+                    PaletteColors::from(&config.theme.palette).bar_foreground,
                 )
             }),
             HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
@@ -389,7 +390,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 .align_y(Alignment::Center),
             )
             .padding(0)
-            .style(flat_button(config.theme.palette.bar_foreground))
+            .style(flat_button(
+                PaletteColors::from(&config.theme.palette).bar_foreground,
+            ))
             .on_press(toggle.clone())
             .into();
             let handle = match &handle_target {
@@ -457,17 +460,23 @@ impl EdgeIndicator {
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
-            Severity::Low | Severity::Normal if self.expanded => {
-                activity_line(config.theme.palette.focus, revealing_opacity, thickness)
-            }
-            Severity::Low | Severity::Normal if self.cursor_hovering => {
-                activity_line(config.theme.palette.bar_foreground, base, thickness)
-            }
-            Severity::Low | Severity::Normal => {
-                activity_line(config.theme.palette.bar_foreground, 0.12, thickness)
-            }
+            Severity::Low | Severity::Normal if self.expanded => activity_line(
+                PaletteColors::from(&config.theme.palette).focus,
+                revealing_opacity,
+                thickness,
+            ),
+            Severity::Low | Severity::Normal if self.cursor_hovering => activity_line(
+                PaletteColors::from(&config.theme.palette).bar_foreground,
+                base,
+                thickness,
+            ),
+            Severity::Low | Severity::Normal => activity_line(
+                PaletteColors::from(&config.theme.palette).bar_foreground,
+                0.12,
+                thickness,
+            ),
             severity @ (Severity::Warning | Severity::Critical) => activity_line(
-                WidgetState::from(severity).color(&config.theme.palette),
+                WidgetState::from(severity).color(&PaletteColors::from(&config.theme.palette)),
                 revealing_opacity,
                 thickness,
             ),

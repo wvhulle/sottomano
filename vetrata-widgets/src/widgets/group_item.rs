@@ -14,6 +14,7 @@ use crate::{
         bar_widget::BarWidget,
         flat_button,
         ongoing_toast::{OngoingToast, OngoingToastActionButton},
+        palette_colors::PaletteColors,
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
         toggle_control::IconToggle,
@@ -317,7 +318,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         if let Some(press) = self.on_press.clone() {
             element = button(element)
                 .padding(0)
-                .style(flat_button(config.theme.palette.bar_foreground))
+                .style(flat_button(
+                    PaletteColors::from(&config.theme.palette).bar_foreground,
+                ))
                 .on_press(GroupEvent::Group(press.message))
                 .into();
         }

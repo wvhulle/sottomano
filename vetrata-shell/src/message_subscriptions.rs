@@ -38,8 +38,6 @@ use wayland_client::Connection;
 
 use crate::desktop_shell::DesktopShell;
 
-const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
-
 fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
     let Some(connection) = wayland else {
         return Subscription::none();
@@ -66,11 +64,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     } else {
         Subscription::none()
     };
-    let expiry_tick = if state.notifications.has_running_countdown() {
-        every(NOTIFICATION_EXPIRY_TICK).map(|_| Message::Notification(NotificationMessage::Tick))
-    } else {
-        Subscription::none()
-    };
+    let expiry_tick = state
+        .notifications
+        .expiry_ticks()
+        .map(Message::Notification);
 
     Subscription::batch([
         outputs(state.wayland.as_ref()),
@@ -158,13 +155,6 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
             .subscription(buses)
             .map(Message::LlamaServer),
     ])
-}
-
-pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
-    Task::future(blocking("niri action", move || {
-        niri::send_action(&action).err()
-    }))
-    .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
 }
 
 fn niri_subscription() -> Subscription<Message> {

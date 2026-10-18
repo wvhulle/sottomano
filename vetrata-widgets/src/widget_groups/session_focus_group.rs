@@ -76,15 +76,16 @@ impl SessionFocusGroup {
     }
 
     pub fn load() -> Task<SessionFocusMessage> {
-        FocusTracker::load().map(SessionFocusMessage::Tracker)
+        Task::perform(FocusTracker::load(), SessionFocusMessage::Tracker)
     }
 
     pub fn subscription() -> Subscription<SessionFocusMessage> {
-        FocusTracker::subscription().map(SessionFocusMessage::Tracker)
+        Subscription::run(FocusTracker::idle_messages).map(SessionFocusMessage::Tracker)
     }
 
     pub fn sleep_subscription(buses: &DesktopBuses) -> Subscription<SessionFocusMessage> {
-        FocusTracker::sleep_subscription(buses).map(SessionFocusMessage::Tracker)
+        Subscription::run_with(buses.clone(), FocusTracker::sleep_messages)
+            .map(SessionFocusMessage::Tracker)
     }
 
     pub fn screen_power_changed(
@@ -102,11 +103,12 @@ impl SessionFocusGroup {
         &mut self,
         niri: &EventStreamState,
         processes: &WindowProcesses,
-        waking: WakingWindow,
     ) -> Task<SessionFocusMessage> {
         self.tracker
-            .refocus(niri, processes, waking)
-            .map(SessionFocusMessage::Tracker)
+            .refocus(niri, processes)
+            .map_or_else(Task::none, |probe| {
+                Task::perform(probe, SessionFocusMessage::Tracker)
+            })
     }
 
     pub fn update(
@@ -115,10 +117,9 @@ impl SessionFocusGroup {
         waking: WakingWindow,
     ) -> Task<SessionFocusMessage> {
         match message {
-            SessionFocusMessage::Tracker(message) => self
-                .tracker
-                .update(message, waking)
-                .map(SessionFocusMessage::Tracker),
+            SessionFocusMessage::Tracker(message) => {
+                Task::future(self.tracker.update(message, waking)).discard()
+            }
             SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: Utc::now() });
                 Task::none()

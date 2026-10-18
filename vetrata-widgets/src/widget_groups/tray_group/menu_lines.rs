@@ -7,6 +7,7 @@ use crate::widgets::{
     bar_widget::Glyph,
     context_menu::{MenuLine, MenuRow, Trailing},
     icon_handle::PixmapHandles,
+    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
 };
 
@@ -76,7 +77,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
         M: 'a,
     {
         let icon_size = self.config.theme.font.icon_size_px;
-        let color = self.config.theme.palette.bar_foreground;
+        let color = PaletteColors::from(&self.config.theme.palette).bar_foreground;
         let leading = node
             .icon
             .as_ref()
