@@ -100,6 +100,7 @@ pub enum Message {
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     IconsResolved(ResolvedIcons),
     FaviconsResolved(HashMap<String, RawFavicon>),
+    FirefoxProfileChanged,
     DismissPressed,
     Niri(Vec<niri_ipc::Event>),
     Redraw,

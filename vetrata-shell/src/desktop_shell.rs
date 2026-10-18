@@ -300,9 +300,12 @@ impl DesktopShell {
                 Task::none()
             }
             Message::FaviconsResolved(raw) => {
-                self.favicons.merge(raw);
-                Task::none()
+                self.favicons.merge(raw).map(Message::FaviconsResolved)
             }
+            Message::FirefoxProfileChanged => self
+                .favicons
+                .retry_unresolved()
+                .map(Message::FaviconsResolved),
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
             Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
             Message::Notification(msg) => self.update_notification(msg),
@@ -543,12 +546,6 @@ impl DesktopShell {
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
             }
-            window_group::Action::WindowList(window_list::Action::RefreshIcons) => Task::batch([
-                self.favicons
-                    .retry_unresolved()
-                    .map(Message::FaviconsResolved),
-                self.resolve_icons(),
-            ]),
             window_group::Action::WindowList(window_list::Action::None) => Task::none(),
             window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
                 self.derive_niri_snapshot();

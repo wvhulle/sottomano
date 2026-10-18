@@ -13,7 +13,17 @@ use crate::widgets::icon_handle::IconHandle;
 pub struct Favicons {
     cached: HashMap<String, IconHandle>,
     titles: Vec<String>,
-    poll: Option<Handle>,
+    lookup: Lookup,
+}
+
+#[derive(Default)]
+enum Lookup {
+    #[default]
+    Idle,
+    Running {
+        _aborts_on_drop: Handle,
+        profile_changed_meanwhile: bool,
+    },
 }
 
 impl Favicons {
@@ -22,12 +32,25 @@ impl Favicons {
         self.cached.get(key)
     }
 
-    pub fn merge(&mut self, raw: HashMap<String, RawFavicon>) {
+    pub fn merge(&mut self, raw: HashMap<String, RawFavicon>) -> Task<HashMap<String, RawFavicon>> {
         self.cached.extend(
             raw.into_iter()
                 .filter(|(title, _)| self.titles.binary_search(title).is_ok())
                 .map(|(title, raw)| (title, IconHandle::from_bytes(raw.kind, raw.bytes))),
         );
+        let rerun = matches!(
+            self.lookup,
+            Lookup::Running {
+                profile_changed_meanwhile: true,
+                ..
+            }
+        );
+        self.lookup = Lookup::Idle;
+        if rerun {
+            self.retry_unresolved()
+        } else {
+            Task::none()
+        }
     }
 
     pub fn track_titles(
@@ -41,10 +64,19 @@ impl Favicons {
         self.cached
             .retain(|title, _| titles.binary_search(title).is_ok());
         self.titles = titles;
+        self.lookup = Lookup::Idle;
         self.retry_unresolved()
     }
 
     pub fn retry_unresolved(&mut self) -> Task<HashMap<String, RawFavicon>> {
+        if let Lookup::Running {
+            profile_changed_meanwhile,
+            ..
+        } = &mut self.lookup
+        {
+            *profile_changed_meanwhile = true;
+            return Task::none();
+        }
         let unresolved: Vec<String> = self
             .titles
             .iter()
@@ -56,7 +88,10 @@ impl Favicons {
         }
         let (task, handle) =
             Task::future(blocking("favicons", move || favicons::resolve(unresolved))).abortable();
-        self.poll = Some(handle.abort_on_drop());
+        self.lookup = Lookup::Running {
+            _aborts_on_drop: handle.abort_on_drop(),
+            profile_changed_meanwhile: false,
+        };
         task
     }
 }
