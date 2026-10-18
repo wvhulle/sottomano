@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashMap,
+    time::{Duration, Instant},
+};
 
 use iced::{
     Alignment, Element, Subscription, Task,
@@ -27,7 +30,7 @@ use crate::{
         flat_button,
         gauge::Gauge,
         group_item::GroupItem,
-        icon_handle::PixmapHandles,
+        icon_handle::IconHandle,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
@@ -74,7 +77,7 @@ impl From<MediaTarget> for HoverTarget {
 
 pub struct MediaGroup {
     players: ContinuousReading<Vec<Media>>,
-    cover_art_handles: PixmapHandles,
+    cover_art: HashMap<String, CoverArt>,
     forced: Option<String>,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
@@ -86,7 +89,7 @@ impl Default for MediaGroup {
     fn default() -> Self {
         Self {
             players: ContinuousReading::default(),
-            cover_art_handles: PixmapHandles::default(),
+            cover_art: HashMap::new(),
             forced: None,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(true),
@@ -96,9 +99,19 @@ impl Default for MediaGroup {
     }
 }
 
+struct CoverArt {
+    url: String,
+    handle: IconHandle,
+}
+
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
     Reading(SourceDelivery<Vec<Media>>),
+    ArtLoaded {
+        bus: String,
+        url: String,
+        handle: Option<IconHandle>,
+    },
     Tick(Instant),
     Expansion(ExpansionMessage),
     Command(Command),
@@ -149,13 +162,7 @@ impl MediaGroup {
             MediaMessage::Tick(now) => self.now = now,
             MediaMessage::Reading(delivery) => {
                 self.players.receive_keeping_last_reading(delivery);
-                self.cover_art_handles = self.cover_art_handles.refreshed(
-                    self.players
-                        .get()
-                        .into_iter()
-                        .flatten()
-                        .filter_map(|media| media.art.as_ref()),
-                );
+                let art_loads = self.art_loads();
                 self.now = Instant::now();
                 if let Some(bus) = &self.forced
                     && !self
@@ -169,6 +176,15 @@ impl MediaGroup {
                 }
                 if let Some(media) = self.current().cloned() {
                     self.seek_bar.player_reported(&media, self.now);
+                }
+                return Action::Run(art_loads);
+            }
+            MediaMessage::ArtLoaded { bus, url, handle } => {
+                let still_shown = self.players.get().into_iter().flatten().any(|media| {
+                    media.bus == bus && media.art_url.as_deref() == Some(url.as_str())
+                });
+                if let Some(handle) = handle.filter(|_| still_shown) {
+                    self.cover_art.insert(bus, CoverArt { url, handle });
                 }
             }
             MediaMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
@@ -189,6 +205,32 @@ impl MediaGroup {
             },
         }
         Action::Run(Task::none())
+    }
+
+    fn art_loads(&mut self) -> Task<MediaMessage> {
+        let players = self.players.get().cloned().unwrap_or_default();
+        self.cover_art.retain(|bus, art| {
+            players
+                .iter()
+                .any(|media| &media.bus == bus && media.art_url.as_deref() == Some(&art.url))
+        });
+        Task::batch(players.into_iter().filter_map(|media| {
+            let url = media
+                .art_url
+                .filter(|_| !self.cover_art.contains_key(&media.bus))?;
+            let bus = media.bus;
+            let loading = {
+                let url = url.clone();
+                async move { mpris::load_art(&url).await }
+            };
+            Some(Task::perform(loading, move |pixels| {
+                MediaMessage::ArtLoaded {
+                    bus: bus.clone(),
+                    url: url.clone(),
+                    handle: pixels.as_ref().map(IconHandle::from),
+                }
+            }))
+        }))
     }
 
     fn seek_by(&mut self, message: SeekMessage) -> Task<MediaMessage> {
@@ -391,8 +433,7 @@ impl MediaGroup {
                     move |_| {
                         track_face(
                             config,
-                            media,
-                            &self.cover_art_handles,
+                            self.cover_art.get(&media.bus).map(|art| &art.handle),
                             opacity,
                             gauge_fraction,
                         )
@@ -467,13 +508,12 @@ fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaM
 
 fn track_face<'a>(
     config: &Config,
-    media: &Media,
-    cover_art_handles: &PixmapHandles,
+    art: Option<&IconHandle>,
     opacity: f32,
     gauge_fraction: Option<Ratio>,
 ) -> Element<'a, MediaMessage> {
     let side = config.theme.font.icon_size_px;
-    let cover = track_cover(config, media, cover_art_handles, opacity, side);
+    let cover = track_cover(config, art, opacity, side);
     let Some(fraction) = gauge_fraction else {
         return cover;
     };
@@ -488,13 +528,12 @@ fn track_face<'a>(
 
 fn track_cover<'a>(
     config: &Config,
-    media: &Media,
-    cover_art_handles: &PixmapHandles,
+    art: Option<&IconHandle>,
     opacity: f32,
     side: f32,
 ) -> Element<'a, MediaMessage> {
-    if let Some(art) = &media.art {
-        return cover_art_handles.pixmap_handle(art).view(side, opacity);
+    if let Some(art) = art {
+        return art.view(side, opacity);
     }
     Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
         side,
