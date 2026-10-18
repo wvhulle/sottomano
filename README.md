@@ -8,61 +8,119 @@ compositor: two panels in one binary, built on [iced](https://iced.rs) and
 The shell explains itself: hover any reading for a card with what it shows,
 and the card's top line says what a click does.
 
-## Tour
+## Top panel
 
-### Hardware
+### Compute
 
 CPU, memory and temperature, with live detail on hover.
 
-<img src="recordings/compute.webp" width="554" alt="Expanding the compute group and hovering CPU, memory and temperature">
+#### CPU
 
-### Weather and location
+<img src="recordings/compute-cpu.webp" width="720" alt="Expanding the compute group from the CPU reading">
+
+#### Memory
+
+<img src="recordings/compute-memory.webp" width="720" alt="Hovering memory in the expanded compute group">
+
+#### Temperature
+
+<img src="recordings/compute-temperature.webp" width="720" alt="Hovering temperature in the expanded compute group">
+
+### Weather
 
 Current conditions with the hourly forecast, and where the location fix came from.
 
-<img src="recordings/weather.webp" width="404" alt="Hovering the temperature and the location in the weather group">
+#### Conditions
+
+<img src="recordings/weather-conditions.webp" width="720" alt="Pressing the temperature in the weather group">
+
+#### Location
+
+<img src="recordings/weather-location.webp" width="720" alt="Hovering the location in the weather group">
 
 ### AI usage
 
 Subscription windows, their projected use at reset, and extra spend.
 
-<img src="recordings/ai-usage.webp" width="366" alt="Hovering the Claude usage windows">
+#### Usage windows
+
+<img src="recordings/ai-usage-windows.webp" width="720" alt="Expanding the AI usage group and hovering the Claude usage windows">
 
 ### Media
 
 The playing track with its progress and where to find it.
 
-<img src="recordings/media.webp" width="394" alt="Hovering the playing track">
+#### Track
 
-### Idle and lock
+<img src="recordings/media-track.webp" width="720" alt="Hovering the playing track">
+
+### Idle timeouts
 
 Idle timeouts as sliders, each saying when it fires and how.
 
-<img src="recordings/idle-lock.webp" width="363" alt="Expanding the idle timeouts and hovering the lock timer">
+#### Screen off
 
-### Inline sliders
+<img src="recordings/idle-screen-off.webp" width="720" alt="Expanding the idle timeouts and hovering the screen-off timer">
+
+#### Lock
+
+<img src="recordings/idle-lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
+
+### Audio
 
 Volume and microphone level as sliders that open in place, with a live level meter.
 
-<img src="recordings/audio-sliders.webp" width="390" alt="Opening the volume slider, dragging it and hovering the microphone">
+#### Volume
+
+<img src="recordings/audio-volume.webp" width="720" alt="Opening the volume slider and dragging it">
+
+#### Microphone
+
+<img src="recordings/audio-microphone.webp" width="720" alt="Expanding the audio group and hovering the microphone">
 
 ### Wallpaper
 
 The place in the current wallpaper and its Wikipedia summary.
 
-<img src="recordings/wallpaper.webp" width="707" alt="Expanding the wallpaper group and hovering the article">
+#### Place
 
-### Workspaces and windows
+<img src="recordings/wallpaper-place.webp" width="720" alt="Expanding the wallpaper group from the place lookup">
 
-A preview of each workspace, every window, and the process tree behind the focused one.
+#### Article
 
-<img src="recordings/bottom-bar.webp" width="618" alt="Hovering a workspace, a window and its process inspector">
+<img src="recordings/wallpaper-article.webp" width="720" alt="Hovering the Wikipedia article in the wallpaper group">
 
-### Workspace sidebar
+## Bottom panel
+
+### Workspaces
+
+A preview of each workspace.
+
+#### Previews
+
+<img src="recordings/bottom-workspaces.webp" width="720" alt="Hovering a workspace in the bottom panel">
+
+### Windows
+
+Every window, and the process tree behind the focused one.
+
+#### Window
+
+<img src="recordings/bottom-window.webp" width="720" alt="Hovering a window in the bottom panel">
+
+#### Process inspector
+
+<img src="recordings/bottom-process-inspector.webp" width="720" alt="Hovering the process inspector of a window">
+
+## Workspace sidebar
+
+### Workspaces
 
 Workspaces can also sit in a vertical sidebar, with the same previews.
 
-<img src="recordings/workspace-sidebar.webp" width="419" alt="Hovering each workspace in the vertical sidebar">
+#### Previews
+
+<img src="recordings/sidebar-workspaces.webp" width="720" alt="Hovering each workspace in the vertical sidebar">
 
 ## Run
 

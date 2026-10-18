@@ -1,17 +1,18 @@
 use std::{fs, path::Path};
 
-use crate::{RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT};
+use crate::{
+    RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT, animation_recording::CANVAS,
+};
 
 pub struct RecordedAnimation {
     pub name: &'static str,
-    pub logical_width: u32,
 }
 
 impl RecordedAnimation {
     fn embedding(&self) -> String {
         format!(
             r#"<img src="{RECORDINGS_DIRECTORY}/{}.{RECORDING_EXTENSION}" width="{}""#,
-            self.name, self.logical_width
+            self.name, CANVAS.width
         )
     }
 }
