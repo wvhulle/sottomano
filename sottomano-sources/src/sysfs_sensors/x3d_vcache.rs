@@ -70,12 +70,12 @@ impl X3dCachePreference {
         mode.parse().map_err(|_| Error::Unparsable(mode))
     }
 
-    #[must_use]
-    pub fn write(self) -> bool {
-        Self::mode_file().is_some_and(|mode_file| {
-            fs::write(&mode_file, self.stored_name())
-                .inspect_err(|failure| tracing::warn!("{}: {failure}", mode_file.display()))
-                .is_ok()
+    pub fn write(self) -> Result<(), Error> {
+        let mode_file =
+            Self::mode_file().ok_or_else(|| Error::Unreadable(X3D_VCACHE_DRIVER.to_owned()))?;
+        fs::write(&mode_file, self.stored_name()).map_err(|failure| Error::Unwritable {
+            path: mode_file.display().to_string(),
+            detail: failure.to_string(),
         })
     }
 }

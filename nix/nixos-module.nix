@@ -53,9 +53,10 @@ in
     x3dPreferenceSwitching.enable =
       lib.mkEnableOption ''
         switching the X3D scheduling preference (cache or frequency) from the
-        bar: a udev rule makes `amd_x3d_mode` writable by the wheel group. The
+        bar: a udev rule and a tmpfiles rule make `amd_x3d_mode` writable by
+        the wheel group, at device bind, at boot and on every rebuild. The
         setting is a scheduler hint the kernel driver validates, accepts only
-        `cache` or `frequency`, and resets at reboot; the rule matches no
+        `cache` or `frequency`, and resets at reboot; the rules match no
         device on CPUs without the amd_x3d_vcache driver
       ''
       // {
@@ -105,6 +106,9 @@ in
         services.udev.extraRules = ''
           ACTION=="add|bind", SUBSYSTEM=="platform", DRIVER=="amd_x3d_vcache", RUN+="${pkgs.coreutils}/bin/chgrp wheel /sys%p/amd_x3d_mode", RUN+="${pkgs.coreutils}/bin/chmod 0664 /sys%p/amd_x3d_mode"
         '';
+        systemd.tmpfiles.rules = [
+          "z /sys/bus/platform/drivers/amd_x3d_vcache/*/amd_x3d_mode 0664 root wheel - -"
+        ];
       })
 
       (lib.mkIf cfg.autoBrightness.enable {

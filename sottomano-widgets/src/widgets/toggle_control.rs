@@ -75,7 +75,7 @@ impl BarWidget for IconToggle {
 pub trait ToggleableSource: ReadingSource<Error: Into<Section>> + BarWidget {
     #[must_use]
     fn toggled_value(&self) -> Self;
-    fn apply_toggle(&self) -> bool;
+    fn apply_toggle(&self) -> Result<(), Self::Error>;
     fn press_action_text(&self) -> &'static str;
 }
 
@@ -95,7 +95,8 @@ impl<S: ReadingSource> Default for ToggleControl<S> {
 pub enum ToggleMessage<S: ToggleableSource> {
     Reading(SourceDelivery<S>),
     Press,
-    Applied { before: S, accepted: bool },
+    Applied,
+    Refused(S::Error),
 }
 
 impl<S: ToggleableSource> ToggleControl<S> {
@@ -116,20 +117,16 @@ impl<S: ToggleableSource> ToggleControl<S> {
             ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
                     self.assume(current.toggled_value());
-                    let before = current.clone();
-                    Task::future(blocking(S::NAME, move || current.apply_toggle())).map(
-                        move |accepted| ToggleMessage::Applied {
-                            before: before.clone(),
-                            accepted,
-                        },
+                    Task::future(blocking(S::NAME, move || current.apply_toggle().err())).map(
+                        |refusal| refusal.map_or(ToggleMessage::Applied, ToggleMessage::Refused),
                     )
                 }
                 None => Task::none(),
             },
-            ToggleMessage::Applied { before, accepted } => {
-                if !accepted {
-                    self.assume(before);
-                }
+            ToggleMessage::Applied => Task::none(),
+            ToggleMessage::Refused(refusal) => {
+                self.reading
+                    .receive_delivery(SourceDelivery::Reading(Err(refusal)));
                 Task::none()
             }
         }
@@ -150,14 +147,66 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.get().map(|display| display as &dyn BarWidget)
     }
 
-    pub fn group_item<'a, M: 'a>(
-        &'a self,
+    pub fn group_item<M: 'static>(
+        &self,
         target: impl Into<HoverTarget>,
         on_toggle: fn(ToggleMessage<S>) -> M,
-    ) -> Option<GroupItem<'a, M>> {
-        self.reading.get().map(|current| {
-            GroupItem::reading(current, target)
-                .on_press(current.press_action_text(), on_toggle(ToggleMessage::Press))
+    ) -> Option<GroupItem<'_, M>> {
+        let shown = self.reading.group_item(target)?;
+        Some(match self.reading.get() {
+            Some(current) => {
+                shown.on_press(current.press_action_text(), on_toggle(ToggleMessage::Press))
+            }
+            None => shown,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_sources::sysfs_sensors::{Error, x3d_vcache::X3dCachePreference};
+
+    use super::*;
+    use crate::widget_groups::compute_group::ComputeTarget;
+
+    fn refused_write() -> Error {
+        Error::Unwritable {
+            path: "/sys/bus/platform/drivers/amd_x3d_vcache/AMDI0101:00/amd_x3d_mode".to_owned(),
+            detail: "Permission denied (os error 13)".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
+        let mut control = ToggleControl::<X3dCachePreference>::default();
+        control.reading.load(X3dCachePreference::Frequency);
+        control.assume(X3dCachePreference::Cache);
+
+        let _ = control.update(ToggleMessage::Refused(refused_write()));
+
+        assert!(control.reading().is_none());
+        let shown = control
+            .reading
+            .display()
+            .expect("failed reading still shows");
+        assert_eq!(shown.state(), WidgetState::Failed);
+        assert!(
+            control
+                .group_item::<()>(HoverTarget::Compute(ComputeTarget::CachePreference), |_| ())
+                .is_some()
+        );
+        let hover_card = format!("{:?}", control.tooltip().map(|tooltip| tooltip.body));
+        assert!(hover_card.contains(&refused_write().to_string()));
+    }
+
+    #[test]
+    fn an_accepted_write_keeps_the_assumed_value() {
+        let mut control = ToggleControl::<X3dCachePreference>::default();
+        control.reading.load(X3dCachePreference::Frequency);
+        control.assume(X3dCachePreference::Cache);
+
+        let _ = control.update(ToggleMessage::Applied);
+
+        assert_eq!(control.reading.get(), Some(&X3dCachePreference::Cache));
     }
 }
