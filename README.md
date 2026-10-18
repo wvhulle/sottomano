@@ -1,4 +1,10 @@
-# Vetrata
+<img src="logo.svg" width="96" alt="sottomano logo">
+
+# Sottomano
+
+*Sottomano* is Italian for "at hand": *avere tutto sottomano*, to have everything
+within reach. The shell keeps every reading one glance or hover away, so you can
+work fast across many things without the panels asking for attention.
 
 My personal desktop shell for the [niri](https://github.com/YaLTeR/niri)
 compositor: two panels in one binary, built on [iced](https://iced.rs) and
@@ -156,27 +162,27 @@ Inside the Nix devshell (`nix develop`):
 cargo r
 ```
 
-`vetrata --help` lists the options that describe its setup instead of starting
+`sottomano --help` lists the options that describe its setup instead of starting
 the shell.
 
 ## Install
 
 Import `homeModules.default` from the flake. It installs the package, writes
-`~/.config/vetrata.toml`, makes niri include `~/.config/vetrata/niri.kdl`
-(the layer rules vetrata writes for its own surfaces) and, unless
-`services.vetrata.systemdUnit` is disabled, a systemd user service bound to
+`~/.config/sottomano.toml`, makes niri include `~/.config/sottomano/niri.kdl`
+(the layer rules sottomano writes for its own surfaces) and, unless
+`services.sottomano.systemdUnit` is disabled, a systemd user service bound to
 `graphical-session.target`.
 
 Several widgets read system daemons a home-manager module cannot start. On
-NixOS, import `nixosModules.default` and set `programs.vetrata.enable = true`.
+NixOS, import `nixosModules.default` and set `programs.sottomano.enable = true`.
 It also unlocks root-only CPU readings and the X3D preference switch; turn
-`programs.vetrata.cpuPowerReading.enable` off on machines shared with untrusted
+`programs.sottomano.cpuPowerReading.enable` off on machines shared with untrusted
 users.
 
 ## Configure
 
-`$XDG_CONFIG_HOME/vetrata.toml`, or `services.vetrata.settings`, which is
-written to it verbatim. `vetrata --print-default-config` prints every key with
+`$XDG_CONFIG_HOME/sottomano.toml`, or `services.sottomano.settings`, which is
+written to it verbatim. `sottomano --print-default-config` prints every key with
 its default. Unknown keys are rejected. The bar applies every change to the
 file in place; an invalid file raises a toast and keeps the previous
 configuration.
@@ -192,6 +198,6 @@ critical_celsius = 90
 
 ## Secrets
 
-`vetrata --list-secrets` lists the optional secret files, what each enables and
-whether it is present. `services.vetrata.secretFiles.<name>` symlinks each from
+`sottomano --list-secrets` lists the optional secret files, what each enables and
+whether it is present. `services.sottomano.secretFiles.<name>` symlinks each from
 wherever the secret actually lives, so nothing lands in the nix store.

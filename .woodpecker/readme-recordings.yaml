@@ -1,5 +1,5 @@
 when:
-  - repo: wvhulle/vetrata
+  - repo: wvhulle/sottomano
     event: [push, manual]
     branch: main
 
@@ -36,7 +36,7 @@ steps:
       force: true
       commit: true
       commit_message: *recordings_title
-      author_name: vetrata-ci
+      author_name: sottomano-ci
       author_email: willemvanhulle@protonmail.com
 
   - name: open-readme-recordings-pr

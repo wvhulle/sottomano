@@ -5,24 +5,24 @@
   ...
 }:
 let
-  cfg = config.programs.vetrata;
+  cfg = config.programs.sottomano;
 in
 {
-  options.programs.vetrata = {
+  options.programs.sottomano = {
     enable = lib.mkEnableOption ''
-      the system-level pieces vetrata widgets depend on: fwupd for the firmware
+      the system-level pieces sottomano widgets depend on: fwupd for the firmware
       upgrade reading, UPower for the power group, power-profiles-daemon for
       the power profile and the drivetemp kernel module for SATA drive
       temperatures. Services are set with mkDefault, so a host running tlp or auto-cpufreq
       can still disable power-profiles-daemon. The bar itself is installed per
-      user through vetrata's home-manager module
+      user through sottomano's home-manager module
     '';
 
     autoBrightness.enable = lib.mkEnableOption ''
       webcam-based automatic brightness through clight, which drives the
       monitor group's auto toggle and, through clightd, its backlight slider.
       clight's gamma, dimmer, DPMS, keyboard and screen modules are disabled by
-      default because vetrata owns colour temperature and the idle timers
+      default because sottomano owns colour temperature and the idle timers
     '';
 
     cpuPowerReading.enable =

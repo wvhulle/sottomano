@@ -1,14 +1,14 @@
 [workspace]
 resolver = "3"
 members = [
-  "vetrata-config",
-  "vetrata-sources",
-  "vetrata-state",
-  "vetrata-widgets",
-  "vetrata-shell",
-  "vetrata-widget-showcase",
+  "sottomano-config",
+  "sottomano-sources",
+  "sottomano-state",
+  "sottomano-widgets",
+  "sottomano-shell",
+  "sottomano-widget-showcase",
 ]
-default-members = ["vetrata-shell"]
+default-members = ["sottomano-shell"]
 
 [workspace.package]
 edition = "2024"
