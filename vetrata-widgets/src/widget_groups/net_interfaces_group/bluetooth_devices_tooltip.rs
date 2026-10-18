@@ -1,13 +1,14 @@
+use std::iter::once;
+
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
-use vetrata_sources::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth};
+use vetrata_sources::net_interfaces::bluetooth::Bluetooth;
 
 use crate::{
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -43,13 +44,13 @@ impl BarWidget for Bluetooth {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let hardware =
-            Section::hardware_identity(self.adapter.iter().flat_map(Adapter::hardware_entries));
+        let hardware = self.adapter.iter().map(Section::from);
         let Some(radio) = &self.radio else {
-            return TooltipBody::sections([
-                Section::dictionary([KeyValue::new("Bluetooth", "off")]),
-                hardware,
-            ]);
+            return TooltipBody::sections(
+                [Section::dictionary([KeyValue::new("Bluetooth", "off")])]
+                    .into_iter()
+                    .chain(hardware),
+            );
         };
         let overview = Section::dictionary([
             KeyValue::new("Connected", radio.connected.len().to_string()),
@@ -73,6 +74,6 @@ impl BarWidget for Bluetooth {
             )
             .titled(device.name.clone())
         });
-        TooltipBody::sections([vec![overview], devices.collect(), vec![hardware]].concat())
+        TooltipBody::sections(once(overview).chain(devices).chain(hardware))
     }
 }

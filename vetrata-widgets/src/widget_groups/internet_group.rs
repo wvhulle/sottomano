@@ -8,7 +8,7 @@ use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
     bus::DesktopBuses,
-    tailscale::{Tailscale, open_admin},
+    tailscale::{self, Tailscale, open_admin},
     throughput::Readings,
     wireguard::{TunnelAddress, Wireguard, disconnect},
 };
@@ -22,7 +22,7 @@ use crate::{
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Tooltip},
+        tooltip_body::{Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -36,6 +36,12 @@ pub enum InternetTarget {
     Total,
     Tailscale,
     Wireguard(String),
+}
+
+impl From<tailscale::Error> for Section {
+    fn from(error: tailscale::Error) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<InternetTarget> for HoverTarget {
@@ -136,6 +142,7 @@ impl InternetGroup {
         )
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: &InternetTarget) -> Option<Tooltip> {
         match target {
             InternetTarget::Wireguard(name) => {
@@ -148,7 +155,7 @@ impl InternetGroup {
                 Some(
                     self.wireguard
                         .tooltip_with(tunnel.tooltip())?
-                        .with_sections(self.tunnel_address.sections(TunnelAddress::sections)),
+                        .with_sections(self.tunnel_address.sections()),
                 )
             }
             InternetTarget::Down => self

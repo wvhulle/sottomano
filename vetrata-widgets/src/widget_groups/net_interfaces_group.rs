@@ -26,7 +26,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Tooltip},
+        tooltip_body::Tooltip,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -136,15 +136,16 @@ impl NetInterfacesGroup {
         }
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: NetInterfaceTarget) -> Option<Tooltip> {
         match target {
             NetInterfaceTarget::Bluetooth => self.bluetooth.tooltip(),
             NetInterfaceTarget::Ethernet => self
                 .ethernet
-                .tooltip_with_sections(self.ethernet_details.sections(EthernetDetails::sections)),
+                .tooltip_with_sections(self.ethernet_details.sections()),
             NetInterfaceTarget::Wifi => self
                 .wifi
-                .tooltip_with_sections(self.wifi_details.sections(WifiDetails::sections)),
+                .tooltip_with_sections(self.wifi_details.sections()),
             NetInterfaceTarget::Mobile => self.mobile.tooltip(),
         }
     }

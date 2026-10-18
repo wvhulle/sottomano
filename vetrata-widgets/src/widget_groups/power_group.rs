@@ -28,11 +28,10 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Section, Tooltip},
+        tooltip_body::{Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -172,22 +171,19 @@ impl PowerGroup {
         ])
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: PowerTarget) -> Option<Tooltip> {
         match target {
-            PowerTarget::Battery => {
+            PowerTarget::Battery => self.battery.tooltip_with_sections(
                 self.battery
-                    .tooltip_with_sections(self.battery.sections(|battery| {
-                        vec![Section::hardware_identity(
-                            battery.identity.hardware_entries(),
-                        )]
-                    }))
-            }
+                    .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
+            ),
             PowerTarget::Draw => {
                 let draw = self.draw()?;
                 let charger = if draw.on_battery() {
                     Vec::new()
                 } else {
-                    self.charger.sections(ChargerSupply::sections)
+                    self.charger.sections()
                 };
                 Some(
                     self.battery
@@ -196,9 +192,10 @@ impl PowerGroup {
                 )
             }
             PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
-            PowerTarget::Profile => self.power_profile.tooltip().map(|tooltip| {
-                tooltip.with_sections(self.cpu_tuning.sections(CpuTuning::sections))
-            }),
+            PowerTarget::Profile => self
+                .power_profile
+                .tooltip()
+                .map(|tooltip| tooltip.with_sections(self.cpu_tuning.sections())),
         }
     }
 

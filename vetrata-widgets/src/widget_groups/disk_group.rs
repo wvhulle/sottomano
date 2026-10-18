@@ -6,7 +6,7 @@ use iced::{Subscription, Task};
 use vetrata_config::widget_groups::temperature_sensors::SensorConfig;
 use vetrata_sources::{
     SourceDelivery,
-    disk::{Disk, activity::DiskActivity, health::DriveHealth},
+    disk::{self, Disk, activity::DiskActivity, health::DriveHealth},
 };
 
 use crate::{
@@ -16,7 +16,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::Tooltip,
+        tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -27,6 +27,12 @@ pub enum DiskTarget {
     Read,
     Write,
     DriveHealth,
+}
+
+impl From<disk::Error> for Section {
+    fn from(error: disk::Error) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<DiskTarget> for HoverTarget {

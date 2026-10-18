@@ -9,7 +9,7 @@ use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
     ai::{
-        copilot::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
+        copilot::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::SpendBudget,
     },
     bus::DesktopBuses,
@@ -21,7 +21,7 @@ use crate::{
     widgets::{
         continuous_reading::ContinuousReading,
         simple_icons::SimpleIcon,
-        tooltip_body::Tooltip,
+        tooltip_body::{Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -33,6 +33,15 @@ pub enum CopilotUsageTarget {
     Metered,
     Free,
     Cli,
+}
+
+impl From<copilot::Error> for Section {
+    fn from(error: copilot::Error) -> Self {
+        match error {
+            copilot::Error::Fetch(fetch) => fetch.into(),
+            other => Section::error(other),
+        }
+    }
 }
 
 impl From<CopilotUsageTarget> for HoverTarget {

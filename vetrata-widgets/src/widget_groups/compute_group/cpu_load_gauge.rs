@@ -10,7 +10,7 @@ use vetrata_sources::sysfs_sensors::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
+    core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
@@ -43,16 +43,16 @@ fn mean_share<'a>(shares: impl Iterator<Item = Ratio> + 'a) -> Option<Ratio> {
     (count > 0).then(|| collected.into_iter().sum::<Ratio>() / count as f64)
 }
 
-impl ChipletSections for CpuCoreLoads {
-    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
-        let readings: Vec<CoreReading> = self
+impl ChipletLiveState<'_> {
+    pub fn core_load_sections(&self, loads: &CpuCoreLoads) -> Vec<Section> {
+        let readings: Vec<CoreReading> = loads
             .cores
             .iter()
             .map(|load| CoreReading {
                 core: load.core,
                 busy: load.busy,
                 split: load.split,
-                deep_idle: self
+                deep_idle: loads
                     .deep_idle
                     .iter()
                     .find(|idle| idle.core == load.core)
@@ -60,12 +60,12 @@ impl ChipletSections for CpuCoreLoads {
             })
             .collect();
         let grid = CoreGridSection {
-            topology: &self.topology,
+            topology: &loads.topology,
             readings: &readings,
         };
         vec![
             grid.section(
-                |group| live.title(group),
+                |group| self.title(group),
                 |group, members| {
                     let mean = |share: fn(&CoreReading) -> Ratio| {
                         mean_share(members.iter().map(|reading| share(reading)))
@@ -84,7 +84,7 @@ impl ChipletSections for CpuCoreLoads {
                         .chain(user)
                         .chain(kernel)
                         .chain(deep_idle)
-                        .chain(live.facts(group))
+                        .chain(self.facts(group))
                         .collect()
                 },
             )

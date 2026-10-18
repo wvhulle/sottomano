@@ -9,10 +9,8 @@ use vetrata_sources::{
 };
 
 use super::{
-    LlamaServerReading, LlamaServerTarget, SERVER_SWITCH,
-    context_fill_gauge::ContextFill,
-    generation_rate_label::GenerationRate,
-    loaded_model_label::{ServedModel, ServerModels},
+    LlamaServerReading, LlamaServerTarget, SERVER_SWITCH, context_fill_gauge::ContextFill,
+    generation_rate_label::GenerationRate, loaded_model_label::ServedModel,
     slot_occupancy_gauge::SlotOccupancy,
 };
 use crate::{
@@ -21,7 +19,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
 };
@@ -153,17 +151,36 @@ impl ScopedLlamaServers {
         let server = reading.get();
         match target.reading {
             LlamaServerReading::Switch => readings.switch.tooltip(server.is_some()),
-            LlamaServerReading::Model => Some(
-                reading
-                    .tooltip_with(TooltipBody::sections(
-                        ServerModels {
-                            server: server?,
-                            endpoint: &readings.discovered.endpoint,
-                        }
-                        .sections(),
-                    ))?
-                    .with_sections(model_props),
-            ),
+            LlamaServerReading::Model => {
+                let server = server?;
+                let resident = server.resident_model();
+                let endpoint = &readings.discovered.endpoint;
+                let status_and_web_ui = Section::dictionary(
+                    resident
+                        .map(|model| KeyValue::new("Status", model.status))
+                        .into_iter()
+                        .chain([KeyValue::new(
+                            "Web UI",
+                            Cell::Link {
+                                label: endpoint.clone(),
+                                url: endpoint.clone(),
+                            },
+                        )]),
+                );
+                let available_models = Section::dictionary(
+                    server
+                        .models
+                        .iter()
+                        .filter(|model| Some(*model) != resident)
+                        .map(|model| KeyValue::new(model.id.clone(), model.status)),
+                )
+                .titled("Available models");
+                Some(
+                    reading
+                        .tooltip_with(TooltipBody::sections([status_and_web_ui, available_models]))?
+                        .with_sections(model_props),
+                )
+            }
             LlamaServerReading::GenerationRate => {
                 reading.tooltip_with(GenerationRate(server?.generation_rate?).tooltip())
             }

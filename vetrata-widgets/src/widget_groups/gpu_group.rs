@@ -11,8 +11,8 @@ use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
     gpu::{
-        GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
-        PciBusId,
+        self, GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot,
+        NvmlDevice, PciBusId,
     },
 };
 
@@ -23,7 +23,6 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -42,6 +41,12 @@ pub enum GpuReading {
 pub struct GpuTarget {
     bus: PciBusId,
     reading: GpuReading,
+}
+
+impl From<gpu::Error> for Section {
+    fn from(error: gpu::Error) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<GpuTarget> for HoverTarget {
@@ -241,13 +246,9 @@ impl GpuGroup {
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
                 [
-                    self.hovered_sections(&target.bus, |group| {
-                        group.clocks.sections(GpuClocks::sections)
-                    }),
-                    self.discovery.sections(|_| {
-                        vec![Section::hardware_identity(
-                            device.model.iter().flat_map(GpuModel::hardware_entries),
-                        )]
+                    self.hovered_sections(&target.bus, |group| group.clocks.sections()),
+                    self.discovery.sections_described_by(|_| {
+                        device.model.iter().map(Section::from).collect()
                     }),
                 ]
                 .concat(),
@@ -255,9 +256,9 @@ impl GpuGroup {
             GpuReading::Memory => Some(
                 snapshot
                     .tooltip_with(TooltipBody::sections(snapshot.get()?.vram.sections()))?
-                    .with_sections(self.hovered_sections(&target.bus, |group| {
-                        group.processes.sections(GpuProcesses::sections)
-                    })),
+                    .with_sections(
+                        self.hovered_sections(&target.bus, |group| group.processes.sections()),
+                    ),
             ),
             GpuReading::Temperature => snapshot.tooltip_with(device.temperature_label()?.tooltip()),
             GpuReading::Power => snapshot.tooltip_with(device.power_label()?.tooltip()),

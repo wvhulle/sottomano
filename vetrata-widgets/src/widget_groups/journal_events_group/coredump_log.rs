@@ -17,8 +17,8 @@ use crate::{
     },
 };
 
-impl TableRow<4> for CoredumpEntry {
-    fn table_record(&self) -> TableRecord<4> {
+impl TableRow<4> for &CoredumpEntry {
+    fn table_record(self) -> TableRecord<4> {
         TableRecord::new(
             Cell::Time {
                 at: self.at.into(),
@@ -82,7 +82,7 @@ impl BarWidget for Vec<CoredumpEntry> {
                 ColumnHeading::new("PID"),
                 ColumnHeading::new("Unit").align_x(Horizontal::Left),
             ],
-            self.iter().map(CoredumpEntry::table_record),
+            self.iter(),
         )
         .titled((
             "Coredumps",

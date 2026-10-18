@@ -7,8 +7,8 @@ mod service_error_log;
 
 use vetrata_config::Config;
 use vetrata_sources::{
-    SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
-    oom_kills::OomKillEntry, service_errors::ServiceErrors,
+    SourceDelivery, coredumps::CoredumpEntry, journal::JournalFollowError,
+    kernel_errors::KernelOccurrence, oom_kills::OomKillEntry, service_errors::ServiceErrors,
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
-        group_item::{ConfiguredGroupItem, GroupItem},
+        group_item::GroupItem,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -35,6 +35,12 @@ pub enum JournalTarget {
     ServiceErrors,
     Coredumps,
     OomKills,
+}
+
+impl From<JournalFollowError> for Section {
+    fn from(error: JournalFollowError) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<JournalTarget> for HoverTarget {
@@ -127,7 +133,15 @@ impl JournalEventsGroup {
                 self.kernel_log_item(config),
                 self.service_errors
                     .visible_reading()
-                    .map(|service_errors| service_errors.group_item(config))
+                    .map(|service_errors| {
+                        GroupItem::reading(service_errors, JournalTarget::ServiceErrors).on_press(
+                            TerminalCommand::JOURNAL_PRESS_HINT,
+                            JournalEventsMessage::OpenLog(TerminalCommand::journal(
+                                config,
+                                service_errors.follow_log_args(),
+                            )),
+                        )
+                    })
                     .or_else(|| {
                         self.service_errors.failure().map(|failure| {
                             GroupItem::reading(failure, JournalTarget::ServiceErrors)

@@ -37,8 +37,8 @@ impl JournalEventsGroup {
     }
 }
 
-impl TableRow<2> for KernelOccurrence {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &KernelOccurrence {
+    fn table_record(self) -> TableRecord<2> {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
         let at = Cell::Time {
             at: self.latest.into(),
@@ -95,7 +95,7 @@ impl BarWidget for Vec<KernelOccurrence> {
             ],
             hidden_notice
                 .into_iter()
-                .chain(self[hidden..].iter().map(KernelOccurrence::table_record)),
+                .chain(self[hidden..].iter().map(TableRow::table_record)),
         )
         .titled((
             "Kernel log",

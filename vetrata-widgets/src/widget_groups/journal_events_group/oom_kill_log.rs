@@ -17,8 +17,8 @@ use crate::{
     },
 };
 
-impl TableRow<2> for OomKillEntry {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &OomKillEntry {
+    fn table_record(self) -> TableRecord<2> {
         let killer = match self.killer {
             OomKiller::Kernel => "kernel",
             OomKiller::Oomd => "systemd-oomd",
@@ -77,7 +77,7 @@ impl BarWidget for Vec<OomKillEntry> {
                 ColumnHeading::new("Unit").align_x(Horizontal::Left),
                 ColumnHeading::new("Killed by").align_x(Horizontal::Left),
             ],
-            self.iter().map(OomKillEntry::table_record),
+            self.iter(),
         )
         .titled((
             "OOM kills",

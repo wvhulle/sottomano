@@ -101,10 +101,6 @@ impl<M> Press<M> {
     }
 }
 
-pub trait ConfiguredGroupItem<M> {
-    fn group_item(&self, config: &Config) -> GroupItem<'_, M>;
-}
-
 pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<Press<M>>,

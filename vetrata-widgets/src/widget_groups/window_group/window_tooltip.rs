@@ -3,14 +3,14 @@ use std::time::{Duration, SystemTime};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::severity::Severity;
 use vetrata_sources::{
-    nix_package_facts::{Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
+    nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
     nix_store::StorePackage,
     process::{self, Inspection, Launch},
 };
 
 use crate::{
     hover_tooltips::relative,
-    widgets::tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    widgets::tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
 };
 
 pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
@@ -37,73 +37,89 @@ pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBo
     )]))
 }
 
-pub fn inspection_sections(inspected: &Inspection) -> Vec<Section> {
-    let provenance = &inspected.provenance;
-    let profile = provenance
-        .profile
-        .as_deref()
-        .map(|profile| KeyValue::new("Profile", profile));
-    let packages = provenance
-        .package
-        .as_ref()
-        .map(|package| versioned("Package", package))
-        .into_iter()
-        .chain(
-            provenance
-                .runtime
-                .as_ref()
-                .map(|runtime| versioned("Runtime", runtime)),
-        )
-        .chain(
-            provenance
-                .referenced
-                .iter()
-                .map(|referenced| versioned("Referenced", referenced)),
-        )
-        .chain(profile);
-    vec![Section::dictionary(packages.chain(command(inspected))).titled("Package")]
+impl From<process::Error> for Section {
+    fn from(error: process::Error) -> Self {
+        Section::error(error)
+    }
 }
 
-pub fn package_facts_sections(facts: &NixPackageFacts) -> Vec<Section> {
-    let nixpkgs = facts.nixpkgs.as_ref();
-    let closure = &facts.closure;
-    let rows = [
-        nixpkgs
-            .and_then(|entry| entry.homepage.clone())
-            .map(|homepage| KeyValue::new("Homepage", homepage_link(homepage))),
-        nixpkgs.map(|entry| {
-            KeyValue::new(
-                "Nix file",
-                Cell::Link {
-                    label: entry.definition.file.clone(),
-                    url: entry.definition.url.clone(),
-                },
+impl From<nix_package_facts::Error> for Section {
+    fn from(error: nix_package_facts::Error) -> Self {
+        Section::error(error)
+    }
+}
+
+impl ReadingSections for Inspection {
+    fn sections(&self) -> Vec<Section> {
+        let provenance = &self.provenance;
+        let profile = provenance
+            .profile
+            .as_deref()
+            .map(|profile| KeyValue::new("Profile", profile));
+        let packages = provenance
+            .package
+            .as_ref()
+            .map(|package| versioned("Package", package))
+            .into_iter()
+            .chain(
+                provenance
+                    .runtime
+                    .as_ref()
+                    .map(|runtime| versioned("Runtime", runtime)),
             )
-        }),
-        nixpkgs
-            .and_then(|entry| entry.license.as_deref())
-            .map(|license| KeyValue::new("License", license)),
-        Some(KeyValue::new(
-            "Closure size",
-            format!(
-                "{} in {} paths",
-                closure.closure_size.display().iec(),
-                closure.path_count
-            ),
-        )),
-        Some(KeyValue::new(
-            "Own size",
-            closure.own_size.display().iec().to_string(),
-        )),
-        Some(KeyValue::new(
-            "Added",
-            relative(facts.registered, SystemTime::now()),
-        )),
-        origin_entry(&facts.origin),
-        nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
-        facts.upstream.as_ref().and_then(upstream_entry),
-    ];
-    vec![Section::dictionary(rows.into_iter().flatten()).titled("Nix")]
+            .chain(
+                provenance
+                    .referenced
+                    .iter()
+                    .map(|referenced| versioned("Referenced", referenced)),
+            )
+            .chain(profile);
+        vec![Section::dictionary(packages.chain(command(self))).titled("Package")]
+    }
+}
+
+impl ReadingSections for NixPackageFacts {
+    fn sections(&self) -> Vec<Section> {
+        let nixpkgs = self.nixpkgs.as_ref();
+        let closure = &self.closure;
+        let rows = [
+            nixpkgs
+                .and_then(|entry| entry.homepage.clone())
+                .map(|homepage| KeyValue::new("Homepage", homepage_link(homepage))),
+            nixpkgs.map(|entry| {
+                KeyValue::new(
+                    "Nix file",
+                    Cell::Link {
+                        label: entry.definition.file.clone(),
+                        url: entry.definition.url.clone(),
+                    },
+                )
+            }),
+            nixpkgs
+                .and_then(|entry| entry.license.as_deref())
+                .map(|license| KeyValue::new("License", license)),
+            Some(KeyValue::new(
+                "Closure size",
+                format!(
+                    "{} in {} paths",
+                    closure.closure_size.display().iec(),
+                    closure.path_count
+                ),
+            )),
+            Some(KeyValue::new(
+                "Own size",
+                closure.own_size.display().iec().to_string(),
+            )),
+            Some(KeyValue::new(
+                "Added",
+                relative(self.registered, SystemTime::now()),
+            )),
+            origin_entry(&self.origin),
+            nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
+            self.upstream.as_ref().and_then(upstream_entry),
+        ];
+        vec![Section::dictionary(rows.into_iter().flatten()).titled("Nix")]
+    }
 }
 
 fn homepage_link(url: String) -> Cell {

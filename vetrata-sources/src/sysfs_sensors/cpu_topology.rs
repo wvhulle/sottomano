@@ -45,42 +45,6 @@ impl CoreRole {
             CoreRole::AllCores => "Cores".to_owned(),
         }
     }
-
-    fn description(self) -> &'static str {
-        match self {
-            CoreRole::PerformanceCores => {
-                "Larger cores with higher clocks and power draw, preferred for demanding work."
-            }
-            CoreRole::MidCapacityCores => {
-                "Mid-sized cores between the performance and efficient ones in clock and power \
-                 draw."
-            }
-            CoreRole::EfficientCores => {
-                "Smaller cores with lower clocks and power draw, suited to background work."
-            }
-            CoreRole::LowPowerIslandCores => {
-                "Efficient cores outside the performance cores' cache, so the rest of the chip can \
-                 sleep while these handle light work."
-            }
-            CoreRole::StackedCacheCores => {
-                "A chiplet with extra cache stacked on top: more data stays on-chip at the cost of \
-                 a lower peak clock, which suits games and other cache-hungry work."
-            }
-            CoreRole::HighClockCores => {
-                "A chiplet without stacked cache that clocks higher, suited to work that needs \
-                 speed more than cache."
-            }
-            CoreRole::CompactCores => {
-                "Denser cores with less cache and a lower peak clock, trading speed for area and \
-                 power."
-            }
-            CoreRole::CoreComplex { .. } => {
-                "Cores on one chiplet share its cache; work that moves to another complex leaves \
-                 that cache behind."
-            }
-            CoreRole::AllCores => "All cores are of one design.",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -136,11 +100,6 @@ impl CoreGroup {
     #[must_use]
     pub fn role(&self) -> CoreRole {
         self.role
-    }
-
-    #[must_use]
-    pub fn caption(&self) -> &'static str {
-        self.role.description()
     }
 }
 

@@ -18,7 +18,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_text,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{KeyValue, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -133,7 +133,9 @@ impl Countdown {
             }
         }
     }
+}
 
+impl TableRow<3> for Countdown {
     fn table_record(self) -> TableRecord<3> {
         TableRecord::new(self.key(), self.forecast().cells())
     }
@@ -233,10 +235,9 @@ impl BarWidget for BatteryTime {
     fn tooltip(&self) -> TooltipBody {
         match self {
             BatteryTime::Idle(idle) => idle.tooltip(),
-            BatteryTime::Countdown(countdown) => TooltipBody::sections([Section::column_table(
-                ESTIMATE_HEADINGS,
-                [countdown.table_record()],
-            )]),
+            BatteryTime::Countdown(countdown) => {
+                TooltipBody::sections([Section::column_table(ESTIMATE_HEADINGS, [*countdown])])
+            }
         }
     }
 }

@@ -1,5 +1,3 @@
-mod source_error_sections;
-
 use std::{
     collections::HashSet,
     convert::Infallible,
@@ -98,7 +96,13 @@ pub trait ReadingSections {
 }
 
 pub trait TableRow<const COLUMNS: usize> {
-    fn table_record(&self) -> TableRecord<COLUMNS>;
+    fn table_record(self) -> TableRecord<COLUMNS>;
+}
+
+impl<const COLUMNS: usize> TableRow<COLUMNS> for TableRecord<COLUMNS> {
+    fn table_record(self) -> TableRecord<COLUMNS> {
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -223,11 +227,14 @@ pub struct ThreadCell {
 impl SectionBody {
     fn column_table<const COLUMNS: usize>(
         headings: [ColumnHeading; COLUMNS],
-        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
     ) -> Self {
         SectionBody::ColumnTable {
             headings: headings.into(),
-            records: records.into_iter().map(RecordCells::from).collect(),
+            records: rows
+                .into_iter()
+                .map(|row| RecordCells::from(row.table_record()))
+                .collect(),
         }
     }
 
@@ -340,9 +347,9 @@ impl Section {
 
     pub fn column_table<const COLUMNS: usize>(
         headings: [ColumnHeading; COLUMNS],
-        records: impl IntoIterator<Item = TableRecord<COLUMNS>>,
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
     ) -> Self {
-        Self::untitled(SectionBody::column_table(headings, records))
+        Self::untitled(SectionBody::column_table(headings, rows))
     }
 
     pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
@@ -603,8 +610,8 @@ mod tests {
         moons: u32,
     }
 
-    impl TableRow<2> for Planet {
-        fn table_record(&self) -> TableRecord<2> {
+    impl TableRow<2> for &Planet {
+        fn table_record(self) -> TableRecord<2> {
             let level = if self.moons == 0 {
                 Severity::Warning
             } else {
@@ -629,7 +636,7 @@ mod tests {
         assert_eq!(
             Section::column_table(
                 [ColumnHeading::new("Moons"), ColumnHeading::new("")],
-                planets.iter().map(Planet::table_record)
+                &planets
             )
             .body(),
             &SectionBody::ColumnTable {

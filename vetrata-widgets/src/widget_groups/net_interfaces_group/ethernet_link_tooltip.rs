@@ -1,7 +1,4 @@
-use vetrata_sources::{
-    hardware::Adapter,
-    net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
-};
+use vetrata_sources::net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port};
 
 use crate::{
     widget_groups::net_interfaces_group::interface_sections::{
@@ -9,7 +6,6 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -54,7 +50,7 @@ impl ReadingSections for EthernetDetails {
     }
 }
 
-fn link_sections(port: &Port, link: &Link, prefixed: bool) -> [Section; 6] {
+fn link_sections(port: &Port, link: &Link, prefixed: bool) -> Vec<Section> {
     let key = |label: &str| {
         if prefixed {
             format!("{} {label}", port.name)
@@ -78,7 +74,12 @@ fn link_sections(port: &Port, link: &Link, prefixed: bool) -> [Section; 6] {
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
         link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
-        Section::dictionary(port.adapter.iter().flat_map(Adapter::hardware_entries))
-            .titled(key("Hardware")),
     ]
+    .into_iter()
+    .chain(
+        port.adapter
+            .iter()
+            .map(|adapter| Section::from(adapter).titled(key("Hardware"))),
+    )
+    .collect()
 }

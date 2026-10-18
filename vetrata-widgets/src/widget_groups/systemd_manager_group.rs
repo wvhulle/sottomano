@@ -3,7 +3,6 @@ use std::time::Duration;
 use iced::{Subscription, Task};
 
 mod boot_timeline_reading;
-mod crashed_unit_actions;
 mod failed_unit_log;
 mod last_shutdown_reading;
 mod running_job_reading;
@@ -29,7 +28,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
-        group_item::{ConfiguredGroupItem, GroupItem},
+        group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{
@@ -50,71 +49,11 @@ pub fn elapsed_text(duration: Duration) -> String {
     }
 }
 
-pub trait UnitScopePresentation {
-    fn scope_icon(self) -> Phosphor;
-    fn scope_name(self) -> &'static str;
-    fn failed_units_label(self) -> &'static str;
-    fn slow_jobs_label(self) -> &'static str;
-    fn failed_units_target(self) -> SystemdTarget;
-    fn slow_jobs_target(self) -> SystemdTarget;
-    fn failed_unit_target(self, name: String) -> SystemdTarget;
-    fn slow_job_target(self, name: String) -> SystemdTarget;
-}
-
-impl UnitScopePresentation for SystemdUnitScope {
-    fn scope_icon(self) -> Phosphor {
-        match self {
+impl From<SystemdUnitScope> for Phosphor {
+    fn from(scope: SystemdUnitScope) -> Self {
+        match scope {
             SystemdUnitScope::UserSession => Phosphor::User(Weight::Regular),
             SystemdUnitScope::SystemWide => Phosphor::HardDrives(Weight::Regular),
-        }
-    }
-
-    fn scope_name(self) -> &'static str {
-        match self {
-            SystemdUnitScope::UserSession => "user",
-            SystemdUnitScope::SystemWide => "system",
-        }
-    }
-
-    fn failed_units_label(self) -> &'static str {
-        match self {
-            SystemdUnitScope::UserSession => "Failed user units",
-            SystemdUnitScope::SystemWide => "Failed system units",
-        }
-    }
-
-    fn slow_jobs_label(self) -> &'static str {
-        match self {
-            SystemdUnitScope::UserSession => "Slow user jobs",
-            SystemdUnitScope::SystemWide => "Slow system jobs",
-        }
-    }
-
-    fn failed_units_target(self) -> SystemdTarget {
-        match self {
-            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnits,
-            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnits,
-        }
-    }
-
-    fn slow_jobs_target(self) -> SystemdTarget {
-        match self {
-            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJobs,
-            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJobs,
-        }
-    }
-
-    fn failed_unit_target(self, name: String) -> SystemdTarget {
-        match self {
-            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnit(name),
-            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnit(name),
-        }
-    }
-
-    fn slow_job_target(self, name: String) -> SystemdTarget {
-        match self {
-            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJob(name),
-            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJob(name),
         }
     }
 }
@@ -132,6 +71,36 @@ pub enum SystemdTarget {
     SlowSystemJob(String),
     SlowUserJob(String),
     LastShutdown,
+}
+
+impl SystemdTarget {
+    fn failed_units(scope: SystemdUnitScope) -> Self {
+        match scope {
+            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnits,
+            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnits,
+        }
+    }
+
+    fn slow_jobs(scope: SystemdUnitScope) -> Self {
+        match scope {
+            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJobs,
+            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJobs,
+        }
+    }
+
+    fn failed_unit(scope: SystemdUnitScope, name: String) -> Self {
+        match scope {
+            SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnit(name),
+            SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnit(name),
+        }
+    }
+
+    fn slow_job(scope: SystemdUnitScope, name: String) -> Self {
+        match scope {
+            SystemdUnitScope::UserSession => SystemdTarget::SlowUserJob(name),
+            SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJob(name),
+        }
+    }
 }
 
 impl From<SystemdTarget> for HoverTarget {
@@ -274,29 +243,37 @@ impl SystemdManagerGroup {
                 }),
                 self.slow_system_jobs
                     .visible_reading()
-                    .map(|jobs| jobs.group_item(config))
+                    .map(|jobs| Self::slow_jobs_item(jobs, config))
                     .or_else(|| {
                         self.slow_system_jobs
                             .group_item(SystemdTarget::SlowSystemJobs)
                     }),
                 self.slow_user_jobs
                     .visible_reading()
-                    .map(|jobs| jobs.group_item(config))
+                    .map(|jobs| Self::slow_jobs_item(jobs, config))
                     .or_else(|| self.slow_user_jobs.group_item(SystemdTarget::SlowUserJobs)),
                 self.failed_system
                     .visible_reading()
-                    .map(|failed| failed.group_item(config))
+                    .map(|failed| Self::failed_units_item(failed, config))
                     .or_else(|| {
                         self.failed_system
                             .group_item(SystemdTarget::FailedSystemUnits)
                     }),
                 self.failed_user
                     .visible_reading()
-                    .map(|failed| failed.group_item(config))
+                    .map(|failed| Self::failed_units_item(failed, config))
                     .or_else(|| self.failed_user.group_item(SystemdTarget::FailedUserUnits)),
                 self.last_shutdown
                     .get()
-                    .map(|last| last.group_item(config))
+                    .map(|last| {
+                        GroupItem::reading(last, SystemdTarget::LastShutdown).on_press(
+                            TerminalCommand::JOURNAL_PRESS_HINT,
+                            SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+                                config,
+                                last.follow_log_args(),
+                            )),
+                        )
+                    })
                     .or_else(|| self.last_shutdown.group_item(SystemdTarget::LastShutdown)),
             ]
             .into_iter()
@@ -354,34 +331,16 @@ impl BarWidget for SystemdManagerGroup {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let count =
-            |key, count: Option<usize>| count.map(|count| KeyValue::new(key, count.to_string()));
+        let slow_jobs_count =
+            |jobs: &SlowJobs| KeyValue::new(jobs.name(), jobs.jobs.len().to_string());
+        let failed_units_count =
+            |failed: &FailedUnits| KeyValue::new(failed.name(), failed.units.len().to_string());
         TooltipBody::dictionary(
             [
-                count(
-                    SystemdUnitScope::SystemWide.slow_jobs_label(),
-                    self.slow_system_jobs
-                        .visible_reading()
-                        .map(|jobs| jobs.jobs.len()),
-                ),
-                count(
-                    SystemdUnitScope::UserSession.slow_jobs_label(),
-                    self.slow_user_jobs
-                        .visible_reading()
-                        .map(|jobs| jobs.jobs.len()),
-                ),
-                count(
-                    SystemdUnitScope::SystemWide.failed_units_label(),
-                    self.failed_system
-                        .visible_reading()
-                        .map(|failed| failed.units.len()),
-                ),
-                count(
-                    SystemdUnitScope::UserSession.failed_units_label(),
-                    self.failed_user
-                        .visible_reading()
-                        .map(|failed| failed.units.len()),
-                ),
+                self.slow_system_jobs.visible_reading().map(slow_jobs_count),
+                self.slow_user_jobs.visible_reading().map(slow_jobs_count),
+                self.failed_system.visible_reading().map(failed_units_count),
+                self.failed_user.visible_reading().map(failed_units_count),
             ]
             .into_iter()
             .flatten(),

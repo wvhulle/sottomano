@@ -14,8 +14,8 @@ struct ConcentrationThresholds {
     gauge_full_scale: f64,
 }
 
-impl From<Allergen> for ConcentrationThresholds {
-    fn from(allergen: Allergen) -> Self {
+impl ConcentrationThresholds {
+    const fn recommended_for(allergen: Allergen) -> Self {
         match allergen {
             Allergen::Alder => ConcentrationThresholds {
                 moderate: 10.0,
@@ -70,7 +70,7 @@ impl BarWidget for AllergenConcentration {
     }
 
     fn state(&self) -> WidgetState {
-        let thresholds = ConcentrationThresholds::from(self.allergen);
+        let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
         if self.grains_per_cubic_metre >= thresholds.high {
             WidgetState::Critical
         } else if self.grains_per_cubic_metre >= thresholds.moderate {
@@ -81,13 +81,13 @@ impl BarWidget for AllergenConcentration {
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        let full_scale = ConcentrationThresholds::from(self.allergen).gauge_full_scale;
+        let full_scale = ConcentrationThresholds::recommended_for(self.allergen).gauge_full_scale;
         let logarithmic_share = self.grains_per_cubic_metre.ln_1p() / full_scale.ln_1p();
         Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
     fn tooltip(&self) -> TooltipBody {
-        let thresholds = ConcentrationThresholds::from(self.allergen);
+        let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
         TooltipBody::sections([
             Section::dictionary([KeyValue::new(
                 self.allergen.name(),
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn gauge_is_empty_without_pollen_and_full_at_full_scale() {
         assert!(gauge_fill(0.0).abs() < f64::EPSILON);
-        let full_scale = ConcentrationThresholds::from(Allergen::Grass).gauge_full_scale;
+        let full_scale = ConcentrationThresholds::recommended_for(Allergen::Grass).gauge_full_scale;
         assert!((gauge_fill(full_scale) - 1.0).abs() < f64::EPSILON);
     }
 

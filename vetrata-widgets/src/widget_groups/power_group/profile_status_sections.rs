@@ -10,8 +10,8 @@ const HOLD_HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::new("Reason").align_x(Horizontal::Left),
 ];
 
-impl TableRow<2> for ProfileHold {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &ProfileHold {
+    fn table_record(self) -> TableRecord<2> {
         TableRecord::new(
             self.application_id.clone(),
             [
@@ -25,11 +25,7 @@ impl TableRow<2> for ProfileHold {
 impl ReadingSections for ProfileStatus {
     fn sections(&self) -> Vec<Section> {
         let held_by = (!self.holds.is_empty()).then(|| {
-            Section::column_table(
-                HOLD_HEADINGS,
-                self.holds.iter().map(ProfileHold::table_record),
-            )
-            .titled((
+            Section::column_table(HOLD_HEADINGS, self.holds.iter()).titled((
                 "Held by",
                 "Apps holding a profile until they finish; the slider follows them.",
             ))

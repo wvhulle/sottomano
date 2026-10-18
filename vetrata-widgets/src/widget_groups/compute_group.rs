@@ -7,15 +7,13 @@ mod cpu_temperature_label;
 mod memory_usage_gauge;
 mod x3d_cache_preference_toggle;
 
-use board_firmware_face::BoardFirmwareFace;
 use chiplet_live_state::ChipletLiveState;
-use core_grid_sections::ChipletSections;
 use iced::{Subscription, Task};
 use vetrata_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use vetrata_sources::{
     SourceDelivery,
     bus::DesktopBuses,
-    hardware::HostHardware,
+    hardware::{HostHardware, HostHardwareError},
     sysfs_sensors::{
         cpu_clock::CpuClock,
         cpu_power::CpuPower,
@@ -36,10 +34,9 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{ReadingSections, Section, Tooltip},
+        tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -52,6 +49,12 @@ pub enum ComputeTarget {
     Temperature,
     CachePreference,
     Board,
+}
+
+impl From<HostHardwareError> for Section {
+    fn from(error: HostHardwareError) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<ComputeTarget> for HoverTarget {
@@ -220,8 +223,9 @@ impl ComputeGroup {
                 ),
                 self.hardware
                     .get()
-                    .and_then(|hardware| BoardFirmwareFace::identified(&hardware.machine))
-                    .map(|board| GroupItem::reading(board, ComputeTarget::Board)),
+                    .map(|hardware| &hardware.machine)
+                    .filter(BarWidget::visible_in_bar)
+                    .map(|machine| GroupItem::reading(machine, ComputeTarget::Board)),
             ]
             .into_iter()
             .flatten(),
@@ -249,49 +253,52 @@ impl ComputeGroup {
         }
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
         let live = self.live();
         match target {
             ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
                 [
-                    self.core_loads.sections(|loads| loads.sections(&live)),
-                    self.cpu_power.sections(CpuPower::sections),
+                    self.core_loads
+                        .sections_described_by(|loads| live.core_load_sections(loads)),
+                    self.cpu_power.sections(),
                     self.hardware
-                        .sections(|hardware| vec![Section::from(&hardware.cpu)]),
+                        .sections_described_by(|hardware| vec![Section::from(&hardware.cpu)]),
                 ]
                 .concat(),
             ),
             ComputeTarget::Memory => self.memory.tooltip_with_sections(
                 [
-                    self.memory_processes.sections(MemoryProcesses::sections),
-                    self.module_temperatures
-                        .sections(MemoryModuleTemperatures::sections),
-                    self.hardware.sections(|hardware| {
-                        vec![Section::hardware_identity(
-                            hardware.memory.hardware_entries(),
-                        )]
-                    }),
+                    self.memory_processes.sections(),
+                    self.module_temperatures.sections(),
+                    self.hardware
+                        .sections_described_by(|hardware| vec![Section::from(&hardware.memory)]),
                 ]
                 .concat(),
             ),
-            ComputeTarget::CpuClock => self
-                .clock
-                .tooltip_with_sections(self.clock.sections(|clock| clock.sections(&live))),
+            ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
+                self.clock
+                    .sections_described_by(|clock| live.clock_sections(clock)),
+            ),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
-                    .sections(|temperatures| temperatures.sections(&live)),
+                    .sections_described_by(|temperatures| {
+                        live.core_temperature_sections(temperatures)
+                    }),
             ),
             ComputeTarget::CachePreference => self.cache_preference.tooltip().map(|tooltip| {
-                tooltip.with_sections(self.clock.sections(|clock| {
+                tooltip.with_sections(self.clock.sections_described_by(|clock| {
                     ChipletRoles {
                         topology: &clock.topology,
                     }
                     .sections()
                 }))
             }),
-            ComputeTarget::Board => self.hardware.tooltip_with(
-                BoardFirmwareFace::identified(&self.hardware.get()?.machine)?.tooltip(),
-            ),
+            ComputeTarget::Board => {
+                let machine = &self.hardware.get()?.machine;
+                self.hardware
+                    .tooltip_with(machine.visible_in_bar().then(|| machine.tooltip())?)
+            }
         }
     }
 }

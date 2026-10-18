@@ -9,7 +9,7 @@ use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
     ai::{
-        openrouter::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
+        openrouter::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
         working_time_forecast::SpendBudget,
     },
 };
@@ -23,7 +23,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         simple_icons::SimpleIcon,
-        tooltip_body::Tooltip,
+        tooltip_body::{Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -35,6 +35,15 @@ pub enum OpenRouterCreditTarget {
     SoftBudget,
     StrictBudget,
     ModelBreakdown,
+}
+
+impl From<openrouter::Error> for Section {
+    fn from(error: openrouter::Error) -> Self {
+        match error {
+            openrouter::Error::Fetch(fetch) => fetch.into(),
+            other => Section::error(other),
+        }
+    }
 }
 
 impl From<OpenRouterCreditTarget> for HoverTarget {

@@ -4,40 +4,82 @@ use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use vetrata_config::Config;
 use vetrata_sources::{
+    coredumps::{CoredumpEntry, CoredumpInspection},
     notifications::model::ActionTint,
-    systemd_manager::failed_units::{
-        FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+    systemd_manager::{
+        SystemdUnitScope,
+        failed_units::{
+            FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome, UNIT_FAILURE_PRIORITY,
+        },
     },
 };
 
-use super::crashed_unit_actions::CrashedProcess;
 use crate::{
     widget_groups::{
-        systemd_manager_group::{SystemdManagerMessage, UnitScopePresentation},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{ConfiguredGroupItem, GroupItem},
+        group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
+        phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl ConfiguredGroupItem<SystemdManagerMessage> for FailedUnits {
-    fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+impl SystemdManagerGroup {
+    pub(super) fn failed_units_item<'a>(
+        failed: &'a FailedUnits,
+        config: &'a Config,
+    ) -> GroupItem<'a, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
-        let failed_unit_toasts = self.units.iter().map(|unit| {
+        let failed_unit_toasts = failed.units.iter().map(|unit| {
             let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
-                self.scope.follow_units_log_args([unit.name.as_str()]),
+                failed.scope.follow_units_log_args([unit.name.as_str()]),
             ));
+            let inspect_coredump = |crash: &CoredumpEntry, inspection| {
+                SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
+                    config,
+                    crash.coredumpctl_args(inspection),
+                ))
+            };
+            let coredump_buttons = unit.crash.iter().flat_map(|crash| {
+                [
+                    OngoingToastActionButton {
+                        button_label: "Info".to_owned(),
+                        tint: ActionTint::Inspect,
+                        on_button_pressed: inspect_coredump(crash, CoredumpInspection::Info),
+                    },
+                    OngoingToastActionButton {
+                        button_label: "Debug".to_owned(),
+                        tint: ActionTint::Inspect,
+                        on_button_pressed: inspect_coredump(crash, CoredumpInspection::Debug),
+                    },
+                ]
+                .into_iter()
+                .chain(
+                    crash
+                        .stored_file
+                        .as_ref()
+                        .map(|file| OngoingToastActionButton {
+                            button_label: "Copy path".to_owned(),
+                            tint: ActionTint::Inspect,
+                            on_button_pressed: SystemdManagerMessage::CopyToClipboard(
+                                file.display().to_string(),
+                            ),
+                        }),
+                )
+            });
             OngoingToast {
-                widget_name: self.name(),
-                key: OngoingKey::Reading(self.scope.failed_unit_target(unit.name.clone()).into()),
+                widget_name: failed.name(),
+                key: OngoingKey::Reading(
+                    SystemdTarget::failed_unit(failed.scope, unit.name.clone()).into(),
+                ),
                 severity: UNIT_FAILURE_PRIORITY.severity(),
                 summary_text: Cow::Owned(format!("{} failed", unit.name)),
                 body: failure_summary(unit, config.calendar.locale)
@@ -51,7 +93,7 @@ impl ConfiguredGroupItem<SystemdManagerMessage> for FailedUnits {
                         tint: ActionTint::Proceed,
                         on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
                             FailedUnitRestart {
-                                per_user: self.scope.per_user(),
+                                per_user: failed.scope.per_user(),
                                 unit: unit.name.clone(),
                             },
                         ),
@@ -70,18 +112,14 @@ impl ConfiguredGroupItem<SystemdManagerMessage> for FailedUnits {
                     },
                 ]
                 .into_iter()
-                .chain(
-                    unit.crash
-                        .iter()
-                        .flat_map(|crash| CrashedProcess { crash }.action_buttons(config)),
-                )
+                .chain(coredump_buttons)
                 .collect(),
             }
         });
-        GroupItem::reading(self, self.scope.failed_units_target())
+        GroupItem::reading(failed, SystemdTarget::failed_units(failed.scope))
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
-                open_log(self.follow_log_args()),
+                open_log(failed.follow_log_args()),
             )
             .ongoing_toasts(failed_unit_toasts)
     }
@@ -111,11 +149,23 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
     let outcome_line = (!outcome.is_empty()).then(|| outcome.join(" · "));
     let lines: Vec<String> = outcome_line
         .into_iter()
-        .chain(
-            unit.crash
-                .iter()
-                .flat_map(|crash| CrashedProcess { crash }.labelled_fields()),
-        )
+        .chain(unit.crash.iter().flat_map(|crash| {
+            [
+                format!("<b>Signal</b> {}", crash.signal),
+                format!(
+                    "<b>Process</b> {} · PID {}",
+                    crash.executable.display(),
+                    crash.pid
+                ),
+            ]
+            .into_iter()
+            .chain(
+                crash
+                    .stored_file
+                    .as_ref()
+                    .map(|file| format!("<b>Core</b> <tt>{}</tt>", file.display())),
+            )
+        }))
         .collect();
     (!lines.is_empty()).then(|| lines.join("\n"))
 }
@@ -126,12 +176,14 @@ impl BarWidget for FailedUnits {
     }
 
     fn name(&self) -> &'static str {
-        self.scope.failed_units_label()
+        match self.scope {
+            SystemdUnitScope::UserSession => "Failed user units",
+            SystemdUnitScope::SystemWide => "Failed system units",
+        }
     }
 
     fn icon(&self) -> Glyph {
-        self.scope
-            .scope_icon()
+        Phosphor::from(self.scope)
             .with_weight(self.state().weight())
             .into()
     }
@@ -154,17 +206,17 @@ impl BarWidget for FailedUnits {
                 ColumnHeading::new("Reason").align_x(Horizontal::Left),
                 ColumnHeading::new("Failed"),
             ],
-            units.iter().map(FailedUnitInfo::table_record),
+            units.iter(),
         )
         .titled((
-            self.scope.failed_units_label(),
+            self.name(),
             "Units in the failed state now; each toasts until it recovers.",
         ))])
     }
 }
 
-impl TableRow<2> for FailedUnitInfo {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &FailedUnitInfo {
+    fn table_record(self) -> TableRecord<2> {
         let reason = self
             .service_outcome
             .as_ref()

@@ -16,7 +16,7 @@ use vetrata_sources::{
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
+    core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
@@ -142,15 +142,15 @@ impl BarWidget for Temperature {
     }
 }
 
-impl ChipletSections for CpuCoreTemperatures {
-    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+impl ChipletLiveState<'_> {
+    pub fn core_temperature_sections(&self, temperatures: &CpuCoreTemperatures) -> Vec<Section> {
         vec![
             CoreGridSection {
-                topology: &self.topology,
-                readings: &self.cores,
+                topology: &temperatures.topology,
+                readings: &temperatures.cores,
             }
             .section(
-                |group| live.title(group),
+                |group| self.title(group),
                 |group, members| {
                     members
                         .iter()
@@ -158,7 +158,7 @@ impl ChipletSections for CpuCoreTemperatures {
                         .reduce(ThermodynamicTemperature::max)
                         .map(|hottest| KeyValue::new("Hottest", celsius_text(hottest)))
                         .into_iter()
-                        .chain(live.facts(group))
+                        .chain(self.facts(group))
                         .collect()
                 },
             )

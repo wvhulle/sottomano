@@ -11,7 +11,7 @@ use vetrata_sources::{
     SourceDelivery,
     ai::{
         claude::{
-            ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
+            self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
             ClaudeOrganization, ClaudeUsageWindows,
         },
         working_time_forecast::SpendBudget,
@@ -25,7 +25,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
         simple_icons::SimpleIcon,
-        tooltip_body::{ReadingSections, Tooltip},
+        tooltip_body::{KeyValue, Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -38,6 +38,21 @@ pub enum ClaudeUsageTarget {
     EnterpriseSpend,
     CcusagePeriods,
     CcusageBlock,
+}
+
+impl From<claude::Error> for Section {
+    fn from(error: claude::Error) -> Self {
+        match error {
+            claude::Error::RateLimited(cause) | claude::Error::Fetch(cause) => cause.into(),
+            claude::Error::Backoff { remaining, cause } => {
+                Section::from(cause).with_entries([KeyValue::new(
+                    "Retry in",
+                    humantime::format_duration(remaining).to_string(),
+                )])
+            }
+            other => Section::error(other),
+        }
+    }
 }
 
 impl From<ClaudeUsageTarget> for HoverTarget {
@@ -176,12 +191,13 @@ impl ClaudeUsageGroup {
         Task::none()
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: ClaudeUsageTarget) -> Option<Tooltip> {
         match target {
             ClaudeUsageTarget::UsageWindows => self.usage_windows.tooltip(),
             ClaudeUsageTarget::EnterpriseSpend => self
                 .enterprise_spend
-                .tooltip_with_sections(self.organization.sections(ClaudeOrganization::sections)),
+                .tooltip_with_sections(self.organization.sections()),
             ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(),
             ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(),
         }

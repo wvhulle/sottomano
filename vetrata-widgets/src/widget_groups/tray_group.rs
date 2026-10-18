@@ -1,11 +1,12 @@
 pub mod menu_lines;
 
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::Arc};
 
 use iced::{
     Alignment, Element,
     widget::{Column, mouse_area},
 };
+use system_tray::error;
 use tokio::sync::mpsc;
 use vetrata_config::{Config, widget_groups::tray::ClickAction};
 use vetrata_sources::{
@@ -24,10 +25,16 @@ use crate::{
         group_item::GroupItem,
         icon_handle::PixmapHandles,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Tooltip, TooltipBody, TrayMenuBody, WholeBody},
+        tooltip_body::{Section, Tooltip, TooltipBody, TrayMenuBody, WholeBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
+
+impl From<Arc<error::Error>> for Section {
+    fn from(error: Arc<error::Error>) -> Self {
+        Section::error(error)
+    }
+}
 
 #[derive(Default)]
 pub struct TrayGroup {

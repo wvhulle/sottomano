@@ -3,16 +3,19 @@ use std::borrow::Cow;
 use chrono::{DateTime, Local};
 use iced::alignment::Horizontal;
 use vetrata_config::{Config, severity::Severity};
-use vetrata_sources::systemd_manager::running_jobs::{SlowJob, SlowJobs};
+use vetrata_sources::systemd_manager::{
+    SystemdUnitScope,
+    running_jobs::{SlowJob, SlowJobs},
+};
 
 use crate::{
     widget_groups::{
-        systemd_manager_group::{SystemdManagerMessage, UnitScopePresentation},
+        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{ConfiguredGroupItem, GroupItem},
+        group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         phosphor::Phosphor,
@@ -21,8 +24,8 @@ use crate::{
     },
 };
 
-impl TableRow<2> for SlowJob {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &SlowJob {
+    fn table_record(self) -> TableRecord<2> {
         TableRecord::new(
             self.unit.clone(),
             [
@@ -37,12 +40,15 @@ impl TableRow<2> for SlowJob {
     }
 }
 
-impl ConfiguredGroupItem<SystemdManagerMessage> for SlowJobs {
-    fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+impl SystemdManagerGroup {
+    pub(super) fn slow_jobs_item<'a>(
+        jobs: &'a SlowJobs,
+        config: &'a Config,
+    ) -> GroupItem<'a, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
         let locale = config.calendar.locale;
-        let slow_job_toasts = self.jobs.iter().map(|job| {
+        let slow_job_toasts = jobs.jobs.iter().map(|job| {
             let activity = match job.job_type.as_str() {
                 "start" => Cow::Borrowed("starting"),
                 "stop" => Cow::Borrowed("stopping"),
@@ -50,27 +56,32 @@ impl ConfiguredGroupItem<SystemdManagerMessage> for SlowJobs {
                 "reload" => Cow::Borrowed("reloading"),
                 other => Cow::Owned(format!("running its {other} job")),
             };
+            let scope_name = match jobs.scope {
+                SystemdUnitScope::UserSession => "user",
+                SystemdUnitScope::SystemWide => "system",
+            };
             OngoingToast {
-                widget_name: self.name(),
-                key: OngoingKey::Reading(self.scope.slow_job_target(job.unit.clone()).into()),
+                widget_name: jobs.name(),
+                key: OngoingKey::Reading(
+                    SystemdTarget::slow_job(jobs.scope, job.unit.clone()).into(),
+                ),
                 severity: Severity::Warning,
                 summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
                 body: OngoingBody::Text(format!(
-                    "since {} · {}",
+                    "since {} · {scope_name}",
                     LocalizedTimeFormat::TimeOfDay
                         .format(&DateTime::<Local>::from(job.started_at), locale),
-                    self.scope.scope_name()
                 )),
                 progress: None,
                 since: job.started_at,
-                on_body_clicked: open_log(self.scope.follow_units_log_args([job.unit.as_str()])),
+                on_body_clicked: open_log(jobs.scope.follow_units_log_args([job.unit.as_str()])),
                 action_buttons: Vec::new(),
             }
         });
-        GroupItem::reading(self, self.scope.slow_jobs_target())
+        GroupItem::reading(jobs, SystemdTarget::slow_jobs(jobs.scope))
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
-                open_log(self.follow_log_args()),
+                open_log(jobs.follow_log_args()),
             )
             .ongoing_toasts(slow_job_toasts)
     }
@@ -82,7 +93,10 @@ impl BarWidget for SlowJobs {
     }
 
     fn name(&self) -> &'static str {
-        self.scope.slow_jobs_label()
+        match self.scope {
+            SystemdUnitScope::UserSession => "Slow user jobs",
+            SystemdUnitScope::SystemWide => "Slow system jobs",
+        }
     }
 
     fn icon(&self) -> Glyph {
@@ -103,10 +117,10 @@ impl BarWidget for SlowJobs {
                 ColumnHeading::new("Job").align_x(Horizontal::Left),
                 ColumnHeading::new("Since"),
             ],
-            self.jobs.iter().map(SlowJob::table_record),
+            self.jobs.iter(),
         )
         .titled((
-            self.scope.slow_jobs_label(),
+            self.name(),
             "Start or stop jobs still running after slow_job_secs; each also raises a toast.",
         ))])
     }
