@@ -5,7 +5,6 @@ use iced::{
     event::listen_with,
     futures::Stream,
     mouse::Event,
-    time::every,
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
@@ -13,7 +12,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use vetrata_sources::{
     bus::{DesktopBuses, desktop_bus_events},
-    config_file_changes, desktop_entries, niri,
+    config_file_changes, desktop_entries, favicons, niri,
     notifications::{
         model::{Outbound, ServerEvent},
         server,
@@ -109,7 +108,9 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
             _ => None,
         }),
-        every(desktop_entries::RELOAD).map(|_| Message::ReloadDesktopEntries),
+        Subscription::run(desktop_entries::application_changes)
+            .map(|()| Message::ReloadDesktopEntries),
+        Subscription::run(favicons::profile_changes).map(|()| Message::FirefoxProfileChanged),
         niri_subscription(),
         notifications_subscription(),
         animation,

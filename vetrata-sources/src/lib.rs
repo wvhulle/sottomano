@@ -10,6 +10,7 @@ pub mod command;
 pub mod config_file_changes;
 pub mod coredumps;
 pub mod desktop_entries;
+pub mod directory_changes;
 pub mod disk;
 pub mod empty_text;
 pub mod favicons;

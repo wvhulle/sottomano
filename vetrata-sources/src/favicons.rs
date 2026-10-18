@@ -4,10 +4,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use futures::Stream;
 use niri_ipc::state::EventStreamState;
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 
-use crate::window_label::{WindowLabel, browser_page::strip_unread_badge};
+use crate::{
+    directory_changes::{WatchTarget, changes},
+    window_label::{WindowLabel, browser_page::strip_unread_badge},
+};
+
+const PLACES_DB: &str = "places.sqlite";
+const FAVICONS_DB: &str = "favicons.sqlite";
+const WAL_SUFFIX: &str = "-wal";
 
 #[derive(Debug, Clone)]
 pub struct RawFavicon {
@@ -51,33 +59,28 @@ pub fn resolve(titles: Vec<String>) -> HashMap<String, RawFavicon> {
         tracing::debug!("favicons: no Firefox profile under ~/.mozilla/firefox");
         return out;
     };
-    let Some(places) = fresh_copy(&profile.join("places.sqlite"), &cache_dir, "places.sqlite")
-    else {
+    let Some(places) = fresh_copy(&profile, &cache_dir, PLACES_DB) else {
         tracing::debug!(
-            "favicons: cannot copy places.sqlite from {}",
+            "favicons: cannot copy {PLACES_DB} from {}",
             profile.display()
         );
         return out;
     };
-    let Some(favicons_db) = fresh_copy(
-        &profile.join("favicons.sqlite"),
-        &cache_dir,
-        "favicons.sqlite",
-    ) else {
+    let Some(favicons_db) = fresh_copy(&profile, &cache_dir, FAVICONS_DB) else {
         tracing::debug!(
-            "favicons: cannot copy favicons.sqlite from {}",
+            "favicons: cannot copy {FAVICONS_DB} from {}",
             profile.display()
         );
         return out;
     };
-    let places_conn = match Connection::open(&places) {
+    let places_conn = match open_read_only(&places) {
         Ok(connection) => connection,
         Err(error) => {
             tracing::debug!("favicons: cannot open {}: {error}", places.display());
             return out;
         }
     };
-    let favicons_conn = match Connection::open(&favicons_db) {
+    let favicons_conn = match open_read_only(&favicons_db) {
         Ok(connection) => connection,
         Err(error) => {
             tracing::debug!("favicons: cannot open {}: {error}", favicons_db.display());
@@ -191,21 +194,48 @@ fn state_dir() -> Option<PathBuf> {
     Some(dir)
 }
 
-fn fresh_copy(src: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {
-    if !src.exists() {
-        return None;
+pub fn profile_changes() -> impl Stream<Item = ()> + Send {
+    let written = profile_dir()
+        .into_iter()
+        .flat_map(|profile| {
+            [PLACES_DB, FAVICONS_DB].into_iter().flat_map(move |name| {
+                [
+                    profile.join(name),
+                    profile.join(format!("{name}{WAL_SUFFIX}")),
+                ]
+            })
+        })
+        .map(WatchTarget::File)
+        .collect();
+    changes(written)
+}
+
+fn open_read_only(database: &Path) -> rusqlite::Result<Connection> {
+    Connection::open_with_flags(
+        database,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+}
+
+fn fresh_copy(profile: &Path, cache_dir: &Path, name: &str) -> Option<PathBuf> {
+    let database = copy_when_newer(&profile.join(name), &cache_dir.join(name))?;
+    let wal_name = format!("{name}{WAL_SUFFIX}");
+    if copy_when_newer(&profile.join(&wal_name), &cache_dir.join(&wal_name)).is_none() {
+        let _ = fs::remove_file(cache_dir.join(wal_name));
     }
-    let dst = cache_dir.join(name);
-    let stale = match fs::metadata(&dst).and_then(|m| m.modified()) {
-        Ok(dst_time) => fs::metadata(src)
-            .and_then(|m| m.modified())
-            .is_ok_and(|src_time| src_time > dst_time),
-        Err(_) => true,
-    };
+    Some(database)
+}
+
+fn copy_when_newer(src: &Path, dst: &Path) -> Option<PathBuf> {
+    let src_time = fs::metadata(src).and_then(|m| m.modified()).ok()?;
+    let stale = fs::metadata(dst)
+        .and_then(|m| m.modified())
+        .ok()
+        .is_none_or(|dst_time| src_time > dst_time);
     if stale {
-        fs::copy(src, &dst).ok()?;
+        fs::copy(src, dst).ok()?;
     }
-    Some(dst)
+    Some(dst.to_path_buf())
 }
 
 fn classify(blob: &[u8]) -> FaviconKind {

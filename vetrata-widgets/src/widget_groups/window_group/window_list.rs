@@ -1,11 +1,10 @@
-use std::{collections::HashMap, time::Duration};
+use std::collections::HashMap;
 
 use iced::{
     Alignment, Border, Element, Length, Subscription, Task,
     alignment::{Horizontal, Vertical},
     border,
     border::Radius,
-    time::every,
     widget::{Row, container, progress_bar, stack, text},
 };
 use vetrata_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
@@ -50,8 +49,6 @@ use crate::{
     },
 };
 
-const ICONS_BACKSTOP: Duration = Duration::from_secs(20);
-
 #[derive(Default)]
 pub struct WindowList {
     launcher: LauncherEntries,
@@ -77,7 +74,6 @@ pub enum WindowListMessage {
     ProcessFoldToggled(i32),
     ProcessInspected(Box<SourceDelivery<Inspection>>),
     PackageFactsRead(Box<SourceDelivery<NixPackageFacts>>),
-    IconsBackstopElapsed,
     Scrolled(f32),
     MetricsChanged(Metrics),
     Drag(DragMessage),
@@ -86,7 +82,6 @@ pub enum WindowListMessage {
 pub enum Action {
     None,
     ToggleAudio(i32),
-    RefreshIcons,
     WindowProcessesPaired,
     Drag(DragMessage),
 }
@@ -94,7 +89,6 @@ pub enum Action {
 impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
-            every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
             restarting_subscription("job view", job_view::serve)
                 .map(WindowListMessage::JobsChanged),
             if agents.kitty {
@@ -204,7 +198,6 @@ impl WindowList {
                 self.package_facts.receive_delivery(*fetched);
                 Action::None
             }
-            WindowListMessage::IconsBackstopElapsed => Action::RefreshIcons,
             WindowListMessage::Scrolled(offset) => {
                 self.scroll = offset.clamp(0.0, self.metrics.max_scroll());
                 Action::None
