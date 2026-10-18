@@ -1,0 +1,56 @@
+when:
+  - repo: wvhulle/vetrata
+    event: [push, manual]
+    branch: main
+
+depends_on:
+  - checks
+
+variables:
+  - &recordings_branch readme-recordings
+  - &recordings_title "docs: update README recordings"
+
+steps:
+  - name: render-readme-recordings
+    image: nixos/nix:latest
+    environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        extra-substituters = https://wvhulle.cachix.org
+        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+      CACHIX_AUTH_TOKEN:
+        from_secret: cachix_auth_token
+    commands:
+      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#readme-showcase
+      - cp result/*.webp recordings/
+
+  - name: push-readme-recordings-branch
+    image: appleboy/drone-git-push
+    settings:
+      remote: https://codeberg.org/${CI_REPO}.git
+      netrc_machine: codeberg.org
+      username: wvhulle
+      password:
+        from_secret: codeberg_token
+      branch: *recordings_branch
+      force: true
+      commit: true
+      commit_message: *recordings_title
+      author_name: vetrata-ci
+      author_email: willemvanhulle@protonmail.com
+
+  - name: open-readme-recordings-pr
+    image: woodpeckercommunity/gitea-pull-request-create-plugin:latest
+    settings:
+      gitea_address: https://codeberg.org
+      gitea_token:
+        from_secret: codeberg_token
+      owner: ${CI_REPO_OWNER}
+      repo: ${CI_REPO_NAME}
+      branch: *recordings_branch
+      base_branch: main
+      pr_title: *recordings_title
+      pr_body: Re-rendered by the readme-recordings pipeline.
+      skip_on_empty_branch: true
+      close_pr_if_empty: true
+      delete_branch_if_empty: true

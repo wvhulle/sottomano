@@ -1,0 +1,70 @@
+when:
+  - repo: wvhulle/vetrata
+    event: pull_request
+  - repo: wvhulle/vetrata
+    event: [push, manual]
+    branch: main
+
+variables:
+  - &nix_config
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      extra-substituters = https://wvhulle.cachix.org
+      extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+  - &cache_writing_env
+    <<: *nix_config
+    CACHIX_AUTH_TOKEN:
+      from_secret: cachix_auth_token
+  - &on_trusted_events
+    - event: [push, manual]
+  - &on_pull_requests
+    - event: pull_request
+
+steps:
+  - name: cargo-test
+    image: nixos/nix:latest
+    depends_on: []
+    when: *on_trusted_events
+    environment: *cache_writing_env
+    commands:
+      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#checks.x86_64-linux.tests
+
+  - name: cargo-test-pr
+    image: nixos/nix:latest
+    depends_on: []
+    when: *on_pull_requests
+    environment: *nix_config
+    commands:
+      - nix build --print-build-logs .#checks.x86_64-linux.tests
+
+  - name: clippy
+    image: nixos/nix:latest
+    depends_on: []
+    when: *on_trusted_events
+    environment: *cache_writing_env
+    commands:
+      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#checks.x86_64-linux.clippy
+
+  - name: clippy-pr
+    image: nixos/nix:latest
+    depends_on: []
+    when: *on_pull_requests
+    environment: *nix_config
+    commands:
+      - nix build --print-build-logs .#checks.x86_64-linux.clippy
+
+  - name: rustfmt
+    image: nixos/nix:latest
+    depends_on: []
+    environment: *nix_config
+    commands:
+      - nix build --print-build-logs .#checks.x86_64-linux.fmt
+
+  - name: conventional-commits
+    image: nixos/nix:latest
+    depends_on: []
+    when: *on_pull_requests
+    environment: *nix_config
+    commands:
+      - git fetch --quiet origin "$${CI_COMMIT_TARGET_BRANCH}"
+      - nix run --inputs-from . nixpkgs#convco -- check FETCH_HEAD..HEAD

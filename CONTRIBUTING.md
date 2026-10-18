@@ -16,6 +16,12 @@ debug run, `cargo clippy --workspace --all-targets` before committing — the
 workspace warns on clippy pedantic plus `absolute_paths` — and `cargo fmt`, which
 needs a nightly toolchain for the options in `.rustfmt.toml`. Version control is jj, not the `git` CLI.
 
+Woodpecker CI (`.woodpecker/`) builds the flake `checks` — tests, clippy and
+rustfmt — on pull requests and `main`, and checks pull request commits against
+Conventional Commits (`nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After checks
+pass on `main`, the `readme-recordings` pipeline re-renders the tour and opens
+a pull request when the recordings changed.
+
 ## Conventions
 
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;

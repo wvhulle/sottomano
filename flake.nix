@@ -78,7 +78,14 @@
         cargoExtraArgs = "--locked -p vetrata-readme-showcase";
       };
 
+      workspaceArgs = commonArgs // {
+        pname = "vetrata-workspace";
+        cargoExtraArgs = "--locked --workspace";
+      };
+
       shellArtifacts = craneLib.buildDepsOnly shellArgs;
+
+      workspaceArtifacts = craneLib.buildDepsOnly workspaceArgs;
 
       showcaseArtifacts = craneLib.buildDepsOnly showcaseArgs;
 
@@ -173,6 +180,24 @@
         vetrata = vetrata;
         deps = showcaseArtifacts;
         readme-showcase = readmeShowcase;
+      };
+
+      checks.${system} = {
+        tests = craneLib.cargoTest (
+          workspaceArgs
+          // {
+            cargoArtifacts = workspaceArtifacts;
+            doInstallCargoArtifacts = false;
+          }
+        );
+        clippy = craneLib.cargoClippy (
+          workspaceArgs
+          // {
+            cargoArtifacts = workspaceArtifacts;
+            cargoClippyExtraArgs = "--all-targets";
+          }
+        );
+        fmt = craneLib.cargoFmt { inherit src; };
       };
 
       homeModules.default = {
