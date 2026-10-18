@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use iced::{Font, window::Id};
+use iced::window::Id;
 use iced_exwlshell::to_layer_message;
 use vetrata_config::{Config, LoadError};
 use vetrata_sources::{
@@ -100,7 +100,6 @@ pub enum Message {
     DesktopEntriesLoaded(Arc<DesktopEntries>),
     IconsResolved(ResolvedIcons),
     FaviconsResolved(HashMap<String, RawFavicon>),
-    FallbackFontsResolved(HashMap<char, Font>),
     DismissPressed,
     Niri(Vec<niri_ipc::Event>),
     Redraw,

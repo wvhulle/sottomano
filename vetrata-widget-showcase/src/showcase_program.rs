@@ -25,7 +25,7 @@ use vetrata_widgets::{
         favicon::Favicons,
         palette_colors::PaletteColors,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
-        text::{FontFaces, FontFallbacks},
+        text::FontFaces,
         tooltip_body::Tooltip,
         window_icon::WindowAssets,
     },
@@ -83,7 +83,6 @@ pub struct ShowcaseState {
     shell_settings: ShellSettings,
     desktop_entries: DesktopIndex,
     favicons: Favicons,
-    font_fallbacks: FontFallbacks,
     theme: Theme,
     group: ShowcasedGroup,
     tooltip: TooltipHost,
@@ -92,6 +91,7 @@ pub struct ShowcaseState {
 
 impl ShowcaseState {
     fn boot(demo: &'static Demo, config: &Config) -> (Self, Task<Message>) {
+        FontFaces::point_generic_families_at(&config.theme);
         let mut tooltip = TooltipHost::default();
         let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
         let mut shell_settings = ShellSettings::default();
@@ -108,7 +108,6 @@ impl ShowcaseState {
             shell_settings,
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
-            font_fallbacks: FontFallbacks::naming_theme_families(&config.theme),
             theme: Theme::from(&PaletteColors::from(&config.theme.palette)),
             group,
             tooltip,
@@ -198,7 +197,6 @@ impl ShowcaseState {
             WindowAssets {
                 entries: &self.desktop_entries,
                 favicons: &self.favicons,
-                fallbacks: &self.font_fallbacks,
             },
             |target| {
                 self.group

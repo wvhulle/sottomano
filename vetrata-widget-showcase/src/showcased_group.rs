@@ -24,8 +24,7 @@ use vetrata_widgets::{
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
-        pointer_drag::DragView, text::FontFallbacks, tooltip_body::Tooltip,
-        window_icon::WindowAssets,
+        pointer_drag::DragView, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
@@ -108,7 +107,6 @@ pub struct ShowcasedNiriSession {
     pub snapshot: ContinuousReading<Snapshot>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
-    pub font_fallbacks: FontFallbacks,
 }
 
 impl ShowcasedNiriSession {
@@ -149,7 +147,6 @@ impl ShowcasedNiriSession {
                 WindowAssets {
                     entries: &self.desktop_entries,
                     favicons: &self.favicons,
-                    fallbacks: &self.font_fallbacks,
                 },
                 None,
                 SHOWCASE_OUTPUT,

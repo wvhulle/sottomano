@@ -122,9 +122,7 @@ fn action(key: &str, label: &str) -> NotifAction {
 }
 
 fn desk(opening: NotificationData) -> ShowcasedGroup {
-    let editor_view = opening
-        .window_id_hint
-        .map(|_| EDITOR_POSITION_IN_VIEW);
+    let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
     let niri = [workspaces(), windows(editor_view)].into_iter().fold(
         EventStreamState::default(),
         |mut state, event| {

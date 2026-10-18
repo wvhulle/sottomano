@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, fs, io, process::Command, sync::Arc};
+use std::{fmt, fs, io, process::Command, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
@@ -44,7 +44,6 @@ pub struct ResolvedFont {
     pub small_text_size_px: f32,
     pub icon_size_px: f32,
     pub data: Arc<[u8]>,
-    pub covered: Arc<HashSet<char>>,
 }
 
 impl ResolvedFont {
@@ -108,11 +107,10 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
         file: matched.file.clone(),
         error,
     })?;
-    let face = ttf_parser::Face::parse(&bytes, 0).map_err(|error| FontError::Unparsable {
+    ttf_parser::Face::parse(&bytes, 0).map_err(|error| FontError::Unparsable {
         file: matched.file.clone(),
         error,
     })?;
-    let covered = covered_chars(&face);
     let text_size_px = config.text_size_px()?;
     Ok(ResolvedFont {
         role,
@@ -121,29 +119,7 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
         small_text_size_px: config.small_text_size.resolve(text_size_px),
         icon_size_px: config.icon_size.resolve(text_size_px),
         data: Arc::from(bytes),
-        covered: Arc::new(covered),
     })
-}
-
-fn covered_chars(face: &ttf_parser::Face) -> HashSet<char> {
-    let mut set = HashSet::new();
-    if let Some(cmap) = face.tables().cmap {
-        for subtable in cmap.subtables {
-            if subtable.is_unicode() {
-                subtable.codepoints(|cp| {
-                    if let Some(ch) = char::from_u32(cp) {
-                        set.insert(ch);
-                    }
-                });
-            }
-        }
-    }
-    set
-}
-
-#[must_use]
-pub fn fallback_family(ch: char) -> Option<String> {
-    fc_match(&format!(":charset={:x}", ch as u32), "%{family}")
 }
 
 fn fc_match_stdout(pattern: &str, format: &str) -> Option<String> {
@@ -155,12 +131,6 @@ fn fc_match_stdout(pattern: &str, format: &str) -> Option<String> {
         .status
         .success()
         .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
-}
-
-fn fc_match(pattern: &str, format: &str) -> Option<String> {
-    let stdout = fc_match_stdout(pattern, format)?;
-    let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
-    (!value.is_empty()).then_some(value)
 }
 
 struct FontMatch {

@@ -507,7 +507,7 @@ fn button_content<'a>(
     let title = win
         .label
         .as_ref()
-        .map(|label| WindowTitle::new(label, config, icons.fallbacks).opacity(opacity));
+        .map(|label| WindowTitle::new(label, config).opacity(opacity));
     Row::new()
         .extend(icon)
         .extend(title.map(Element::from))

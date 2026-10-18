@@ -12,7 +12,6 @@ use crate::{
     widgets::{
         favicon::Favicons,
         palette_colors::PaletteColors,
-        text::FontFallbacks,
         tooltip_body::{PreviewTile, WorkspacePreview},
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
@@ -36,7 +35,6 @@ pub struct WorkspaceSchematic<'a> {
     config: &'a Config,
     corner_radius: Radius,
     favicons: &'a Favicons,
-    fallbacks: &'a FontFallbacks,
 }
 
 impl<'a> WorkspaceSchematic<'a> {
@@ -52,7 +50,6 @@ impl<'a> WorkspaceSchematic<'a> {
             config,
             corner_radius,
             favicons: assets.favicons,
-            fallbacks: assets.fallbacks,
         }
     }
 
@@ -158,7 +155,7 @@ impl<'a> WorkspaceSchematic<'a> {
     }
 
     fn label(&self, label: &WindowLabel) -> Element<'static, Message> {
-        WindowTitle::new(label, self.config, self.fallbacks)
+        WindowTitle::new(label, self.config)
             .size(self.config.theme.font.small_text_size_px)
             .wrapping(Wrapping::WordOrGlyph)
             .into()
