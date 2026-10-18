@@ -1,7 +1,7 @@
-use std::{future::ready, time::Duration};
+use std::future::ready;
 
 use iced::{
-    Subscription, Task,
+    Subscription,
     event::listen_with,
     futures::Stream,
     mouse::Event,
@@ -12,7 +12,6 @@ use iced_wayland_subscriber::output::{self, OutputEvent};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use vetrata_sources::{
-    background_work::blocking,
     bus::{DesktopBuses, desktop_bus_events},
     config_file_changes, desktop_entries, niri,
     notifications::{

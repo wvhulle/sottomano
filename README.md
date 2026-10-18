@@ -16,15 +16,15 @@ CPU, memory and temperature, with live detail on hover.
 
 #### CPU
 
-<img src="recordings/compute-cpu.webp" width="720" alt="Expanding the compute group from the CPU reading">
+<img src="recordings/compute_cpu.webp" width="720" alt="Expanding the compute group from the CPU reading">
 
 #### Memory
 
-<img src="recordings/compute-memory.webp" width="720" alt="Hovering memory in the expanded compute group">
+<img src="recordings/compute_memory.webp" width="720" alt="Hovering memory in the expanded compute group">
 
 #### Temperature
 
-<img src="recordings/compute-temperature.webp" width="720" alt="Hovering temperature in the expanded compute group">
+<img src="recordings/compute_temperature.webp" width="720" alt="Hovering temperature in the expanded compute group">
 
 ### Weather
 
@@ -32,11 +32,11 @@ Current conditions with the hourly forecast, and where the location fix came fro
 
 #### Conditions
 
-<img src="recordings/weather-conditions.webp" width="720" alt="Pressing the temperature in the weather group">
+<img src="recordings/weather_conditions.webp" width="720" alt="Pressing the temperature in the weather group">
 
 #### Location
 
-<img src="recordings/weather-location.webp" width="720" alt="Hovering the location in the weather group">
+<img src="recordings/weather_location.webp" width="720" alt="Hovering the location in the weather group">
 
 ### AI usage
 
@@ -44,7 +44,7 @@ Subscription windows, their projected use at reset, and extra spend.
 
 #### Usage windows
 
-<img src="recordings/ai-usage-windows.webp" width="720" alt="Expanding the AI usage group and hovering the Claude usage windows">
+<img src="recordings/ai_usage_windows.webp" width="720" alt="Expanding the AI usage group and hovering the Claude usage windows">
 
 ### Media
 
@@ -52,7 +52,7 @@ The playing track with its progress and where to find it.
 
 #### Track
 
-<img src="recordings/media-track.webp" width="720" alt="Hovering the playing track">
+<img src="recordings/media_track.webp" width="720" alt="Hovering the playing track">
 
 ### Idle timeouts
 
@@ -60,11 +60,11 @@ Idle timeouts as sliders, each saying when it fires and how.
 
 #### Screen off
 
-<img src="recordings/idle-screen-off.webp" width="720" alt="Expanding the idle timeouts and hovering the screen-off timer">
+<img src="recordings/idle_screen_off.webp" width="720" alt="Expanding the idle timeouts and hovering the screen-off timer">
 
 #### Lock
 
-<img src="recordings/idle-lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
+<img src="recordings/idle_lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
 
 ### Audio
 
@@ -72,11 +72,11 @@ Volume and microphone level as sliders that open in place, with a live level met
 
 #### Volume
 
-<img src="recordings/audio-volume.webp" width="720" alt="Opening the volume slider and dragging it">
+<img src="recordings/audio_volume.webp" width="720" alt="Opening the volume slider and dragging it">
 
 #### Microphone
 
-<img src="recordings/audio-microphone.webp" width="720" alt="Expanding the audio group and hovering the microphone">
+<img src="recordings/audio_microphone.webp" width="720" alt="Expanding the audio group and hovering the microphone">
 
 ### Wallpaper
 
@@ -84,11 +84,11 @@ The place in the current wallpaper and its Wikipedia summary.
 
 #### Place
 
-<img src="recordings/wallpaper-place.webp" width="720" alt="Expanding the wallpaper group from the place lookup">
+<img src="recordings/wallpaper_place.webp" width="720" alt="Expanding the wallpaper group from the place lookup">
 
 #### Article
 
-<img src="recordings/wallpaper-article.webp" width="720" alt="Hovering the Wikipedia article in the wallpaper group">
+<img src="recordings/wallpaper_article.webp" width="720" alt="Hovering the Wikipedia article in the wallpaper group">
 
 ## Bottom panel
 
@@ -98,7 +98,7 @@ A preview of each workspace.
 
 #### Previews
 
-<img src="recordings/bottom-workspaces.webp" width="720" alt="Hovering a workspace in the bottom panel">
+<img src="recordings/bottom_workspaces.webp" width="720" alt="Hovering a workspace in the bottom panel">
 
 ### Windows
 
@@ -106,11 +106,11 @@ Every window, and the process tree behind the focused one.
 
 #### Window
 
-<img src="recordings/bottom-window.webp" width="720" alt="Hovering a window in the bottom panel">
+<img src="recordings/bottom_window.webp" width="720" alt="Hovering a window in the bottom panel">
 
 #### Process inspector
 
-<img src="recordings/bottom-process-inspector.webp" width="720" alt="Hovering the process inspector of a window">
+<img src="recordings/bottom_process_inspector.webp" width="720" alt="Hovering the process inspector of a window">
 
 ## Workspace sidebar
 
@@ -120,7 +120,33 @@ Workspaces can also sit in a vertical sidebar, with the same previews.
 
 #### Previews
 
-<img src="recordings/sidebar-workspaces.webp" width="720" alt="Hovering each workspace in the vertical sidebar">
+<img src="recordings/sidebar_workspaces.webp" width="720" alt="Hovering each workspace in the vertical sidebar">
+
+## Overlays
+
+### Notification toasts
+
+Notifications appear as toasts, next to the window that sent them when it is on screen.
+
+#### Arrival
+
+<img src="recordings/toast_arrival.webp" width="720" alt="A toast arriving, holding while hovered and expiring">
+
+#### Progress
+
+<img src="recordings/toast_progress.webp" width="720" alt="A download toast with a rising progress bar">
+
+#### Actions
+
+<img src="recordings/toast_actions.webp" width="720" alt="Hovering the actions of an invitation toast and accepting it">
+
+#### Reply
+
+<img src="recordings/toast_reply.webp" width="720" alt="Typing an inline reply into a chat toast and sending it">
+
+#### Next to its window
+
+<img src="recordings/toast_window_anchored.webp" width="720" alt="A build toast placed beside the terminal that sent it">
 
 ## Run
 

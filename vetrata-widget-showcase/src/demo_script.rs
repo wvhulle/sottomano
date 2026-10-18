@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use vetrata_widgets::{
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
@@ -15,8 +17,8 @@ use vetrata_widgets::{
 
 use crate::{
     fixtures::{
-        audio, claude_usage, compute, idle_lock, media, niri_session, unchanging, wallpaper,
-        weather,
+        audio, claude_usage, compute, idle_lock, media, niri_session, notification_toasts,
+        unchanging, wallpaper, weather,
     },
     showcased_group::ShowcasedGroup,
 };
@@ -32,17 +34,21 @@ pub enum Step {
     Hover(HoverTarget),
     Press(HoverTarget),
     Drag { target: HoverTarget, by: f32 },
+    HoverText(&'static str),
+    PressText(&'static str),
+    TypeReply(&'static str),
+    RestFor(Duration),
 }
 
 pub const DEMOS: &[Demo] = &[
     Demo {
-        name: "compute-cpu",
+        name: "compute_cpu",
         group: compute::group,
         live: compute::live,
         script: &[Step::Press(HoverTarget::Compute(ComputeTarget::Cpu))],
     },
     Demo {
-        name: "compute-memory",
+        name: "compute_memory",
         group: compute::group,
         live: compute::live,
         script: &[
@@ -51,7 +57,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "compute-temperature",
+        name: "compute_temperature",
         group: compute::group,
         live: compute::live,
         script: &[
@@ -60,13 +66,15 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "weather-conditions",
+        name: "weather_conditions",
         group: weather::group,
         live: unchanging,
-        script: &[Step::Press(HoverTarget::Weather(WeatherTarget::Temperature))],
+        script: &[Step::Press(HoverTarget::Weather(
+            WeatherTarget::Temperature,
+        ))],
     },
     Demo {
-        name: "weather-location",
+        name: "weather_location",
         group: weather::group,
         live: unchanging,
         script: &[
@@ -75,7 +83,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "ai-usage-windows",
+        name: "ai_usage_windows",
         group: claude_usage::group,
         live: claude_usage::live,
         script: &[
@@ -84,13 +92,13 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "media-track",
+        name: "media_track",
         group: media::group,
         live: media::live,
         script: &[Step::Hover(HoverTarget::Media(MediaTarget::Track))],
     },
     Demo {
-        name: "idle-screen-off",
+        name: "idle_screen_off",
         group: idle_lock::group,
         live: unchanging,
         script: &[
@@ -99,7 +107,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "idle-lock",
+        name: "idle_lock",
         group: idle_lock::group,
         live: unchanging,
         script: &[
@@ -108,7 +116,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "audio-volume",
+        name: "audio_volume",
         group: audio::group,
         live: audio::live,
         script: &[
@@ -121,7 +129,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "audio-microphone",
+        name: "audio_microphone",
         group: audio::group,
         live: audio::live,
         script: &[
@@ -132,13 +140,13 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "wallpaper-place",
+        name: "wallpaper_place",
         group: wallpaper::group,
         live: unchanging,
         script: &[Step::Press(HoverTarget::Wallpaper(WallpaperTarget::Lookup))],
     },
     Demo {
-        name: "wallpaper-article",
+        name: "wallpaper_article",
         group: wallpaper::group,
         live: unchanging,
         script: &[
@@ -147,25 +155,25 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "bottom-workspaces",
+        name: "bottom_workspaces",
         group: niri_session::bottom_bar,
         live: unchanging,
         script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
     Demo {
-        name: "bottom-window",
+        name: "bottom_window",
         group: niri_session::bottom_bar,
         live: unchanging,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
     },
     Demo {
-        name: "bottom-process-inspector",
+        name: "bottom_process_inspector",
         group: niri_session::bottom_bar,
         live: unchanging,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],
     },
     Demo {
-        name: "sidebar-workspaces",
+        name: "sidebar_workspaces",
         group: niri_session::workspace_sidebar,
         live: unchanging,
         script: &[
@@ -173,5 +181,42 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::Workspace(2)),
             Step::Hover(HoverTarget::Workspace(3)),
         ],
+    },
+    Demo {
+        name: "toast_arrival",
+        group: notification_toasts::arrival,
+        live: unchanging,
+        script: &[
+            Step::HoverText(notification_toasts::ARRIVAL_SUMMARY),
+            Step::RestFor(Duration::from_secs(5)),
+        ],
+    },
+    Demo {
+        name: "toast_progress",
+        group: notification_toasts::progress,
+        live: notification_toasts::downloading,
+        script: &[Step::RestFor(Duration::from_secs(10))],
+    },
+    Demo {
+        name: "toast_actions",
+        group: notification_toasts::actions,
+        live: unchanging,
+        script: &[
+            Step::HoverText("Later"),
+            Step::HoverText("Decline"),
+            Step::PressText("Accept"),
+        ],
+    },
+    Demo {
+        name: "toast_reply",
+        group: notification_toasts::reply,
+        live: unchanging,
+        script: &[Step::TypeReply("Sure, see you there")],
+    },
+    Demo {
+        name: "toast_window_anchored",
+        group: notification_toasts::next_to_window,
+        live: unchanging,
+        script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
     },
 ];

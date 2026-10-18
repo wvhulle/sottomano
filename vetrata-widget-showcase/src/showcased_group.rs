@@ -1,7 +1,12 @@
-use iced::{Element, widget::container};
+use iced::{
+    Element, Length, Padding, border,
+    widget::{Column, container, stack, text},
+};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_sources::{niri::Snapshot, niri_config::ConfiguredWorkspaces};
+use vetrata_sources::{
+    niri::Snapshot, niri_config::ConfiguredWorkspaces, notifications::model::NotificationData,
+};
 use vetrata_widgets::{
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
@@ -18,14 +23,15 @@ use vetrata_widgets::{
         workspaces_group::{self, workspace_tooltip},
     },
     widgets::{
-        continuous_reading::ContinuousReading, favicon::Favicons, pointer_drag::DragView,
-        text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
+        continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
+        pointer_drag::DragView, text::FontFallbacks, tooltip_body::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
 use crate::fixtures::{compute, niri_session};
 
-pub const SHOWCASE_OUTPUT: &str = "readme-showcase";
+pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
 
 fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
     snapshot
@@ -52,6 +58,43 @@ pub enum ShowcasedGroup {
     Audio(Box<AudioGroup>),
     BottomBar(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
+    Toasts(Box<ShowcasedToasts>),
+}
+
+pub struct ShowcasedToasts {
+    pub niri: EventStreamState,
+    pub opening: Vec<NotificationData>,
+}
+
+impl ShowcasedToasts {
+    fn window_frames<'a>(&'a self, config: &'a Config) -> Element<'a, Message> {
+        let palette = PaletteColors::from(&config.theme.palette);
+        let frames = self.niri.windows.windows.values().filter_map(|window| {
+            let (x, y) = window.layout.tile_pos_in_workspace_view?;
+            let (width, height) = window.layout.window_size;
+            let title = window
+                .title
+                .as_deref()
+                .map(|title| text(title).color(palette.bar_foreground).into());
+            let frame = container(Column::with_children(title))
+                .padding(config.layout.overlay.content_inset)
+                .width(Length::Fixed(f32::from(u16::try_from(width).ok()?)))
+                .height(Length::Fixed(f32::from(u16::try_from(height).ok()?)))
+                .style(move |_| container::Style {
+                    background: Some(palette.surface.into()),
+                    border: border::rounded(config.layout.overlay.content_inset)
+                        .color(palette.bar_foreground.scale_alpha(0.4))
+                        .width(1.0),
+                    ..container::Style::default()
+                });
+            Some(
+                container(frame)
+                    .padding(Padding::ZERO.top(y as f32).left(x as f32))
+                    .into(),
+            )
+        });
+        stack(frames).into()
+    }
 }
 
 pub struct ShowcasedMedia {
@@ -145,7 +188,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
-            | ShowcasedGroup::Audio(_) => Position::Top,
+            | ShowcasedGroup::Audio(_)
+            | ShowcasedGroup::Toasts(_) => Position::Top,
         }
     }
 
@@ -183,6 +227,7 @@ impl ShowcasedGroup {
                 .view(config, position),
             ShowcasedGroup::BottomBar(session) => return session.bottom_bar_groups(config),
             ShowcasedGroup::WorkspaceSidebar(session) => return session.sidebar_groups(config),
+            ShowcasedGroup::Toasts(_) => return Vec::new(),
         };
         single.into_iter().collect()
     }
@@ -229,6 +274,7 @@ impl ShowcasedGroup {
                     let _ = session.window_group.update(message);
                 }
             }
+            ShowcasedGroup::Toasts(_) => {}
         }
     }
 
@@ -259,7 +305,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
-            | ShowcasedGroup::Audio(_) => {}
+            | ShowcasedGroup::Audio(_)
+            | ShowcasedGroup::Toasts(_) => {}
         }
     }
 
@@ -310,6 +357,37 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.tooltip_for(target)
             }
+            ShowcasedGroup::Toasts(_) => None,
+        }
+    }
+
+    pub fn niri(&self) -> Option<&EventStreamState> {
+        match self {
+            ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
+                Some(&session.niri)
+            }
+            ShowcasedGroup::Toasts(toasts) => Some(&toasts.niri),
+            ShowcasedGroup::Compute(_)
+            | ShowcasedGroup::Weather(_)
+            | ShowcasedGroup::ClaudeUsage(_)
+            | ShowcasedGroup::Media(_)
+            | ShowcasedGroup::IdleTimeouts(_)
+            | ShowcasedGroup::Wallpaper(_)
+            | ShowcasedGroup::Audio(_) => None,
+        }
+    }
+
+    pub fn opening_toasts(&self) -> &[NotificationData] {
+        match self {
+            ShowcasedGroup::Toasts(toasts) => &toasts.opening,
+            _ => &[],
+        }
+    }
+
+    pub fn backdrop<'a>(&'a self, config: &'a Config) -> Option<Element<'a, Message>> {
+        match self {
+            ShowcasedGroup::Toasts(toasts) => Some(toasts.window_frames(config)),
+            _ => None,
         }
     }
 }

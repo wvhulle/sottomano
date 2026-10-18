@@ -21,7 +21,7 @@ steps:
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#readme-showcase
+      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#readme-recordings
       - cp result/*.webp recordings/
 
   - name: push-readme-recordings-branch

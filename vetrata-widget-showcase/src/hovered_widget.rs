@@ -19,6 +19,23 @@ impl Selector for HoveredWidget {
     }
 }
 
+pub struct ReplyField;
+
+impl Selector for ReplyField {
+    type Output = Rectangle;
+
+    fn select(&mut self, candidate: Candidate<'_>) -> Option<Rectangle> {
+        let Candidate::TextInput { bounds, .. } = candidate else {
+            return None;
+        };
+        Some(bounds)
+    }
+
+    fn description(&self) -> String {
+        "the reply field".to_owned()
+    }
+}
+
 pub struct AnyHoveredWidget;
 
 impl Selector for AnyHoveredWidget {
