@@ -1,10 +1,8 @@
 use chrono::{DateTime, TimeDelta, Utc};
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::focus_ledger::{Accounting, Interval, WakingWindow},
-    },
+    data::source::focus_ledger::{Accounting, Interval, WakingWindow},
     widgets::{
         amount_text::duration_text,
         bar_widget::{BarWidget, Glyph},

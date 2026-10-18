@@ -9,14 +9,12 @@ use std::{
 use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::{
-            DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
-            tray::MenuNode, window_label::WindowLabel,
-        },
+    data::source::{
+        DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
+        tray::MenuNode, window_label::WindowLabel,
     },
     desktop_shell::hover_tooltips::PressHints,
     state::idle::ScheduledAfterIdle,

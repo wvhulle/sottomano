@@ -11,10 +11,10 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, ratio::percent},
 };
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::{severity::Severity, source::process::Process},
+    data::source::process::Process,
     desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
@@ -23,6 +23,7 @@ use crate::{
         pressable_text::pressable_text,
         text::{bar_text, column_heading},
         transitioning_text::{TransitionStyle, TransitioningText},
+        widget_state::WidgetState,
     },
 };
 
@@ -274,8 +275,8 @@ impl<'a> ProcessTree<'a> {
     fn tint(&self) -> Tint {
         let palette = &self.config.theme.palette;
         Tint {
-            warning: Severity::Warning.color(palette),
-            critical: Severity::Critical.color(palette),
+            warning: WidgetState::Warning.color(palette),
+            critical: WidgetState::Critical.color(palette),
         }
     }
 

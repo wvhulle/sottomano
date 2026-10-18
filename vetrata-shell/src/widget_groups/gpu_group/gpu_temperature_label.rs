@@ -1,7 +1,8 @@
 use uom::si::f64::ThermodynamicTemperature;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{severity::Severity, source::gpu::GpuTemperatureLimits},
+    data::source::gpu::GpuTemperatureLimits,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         phosphor::Phosphor,

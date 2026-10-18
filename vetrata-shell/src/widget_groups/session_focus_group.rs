@@ -6,9 +6,9 @@ mod window_usage;
 use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::{
         notifications::model::ActionTint,
         source::{

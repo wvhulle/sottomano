@@ -2,13 +2,10 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::{
-        severity::Severity,
-        source::systemd_manager::running_jobs::{SlowJob, SlowJobs},
-    },
+    data::source::systemd_manager::running_jobs::{SlowJob, SlowJobs},
     widget_groups::{
         systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
     },

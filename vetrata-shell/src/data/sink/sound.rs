@@ -1,11 +1,9 @@
 use std::{path::PathBuf, process::Command};
 
 use iced::Task;
+use vetrata_config::severity::Severity;
 
-use crate::{
-    data::{notifications::model::NotificationData, severity::Severity},
-    message_subscriptions::blocking,
-};
+use crate::{data::notifications::model::NotificationData, message_subscriptions::blocking};
 
 const PLAYER: &str = "pw-play";
 

@@ -19,11 +19,9 @@ use serde::{
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
 use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_stream::wrappers::ReceiverStream;
+use vetrata_config::severity::Severity;
 
-use crate::{
-    data::{severity::Severity, source::systemd_manager::ScopedSystemdUnit},
-    widgets::tooltip_body::Section,
-};
+use crate::{data::source::systemd_manager::ScopedSystemdUnit, widgets::tooltip_body::Section};
 
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 

@@ -1,12 +1,10 @@
 use uom::si::f64::ThermodynamicTemperature;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::disk::{
-            btrfs::DeviceErrors,
-            health::{DriveHealth, DriveTemperature, MissingSensor},
-        },
+    data::source::disk::{
+        btrfs::DeviceErrors,
+        health::{DriveHealth, DriveTemperature, MissingSensor},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},

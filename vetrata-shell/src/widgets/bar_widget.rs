@@ -1,9 +1,10 @@
 use chrono::{DateTime, Locale, Utc};
 use iced::{Color, Element};
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{severity::Severity, source::ai::quota::Quota},
+    data::source::ai::quota::Quota,
     widgets::{
         announced_level::AnnouncedLevel,
         ongoing_toast::OngoingBody,

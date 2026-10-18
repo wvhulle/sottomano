@@ -9,8 +9,8 @@ use iced::{
     window,
 };
 use iced_test::program::Program;
+use vetrata_config::Config;
 use vetrata_shell::{
-    config::Config,
     data::source::desktop_entries::DesktopIndex,
     desktop_shell::{
         Message,

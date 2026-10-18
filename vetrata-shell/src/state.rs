@@ -16,8 +16,9 @@ use core::f32::consts::FRAC_1_SQRT_2;
 
 use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container};
 pub use store::{Columns, StoreError, connect, flag, real, upsert_column, with_table};
+use vetrata_config::Config;
 
-use crate::{config::Config, widgets::panel_frame::OutlinedSides};
+use crate::widgets::panel_frame::OutlinedSides;
 
 #[derive(Debug, Clone)]
 pub struct ShellSettings {

@@ -1,10 +1,10 @@
 use chrono::{DateTime, Local, Utc};
 use rust_decimal::Decimal;
+use vetrata_config::severity::Severity;
 
 use crate::{
     data::{
         money::{Money, usd},
-        severity::Severity,
         source::ai::{
             openrouter::{OpenRouterSpend, SpanSpend},
             quota::Quota,

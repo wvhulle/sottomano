@@ -1,6 +1,6 @@
 use uom::si::{angle::degree, f64::Angle};
+use vetrata_config::SecretPaths;
 use vetrata_shell::{
-    config::SecretPaths,
     data::source::{
         SourceDelivery,
         wallpaper::{Position, Wallpaper, WikipediaArticle},

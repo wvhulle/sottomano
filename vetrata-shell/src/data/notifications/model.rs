@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use iced::widget::image;
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
-use crate::data::{severity::Severity, source::bus::OwnerProcess};
+use crate::data::source::bus::OwnerProcess;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {

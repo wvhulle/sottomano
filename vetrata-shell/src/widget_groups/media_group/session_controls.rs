@@ -1,7 +1,7 @@
 use iced::{Alignment, Element, widget::Row};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::mpris::{Command, Media, Status},
     desktop_shell::hover_tooltips::{PressHints, TooltipMessage, hoverable},
     widget_groups::media_group::MediaTarget,

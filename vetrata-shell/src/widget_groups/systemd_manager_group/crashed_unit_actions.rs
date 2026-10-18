@@ -1,5 +1,6 @@
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::{
         notifications::model::ActionTint,
         source::coredumps::{CoredumpEntry, CoredumpInspection},

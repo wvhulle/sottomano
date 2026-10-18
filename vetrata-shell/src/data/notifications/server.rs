@@ -6,6 +6,7 @@ use std::{
 use iced::widget::image;
 use tokio::sync::mpsc;
 use uom::si::{f64::Ratio, ratio::percent};
+use vetrata_config::severity::Severity;
 use zbus::{
     Connection, connection,
     fdo::{DBusProxy, RequestNameFlags, RequestNameReply},
@@ -20,7 +21,7 @@ use super::model::{
     ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
     ServerEvent,
 };
-use crate::data::{empty_text::non_empty, severity::Severity, source::bus::OwnerProcess};
+use crate::data::{empty_text::non_empty, source::bus::OwnerProcess};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";

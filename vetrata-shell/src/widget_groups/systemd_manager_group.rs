@@ -8,8 +8,9 @@ mod failed_unit_log;
 mod last_shutdown_reading;
 mod running_job_reading;
 
+use vetrata_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
+
 use crate::{
-    config::{Config, widget_groups::systemd_manager::SystemdManagerConfig},
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

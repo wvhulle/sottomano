@@ -4,9 +4,9 @@ use iced::{
     Element, Task,
     widget::{Row, hover, image, svg},
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::blocking,

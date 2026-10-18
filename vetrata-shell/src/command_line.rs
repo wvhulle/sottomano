@@ -1,8 +1,7 @@
 use std::{error::Error, path::Path};
 
 use clap::Parser;
-
-use crate::config::{SecretPaths, default_config_toml, secrets::SecretFile};
+use vetrata_config::{SecretPaths, default_config_toml, secrets::SecretFile};
 
 #[derive(Debug, Parser)]
 #[command(

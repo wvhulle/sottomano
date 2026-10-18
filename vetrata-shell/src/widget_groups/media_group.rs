@@ -6,9 +6,9 @@ use iced::{
     widget::{Row, button, image, rich_text, svg, text::Span},
 };
 use uom::si::f64::Ratio;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::{DesktopBuses, OwnerProcess},

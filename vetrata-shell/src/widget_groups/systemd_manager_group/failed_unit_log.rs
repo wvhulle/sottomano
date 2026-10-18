@@ -2,9 +2,9 @@ use std::{borrow::Cow, cmp::Reverse, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::{
         notifications::model::ActionTint,
         source::{

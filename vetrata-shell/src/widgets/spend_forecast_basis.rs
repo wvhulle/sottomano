@@ -1,9 +1,9 @@
 use rust_decimal::Decimal;
+use vetrata_config::severity::Severity;
 
 use crate::{
     data::{
         money::{Money, usd},
-        severity::Severity,
         source::ai::working_time_forecast::{CalendarSpan, SpendBudget},
     },
     widgets::tooltip_body::KeyValue,

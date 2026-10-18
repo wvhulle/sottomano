@@ -1,7 +1,8 @@
 use rust_decimal::Decimal;
 use uom::si::{f64::Ratio, ratio::percent};
+use vetrata_config::severity::Severity;
 
-use crate::data::{money::Money, severity::Severity};
+use crate::data::money::Money;
 
 #[must_use]
 pub fn level_from_used(used: Ratio) -> Severity {

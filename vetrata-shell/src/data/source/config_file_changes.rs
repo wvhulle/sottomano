@@ -5,20 +5,18 @@ use iced::{
     futures::{Stream, StreamExt, future::ready},
 };
 use inotify::{Inotify, WatchMask};
+use vetrata_config::ConfigFile;
 
-use super::ConfigFile;
 use crate::stream_operators::restarting;
 
 const EVENT_BUFFER_BYTES: usize = 1024;
 
-impl ConfigFile {
-    pub fn changes(&self) -> Subscription<()> {
-        Subscription::run_with(self.clone(), file_changes)
-    }
+pub fn subscription(file: &ConfigFile) -> Subscription<()> {
+    Subscription::run_with(file.clone(), file_changes)
 }
 
 fn file_changes(file: &ConfigFile) -> impl Stream<Item = ()> + use<> {
-    let path = file.path.clone();
+    let path = file.path().to_path_buf();
     restarting("config watch", move || ready(watch_parent_directory(&path)))
 }
 

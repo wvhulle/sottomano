@@ -5,9 +5,9 @@ use iced::{
         text::{Span, Wrapping},
     },
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::window_label::WindowLabel,
     widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span},
 };

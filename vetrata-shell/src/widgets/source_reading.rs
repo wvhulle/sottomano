@@ -2,16 +2,14 @@ use iced::{
     Alignment, Color, Element,
     widget::{Row, row, text},
 };
+use vetrata_config::Config;
 
-use crate::{
-    config::Config,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::Gauge,
-        phosphor::{Phosphor, Weight},
-        text::bar_text,
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::Gauge,
+    phosphor::{Phosphor, Weight},
+    text::bar_text,
+    widget_state::WidgetState,
 };
 
 pub fn source_reading<'a, Message: 'a>(

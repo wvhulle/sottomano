@@ -19,9 +19,9 @@ use iced::{
     },
 };
 use uom::si::{f64::Ratio, ratio::ratio};
+use vetrata_config::{Config, theme::font::ResolvedFont};
 
 use crate::{
-    config::{Config, theme::font::ResolvedFont},
     desktop_shell::{
         Message,
         hover_tooltips::{MouseGesture, PressHints, core_grid::CoreCellGrid},
@@ -47,6 +47,7 @@ use crate::{
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
+        widget_state::WidgetState,
         window_icon::WindowAssets,
     },
 };
@@ -445,7 +446,7 @@ impl<'a> TooltipContent<'a> {
         let value_column = table::column(Space::new(), move |entry: KeyValue| {
             cell_view.value(
                 entry.value().clone(),
-                entry.severity().color(&palette),
+                WidgetState::from(entry.severity()).color(&palette),
                 entry.key(),
             )
         })
@@ -534,7 +535,7 @@ impl<'a> TooltipContent<'a> {
             match record.cell(position) {
                 Some(value) => cell_view.value(
                     value.clone(),
-                    record.severity().color(&palette),
+                    WidgetState::from(record.severity()).color(&palette),
                     record.key(),
                 ),
                 None => Space::new().into(),

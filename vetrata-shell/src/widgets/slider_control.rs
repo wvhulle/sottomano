@@ -7,10 +7,9 @@ use iced::{
     widget::{Row, button, container, mouse_area, text::Wrapping},
 };
 use uom::si::{f64::Ratio, ratio};
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::severity::Severity,
     desktop_shell::hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     message_subscriptions::blocking,
     widgets::{

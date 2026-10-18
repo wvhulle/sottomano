@@ -1,8 +1,7 @@
 use iced::Task;
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::severity::Severity,
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},

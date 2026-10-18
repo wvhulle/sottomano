@@ -6,7 +6,7 @@ pub mod tray;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::widget_groups::{
+use crate::widget_groups::{
     focus_time::FocusTimeConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,

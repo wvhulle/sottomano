@@ -8,9 +8,9 @@ mod seat_face;
 mod service_manager_face;
 
 use iced::{Subscription, Task};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

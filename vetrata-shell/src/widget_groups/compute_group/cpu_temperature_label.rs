@@ -6,17 +6,15 @@ use uom::si::{
     ratio::ratio,
     thermodynamic_temperature::degree_celsius,
 };
+use vetrata_config::severity::Severity;
 
 use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
-    data::{
-        severity::Severity,
-        source::sysfs_sensors::temperature::{
-            CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
-        },
+    data::source::sysfs_sensors::temperature::{
+        CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
@@ -187,9 +185,10 @@ impl CpuCoreTemperatures {
 
 #[cfg(test)]
 mod tests {
+    use vetrata_config::widget_groups::temperature_sensors::ThresholdOverrides;
+
     use super::*;
     use crate::{
-        config::widget_groups::temperature_sensors::ThresholdOverrides,
         data::source::sysfs_sensors::temperature::TempReading,
         widgets::temperature_thresholds::celsius,
     };

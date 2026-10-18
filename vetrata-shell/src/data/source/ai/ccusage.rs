@@ -238,9 +238,9 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use chrono::Weekday;
+    use vetrata_config::calendar::WorkingHours;
 
     use super::*;
-    use crate::config::calendar::WorkingHours;
 
     const DAILY_REPORT: &str = r#"{"daily":[
         {"date":"2026-09-29","totalTokens":10,"totalCost":1.0,"modelsUsed":["claude-sonnet-5"]},

@@ -8,6 +8,7 @@ use iced::{
 use iced_exwlshell::reexport::ActivationTokenSink;
 use quick_xml::escape::escape;
 use tokio::{sync::mpsc, time::timeout};
+use vetrata_config::{Config, LoadError, severity::Severity};
 
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
@@ -18,10 +19,8 @@ use super::{
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
-    config::{Config, LoadError},
     data::{
         notifications::model::{NotificationData, Outbound, close_reason},
-        severity::Severity,
         sink::sound::{self, SoundTheme},
         source::niri::{self, Placement},
     },

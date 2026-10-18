@@ -5,9 +5,9 @@ mod copilot_quota_gauge;
 use std::path::PathBuf;
 
 use iced::{Subscription, Task};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         ai::{

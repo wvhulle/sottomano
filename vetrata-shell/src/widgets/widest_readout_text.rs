@@ -13,8 +13,9 @@ use iced::{
     mouse::{Cursor, Interaction},
     widget::text::{Shaping, Wrapping},
 };
+use vetrata_config::theme::font::ResolvedFont;
 
-use crate::{config::theme::font::ResolvedFont, widgets::text::LINE_HEIGHT};
+use crate::widgets::text::LINE_HEIGHT;
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 

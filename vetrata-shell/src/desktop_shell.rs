@@ -23,12 +23,12 @@ use iced::{
 };
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
+use vetrata_config::{
+    Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
+    theme::font::ResolvedFont,
+};
 
 use crate::{
-    config::{
-        Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
-        theme::font::ResolvedFont,
-    },
     data::{
         sink::sound::SoundTheme,
         source::{

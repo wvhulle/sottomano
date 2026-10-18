@@ -6,10 +6,9 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area},
 };
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::severity::Severity,
     desktop_shell::{
         hover_tooltips::{GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,
@@ -25,6 +24,7 @@ use crate::{
         pager_slot::PagerSlot,
         reveal::reveal_x,
         source_reading::{icon_value_gap, reading_color, reading_value},
+        widget_state::WidgetState,
     },
 };
 
@@ -470,7 +470,7 @@ impl EdgeIndicator {
                 activity_line(config.theme.palette.bar_foreground, 0.12, thickness)
             }
             severity @ (Severity::Warning | Severity::Critical) => activity_line(
-                severity.color(&config.theme.palette),
+                WidgetState::from(severity).color(&config.theme.palette),
                 revealing_opacity,
                 thickness,
             ),

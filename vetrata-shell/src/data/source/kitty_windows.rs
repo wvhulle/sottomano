@@ -19,8 +19,9 @@ use niri_ipc::{
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use vetrata_config::widget_groups::WindowAgentsConfig;
 
-use crate::{config::widget_groups::WindowAgentsConfig, stream_operators::StreamOperators};
+use crate::stream_operators::StreamOperators;
 
 pub const KITTY_APP_ID: &str = "kitty";
 

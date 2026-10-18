@@ -1,11 +1,9 @@
 use bytesize::ByteSize;
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::disk::{Disk, Filesystem},
-    },
+    data::source::disk::{Disk, Filesystem},
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,

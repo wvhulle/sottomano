@@ -10,9 +10,9 @@ use battery_time_reading::{BatteryTime, BatteryTimeReading, CurveLoaded};
 use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::{
         notifications::model::ActionTint,
         source::{

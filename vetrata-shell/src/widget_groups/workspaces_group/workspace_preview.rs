@@ -4,9 +4,9 @@ use iced::{
     border::Radius,
     widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::window_label::WindowLabel,
     desktop_shell::Message,
     widgets::{

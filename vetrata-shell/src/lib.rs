@@ -1,5 +1,4 @@
 mod command_line;
-pub mod config;
 pub mod data;
 pub mod desktop_shell;
 mod message_subscriptions;
@@ -12,7 +11,6 @@ use std::{error::Error, sync::Arc};
 
 use clap::Parser;
 use command_line::CommandLine;
-use config::{Config, ConfigFile, SecretPaths};
 use data::source::niri_config::NiriConfigFile;
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
@@ -22,11 +20,12 @@ use iced_exwlshell::{
 };
 use state::niri_rules::NiriRulesFile;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
+use vetrata_config::{Config, ConfigFile, SecretPaths};
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
     if command_line.describes_setup() {
-        return command_line.print_setup(&config::config_home());
+        return command_line.print_setup(&vetrata_config::config_home());
     }
 
     tracing_subscriber::fmt()
@@ -36,7 +35,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         .with_span_events(FmtSpan::CLOSE)
         .init();
 
-    let config_home = config::config_home();
+    let config_home = vetrata_config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);
     let secrets = SecretPaths::discover(&config_home);
     let niri_rules = NiriRulesFile::in_config_home(&config_home);

@@ -5,11 +5,11 @@ use uom::si::{
     f64::{Power, Ratio},
     power::watt,
 };
+use vetrata_config::severity::Severity;
 
 use crate::{
     data::{
         battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
-        severity::Severity,
         source::sysfs_sensors::battery::{Battery, IdleReason},
     },
     state::charge_power_curve,

@@ -5,9 +5,9 @@ use iced::{
     Alignment, Color, Element, Length, Theme, border,
     widget::{Column, Row, Text, column, container, progress_bar, row},
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{niri, niri_config::ConfiguredWorkspaces},
     desktop_shell::{
         Message,

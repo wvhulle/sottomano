@@ -8,10 +8,10 @@ mod x3d_cache_preference_toggle;
 
 use chiplet_live_state::ChipletLiveState;
 use iced::{Subscription, Task};
+use vetrata_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
-    config::{Config, widget_groups::temperature_sensors::SensorConfig},
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

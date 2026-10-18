@@ -4,9 +4,9 @@ use std::{
 };
 
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
+use vetrata_config::widget_groups::temperature_sensors::{SensorChoice, SensorLabel};
 
 use super::{list_dir, read_i64, read_trimmed};
-use crate::config::widget_groups::temperature_sensors::{SensorChoice, SensorLabel};
 
 const HWMON: &str = "/sys/class/hwmon";
 const PLAUSIBLE_LIMIT_CELSIUS: RangeInclusive<f64> = 1.0..=150.0;

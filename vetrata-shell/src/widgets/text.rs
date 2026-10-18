@@ -9,11 +9,9 @@ use iced::{
         text::{IntoFragment, Shaping, Span},
     },
 };
+use vetrata_config::theme::font::{ResolvedFont, fallback_font};
 
-use crate::{
-    config::theme::font::{ResolvedFont, fallback_font},
-    message_subscriptions::blocking,
-};
+use crate::message_subscriptions::blocking;
 
 pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
 

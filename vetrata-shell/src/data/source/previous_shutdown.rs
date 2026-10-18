@@ -9,14 +9,12 @@ use std::{
 use iced::futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use systemd::{id128::Id128, journal::OpenOptions};
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::{
-            DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
-            journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
-        },
+    data::source::{
+        DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+        journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
     },
     widgets::tooltip_body::Section,
 };

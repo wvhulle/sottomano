@@ -3,16 +3,14 @@ use iced::{
     alignment::Vertical,
     widget::{Column, Row, Space, button},
 };
+use vetrata_config::Config;
 
-use crate::{
-    config::Config,
-    widgets::{
-        DISABLED_ALPHA,
-        activity_line::activity_line,
-        bar_widget::Glyph,
-        phosphor::{Phosphor, Weight},
-        text::bar_text,
-    },
+use crate::widgets::{
+    DISABLED_ALPHA,
+    activity_line::activity_line,
+    bar_widget::Glyph,
+    phosphor::{Phosphor, Weight},
+    text::bar_text,
 };
 
 const DIVIDER_THICKNESS: f32 = 1.0;

@@ -3,7 +3,7 @@ pub mod palette;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::theme::{
+use crate::theme::{
     font::{FontChoice, ResolvedFont},
     palette::Palette,
 };

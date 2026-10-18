@@ -8,9 +8,9 @@ use iced::{
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use tokio::time::sleep;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::{
         Message,
         hover_tooltips::{

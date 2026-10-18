@@ -1,10 +1,8 @@
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::net_interfaces::mobile::{Mobile, ModemState},
-    },
+    data::source::net_interfaces::mobile::{Mobile, ModemState},
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},

@@ -7604,6 +7604,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vetrata-config"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "color",
+ "humantime-serde",
+ "iced",
+ "serde",
+ "toml",
+ "ttf-parser",
+]
+
+[[package]]
 name = "vetrata-readme-showcase"
 version = "0.1.0"
 dependencies = [
@@ -7617,6 +7631,7 @@ dependencies = [
  "rusty-money",
  "situo-client",
  "uom",
+ "vetrata-config",
  "vetrata-shell",
  "webp-animation",
 ]
@@ -7631,13 +7646,11 @@ dependencies = [
  "chrono-tz",
  "clap",
  "club-kdl",
- "color",
  "form_urlencoded",
  "freedesktop-desktop-entry",
  "freedesktop-icons",
  "freedesktop-sound",
  "humantime",
- "humantime-serde",
  "iced",
  "iced_exwlshell",
  "iced_wayland_subscriber",
@@ -7672,10 +7685,10 @@ dependencies = [
  "toml",
  "tracing",
  "tracing-subscriber",
- "ttf-parser",
  "turso",
  "uom",
  "usvg 0.48.1",
+ "vetrata-config",
  "wayland-client",
  "wayrs-client",
  "wayrs-protocols",

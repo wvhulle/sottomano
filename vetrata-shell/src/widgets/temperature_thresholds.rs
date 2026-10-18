@@ -6,10 +6,9 @@ use uom::{
         thermodynamic_temperature::{degree_celsius, kelvin},
     },
 };
-
-use crate::{
-    config::widget_groups::temperature_sensors::{Threshold, ThresholdOverrides},
-    data::severity::Severity,
+use vetrata_config::{
+    severity::Severity,
+    widget_groups::temperature_sensors::{Threshold, ThresholdOverrides},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

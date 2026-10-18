@@ -8,10 +8,10 @@ use std::{collections::HashMap, sync::Arc};
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
+use vetrata_config::{Config, widget_groups::WindowAgentsConfig};
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
         app_icon::DesktopEntries, audio::WindowAudio, bus::DesktopBuses,
         kitty_windows::WindowProcesses, niri, process::Watched,

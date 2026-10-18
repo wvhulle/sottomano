@@ -4,8 +4,7 @@ use iced::{
     widget::{span, text::Span},
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
-
-use crate::config::theme::font::ResolvedFont;
+use vetrata_config::theme::font::ResolvedFont;
 
 #[derive(Clone, Copy)]
 struct Emphasis {

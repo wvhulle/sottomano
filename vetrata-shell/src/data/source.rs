@@ -20,6 +20,7 @@ pub mod backlight;
 pub mod bus;
 pub mod clight;
 pub mod command;
+pub mod config_file_changes;
 pub mod coredumps;
 pub mod desktop_entries;
 pub mod disk;

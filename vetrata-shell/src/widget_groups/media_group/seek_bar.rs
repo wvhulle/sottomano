@@ -1,13 +1,10 @@
 use std::time::{Duration, Instant};
 
 use iced::{Element, mouse::ScrollDelta};
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::{
-        severity::Severity,
-        source::mpris::{Command, Media, SeekMode, micros},
-    },
+    data::source::mpris::{Command, Media, SeekMode, micros},
     widgets::{inline_slider::inline_slider, slider_control::scroll_direction},
 };
 

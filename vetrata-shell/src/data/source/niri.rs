@@ -11,26 +11,13 @@ use niri_ipc::{
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use vetrata_config::screen_edges::{HEdge, VEdge};
 
 use crate::data::source::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     kitty_windows::WindowProcesses,
     window_label::{IconCandidate, WindowLabel},
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum VEdge {
-    Top,
-    Center,
-    Bottom,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum HEdge {
-    Left,
-    Center,
-    Right,
-}
 
 #[derive(Debug, Clone)]
 pub struct WindowEdge {

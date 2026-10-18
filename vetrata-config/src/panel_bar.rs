@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::config::layout::spacing::Spacing;
+use crate::layout::spacing::Spacing;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(

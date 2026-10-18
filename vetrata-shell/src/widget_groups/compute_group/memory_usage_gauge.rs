@@ -1,12 +1,10 @@
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::sysfs_sensors::{
-            memory::{Memory, MemoryProcesses},
-            memory_module_temperatures::MemoryModuleTemperatures,
-        },
+    data::source::sysfs_sensors::{
+        memory::{Memory, MemoryProcesses},
+        memory_module_temperatures::MemoryModuleTemperatures,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},

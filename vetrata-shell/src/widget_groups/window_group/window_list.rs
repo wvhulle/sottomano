@@ -8,9 +8,9 @@ use iced::{
     time::every,
     widget::{Row, container, progress_bar, stack, text},
 };
+use vetrata_config::{Config, widget_groups::WindowAgentsConfig};
 
 use crate::{
-    config::{Config, widget_groups::WindowAgentsConfig},
     data::source::{
         SourceDelivery,
         audio::WindowAudio,

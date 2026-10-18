@@ -5,8 +5,9 @@ use iced::{
     mouse::{Cursor, ScrollDelta},
     widget::{Slider, canvas, mouse_area, slider, stack},
 };
+use vetrata_config::{Config, severity::Severity};
 
-use crate::{config::Config, data::severity::Severity};
+use crate::widgets::widget_state::WidgetState;
 
 const KNOB_RADIUS: f32 = 5.0;
 const KNOB_RADIUS_DRAG: f32 = 7.0;
@@ -27,7 +28,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 ) -> Element<'a, Message> {
     let accent = match level {
         Severity::Normal => config.theme.palette.focus,
-        _ => level.color(&config.theme.palette),
+        _ => WidgetState::from(level).color(&config.theme.palette),
     };
     let face = SliderFace {
         range: range.clone(),

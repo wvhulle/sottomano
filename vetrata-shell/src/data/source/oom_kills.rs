@@ -8,15 +8,13 @@ use std::{
 use iced::futures::{Stream, StreamExt};
 use serde::Deserialize;
 use systemd::journal::Journal;
+use vetrata_config::severity::Severity;
 
-use crate::data::{
-    severity::Severity,
-    source::{
-        DeliveryCadence, ReadingSource, SourceDelivery,
-        journal::{
-            JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit, SubjectUnit,
-            journal_windows,
-        },
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    journal::{
+        JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit, SubjectUnit,
+        journal_windows,
     },
 };
 

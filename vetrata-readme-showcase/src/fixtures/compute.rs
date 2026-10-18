@@ -5,8 +5,8 @@ use uom::si::{
     ratio::percent,
     thermodynamic_temperature::degree_celsius,
 };
+use vetrata_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use vetrata_shell::{
-    config::widget_groups::temperature_sensors::ThresholdOverrides,
     data::source::{
         SourceDelivery,
         sysfs_sensors::{

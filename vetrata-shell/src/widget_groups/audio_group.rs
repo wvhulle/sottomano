@@ -1,9 +1,9 @@
 use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration};
 
 use iced::{Function, Subscription, Task};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         audio::{

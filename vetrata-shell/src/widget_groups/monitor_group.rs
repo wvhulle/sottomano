@@ -9,9 +9,9 @@ use std::{
 
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         backlight::{self, Backlight},

@@ -14,6 +14,7 @@ mod window_focus_timeline;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
+use vetrata_config::widget_groups::focus_time::FocusTimeConfig;
 
 pub use self::{
     away_reasons::{AwayReasonEdge, ScreenEdge},
@@ -33,7 +34,6 @@ use self::{
     settled_unit_totals::SettledUnitTotals,
     window_focus_timeline::WindowFocusTimeline,
 };
-use crate::config::widget_groups::focus_time::FocusTimeConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusSignal {

@@ -12,6 +12,10 @@ use uom::si::{
     temperature_interval,
     thermodynamic_temperature::kelvin,
 };
+use vetrata_config::{
+    severity::Severity,
+    widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
+};
 
 use super::{
     CPU_FREQ, Error, cpu_core_index,
@@ -20,12 +24,8 @@ use super::{
     list_dir, read_trimmed,
 };
 use crate::{
-    config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
-    data::{
-        severity::Severity,
-        source::{
-            DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-        },
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
     },
     stream_operators::StreamOperators,
     widgets::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},

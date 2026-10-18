@@ -3,9 +3,9 @@ mod disk_usage_gauge;
 mod drive_health_indicator;
 
 use iced::{Subscription, Task};
+use vetrata_config::widget_groups::temperature_sensors::SensorConfig;
 
 use crate::{
-    config::widget_groups::temperature_sensors::SensorConfig,
     data::source::{
         SourceDelivery,
         disk::{Disk, activity::DiskActivity, health::DriveHealth},

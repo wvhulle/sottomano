@@ -3,11 +3,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    config::layout::spacing::Spacing,
-    data::{
-        severity::Severity,
-        source::niri::{HEdge, VEdge},
-    },
+    layout::spacing::Spacing,
+    screen_edges::{HEdge, VEdge},
+    severity::Severity,
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
