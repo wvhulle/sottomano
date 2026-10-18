@@ -37,7 +37,7 @@ use crate::{
     showcase_program::ShowcaseProgram,
 };
 
-const CANVAS: Size = Size::new(720.0, 960.0);
+pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
 const SCALE_FACTOR: f32 = 2.0;
 const REST_POINTER: Point = Point::new(CANVAS.width - 1.0, CANVAS.height / 2.0);
 const REST_HOLD: Duration = Duration::from_millis(1000);
@@ -353,7 +353,11 @@ fn cropped_to_content(
         .iter()
         .filter_map(|frame| PixelRegion::differing(&background, &frame.rgba, canvas.width))
         .reduce(PixelRegion::union)
-        .map_or(whole, |content| content.widened(margin, whole));
+        .map_or(whole, |content| PixelRegion {
+            left: whole.left,
+            right: whole.right,
+            ..content.widened(margin, whole)
+        });
     CroppedRecording {
         frames: frames
             .into_iter()
@@ -431,8 +435,5 @@ pub fn record(demo: &'static Demo) -> RecordedAnimation {
         .join(RECORDINGS_DIRECTORY)
         .join(format!("{}.{RECORDING_EXTENSION}", demo.name));
     encode_animation(&cropped.frames, cropped.size, &animation);
-    RecordedAnimation {
-        name: demo.name,
-        logical_width: (f32::from(cropped.size.width) / SCALE_FACTOR).round() as u32,
-    }
+    RecordedAnimation { name: demo.name }
 }

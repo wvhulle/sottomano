@@ -36,17 +36,37 @@ pub enum Step {
 
 pub const DEMOS: &[Demo] = &[
     Demo {
-        name: "compute",
+        name: "compute-cpu",
+        group: compute::group,
+        live: compute::live,
+        script: &[Step::Press(HoverTarget::Compute(ComputeTarget::Cpu))],
+    },
+    Demo {
+        name: "compute-memory",
         group: compute::group,
         live: compute::live,
         script: &[
             Step::Press(HoverTarget::Compute(ComputeTarget::Cpu)),
             Step::Hover(HoverTarget::Compute(ComputeTarget::Memory)),
+        ],
+    },
+    Demo {
+        name: "compute-temperature",
+        group: compute::group,
+        live: compute::live,
+        script: &[
+            Step::Press(HoverTarget::Compute(ComputeTarget::Cpu)),
             Step::Hover(HoverTarget::Compute(ComputeTarget::Temperature)),
         ],
     },
     Demo {
-        name: "weather",
+        name: "weather-conditions",
+        group: weather::group,
+        live: unchanging,
+        script: &[Step::Press(HoverTarget::Weather(WeatherTarget::Temperature))],
+    },
+    Demo {
+        name: "weather-location",
         group: weather::group,
         live: unchanging,
         script: &[
@@ -55,7 +75,7 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "ai-usage",
+        name: "ai-usage-windows",
         group: claude_usage::group,
         live: claude_usage::live,
         script: &[
@@ -64,10 +84,19 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "media",
+        name: "media-track",
         group: media::group,
         live: media::live,
         script: &[Step::Hover(HoverTarget::Media(MediaTarget::Track))],
+    },
+    Demo {
+        name: "idle-screen-off",
+        group: idle_lock::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::GroupHandle(GroupHandle::IdleTimeouts)),
+            Step::Hover(HoverTarget::IdleTimeout(TimerKind::ScreenOff)),
+        ],
     },
     Demo {
         name: "idle-lock",
@@ -75,12 +104,11 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         script: &[
             Step::Press(HoverTarget::GroupHandle(GroupHandle::IdleTimeouts)),
-            Step::Hover(HoverTarget::IdleTimeout(TimerKind::ScreenOff)),
             Step::Hover(HoverTarget::IdleTimeout(TimerKind::LockUser)),
         ],
     },
     Demo {
-        name: "audio-sliders",
+        name: "audio-volume",
         group: audio::group,
         live: audio::live,
         script: &[
@@ -90,13 +118,27 @@ pub const DEMOS: &[Demo] = &[
                 target: HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink)),
                 by: -24.0,
             },
+        ],
+    },
+    Demo {
+        name: "audio-microphone",
+        group: audio::group,
+        live: audio::live,
+        script: &[
+            Step::Press(HoverTarget::GroupHandle(GroupHandle::Audio)),
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(
                 ControlKind::Source,
             ))),
         ],
     },
     Demo {
-        name: "wallpaper",
+        name: "wallpaper-place",
+        group: wallpaper::group,
+        live: unchanging,
+        script: &[Step::Press(HoverTarget::Wallpaper(WallpaperTarget::Lookup))],
+    },
+    Demo {
+        name: "wallpaper-article",
         group: wallpaper::group,
         live: unchanging,
         script: &[
@@ -105,17 +147,25 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "bottom-bar",
+        name: "bottom-workspaces",
         group: niri_session::bottom_bar,
         live: unchanging,
-        script: &[
-            Step::Hover(HoverTarget::Workspace(2)),
-            Step::Hover(HoverTarget::Window(WindowTarget::Pick(2))),
-            Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2))),
-        ],
+        script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
     Demo {
-        name: "workspace-sidebar",
+        name: "bottom-window",
+        group: niri_session::bottom_bar,
+        live: unchanging,
+        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
+    },
+    Demo {
+        name: "bottom-process-inspector",
+        group: niri_session::bottom_bar,
+        live: unchanging,
+        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],
+    },
+    Demo {
+        name: "sidebar-workspaces",
         group: niri_session::workspace_sidebar,
         live: unchanging,
         script: &[

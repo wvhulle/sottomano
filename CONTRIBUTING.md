@@ -48,11 +48,12 @@ a pull request when the recordings changed.
 ## README recordings
 
 The tour recordings in `recordings/` are rendered offscreen by the
-`vetrata-readme-showcase` crate. Each entry of `DEMOS` in `demo_script.rs` names a
-fixture and a script of `Hover` / `Press` steps on `HoverTarget`s; the
+`vetrata-readme-showcase` crate. Each entry of `DEMOS` in `demo_script.rs` shows one
+widget, is named `<group>-<widget>` and sits in `README.md` under the heading of its
+panel and group. It names a fixture and a script of `Hover` / `Press` steps on `HoverTarget`s; the
 recorder finds each target on screen, plays the steps through `iced_test`'s
-emulator and writes `recordings/<name>.webp`, a lossless animated WebP cropped to what
-the demo shows.
+emulator and writes `recordings/<name>.webp`, a lossless animated WebP that spans
+the full canvas width with its height cropped to what the demo shows.
 
 To add a demo, write `fixtures/<group>.rs` (the group fed its readings through
 its own messages), give the group a variant in `showcased_group.rs` if it has
@@ -65,8 +66,8 @@ cargo run -p vetrata-readme-showcase -- weather
 ```
 
 The full run also checks that `README.md` embeds every recording as
-`<img src="recordings/<name>.webp" width="…">` at half its pixel width, so all demos
-show at the same scale; it prints the expected tag when one is off.
+`<img src="recordings/<name>.webp" width="720">`, the logical canvas width, so all
+demos show at the same scale; it prints the expected tag when one is off.
 
 ## Upstream docs
 
