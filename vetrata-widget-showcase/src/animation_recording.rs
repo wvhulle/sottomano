@@ -354,7 +354,12 @@ impl ContentRows {
         let span = rgba
             .chunks_exact(row_bytes)
             .enumerate()
-            .filter(|(_, row)| row.as_chunks::<4>().0.iter().any(|pixel| *pixel != background))
+            .filter(|(_, row)| {
+                row.as_chunks::<4>()
+                    .0
+                    .iter()
+                    .any(|pixel| *pixel != background)
+            })
             .map(|(y, _)| RowSpan::row(u16::try_from(y).expect("row fits a recording")))
             .reduce(RowSpan::union)?;
         let start = usize::from(span.top) * row_bytes;
