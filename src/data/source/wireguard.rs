@@ -4,9 +4,12 @@ use bytesize::ByteSize;
 use iced::futures::{Stream, stream};
 use serde_json::Value as Json;
 
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
-    polled_delivery_stream, present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
+        polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 const CONNECTED_WINDOW: u64 = 180;
@@ -81,9 +84,10 @@ impl ReadingSource for Wireguard {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(command::exists("wg")), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(command::exists("wg")).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

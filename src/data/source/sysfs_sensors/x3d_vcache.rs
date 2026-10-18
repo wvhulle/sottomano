@@ -3,9 +3,11 @@ use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
 use iced::futures::{Stream, stream};
 
 use super::{Error, list_dir, read_trimmed};
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-    present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";
@@ -86,9 +88,10 @@ impl ReadingSource for X3dCachePreference {
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
-        present_or_absent(stream::once(exposed), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(exposed).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

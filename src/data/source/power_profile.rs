@@ -9,10 +9,10 @@ use crate::{
         source::{
             DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
             bus::{self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop},
-            polled_delivery_stream, present_or_absent, sysfs_sensors,
+            polled_delivery_stream, sysfs_sensors,
         },
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::{StreamOperators, connected_until_failure},
 };
 
 const DAEMON_SERVICE: &str = "net.hadess.PowerProfiles";
@@ -132,9 +132,9 @@ impl ReadingSource for Conditions {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(
-            name_owned(buses.system.clone(), DAEMON_SERVICE),
+        name_owned(buses.system.clone(), DAEMON_SERVICE).while_held(
             move || polled_delivery_stream(buses.clone(), Self::poll),
+            SourceDelivery::Absent,
         )
     }
 }
@@ -178,9 +178,12 @@ impl ReadingSource for ProfileStatus {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        present_or_absent(name_owned(system.clone(), DAEMON_SERVICE), move || {
-            connected_until_failure(status_changes(system.clone())).map(SourceDelivery::Reading)
-        })
+        name_owned(system.clone(), DAEMON_SERVICE).while_held(
+            move || {
+                connected_until_failure(status_changes(system.clone())).map(SourceDelivery::Reading)
+            },
+            SourceDelivery::Absent,
+        )
     }
 }
 

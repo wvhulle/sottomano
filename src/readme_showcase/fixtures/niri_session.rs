@@ -72,11 +72,11 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
     }
 }
 
-fn workspace(id: u64, active_window: u64) -> Workspace {
+fn workspace(id: u64, name: &str, active_window: u64) -> Workspace {
     Workspace {
         id,
         idx: u8::try_from(id).expect("few fixture workspaces"),
-        name: None,
+        name: Some(name.to_owned()),
         output: Some(SHOWCASE_OUTPUT.to_owned()),
         is_urgent: false,
         is_active: id == CODING_WORKSPACE,
@@ -88,9 +88,9 @@ fn workspace(id: u64, active_window: u64) -> Workspace {
 fn workspaces() -> Event {
     Event::WorkspacesChanged {
         workspaces: vec![
-            workspace(CODING_WORKSPACE, TERMINAL_WINDOW),
-            workspace(BROWSING_WORKSPACE, 4),
-            workspace(CHAT_WORKSPACE, 5),
+            workspace(CODING_WORKSPACE, "code", TERMINAL_WINDOW),
+            workspace(BROWSING_WORKSPACE, "web", 4),
+            workspace(CHAT_WORKSPACE, "chat", 5),
         ],
     }
 }

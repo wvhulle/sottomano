@@ -32,7 +32,7 @@ use crate::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         bus::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";

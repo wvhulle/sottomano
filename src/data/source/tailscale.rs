@@ -10,8 +10,9 @@ use serde::Deserialize;
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
-        polled_delivery_stream, present_or_absent,
+        polled_delivery_stream,
     },
+    stream_operators::StreamOperators,
     widgets::tooltip_body::Section,
 };
 
@@ -106,9 +107,10 @@ impl ReadingSource for Tailscale {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(command::exists("tailscale")), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(command::exists("tailscale")).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

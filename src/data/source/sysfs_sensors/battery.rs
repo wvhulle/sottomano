@@ -29,9 +29,9 @@ use super::{
 use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
-        hardware::PowerSupplyIdentity, polled_delivery_stream, present_or_absent,
+        hardware::PowerSupplyIdentity, polled_delivery_stream,
     },
-    message_subscriptions::{connected_until_failure, restarting},
+    stream_operators::{StreamOperators, connected_until_failure, restarting},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,14 +211,17 @@ impl ReadingSource for Battery {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        present_or_absent(present(system.clone()), move || {
-            let mut ticks = interval(BATTERY_POLL_INTERVAL);
-            ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
-            let ticks = IntervalStream::new(ticks).map(|_| ());
-            select(ticks, supply_state_changes(system.clone()))
-                .then(|()| blocking_poll(read_battery))
-                .map(SourceDelivery::Reading)
-        })
+        present(system.clone()).while_held(
+            move || {
+                let mut ticks = interval(BATTERY_POLL_INTERVAL);
+                ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
+                let ticks = IntervalStream::new(ticks).map(|_| ());
+                select(ticks, supply_state_changes(system.clone()))
+                    .then(|()| blocking_poll(read_battery))
+                    .map(SourceDelivery::Reading)
+            },
+            SourceDelivery::Absent,
+        )
     }
 }
 

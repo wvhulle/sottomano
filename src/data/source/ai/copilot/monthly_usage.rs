@@ -2,14 +2,17 @@ use chrono::{DateTime, Local, Utc};
 use iced::futures::{Stream, stream};
 
 use super::Error;
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::{
-        ccusage::{self, Agent, POLL_INTERVAL, Period},
-        quota::Quota,
-        working_time_forecast::SpendBudget,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery,
+        ai::{
+            ccusage::{self, Agent, POLL_INTERVAL, Period},
+            quota::Quota,
+            working_time_forecast::SpendBudget,
+        },
+        polled_delivery_stream,
     },
-    polled_delivery_stream, present_or_absent,
+    stream_operators::StreamOperators,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,9 +42,10 @@ impl ReadingSource for CopilotCcusage {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
 
     fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(ccusage::installed()), move || {
-            polled_delivery_stream(budget.clone(), Self::poll)
-        })
+        stream::once(ccusage::installed()).while_held(
+            move || polled_delivery_stream(budget.clone(), Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

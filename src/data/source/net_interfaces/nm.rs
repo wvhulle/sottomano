@@ -19,7 +19,7 @@ use zbus::{
 
 use crate::{
     data::{empty_text::non_empty, source::net_interfaces::ReadingError},
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";

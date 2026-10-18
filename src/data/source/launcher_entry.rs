@@ -16,7 +16,7 @@ use crate::{
         empty_text::non_empty,
         source::bus::{DbusPropertyLookup, DesktopBuses},
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";

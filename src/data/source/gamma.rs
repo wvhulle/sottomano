@@ -4,10 +4,13 @@ use iced::futures::Stream;
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, bus,
-    bus::{DesktopBuses, Error, name_owned},
-    polled_delivery_stream, present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, bus,
+        bus::{DesktopBuses, Error, name_owned},
+        polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 const RELAY_SERVICE: &str = "rs.wl-gammarelay";
@@ -44,9 +47,9 @@ impl ReadingSource for Gamma {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(
-            name_owned(buses.session.clone(), RELAY_SERVICE),
+        name_owned(buses.session.clone(), RELAY_SERVICE).while_held(
             move || polled_delivery_stream(buses.clone(), Self::poll),
+            SourceDelivery::Absent,
         )
     }
 }

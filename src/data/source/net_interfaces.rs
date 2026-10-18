@@ -21,9 +21,8 @@ use crate::{
     data::source::{
         ReadingSource, SourceDelivery,
         bus::{Properties, name_owned},
-        present_or_absent,
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::{StreamOperators, connected_until_failure},
 };
 
 const SIGNAL_BURST_LIMIT: usize = 64;
@@ -43,13 +42,16 @@ where
     S: ReadingSource<Error = zbus::Error>,
     R: Stream<Item = zbus::Result<Option<S>>> + Send,
 {
-    present_or_absent(name_owned(system, service), move || {
-        readings().map(|device| match device {
-            Ok(Some(device)) => SourceDelivery::Reading(Ok(device)),
-            Ok(None) => SourceDelivery::Absent,
-            Err(failure) => SourceDelivery::Reading(Err(failure)),
-        })
-    })
+    name_owned(system, service).while_held(
+        move || {
+            readings().map(|device| match device {
+                Ok(Some(device)) => SourceDelivery::Reading(Ok(device)),
+                Ok(None) => SourceDelivery::Absent,
+                Err(failure) => SourceDelivery::Reading(Err(failure)),
+            })
+        },
+        SourceDelivery::Absent,
+    )
 }
 
 impl From<zbus::Error> for ReadingError {

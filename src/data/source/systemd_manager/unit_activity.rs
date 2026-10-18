@@ -3,7 +3,7 @@ use iced::futures::{Stream, StreamExt, stream};
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
 use crate::{
     data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 const JOB_DONE: &str = "done";

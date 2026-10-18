@@ -12,8 +12,8 @@ use super::{
     sleep_until, state_changed_at,
 };
 use crate::{
-    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, drop_unchanged_deliveries},
-    message_subscriptions::connected_until_failure,
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
+    stream_operators::{StreamOperators, connected_until_failure},
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -57,14 +57,13 @@ impl ReadingSource for SlowJobs {
 
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let scope = watch.systemd.scope;
-        drop_unchanged_deliveries(
-            connected_until_failure(watch_running_jobs(
-                watch.systemd.connection(),
-                watch.slow_after,
-            ))
-            .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
-            .map(SourceDelivery::Reading),
-        )
+        connected_until_failure(watch_running_jobs(
+            watch.systemd.connection(),
+            watch.slow_after,
+        ))
+        .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
+        .map(SourceDelivery::Reading)
+        .distinct_until_changed()
     }
 }
 

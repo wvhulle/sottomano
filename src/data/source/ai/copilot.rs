@@ -19,13 +19,13 @@ use crate::{
     data::source::{
         ReadingSource, SourceDelivery,
         ai::{ccusage, read_secret},
-        both_held,
         bus::DesktopBuses,
         file_presence::path_present,
         http,
         net_interfaces::nm,
-        polled_delivery_stream, present_or_absent,
+        polled_delivery_stream,
     },
+    stream_operators::StreamOperators,
     widgets::tooltip_body::Section,
 };
 
@@ -130,22 +130,32 @@ where
     S: ReadingSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
-    let reachable = both_held(
-        path_present(account.gh_auth_token.clone()),
-        nm::connected(account.buses.system.clone()),
-    );
-    present_or_absent(reachable, move || {
-        let checked = account.gh_auth_token.clone();
-        let polled = account.clone();
-        let poll = poll.clone();
-        stream::once(async move { user_info(&checked).await }).flat_map(move |info| match info {
-            Ok(info) if on_plan(&info) => {
-                polled_delivery_stream(polled.clone(), poll.clone()).left_stream()
-            }
-            Ok(_) => stream::iter([SourceDelivery::Absent]).right_stream(),
-            Err(e) => stream::iter([SourceDelivery::Reading(Err(e))]).right_stream(),
-        })
-    })
+    path_present(account.gh_auth_token.clone()).while_held(
+        move || {
+            let account = account.clone();
+            let poll = poll.clone();
+            nm::connected(account.buses.system.clone()).while_held(
+                move || {
+                    let checked = account.gh_auth_token.clone();
+                    let polled = account.clone();
+                    let poll = poll.clone();
+                    stream::once(async move { user_info(&checked).await }).flat_map(move |info| {
+                        match info {
+                            Ok(info) if on_plan(&info) => {
+                                polled_delivery_stream(polled.clone(), poll.clone()).left_stream()
+                            }
+                            Ok(_) => stream::iter([SourceDelivery::Absent]).right_stream(),
+                            Err(e) => {
+                                stream::iter([SourceDelivery::Reading(Err(e))]).right_stream()
+                            }
+                        }
+                    })
+                },
+                SourceDelivery::Absent,
+            )
+        },
+        SourceDelivery::Absent,
+    )
 }
 
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {

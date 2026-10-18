@@ -22,7 +22,7 @@ use crate::{
         DeliveryCadence, ReadingSource, SourceDelivery, coredumps::CoredumpEntry,
         journal::JournalPriority,
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;

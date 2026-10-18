@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use iced::futures::{Stream, stream};
 
-use crate::data::{
-    source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, command, polled_delivery_stream,
-        present_or_absent,
+use crate::{
+    data::{
+        source::{DeliveryCadence, ReadingSource, SourceDelivery, command, polled_delivery_stream},
+        sun_schedule::ColorMode,
     },
-    sun_schedule::ColorMode,
+    stream_operators::StreamOperators,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,9 +23,10 @@ impl ReadingSource for Umbra {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(30));
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(command::exists("umbra")), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(command::exists("umbra")).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

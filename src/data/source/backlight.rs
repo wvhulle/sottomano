@@ -8,9 +8,9 @@ use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         bus::{DesktopBuses, name_owned},
-        clight, drop_unchanged_deliveries, present_or_absent,
+        clight,
     },
-    message_subscriptions::{connected_until_failure, ticked},
+    stream_operators::{StreamOperators, connected_until_failure, ticked},
 };
 
 const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
@@ -64,12 +64,14 @@ impl ReadingSource for Vec<Backlight> {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        present_or_absent(name_owned(system.clone(), CLIGHTD_SERVICE), move || {
-            drop_unchanged_deliveries(
+        name_owned(system.clone(), CLIGHTD_SERVICE).while_held(
+            move || {
                 connected_until_failure(backlight_readings(system.clone()))
-                    .map(SourceDelivery::Reading),
-            )
-        })
+                    .map(SourceDelivery::Reading)
+                    .distinct_until_changed()
+            },
+            SourceDelivery::Absent,
+        )
     }
 }
 

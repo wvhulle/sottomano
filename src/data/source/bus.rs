@@ -16,7 +16,7 @@ use zbus::{
 
 use crate::{
     data::empty_text::non_empty,
-    message_subscriptions::{connected_until_failure, resubscribing_until_failure},
+    stream_operators::{connected_until_failure, resubscribing_until_failure},
     widgets::tooltip_body::Section,
 };
 

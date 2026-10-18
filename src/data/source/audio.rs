@@ -42,11 +42,8 @@ use tokio::sync::{oneshot, watch};
 use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
 use crate::{
-    data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, file_presence::path_present,
-        present_or_absent, while_present,
-    },
-    message_subscriptions::connected_until_failure,
+    data::source::{DeliveryCadence, ReadingSource, SourceDelivery, file_presence::path_present},
+    stream_operators::{StreamOperators, connected_until_failure},
     widgets::tooltip_body::Section,
 };
 
@@ -216,7 +213,9 @@ impl From<AudioConnectError> for Section {
 }
 
 pub fn subscription() -> Subscription<Option<Result<AudioEvent, AudioConnectError>>> {
-    Subscription::run(|| while_present(socket_present(), || connected_until_failure(connect())))
+    Subscription::run(|| {
+        socket_present().while_held(|| connected_until_failure(connect()).map(Some), None)
+    })
 }
 
 fn socket_present() -> impl Stream<Item = bool> + Send {
@@ -235,13 +234,16 @@ impl ReadingSource for AudioState {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(socket_present(), || {
-            connected_until_failure(connect()).filter_map(|event| match event {
-                Ok(AudioEvent::State(state)) => Some(SourceDelivery::Reading(Ok(state))),
-                Ok(AudioEvent::Connected(_) | AudioEvent::Peaks(_)) => None,
-                Err(e) => Some(SourceDelivery::Reading(Err(e))),
-            })
-        })
+        socket_present().while_held(
+            || {
+                connected_until_failure(connect()).filter_map(|event| match event {
+                    Ok(AudioEvent::State(state)) => Some(SourceDelivery::Reading(Ok(state))),
+                    Ok(AudioEvent::Connected(_) | AudioEvent::Peaks(_)) => None,
+                    Err(e) => Some(SourceDelivery::Reading(Err(e))),
+                })
+            },
+            SourceDelivery::Absent,
+        )
     }
 }
 

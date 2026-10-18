@@ -21,9 +21,10 @@ pub use self::{
 };
 use crate::{
     data::source::{
-        ReadingSource, SourceDelivery, ai::ccusage, both_held, file_presence::path_present, http,
-        polled_delivery_stream, present_or_absent,
+        ReadingSource, SourceDelivery, ai::ccusage, file_presence::path_present, http,
+        polled_delivery_stream,
     },
+    stream_operators::StreamOperators,
     widgets::tooltip_body::{KeyValue, Section},
 };
 
@@ -154,10 +155,12 @@ where
     S: ReadingSource<StreamInputs = PathBuf> + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
-    present_or_absent(
-        logins(credentials.clone()).map(move |kind| kind == Some(wanted)),
-        move || polled_delivery_stream(credentials.clone(), poll.clone()),
-    )
+    logins(credentials.clone())
+        .map(move |kind| kind == Some(wanted))
+        .while_held(
+            move || polled_delivery_stream(credentials.clone(), poll.clone()),
+            SourceDelivery::Absent,
+        )
 }
 
 fn local_log_polls<S, F>(
@@ -169,15 +172,24 @@ where
     S: ReadingSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
-    let login_matches = match logs.credentials.clone() {
-        Some(credentials) => logins(credentials)
-            .map(move |kind| (kind == Some(LoginKind::Subscription)) == metered_by_subscription)
-            .left_stream(),
-        None => stream::iter([!metered_by_subscription]).right_stream(),
-    };
-    present_or_absent(
-        both_held(stream::once(ccusage::installed()), login_matches),
-        move || polled_delivery_stream(logs.clone(), poll.clone()),
+    stream::once(ccusage::installed()).while_held(
+        move || {
+            let login_matches = match logs.credentials.clone() {
+                Some(credentials) => logins(credentials)
+                    .map(move |kind| {
+                        (kind == Some(LoginKind::Subscription)) == metered_by_subscription
+                    })
+                    .left_stream(),
+                None => stream::iter([!metered_by_subscription]).right_stream(),
+            };
+            let logs = logs.clone();
+            let poll = poll.clone();
+            login_matches.while_held(
+                move || polled_delivery_stream(logs.clone(), poll.clone()),
+                SourceDelivery::Absent,
+            )
+        },
+        SourceDelivery::Absent,
     )
 }
 

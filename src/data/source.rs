@@ -1,18 +1,17 @@
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
-    future::{Future, ready},
+    future::Future,
     hash::Hash,
-    mem::take,
-    pin::Pin,
-    task::{Context, Poll},
     time::Duration,
 };
 
 use iced::futures::{Stream, StreamExt, stream};
-use pin_project_lite::pin_project;
 use tokio::task::spawn_blocking;
 
-use crate::{message_subscriptions::ticked, widgets::tooltip_body::Section};
+use crate::{
+    stream_operators::{StreamOperators, ticked},
+    widgets::tooltip_body::Section,
+};
 
 pub mod ai;
 pub mod app_icon;
@@ -129,185 +128,20 @@ where
             .map(SourceDelivery::Reading)
             .left_stream();
     };
-    drop_unchanged_deliveries(
-        ticked(every, move || poll(inputs.clone())).map(SourceDelivery::Reading),
-    )
-    .right_stream()
+    ticked(every, move || poll(inputs.clone()))
+        .map(SourceDelivery::Reading)
+        .distinct_until_changed()
+        .right_stream()
 }
 
-pub fn present_or_absent<S, R>(
-    presence: impl Stream<Item = bool> + Send,
-    readings: impl FnMut() -> R + Send,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
-where
-    S: ReadingSource,
-    R: Stream<Item = SourceDelivery<S>> + Send,
-{
-    while_present(presence, readings).map(|delivery| delivery.unwrap_or(SourceDelivery::Absent))
-}
-
-pub fn while_present<P, F, R>(presence: P, readings: F) -> WhilePresent<P, F, R>
-where
-    P: Stream<Item = bool>,
-    F: FnMut() -> R,
-    R: Stream,
-{
-    WhilePresent {
-        presence,
-        presence_ended: false,
-        start: readings,
-        inner: None,
-    }
-}
-
-pin_project! {
-    pub struct WhilePresent<P, F, R> {
-        #[pin]
-        presence: P,
-        presence_ended: bool,
-        start: F,
-        #[pin]
-        inner: Option<R>,
-    }
-}
-
-impl<P, F, R> Stream for WhilePresent<P, F, R>
-where
-    P: Stream<Item = bool>,
-    F: FnMut() -> R,
-    R: Stream,
-{
-    type Item = Option<R::Item>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-        while !*this.presence_ended {
-            match this.presence.as_mut().poll_next(cx) {
-                Poll::Ready(Some(true)) => {
-                    if this.inner.is_none() {
-                        this.inner.set(Some((this.start)()));
-                    }
-                }
-                Poll::Ready(Some(false)) => {
-                    if this.inner.is_some() {
-                        this.inner.set(None);
-                        return Poll::Ready(Some(None));
-                    }
-                }
-                Poll::Ready(None) => *this.presence_ended = true,
-                Poll::Pending => break,
+impl<S: ReadingSource + PartialEq> PartialEq for SourceDelivery<S> {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            SourceDelivery::Absent => matches!(other, SourceDelivery::Absent),
+            SourceDelivery::Reading(Ok(value)) => {
+                matches!(other, SourceDelivery::Reading(Ok(known)) if known == value)
             }
-        }
-        let Some(inner) = this.inner.as_mut().as_pin_mut() else {
-            return if *this.presence_ended {
-                Poll::Ready(None)
-            } else {
-                Poll::Pending
-            };
-        };
-        match inner.poll_next(cx) {
-            Poll::Ready(Some(item)) => Poll::Ready(Some(Some(item))),
-            Poll::Ready(None) => {
-                this.inner.set(None);
-                if *this.presence_ended {
-                    Poll::Ready(None)
-                } else {
-                    Poll::Pending
-                }
-            }
-            Poll::Pending => Poll::Pending,
+            SourceDelivery::Reading(Err(_)) => false,
         }
     }
-}
-
-#[derive(Clone, Copy)]
-enum ChangedCondition {
-    First(bool),
-    Second(bool),
-}
-
-#[derive(Default)]
-struct LatestConditions {
-    first: Option<bool>,
-    second: Option<bool>,
-}
-
-impl LatestConditions {
-    fn with(self, changed: ChangedCondition) -> Self {
-        match changed {
-            ChangedCondition::First(held) => Self {
-                first: Some(held),
-                ..self
-            },
-            ChangedCondition::Second(held) => Self {
-                second: Some(held),
-                ..self
-            },
-        }
-    }
-
-    fn both_held(&self) -> Option<bool> {
-        Some(self.first? && self.second?)
-    }
-}
-
-pub fn both_held(
-    first: impl Stream<Item = bool> + Send,
-    second: impl Stream<Item = bool> + Send,
-) -> impl Stream<Item = bool> + Send {
-    stream::select(
-        first.map(ChangedCondition::First),
-        second.map(ChangedCondition::Second),
-    )
-    .scan(LatestConditions::default(), |latest, changed| {
-        *latest = take(latest).with(changed);
-        ready(Some(latest.both_held()))
-    })
-    .filter_map(ready)
-}
-
-pub fn emit_changes<T: Clone + PartialEq>(
-    readings: impl Stream<Item = T>,
-) -> impl Stream<Item = T> {
-    readings
-        .scan(None, |previous, reading| {
-            let changed = previous.as_ref() != Some(&reading);
-            if changed {
-                *previous = Some(reading.clone());
-            }
-            ready(Some(changed.then_some(reading)))
-        })
-        .filter_map(ready)
-}
-
-pub fn drop_unchanged_deliveries<S: ReadingSource + PartialEq>(
-    deliveries: impl Stream<Item = SourceDelivery<S>> + Send,
-) -> impl Stream<Item = SourceDelivery<S>> + Send {
-    deliveries
-        .scan(LastDelivery::Nothing, |last, delivery| {
-            let emit = match &delivery {
-                SourceDelivery::Absent => {
-                    let changed = !matches!(last, LastDelivery::Absent);
-                    *last = LastDelivery::Absent;
-                    changed
-                }
-                SourceDelivery::Reading(Ok(value)) => {
-                    let changed = !matches!(last, LastDelivery::Value(known) if known == value);
-                    *last = LastDelivery::Value(value.clone());
-                    changed
-                }
-                SourceDelivery::Reading(Err(_)) => {
-                    *last = LastDelivery::Nothing;
-                    true
-                }
-            };
-            ready(Some(emit.then_some(delivery)))
-        })
-        .filter_map(ready)
-}
-
-enum LastDelivery<S> {
-    Nothing,
-    Absent,
-    Value(S),
 }
