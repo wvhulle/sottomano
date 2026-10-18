@@ -1,11 +1,8 @@
 use std::{collections::HashMap, convert::Infallible, fmt, future::ready, process, thread};
 
-use iced::{
-    Rectangle, Size,
-    futures::{Stream, StreamExt},
-};
+use futures::{Stream, StreamExt};
 use niri_ipc::{
-    Event, Request, Response, Window,
+    Event, Request, Response, Window, WindowLayout,
     socket::Socket,
     state::{EventStreamState, EventStreamStatePart},
 };
@@ -293,7 +290,7 @@ pub fn spawn_event_thread() -> mpsc::Receiver<Event> {
 #[derive(Debug, Clone, Default)]
 pub struct WinLayout {
     pub column: Option<usize>,
-    pub tile_size: Size,
+    pub tile_size: (f64, f64),
     pub is_floating: bool,
 }
 
@@ -344,7 +341,7 @@ fn win_entry(w: &niri_ipc::Window, processes: &WindowProcesses) -> WinEntry {
         label,
         layout: WinLayout {
             column: w.layout.pos_in_scrolling_layout.map(|(column, _)| column),
-            tile_size: Size::new(w.layout.tile_size.0 as f32, w.layout.tile_size.1 as f32),
+            tile_size: w.layout.tile_size,
             is_floating: w.is_floating,
         },
     }
@@ -357,7 +354,7 @@ pub struct Placement {
     focused_output: Option<String>,
     output_by_workspace: HashMap<u64, String>,
     edges: HashMap<u64, WindowEdge>,
-    rects: HashMap<u64, Rectangle>,
+    viewed_layouts: HashMap<u64, WindowLayout>,
     windows: Vec<WindowIdentity>,
 }
 
@@ -418,15 +415,15 @@ impl Placement {
         let mut column_by_window = HashMap::new();
         let mut focused_window = None;
         let mut windows = Vec::new();
-        let mut rects = HashMap::new();
+        let mut viewed_layouts = HashMap::new();
         for w in state.windows.windows.values() {
             if let Some(ws) = w.workspace_id {
                 workspace_by_window.insert(w.id, ws);
             }
             if !state.overview.is_open
-                && let Some(rect) = viewed_rect(w, &output_by_workspace, &active_ws_by_output)
+                && on_viewed_workspace(w, &output_by_workspace, &active_ws_by_output)
             {
-                rects.insert(w.id, rect);
+                viewed_layouts.insert(w.id, w.layout.clone());
             }
             if let Some((col, _)) = w.layout.pos_in_scrolling_layout {
                 column_by_window.insert(w.id, col);
@@ -473,14 +470,14 @@ impl Placement {
             focused_output,
             output_by_workspace,
             edges,
-            rects,
+            viewed_layouts,
             windows,
         }
     }
 
     #[must_use]
-    pub fn window_rect(&self, id: u64) -> Option<Rectangle> {
-        self.rects.get(&id).copied()
+    pub fn viewed_window_layout(&self, id: u64) -> Option<&WindowLayout> {
+        self.viewed_layouts.get(&id)
     }
 
     #[must_use]
@@ -522,27 +519,16 @@ struct OutputActiveWorkspace {
     idx: u8,
 }
 
-fn viewed_rect(
+fn on_viewed_workspace(
     window: &Window,
     output_by_workspace: &HashMap<u64, String>,
     active_ws_by_output: &HashMap<String, OutputActiveWorkspace>,
-) -> Option<Rectangle> {
-    let workspace = window.workspace_id?;
-    let output = output_by_workspace.get(&workspace)?;
-    if active_ws_by_output
-        .get(output)
-        .is_none_or(|active| active.id != workspace)
-    {
-        return None;
-    }
-    let (tile_x, tile_y) = window.layout.tile_pos_in_workspace_view?;
-    let (offset_x, offset_y) = window.layout.window_offset_in_tile;
-    let (width, height) = window.layout.window_size;
-    Some(Rectangle {
-        x: (tile_x + offset_x) as f32,
-        y: (tile_y + offset_y) as f32,
-        width: width as f32,
-        height: height as f32,
+) -> bool {
+    window.workspace_id.is_some_and(|workspace| {
+        output_by_workspace
+            .get(&workspace)
+            .and_then(|output| active_ws_by_output.get(output))
+            .is_some_and(|active| active.id == workspace)
     })
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 use zbus::{
     fdo::ManagedObjects,
     zvariant::{OwnedObjectPath, OwnedValue},

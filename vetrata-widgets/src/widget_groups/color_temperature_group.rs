@@ -9,13 +9,13 @@ use uom::si::thermodynamic_temperature::kelvin;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
     gamma::{self, Gamma},
     systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,

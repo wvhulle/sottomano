@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::f64::ThermodynamicTemperature;
 
 use super::{Error, hwmon::HwmonChip};

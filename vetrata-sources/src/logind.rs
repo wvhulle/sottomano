@@ -4,7 +4,7 @@ pub mod session_facts;
 
 use std::env;
 
-use iced::futures::{Stream, StreamExt, future::ready};
+use futures::{Stream, StreamExt, future::ready};
 use serde::Deserialize;
 use zbus::{
     blocking, proxy,

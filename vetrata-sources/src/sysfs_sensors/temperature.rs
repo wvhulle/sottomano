@@ -5,7 +5,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 use uom::si::{
     f64::{TemperatureInterval, ThermodynamicTemperature},
@@ -367,7 +367,7 @@ fn physical_core_temperatures() -> HashMap<u32, SensorReading> {
 
 #[cfg(test)]
 mod tests {
-    use iced::futures::executor::block_on;
+    use futures::executor::block_on;
 
     use super::*;
 

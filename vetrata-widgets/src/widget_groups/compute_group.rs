@@ -14,7 +14,6 @@ use iced::{Subscription, Task};
 use vetrata_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
     hardware::HostHardware,
     sysfs_sensors::{
@@ -31,6 +30,7 @@ use vetrata_sources::{
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,

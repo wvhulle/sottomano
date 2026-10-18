@@ -1,10 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use vetrata_sources::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate};
+use iced::Size;
+use vetrata_sources::{niri, window_label::IconCandidate};
 
-use crate::widgets::{
-    continuous_reading::ContinuousReading,
-    tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
+use crate::{
+    desktop_index::DesktopIndex,
+    widgets::{
+        continuous_reading::ContinuousReading,
+        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
+    },
 };
 
 #[must_use]
@@ -48,7 +52,10 @@ fn preview_tile(icons: &DesktopIndex, window: &niri::WinEntry) -> PreviewTile {
         label: window.label.clone(),
         favicon_key: window.favicon_key().map(str::to_owned),
         icon: icon_path(icons, window),
-        tile_size: window.layout.tile_size,
+        tile_size: Size::new(
+            window.layout.tile_size.0 as f32,
+            window.layout.tile_size.1 as f32,
+        ),
         is_focused: window.is_focused,
         is_urgent: window.is_urgent,
         is_floating: window.layout.is_floating,
@@ -68,8 +75,6 @@ fn icon_path(icons: &DesktopIndex, window: &niri::WinEntry) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use iced::Size;
-
     use super::*;
 
     fn window(id: u64, column: Option<usize>) -> niri::WinEntry {
@@ -82,7 +87,7 @@ mod tests {
             label: None,
             layout: niri::WinLayout {
                 column,
-                tile_size: Size::new(800.0, 600.0),
+                tile_size: (800.0, 600.0),
                 is_floating: column.is_none(),
             },
         }

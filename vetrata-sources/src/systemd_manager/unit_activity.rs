@@ -1,4 +1,4 @@
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
 use crate::{

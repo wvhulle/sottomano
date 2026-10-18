@@ -4,7 +4,6 @@ use iced::{Subscription, Task};
 use uom::si::{f64::Power, power::watt};
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     battery_forecast::{Estimate, RegressionState, time_until_empty},
     bus::DesktopBuses,
     power_profile::{self, Conditions, Profile, ProfileStatus},
@@ -13,6 +12,7 @@ use vetrata_sources::{
 use vetrata_state::power;
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},

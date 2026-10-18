@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use iced::futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
+use futures::{Stream, StreamExt, TryStreamExt, future::ready, stream};
 use icu_locale_core::Locale;
 use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;

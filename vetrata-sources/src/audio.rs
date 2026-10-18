@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::{Subscription, futures::Stream};
+use futures::Stream;
 use pipewire::{
     channel::{Receiver as CommandReceiver, Sender as CommandSender, channel as command_channel},
     context::ContextRc,
@@ -209,14 +209,13 @@ impl fmt::Display for AudioConnectError {
     }
 }
 
-pub fn subscription() -> Subscription<Option<Result<AudioEvent, AudioConnectError>>> {
-    Subscription::run(|| {
-        socket_present().while_held(|| connected_until_failure(connect()).map(Some), None)
-    })
+pub fn connection_events()
+-> impl Stream<Item = Option<Result<AudioEvent, AudioConnectError>>> + Send {
+    socket_present().while_held(|| connected_until_failure(connect()).map(Some), None)
 }
 
 fn socket_present() -> impl Stream<Item = bool> + Send {
-    use iced::futures::{StreamExt, stream};
+    use futures::{StreamExt, stream};
     let socket = pipewire_socket()
         .inspect_err(|e| tracing::warn!("audio: {e}"))
         .ok();

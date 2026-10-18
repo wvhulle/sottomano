@@ -1,6 +1,6 @@
 use std::{env, fs, time::Duration};
 
-use iced::futures::Stream;
+use futures::Stream;
 use zbus::{blocking::Connection, proxy};
 
 use crate::{

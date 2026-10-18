@@ -7,11 +7,12 @@ mod service_error_log;
 
 use vetrata_config::Config;
 use vetrata_sources::{
-    SourceDelivery, background_work::source_subscription, coredumps::CoredumpEntry,
-    kernel_errors::KernelOccurrence, oom_kills::OomKillEntry, service_errors::ServiceErrors,
+    SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
+    oom_kills::OomKillEntry, service_errors::ServiceErrors,
 };
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{

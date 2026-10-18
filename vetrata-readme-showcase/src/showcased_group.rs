@@ -1,10 +1,9 @@
 use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_sources::{
-    desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
-};
+use vetrata_sources::{niri::Snapshot, niri_config::ConfiguredWorkspaces};
 use vetrata_widgets::{
+    desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
     shell_message::Message,
     widget_groups::{

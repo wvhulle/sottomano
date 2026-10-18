@@ -5,7 +5,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{
+use futures::{
     Stream, StreamExt,
     stream::{self, select},
 };

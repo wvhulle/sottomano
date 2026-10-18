@@ -1,11 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt::{Display, Formatter, Result as FmtResult},
     pin::Pin,
     time::SystemTime,
 };
 
-use iced::futures::{Stream, StreamExt, future::join_all, stream};
+use futures::{Stream, StreamExt, future::join_all, stream};
 use tokio::task::spawn_blocking;
 use zbus::{
     names::MemberName,
@@ -46,23 +45,6 @@ trait Service {
 pub struct ServiceOutcome {
     pub result: String,
     pub exit_status: i32,
-}
-
-impl Display for ServiceOutcome {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let status = self.exit_status;
-        match self.result.as_str() {
-            "exit-code" => write!(f, "exited with code {status}"),
-            "signal" => write!(f, "killed by signal {status}"),
-            "core-dump" => f.write_str("crashed (core dumped)"),
-            "timeout" => f.write_str("timed out"),
-            "watchdog" => f.write_str("watchdog timeout"),
-            "oom-kill" => f.write_str("killed (out of memory)"),
-            "start-limit-hit" => f.write_str("too many restarts"),
-            "resources" => f.write_str("could not start (resources)"),
-            other => f.write_str(other),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]

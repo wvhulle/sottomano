@@ -12,11 +12,11 @@ use vetrata_sources::{
         copilot::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::SpendBudget,
     },
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         continuous_reading::ContinuousReading,

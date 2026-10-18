@@ -6,7 +6,7 @@ use std::{
     pin::pin,
 };
 
-use iced::futures::{Stream, StreamExt, future::select, stream};
+use futures::{Stream, StreamExt, future::select, stream};
 use zbus::{
     fdo::DBusProxy,
     names::BusName,

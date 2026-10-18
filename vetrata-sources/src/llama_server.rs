@@ -1,6 +1,6 @@
 use std::{future::ready, path::PathBuf, time::Instant};
 
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 use uom::si::{f64::Frequency, frequency::hertz};
 

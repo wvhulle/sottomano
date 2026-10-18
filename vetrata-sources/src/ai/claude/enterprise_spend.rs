@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 use rust_decimal::Decimal;
 use rusty_money::iso;
 use serde::Deserialize;

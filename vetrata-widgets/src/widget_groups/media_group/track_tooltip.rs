@@ -1,9 +1,12 @@
 use std::time::{Duration, Instant};
 
 use reqwest::Url;
-use vetrata_sources::{desktop_entries::DesktopIndex, mpris::Media};
+use vetrata_sources::mpris::Media;
 
-use crate::widgets::tooltip_body::{Cell, KeyValue, Section};
+use crate::{
+    desktop_index::DesktopIndex,
+    widgets::tooltip_body::{Cell, KeyValue, Section},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SearchPlatform {

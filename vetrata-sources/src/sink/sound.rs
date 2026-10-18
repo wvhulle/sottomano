@@ -1,6 +1,5 @@
 use std::{path::PathBuf, process::Command};
 
-use iced::Task;
 use vetrata_config::severity::Severity;
 
 use crate::{background_work::blocking, notifications::model::NotificationData};
@@ -79,7 +78,7 @@ impl SoundTheme {
     }
 }
 
-pub fn play<Message: Send + 'static>(data: &NotificationData, theme: &SoundTheme) -> Task<Message> {
+pub fn play(data: &NotificationData, theme: &SoundTheme) -> impl Future<Output = ()> + use<> {
     let explicit = data.sound_file.clone();
     let alert = Alert::of(data);
     let theme = theme.clone();
@@ -88,7 +87,6 @@ pub fn play<Message: Send + 'static>(data: &NotificationData, theme: &SoundTheme
             let _ = Command::new(PLAYER).arg(file).status();
         }
     })
-    .discard()
 }
 
 fn resolve(explicit: Option<String>, alert: Alert, theme: &SoundTheme) -> Option<PathBuf> {

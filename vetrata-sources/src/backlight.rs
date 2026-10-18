@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fs, future::ready, time::Duration};
 
-use iced::futures::{Stream, StreamExt, stream::select};
+use futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 

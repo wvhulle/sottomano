@@ -5,7 +5,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 use crate::{

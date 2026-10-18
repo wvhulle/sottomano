@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use iced::futures::{Stream, StreamExt, future::ready, stream};
+use futures::{Stream, StreamExt, future::ready, stream};
 use serde::{
     Deserialize, Deserializer,
     de::{

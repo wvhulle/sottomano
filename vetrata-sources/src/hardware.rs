@@ -7,7 +7,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 use serde_json::Value;
 
 use crate::{

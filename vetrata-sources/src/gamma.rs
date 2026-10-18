@@ -1,6 +1,6 @@
 use std::{ops::RangeInclusive, time::Duration};
 
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 

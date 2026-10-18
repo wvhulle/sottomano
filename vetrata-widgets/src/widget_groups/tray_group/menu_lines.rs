@@ -6,18 +6,20 @@ use vetrata_sources::tray::{MenuKind, MenuNode};
 use crate::widgets::{
     bar_widget::Glyph,
     context_menu::{MenuLine, MenuRow, Trailing},
-    icon_handle::IconHandle,
+    icon_handle::PixmapHandles,
     phosphor::{Phosphor, Weight},
 };
 
 pub struct TrayMenuLines<'c, M> {
     pub config: &'c Config,
+    pub pixmap_handles: &'c PixmapHandles,
     pub open: &'c HashSet<i32>,
     pub on_activate: &'c dyn Fn(i32) -> M,
     pub on_toggle: &'c dyn Fn(i32) -> M,
 }
 
 impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
+    #[must_use]
     pub fn lines<'a>(&self, nodes: &[MenuNode]) -> Vec<MenuLine<'a, M>>
     where
         M: 'a,
@@ -78,7 +80,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
         let leading = node
             .icon
             .as_ref()
-            .map(|source| IconHandle::from(source).view(icon_size, 1.0))
+            .map(|source| self.pixmap_handles.icon_handle(source).view(icon_size, 1.0))
             .or_else(|| {
                 matches!(node.kind, MenuKind::Toggle(true))
                     .then(|| Glyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, color))

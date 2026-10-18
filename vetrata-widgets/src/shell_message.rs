@@ -6,7 +6,6 @@ use vetrata_config::{Config, LoadError};
 use vetrata_sources::{
     app_icon::DesktopEntries,
     bus::DesktopBusEvent,
-    desktop_entries::ResolvedIcons,
     favicons::RawFavicon,
     launch_tracker::Launch,
     niri::{self, WindowOwner},
@@ -17,6 +16,7 @@ use vetrata_state::{ShellSettings, niri_rules::StoredRules};
 
 use crate::{
     bar_slot_drag::DragMessage,
+    desktop_index::ResolvedIcons,
     hover_tooltips::TooltipMessage,
     toast_messages::NotificationMessage,
     widget_groups::{

@@ -1,7 +1,7 @@
 use std::{cmp::Reverse, fs, time::Duration};
 
 use bytesize::ByteSize;
-use iced::futures::Stream;
+use futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use super::Error;

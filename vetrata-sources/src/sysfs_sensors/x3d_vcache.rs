@@ -1,6 +1,6 @@
 use std::{fmt, fs, path::PathBuf, str::FromStr, time::Duration};
 
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 
 use super::{Error, list_dir, read_trimmed};
 use crate::{

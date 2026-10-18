@@ -10,7 +10,6 @@ use iced::{Subscription, Task};
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     gpu::{
         GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
         PciBusId,
@@ -18,6 +17,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,

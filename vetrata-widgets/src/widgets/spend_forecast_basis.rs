@@ -9,6 +9,10 @@ use crate::widgets::tooltip_body::KeyValue;
 
 const CLOCK_FORMAT: &str = "%H:%M";
 
+pub const WEEK_HEADING_FORMAT: &str = "Week Since %a %-d %b";
+
+pub const MONTH_HEADING_FORMAT: &str = "%B";
+
 pub trait BudgetEntries {
     fn forecast_basis(&self) -> impl Iterator<Item = KeyValue>;
     fn monthly_budget_entry(&self, spent: &Money, projected: Option<Money>) -> KeyValue;

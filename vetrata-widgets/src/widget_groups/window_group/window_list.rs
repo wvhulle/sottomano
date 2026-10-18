@@ -22,6 +22,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::restarting_subscription,
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
     widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},
@@ -92,13 +93,20 @@ impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
             every(ICONS_BACKSTOP).map(|_| WindowListMessage::IconsBackstopElapsed),
-            job_view::subscription().map(WindowListMessage::JobsChanged),
-            kitty_windows::subscription(agents).map(WindowListMessage::WindowProcessesPaired),
+            restarting_subscription("job view", job_view::serve)
+                .map(WindowListMessage::JobsChanged),
+            if agents.kitty {
+                Subscription::run_with(agents.clone(), |_| kitty_windows::window_pairings())
+                    .map(WindowListMessage::WindowProcessesPaired)
+            } else {
+                Subscription::none()
+            },
         ])
     }
 
     pub fn launcher_entry_subscription(buses: &DesktopBuses) -> Subscription<WindowListMessage> {
-        launcher_entry::subscription(buses).map(WindowListMessage::LauncherEntriesChanged)
+        Subscription::run_with(buses.clone(), launcher_entry::entry_updates)
+            .map(WindowListMessage::LauncherEntriesChanged)
     }
 
     pub fn hover_process(

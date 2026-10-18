@@ -34,9 +34,9 @@ impl TerminalCommand {
 
     pub fn open<M: Send + 'static>(self) -> Task<M> {
         let command = self.command;
-        blocking("terminal command", move || {
+        Task::future(blocking("terminal command", move || {
             niri::send_action_or_warn(&niri_ipc::Action::Spawn { command });
-        })
+        }))
         .discard()
     }
 }

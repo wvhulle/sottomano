@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, mem::take};
 use iced::{Subscription, Task};
 use vetrata_sources::{
     SourceDelivery,
-    background_work::source_subscription,
     bus::DesktopBuses,
     llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
     systemd_manager::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
@@ -16,12 +15,15 @@ use super::{
     loaded_model_label::{ServedModel, ServerModels},
     slot_occupancy_gauge::SlotOccupancy,
 };
-use crate::widgets::{
-    bar_widget::BarWidget,
-    continuous_reading::ContinuousReading,
-    group_item::GroupItem,
-    tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
-    unit_switch::{UnitSwitch, UnitSwitchMessage},
+use crate::{
+    background_work::source_subscription,
+    widgets::{
+        bar_widget::BarWidget,
+        continuous_reading::ContinuousReading,
+        group_item::GroupItem,
+        tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
+        unit_switch::{UnitSwitch, UnitSwitchMessage},
+    },
 };
 
 struct ServerReadings {

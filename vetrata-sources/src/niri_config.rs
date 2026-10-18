@@ -3,7 +3,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use iced::Task;
 use kdl::{KdlDocument, KdlError};
 use tokio::fs;
 
@@ -28,15 +27,17 @@ impl NiriConfigFile {
         }
     }
 
-    pub fn read_workspaces(&self) -> Task<Result<ConfiguredWorkspaces, String>> {
+    pub fn read_workspaces(
+        &self,
+    ) -> impl Future<Output = Result<ConfiguredWorkspaces, String>> + use<> {
         let path = self.path.clone();
-        Task::future(async move {
+        async move {
             let text = fs::read_to_string(&path)
                 .await
                 .map_err(|e| format!("reading {} failed: {e}", path.display()))?;
             ConfiguredWorkspaces::declared_in(&text)
                 .map_err(|e| format!("{} is not valid KDL: {e}", path.display()))
-        })
+        }
     }
 }
 

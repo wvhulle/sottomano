@@ -3,10 +3,7 @@ use std::{
     future::ready,
 };
 
-use iced::{
-    Subscription,
-    futures::{Stream, StreamExt, stream::select},
-};
+use futures::{Stream, StreamExt, stream::select};
 use zbus::{
     Connection, MatchRule, MessageStream, fdo::DBusProxy, message::Type, zvariant::OwnedValue,
 };
@@ -127,15 +124,13 @@ enum Signal {
     OwnerLost(String),
 }
 
-pub fn subscription(buses: &DesktopBuses) -> Subscription<LauncherEntries> {
-    Subscription::run_with(buses.clone(), |buses| {
-        connected_until_failure(connect(buses.session.clone())).filter_map(|entries| {
-            ready(
-                entries
-                    .inspect_err(|e| tracing::warn!("launcher entry: {e}"))
-                    .ok(),
-            )
-        })
+pub fn entry_updates(buses: &DesktopBuses) -> impl Stream<Item = LauncherEntries> + Send + use<> {
+    connected_until_failure(connect(buses.session.clone())).filter_map(|entries| {
+        ready(
+            entries
+                .inspect_err(|e| tracing::warn!("launcher entry: {e}"))
+                .ok(),
+        )
     })
 }
 

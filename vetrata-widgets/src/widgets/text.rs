@@ -60,12 +60,12 @@ impl FontFallbacks {
             return Task::none();
         }
         let base = font.iced_font;
-        let (task, handle) = blocking("fallback fonts", move || {
+        let (task, handle) = Task::future(blocking("fallback fonts", move || {
             pending
                 .into_iter()
                 .map(|ch| (ch, fallback_font(ch).unwrap_or(base)))
                 .collect::<HashMap<char, Font>>()
-        })
+        }))
         .abortable();
         self.resolve = Some(handle.abort_on_drop());
         task

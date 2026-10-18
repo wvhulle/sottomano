@@ -1,6 +1,6 @@
 use std::{fs, thread, time::Duration};
 
-use iced::futures::Stream;
+use futures::Stream;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{

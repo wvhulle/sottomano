@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use chrono::{DateTime, Local, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 
 use super::{Error, local_log_polls};
 use crate::{

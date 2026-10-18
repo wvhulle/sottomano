@@ -1,6 +1,6 @@
 use std::{io, thread, time::Duration};
 
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 use perf_event::{Builder, Counter, events::Dynamic};
 use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};

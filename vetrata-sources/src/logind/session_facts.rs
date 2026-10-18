@@ -1,7 +1,7 @@
 use std::{num::NonZeroU32, str::FromStr, time::Duration};
 
 use chrono::{DateTime, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 use procfs::process::Process as Proc;
 use zbus::{proxy, zvariant::OwnedObjectPath};
 

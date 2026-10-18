@@ -1,6 +1,6 @@
 use std::future::ready;
 
-use iced::futures::{
+use futures::{
     Stream, StreamExt,
     stream::{self, select},
     try_join,

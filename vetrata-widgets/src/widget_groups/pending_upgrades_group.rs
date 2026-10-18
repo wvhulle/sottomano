@@ -3,11 +3,10 @@ use iced::{Subscription, Task};
 mod firmware_upgrade_list;
 
 use vetrata_config::Config;
-use vetrata_sources::{
-    SourceDelivery, background_work::source_subscription, bus::DesktopBuses, fwupd::FirmwareUpgrade,
-};
+use vetrata_sources::{SourceDelivery, bus::DesktopBuses, fwupd::FirmwareUpgrade};
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{

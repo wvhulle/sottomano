@@ -271,6 +271,7 @@ impl<'a> TooltipContent<'a> {
         let on_toggle = |id| Message::Tray(TrayMessage::ToggleSubmenu(id));
         let lines = TrayMenuLines {
             config: self.config,
+            pixmap_handles: &menu.pixmap_handles,
             open: &menu.open_submenus,
             on_activate: &on_activate,
             on_toggle: &on_toggle,

@@ -1,6 +1,6 @@
 use std::{path::Path, time::Duration};
 
-use iced::futures::Stream;
+use futures::Stream;
 
 use super::{CPU_FREQ, Error, read_field, read_trimmed};
 use crate::{

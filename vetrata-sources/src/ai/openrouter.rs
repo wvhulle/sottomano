@@ -5,7 +5,7 @@ use std::{
 };
 
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, SecondsFormat, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Deserializer, de};
 use serde_json::json;

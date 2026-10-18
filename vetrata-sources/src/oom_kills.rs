@@ -5,7 +5,7 @@ use std::{
     time::SystemTime,
 };
 
-use iced::futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
 use systemd::journal::Journal;
 use vetrata_config::severity::Severity;

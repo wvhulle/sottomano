@@ -1,4 +1,4 @@
-use iced::futures::{Stream, future::try_join_all, try_join};
+use futures::{Stream, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 

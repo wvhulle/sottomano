@@ -10,9 +10,9 @@ use iced::{
 };
 use iced_test::program::Program;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_sources::desktop_entries::DesktopIndex;
 use vetrata_state::{OutlinedSides, ShellSettings};
 use vetrata_widgets::{
+    desktop_index::DesktopIndex,
     hover_tooltips::{TooltipHost, TooltipMessage},
     layer_surfaces::PanelEdge,
     shell_message::Message,

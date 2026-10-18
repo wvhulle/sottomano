@@ -1,7 +1,6 @@
 use iced::{Subscription, Task};
 use vetrata_sources::{
     SourceDelivery,
-    background_work::source_subscription,
     bus::DesktopBuses,
     systemd_manager::{
         ScopedSystemdUnit, SystemdUnitOnBus,
@@ -10,6 +9,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},

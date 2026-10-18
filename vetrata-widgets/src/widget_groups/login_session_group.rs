@@ -11,7 +11,6 @@ use iced::{Subscription, Task};
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
     hostname::OperatingSystemIdentity,
     logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
@@ -22,6 +21,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,

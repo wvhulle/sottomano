@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use iced::futures::Stream;
+use futures::Stream;
 
 use super::{CopilotAccount, Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
 use crate::{DeliveryCadence, ReadingSource, SourceDelivery};

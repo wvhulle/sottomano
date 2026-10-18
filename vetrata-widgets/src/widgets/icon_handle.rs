@@ -1,12 +1,13 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
+use ::image::RgbaImage;
 use iced::{
     ContentFit, Element, Length,
     widget::{image, svg},
 };
 use vetrata_sources::{favicons::FaviconKind, tray::IconSource};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IconHandle {
     Raster(image::Handle),
     Svg(svg::Handle),
@@ -64,11 +65,57 @@ impl IconHandle {
     }
 }
 
-impl From<&IconSource> for IconHandle {
-    fn from(source: &IconSource) -> Self {
+impl From<&RgbaImage> for IconHandle {
+    fn from(pixels: &RgbaImage) -> Self {
+        Self::Raster(image::Handle::from_rgba(
+            pixels.width(),
+            pixels.height(),
+            pixels.as_raw().clone(),
+        ))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ConvertedPixmap {
+    pixels: Arc<RgbaImage>,
+    handle: IconHandle,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PixmapHandles {
+    converted: Vec<ConvertedPixmap>,
+}
+
+impl PixmapHandles {
+    #[must_use]
+    pub fn refreshed<'a>(&self, pixmaps: impl IntoIterator<Item = &'a Arc<RgbaImage>>) -> Self {
+        Self {
+            converted: pixmaps
+                .into_iter()
+                .map(|pixels| ConvertedPixmap {
+                    pixels: pixels.clone(),
+                    handle: self.pixmap_handle(pixels),
+                })
+                .collect(),
+        }
+    }
+
+    #[must_use]
+    pub fn pixmap_handle(&self, pixels: &Arc<RgbaImage>) -> IconHandle {
+        self.converted
+            .iter()
+            .find(|converted| Arc::ptr_eq(&converted.pixels, pixels))
+            .map_or_else(
+                || IconHandle::from(pixels.as_ref()),
+                |converted| converted.handle.clone(),
+            )
+    }
+
+    #[must_use]
+    pub fn icon_handle(&self, source: &IconSource) -> IconHandle {
         match source {
-            IconSource::Pixmap(handle) => Self::Raster(handle.clone()),
-            IconSource::Themed(path) => Self::at(path),
+            IconSource::Pixmap(pixels) => self.pixmap_handle(pixels),
+            IconSource::Themed(path) => IconHandle::at(path),
         }
     }
 }

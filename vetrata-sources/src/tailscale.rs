@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use iced::futures::{Stream, stream};
+use futures::{Stream, stream};
 use serde::Deserialize;
 
 use crate::{

@@ -7,7 +7,6 @@ mod wireguard_tunnel_tooltip;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::{first_delivery, source_subscription},
     bus::DesktopBuses,
     tailscale::{Tailscale, open_admin},
     throughput::Readings,
@@ -15,6 +14,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::{first_delivery, source_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -110,10 +110,11 @@ impl InternetGroup {
                 self.expansion.update(m);
             }
             InternetMessage::Disconnect(name) => {
-                return blocking("wireguard down", move || disconnect(&name)).discard();
+                return Task::future(blocking("wireguard down", move || disconnect(&name)))
+                    .discard();
             }
             InternetMessage::OpenTailscale => {
-                return blocking("tailscale admin", open_admin).discard();
+                return Task::future(blocking("tailscale admin", open_admin)).discard();
             }
         }
         Task::none()

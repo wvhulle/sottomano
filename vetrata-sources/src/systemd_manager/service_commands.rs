@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use iced::futures::{
+use futures::{
     Stream, StreamExt,
     future::{join_all, ready},
     stream::{self, BoxStream},

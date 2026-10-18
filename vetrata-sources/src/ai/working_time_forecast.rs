@@ -6,8 +6,6 @@ use vetrata_config::{Config, calendar::WorkingHours};
 use crate::{ai::quota::Quota, money::Money};
 
 const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
-const WEEK_START_FORMAT: &str = "%a %-d %b";
-const MONTH_FORMAT: &str = "%B";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpendBudget {
@@ -34,16 +32,6 @@ pub struct CalendarSpan {
 }
 
 impl CalendarSpan {
-    #[must_use]
-    pub fn week_heading(self) -> String {
-        format!("Week Since {}", self.since.format(WEEK_START_FORMAT))
-    }
-
-    #[must_use]
-    pub fn month_heading(self) -> String {
-        self.since.format(MONTH_FORMAT).to_string()
-    }
-
     #[must_use]
     pub fn day(day: NaiveDate) -> Self {
         Self {

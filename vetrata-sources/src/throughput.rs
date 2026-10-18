@@ -9,7 +9,7 @@ use std::{
 };
 
 use bytesize::ByteSize;
-use iced::futures::{Stream, StreamExt, stream::select};
+use futures::{Stream, StreamExt, stream::select};
 use uom::si::{
     f64::{Information, InformationRate, Time},
     information::byte,

@@ -21,7 +21,7 @@ use vetrata_state::idle::ScheduledAfterIdle;
 use crate::{
     hover_tooltips::PressHints,
     widget_groups::window_group::process_tree::Folding,
-    widgets::{bar_widget::Glyph, localized_time::LocalizedTimeFormat},
+    widgets::{bar_widget::Glyph, icon_handle::PixmapHandles, localized_time::LocalizedTimeFormat},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -446,6 +446,7 @@ pub struct TrayMenuBody {
     pub title: String,
     pub body: Option<String>,
     pub nodes: Vec<MenuNode>,
+    pub pixmap_handles: PixmapHandles,
     pub open_submenus: HashSet<i32>,
 }
 

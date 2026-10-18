@@ -4,7 +4,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use iced::futures::{Stream, StreamExt, future::join_all, stream};
+use futures::{Stream, StreamExt, future::join_all, stream};
 use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{

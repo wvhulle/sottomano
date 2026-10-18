@@ -84,12 +84,12 @@ impl FocusTracker {
         }
         self.last_probed_window_focus = probed.clone();
         match probed {
-            ProbedWindowFocus::FocusedWindowIdentity(identity) => {
+            ProbedWindowFocus::FocusedWindowIdentity(identity) => Task::perform(
                 blocking("focus probe", move || {
                     WindowFocusChange::WindowGainedFocus(identity.probed())
-                })
-                .map(TrackerMessage::WindowFocusChanged)
-            }
+                }),
+                TrackerMessage::WindowFocusChanged,
+            ),
             ProbedWindowFocus::NoWindowFocused => self.update(
                 TrackerMessage::WindowFocusChanged(WindowFocusChange::NoWindowFocused),
                 waking,

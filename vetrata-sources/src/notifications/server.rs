@@ -1,9 +1,12 @@
 use std::{
     collections::HashMap,
-    sync::atomic::{AtomicU32, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
 };
 
-use iced::widget::image;
+use image::RgbaImage;
 use tokio::sync::mpsc;
 use uom::si::{f64::Ratio, ratio::percent};
 use vetrata_config::severity::Severity;
@@ -294,23 +297,23 @@ fn reply_prompt(action: Option<&NotifAction>, hints: &HashMap<String, OwnedValue
 }
 
 fn hint_image(hints: &HashMap<String, OwnedValue>) -> Option<NotifImage> {
-    if let Some(handle) = ["image-data", "image_data"]
+    if let Some(pixels) = ["image-data", "image_data"]
         .iter()
         .find_map(|key| hints.get(*key))
-        .and_then(|value| image_data_to_handle(value))
+        .and_then(|value| image_data_pixels(value))
     {
-        return Some(NotifImage::Rgba(handle));
+        return Some(NotifImage::Rgba(Arc::new(pixels)));
     }
     if let Some(path) = hint_str(hints, "image-path").or_else(|| hint_str(hints, "image_path")) {
         return Some(NotifImage::Named(path));
     }
     hints
         .get("icon_data")
-        .and_then(|value| image_data_to_handle(value))
-        .map(NotifImage::Rgba)
+        .and_then(|value| image_data_pixels(value))
+        .map(|pixels| NotifImage::Rgba(Arc::new(pixels)))
 }
 
-fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
+fn image_data_pixels(value: &Value) -> Option<RgbaImage> {
     let (width, height, rowstride, has_alpha, _bits, channels, data): (
         i32,
         i32,
@@ -342,11 +345,11 @@ fn image_data_to_handle(value: &Value) -> Option<image::Handle> {
             });
         }
     }
-    Some(image::Handle::from_rgba(
+    RgbaImage::from_raw(
         u32::try_from(width).ok()?,
         u32::try_from(height).ok()?,
         rgba,
-    ))
+    )
 }
 
 #[cfg(test)]

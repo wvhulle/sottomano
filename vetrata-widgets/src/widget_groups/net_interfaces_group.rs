@@ -9,7 +9,6 @@ mod wifi_link_tooltip;
 use vetrata_config::Config;
 use vetrata_sources::{
     SourceDelivery,
-    background_work::source_subscription,
     bus::DesktopBuses,
     net_interfaces::{
         bluetooth::Bluetooth,
@@ -20,6 +19,7 @@ use vetrata_sources::{
 };
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,

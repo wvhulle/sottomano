@@ -10,14 +10,13 @@ use iced::{
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 use vetrata_config::SecretPaths;
 use vetrata_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    background_work::source_subscription,
-    command,
+    DeliveryCadence, ReadingSource, SourceDelivery, command,
     stream_operators::StreamOperators,
     wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
 };
 
 use crate::{
+    background_work::source_subscription,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},

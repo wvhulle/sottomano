@@ -9,6 +9,7 @@ use crate::widgets::{
     amount_text::spend_text,
     bar_widget::{BarWidget, Glyph},
     phosphor::{Phosphor, Weight},
+    spend_forecast_basis::MONTH_HEADING_FORMAT,
     spend_to_level::level_from_cost,
     tooltip_body::{KeyValue, Section, TooltipBody},
     widget_state::WidgetState,
@@ -60,7 +61,13 @@ impl BarWidget for CopilotCcusage {
                 KeyValue::new("Cost", usage.cost.to_string()),
                 KeyValue::new("Models", usage.models.clone()),
             ])
-            .titled(self.period.span.month_heading()),
+            .titled(
+                self.period
+                    .span
+                    .since
+                    .format(MONTH_HEADING_FORMAT)
+                    .to_string(),
+            ),
         ])
     }
 
