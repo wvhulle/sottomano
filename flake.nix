@@ -38,7 +38,7 @@
         p: p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml
       );
 
-      src = craneLib.cleanCargoSource ./.;
+      src = ./.;
 
       phosphorCore = pkgs.fetchFromGitHub {
         owner = "phosphor-icons";
@@ -49,6 +49,7 @@
 
       commonArgs = {
         inherit src;
+        version = "0.1.0";
         strictDeps = true;
         nativeBuildInputs = [
           pkgs.pkg-config
@@ -67,7 +68,19 @@
         PHOSPHOR_SVG = "${phosphorCore}/assets";
       };
 
-      cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+      shellArgs = commonArgs // {
+        pname = "vetrata";
+        cargoExtraArgs = "--locked -p vetrata-shell";
+      };
+
+      showcaseArgs = commonArgs // {
+        pname = "vetrata-readme-showcase";
+        cargoExtraArgs = "--locked -p vetrata-readme-showcase";
+      };
+
+      shellArtifacts = craneLib.buildDepsOnly shellArgs;
+
+      showcaseArtifacts = craneLib.buildDepsOnly showcaseArgs;
 
       gsettingsRuntime = {
         binPath = "${pkgs.glib.bin}/bin";
@@ -98,9 +111,9 @@
       runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
 
       vetrata = craneLib.buildPackage (
-        commonArgs
+        shellArgs
         // {
-          inherit cargoArtifacts;
+          cargoArtifacts = shellArtifacts;
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
           postInstall = ''
             wrapProgram $out/bin/vetrata \
@@ -117,10 +130,9 @@
       );
 
       readmeShowcase = craneLib.mkCargoDerivation (
-        commonArgs
+        showcaseArgs
         // {
-          inherit cargoArtifacts;
-          pname = "vetrata-readme-showcase";
+          cargoArtifacts = showcaseArtifacts;
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.fontconfig ];
           FONTCONFIG_FILE = pkgs.makeFontsConf {
             fontDirectories = [
@@ -143,12 +155,12 @@
           ICED_BACKEND = "tiny-skia";
           doInstallCargoArtifacts = false;
           buildPhaseCargoCommand = ''
-            mkdir -p docs
-            cargoWithProfile test readme_showcase -- --ignored
+            mkdir -p recordings
+            cargoWithProfile run $cargoExtraArgs
           '';
           installPhaseCommand = ''
             mkdir -p $out
-            cp docs/*.gif $out/
+            cp recordings/*.gif $out/
           '';
         }
       );
@@ -159,7 +171,7 @@
       packages.${system} = {
         default = vetrata;
         vetrata = vetrata;
-        deps = cargoArtifacts;
+        deps = showcaseArtifacts;
         readme-showcase = readmeShowcase;
       };
 

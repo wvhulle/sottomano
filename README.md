@@ -14,55 +14,55 @@ and the card's top line says what a click does.
 
 CPU, memory and temperature, with live detail on hover.
 
-<img src="docs/compute.gif" width="554" alt="Expanding the compute group and hovering CPU, memory and temperature">
+<img src="recordings/compute.gif" width="554" alt="Expanding the compute group and hovering CPU, memory and temperature">
 
 ### Weather and location
 
 Current conditions with the hourly forecast, and where the location fix came from.
 
-<img src="docs/weather.gif" width="404" alt="Hovering the temperature and the location in the weather group">
+<img src="recordings/weather.gif" width="404" alt="Hovering the temperature and the location in the weather group">
 
 ### AI usage
 
 Subscription windows, their projected use at reset, and extra spend.
 
-<img src="docs/ai-usage.gif" width="366" alt="Hovering the Claude usage windows">
+<img src="recordings/ai-usage.gif" width="366" alt="Hovering the Claude usage windows">
 
 ### Media
 
 The playing track with its progress and where to find it.
 
-<img src="docs/media.gif" width="394" alt="Hovering the playing track">
+<img src="recordings/media.gif" width="394" alt="Hovering the playing track">
 
 ### Idle and lock
 
 Idle timeouts as sliders, each saying when it fires and how.
 
-<img src="docs/idle-lock.gif" width="363" alt="Expanding the idle timeouts and hovering the lock timer">
+<img src="recordings/idle-lock.gif" width="363" alt="Expanding the idle timeouts and hovering the lock timer">
 
 ### Inline sliders
 
 Volume and microphone level as sliders that open in place, with a live level meter.
 
-<img src="docs/audio-sliders.gif" width="390" alt="Opening the volume slider, dragging it and hovering the microphone">
+<img src="recordings/audio-sliders.gif" width="390" alt="Opening the volume slider, dragging it and hovering the microphone">
 
 ### Wallpaper
 
 The place in the current wallpaper and its Wikipedia summary.
 
-<img src="docs/wallpaper.gif" width="707" alt="Expanding the wallpaper group and hovering the article">
+<img src="recordings/wallpaper.gif" width="707" alt="Expanding the wallpaper group and hovering the article">
 
 ### Workspaces and windows
 
 A preview of each workspace, every window, and the process tree behind the focused one.
 
-<img src="docs/bottom-bar.gif" width="537" alt="Hovering a workspace, a window and its process inspector">
+<img src="recordings/bottom-bar.gif" width="618" alt="Hovering a workspace, a window and its process inspector">
 
 ### Workspace sidebar
 
 Workspaces can also sit in a vertical sidebar, with the same previews.
 
-<img src="docs/workspace-sidebar.gif" width="390" alt="Hovering each workspace in the vertical sidebar">
+<img src="recordings/workspace-sidebar.gif" width="419" alt="Hovering each workspace in the vertical sidebar">
 
 ## Run
 
