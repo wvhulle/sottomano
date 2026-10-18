@@ -24,11 +24,11 @@ use vetrata_sources::{
     notifications::model::{NotificationData, Outbound},
     sink::sound::SoundTheme,
 };
+use vetrata_state::ShellSettings;
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
-    state::ShellSettings,
     widgets::{
         announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
         widget_group::GroupToastRequests,

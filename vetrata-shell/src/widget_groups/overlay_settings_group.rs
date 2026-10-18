@@ -1,12 +1,12 @@
 use iced::Task;
 use vetrata_config::Config;
+use vetrata_state::{LayerAppearance, NotificationSettings, ShellLayer, shell_settings};
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::{self, LayerAppearance, NotificationSettings, ShellLayer},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -117,7 +117,7 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
                 notifications.toast_spatial_layout = !notifications.toast_spatial_layout;
                 Action::ReflowToasts(
-                    Task::future(state::shell_settings::save_toast_spatial_layout(
+                    Task::future(shell_settings::save_toast_spatial_layout(
                         notifications.toast_spatial_layout,
                     ))
                     .discard(),

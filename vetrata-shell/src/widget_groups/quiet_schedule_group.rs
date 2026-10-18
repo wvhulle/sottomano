@@ -8,11 +8,11 @@ use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
 use vetrata_config::Config;
 use vetrata_sources::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind};
+use vetrata_state::quiet_hours::{self, QuietHoursSchedule};
 
 use crate::{
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::source_subscription,
-    state::{self, quiet_hours::QuietHoursSchedule},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
         continuous_reading::ContinuousReading,
@@ -247,7 +247,7 @@ impl QuietScheduleGroup {
                 schedule.follows_schedule = !schedule.follows_schedule;
                 self.manual = None;
                 self.saved.load(schedule);
-                Task::future(state::quiet_hours::save(schedule)).discard()
+                Task::future(quiet_hours::save(schedule)).discard()
             }
             QuietScheduleMessage::Slider(slider, m) => self.update_slider(slider, m),
             QuietScheduleMessage::Expansion(m) => {
@@ -294,7 +294,7 @@ impl QuietScheduleGroup {
                     }
                 }
                 self.saved.load(schedule);
-                Task::future(state::quiet_hours::save(schedule)).map(move |ok| {
+                Task::future(quiet_hours::save(schedule)).map(move |ok| {
                     QuietScheduleMessage::Slider(slider, ControlMessage::Persisted { value, ok })
                 })
             }

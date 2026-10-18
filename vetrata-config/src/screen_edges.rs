@@ -11,3 +11,20 @@ pub enum HEdge {
     Center,
     Right,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Position {
+    Top,
+    Bottom,
+    Left,
+}
+
+impl Position {
+    pub const BARS: [Position; 2] = [Position::Top, Position::Bottom];
+    pub const ALL: [Position; 3] = [Position::Top, Position::Bottom, Position::Left];
+
+    #[must_use]
+    pub fn is_vertical(self) -> bool {
+        matches!(self, Position::Left)
+    }
+}

@@ -14,6 +14,7 @@ use vetrata_sources::{
     notifications::model::{NotificationData, Outbound, close_reason},
     sink::sound::{self, SoundTheme},
 };
+use vetrata_state::{NotificationSettings, shell_settings};
 
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
@@ -26,7 +27,6 @@ use super::{
 use crate::{
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
-    state::{self, NotificationSettings},
     widget_groups::{
         notification_group::NotificationGroupMessage,
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
@@ -72,7 +72,7 @@ impl DesktopShell {
             NotificationGroupMessage::ToggleSound => {
                 let notifications = &mut self.shell_settings.notifications;
                 notifications.sound = !notifications.sound;
-                Task::future(state::shell_settings::save_sound(notifications.sound)).discard()
+                Task::future(shell_settings::save_sound(notifications.sound)).discard()
             }
             NotificationGroupMessage::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)

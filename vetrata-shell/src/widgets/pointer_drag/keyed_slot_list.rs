@@ -13,9 +13,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use vetrata_config::Config;
-
-use crate::desktop_shell::monitor_surfaces::Position;
+use vetrata_config::{Config, screen_edges::Position};
 
 pub fn keyed_slot_list<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
     slots: impl IntoIterator<Item = (Key, Element<'a, Message>)>,

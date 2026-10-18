@@ -1,7 +1,6 @@
 mod command_line;
 pub mod desktop_shell;
 mod message_subscriptions;
-pub mod state;
 pub mod widget_groups;
 pub mod widgets;
 
@@ -15,10 +14,10 @@ use iced_exwlshell::{
     redraw::Scope,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
-use state::niri_rules::NiriRulesFile;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 use vetrata_config::{Config, ConfigFile, SecretPaths};
 use vetrata_sources::niri_config::NiriConfigFile;
+use vetrata_state::niri_rules::NiriRulesFile;
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();

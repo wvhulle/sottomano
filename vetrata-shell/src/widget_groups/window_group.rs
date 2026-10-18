@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
-use vetrata_config::{Config, widget_groups::WindowAgentsConfig};
+use vetrata_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use vetrata_sources::{
     app_icon::DesktopEntries, audio::WindowAudio, bus::DesktopBuses,
     kitty_windows::WindowProcesses, niri, process::Watched,
@@ -16,7 +16,7 @@ use vetrata_sources::{
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    desktop_shell::{hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         continuous_reading::ContinuousReading, pointer_drag::DragView, tooltip_body::Tooltip,
         widget_group::GroupEvent, window_icon::WindowAssets,

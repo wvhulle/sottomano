@@ -3,10 +3,11 @@ use iced::{
     widget::{Column, container},
     window::Id,
 };
+use vetrata_config::screen_edges::Position;
+use vetrata_state::{OutlinedSides, WorkspacesPlacement};
 
 use crate::{
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
-    state::WorkspacesPlacement,
+    desktop_shell::{DesktopShell, Message},
     widget_groups::workspaces_group,
     widgets::{
         panel_frame::panel_frame,
@@ -25,7 +26,7 @@ impl DesktopShell {
         let frame_style = sidebar.frame_style(config);
         let outlined_sides = self
             .shell_settings
-            .outlined_sides(Position::Left.inward_sides());
+            .outlined_sides(OutlinedSides::from(Position::Left));
         let framed_workspaces = (self.shell_settings.layout.workspaces_placement
             == WorkspacesPlacement::Sidebar)
             .then(|| self.niri_snapshot.get())

@@ -5,14 +5,13 @@ use iced::{
     Alignment, Color, Element, Length, Theme, border,
     widget::{Column, Row, Text, column, container, progress_bar, row},
 };
-use vetrata_config::Config;
+use vetrata_config::{Config, screen_edges::Position};
 use vetrata_sources::{niri, niri_config::ConfiguredWorkspaces};
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
-        monitor_surfaces::Position,
         pointer_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     },
     widgets::{

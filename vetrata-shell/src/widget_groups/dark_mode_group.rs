@@ -16,11 +16,11 @@ use vetrata_sources::{
     umbra::{self, Umbra},
     weather::Location,
 };
+use vetrata_state::dark_mode::{self, DarkModeSchedule};
 
 use crate::{
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
-    state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },
@@ -236,7 +236,7 @@ impl DarkModeGroup {
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
                 self.auto_switch_toggle.change_sun_event_offsets(offsets);
-                Task::future(state::dark_mode::save(
+                Task::future(dark_mode::save(
                     self.auto_switch_toggle
                         .saved_schedule
                         .get()
@@ -268,7 +268,7 @@ impl DarkModeGroup {
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
-        Task::future(state::dark_mode::save(
+        Task::future(dark_mode::save(
             self.auto_switch_toggle
                 .saved_schedule
                 .get()

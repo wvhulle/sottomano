@@ -13,11 +13,11 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use vetrata_config::Config;
+use vetrata_config::{Config, screen_edges::Position};
+use vetrata_state::ShellSettings;
 
 use crate::{
-    desktop_shell::{Message, monitor_surfaces::Position},
-    state::ShellSettings,
+    desktop_shell::Message,
     widgets::{
         child_view::{ChildView, ChildViewMut},
         popup_connector::ConnectorTriangle,

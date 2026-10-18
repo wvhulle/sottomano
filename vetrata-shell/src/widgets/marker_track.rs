@@ -1,8 +1,7 @@
 use iced::{
     Color, Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas,
 };
-
-use crate::desktop_shell::monitor_surfaces::Position;
+use vetrata_config::screen_edges::Position;
 
 pub struct MarkerTrack {
     markers: Vec<Color>,

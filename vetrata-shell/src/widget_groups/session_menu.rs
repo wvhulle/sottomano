@@ -7,10 +7,10 @@ use vetrata_sources::{
     logind::permissions::{self, Permissions},
     session_action::SessionAction,
 };
+use vetrata_state::idle::Timeouts;
 
 use crate::{
     desktop_shell::hover_tooltips::{HoverTarget, pressable_card},
-    state::idle::Timeouts,
     widgets::{
         bar_widget::Glyph,
         group_item::GroupItem,

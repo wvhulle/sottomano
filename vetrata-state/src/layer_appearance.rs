@@ -1,6 +1,6 @@
 use vetrata_sources::store::{Columns, StoreError, with_table};
 
-use crate::state::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
+use crate::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS layer_appearance (
     layer TEXT PRIMARY KEY,
@@ -144,7 +144,7 @@ mod tests {
     use vetrata_sources::store::{flag, real};
 
     use super::{AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_setting};
-    use crate::state::{LayerAppearance, ShellLayer};
+    use crate::{LayerAppearance, ShellLayer};
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {

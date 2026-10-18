@@ -9,10 +9,10 @@ use vetrata_sources::{
     power_profile::{self, Conditions, Profile, ProfileStatus},
     sysfs_sensors::battery::Battery,
 };
+use vetrata_state::power;
 
 use crate::{
     message_subscriptions::{first_delivery, source_subscription},
-    state::power,
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},

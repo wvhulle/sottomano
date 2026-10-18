@@ -6,62 +6,30 @@ use iced_exwlshell::{
         Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
     },
 };
+use vetrata_config::screen_edges::Position;
 use vetrata_sources::{background_work::blocking, niri};
+use vetrata_state::niri_rules::StyledSurface;
 
-use crate::{
-    desktop_shell::{DesktopShell, Message},
-    state::niri_rules::StyledSurface,
-    widgets::panel_frame::OutlinedSides,
-};
+use crate::desktop_shell::{DesktopShell, Message};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Position {
-    Top,
-    Bottom,
-    Left,
+trait EdgeStripLayer {
+    fn anchor(self) -> Anchor;
+    fn strip_size(self, thickness: u32) -> LayerSize;
 }
 
-impl Position {
-    pub const BARS: [Position; 2] = [Position::Top, Position::Bottom];
-    pub const ALL: [Position; 3] = [Position::Top, Position::Bottom, Position::Left];
-
-    #[must_use]
-    pub fn edge(self) -> Anchor {
+impl EdgeStripLayer for Position {
+    fn anchor(self) -> Anchor {
         match self {
-            Position::Top => Anchor::Top,
-            Position::Bottom => Anchor::Bottom,
-            Position::Left => Anchor::Left,
+            Position::Top => Anchor::Top | Anchor::Left | Anchor::Right,
+            Position::Bottom => Anchor::Bottom | Anchor::Left | Anchor::Right,
+            Position::Left => Anchor::Left | Anchor::Top | Anchor::Bottom,
         }
     }
 
-    #[must_use]
-    pub fn anchor(self) -> Anchor {
-        match self {
-            Position::Top | Position::Bottom => self.edge() | Anchor::Left | Anchor::Right,
-            Position::Left => self.edge() | Anchor::Top | Anchor::Bottom,
-        }
-    }
-
-    #[must_use]
-    pub fn strip_size(self, thickness: u32) -> LayerSize {
+    fn strip_size(self, thickness: u32) -> LayerSize {
         match self {
             Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
             Position::Left => LayerSize::fill_height(thickness),
-        }
-    }
-
-    #[must_use]
-    pub fn is_vertical(self) -> bool {
-        matches!(self, Position::Left)
-    }
-
-    #[must_use]
-    pub fn inward_sides(self) -> OutlinedSides {
-        OutlinedSides {
-            top: self != Position::Top,
-            right: true,
-            bottom: self != Position::Bottom,
-            left: self != Position::Left,
         }
     }
 }

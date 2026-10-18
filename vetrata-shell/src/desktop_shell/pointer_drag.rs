@@ -4,11 +4,11 @@ use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
 use tokio::time::sleep;
 use vetrata_sources::niri;
+use vetrata_state::WorkspacesPlacement;
 
 use crate::{
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
-    state::WorkspacesPlacement,
     widgets::pointer_drag::{
         self, ActiveDrag, DragEvent, DragOutcome, DragTransition, DragView, DraggedBarSlot,
         ForeignHover, PointerDrag,

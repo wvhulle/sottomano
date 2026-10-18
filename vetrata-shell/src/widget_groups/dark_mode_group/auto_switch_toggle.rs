@@ -4,17 +4,15 @@ use situo_client::Position;
 use vetrata_sources::sun_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
+use vetrata_state::dark_mode::DarkModeSchedule;
 
-use crate::{
-    state::dark_mode::DarkModeSchedule,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
-        localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
-        tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    continuous_reading::ContinuousReading,
+    localized_time::LocalizedTimeFormat,
+    phosphor::Phosphor,
+    tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
+    widget_state::WidgetState,
 };
 
 pub struct AutoSwitchToggle {

@@ -16,10 +16,10 @@ use vetrata_sources::{
     DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
     tray::MenuNode, window_label::WindowLabel,
 };
+use vetrata_state::idle::ScheduledAfterIdle;
 
 use crate::{
     desktop_shell::hover_tooltips::PressHints,
-    state::idle::ScheduledAfterIdle,
     widget_groups::window_group::process_tree::Folding,
     widgets::{bar_widget::Glyph, localized_time::LocalizedTimeFormat},
 };

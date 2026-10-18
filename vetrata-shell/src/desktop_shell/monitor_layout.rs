@@ -3,11 +3,10 @@ use iced::{
     widget::{column, container, stack},
     window::Id,
 };
+use vetrata_config::screen_edges::Position;
 
 use crate::{
-    desktop_shell::{
-        DesktopShell, Message, hover_tooltips::on_surface, monitor_surfaces::Position,
-    },
+    desktop_shell::{DesktopShell, Message, hover_tooltips::on_surface},
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
         DraggedBarSlot,

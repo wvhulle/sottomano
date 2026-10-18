@@ -8,9 +8,9 @@ use vetrata_sources::{
     niri::{Placement, WindowOwner},
     notifications::model::NotificationData,
 };
+use vetrata_state::NotificationSettings;
 
 use super::toast_lifecycle::NotificationMessage;
-use crate::state::NotificationSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {
