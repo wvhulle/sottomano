@@ -7,7 +7,7 @@ use vetrata_sources::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLim
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
+    core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
@@ -74,13 +74,13 @@ impl BarWidget for CpuClock {
     }
 }
 
-impl ChipletSections for CpuClock {
-    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+impl ChipletLiveState<'_> {
+    pub fn clock_sections(&self, clock: &CpuClock) -> Vec<Section> {
         let grid = CoreGridSection {
-            topology: &self.topology,
-            readings: &self.cores,
+            topology: &clock.topology,
+            readings: &clock.cores,
         }
-        .section(|group| live.title(group), |group, _| live.facts(group))
+        .section(|group| self.title(group), |group, _| self.facts(group))
         .titled((
             "Chiplets".to_owned(),
             "Each square is one physical core in core-number order, not die position, split into \
@@ -88,11 +88,10 @@ impl ChipletSections for CpuClock {
              governor allows."
                 .to_owned(),
         ));
-        let capped: Vec<TableRecord<2>> = self
+        let capped: Vec<&CoreFreq> = clock
             .cores
             .iter()
             .filter(|core| core.limit.is_capped())
-            .map(TableRow::table_record)
             .collect();
         let capped_section = (!capped.is_empty()).then(|| {
             Section::column_table(
@@ -118,8 +117,8 @@ impl PerCoreReading for CoreFreq {
     }
 }
 
-impl TableRow<2> for CoreFreq {
-    fn table_record(&self) -> TableRecord<2> {
+impl TableRow<2> for &CoreFreq {
+    fn table_record(self) -> TableRecord<2> {
         TableRecord::new(
             format!("Core {}", self.core),
             [

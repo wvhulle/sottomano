@@ -35,7 +35,7 @@ use crate::{
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Tooltip},
+        tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -240,32 +240,20 @@ impl LoginSessionGroup {
             LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_sections(self.session.sections(SessionInfo::sections))),
+            .map(|tooltip| tooltip.with_sections(self.session.sections())),
             LoginSessionTarget::Account => session_face(&AccountFace {
                 identity: identity?,
             }),
             LoginSessionTarget::Compositor => session_face(&CompositorFace {
                 identity: identity?,
             })
-            .map(|tooltip| {
-                tooltip.with_sections(self.graphical.sections(GraphicalSession::sections))
-            }),
-            LoginSessionTarget::ServiceManager => {
-                session_face(&ServiceManagerFace).map(|tooltip| {
-                    tooltip
-                        .with_sections(self.service_manager.sections(UserServiceManager::sections))
-                })
-            }
-            LoginSessionTarget::DesktopServices => {
-                session_face(&DesktopServicesFace).map(|tooltip| {
-                    tooltip.with_sections(
-                        self.graphical_target
-                            .sections(GraphicalSessionTarget::sections),
-                    )
-                })
-            }
+            .map(|tooltip| tooltip.with_sections(self.graphical.sections())),
+            LoginSessionTarget::ServiceManager => session_face(&ServiceManagerFace)
+                .map(|tooltip| tooltip.with_sections(self.service_manager.sections())),
+            LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
+                .map(|tooltip| tooltip.with_sections(self.graphical_target.sections())),
             LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
-                .map(|tooltip| tooltip.with_sections(self.power.sections(PowerPolicy::sections))),
+                .map(|tooltip| tooltip.with_sections(self.power.sections())),
         }
     }
 }

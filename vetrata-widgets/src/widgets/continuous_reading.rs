@@ -7,7 +7,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
-        tooltip_body::{Freshness, Readiness, Section, Tooltip, TooltipBody},
+        tooltip_body::{Freshness, Readiness, ReadingSections, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -81,11 +81,11 @@ impl<S: ReadingSource> ContinuousReading<S> {
         Some(Tooltip::sourced(body, self.freshness()?))
     }
 
-    pub fn sections(&self, sections: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
+    pub fn sections_described_by(&self, describe: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
         let ContinuousReading::Read { data, freshness } = self else {
             return Vec::new();
         };
-        sections(data)
+        describe(data)
             .into_iter()
             .map(|section| section.stamped(Readiness::Settled, *freshness))
             .collect()
@@ -118,6 +118,12 @@ impl<S: ReadingSource> ContinuousReading<S> {
 
     fn keep_with(&mut self, delivery: SourceDelivery<S>, freshness: Freshness) {
         *self = take(self).kept(delivery, freshness);
+    }
+}
+
+impl<S: ReadingSource + ReadingSections> ContinuousReading<S> {
+    pub fn sections(&self) -> Vec<Section> {
+        self.sections_described_by(S::sections)
     }
 }
 

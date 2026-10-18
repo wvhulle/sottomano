@@ -20,7 +20,7 @@ use crate::{
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::{ReadingSections, Tooltip},
+        tooltip_body::Tooltip,
         unit_switch::UnitSwitchFace,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
@@ -144,8 +144,9 @@ impl LlamaServerGroup {
         }
     }
 
+    #[must_use]
     pub fn tooltip_for(&self, target: &LlamaServerTarget) -> Option<Tooltip> {
-        let model_props = self.model_props.sections(LlamaModelProps::sections);
+        let model_props = self.model_props.sections();
         match target.bus {
             Bus::Session => self.user.tooltip_for(target, model_props),
             Bus::System => self.system.tooltip_for(target, model_props),

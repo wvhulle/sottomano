@@ -21,7 +21,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, ReadingSections, Section, TableRecord, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, TableRecord, TableRow, Tooltip, TooltipBody},
     },
 };
 
@@ -241,7 +241,7 @@ impl PowerProfileControl {
             .tooltip_with(TooltipBody::sections(
                 [Some(profile), battery_life].into_iter().flatten(),
             ))
-            .map(|tooltip| tooltip.with_sections(self.status.sections(ProfileStatus::sections)))
+            .map(|tooltip| tooltip.with_sections(self.status.sections()))
     }
 
     fn battery_life_section(&self) -> Section {
@@ -254,7 +254,7 @@ impl PowerProfileControl {
                 Unforecastable::NoDrainHistory,
             ),
         });
-        Section::column_table(ESTIMATE_HEADINGS, lives.map(|life| life.table_record())).titled((
+        Section::column_table(ESTIMATE_HEADINGS, lives).titled((
             "Battery life",
             "Time until empty if you switch to each profile now.",
         ))
@@ -279,8 +279,10 @@ impl ProfileLife {
             self.profile.title().to_string()
         }
     }
+}
 
-    fn table_record(&self) -> TableRecord<3> {
+impl TableRow<3> for ProfileLife {
+    fn table_record(self) -> TableRecord<3> {
         TableRecord::new(self.title(), self.forecast.cells())
     }
 }

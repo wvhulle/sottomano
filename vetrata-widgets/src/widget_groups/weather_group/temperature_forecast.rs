@@ -51,22 +51,8 @@ impl BarWidget for Temperature {
                 KeyValue::new("Humidity", percent_text(self.humidity)),
             ])
             .titled("Temperature"),
-            Section::column_table(
-                HOURLY_HEADINGS,
-                self.hourly
-                    .earlier
-                    .iter()
-                    .map(HourlyTemperature::table_record),
-            )
-            .titled("Earlier"),
-            Section::column_table(
-                HOURLY_HEADINGS,
-                self.hourly
-                    .later
-                    .iter()
-                    .map(HourlyTemperature::table_record),
-            )
-            .titled("Later"),
+            Section::column_table(HOURLY_HEADINGS, self.hourly.earlier.iter()).titled("Earlier"),
+            Section::column_table(HOURLY_HEADINGS, self.hourly.later.iter()).titled("Later"),
         ])
     }
 }
@@ -84,8 +70,8 @@ fn condition_cells(condition: WeatherCondition) -> [Option<Cell>; 2] {
     ]
 }
 
-impl TableRow<3> for HourlyTemperature {
-    fn table_record(&self) -> TableRecord<3> {
+impl TableRow<3> for &HourlyTemperature {
+    fn table_record(self) -> TableRecord<3> {
         let [glyph, text] = self.condition.map_or([None, None], condition_cells);
         TableRecord::new(
             Cell::Time {

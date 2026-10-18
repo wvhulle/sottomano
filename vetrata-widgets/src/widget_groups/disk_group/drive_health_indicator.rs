@@ -9,7 +9,6 @@ use vetrata_sources::{
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    hardware_section::HardwareEntries,
     phosphor::Phosphor,
     tooltip_body::{KeyValue, Section, TooltipBody},
     widget_state::WidgetState,
@@ -75,7 +74,7 @@ impl BarWidget for DriveHealth {
         TooltipBody::sections([
             summary,
             threshold_section,
-            Section::hardware_identity(self.identity.hardware_entries()),
+            Section::from(&self.identity),
             Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
         ])
     }

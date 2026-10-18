@@ -33,3 +33,45 @@ pub mod wallpaper_group;
 pub mod weather_group;
 pub mod window_group;
 pub mod workspaces_group;
+
+use vetrata_sources::{bus, command, http, sysfs_sensors};
+
+use crate::widgets::tooltip_body::{KeyValue, Section};
+
+impl From<bus::Error> for Section {
+    fn from(error: bus::Error) -> Self {
+        Section::error(error)
+    }
+}
+
+impl From<zbus::Error> for Section {
+    fn from(error: zbus::Error) -> Self {
+        Section::error(error)
+    }
+}
+
+impl From<sysfs_sensors::Error> for Section {
+    fn from(error: sysfs_sensors::Error) -> Self {
+        Section::error(error)
+    }
+}
+
+impl From<command::Error> for Section {
+    fn from(error: command::Error) -> Self {
+        Section::error(error)
+    }
+}
+
+impl From<http::Error> for Section {
+    fn from(error: http::Error) -> Self {
+        match error {
+            http::Error::Status { status, message } => Section::dictionary(
+                message
+                    .map(|message| KeyValue::new("Error", message))
+                    .into_iter()
+                    .chain([KeyValue::new("Status", status.to_string())]),
+            ),
+            other => Section::error(other),
+        }
+    }
+}

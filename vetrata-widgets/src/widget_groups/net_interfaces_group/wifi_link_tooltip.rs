@@ -2,10 +2,7 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, frequency::megahertz},
 };
-use vetrata_sources::{
-    hardware::Adapter,
-    net_interfaces::wifi::{Wifi, WifiDetails},
-};
+use vetrata_sources::net_interfaces::wifi::{Wifi, WifiDetails};
 
 use crate::{
     widget_groups::net_interfaces_group::interface_sections::{
@@ -14,7 +11,6 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -85,9 +81,7 @@ impl ReadingSections for WifiDetails {
             ]
         });
         addressing
-            .chain([Section::hardware_identity(
-                self.adapter.iter().flat_map(Adapter::hardware_entries),
-            )])
+            .chain(self.adapter.iter().map(Section::from))
             .collect()
     }
 }

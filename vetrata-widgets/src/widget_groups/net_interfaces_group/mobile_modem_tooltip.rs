@@ -7,7 +7,6 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -95,7 +94,7 @@ impl BarWidget for Mobile {
                 .flatten(),
             )
             .titled("Data"),
-            Section::hardware_identity(self.identity.hardware_entries()),
+            Section::from(&self.identity),
         ])
     }
 }

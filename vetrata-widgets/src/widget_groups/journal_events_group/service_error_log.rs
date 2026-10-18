@@ -1,15 +1,10 @@
 use iced::alignment::Horizontal;
-use vetrata_config::Config;
 use vetrata_sources::service_errors::{ServiceErrors, UnitErrors};
 
 use crate::{
-    widget_groups::{
-        journal_events_group::{JournalEventsMessage, JournalTarget, MESSAGE_CAP},
-        terminal_command::TerminalCommand,
-    },
+    widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::{ConfiguredGroupItem, GroupItem},
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
@@ -17,17 +12,8 @@ use crate::{
     },
 };
 
-impl ConfiguredGroupItem<JournalEventsMessage> for ServiceErrors {
-    fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
-        GroupItem::reading(self, JournalTarget::ServiceErrors).on_press(
-            TerminalCommand::JOURNAL_PRESS_HINT,
-            JournalEventsMessage::OpenLog(TerminalCommand::journal(config, self.follow_log_args())),
-        )
-    }
-}
-
-impl TableRow<3> for UnitErrors {
-    fn table_record(&self) -> TableRecord<3> {
+impl TableRow<3> for &UnitErrors {
+    fn table_record(self) -> TableRecord<3> {
         let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
         TableRecord::new(
             self.unit.name(),
@@ -73,9 +59,7 @@ impl BarWidget for ServiceErrors {
                 ColumnHeading::new("Count"),
                 ColumnHeading::new("Message").align_x(Horizontal::Left),
             ],
-            self.by_unit_oldest_first
-                .iter()
-                .map(UnitErrors::table_record),
+            self.by_unit_oldest_first.iter(),
         )
         .titled((
             "Service errors",

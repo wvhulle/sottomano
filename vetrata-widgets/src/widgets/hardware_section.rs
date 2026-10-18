@@ -1,12 +1,11 @@
-use vetrata_sources::hardware::{
-    Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
+use vetrata_sources::{
+    gpu::GpuModel,
+    hardware::{
+        Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
+    },
 };
 
 use crate::widgets::tooltip_body::{Cell, KeyValue, Section};
-
-pub trait HardwareEntries {
-    fn hardware_entries(&self) -> Vec<KeyValue>;
-}
 
 impl Section {
     pub fn hardware_identity(entries: impl IntoIterator<Item = KeyValue>) -> Self {
@@ -61,80 +60,90 @@ impl From<&CpuModel> for Section {
     }
 }
 
-impl HardwareEntries for MemoryModules {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        self.0
-            .iter()
-            .flat_map(|group| {
-                let module = &group.module;
-                let speed = module
-                    .speed_mts
-                    .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
-                [
-                    ("Manufacturer", &module.manufacturer),
-                    ("Part number", &module.part_number),
-                    ("Type", &module.kind),
-                ]
-                .into_iter()
-                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-                .chain(speed)
-                .chain([
-                    KeyValue::new("Module size", module.size.display().iec().to_string()),
-                    KeyValue::new("Modules", group.count.to_string()),
-                ])
-            })
-            .collect()
-    }
-}
-
-impl HardwareEntries for DriveIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        [
-            ("Model", &self.model),
-            ("Serial", &self.serial),
-            ("Firmware", &self.firmware),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .collect()
-    }
-}
-
-impl HardwareEntries for PowerSupplyIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        [
-            ("Manufacturer", &self.manufacturer),
-            ("Model", &self.model),
-            ("Serial", &self.serial),
-            ("Technology", &self.technology),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .collect()
-    }
-}
-
-impl HardwareEntries for ModemIdentity {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        [
-            ("Manufacturer", &self.manufacturer),
-            ("Model", &self.model),
-            ("Firmware", &self.revision),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .chain(self.adapter.iter().flat_map(adapter_bus_entries))
-        .collect()
-    }
-}
-
-impl HardwareEntries for Adapter {
-    fn hardware_entries(&self) -> Vec<KeyValue> {
-        [("Vendor", &self.vendor), ("Model", &self.model)]
+impl From<&MemoryModules> for Section {
+    fn from(modules: &MemoryModules) -> Self {
+        Section::hardware_identity(modules.0.iter().flat_map(|group| {
+            let module = &group.module;
+            let speed = module
+                .speed_mts
+                .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
+            [
+                ("Manufacturer", &module.manufacturer),
+                ("Part number", &module.part_number),
+                ("Type", &module.kind),
+            ]
             .into_iter()
             .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-            .chain(adapter_bus_entries(self))
-            .collect()
+            .chain(speed)
+            .chain([
+                KeyValue::new("Module size", module.size.display().iec().to_string()),
+                KeyValue::new("Modules", group.count.to_string()),
+            ])
+        }))
+    }
+}
+
+impl From<&DriveIdentity> for Section {
+    fn from(drive: &DriveIdentity) -> Self {
+        Section::hardware_identity(
+            [
+                ("Model", &drive.model),
+                ("Serial", &drive.serial),
+                ("Firmware", &drive.firmware),
+            ]
+            .into_iter()
+            .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+        )
+    }
+}
+
+impl From<&PowerSupplyIdentity> for Section {
+    fn from(supply: &PowerSupplyIdentity) -> Self {
+        Section::hardware_identity(
+            [
+                ("Manufacturer", &supply.manufacturer),
+                ("Model", &supply.model),
+                ("Serial", &supply.serial),
+                ("Technology", &supply.technology),
+            ]
+            .into_iter()
+            .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+        )
+    }
+}
+
+impl From<&ModemIdentity> for Section {
+    fn from(modem: &ModemIdentity) -> Self {
+        Section::hardware_identity(
+            [
+                ("Manufacturer", &modem.manufacturer),
+                ("Model", &modem.model),
+                ("Firmware", &modem.revision),
+            ]
+            .into_iter()
+            .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+            .chain(modem.adapter.iter().flat_map(adapter_bus_entries)),
+        )
+    }
+}
+
+impl From<&Adapter> for Section {
+    fn from(adapter: &Adapter) -> Self {
+        Section::hardware_identity(
+            [("Vendor", &adapter.vendor), ("Model", &adapter.model)]
+                .into_iter()
+                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+                .chain(adapter_bus_entries(adapter)),
+        )
+    }
+}
+
+impl From<&GpuModel> for Section {
+    fn from(model: &GpuModel) -> Self {
+        Section::hardware_identity([
+            KeyValue::new("Model", model.name.as_str()),
+            KeyValue::new("Driver", model.driver_version.as_str()),
+        ])
     }
 }
 

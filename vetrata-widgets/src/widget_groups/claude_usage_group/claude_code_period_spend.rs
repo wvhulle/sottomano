@@ -5,7 +5,7 @@ use crate::widgets::{
     amount_text::{spend_text, token_count},
     bar_widget::{BarWidget, Glyph},
     phosphor::{Phosphor, Weight},
-    spend_forecast_basis::{BudgetEntries, MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
+    spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
     spend_to_level::level_from_cost,
     tooltip_body::{KeyValue, Section, TooltipBody},
     widget_state::WidgetState,
@@ -58,13 +58,12 @@ impl BarWidget for ClaudeCcusagePeriods {
             .titled(title)
         };
         TooltipBody::sections([
-            Section::dictionary(
+            Section::spend_forecast_basis(
                 [
                     KeyValue::new("Source", "ccusage, local Claude Code logs"),
                     KeyValue::new("Cost Basis", "API list prices"),
-                ]
-                .into_iter()
-                .chain(self.budget.forecast_basis()),
+                ],
+                &self.budget,
             ),
             period_section("Today".to_owned(), &recent.today, None),
             period_section(
@@ -85,7 +84,8 @@ impl BarWidget for ClaudeCcusagePeriods {
                     .format(MONTH_HEADING_FORMAT)
                     .to_string(),
                 &recent.month,
-                Some(self.budget.monthly_budget_entry(
+                Some(KeyValue::monthly_budget(
+                    &self.budget,
                     &recent.month.usage.cost,
                     recent.month.projected_cost(now, &self.budget),
                 )),

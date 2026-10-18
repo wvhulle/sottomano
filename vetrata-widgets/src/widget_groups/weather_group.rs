@@ -8,7 +8,7 @@ mod wind_speed;
 
 use vetrata_sources::{
     SourceDelivery,
-    weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
+    weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
 };
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::Tooltip,
+        tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -31,6 +31,15 @@ pub enum WeatherTarget {
     Pollen,
     Allergen(Allergen),
     Location,
+}
+
+impl From<weather::Error> for Section {
+    fn from(error: weather::Error) -> Self {
+        match error {
+            weather::Error::Fetch(fetch) => fetch.into(),
+            other => Section::error(other),
+        }
+    }
 }
 
 impl From<WeatherTarget> for HoverTarget {

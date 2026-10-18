@@ -82,7 +82,7 @@ impl BarWidget for Vec<FirmwareUpgrade> {
                 ColumnHeading::new("Urgency").align_x(Horizontal::Left),
                 ColumnHeading::new("Summary").align_x(Horizontal::Left),
             ],
-            self.iter().map(TableRow::table_record),
+            self.iter(),
         )
         .titled(LABEL)])
     }
@@ -92,8 +92,8 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     }
 }
 
-impl TableRow<6> for FirmwareUpgrade {
-    fn table_record(&self) -> TableRecord<6> {
+impl TableRow<6> for &FirmwareUpgrade {
+    fn table_record(self) -> TableRecord<6> {
         TableRecord::new(
             self.device.clone(),
             [

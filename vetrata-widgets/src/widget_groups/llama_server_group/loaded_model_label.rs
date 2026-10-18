@@ -1,4 +1,4 @@
-use vetrata_sources::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer};
+use vetrata_sources::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
@@ -76,39 +76,6 @@ impl BarWidget for ServedModel<'_> {
     fn tooltip(&self) -> TooltipBody {
         self.resident
             .map_or_else(|| TooltipBody::sections([]), BarWidget::tooltip)
-    }
-}
-
-pub struct ServerModels<'a> {
-    pub server: &'a LlamaServer,
-    pub endpoint: &'a str,
-}
-
-impl ReadingSections for ServerModels<'_> {
-    fn sections(&self) -> Vec<Section> {
-        let resident = self.server.resident_model();
-        vec![
-            Section::dictionary(
-                resident
-                    .map(|model| KeyValue::new("Status", model.status))
-                    .into_iter()
-                    .chain([KeyValue::new(
-                        "Web UI",
-                        Cell::Link {
-                            label: self.endpoint.to_owned(),
-                            url: self.endpoint.to_owned(),
-                        },
-                    )]),
-            ),
-            Section::dictionary(
-                self.server
-                    .models
-                    .iter()
-                    .filter(|model| Some(*model) != resident)
-                    .map(|model| KeyValue::new(model.id.clone(), model.status)),
-            )
-            .titled("Available models"),
-        ]
     }
 }
 

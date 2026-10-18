@@ -25,7 +25,7 @@ use crate::{
     background_work::restarting_subscription,
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
-    widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},
+    widget_groups::window_group::{WindowTarget, process_tree::Folding},
     widgets::{
         DISABLED_ALPHA,
         activity_line::activity_line,
@@ -155,11 +155,9 @@ impl WindowList {
             .iter()
             .flat_map(|window| {
                 [
-                    self.inspection
-                        .sections(window_tooltip::inspection_sections),
-                    self.package_facts
-                        .sections(window_tooltip::package_facts_sections),
-                    self.process_tree.sections(|tree| {
+                    self.inspection.sections(),
+                    self.package_facts.sections(),
+                    self.process_tree.sections_described_by(|tree| {
                         let kept = self
                             .window_processes
                             .of_window(*window)

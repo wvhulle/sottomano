@@ -8,7 +8,7 @@ use crate::widgets::{
     amount_text::spend_text,
     bar_widget::{BarWidget, Glyph},
     phosphor::{Phosphor, Weight},
-    spend_forecast_basis::{BudgetEntries, MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
+    spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
     tooltip_body::{KeyValue, Section, TooltipBody},
     widget_state::WidgetState,
 };
@@ -45,7 +45,8 @@ impl BarWidget for OpenRouterSpend {
         let now = Local::now();
         let daily_warning = KeyValue::new("Daily Warning", self.daily_warning().to_string())
             .level(self.daily_severity());
-        let monthly_budget = self.budget.monthly_budget_entry(
+        let monthly_budget = KeyValue::monthly_budget(
+            &self.budget,
             &self.month.cost(),
             self.month.projected_cost(now, &self.budget),
         );
@@ -65,10 +66,9 @@ impl BarWidget for OpenRouterSpend {
             .titled(title)
         };
         TooltipBody::sections([
-            Section::dictionary(
-                [KeyValue::new("Source", "OpenRouter analytics")]
-                    .into_iter()
-                    .chain(self.budget.forecast_basis()),
+            Section::spend_forecast_basis(
+                [KeyValue::new("Source", "OpenRouter analytics")],
+                &self.budget,
             ),
             span_section("Today".to_owned(), &self.today, Some(daily_warning)),
             span_section(

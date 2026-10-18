@@ -19,7 +19,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -39,6 +39,12 @@ pub enum ControlKind {
 pub enum AudioTarget {
     Control(ControlKind),
     Connection,
+}
+
+impl From<AudioConnectError> for Section {
+    fn from(error: AudioConnectError) -> Self {
+        Section::error(error)
+    }
 }
 
 impl From<AudioTarget> for HoverTarget {
