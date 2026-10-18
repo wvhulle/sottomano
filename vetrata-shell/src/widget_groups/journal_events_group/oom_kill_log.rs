@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
 use vetrata_config::Config;
+use vetrata_sources::oom_kills::{OomKillEntry, OomKiller};
 
 use crate::{
-    data::source::oom_kills::{OomKillEntry, OomKiller},
     widget_groups::{
         journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
@@ -12,31 +12,23 @@ use crate::{
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl OomKiller {
-    fn label(self) -> &'static str {
-        match self {
+impl TableRow<2> for OomKillEntry {
+    fn table_record(&self) -> TableRecord<2> {
+        let killer = match self.killer {
             OomKiller::Kernel => "kernel",
             OomKiller::Oomd => "systemd-oomd",
-        }
-    }
-}
-
-impl OomKillEntry {
-    fn table_record(&self) -> TableRecord<2> {
+        };
         TableRecord::new(
             Cell::Time {
                 at: self.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,
             },
-            [
-                Some(self.unit.name().into()),
-                Some(self.killer.label().into()),
-            ],
+            [Some(self.unit.name().into()), Some(killer.into())],
         )
         .level(self.severity)
     }

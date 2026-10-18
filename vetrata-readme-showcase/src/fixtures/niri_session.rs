@@ -7,19 +7,19 @@ use niri_ipc::{
 };
 use uom::si::{f64::Ratio, ratio::percent};
 use vetrata_shell::{
-    data::source::{
-        SourceDelivery,
-        desktop_entries::DesktopIndex,
-        kitty_windows::WindowProcesses,
-        niri::Snapshot,
-        nix_store::{Provenance, StorePackage},
-        process::{Inspection, Launch, Process},
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     widget_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
     },
     widgets::{continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks},
+};
+use vetrata_sources::{
+    SourceDelivery,
+    desktop_entries::DesktopIndex,
+    kitty_windows::WindowProcesses,
+    niri::Snapshot,
+    nix_store::{Provenance, StorePackage},
+    process::{Inspection, Launch, Process},
 };
 
 use crate::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession};

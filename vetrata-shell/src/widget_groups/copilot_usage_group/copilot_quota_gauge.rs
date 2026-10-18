@@ -1,20 +1,18 @@
 use chrono::{DateTime, Utc};
 use uom::si::f64::Ratio;
+use vetrata_sources::ai::{
+    copilot::{CopilotMetered, USER_ENDPOINT},
+    quota::Quota,
+};
 
-use crate::{
-    data::source::ai::{
-        copilot::{CopilotMetered, USER_ENDPOINT},
-        quota::Quota,
-    },
-    widgets::{
-        amount_text::{percent_text, two_decimals},
-        bar_widget::{BarWidget, Glyph},
-        localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_used,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{percent_text, two_decimals},
+    bar_widget::{BarWidget, Glyph},
+    localized_time::LocalizedTimeFormat,
+    phosphor::{Phosphor, Weight},
+    spend_to_level::level_from_used,
+    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for CopilotMetered {

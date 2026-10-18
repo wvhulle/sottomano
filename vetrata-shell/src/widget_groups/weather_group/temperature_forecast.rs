@@ -3,16 +3,14 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
 };
+use vetrata_sources::weather::{HourlyTemperature, Temperature, WeatherCondition};
 
-use crate::{
-    data::source::weather::{HourlyTemperature, Temperature, WeatherCondition},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
-        localized_time::LocalizedTimeFormat,
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
-        weather_icons::WeatherIcon,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_text,
+    localized_time::LocalizedTimeFormat,
+    tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody},
+    weather_icons::WeatherIcon,
 };
 
 impl BarWidget for Temperature {
@@ -86,7 +84,7 @@ fn condition_cells(condition: WeatherCondition) -> [Option<Cell>; 2] {
     ]
 }
 
-impl HourlyTemperature {
+impl TableRow<3> for HourlyTemperature {
     fn table_record(&self) -> TableRecord<3> {
         let [glyph, text] = self.condition.map_or([None, None], condition_cells);
         TableRecord::new(

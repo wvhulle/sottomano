@@ -7,11 +7,9 @@ use iced::{
 };
 use tokio::time::sleep;
 use vetrata_config::Config;
+use vetrata_sources::{ReadingSource, SourceDelivery};
 
-use crate::{
-    data::source::{ReadingSource, SourceDelivery},
-    widgets::tooltip_body::{Freshness, Readiness, Section},
-};
+use crate::widgets::tooltip_body::{Freshness, Readiness, Section};
 
 #[derive(Debug)]
 pub struct OnHoverReading<S: ReadingSource> {
@@ -87,7 +85,10 @@ impl<S: ReadingSource> OnHoverReading<S> {
         }
     }
 
-    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section> {
+    pub fn sections(&self, sections: impl Fn(&S) -> Vec<Section>) -> Vec<Section>
+    where
+        S::Error: Into<Section>,
+    {
         let Some(freshness) = self.freshness else {
             return Vec::new();
         };

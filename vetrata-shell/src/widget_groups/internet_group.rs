@@ -5,15 +5,15 @@ mod tailscale_mesh_tooltip;
 mod wireguard_tunnel_tooltip;
 
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    tailscale::{Tailscale, open_admin},
+    throughput::Readings,
+    wireguard::{TunnelAddress, Wireguard, disconnect},
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        tailscale::{Tailscale, open_admin},
-        throughput::Readings,
-        wireguard::{TunnelAddress, Wireguard, disconnect},
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{
@@ -22,7 +22,7 @@ use crate::{
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::Tooltip,
+        tooltip_body::{ReadingSections, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },
@@ -96,7 +96,7 @@ impl InternetGroup {
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
-        use crate::message_subscriptions::blocking;
+        use vetrata_sources::background_work::blocking;
         match msg {
             InternetMessage::Throughput(delivery) => {
                 self.throughput.receive_delivery(delivery);

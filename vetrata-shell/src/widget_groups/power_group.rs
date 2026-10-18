@@ -11,29 +11,28 @@ use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    notifications::model::ActionTint,
+    sysfs_sensors::{
+        battery::{Battery, ChargerSupply},
+        cpu_tuning::CpuTuning,
+    },
+};
 
 use crate::{
-    data::{
-        notifications::model::ActionTint,
-        source::{
-            SourceDelivery,
-            bus::DesktopBuses,
-            sysfs_sensors::{
-                battery::{Battery, ChargerSupply},
-                cpu_tuning::CpuTuning,
-            },
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{ReadingSections, Section, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },

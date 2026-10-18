@@ -4,8 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::Decimal;
 use rusty_money::{Formatter, LocalFormat, Params, Position};
 use uom::si::{f64::Ratio, ratio::percent};
-
-use crate::data::money::Money;
+use vetrata_sources::money::Money;
 
 const SYMBOL_FIRST: &[Position] = &[Position::Sign, Position::Symbol, Position::Amount];
 const SYMBOL_LAST: &[Position] = &[Position::Sign, Position::Amount, Position::Symbol];
@@ -85,8 +84,9 @@ pub fn coarse_duration_text(span: TimeDelta) -> String {
 
 #[cfg(test)]
 mod tests {
+    use vetrata_sources::money::usd;
+
     use super::*;
-    use crate::data::money::usd;
 
     #[test]
     fn coarse_durations_drop_seconds_from_a_minute_on() {

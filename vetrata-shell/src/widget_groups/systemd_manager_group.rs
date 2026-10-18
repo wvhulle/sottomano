@@ -8,27 +8,28 @@ mod failed_unit_log;
 mod last_shutdown_reading;
 mod running_job_reading;
 
+use boot_timeline_reading::StartupUnits;
 use vetrata_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    previous_shutdown::LastShutdown,
+    systemd_manager::{
+        SystemdOnBus, SystemdUnitScope,
+        boot_timeline::{BootTimeline, BootTimelineWatch},
+        failed_units::{FailedUnitRestart, FailedUnits},
+        running_jobs::{SlowJobs, SlowJobsWatch},
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        previous_shutdown::LastShutdown,
-        systemd_manager::{
-            SystemdOnBus, SystemdUnitScope,
-            boot_timeline::{BootTimeline, BootTimelineWatch},
-            failed_units::{FailedUnitRestart, FailedUnits},
-            running_jobs::{SlowJobs, SlowJobsWatch},
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{copy_to_clipboard, source_subscription},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{
@@ -49,65 +50,68 @@ pub fn elapsed_text(duration: Duration) -> String {
     }
 }
 
-impl SystemdUnitScope {
-    #[must_use]
-    pub const fn scope_icon(self) -> Phosphor {
+pub trait UnitScopePresentation {
+    fn scope_icon(self) -> Phosphor;
+    fn scope_name(self) -> &'static str;
+    fn failed_units_label(self) -> &'static str;
+    fn slow_jobs_label(self) -> &'static str;
+    fn failed_units_target(self) -> SystemdTarget;
+    fn slow_jobs_target(self) -> SystemdTarget;
+    fn failed_unit_target(self, name: String) -> SystemdTarget;
+    fn slow_job_target(self, name: String) -> SystemdTarget;
+}
+
+impl UnitScopePresentation for SystemdUnitScope {
+    fn scope_icon(self) -> Phosphor {
         match self {
             SystemdUnitScope::UserSession => Phosphor::User(Weight::Regular),
             SystemdUnitScope::SystemWide => Phosphor::HardDrives(Weight::Regular),
         }
     }
 
-    #[must_use]
-    pub const fn scope_name(self) -> &'static str {
+    fn scope_name(self) -> &'static str {
         match self {
             SystemdUnitScope::UserSession => "user",
             SystemdUnitScope::SystemWide => "system",
         }
     }
 
-    #[must_use]
-    pub const fn failed_units_label(self) -> &'static str {
+    fn failed_units_label(self) -> &'static str {
         match self {
             SystemdUnitScope::UserSession => "Failed user units",
             SystemdUnitScope::SystemWide => "Failed system units",
         }
     }
 
-    #[must_use]
-    pub const fn slow_jobs_label(self) -> &'static str {
+    fn slow_jobs_label(self) -> &'static str {
         match self {
             SystemdUnitScope::UserSession => "Slow user jobs",
             SystemdUnitScope::SystemWide => "Slow system jobs",
         }
     }
 
-    #[must_use]
-    pub const fn failed_units_target(self) -> SystemdTarget {
+    fn failed_units_target(self) -> SystemdTarget {
         match self {
             SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnits,
             SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnits,
         }
     }
 
-    #[must_use]
-    pub const fn slow_jobs_target(self) -> SystemdTarget {
+    fn slow_jobs_target(self) -> SystemdTarget {
         match self {
             SystemdUnitScope::UserSession => SystemdTarget::SlowUserJobs,
             SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJobs,
         }
     }
 
-    #[must_use]
-    pub fn failed_unit_target(self, name: String) -> SystemdTarget {
+    fn failed_unit_target(self, name: String) -> SystemdTarget {
         match self {
             SystemdUnitScope::UserSession => SystemdTarget::FailedUserUnit(name),
             SystemdUnitScope::SystemWide => SystemdTarget::FailedSystemUnit(name),
         }
     }
 
-    #[must_use]
-    pub fn slow_job_target(self, name: String) -> SystemdTarget {
+    fn slow_job_target(self, name: String) -> SystemdTarget {
         match self {
             SystemdUnitScope::UserSession => SystemdTarget::SlowUserJob(name),
             SystemdUnitScope::SystemWide => SystemdTarget::SlowSystemJob(name),
@@ -237,9 +241,12 @@ impl SystemdManagerGroup {
     pub fn tooltip_for(&self, target: &SystemdTarget) -> Option<Tooltip> {
         match target {
             SystemdTarget::BootPhases => self.boot.tooltip(),
-            SystemdTarget::StartupUnits => {
-                self.boot.tooltip_with(self.boot.get()?.units().tooltip())
-            }
+            SystemdTarget::StartupUnits => self.boot.tooltip_with(
+                StartupUnits {
+                    timeline: self.boot.get()?,
+                }
+                .tooltip(),
+            ),
             SystemdTarget::FailedSystemUnits => self.failed_system.tooltip(),
             SystemdTarget::FailedUserUnits => self.failed_user.tooltip(),
             SystemdTarget::SlowSystemJobs => self.slow_system_jobs.tooltip(),
@@ -262,7 +269,9 @@ impl SystemdManagerGroup {
             SystemdManagerMessage::Expansion,
             [
                 boot.map(|boot| GroupItem::reading(boot, SystemdTarget::BootPhases)),
-                boot.map(|boot| GroupItem::reading(boot.units(), SystemdTarget::StartupUnits)),
+                boot.map(|timeline| {
+                    GroupItem::reading(StartupUnits { timeline }, SystemdTarget::StartupUnits)
+                }),
                 self.slow_system_jobs
                     .visible_reading()
                     .map(|jobs| jobs.group_item(config))

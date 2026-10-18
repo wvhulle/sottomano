@@ -1,10 +1,10 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use vetrata_config::severity::Severity;
+use vetrata_sources::focus_ledger::{
+    Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
+};
 
 use crate::{
-    data::source::focus_ledger::{
-        Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
-    },
     widget_groups::session_focus_group::BreakPledge,
     widgets::{
         amount_text::{coarse_duration_text, duration_text},
@@ -220,12 +220,12 @@ mod tests {
     use std::time::Duration;
 
     use vetrata_config::widget_groups::focus_time::FocusTimeConfig;
-
-    use super::*;
-    use crate::data::source::{
+    use vetrata_sources::{
         focus_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
         idle_notify::IdleEdge,
     };
+
+    use super::*;
 
     fn at(minutes: i64) -> DateTime<Utc> {
         "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)

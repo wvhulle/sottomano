@@ -1,5 +1,6 @@
+use vetrata_sources::backlight::{Backlight, Kind};
+
 use crate::{
-    data::source::backlight::{Backlight, Kind},
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
         phosphor::{Phosphor, Weight},

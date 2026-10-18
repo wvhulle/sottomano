@@ -7,8 +7,9 @@ use std::{
 use club_kdl::{KdlDeserialize, KdlSerialize};
 use iced::Task;
 use tokio::fs;
+use vetrata_sources::niri_config::parse_niri_kdl;
 
-use crate::{data::source::niri_config::parse_niri_kdl, desktop_shell::monitor_surfaces::Position};
+use crate::desktop_shell::monitor_surfaces::Position;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct NiriLayout {

@@ -1,25 +1,27 @@
 use std::{collections::BTreeMap, mem::take};
 
 use iced::{Subscription, Task};
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
+    systemd_manager::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
+};
 
 use super::{
-    LlamaServerReading, LlamaServerTarget, SERVER_SWITCH, context_fill_gauge::ContextFill,
-    generation_rate_label::GenerationRate, loaded_model_label::ServedModel,
+    LlamaServerReading, LlamaServerTarget, SERVER_SWITCH,
+    context_fill_gauge::ContextFill,
+    generation_rate_label::GenerationRate,
+    loaded_model_label::{ServedModel, ServerModels},
     slot_occupancy_gauge::SlotOccupancy,
 };
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
-        systemd_manager::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
-    },
     message_subscriptions::source_subscription,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
 };
@@ -154,7 +156,11 @@ impl ScopedLlamaServers {
             LlamaServerReading::Model => Some(
                 reading
                     .tooltip_with(TooltipBody::sections(
-                        server?.model_sections(&readings.discovered.endpoint),
+                        ServerModels {
+                            server: server?,
+                            endpoint: &readings.discovered.endpoint,
+                        }
+                        .sections(),
                     ))?
                     .with_sections(model_props),
             ),

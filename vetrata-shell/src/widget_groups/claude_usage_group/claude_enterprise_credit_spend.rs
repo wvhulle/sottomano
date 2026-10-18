@@ -1,19 +1,17 @@
 use chrono::{DateTime, Utc};
 use uom::si::f64::Ratio;
+use vetrata_sources::ai::{
+    claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
+    quota::Quota,
+};
 
-use crate::{
-    data::source::ai::{
-        claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
-        quota::Quota,
-    },
-    widgets::{
-        amount_text::{percent_text, spend_text},
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_used,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{percent_text, spend_text},
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_to_level::level_from_used,
+    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for ClaudeEnterpriseSpend {
@@ -73,9 +71,8 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 }
 
-impl ClaudeOrganization {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for ClaudeOrganization {
+    fn sections(&self) -> Vec<Section> {
         vec![Section::dictionary([
             KeyValue::new("Organization", self.organization.as_str()),
             KeyValue::new("Seat Tier", self.seat_tier.as_str()),

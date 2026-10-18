@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use nalgebra::{Matrix3, Vector3};
-
-use crate::{
-    data::{battery_forecast::RegressionState, source::power_profile::Profile},
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    battery_forecast::RegressionState,
+    power_profile::Profile,
+    store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (

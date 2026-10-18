@@ -1,7 +1,6 @@
-use crate::state::{
-    Columns, ShellLayer, ShellSettings, StoreError, WorkspacesPlacement, flag, layer_appearance,
-    real, upsert_column, with_table,
-};
+use vetrata_sources::store::{Columns, StoreError, flag, real, upsert_column, with_table};
+
+use crate::state::{ShellLayer, ShellSettings, WorkspacesPlacement, layer_appearance};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),

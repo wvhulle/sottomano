@@ -6,11 +6,11 @@ use iced::{
     task,
 };
 use vetrata_config::Config;
+use vetrata_sources::{
+    focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
+};
 
 use crate::{
-    data::source::{
-        focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     state::{self, idle::Timeouts},
     widgets::{

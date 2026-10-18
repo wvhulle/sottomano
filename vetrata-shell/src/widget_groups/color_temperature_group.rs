@@ -7,14 +7,14 @@ use iced::{Subscription, Task};
 use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    gamma::{self, Gamma},
+    systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        gamma::{self, Gamma},
-        systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{

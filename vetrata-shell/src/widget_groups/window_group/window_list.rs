@@ -9,19 +9,19 @@ use iced::{
     widget::{Row, container, progress_bar, stack, text},
 };
 use vetrata_config::{Config, widget_groups::WindowAgentsConfig};
+use vetrata_sources::{
+    SourceDelivery,
+    audio::WindowAudio,
+    bus::DesktopBuses,
+    job_view::{self, Jobs},
+    kitty_windows::{self, WindowProcesses},
+    launcher_entry::{self, LauncherEntries, LauncherEntry},
+    niri,
+    nix_package_facts::{NixPackageFacts, PackageWatch},
+    process::{Inspection, Process, Watched},
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        audio::WindowAudio,
-        bus::DesktopBuses,
-        job_view::{self, Jobs},
-        kitty_windows::{self, WindowProcesses},
-        launcher_entry::{self, LauncherEntries, LauncherEntry},
-        niri,
-        nix_package_facts::{NixPackageFacts, PackageWatch},
-        process::{Inspection, Process, Watched},
-    },
     desktop_shell::{
         hover_tooltips::{PressHints, TooltipMessage, hoverable},
         monitor_surfaces::Position,

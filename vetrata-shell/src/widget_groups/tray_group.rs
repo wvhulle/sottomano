@@ -8,13 +8,13 @@ use iced::{
 };
 use tokio::sync::mpsc;
 use vetrata_config::{Config, widget_groups::tray::ClickAction};
+use vetrata_sources::{
+    SourceDelivery,
+    niri::WindowOwner,
+    tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        niri::WindowOwner,
-        tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
-    },
     desktop_shell::{
         AppWindowFocus,
         hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},

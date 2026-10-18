@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use crate::{
-    data::source::session_action::SessionAction,
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    session_action::SessionAction,
+    store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (

@@ -6,11 +6,12 @@ mod rain_intensity;
 mod temperature_forecast;
 mod wind_speed;
 
+use vetrata_sources::{
+    SourceDelivery,
+    weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
+};
+
 use crate::{
-    data::source::{
-        SourceDelivery,
-        weather::{Allergen, Location, Pollen, Rain, Temperature, Wind},
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{

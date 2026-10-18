@@ -1,6 +1,6 @@
-use crate::{
-    data::battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
+    store::{Columns, StoreError, with_table},
 };
 
 pub const SCHEMA: [&str; 2] = [

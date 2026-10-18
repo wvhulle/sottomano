@@ -6,16 +6,16 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    ai::{
+        copilot::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
+        working_time_forecast::SpendBudget,
+    },
+    bus::DesktopBuses,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        ai::{
-            copilot::{CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
-            working_time_forecast::SpendBudget,
-        },
-        bus::DesktopBuses,
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{

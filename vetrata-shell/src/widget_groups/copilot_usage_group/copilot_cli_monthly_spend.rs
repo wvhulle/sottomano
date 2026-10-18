@@ -1,19 +1,17 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
+use vetrata_sources::{
+    ai::{copilot::CopilotCcusage, quota::Quota},
+    money::usd,
+};
 
-use crate::{
-    data::{
-        money::usd,
-        source::ai::{copilot::CopilotCcusage, quota::Quota},
-    },
-    widgets::{
-        amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::spend_text,
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_to_level::level_from_cost,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for CopilotCcusage {

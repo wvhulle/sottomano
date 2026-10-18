@@ -1,7 +1,8 @@
 use std::mem::take;
 
+use vetrata_sources::{ReadingSource, SourceDelivery};
+
 use crate::{
-    data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -16,7 +17,7 @@ pub struct FailedReading<S: ReadingSource> {
     error: S::Error,
 }
 
-impl<S: ReadingSource> BarWidget for FailedReading<S> {
+impl<S: ReadingSource<Error: Into<Section>>> BarWidget for FailedReading<S> {
     fn name(&self) -> &'static str {
         "Failed reading"
     }
@@ -169,7 +170,7 @@ impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
     }
 }
 
-impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
+impl<S: ReadingSource<Error: Into<Section>> + BarWidget> ContinuousReading<S> {
     pub fn visible_reading(&self) -> Option<&S> {
         self.get().filter(|data| S::visible_in_bar(data))
     }

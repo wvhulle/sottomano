@@ -3,49 +3,34 @@ use std::{borrow::Cow, cmp::Reverse, time::SystemTime};
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use vetrata_config::Config;
-
-use crate::{
-    data::{
-        notifications::model::ActionTint,
-        source::{
-            coredumps::CoredumpEntry,
-            systemd_manager::failed_units::{
-                FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome,
-                UNIT_FAILURE_PRIORITY,
-            },
-        },
+use vetrata_sources::{
+    notifications::model::ActionTint,
+    systemd_manager::failed_units::{
+        FailedUnitInfo, FailedUnitRestart, FailedUnits, UNIT_FAILURE_PRIORITY,
     },
+};
+
+use super::crashed_unit_actions::CrashedProcess;
+use crate::{
     widget_groups::{
-        systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
+        systemd_manager_group::{SystemdManagerMessage, UnitScopePresentation},
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl FailedUnits {
-    #[must_use]
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+impl ConfiguredGroupItem<SystemdManagerMessage> for FailedUnits {
+    fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
-        GroupItem::reading(self, self.scope.failed_units_target())
-            .on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                open_log(self.follow_log_args()),
-            )
-            .ongoing_toasts(self.failed_unit_toasts(config))
-    }
-
-    fn failed_unit_toasts<'a>(
-        &'a self,
-        config: &'a Config,
-    ) -> impl Iterator<Item = OngoingToast<SystemdManagerMessage>> + 'a {
-        self.units.iter().map(move |unit| {
+        let failed_unit_toasts = self.units.iter().map(|unit| {
             let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
                 config,
                 self.scope.follow_units_log_args([unit.name.as_str()]),
@@ -88,19 +73,22 @@ impl FailedUnits {
                 .chain(
                     unit.crash
                         .iter()
-                        .flat_map(|crash| crash.action_buttons(config)),
+                        .flat_map(|crash| CrashedProcess { crash }.action_buttons(config)),
                 )
                 .collect(),
             }
-        })
+        });
+        GroupItem::reading(self, self.scope.failed_units_target())
+            .on_press(
+                TerminalCommand::JOURNAL_PRESS_HINT,
+                open_log(self.follow_log_args()),
+            )
+            .ongoing_toasts(failed_unit_toasts)
     }
 }
 
 fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
-    let reason = unit
-        .service_outcome
-        .as_ref()
-        .map(ServiceOutcome::description);
+    let reason = unit.service_outcome.as_ref().map(ToString::to_string);
     let failed_at = unit
         .at
         .map(|at| LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
@@ -108,7 +96,11 @@ fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
     let outcome_line = (!outcome.is_empty()).then(|| outcome.join(" · "));
     let lines: Vec<String> = outcome_line
         .into_iter()
-        .chain(unit.crash.iter().flat_map(CoredumpEntry::labelled_fields))
+        .chain(
+            unit.crash
+                .iter()
+                .flat_map(|crash| CrashedProcess { crash }.labelled_fields()),
+        )
         .collect();
     (!lines.is_empty()).then(|| lines.join("\n"))
 }
@@ -156,12 +148,12 @@ impl BarWidget for FailedUnits {
     }
 }
 
-impl FailedUnitInfo {
+impl TableRow<2> for FailedUnitInfo {
     fn table_record(&self) -> TableRecord<2> {
         let reason = self
             .service_outcome
             .as_ref()
-            .map(|outcome| outcome.description().into());
+            .map(|outcome| outcome.to_string().into());
         let failed = self.at.map(|at| Cell::Time {
             at: at.into(),
             format: LocalizedTimeFormat::DateAndTime,
@@ -171,32 +163,14 @@ impl FailedUnitInfo {
     }
 }
 
-impl ServiceOutcome {
-    fn description(&self) -> String {
-        let status = self.exit_status;
-        match self.result.as_str() {
-            "exit-code" => format!("exited with code {status}"),
-            "signal" => format!("killed by signal {status}"),
-            "core-dump" => "crashed (core dumped)".to_string(),
-            "timeout" => "timed out".to_string(),
-            "watchdog" => "watchdog timeout".to_string(),
-            "oom-kill" => "killed (out of memory)".to_string(),
-            "start-limit-hit" => "too many restarts".to_string(),
-            "resources" => "could not start (resources)".to_string(),
-            other => other.to_string(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, SystemTime};
 
+    use vetrata_sources::systemd_manager::{SystemdUnitScope, failed_units::ServiceOutcome};
+
     use super::*;
-    use crate::{
-        data::source::systemd_manager::SystemdUnitScope,
-        widgets::tooltip_body::{Section, SectionBody},
-    };
+    use crate::widgets::tooltip_body::{Section, SectionBody};
 
     fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
         FailedUnitInfo {

@@ -6,6 +6,7 @@ Conventions and workflow for working on vetrata.
 
 Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace: `vetrata-config/` holds the TOML config types and their loading,
+`vetrata-sources/` holds the data sources and sinks the shell reads and writes,
 `vetrata-shell/` holds the shell (binary `vetrata`) and
 `vetrata-readme-showcase/` renders the README recordings. `cargo r` for a
 debug run, `cargo clippy --workspace --all-targets` before committing — the

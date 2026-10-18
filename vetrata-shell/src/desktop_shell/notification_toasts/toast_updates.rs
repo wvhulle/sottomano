@@ -9,6 +9,11 @@ use iced_exwlshell::reexport::ActivationTokenSink;
 use quick_xml::escape::escape;
 use tokio::{sync::mpsc, time::timeout};
 use vetrata_config::{Config, LoadError, severity::Severity};
+use vetrata_sources::{
+    niri::{self, Placement},
+    notifications::model::{NotificationData, Outbound, close_reason},
+    sink::sound::{self, SoundTheme},
+};
 
 use super::{
     DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
@@ -19,11 +24,6 @@ use super::{
     toast_placement::{ToastWindow, placement_for},
 };
 use crate::{
-    data::{
-        notifications::model::{NotificationData, Outbound, close_reason},
-        sink::sound::{self, SoundTheme},
-        source::niri::{self, Placement},
-    },
     desktop_shell::{DesktopShell, Message},
     message_subscriptions::niri_action,
     state::{self, NotificationSettings},

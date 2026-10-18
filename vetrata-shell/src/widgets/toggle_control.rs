@@ -1,15 +1,15 @@
 use iced::{Subscription, Task};
+use vetrata_sources::{ReadingSource, SourceDelivery, background_work::blocking};
 
 use crate::{
-    data::source::{ReadingSource, SourceDelivery},
     desktop_shell::hover_tooltips::HoverTarget,
-    message_subscriptions::{blocking, first_delivery, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::Phosphor,
-        tooltip_body::{Freshness, Tooltip, TooltipBody},
+        tooltip_body::{Freshness, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -72,7 +72,7 @@ impl BarWidget for IconToggle {
     }
 }
 
-pub trait ToggleableSource: ReadingSource + BarWidget {
+pub trait ToggleableSource: ReadingSource<Error: Into<Section>> + BarWidget {
     #[must_use]
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> bool;

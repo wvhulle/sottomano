@@ -6,11 +6,9 @@ use iced::{
     },
 };
 use vetrata_config::Config;
+use vetrata_sources::window_label::WindowLabel;
 
-use crate::{
-    data::source::window_label::WindowLabel,
-    widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span},
-};
+use crate::widgets::text::{FontFallbacks, LINE_HEIGHT, colored_span};
 
 const SEPARATOR: &str = " · ";
 

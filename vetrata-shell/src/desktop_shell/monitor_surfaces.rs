@@ -6,11 +6,10 @@ use iced_exwlshell::{
         Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
     },
 };
+use vetrata_sources::{background_work::blocking, niri};
 
 use crate::{
-    data::source::niri,
     desktop_shell::{DesktopShell, Message},
-    message_subscriptions::blocking,
     state::niri_rules::StyledSurface,
     widgets::panel_frame::OutlinedSides,
 };

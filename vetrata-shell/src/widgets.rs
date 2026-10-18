@@ -40,7 +40,6 @@ pub mod source_reading;
 pub mod spend_forecast_basis;
 pub mod spend_to_level;
 pub mod svg_icon;
-pub mod temperature_thresholds;
 pub mod text;
 pub mod toggle_control;
 pub mod tooltip_body;

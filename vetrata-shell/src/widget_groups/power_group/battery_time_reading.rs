@@ -6,12 +6,12 @@ use uom::si::{
     power::watt,
 };
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
+    sysfs_sensors::battery::{Battery, IdleReason},
+};
 
 use crate::{
-    data::{
-        battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
-        source::sysfs_sensors::battery::{Battery, IdleReason},
-    },
     state::charge_power_curve,
     widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{

@@ -7,18 +7,18 @@ mod mobile_modem_tooltip;
 mod wifi_link_tooltip;
 
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    net_interfaces::{
+        bluetooth::Bluetooth,
+        ethernet::{Ethernet, EthernetDetails},
+        mobile::Mobile,
+        wifi::{Wifi, WifiDetails},
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        net_interfaces::{
-            bluetooth::Bluetooth,
-            ethernet::{Ethernet, EthernetDetails},
-            mobile::Mobile,
-            wifi::{Wifi, WifiDetails},
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::source_subscription,
     widgets::{
@@ -26,7 +26,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::Tooltip,
+        tooltip_body::{ReadingSections, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },

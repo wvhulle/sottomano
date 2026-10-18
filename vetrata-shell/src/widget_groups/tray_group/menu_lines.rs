@@ -1,15 +1,13 @@
 use std::{collections::HashSet, iter::once};
 
 use vetrata_config::Config;
+use vetrata_sources::tray::{MenuKind, MenuNode};
 
-use crate::{
-    data::source::tray::{MenuKind, MenuNode},
-    widgets::{
-        bar_widget::Glyph,
-        context_menu::{MenuLine, MenuRow, Trailing},
-        icon_handle::IconHandle,
-        phosphor::{Phosphor, Weight},
-    },
+use crate::widgets::{
+    bar_widget::Glyph,
+    context_menu::{MenuLine, MenuRow, Trailing},
+    icon_handle::IconHandle,
+    phosphor::{Phosphor, Weight},
 };
 
 pub struct TrayMenuLines<'c, M> {

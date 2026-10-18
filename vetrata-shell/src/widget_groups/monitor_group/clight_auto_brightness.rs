@@ -1,12 +1,11 @@
-use crate::{
-    data::source::clight::{self, Clight},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        toggle_control::ToggleableSource,
-        tooltip_body::TooltipBody,
-        widget_state::WidgetState,
-    },
+use vetrata_sources::clight::{self, Clight};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    toggle_control::ToggleableSource,
+    tooltip_body::TooltipBody,
+    widget_state::WidgetState,
 };
 
 impl BarWidget for Clight {

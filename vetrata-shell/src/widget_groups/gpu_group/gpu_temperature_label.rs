@@ -1,15 +1,12 @@
 use uom::si::f64::ThermodynamicTemperature;
 use vetrata_config::severity::Severity;
+use vetrata_sources::{gpu::GpuTemperatureLimits, temperature_thresholds::celsius_text};
 
-use crate::{
-    data::source::gpu::GpuTemperatureLimits,
-    widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        phosphor::Phosphor,
-        temperature_thresholds::celsius_text,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 pub struct GpuTemperatureLabel {

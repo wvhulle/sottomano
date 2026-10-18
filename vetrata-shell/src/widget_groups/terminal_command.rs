@@ -1,7 +1,6 @@
 use iced::Task;
 use vetrata_config::Config;
-
-use crate::{data::source::niri, message_subscriptions::blocking};
+use vetrata_sources::{background_work::blocking, niri};
 
 #[derive(Debug, Clone)]
 pub struct TerminalCommand {

@@ -6,19 +6,19 @@ mod oom_kill_log;
 mod service_error_log;
 
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
+    oom_kills::OomKillEntry, service_errors::ServiceErrors,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
-        oom_kills::OomKillEntry, service_errors::ServiceErrors,
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},

@@ -3,15 +3,13 @@ use rust_decimal::Decimal;
 use rusty_money::iso;
 use uom::si::{f64::Ratio, ratio::percent};
 use vetrata_shell::{
-    data::{
-        money::Money,
-        source::{
-            SourceDelivery,
-            ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-        },
-    },
     desktop_shell::Message,
     widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
+};
+use vetrata_sources::{
+    SourceDelivery,
+    ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+    money::Money,
 };
 
 use crate::showcased_group::ShowcasedGroup;

@@ -7,20 +7,19 @@ use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    background_work::blocking,
+    bus::DesktopBuses,
+    logind,
+    sun_schedule::ColorMode,
+    umbra::{self, Umbra},
+    weather::Location,
+};
 
 use crate::{
-    data::{
-        source::{
-            SourceDelivery,
-            bus::DesktopBuses,
-            logind,
-            umbra::{self, Umbra},
-            weather::Location,
-        },
-        sun_schedule::ColorMode,
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{blocking, first_delivery, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     state::{self, dark_mode::DarkModeSchedule},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,

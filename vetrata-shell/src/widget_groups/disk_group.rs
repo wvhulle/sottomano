@@ -4,12 +4,12 @@ mod drive_health_indicator;
 
 use iced::{Subscription, Task};
 use vetrata_config::widget_groups::temperature_sensors::SensorConfig;
+use vetrata_sources::{
+    SourceDelivery,
+    disk::{Disk, activity::DiskActivity, health::DriveHealth},
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        disk::{Disk, activity::DiskActivity, health::DriveHealth},
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{

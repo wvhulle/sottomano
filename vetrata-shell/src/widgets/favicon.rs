@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use iced::{Task, task::Handle};
 use niri_ipc::state::EventStreamState;
-
-use crate::{
-    data::source::favicons::{self, RawFavicon},
-    message_subscriptions::blocking,
-    widgets::icon_handle::IconHandle,
+use vetrata_sources::{
+    background_work::blocking,
+    favicons::{self, RawFavicon},
 };
+
+use crate::widgets::icon_handle::IconHandle;
 
 #[derive(Default)]
 pub struct Favicons {

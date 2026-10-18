@@ -4,8 +4,7 @@ use iced::{
     ContentFit, Element, Length,
     widget::{image, svg},
 };
-
-use crate::data::source::{favicons::FaviconKind, tray::IconSource};
+use vetrata_sources::{favicons::FaviconKind, tray::IconSource};
 
 #[derive(Debug, Clone)]
 pub enum IconHandle {

@@ -1,7 +1,0 @@
-pub mod battery_forecast;
-pub mod empty_text;
-pub mod money;
-pub mod notifications;
-pub mod sink;
-pub mod source;
-pub mod sun_schedule;

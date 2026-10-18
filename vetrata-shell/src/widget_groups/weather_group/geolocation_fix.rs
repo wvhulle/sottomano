@@ -1,12 +1,10 @@
 use situo_client::{Estimate, Origin, Place, Position};
+use vetrata_sources::weather::Location;
 
-use crate::{
-    data::source::weather::Location,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };
 
 const OPENSTREETMAP_ZOOM: u8 = 15;
@@ -68,24 +66,19 @@ impl BarWidget for Location {
             Origin::Manual => None,
             Origin::Estimated(estimate) => Some(estimate),
         };
-        TooltipBody::sections([
-            place_section(self.geo.place.as_ref()),
-            self.position_section(),
-            estimate_section(estimate),
-            map_section(self.geo.position),
-        ])
-    }
-}
-
-impl Location {
-    fn position_section(&self) -> Section {
         let position = self.geo.position;
-        Section::dictionary([
+        let position_section = Section::dictionary([
             KeyValue::new("Latitude", format!("{:.4}", position.latitude)),
             KeyValue::new("Longitude", format!("{:.4}", position.longitude)),
             KeyValue::new("Source", self.geo.origin.to_string()),
         ])
-        .titled("Position")
+        .titled("Position");
+        TooltipBody::sections([
+            place_section(self.geo.place.as_ref()),
+            position_section,
+            estimate_section(estimate),
+            map_section(position),
+        ])
     }
 }
 

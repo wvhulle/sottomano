@@ -5,15 +5,14 @@ use uom::{
         frequency::megahertz,
     },
 };
+use vetrata_sources::gpu::{GpuClocks, GpuModel, GpuSnapshot};
 
-use crate::{
-    data::source::gpu::{GpuClocks, GpuModel, GpuSnapshot},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_text,
+    hardware_section::HardwareEntries,
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
 };
 
 impl BarWidget for GpuSnapshot {
@@ -38,9 +37,8 @@ impl BarWidget for GpuSnapshot {
     }
 }
 
-impl GpuClocks {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for GpuClocks {
+    fn sections(&self) -> Vec<Section> {
         let clock_text = |key: &'static str, clock: Option<Frequency>| {
             clock.map(|frequency| {
                 KeyValue::new(
@@ -64,9 +62,8 @@ impl GpuClocks {
     }
 }
 
-impl GpuModel {
-    #[must_use]
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+impl HardwareEntries for GpuModel {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         vec![
             KeyValue::new("Model", self.name.as_str()),
             KeyValue::new("Driver", self.driver_version.as_str()),

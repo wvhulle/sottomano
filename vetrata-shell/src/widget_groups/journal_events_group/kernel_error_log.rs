@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::kernel_errors::KernelOccurrence;
 
 use crate::{
-    data::source::kernel_errors::KernelOccurrence,
     widget_groups::{
         journal_events_group::{
             JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,
@@ -14,7 +14,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -37,7 +37,7 @@ impl JournalEventsGroup {
     }
 }
 
-impl KernelOccurrence {
+impl TableRow<2> for KernelOccurrence {
     fn table_record(&self) -> TableRecord<2> {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
         let at = Cell::Time {
@@ -115,8 +115,10 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
+    use vetrata_sources::kernel_errors::KernelEntry;
+
     use super::*;
-    use crate::{data::source::kernel_errors::KernelEntry, widgets::tooltip_body::SectionBody};
+    use crate::widgets::tooltip_body::SectionBody;
 
     #[test]
     fn tooltip_lists_latest_messages_oldest_first_after_a_hidden_notice() {

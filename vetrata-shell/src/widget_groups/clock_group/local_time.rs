@@ -5,9 +5,9 @@ use std::{
 
 use chrono::{DateTime, Local, Locale};
 use iced::futures::Stream;
+use vetrata_sources::{DeliveryCadence, ReadingSource, SourceDelivery};
 
 use crate::{
-    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
     widget_groups::clock_group::{TICK, polled_at_second_boundaries},
     widgets::{
         bar_widget::{BarWidget, Glyph},

@@ -1,11 +1,8 @@
 use iced::alignment::Horizontal;
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::{fwupd::FirmwareUpgrade, notifications::model::ActionTint};
 
 use crate::{
-    data::{
-        notifications::model::ActionTint,
-        source::fwupd::{FirmwareUpgrade, Urgency},
-    },
     widget_groups::{
         pending_upgrades_group::{
             PendingUpgradesGroup, PendingUpgradesMessage, PendingUpgradesTarget,
@@ -18,7 +15,7 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -44,15 +41,6 @@ impl PendingUpgradesGroup {
                     on_button_pressed: install,
                 }]),
         )
-    }
-}
-
-impl FirmwareUpgrade {
-    fn severity(&self) -> Severity {
-        match self.urgency {
-            Some(Urgency::High | Urgency::Critical) => Severity::Critical,
-            Some(Urgency::Low | Urgency::Medium) | None => Severity::Warning,
-        }
     }
 }
 
@@ -94,7 +82,7 @@ impl BarWidget for Vec<FirmwareUpgrade> {
                 ColumnHeading::new("Urgency").align_x(Horizontal::Left),
                 ColumnHeading::new("Summary").align_x(Horizontal::Left),
             ],
-            self.iter().map(FirmwareUpgrade::table_record),
+            self.iter().map(TableRow::table_record),
         )
         .titled(LABEL)])
     }
@@ -104,7 +92,7 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     }
 }
 
-impl FirmwareUpgrade {
+impl TableRow<6> for FirmwareUpgrade {
     fn table_record(&self) -> TableRecord<6> {
         TableRecord::new(
             self.device.clone(),

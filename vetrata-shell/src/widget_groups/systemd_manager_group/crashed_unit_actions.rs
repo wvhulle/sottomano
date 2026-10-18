@@ -1,28 +1,34 @@
 use vetrata_config::Config;
+use vetrata_sources::{
+    coredumps::{CoredumpEntry, CoredumpInspection},
+    notifications::model::ActionTint,
+};
 
 use crate::{
-    data::{
-        notifications::model::ActionTint,
-        source::coredumps::{CoredumpEntry, CoredumpInspection},
-    },
     widget_groups::{
         systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
     },
     widgets::ongoing_toast::OngoingToastActionButton,
 };
 
-impl CoredumpEntry {
-    pub fn labelled_fields(&self) -> impl Iterator<Item = String> {
+#[derive(Clone, Copy)]
+pub struct CrashedProcess<'a> {
+    pub crash: &'a CoredumpEntry,
+}
+
+impl<'a> CrashedProcess<'a> {
+    pub fn labelled_fields(self) -> impl Iterator<Item = String> + 'a {
         let stored_file = self
+            .crash
             .stored_file
             .as_ref()
             .map(|file| format!("<b>Core</b> <tt>{}</tt>", file.display()));
         [
-            format!("<b>Signal</b> {}", self.signal),
+            format!("<b>Signal</b> {}", self.crash.signal),
             format!(
                 "<b>Process</b> {} · PID {}",
-                self.executable.display(),
-                self.pid
+                self.crash.executable.display(),
+                self.crash.pid
             ),
         ]
         .into_iter()
@@ -30,16 +36,17 @@ impl CoredumpEntry {
     }
 
     pub fn action_buttons(
-        &self,
+        self,
         config: &Config,
     ) -> impl Iterator<Item = OngoingToastActionButton<SystemdManagerMessage>> {
         let inspect = |inspection| {
             SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
                 config,
-                self.coredumpctl_args(inspection),
+                self.crash.coredumpctl_args(inspection),
             ))
         };
         let copy_path = self
+            .crash
             .stored_file
             .clone()
             .map(|file| OngoingToastActionButton {

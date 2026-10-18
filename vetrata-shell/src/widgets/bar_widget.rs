@@ -2,18 +2,16 @@ use chrono::{DateTime, Locale, Utc};
 use iced::{Color, Element};
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
+use vetrata_sources::ai::quota::Quota;
 
-use crate::{
-    data::source::ai::quota::Quota,
-    widgets::{
-        announced_level::AnnouncedLevel,
-        ongoing_toast::OngoingBody,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        tooltip_body::TooltipBody,
-        weather_icons::WeatherIcon,
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    announced_level::AnnouncedLevel,
+    ongoing_toast::OngoingBody,
+    phosphor::{Phosphor, Weight},
+    simple_icons::SimpleIcon,
+    tooltip_body::TooltipBody,
+    weather_icons::WeatherIcon,
+    widget_state::WidgetState,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

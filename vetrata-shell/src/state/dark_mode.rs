@@ -2,13 +2,10 @@ use std::convert::Infallible;
 
 use chrono::TimeDelta;
 use iced::futures::{Stream, StreamExt, stream};
-
-use crate::{
-    data::{
-        source::{DeliveryCadence, ReadingSource, SourceDelivery},
-        sun_schedule::SunEventOffsets,
-    },
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    store::{Columns, StoreError, with_table},
+    sun_schedule::SunEventOffsets,
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (

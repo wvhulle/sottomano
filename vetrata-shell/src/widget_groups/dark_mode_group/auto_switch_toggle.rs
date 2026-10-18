@@ -1,9 +1,11 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use humantime::format_duration;
 use situo_client::Position;
+use vetrata_sources::sun_schedule::{
+    ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
+};
 
 use crate::{
-    data::sun_schedule::{ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook},
     state::dark_mode::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},

@@ -1,16 +1,14 @@
 use iced::{Color, Element};
-
-use crate::{
-    data::source::weather::{
-        Intensity,
-        WeatherCondition::{
-            self, Clear, Drizzle, Fog, FreezingDrizzle, FreezingRain, MainlyClear, Overcast,
-            PartlyCloudy, Rain, RainShowers, RimeFog, Snow, SnowGrains, SnowShowers, Thunderstorm,
-            ThunderstormWithHail,
-        },
+use vetrata_sources::weather::{
+    Intensity,
+    WeatherCondition::{
+        self, Clear, Drizzle, Fog, FreezingDrizzle, FreezingRain, MainlyClear, Overcast,
+        PartlyCloudy, Rain, RainShowers, RimeFog, Snow, SnowGrains, SnowShowers, Thunderstorm,
+        ThunderstormWithHail,
     },
-    widgets::{bar_widget::Glyph, svg_icon},
 };
+
+use crate::widgets::{bar_widget::Glyph, svg_icon};
 
 const INK_FRACTION: f32 = 22.0 / 30.0;
 

@@ -2,17 +2,15 @@ use std::{collections::HashMap, ops::RangeInclusive};
 
 use iced::{Subscription, Task};
 use uom::si::{f64::Power, power::watt};
+use vetrata_sources::{
+    SourceDelivery,
+    battery_forecast::{Estimate, RegressionState, time_until_empty},
+    bus::DesktopBuses,
+    power_profile::{self, Conditions, Profile, ProfileStatus},
+    sysfs_sensors::battery::Battery,
+};
 
 use crate::{
-    data::{
-        battery_forecast::{Estimate, RegressionState, time_until_empty},
-        source::{
-            SourceDelivery,
-            bus::DesktopBuses,
-            power_profile::{self, Conditions, Profile, ProfileStatus},
-            sysfs_sensors::battery::Battery,
-        },
-    },
     message_subscriptions::{first_delivery, source_subscription},
     state::power,
     widget_groups::power_group::{
@@ -23,7 +21,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Section, TableRecord, Tooltip, TooltipBody},
+        tooltip_body::{KeyValue, ReadingSections, Section, TableRecord, Tooltip, TooltipBody},
     },
 };
 

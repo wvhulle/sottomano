@@ -3,21 +3,19 @@ use std::{mem::replace, time::Duration};
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
-
-use crate::{
-    data::source::{
-        bus::DesktopBuses,
-        focus_ledger::{
-            AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans,
-            ScreenEdge, WakingWindow, WindowFocusChange,
-        },
-        idle_notify::{IdleEdge, idle_edges},
-        kitty_windows::WindowProcesses,
-        logind::{self, SleepEdge},
+use vetrata_sources::{
+    background_work::blocking,
+    bus::DesktopBuses,
+    focus_ledger::{
+        AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans, ScreenEdge,
+        WakingWindow, WindowFocusChange,
     },
-    message_subscriptions::blocking,
-    state::focus_spans,
+    idle_notify::{IdleEdge, idle_edges},
+    kitty_windows::WindowProcesses,
+    logind::{self, SleepEdge},
 };
+
+use crate::state::focus_spans;
 
 const PRESENCE_RESOLUTION: Duration = Duration::from_secs(30);
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);

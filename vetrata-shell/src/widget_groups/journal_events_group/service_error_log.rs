@@ -1,25 +1,24 @@
 use iced::alignment::Horizontal;
 use vetrata_config::Config;
+use vetrata_sources::service_errors::{ServiceErrors, UnitErrors};
 
 use crate::{
-    data::source::service_errors::{ServiceErrors, UnitErrors},
     widget_groups::{
         journal_events_group::{JournalEventsMessage, JournalTarget, MESSAGE_CAP},
         terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl ServiceErrors {
-    #[must_use]
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
+impl ConfiguredGroupItem<JournalEventsMessage> for ServiceErrors {
+    fn group_item(&self, config: &Config) -> GroupItem<'_, JournalEventsMessage> {
         GroupItem::reading(self, JournalTarget::ServiceErrors).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             JournalEventsMessage::OpenLog(TerminalCommand::journal(config, self.follow_log_args())),
@@ -27,7 +26,7 @@ impl ServiceErrors {
     }
 }
 
-impl UnitErrors {
+impl TableRow<3> for UnitErrors {
     fn table_record(&self) -> TableRecord<3> {
         let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
         TableRecord::new(

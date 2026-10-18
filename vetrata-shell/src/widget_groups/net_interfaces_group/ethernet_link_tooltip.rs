@@ -1,15 +1,17 @@
+use vetrata_sources::{
+    hardware::Adapter,
+    net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
+};
+
 use crate::{
-    data::source::{
-        hardware::Adapter,
-        net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port},
-    },
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -41,9 +43,8 @@ impl BarWidget for Ethernet {
     }
 }
 
-impl EthernetDetails {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for EthernetDetails {
+    fn sections(&self) -> Vec<Section> {
         let prefixed = self.ports.iter().filter(|port| port.link.is_some()).count() > 1;
         self.ports
             .iter()

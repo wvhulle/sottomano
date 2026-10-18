@@ -6,9 +6,9 @@ use iced::{
     widget::{Column, Row, Text, column, container, progress_bar, row},
 };
 use vetrata_config::Config;
+use vetrata_sources::{niri, niri_config::ConfiguredWorkspaces};
 
 use crate::{
-    data::source::{niri, niri_config::ConfiguredWorkspaces},
     desktop_shell::{
         Message,
         hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},

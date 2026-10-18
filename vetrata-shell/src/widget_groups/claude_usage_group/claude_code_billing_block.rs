@@ -1,15 +1,13 @@
 use chrono::Utc;
+use vetrata_sources::ai::claude::ClaudeCcusageBlock;
 
-use crate::{
-    data::source::ai::claude::ClaudeCcusageBlock,
-    widgets::{
-        amount_text::{countdown, spend_text},
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{countdown, spend_text},
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_to_level::level_from_cost,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for ClaudeCcusageBlock {

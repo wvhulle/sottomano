@@ -1,13 +1,18 @@
 use uom::si::information::mebibyte;
+use vetrata_sources::sysfs_sensors::cpu_topology::{CoreGroup, CpuTopology};
 
-use crate::{
-    data::source::sysfs_sensors::cpu_topology::{CoreGroup, CpuTopology},
-    widgets::tooltip_body::{ChipletCells, KeyValue, PhysicalCoreCells, Section, ThreadCell},
+use super::chiplet_live_state::ChipletLiveState;
+use crate::widgets::tooltip_body::{
+    ChipletCells, KeyValue, PhysicalCoreCells, Section, ThreadCell,
 };
 
 pub trait PerCoreReading {
     fn core_index(&self) -> u32;
     fn thread_cell(&self) -> ThreadCell;
+}
+
+pub trait ChipletSections {
+    fn sections(&self, live: &ChipletLiveState) -> Vec<Section>;
 }
 
 pub struct CoreGridSection<'a, Reading> {

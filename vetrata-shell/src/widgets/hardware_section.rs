@@ -1,10 +1,12 @@
-use crate::{
-    data::source::hardware::{
-        Adapter, CacheLevel, CpuModel, DriveIdentity, MemoryModuleGroup, MemoryModules,
-        ModemIdentity, PowerSupplyIdentity,
-    },
-    widgets::tooltip_body::{Cell, KeyValue, Section},
+use vetrata_sources::hardware::{
+    Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
 };
+
+use crate::widgets::tooltip_body::{Cell, KeyValue, Section};
+
+pub trait HardwareEntries {
+    fn hardware_entries(&self) -> Vec<KeyValue>;
+}
 
 impl Section {
     pub fn hardware_identity(entries: impl IntoIterator<Item = KeyValue>) -> Self {
@@ -12,85 +14,81 @@ impl Section {
     }
 }
 
-impl CpuModel {
-    pub fn processor_section(&self) -> Section {
+impl From<&CpuModel> for Section {
+    fn from(model: &CpuModel) -> Self {
         let identity = [
-            ("Model", &self.identity.name),
-            ("Microarchitecture", &self.architecture.microarchitecture),
-            ("Process", &self.architecture.process),
-            ("Released", &self.architecture.released),
-            ("x86-64 level", &self.architecture.x86_64_level),
-            ("Microcode", &self.identity.microcode),
+            ("Model", &model.identity.name),
+            ("Microarchitecture", &model.architecture.microarchitecture),
+            ("Process", &model.architecture.process),
+            ("Released", &model.architecture.released),
+            ("x86-64 level", &model.architecture.x86_64_level),
+            ("Microcode", &model.identity.microcode),
         ]
         .into_iter()
         .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)));
         let counts = [
-            self.topology
+            model
+                .topology
                 .cores
                 .map(|count| KeyValue::new("Cores", count.to_string())),
-            self.topology
+            model
+                .topology
                 .threads
                 .map(|count| KeyValue::new("Threads", count.to_string())),
         ]
         .into_iter()
         .flatten();
-        let caches = self.caches.iter().map(CacheLevel::key_value);
+        let caches = model.caches.iter().map(|cache| {
+            let sizes = cache
+                .instances
+                .iter()
+                .map(|same_size| {
+                    if same_size.count == 1 {
+                        same_size.size.display().iec().to_string()
+                    } else {
+                        format!(
+                            "{} each ×{}",
+                            same_size.size.display().iec(),
+                            same_size.count
+                        )
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" + ");
+            KeyValue::new(cache.position.to_string(), sizes)
+        });
         Section::dictionary(identity.chain(counts).chain(caches)).titled("Processor")
     }
 }
 
-impl CacheLevel {
-    fn key_value(&self) -> KeyValue {
-        let sizes = self
-            .instances
+impl HardwareEntries for MemoryModules {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
+        self.0
             .iter()
-            .map(|same_size| {
-                if same_size.count == 1 {
-                    same_size.size.display().iec().to_string()
-                } else {
-                    format!(
-                        "{} each ×{}",
-                        same_size.size.display().iec(),
-                        same_size.count
-                    )
-                }
+            .flat_map(|group| {
+                let module = &group.module;
+                let speed = module
+                    .speed_mts
+                    .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
+                [
+                    ("Manufacturer", &module.manufacturer),
+                    ("Part number", &module.part_number),
+                    ("Type", &module.kind),
+                ]
+                .into_iter()
+                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+                .chain(speed)
+                .chain([
+                    KeyValue::new("Module size", module.size.display().iec().to_string()),
+                    KeyValue::new("Modules", group.count.to_string()),
+                ])
             })
-            .collect::<Vec<_>>()
-            .join(" + ");
-        KeyValue::new(self.position.to_string(), sizes)
+            .collect()
     }
 }
 
-impl MemoryModules {
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
-        self.0.iter().flat_map(MemoryModuleGroup::entries).collect()
-    }
-}
-
-impl MemoryModuleGroup {
-    fn entries(&self) -> impl Iterator<Item = KeyValue> + '_ {
-        let module = &self.module;
-        let speed = module
-            .speed_mts
-            .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
-        [
-            ("Manufacturer", &module.manufacturer),
-            ("Part number", &module.part_number),
-            ("Type", &module.kind),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .chain(speed)
-        .chain([
-            KeyValue::new("Module size", module.size.display().iec().to_string()),
-            KeyValue::new("Modules", self.count.to_string()),
-        ])
-    }
-}
-
-impl DriveIdentity {
-    #[must_use]
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+impl HardwareEntries for DriveIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Model", &self.model),
             ("Serial", &self.serial),
@@ -102,9 +100,8 @@ impl DriveIdentity {
     }
 }
 
-impl PowerSupplyIdentity {
-    #[must_use]
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+impl HardwareEntries for PowerSupplyIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Manufacturer", &self.manufacturer),
             ("Model", &self.model),
@@ -117,8 +114,8 @@ impl PowerSupplyIdentity {
     }
 }
 
-impl ModemIdentity {
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+impl HardwareEntries for ModemIdentity {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [
             ("Manufacturer", &self.manufacturer),
             ("Model", &self.model),
@@ -126,40 +123,37 @@ impl ModemIdentity {
         ]
         .into_iter()
         .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .chain(self.adapter.iter().flat_map(Adapter::bus_entries))
+        .chain(self.adapter.iter().flat_map(adapter_bus_entries))
         .collect()
     }
 }
 
-impl Adapter {
-    #[must_use]
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+impl HardwareEntries for Adapter {
+    fn hardware_entries(&self) -> Vec<KeyValue> {
         [("Vendor", &self.vendor), ("Model", &self.model)]
             .into_iter()
             .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-            .chain(self.bus_entries())
+            .chain(adapter_bus_entries(self))
             .collect()
     }
 }
 
-impl Adapter {
-    fn bus_entries(&self) -> impl Iterator<Item = KeyValue> + '_ {
-        let driver = self
-            .driver
-            .as_deref()
-            .map(|driver| KeyValue::new("Driver", driver));
-        [KeyValue::new(
-            self.bus_id.bus_name(),
-            self.bus_id.to_string(),
-        )]
-        .into_iter()
-        .chain(driver)
-        .chain([KeyValue::new(
-            "Lookup",
-            Cell::Link {
-                label: format!("{} id database", self.bus_id.bus_name()),
-                url: self.bus_id.lookup_url(),
-            },
-        )])
-    }
+fn adapter_bus_entries(adapter: &Adapter) -> impl Iterator<Item = KeyValue> + '_ {
+    let driver = adapter
+        .driver
+        .as_deref()
+        .map(|driver| KeyValue::new("Driver", driver));
+    [KeyValue::new(
+        adapter.bus_id.bus_name(),
+        adapter.bus_id.to_string(),
+    )]
+    .into_iter()
+    .chain(driver)
+    .chain([KeyValue::new(
+        "Lookup",
+        Cell::Link {
+            label: format!("{} id database", adapter.bus_id.bus_name()),
+            url: adapter.bus_id.lookup_url(),
+        },
+    )])
 }

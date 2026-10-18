@@ -2,20 +2,18 @@ use std::iter::once;
 
 use chrono::{DateTime, Utc};
 use uom::si::{f64::Ratio, ratio::percent};
+use vetrata_sources::ai::{
+    claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+    quota::{Pace, Quota},
+};
 
-use crate::{
-    data::source::ai::{
-        claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-        quota::{Pace, Quota},
-    },
-    widgets::{
-        amount_text::{countdown, percent_text},
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_used,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{countdown, percent_text},
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_to_level::level_from_used,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for ClaudeUsageWindows {

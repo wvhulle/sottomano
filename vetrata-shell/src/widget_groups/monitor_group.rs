@@ -10,17 +10,18 @@ use std::{
 use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    background_work::blocking,
+    backlight::{self, Backlight},
+    bus::DesktopBuses,
+    clight::Clight,
+    niri::OutputInfo,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        backlight::{self, Backlight},
-        bus::DesktopBuses,
-        clight::Clight,
-        niri::OutputInfo,
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::{blocking, first_delivery, source_subscription},
+    message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,

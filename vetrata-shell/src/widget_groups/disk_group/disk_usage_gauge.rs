@@ -1,16 +1,14 @@
 use bytesize::ByteSize;
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
+use vetrata_sources::disk::{Disk, Filesystem};
 
-use crate::{
-    data::source::disk::{Disk, Filesystem},
-    widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        gauge::percent_fill,
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+    gauge::percent_fill,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 const FREE_WARN: ByteSize = ByteSize::gb(100);
@@ -27,7 +25,18 @@ impl BarWidget for Disk {
     }
 
     fn state(&self) -> WidgetState {
-        self.free_space_level().max(self.unallocated_level()).into()
+        let free_space_level = if self.free < FREE_CRITICAL {
+            Severity::Critical
+        } else if self.free < FREE_WARN {
+            Severity::Warning
+        } else {
+            Severity::Normal
+        };
+        let unallocated_level = match &self.filesystem {
+            Filesystem::Btrfs(space) if space.unallocated < UNALLOCATED_WARN => Severity::Warning,
+            Filesystem::Btrfs(_) | Filesystem::Other { .. } => Severity::Normal,
+        };
+        free_space_level.max(unallocated_level).into()
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
@@ -48,32 +57,13 @@ impl BarWidget for Disk {
             KeyValue::new("Free", self.free.display().iec().to_string()),
             KeyValue::new("Total", self.total.display().iec().to_string()),
         ]);
-        TooltipBody::sections([capacity, self.filesystem.section()])
+        TooltipBody::sections([capacity, Section::from(&self.filesystem)])
     }
 }
 
-impl Disk {
-    fn free_space_level(&self) -> Severity {
-        if self.free < FREE_CRITICAL {
-            Severity::Critical
-        } else if self.free < FREE_WARN {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
-    }
-
-    fn unallocated_level(&self) -> Severity {
-        match &self.filesystem {
-            Filesystem::Btrfs(space) if space.unallocated < UNALLOCATED_WARN => Severity::Warning,
-            Filesystem::Btrfs(_) | Filesystem::Other { .. } => Severity::Normal,
-        }
-    }
-}
-
-impl Filesystem {
-    fn section(&self) -> Section {
-        match self {
+impl From<&Filesystem> for Section {
+    fn from(filesystem: &Filesystem) -> Self {
+        match filesystem {
             Filesystem::Btrfs(space) => Section::dictionary([
                 KeyValue::new("Compression", space.compression.to_string()),
                 KeyValue::new(

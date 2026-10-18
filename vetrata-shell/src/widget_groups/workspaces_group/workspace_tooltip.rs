@@ -1,11 +1,10 @@
 use std::path::{Path, PathBuf};
 
-use crate::{
-    data::source::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate},
-    widgets::{
-        continuous_reading::ContinuousReading,
-        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
-    },
+use vetrata_sources::{desktop_entries::DesktopIndex, niri, window_label::IconCandidate};
+
+use crate::widgets::{
+    continuous_reading::ContinuousReading,
+    tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
 };
 
 #[must_use]

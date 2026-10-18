@@ -1,13 +1,11 @@
 use uom::si::{f64::Ratio, ratio::ratio};
+use vetrata_sources::llama_server::LlamaSlot;
 
-use crate::{
-    data::source::llama_server::LlamaSlot,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{KeyValue, TooltipBody},
+    widget_state::WidgetState,
 };
 
 pub struct SlotOccupancy<'a>(pub &'a [LlamaSlot]);

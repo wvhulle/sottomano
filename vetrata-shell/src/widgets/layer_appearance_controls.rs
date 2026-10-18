@@ -1,12 +1,12 @@
 use iced::Task;
 use vetrata_config::Config;
+use vetrata_sources::store::{flag, real};
 
 use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
     state::{
-        LayerAppearance, ShellLayer, flag,
+        LayerAppearance, ShellLayer,
         layer_appearance::{self, AppearanceSetting},
-        real,
     },
     widgets::{
         group_item::GroupItem,

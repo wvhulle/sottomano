@@ -1,36 +1,27 @@
 use std::borrow::Cow;
 
-use chrono::{DateTime, Local, Locale};
+use chrono::{DateTime, Local};
 use iced::alignment::Horizontal;
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::systemd_manager::running_jobs::{SlowJob, SlowJobs};
 
 use crate::{
-    data::source::systemd_manager::running_jobs::{SlowJob, SlowJobs},
     widget_groups::{
-        systemd_manager_group::SystemdManagerMessage, terminal_command::TerminalCommand,
+        systemd_manager_group::{SystemdManagerMessage, UnitScopePresentation},
+        terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl SlowJob {
-    fn activity(&self) -> Cow<'_, str> {
-        match self.job_type.as_str() {
-            "start" => Cow::Borrowed("starting"),
-            "stop" => Cow::Borrowed("stopping"),
-            "restart" => Cow::Borrowed("restarting"),
-            "reload" => Cow::Borrowed("reloading"),
-            other => Cow::Owned(format!("running its {other} job")),
-        }
-    }
-
+impl TableRow<2> for SlowJob {
     fn table_record(&self) -> TableRecord<2> {
         TableRecord::new(
             self.unit.clone(),
@@ -46,40 +37,42 @@ impl SlowJob {
     }
 }
 
-impl SlowJobs {
-    #[must_use]
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+impl ConfiguredGroupItem<SystemdManagerMessage> for SlowJobs {
+    fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         let open_log =
             |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
+        let locale = config.calendar.locale;
+        let slow_job_toasts = self.jobs.iter().map(|job| {
+            let activity = match job.job_type.as_str() {
+                "start" => Cow::Borrowed("starting"),
+                "stop" => Cow::Borrowed("stopping"),
+                "restart" => Cow::Borrowed("restarting"),
+                "reload" => Cow::Borrowed("reloading"),
+                other => Cow::Owned(format!("running its {other} job")),
+            };
+            OngoingToast {
+                widget_name: self.name(),
+                key: OngoingKey::Reading(self.scope.slow_job_target(job.unit.clone()).into()),
+                severity: Severity::Warning,
+                summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
+                body: OngoingBody::Text(format!(
+                    "since {} · {}",
+                    LocalizedTimeFormat::TimeOfDay
+                        .format(&DateTime::<Local>::from(job.started_at), locale),
+                    self.scope.scope_name()
+                )),
+                progress: None,
+                since: job.started_at,
+                on_body_clicked: open_log(self.scope.follow_units_log_args([job.unit.as_str()])),
+                action_buttons: Vec::new(),
+            }
+        });
         GroupItem::reading(self, self.scope.slow_jobs_target())
             .on_press(
                 TerminalCommand::JOURNAL_PRESS_HINT,
                 open_log(self.follow_log_args()),
             )
-            .ongoing_toasts(self.slow_job_toasts(open_log, config.calendar.locale))
-    }
-
-    fn slow_job_toasts<M>(
-        &self,
-        open_log: impl Fn(Vec<String>) -> M,
-        locale: Locale,
-    ) -> impl Iterator<Item = OngoingToast<M>> {
-        self.jobs.iter().map(move |job| OngoingToast {
-            widget_name: self.name(),
-            key: OngoingKey::Reading(self.scope.slow_job_target(job.unit.clone()).into()),
-            severity: Severity::Warning,
-            summary_text: Cow::Owned(format!("{} {} slowly", job.unit, job.activity())),
-            body: OngoingBody::Text(format!(
-                "since {} · {}",
-                LocalizedTimeFormat::TimeOfDay
-                    .format(&DateTime::<Local>::from(job.started_at), locale),
-                self.scope.scope_name()
-            )),
-            progress: None,
-            since: job.started_at,
-            on_body_clicked: open_log(self.scope.follow_units_log_args([job.unit.as_str()])),
-            action_buttons: Vec::new(),
-        })
+            .ongoing_toasts(slow_job_toasts)
     }
 }
 

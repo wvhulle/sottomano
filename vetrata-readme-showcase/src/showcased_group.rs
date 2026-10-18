@@ -2,9 +2,6 @@ use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::Config;
 use vetrata_shell::{
-    data::source::{
-        desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
-    },
     desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
     widget_groups::{
         audio_group::AudioGroup,
@@ -21,6 +18,9 @@ use vetrata_shell::{
         continuous_reading::ContinuousReading, favicon::Favicons, pointer_drag::DragView,
         text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
+};
+use vetrata_sources::{
+    desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
 };
 
 use crate::fixtures::{compute, niri_session};

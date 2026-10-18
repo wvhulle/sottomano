@@ -2,16 +2,14 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{energy::watt_hour, f64::Ratio, ratio::percent},
 };
+use vetrata_sources::sysfs_sensors::battery::Battery;
 
-use crate::{
-    data::source::sysfs_sensors::battery::Battery,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_text,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for Battery {

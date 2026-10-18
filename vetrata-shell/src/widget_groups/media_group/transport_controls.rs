@@ -1,8 +1,8 @@
 use iced::{Alignment, Color, Element, widget::Row};
 use vetrata_config::Config;
+use vetrata_sources::mpris::{Command, LoopMode, Media, Status};
 
 use crate::{
-    data::source::mpris::{Command, LoopMode, Media, Status},
     desktop_shell::hover_tooltips::{PressHints, TooltipMessage, hoverable},
     widget_groups::media_group::MediaTarget,
     widgets::{

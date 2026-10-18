@@ -2,14 +2,12 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Power, power::watt},
 };
+use vetrata_sources::gpu::GpuPowerDraw;
 
-use crate::{
-    data::source::gpu::GpuPowerDraw,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, TooltipBody},
 };
 
 fn watt_text(power: Power) -> String {

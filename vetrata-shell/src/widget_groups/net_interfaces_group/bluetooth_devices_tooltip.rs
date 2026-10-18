@@ -1,12 +1,13 @@
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
+use vetrata_sources::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth};
 
 use crate::{
-    data::source::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth},
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,

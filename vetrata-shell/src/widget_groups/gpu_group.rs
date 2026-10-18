@@ -8,23 +8,24 @@ use std::collections::BTreeMap;
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    gpu::{
+        GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
+        PciBusId,
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        gpu::{
-            GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot, NvmlDevice,
-            PciBusId,
-        },
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };

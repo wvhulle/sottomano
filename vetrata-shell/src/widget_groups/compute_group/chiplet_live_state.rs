@@ -1,13 +1,14 @@
 use uom::si::f64::Frequency;
-
-use super::cpu_clock_label::frequency_text;
-use crate::{
-    data::source::sysfs_sensors::{
+use vetrata_sources::{
+    sysfs_sensors::{
         cpu_clock::CpuClock, cpu_topology::CoreGroup, l3_cache_traffic::L3CacheTraffic,
         temperature::Temperature,
     },
-    widgets::{gauge::percent_text, temperature_thresholds::celsius_text, tooltip_body::KeyValue},
+    temperature_thresholds::celsius_text,
 };
+
+use super::cpu_clock_label::frequency_text;
+use crate::widgets::{gauge::percent_text, tooltip_body::KeyValue};
 
 pub struct ChipletLiveState<'a> {
     pub clock: Option<&'a CpuClock>,

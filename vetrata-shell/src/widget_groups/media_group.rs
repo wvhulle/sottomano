@@ -7,20 +7,21 @@ use iced::{
 };
 use uom::si::f64::Ratio;
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    background_work::blocking,
+    bus::{DesktopBuses, OwnerProcess},
+    desktop_entries::DesktopIndex,
+    mpris::{self, Command, Media, Progress, Status},
+    niri::WindowOwner,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::{DesktopBuses, OwnerProcess},
-        desktop_entries::DesktopIndex,
-        mpris::{self, Command, Media, Progress, Status},
-        niri::WindowOwner,
-    },
     desktop_shell::{
         AppWindowFocus,
         hover_tooltips::{HoverTarget, PressHints, hoverable},
     },
-    message_subscriptions::{blocking, source_subscription},
+    message_subscriptions::source_subscription,
     widgets::{
         bar_widget::Glyph,
         confirm_button::{ConfirmButton, Press},

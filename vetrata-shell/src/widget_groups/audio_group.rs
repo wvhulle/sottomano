@@ -2,17 +2,17 @@ use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration
 
 use iced::{Function, Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    audio::{
+        self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
+        Target, WindowAudio,
+    },
+    background_work::blocking,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        audio::{
-            self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
-            Target, WindowAudio,
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::blocking,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -166,7 +166,7 @@ impl AudioGroup {
             AudioMessage::State(state) => {
                 feed(&mut self.sink_control, state.sink.as_ref());
                 feed(&mut self.source_control, state.source.as_ref());
-                self.sink_control.set_icon(state.output_icon());
+                self.sink_control.set_icon(Phosphor::from(&state));
                 self.state.load(state);
                 Task::none()
             }
@@ -328,10 +328,10 @@ impl AudioGroup {
     }
 }
 
-impl AudioState {
-    fn output_icon(&self) -> Phosphor {
-        let muted = self.sink.as_ref().is_some_and(|sink| sink.muted);
-        match self.output_kind {
+impl From<&AudioState> for Phosphor {
+    fn from(state: &AudioState) -> Self {
+        let muted = state.sink.as_ref().is_some_and(|sink| sink.muted);
+        match state.output_kind {
             OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
             OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
             OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
@@ -347,7 +347,7 @@ impl BarWidget for AudioState {
     }
 
     fn icon(&self) -> Glyph {
-        self.output_icon().into()
+        Phosphor::from(self).into()
     }
 
     fn tooltip(&self) -> TooltipBody {

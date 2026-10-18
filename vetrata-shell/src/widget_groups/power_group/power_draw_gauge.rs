@@ -7,15 +7,13 @@ use uom::{
         power::watt,
     },
 };
+use vetrata_sources::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerSupply};
 
-use crate::{
-    data::source::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerSupply},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 const POWER_WARN_W: f64 = 10.0;
@@ -62,9 +60,8 @@ impl PowerDraw {
     }
 }
 
-impl ChargerSupply {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for ChargerSupply {
+    fn sections(&self) -> Vec<Section> {
         vec![
             Section::dictionary(self.limit.iter().flat_map(|limit| {
                 [
@@ -132,9 +129,9 @@ impl BarWidget for PowerDraw {
 #[cfg(test)]
 mod tests {
     use uom::si::f64::{ElectricCurrent, ElectricPotential};
+    use vetrata_sources::sysfs_sensors::battery::ChargerLimit;
 
     use super::*;
-    use crate::data::source::sysfs_sensors::battery::ChargerLimit;
 
     fn draw(status: ChargeStatus) -> PowerDraw {
         PowerDraw {

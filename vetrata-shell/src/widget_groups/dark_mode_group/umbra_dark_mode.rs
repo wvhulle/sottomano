@@ -1,11 +1,10 @@
-use crate::{
-    data::source::umbra::{self, Umbra},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        toggle_control::ToggleableSource,
-        tooltip_body::TooltipBody,
-    },
+use vetrata_sources::umbra::{self, Umbra};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    toggle_control::ToggleableSource,
+    tooltip_body::TooltipBody,
 };
 
 impl BarWidget for Umbra {

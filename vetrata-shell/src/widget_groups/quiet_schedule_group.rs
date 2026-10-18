@@ -7,9 +7,9 @@ use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
 use vetrata_config::Config;
+use vetrata_sources::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind};
 
 use crate::{
-    data::source::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind},
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::source_subscription,
     state::{self, quiet_hours::QuietHoursSchedule},

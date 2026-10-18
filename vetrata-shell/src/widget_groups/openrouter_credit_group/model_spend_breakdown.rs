@@ -1,15 +1,14 @@
-use crate::{
-    data::{
-        money::usd,
-        source::ai::openrouter::{OpenRouterSpend, SpanSpend},
-    },
-    widgets::{
-        amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
-        widget_state::WidgetState,
-    },
+use vetrata_sources::{
+    ai::openrouter::{OpenRouterSpend, SpanSpend},
+    money::usd,
+};
+
+use crate::widgets::{
+    amount_text::spend_text,
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+    widget_state::WidgetState,
 };
 
 const LISTED_MODELS: usize = 6;

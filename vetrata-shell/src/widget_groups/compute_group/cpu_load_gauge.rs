@@ -3,23 +3,21 @@ use uom::{
     si::{f64::Ratio, power::watt, ratio::percent},
 };
 use vetrata_config::severity::Severity;
+use vetrata_sources::sysfs_sensors::{
+    cpu_power::CpuPower,
+    cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
+};
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
 };
-use crate::{
-    data::source::sysfs_sensors::{
-        cpu_power::CpuPower,
-        cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
-    },
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_text,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, ReadingSections, Section, ThreadCell, TooltipBody},
+    widget_state::WidgetState,
 };
 
 fn busy_level(busy: Ratio) -> Severity {
@@ -45,10 +43,22 @@ fn mean_share<'a>(shares: impl Iterator<Item = Ratio> + 'a) -> Option<Ratio> {
     (count > 0).then(|| collected.into_iter().sum::<Ratio>() / count as f64)
 }
 
-impl CpuCoreLoads {
-    #[must_use]
-    pub fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
-        let readings = self.core_readings();
+impl ChipletSections for CpuCoreLoads {
+    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+        let readings: Vec<CoreReading> = self
+            .cores
+            .iter()
+            .map(|load| CoreReading {
+                core: load.core,
+                busy: load.busy,
+                split: load.split,
+                deep_idle: self
+                    .deep_idle
+                    .iter()
+                    .find(|idle| idle.core == load.core)
+                    .map(|idle| idle.share),
+            })
+            .collect();
         let grid = CoreGridSection {
             topology: &self.topology,
             readings: &readings,
@@ -87,22 +97,6 @@ impl CpuCoreLoads {
             )),
         ]
     }
-
-    fn core_readings(&self) -> Vec<CoreReading> {
-        self.cores
-            .iter()
-            .map(|load| CoreReading {
-                core: load.core,
-                busy: load.busy,
-                split: load.split,
-                deep_idle: self
-                    .deep_idle
-                    .iter()
-                    .find(|idle| idle.core == load.core)
-                    .map(|idle| idle.share),
-            })
-            .collect()
-    }
 }
 
 impl PerCoreReading for CoreReading {
@@ -140,9 +134,8 @@ impl BarWidget for CpuUsage {
     }
 }
 
-impl CpuPower {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for CpuPower {
+    fn sections(&self) -> Vec<Section> {
         vec![
             Section::dictionary(self.zones.iter().map(|zone| {
                 KeyValue::new(

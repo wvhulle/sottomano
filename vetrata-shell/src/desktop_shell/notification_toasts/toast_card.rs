@@ -12,19 +12,17 @@ use iced::{
 };
 use reqwest::Url;
 use uom::si::{f64::Ratio, ratio::ratio};
-use vetrata_config::{Config, Palette, notification_toasts::ToastCardConfig, severity::Severity};
+use vetrata_config::{Config, notification_toasts::ToastCardConfig, severity::Severity};
+use vetrata_sources::{
+    app_icon::DesktopEntries,
+    notifications::model::{ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt},
+};
 
 use super::{
     Notification, NotificationMessage, body_markup, toast_lifecycle::ToastKind,
     toast_reply::ReplyMessage,
 };
 use crate::{
-    data::{
-        notifications::model::{
-            ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
-        },
-        source::app_icon::DesktopEntries,
-    },
     desktop_shell::hover_tooltips::{ongoing_for, relative},
     state::ShellSettings,
     widgets::{
@@ -388,7 +386,12 @@ impl ToastCard<'_> {
                     id,
                     key: action.key.clone(),
                 },
-                action.tint.color(palette),
+                match action.tint {
+                    ActionTint::Proceed => palette.success,
+                    ActionTint::Hold => palette.warning,
+                    ActionTint::Refuse => palette.urgent,
+                    ActionTint::Inspect => palette.info,
+                },
                 text,
             )
         });
@@ -551,17 +554,6 @@ fn icon_widget<'a>(
     match icon {
         CardIcon::Glyph(glyph) => glyph.view(size, text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
-    }
-}
-
-impl ActionTint {
-    fn color(self, palette: &Palette) -> Color {
-        match self {
-            ActionTint::Proceed => palette.success,
-            ActionTint::Hold => palette.warning,
-            ActionTint::Refuse => palette.urgent,
-            ActionTint::Inspect => palette.info,
-        }
     }
 }
 
