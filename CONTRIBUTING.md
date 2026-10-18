@@ -26,7 +26,7 @@ needs a nightly toolchain for the options in `.rustfmt.toml`. Version control is
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
 - No user instructions in `README.md` beyond running, installing,
-  configuring and the GIF tour with one-line captions. The UX should be
+  configuring and the recorded tour with one-line captions. The UX should be
   intuitive; where help or explanation is needed, keep it next to the widget
   in question through descriptive labels, tooltip cards and visual indicators
   rather than prose in the docs.
@@ -40,7 +40,8 @@ The tour recordings in `recordings/` are rendered offscreen by the
 `vetrata-readme-showcase` crate. Each entry of `DEMOS` in `demo_script.rs` names a
 fixture and a script of `Hover` / `Press` steps on `HoverTarget`s; the
 recorder finds each target on screen, plays the steps through `iced_test`'s
-emulator and writes `recordings/<name>.gif`, cropped to what the demo shows.
+emulator and writes `recordings/<name>.webp`, a lossless animated WebP cropped to what
+the demo shows.
 
 To add a demo, write `fixtures/<group>.rs` (the group fed its readings through
 its own messages), give the group a variant in `showcased_group.rs` if it has
@@ -53,7 +54,7 @@ cargo run -p vetrata-readme-showcase -- weather
 ```
 
 The full run also checks that `README.md` embeds every recording as
-`<img src="recordings/<name>.gif" width="…">` at half its pixel width, so all demos
+`<img src="recordings/<name>.webp" width="…">` at half its pixel width, so all demos
 show at the same scale; it prints the expected tag when one is off.
 
 ## Upstream docs

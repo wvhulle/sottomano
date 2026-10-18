@@ -12,7 +12,6 @@ vetrata-shell = { path = "../vetrata-shell" }
 bytesize.workspace = true
 chrono.workspace = true
 clap.workspace = true
-gif = "0.14.2"
 iced.workspace = true
 iced_test = "0.14.0"
 niri-ipc.workspace = true
@@ -20,3 +19,4 @@ rust_decimal.workspace = true
 rusty-money.workspace = true
 situo-client.workspace = true
 uom.workspace = true
+webp-animation = { version = "0.10.0", features = ["static"] }

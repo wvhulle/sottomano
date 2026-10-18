@@ -1,13 +1,12 @@
 use std::{
     borrow::Cow,
-    fs::File,
-    iter::{from_fn, once},
+    fs,
+    iter::from_fn,
     path::Path,
     thread::sleep,
     time::{Duration, Instant},
 };
 
-use gif::{Encoder, Frame, Repeat};
 use iced::{
     Point, Size, Vector,
     advanced::widget::operation::{Operation, Outcome, black_box},
@@ -27,12 +26,13 @@ use iced_test::{
     runtime::{UserInterface, user_interface::Cache},
 };
 use vetrata_shell::{config::Config, desktop_shell::hover_tooltips::HoverTarget};
+use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
-    RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
+    RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
     demo_script::{Demo, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget},
-    readme_embedding::RecordedGif,
+    readme_embedding::RecordedAnimation,
     showcase_program::ShowcaseProgram,
 };
 
@@ -46,9 +46,10 @@ const PRESS_HOLD: Duration = Duration::from_millis(1500);
 const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
-const FRAME_INTERVAL: Duration = Duration::from_millis(40);
+const FRAME_INTERVAL: Duration = Duration::from_millis(20);
 const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
-const QUANTIZATION_SPEED: i32 = 10;
+const LOSSLESS_EFFORT: f32 = 75.0;
+const LOSSLESS_METHOD: usize = 4;
 const EMULATOR_EVENT_CAPACITY: usize = 256;
 
 struct CapturedFrame {
@@ -374,53 +375,44 @@ fn register_font(config: &Config) {
         .load_font(Cow::Owned(config.theme.font.data.to_vec()));
 }
 
-fn encode_gif(frames: &[CapturedFrame], size: FrameSize, gif: &Path) {
+fn encode_animation(frames: &[CapturedFrame], size: FrameSize, animation: &Path) {
+    let Some(first) = frames.first() else {
+        return;
+    };
     let Some(last) = frames.last() else {
         return;
     };
-    let file = File::create(gif).expect("docs directory is writable");
-    let mut encoder =
-        Encoder::new(file, size.width, size.height, &[]).expect("GIF header is writable");
-    encoder
-        .set_repeat(Repeat::Infinite)
-        .expect("GIF repeat extension is writable");
-    let distinct: Vec<&CapturedFrame> = frames
+    let milliseconds_since_first = |at: Instant| {
+        i32::try_from((at - first.captured_at).as_millis()).expect("recordings are short")
+    };
+    let options = EncoderOptions {
+        encoding_config: Some(EncodingConfig {
+            encoding_type: EncodingType::Lossless,
+            quality: LOSSLESS_EFFORT,
+            method: LOSSLESS_METHOD,
+        }),
+        ..EncoderOptions::default()
+    };
+    let encoder =
+        Encoder::new_with_options((u32::from(size.width), u32::from(size.height)), options)
+            .expect("cropped recordings are never empty");
+    let webp_bytes = frames
         .chunk_by(|earlier, later| earlier.rgba == later.rgba)
         .map(|repeats| &repeats[0])
-        .collect();
-    let shown_until: Vec<Instant> = distinct
-        .iter()
-        .skip(1)
-        .map(|frame| frame.captured_at)
-        .chain([last.captured_at + LAST_FRAME_DURATION])
-        .collect();
-    let previous_frames = once(None).chain(distinct.iter().copied().map(Some));
-    distinct
-        .iter()
-        .zip(previous_frames)
-        .zip(shown_until)
-        .for_each(|((captured, previous), shown_until)| {
-            let region = previous
-                .and_then(|previous| {
-                    PixelRegion::differing(&previous.rgba, &captured.rgba, size.width)
-                })
-                .unwrap_or_else(|| PixelRegion::whole(size.width, size.height));
-            let mut rgba = region.crop(&captured.rgba, size.width);
-            let mut frame = Frame::from_rgba_speed(
-                region.width(),
-                region.height(),
-                &mut rgba,
-                QUANTIZATION_SPEED,
-            );
-            frame.left = region.left;
-            frame.top = region.top;
-            let centiseconds = (shown_until - captured.captured_at).as_millis() / 10;
-            frame.delay = u16::try_from(centiseconds.max(1)).unwrap_or(u16::MAX);
-            encoder.write_frame(&frame).expect("GIF frame is writable");
-        });
+        .fold(encoder, |mut encoder, frame| {
+            encoder
+                .add_frame(&frame.rgba, milliseconds_since_first(frame.captured_at))
+                .expect("frames match the recording size");
+            encoder
+        })
+        .finalize(milliseconds_since_first(
+            last.captured_at + LAST_FRAME_DURATION,
+        ))
+        .expect("animation is encodable");
+    fs::write(animation, &*webp_bytes).expect("recordings directory is writable");
 }
 
-pub fn record(demo: &'static Demo) -> RecordedGif {
+pub fn record(demo: &'static Demo) -> RecordedAnimation {
     let config = Config::fallback();
     register_font(&config);
     let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
@@ -434,11 +426,11 @@ pub fn record(demo: &'static Demo) -> RecordedGif {
     let closing = recorder.rest();
     let frames: Vec<CapturedFrame> = opening.into_iter().chain(scripted).chain(closing).collect();
     let cropped = cropped_to_content(frames, FrameSize::of_canvas(), margin_pixels);
-    let gif = Path::new(WORKSPACE_ROOT)
+    let animation = Path::new(WORKSPACE_ROOT)
         .join(RECORDINGS_DIRECTORY)
-        .join(format!("{}.gif", demo.name));
-    encode_gif(&cropped.frames, cropped.size, &gif);
-    RecordedGif {
+        .join(format!("{}.{RECORDING_EXTENSION}", demo.name));
+    encode_animation(&cropped.frames, cropped.size, &animation);
+    RecordedAnimation {
         name: demo.name,
         logical_width: (f32::from(cropped.size.width) / SCALE_FACTOR).round() as u32,
     }

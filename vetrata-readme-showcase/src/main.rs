@@ -1,6 +1,6 @@
+mod animation_recording;
 mod demo_script;
 mod fixtures;
-mod gif_recording;
 mod hovered_widget;
 mod readme_embedding;
 mod showcase_program;
@@ -10,6 +10,7 @@ use clap::Parser;
 
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 const RECORDINGS_DIRECTORY: &str = "recordings";
+const RECORDING_EXTENSION: &str = "webp";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -26,7 +27,7 @@ fn main() {
     let recorded: Vec<_> = demo_script::DEMOS
         .iter()
         .filter(|demo| only.as_deref().is_none_or(|name| name == demo.name))
-        .map(gif_recording::record)
+        .map(animation_recording::record)
         .collect();
     if only.is_none() {
         readme_embedding::assert_embedded(&recorded);
