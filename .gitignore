@@ -1,5 +1,4 @@
 !build/
 /target
-/result
-/.gcroot-deps
+/result*
 rustc-ice-*
