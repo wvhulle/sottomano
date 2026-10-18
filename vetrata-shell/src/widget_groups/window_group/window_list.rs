@@ -8,7 +8,7 @@ use iced::{
     time::every,
     widget::{Row, container, progress_bar, stack, text},
 };
-use vetrata_config::{Config, widget_groups::WindowAgentsConfig};
+use vetrata_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use vetrata_sources::{
     SourceDelivery,
     audio::WindowAudio,
@@ -24,7 +24,6 @@ use vetrata_sources::{
 use crate::{
     desktop_shell::{
         hover_tooltips::{PressHints, TooltipMessage, hoverable},
-        monitor_surfaces::Position,
         pointer_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     },
     widget_groups::window_group::{WindowTarget, process_tree::Folding, window_tooltip},

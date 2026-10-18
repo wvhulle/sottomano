@@ -6,6 +6,7 @@ pub mod tooltip_transition;
 pub mod tooltip_updates;
 
 use iced::{Rectangle, window::Id};
+use vetrata_config::screen_edges::Position;
 
 pub use crate::desktop_shell::hover_tooltips::{
     hover_area::{hoverable, on_surface, pressable_card},
@@ -13,7 +14,6 @@ pub use crate::desktop_shell::hover_tooltips::{
     tooltip_surfaces::TooltipHost,
 };
 use crate::{
-    desktop_shell::monitor_surfaces::Position,
     widget_groups::{
         audio_group::AudioTarget, claude_usage_group::ClaudeUsageTarget, clock_group::ClockTarget,
         color_temperature_group::ColorTemperatureTarget, compute_group::ComputeTarget,

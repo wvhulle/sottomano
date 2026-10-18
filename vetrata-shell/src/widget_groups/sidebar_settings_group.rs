@@ -1,12 +1,14 @@
 use iced::Task;
 use vetrata_config::Config;
+use vetrata_state::{
+    LayerAppearance, ShellLayer, ShellLayout, WorkspacesPlacement, shell_settings,
+};
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::{self, LayerAppearance, ShellLayer, ShellLayout, WorkspacesPlacement},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -107,7 +109,7 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
                 shell_layout.workspaces_placement = shell_layout.workspaces_placement.toggled();
-                Task::future(state::shell_settings::save_workspaces_placement(
+                Task::future(shell_settings::save_workspaces_placement(
                     shell_layout.workspaces_placement,
                 ))
                 .discard()

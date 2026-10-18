@@ -11,6 +11,7 @@ workspace = true
 vetrata-config = { path = "../vetrata-config" }
 vetrata-shell = { path = "../vetrata-shell" }
 vetrata-sources = { path = "../vetrata-sources" }
+vetrata-state = { path = "../vetrata-state" }
 bytesize.workspace = true
 chrono.workspace = true
 clap.workspace = true

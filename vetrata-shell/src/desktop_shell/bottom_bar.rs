@@ -1,8 +1,9 @@
 use iced::Element;
+use vetrata_config::screen_edges::Position;
+use vetrata_state::WorkspacesPlacement;
 
 use crate::{
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
-    state::WorkspacesPlacement,
+    desktop_shell::{DesktopShell, Message},
     widget_groups::workspaces_group,
     widgets::widget_group::GroupContent,
 };

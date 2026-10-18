@@ -13,10 +13,10 @@ use vetrata_sources::{
     kitty_windows::WindowProcesses,
     notifications::model::ActionTint,
 };
+use vetrata_state::focus_tracker::{FocusTracker, TrackerMessage};
 
 use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
-    state::focus_tracker::{FocusTracker, TrackerMessage},
     widget_groups::session_focus_group::{
         context_switch_rate::ContextSwitchRate, daily_totals_gauge::DailyTotalsGauge,
         session_face::SessionFace, window_usage::WindowUsage,

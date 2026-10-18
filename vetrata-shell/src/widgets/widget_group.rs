@@ -6,12 +6,11 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area},
 };
-use vetrata_config::{Config, severity::Severity};
+use vetrata_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
-    desktop_shell::{
-        hover_tooltips::{GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable},
-        monitor_surfaces::Position,
+    desktop_shell::hover_tooltips::{
+        GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable,
     },
     widgets::{
         activity_line::activity_line,

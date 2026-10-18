@@ -8,7 +8,8 @@ use iced::{
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use tokio::time::sleep;
-use vetrata_config::Config;
+use vetrata_config::{Config, screen_edges::Position};
+use vetrata_state::{ShellSettings, niri_rules::StyledSurface};
 
 use crate::{
     desktop_shell::{
@@ -18,9 +19,8 @@ use crate::{
             tooltip_content::TooltipContent,
             tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
         },
-        monitor_surfaces::{PanelEdge, Position, base_settings, input_region},
+        monitor_surfaces::{PanelEdge, base_settings, input_region},
     },
-    state::{ShellSettings, niri_rules::StyledSurface},
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
         tooltip_body::Tooltip,

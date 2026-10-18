@@ -1,12 +1,12 @@
 use iced::Task;
 use vetrata_config::Config;
+use vetrata_state::{LayerAppearance, ShellLayer, ShellLayout, shell_settings};
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::{self, LayerAppearance, ShellLayer, ShellLayout},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -148,7 +148,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 shell_layout.disconnected_groups = !shell_layout.disconnected_groups;
                 Action::Run(
-                    Task::future(state::shell_settings::save_disconnected_groups(
+                    Task::future(shell_settings::save_disconnected_groups(
                         shell_layout.disconnected_groups,
                     ))
                     .discard(),
@@ -157,7 +157,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 shell_layout.auto_collapse_groups = !shell_layout.auto_collapse_groups;
                 Action::Run(
-                    Task::future(state::shell_settings::save_auto_collapse_groups(
+                    Task::future(shell_settings::save_auto_collapse_groups(
                         shell_layout.auto_collapse_groups,
                     ))
                     .discard(),
@@ -168,13 +168,13 @@ impl PanelSettingsGroup {
                     return Action::Run(Task::none());
                 };
                 shell_layout.float_offset_px = value;
-                Action::Reflow(
-                    Task::future(state::shell_settings::save_float_offset(value)).map(move |ok| {
+                Action::Reflow(Task::future(shell_settings::save_float_offset(value)).map(
+                    move |ok| {
                         Message::PanelSettings(PanelSettingsMessage::FloatOffset(
                             ControlMessage::Persisted { value, ok },
                         ))
-                    }),
-                )
+                    },
+                ))
             }
             PanelSettingsMessage::Appearance(msg) => Action::Run(
                 self.appearance

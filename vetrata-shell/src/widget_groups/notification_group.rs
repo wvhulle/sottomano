@@ -1,6 +1,7 @@
+use vetrata_state::NotificationSettings;
+
 use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
-    state::NotificationSettings,
     widget_groups::quiet_schedule_group::QuietScheduleTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},

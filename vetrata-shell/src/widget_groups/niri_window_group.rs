@@ -1,12 +1,12 @@
 use iced::Task;
 use vetrata_config::{Config, severity::Severity};
+use vetrata_state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling};
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},
     },
-    state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling},
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},

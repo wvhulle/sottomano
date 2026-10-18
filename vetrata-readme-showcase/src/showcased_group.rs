@@ -1,8 +1,8 @@
 use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
-use vetrata_config::Config;
+use vetrata_config::{Config, screen_edges::Position};
 use vetrata_shell::{
-    desktop_shell::{Message, hover_tooltips::HoverTarget, monitor_surfaces::Position},
+    desktop_shell::{Message, hover_tooltips::HoverTarget},
     widget_groups::{
         audio_group::AudioGroup,
         claude_usage_group::ClaudeUsageGroup,

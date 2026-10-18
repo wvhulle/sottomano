@@ -14,18 +14,16 @@ use iced::{
     window,
 };
 use vetrata_config::{Config, notification_toasts::ToastPlacementConfig};
+use vetrata_state::LayerAppearance;
 
 use super::{
     toast_anchor_geometry,
     toast_lifecycle::NotificationMessage,
     toast_placement::{AnchoredToast, ToastAnchor},
 };
-use crate::{
-    state::LayerAppearance,
-    widgets::{
-        child_view::{ChildView, ChildViewMut},
-        region_reporter::RegionRoles,
-    },
+use crate::widgets::{
+    child_view::{ChildView, ChildViewMut},
+    region_reporter::RegionRoles,
 };
 
 impl<'a> WindowAnchoredToasts<'a> {

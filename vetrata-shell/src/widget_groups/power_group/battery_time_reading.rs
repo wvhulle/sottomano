@@ -10,9 +10,9 @@ use vetrata_sources::{
     battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
     sysfs_sensors::battery::{Battery, IdleReason},
 };
+use vetrata_state::charge_power_curve;
 
 use crate::{
-    state::charge_power_curve,
     widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},

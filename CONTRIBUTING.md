@@ -7,6 +7,7 @@ Conventions and workflow for working on vetrata.
 Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace: `vetrata-config/` holds the TOML config types and their loading,
 `vetrata-sources/` holds the data sources and sinks the shell reads and writes,
+`vetrata-state/` holds the runtime state the shell persists and restores,
 `vetrata-shell/` holds the shell (binary `vetrata`) and
 `vetrata-readme-showcase/` renders the README recordings. `cargo r` for a
 debug run, `cargo clippy --workspace --all-targets` before committing — the
@@ -18,7 +19,7 @@ needs a nightly toolchain for the options in `.rustfmt.toml`. Version control is
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;
   code that cannot be made self-evident that way is restructured, not annotated.
 - Strict config/state separation: no field appears in both the TOML config
-  (`vetrata-config/src/`) and runtime state (`vetrata-shell/src/state/`).
+  (`vetrata-config/src/`) and runtime state (`vetrata-state/src/`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and

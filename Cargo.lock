@@ -7634,6 +7634,7 @@ dependencies = [
  "vetrata-config",
  "vetrata-shell",
  "vetrata-sources",
+ "vetrata-state",
  "webp-animation",
 ]
 
@@ -7645,14 +7646,11 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "clap",
- "club-kdl",
  "form_urlencoded",
  "humantime",
  "iced",
  "iced_exwlshell",
  "iced_wayland_subscriber",
- "kdl 6.7.1",
- "nalgebra",
  "niri-ipc",
  "quick-xml 0.42.0",
  "reqwest",
@@ -7665,11 +7663,11 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
- "turso",
  "uom",
  "usvg 0.48.1",
  "vetrata-config",
  "vetrata-sources",
+ "vetrata-state",
  "wayland-client",
  "zbus",
 ]
@@ -7722,6 +7720,23 @@ dependencies = [
  "wayrs-client",
  "wayrs-protocols",
  "zbus",
+]
+
+[[package]]
+name = "vetrata-state"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "club-kdl",
+ "iced",
+ "kdl 6.7.1",
+ "nalgebra",
+ "niri-ipc",
+ "tokio",
+ "tracing",
+ "turso",
+ "vetrata-config",
+ "vetrata-sources",
 ]
 
 [[package]]

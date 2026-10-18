@@ -12,10 +12,61 @@ pub mod shell_settings;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
-use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container};
-use vetrata_config::Config;
+use iced::{Border, Color, Padding, Rectangle, Shadow, Vector, border::Radius, widget::container};
+use vetrata_config::{Config, screen_edges::Position};
 
-use crate::widgets::panel_frame::OutlinedSides;
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy)]
+pub struct OutlinedSides {
+    pub top: bool,
+    pub right: bool,
+    pub bottom: bool,
+    pub left: bool,
+}
+
+impl OutlinedSides {
+    pub const ALL: Self = Self {
+        top: true,
+        right: true,
+        bottom: true,
+        left: true,
+    };
+
+    #[must_use]
+    pub fn square_unoutlined_corners(self, radius: Radius) -> Radius {
+        let rounded_between = |first: bool, second: bool, corner: f32| {
+            if first && second { corner } else { 0.0 }
+        };
+        Radius {
+            top_left: rounded_between(self.top, self.left, radius.top_left),
+            top_right: rounded_between(self.top, self.right, radius.top_right),
+            bottom_right: rounded_between(self.bottom, self.right, radius.bottom_right),
+            bottom_left: rounded_between(self.bottom, self.left, radius.bottom_left),
+        }
+    }
+
+    #[must_use]
+    pub fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
+        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
+        bounds.expand(Padding {
+            top: beyond_antialiasing(self.top),
+            right: beyond_antialiasing(self.right),
+            bottom: beyond_antialiasing(self.bottom),
+            left: beyond_antialiasing(self.left),
+        })
+    }
+}
+
+impl From<Position> for OutlinedSides {
+    fn from(panel_position: Position) -> Self {
+        Self {
+            top: panel_position != Position::Top,
+            right: true,
+            bottom: panel_position != Position::Bottom,
+            left: panel_position != Position::Left,
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ShellSettings {

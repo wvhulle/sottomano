@@ -1,7 +1,7 @@
 use core::slice;
 
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Vector,
+    Border, Color, Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -12,46 +12,7 @@ use iced::{
     mouse::Cursor,
     widget::container,
 };
-
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Copy)]
-pub struct OutlinedSides {
-    pub top: bool,
-    pub right: bool,
-    pub bottom: bool,
-    pub left: bool,
-}
-
-impl OutlinedSides {
-    pub const ALL: Self = Self {
-        top: true,
-        right: true,
-        bottom: true,
-        left: true,
-    };
-
-    fn square_unoutlined_corners(self, radius: Radius) -> Radius {
-        let rounded_between = |first: bool, second: bool, corner: f32| {
-            if first && second { corner } else { 0.0 }
-        };
-        Radius {
-            top_left: rounded_between(self.top, self.left, radius.top_left),
-            top_right: rounded_between(self.top, self.right, radius.top_right),
-            bottom_right: rounded_between(self.bottom, self.right, radius.bottom_right),
-            bottom_left: rounded_between(self.bottom, self.left, radius.bottom_left),
-        }
-    }
-
-    fn push_unoutlined_past(self, bounds: Rectangle, outline_width: f32) -> Rectangle {
-        let beyond_antialiasing = |outlined: bool| if outlined { 0.0 } else { 2.0 * outline_width };
-        bounds.expand(Padding {
-            top: beyond_antialiasing(self.top),
-            right: beyond_antialiasing(self.right),
-            bottom: beyond_antialiasing(self.bottom),
-            left: beyond_antialiasing(self.left),
-        })
-    }
-}
+use vetrata_state::OutlinedSides;
 
 pub fn panel_frame<'a, Message>(
     content: impl Into<Element<'a, Message>>,

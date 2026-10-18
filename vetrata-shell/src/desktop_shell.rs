@@ -24,7 +24,7 @@ use iced::{
 use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use vetrata_config::{
-    Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
+    Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig, screen_edges::Position,
     theme::font::ResolvedFont,
 };
 use vetrata_sources::{
@@ -40,19 +40,20 @@ use vetrata_sources::{
     sink::sound::SoundTheme,
     window_label::WindowLabel,
 };
+use vetrata_state::{
+    ShellSettings, idle, launches,
+    niri_rules::{NiriRulesFile, StoredRules},
+    shell_settings,
+};
 
 use crate::{
     desktop_shell::{
         hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
+        monitor_surfaces::{OutputChange, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
         pointer_drag::{DragMessage, ShellDrag},
     },
     message_subscriptions::{copy_to_clipboard, niri_action},
-    state::{
-        self, ShellSettings,
-        niri_rules::{NiriRulesFile, StoredRules},
-    },
     widget_groups::{
         audio_group::{AudioGroup, AudioMessage},
         claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
@@ -316,13 +317,13 @@ impl DesktopShell {
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
             desktop_entries::load().map(Message::DesktopEntriesLoaded),
-            Task::perform(state::launches::load(), Message::TrackerLoaded),
+            Task::perform(launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
-            Task::perform(state::idle::load(), |t| {
+            Task::perform(idle::load(), |t| {
                 Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
             }),
-            Task::perform(state::shell_settings::load(), Message::ShellSettingsLoaded),
+            Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
             shell.niri_rules.read().map(Message::NiriRulesLoaded),
             shell
                 .niri_config
@@ -882,7 +883,7 @@ impl DesktopShell {
                 );
             }
             if let Some(launch) = self.launch_tracker.observe(&event) {
-                tasks.push(Task::future(state::launches::record(launch)).discard());
+                tasks.push(Task::future(launches::record(launch)).discard());
             }
             let _ = self.niri.apply(event);
         }

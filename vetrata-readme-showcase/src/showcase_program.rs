@@ -9,20 +9,20 @@ use iced::{
     window,
 };
 use iced_test::program::Program;
-use vetrata_config::Config;
+use vetrata_config::{Config, screen_edges::Position};
 use vetrata_shell::{
     desktop_shell::{
         Message,
         hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_surfaces::{PanelEdge, Position},
+        monitor_surfaces::PanelEdge,
     },
-    state::ShellSettings,
     widgets::{
         favicon::Favicons, panel_frame::panel_frame, text::FontFallbacks, tooltip_body::Tooltip,
         window_icon::WindowAssets,
     },
 };
 use vetrata_sources::desktop_entries::DesktopIndex;
+use vetrata_state::{OutlinedSides, ShellSettings};
 
 use crate::{
     demo_script::Demo,
@@ -67,7 +67,9 @@ impl ShowcaseState {
             Position::Top | Position::Bottom => &self.shell_settings.panels,
         };
         let frame_style = layer.frame_style(&self.config);
-        let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
+        let outlined_sides = self
+            .shell_settings
+            .outlined_sides(OutlinedSides::from(position));
         let framed = self
             .group
             .panel_groups(&self.config)

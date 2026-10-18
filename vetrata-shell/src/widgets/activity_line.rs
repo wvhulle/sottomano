@@ -2,8 +2,7 @@ use iced::{
     Color, Element, Theme,
     widget::rule::{self, FillMode},
 };
-
-use crate::desktop_shell::monitor_surfaces::Position;
+use vetrata_config::screen_edges::Position;
 
 #[must_use]
 pub fn activity_line<'a, Message: 'a>(

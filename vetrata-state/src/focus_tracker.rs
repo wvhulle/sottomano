@@ -15,7 +15,7 @@ use vetrata_sources::{
     logind::{self, SleepEdge},
 };
 
-use crate::state::focus_spans;
+use crate::focus_spans;
 
 const PRESENCE_RESOLUTION: Duration = Duration::from_secs(30);
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);

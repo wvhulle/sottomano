@@ -10,11 +10,11 @@ use iced::{
     },
     window::Id,
 };
+use vetrata_config::screen_edges::Position;
 
 use crate::desktop_shell::{
     Message,
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage},
-    monitor_surfaces::Position,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

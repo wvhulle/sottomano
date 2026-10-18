@@ -3,11 +3,13 @@ use iced::{
     alignment::Vertical,
     widget::{Row, column, container, mouse_area, row},
 };
+use vetrata_config::screen_edges::Position;
+use vetrata_state::OutlinedSides;
 
 use crate::{
-    desktop_shell::{DesktopShell, Message, monitor_surfaces::Position},
+    desktop_shell::{DesktopShell, Message},
     widgets::{
-        panel_frame::{OutlinedSides, panel_frame},
+        panel_frame::panel_frame,
         region_reporter::{RegionRoles, region_reporter},
     },
 };
@@ -56,7 +58,7 @@ impl DesktopShell {
         let outlined_sides = self.shell_settings.outlined_sides(OutlinedSides {
             left: false,
             right: false,
-            ..position.inward_sides()
+            ..OutlinedSides::from(position)
         });
         let strip = panel_frame(
             container(centered)
@@ -82,7 +84,9 @@ impl DesktopShell {
         let panels = &self.shell_settings.panels;
         let groups_disconnected = self.shell_settings.layout.disconnected_groups;
         let frame_style = panels.frame_style(config);
-        let outlined_sides = self.shell_settings.outlined_sides(position.inward_sides());
+        let outlined_sides = self
+            .shell_settings
+            .outlined_sides(OutlinedSides::from(position));
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;

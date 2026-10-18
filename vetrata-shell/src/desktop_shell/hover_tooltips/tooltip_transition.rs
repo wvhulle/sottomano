@@ -1,10 +1,8 @@
 use iced::Rectangle;
+use vetrata_config::screen_edges::Position;
 
 use crate::{
-    desktop_shell::{
-        hover_tooltips::{HoverTarget, PressHints},
-        monitor_surfaces::Position,
-    },
+    desktop_shell::hover_tooltips::{HoverTarget, PressHints},
     widgets::tooltip_body::Tooltip,
 };
 

@@ -1,9 +1,7 @@
 use std::time::Duration;
 
-use vetrata_shell::{
-    state::idle::Timeouts,
-    widget_groups::idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
-};
+use vetrata_shell::widget_groups::idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage};
+use vetrata_state::idle::Timeouts;
 
 use crate::showcased_group::ShowcasedGroup;
 

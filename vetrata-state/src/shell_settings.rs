@@ -1,6 +1,6 @@
 use vetrata_sources::store::{Columns, StoreError, flag, real, upsert_column, with_table};
 
-use crate::state::{ShellLayer, ShellSettings, WorkspacesPlacement, layer_appearance};
+use crate::{ShellLayer, ShellSettings, WorkspacesPlacement, layer_appearance};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS shell_settings (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -138,7 +138,7 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
 #[cfg(test)]
 mod tests {
     use super::{CREATE_TABLE, Setting, flag, read_shell_settings, real, write_setting};
-    use crate::state::WorkspacesPlacement;
+    use crate::WorkspacesPlacement;
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();

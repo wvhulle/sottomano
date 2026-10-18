@@ -1,13 +1,13 @@
 use iced::Task;
 use vetrata_config::Config;
 use vetrata_sources::store::{flag, real};
+use vetrata_state::{
+    LayerAppearance, ShellLayer,
+    layer_appearance::{self, AppearanceSetting},
+};
 
 use crate::{
     desktop_shell::hover_tooltips::HoverTarget,
-    state::{
-        LayerAppearance, ShellLayer,
-        layer_appearance::{self, AppearanceSetting},
-    },
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},

@@ -17,6 +17,7 @@ use vetrata_sources::{
     app_icon::DesktopEntries,
     notifications::model::{ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt},
 };
+use vetrata_state::ShellSettings;
 
 use super::{
     Notification, NotificationMessage, body_markup, toast_lifecycle::ToastKind,
@@ -24,7 +25,6 @@ use super::{
 };
 use crate::{
     desktop_shell::hover_tooltips::{ongoing_for, relative},
-    state::ShellSettings,
     widgets::{
         bar_widget::Glyph,
         icon_handle::IconHandle,

@@ -20,13 +20,13 @@ use iced::{
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 use vetrata_config::{Config, theme::font::ResolvedFont};
+use vetrata_state::idle::ScheduledAfterIdle;
 
 use crate::{
     desktop_shell::{
         Message,
         hover_tooltips::{MouseGesture, PressHints, core_grid::CoreCellGrid},
     },
-    state::idle::ScheduledAfterIdle,
     widget_groups::{
         session_menu::SessionMessage,
         tray_group::{TrayMessage, menu_lines::TrayMenuLines},

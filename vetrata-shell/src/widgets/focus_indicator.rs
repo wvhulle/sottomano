@@ -14,9 +14,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use vetrata_config::Config;
-
-use crate::desktop_shell::monitor_surfaces::Position;
+use vetrata_config::{Config, screen_edges::Position};
 
 const BACKDROP_ALPHA: f32 = 0.2;
 

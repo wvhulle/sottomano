@@ -3,8 +3,7 @@ use iced::{
     advanced::graphics::geometry::Renderer as _,
     widget::canvas::{Frame, Path, Stroke},
 };
-
-use crate::desktop_shell::monitor_surfaces::Position;
+use vetrata_config::screen_edges::Position;
 
 const BASE_HALF_WIDTH_PX: f32 = 6.0;
 

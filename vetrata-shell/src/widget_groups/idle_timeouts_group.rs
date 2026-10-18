@@ -9,10 +9,10 @@ use vetrata_config::Config;
 use vetrata_sources::{
     focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
 };
+use vetrata_state::idle::{self, Timeouts};
 
 use crate::{
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    state::{self, idle::Timeouts},
     widgets::{
         group_item::GroupItem,
         idle::{
@@ -164,7 +164,7 @@ impl IdleTimeoutsGroup {
                     Task::none()
                 }
                 TimerChange::Persist(value) => {
-                    let persist = Task::future(state::idle::save(self.timeouts())).map(move |ok| {
+                    let persist = Task::future(idle::save(self.timeouts())).map(move |ok| {
                         IdleTimeoutsMessage::Timer(kind, ControlMessage::Persisted { value, ok })
                     });
                     Task::batch([persist, self.rearm()])
