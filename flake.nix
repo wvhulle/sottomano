@@ -160,7 +160,7 @@
           '';
           installPhaseCommand = ''
             mkdir -p $out
-            cp recordings/*.gif $out/
+            cp recordings/*.webp $out/
           '';
         }
       );
