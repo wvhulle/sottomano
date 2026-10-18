@@ -212,7 +212,7 @@ mod tests {
                 length: Duration::from_secs(300),
                 rate: 1.0,
             },
-            art: None,
+            art_url: None,
             capabilities: Capabilities {
                 seek: true,
                 ..Capabilities::default()

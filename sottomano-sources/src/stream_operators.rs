@@ -1,10 +1,9 @@
 use std::{
     convert::identity,
     fmt::Display,
-    future::{Future, pending, ready},
+    future::{Future, ready},
     pin::Pin,
-    sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
     time::{Duration, Instant},
 };
 
@@ -13,11 +12,7 @@ use futures::{
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::{
-    select,
-    sync::Notify,
-    time::{MissedTickBehavior, interval, sleep_until},
-};
+use tokio::time::{MissedTickBehavior, Sleep, interval, sleep_until};
 use tokio_stream::wrappers::IntervalStream;
 
 pub fn ticked<T, F>(
@@ -53,54 +48,69 @@ where
     T: Send + 'static,
     F: Future<Output = T> + Send,
 {
-    let notify = Arc::new(Notify::new());
-    notify.notify_one();
-    let absorbing = triggers
-        .map({
-            let notify = notify.clone();
-            move |()| notify.notify_one()
-        })
-        .filter_map(|()| ready(None));
-    let rereading = stream::unfold(
-        Rereading {
-            notify,
-            read,
-            deadline_after,
-            deadline: None,
-        },
-        Rereading::next_reading,
-    );
-    stream::select(absorbing, rereading)
-}
-
-struct Rereading<Read, Deadline> {
-    notify: Arc<Notify>,
-    read: Read,
-    deadline_after: Deadline,
-    deadline: Option<Instant>,
-}
-
-impl<T, F, Read, Deadline> Rereading<Read, Deadline>
-where
-    F: Future<Output = T>,
-    Read: FnMut() -> F,
-    Deadline: Fn(&T) -> Option<Instant>,
-{
-    async fn next_reading(mut self) -> Option<(T, Self)> {
-        select! {
-            () = self.notify.notified() => {}
-            () = sleep_until_or_forever(self.deadline) => {}
-        }
-        let produced = (self.read)().await;
-        self.deadline = (self.deadline_after)(&produced);
-        Some((produced, self))
+    RereadOnTrigger {
+        triggers: triggers.fuse(),
+        read,
+        deadline_after,
+        reading: None,
+        deadline: None,
+        triggered: true,
     }
 }
 
-async fn sleep_until_or_forever(deadline: Option<Instant>) {
-    match deadline {
-        Some(deadline) => sleep_until(deadline.into()).await,
-        None => pending().await,
+pin_project! {
+    struct RereadOnTrigger<S, Read, Deadline, F> {
+        #[pin]
+        triggers: Fuse<S>,
+        read: Read,
+        deadline_after: Deadline,
+        #[pin]
+        reading: Option<F>,
+        #[pin]
+        deadline: Option<Sleep>,
+        triggered: bool,
+    }
+}
+
+impl<S, Read, Deadline, F> Stream for RereadOnTrigger<S, Read, Deadline, F>
+where
+    S: Stream<Item = ()>,
+    Read: FnMut() -> F,
+    Deadline: Fn(&F::Output) -> Option<Instant>,
+    F: Future,
+{
+    type Item = F::Output;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<F::Output>> {
+        let mut this = self.project();
+        while let Poll::Ready(Some(())) = this.triggers.as_mut().poll_next(cx) {
+            *this.triggered = true;
+        }
+        if let Some(deadline) = this.deadline.as_mut().as_pin_mut()
+            && deadline.poll(cx).is_ready()
+        {
+            *this.triggered = true;
+            this.deadline.set(None);
+        }
+        if this.reading.is_none() {
+            if !*this.triggered {
+                return if this.triggers.is_terminated() {
+                    Poll::Ready(None)
+                } else {
+                    Poll::Pending
+                };
+            }
+            *this.triggered = false;
+            this.reading.set(Some((this.read)()));
+        }
+        let Some(reading) = this.reading.as_mut().as_pin_mut() else {
+            return Poll::Pending;
+        };
+        let produced = ready!(reading.poll(cx));
+        this.reading.set(None);
+        let next_deadline = (this.deadline_after)(&produced).map(|at| sleep_until(at.into()));
+        this.deadline.set(next_deadline);
+        Poll::Ready(Some(produced))
     }
 }
 

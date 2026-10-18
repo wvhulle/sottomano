@@ -1,15 +1,13 @@
 use std::{
-    collections::HashMap,
     fmt::{self, Display, Formatter},
     str::FromStr,
-    sync::Arc,
     time::Instant,
 };
 
 use futures::{Stream, StreamExt, future::ready, stream::select};
 use image::{DynamicImage, RgbaImage};
 use reqwest::Url;
-use tokio::{sync::Mutex, time::Duration};
+use tokio::time::Duration;
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
     Connection, MatchRule, MessageStream,
@@ -263,7 +261,7 @@ pub struct Media {
     pub url: Option<Url>,
     pub status: Status,
     pub progress: Progress,
-    pub art: Option<Arc<RgbaImage>>,
+    pub art_url: Option<String>,
     pub capabilities: Capabilities,
     pub shuffle: Option<bool>,
     pub loop_mode: Option<LoopMode>,
@@ -350,7 +348,6 @@ async fn read_media(
     connection: &Connection,
     dbus: &DBusProxy<'_>,
     bus: &str,
-    art: &mut ArtCache,
 ) -> zbus::Result<Media> {
     let root = properties(connection, bus, ROOT_INTERFACE).await?;
     let player = properties(connection, bus, PLAYER_INTERFACE).await?;
@@ -361,12 +358,6 @@ async fn read_media(
     };
     let status = status.parse()?;
     let metadata = player.dictionary("Metadata").unwrap_or_default();
-    let cover_art = if let Some(url) = metadata.text("mpris:artUrl") {
-        cover_art(&url, bus, art).await
-    } else {
-        art.remove(bus);
-        None
-    };
     Ok(Media {
         bus: bus.to_owned(),
         owner: owner_process(dbus, bus).await,
@@ -378,7 +369,7 @@ async fn read_media(
         url: parsed(&metadata, "xesam:url"),
         status,
         progress: Progress::declared(&player, &metadata),
-        art: cover_art,
+        art_url: metadata.text("mpris:artUrl"),
         capabilities: Capabilities::declared(&player, &root),
         shuffle: controllable_setting(&player, player.boolean("Shuffle")),
         loop_mode: controllable_setting(&player, parsed(&player, "LoopStatus")),
@@ -396,54 +387,18 @@ async fn mpris_names(dbus: &DBusProxy<'_>) -> zbus::Result<Vec<String>> {
         .collect())
 }
 
-async fn read_all(
-    connection: &Connection,
-    dbus: &DBusProxy<'_>,
-    art: &mut ArtCache,
-) -> zbus::Result<Vec<Media>> {
+async fn read_all(connection: &Connection, dbus: &DBusProxy<'_>) -> zbus::Result<Vec<Media>> {
     let mut players = Vec::new();
     for bus in mpris_names(dbus).await? {
-        match read_media(connection, dbus, &bus, art).await {
+        match read_media(connection, dbus, &bus).await {
             Ok(media) => players.push(media),
             Err(e) => tracing::debug!("mpris {bus}: {e}"),
         }
     }
-    art.retain(|bus, _| players.iter().any(|media| &media.bus == bus));
     Ok(players)
 }
 
-struct CachedArt {
-    url: String,
-    pixels: Arc<RgbaImage>,
-}
-
-type ArtCache = HashMap<String, CachedArt>;
-
-async fn cover_art(url: &str, bus: &str, cache: &mut ArtCache) -> Option<Arc<RgbaImage>> {
-    if let Some(cached) = cache.get(bus)
-        && cached.url == url
-    {
-        return Some(cached.pixels.clone());
-    }
-    let pixels = load_art(url).await.map(Arc::new);
-    match pixels.clone() {
-        Some(pixels) => {
-            cache.insert(
-                bus.to_owned(),
-                CachedArt {
-                    url: url.to_owned(),
-                    pixels,
-                },
-            );
-        }
-        None => {
-            cache.remove(bus);
-        }
-    }
-    pixels
-}
-
-async fn load_art(url: &str) -> Option<RgbaImage> {
+pub async fn load_art(url: &str) -> Option<RgbaImage> {
     if let Some(path) = url.strip_prefix("file://") {
         let path = path.to_owned();
         return blocking("cover art file", move || {
@@ -501,14 +456,12 @@ async fn connect(
         .await?
         .filter(|signal| ready(names_player(signal)))
         .map(drop);
-    let art = Arc::new(Mutex::new(ArtCache::new()));
     Ok(read_once_then_per_burst(
         select(select(properties, seeks), owners),
         move || {
             let connection = connection.clone();
             let dbus = dbus.clone();
-            let art = art.clone();
-            async move { read_all(&connection, &dbus, &mut *art.lock().await).await }
+            async move { read_all(&connection, &dbus).await }
         },
     ))
 }
