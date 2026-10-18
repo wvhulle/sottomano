@@ -6,9 +6,11 @@ use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Error, cpu_topology::cpulist, read_trimmed};
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-    present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 const L3_PMU: &str = "amd_l3";
@@ -43,9 +45,10 @@ impl ReadingSource for L3CacheTraffic {
                 .await
                 .unwrap_or(false)
         };
-        present_or_absent(stream::once(countable), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(countable).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

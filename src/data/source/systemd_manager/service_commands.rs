@@ -10,7 +10,7 @@ use zbus::{names::MemberName, proxy, proxy::CacheProperties, zvariant::OwnedObje
 use super::{ManagerProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
     data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
-    message_subscriptions::connected_until_failure,
+    stream_operators::connected_until_failure,
 };
 
 const SERVICE_SUFFIX: &str = ".service";

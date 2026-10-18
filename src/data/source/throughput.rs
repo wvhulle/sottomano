@@ -22,13 +22,12 @@ use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         bus::DesktopBuses,
-        drop_unchanged_deliveries,
         net_interfaces::{
             nm::{self, Connectivity},
             nm_readings,
         },
     },
-    message_subscriptions::ticked,
+    stream_operators::{StreamOperators, ticked},
 };
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
@@ -107,26 +106,25 @@ impl ReadingSource for Readings {
             },
         );
         let ticks = ticked(SAMPLE_INTERVAL, || ready(ThroughputEvent::Tick));
-        drop_unchanged_deliveries(
-            select(uplink_changes, ticks)
-                .scan(ThroughputSampler::default(), |sampler, event| {
-                    let delivered = match event {
-                        ThroughputEvent::UplinkUnreadable(failure) => {
-                            Some(SourceDelivery::Reading(Err(failure)))
-                        }
-                        sampling => {
-                            let sampled = matches!(sampling, ThroughputEvent::Tick);
-                            *sampler = mem::take(sampler).observed(sampling);
-                            sampled
-                                .then(|| sampler.readings())
-                                .flatten()
-                                .map(|readings| SourceDelivery::Reading(Ok(readings)))
-                        }
-                    };
-                    ready(Some(delivered))
-                })
-                .filter_map(ready),
-        )
+        select(uplink_changes, ticks)
+            .scan(ThroughputSampler::default(), |sampler, event| {
+                let delivered = match event {
+                    ThroughputEvent::UplinkUnreadable(failure) => {
+                        Some(SourceDelivery::Reading(Err(failure)))
+                    }
+                    sampling => {
+                        let sampled = matches!(sampling, ThroughputEvent::Tick);
+                        *sampler = mem::take(sampler).observed(sampling);
+                        sampled
+                            .then(|| sampler.readings())
+                            .flatten()
+                            .map(|readings| SourceDelivery::Reading(Ok(readings)))
+                    }
+                };
+                ready(Some(delivered))
+            })
+            .filter_map(ready)
+            .distinct_until_changed()
     }
 }
 

@@ -6,7 +6,7 @@ use wayrs_protocols::ext_idle_notify_v1::{
     ExtIdleNotificationV1, ExtIdleNotifierV1, ext_idle_notification_v1,
 };
 
-use crate::message_subscriptions::restarting;
+use crate::stream_operators::restarting;
 
 #[derive(Debug)]
 pub enum WaylandError {

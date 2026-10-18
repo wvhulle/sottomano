@@ -7,7 +7,7 @@ use iced::{
 use inotify::{Inotify, WatchMask};
 
 use super::ConfigFile;
-use crate::message_subscriptions::restarting;
+use crate::stream_operators::restarting;
 
 const EVENT_BUFFER_BYTES: usize = 1024;
 

@@ -3,7 +3,7 @@ use std::{ffi::OsString, future::ready, io, path::PathBuf};
 use iced::futures::{Stream, StreamExt, stream};
 use inotify::{Inotify, WatchMask};
 
-use crate::message_subscriptions::connected_until_failure;
+use crate::stream_operators::connected_until_failure;
 
 const EVENT_BUFFER_BYTES: usize = 1024;
 

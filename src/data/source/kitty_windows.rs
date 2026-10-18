@@ -20,7 +20,7 @@ use niri_ipc::{
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{config::widget_groups::WindowAgentsConfig, data::source::emit_changes};
+use crate::{config::widget_groups::WindowAgentsConfig, stream_operators::StreamOperators};
 
 pub const KITTY_APP_ID: &str = "kitty";
 
@@ -260,6 +260,6 @@ pub fn subscription(config: &WindowAgentsConfig) -> Subscription<WindowProcesses
                 tracing::warn!("window pairing stopped: {e}");
             }
         });
-        emit_changes(ReceiverStream::new(receiver))
+        ReceiverStream::new(receiver).distinct_until_changed()
     })
 }

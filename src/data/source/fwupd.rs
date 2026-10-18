@@ -8,9 +8,8 @@ use crate::{
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery,
         bus::{self, DesktopBuses, Properties, name_owned, prop, service_absent},
-        present_or_absent,
     },
-    message_subscriptions::connected_until_failure,
+    stream_operators::{StreamOperators, connected_until_failure},
 };
 
 const UPDATABLE_DEVICE_FLAG: u64 = 1 << 1;
@@ -85,9 +84,10 @@ impl ReadingSource for Vec<FirmwareUpgrade> {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        present_or_absent(name_owned(system.clone(), FWUPD_SERVICE), move || {
-            signalled_upgrades(system.clone()).map(SourceDelivery::Reading)
-        })
+        name_owned(system.clone(), FWUPD_SERVICE).while_held(
+            move || signalled_upgrades(system.clone()).map(SourceDelivery::Reading),
+            SourceDelivery::Absent,
+        )
     }
 }
 

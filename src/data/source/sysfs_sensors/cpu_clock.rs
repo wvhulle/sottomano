@@ -5,9 +5,11 @@ use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, Error, core_freqs, cpu_topology::CpuTopology};
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-    present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -89,9 +91,10 @@ impl ReadingSource for CpuClock {
                 .await
                 .is_ok_and(|cores| !cores.is_empty())
         };
-        present_or_absent(stream::once(exposed), move || {
-            polled_delivery_stream(inputs, Self::poll)
-        })
+        stream::once(exposed).while_held(
+            move || polled_delivery_stream(inputs, Self::poll),
+            SourceDelivery::Absent,
+        )
     }
 }
 

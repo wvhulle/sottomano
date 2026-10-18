@@ -6,6 +6,7 @@ mod message_subscriptions;
 #[cfg(test)]
 mod readme_showcase;
 mod state;
+mod stream_operators;
 mod widget_groups;
 mod widgets;
 

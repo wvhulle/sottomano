@@ -3,10 +3,13 @@ use std::{env, fs, time::Duration};
 use iced::futures::Stream;
 use zbus::{blocking::Connection, proxy};
 
-use crate::data::source::{
-    DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
-    bus::{DesktopBuses, Error, name_owned},
-    polled_delivery_stream, present_or_absent,
+use crate::{
+    data::source::{
+        DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
+        bus::{DesktopBuses, Error, name_owned},
+        polled_delivery_stream,
+    },
+    stream_operators::StreamOperators,
 };
 
 const CLIGHT_SERVICE: &str = "org.clight.clight";
@@ -45,9 +48,9 @@ impl ReadingSource for Clight {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(
-            name_owned(buses.session.clone(), CLIGHT_SERVICE),
+        name_owned(buses.session.clone(), CLIGHT_SERVICE).while_held(
             move || polled_delivery_stream(buses.clone(), Self::poll),
+            SourceDelivery::Absent,
         )
     }
 }

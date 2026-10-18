@@ -12,11 +12,12 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 use crate::{
     config::SecretPaths,
     data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, command, emit_changes, present_or_absent,
+        DeliveryCadence, ReadingSource, SourceDelivery, command,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
     },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,
+    stream_operators::StreamOperators,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
@@ -77,39 +78,44 @@ impl ReadingSource for Lookup {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(wallpaper::daemon_installed()), move || {
-            let unsplash_key = unsplash_key.clone();
-            emit_changes(wallpaper::displayed()).flat_map(move |displayed| {
+        stream::once(wallpaper::daemon_installed()).while_held(
+            move || {
                 let unsplash_key = unsplash_key.clone();
-                let path = match displayed {
-                    Err(failure) => {
-                        return stream::iter([SourceDelivery::Reading(Err(Failure::Query(
-                            failure,
-                        )))])
-                        .left_stream();
-                    }
-                    Ok(DisplayedWallpaper::NoImageFile) => {
-                        return stream::iter([SourceDelivery::Absent]).left_stream();
-                    }
-                    Ok(DisplayedWallpaper::ImageFile(path)) => path,
-                };
-                let Some(id) = wallpaper::photo_id(&path) else {
-                    return stream::iter([SourceDelivery::Absent]).left_stream();
-                };
-                let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
-                let resolved = async move {
-                    SourceDelivery::Reading(
-                        wallpaper::resolve(path, id, &unsplash_key)
-                            .await
-                            .map(|wallpaper| Lookup::of(&wallpaper))
-                            .map_err(Failure::Resolve),
-                    )
-                };
-                stream::iter([SourceDelivery::Reading(Ok(unresolved))])
-                    .chain(stream::once(resolved))
-                    .right_stream()
-            })
-        })
+                wallpaper::displayed()
+                    .distinct_until_changed()
+                    .flat_map(move |displayed| {
+                        let unsplash_key = unsplash_key.clone();
+                        let path = match displayed {
+                            Err(failure) => {
+                                return stream::iter([SourceDelivery::Reading(Err(
+                                    Failure::Query(failure),
+                                ))])
+                                .left_stream();
+                            }
+                            Ok(DisplayedWallpaper::NoImageFile) => {
+                                return stream::iter([SourceDelivery::Absent]).left_stream();
+                            }
+                            Ok(DisplayedWallpaper::ImageFile(path)) => path,
+                        };
+                        let Some(id) = wallpaper::photo_id(&path) else {
+                            return stream::iter([SourceDelivery::Absent]).left_stream();
+                        };
+                        let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
+                        let resolved = async move {
+                            SourceDelivery::Reading(
+                                wallpaper::resolve(path, id, &unsplash_key)
+                                    .await
+                                    .map(|wallpaper| Lookup::of(&wallpaper))
+                                    .map_err(Failure::Resolve),
+                            )
+                        };
+                        stream::iter([SourceDelivery::Reading(Ok(unresolved))])
+                            .chain(stream::once(resolved))
+                            .right_stream()
+                    })
+            },
+            SourceDelivery::Absent,
+        )
     }
 }
 

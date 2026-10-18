@@ -15,7 +15,7 @@ use uom::si::{angle::degree, f64::Angle};
 
 use crate::{
     data::source::{ai::read_secret, command, http},
-    message_subscriptions::restarting,
+    stream_operators::restarting,
 };
 
 const EVENT_BUFFER_BYTES: usize = 1024;

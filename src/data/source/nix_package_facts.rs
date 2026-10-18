@@ -12,9 +12,10 @@ use crate::{
     data::source::{
         DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
         nix_store::{Provenance, StorePackage, below_derivation},
-        polled_delivery_stream, present_or_absent,
+        polled_delivery_stream,
         process::{Watched, launch},
     },
+    stream_operators::StreamOperators,
     widgets::tooltip_body::Section,
 };
 
@@ -173,9 +174,10 @@ impl ReadingSource for NixPackageFacts {
         DeliveryCadence::PolledEvery(Duration::from_secs(600));
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        present_or_absent(stream::once(command::exists("nix")), move || {
-            polled_delivery_stream(inputs.clone(), Self::poll).map(absent_outside_store)
-        })
+        stream::once(command::exists("nix")).while_held(
+            move || polled_delivery_stream(inputs.clone(), Self::poll).map(absent_outside_store),
+            SourceDelivery::Absent,
+        )
     }
 }
 

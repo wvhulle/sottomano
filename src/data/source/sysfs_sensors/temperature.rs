@@ -25,9 +25,9 @@ use crate::{
         severity::Severity,
         source::{
             DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-            present_or_absent,
         },
     },
+    stream_operators::StreamOperators,
     widgets::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
 
@@ -171,9 +171,10 @@ impl ReadingSource for Temperature {
                 .await
                 .is_ok_and(|readings| !readings.is_empty())
         };
-        holding_earliest_critical(present_or_absent(stream::once(exposed), move || {
-            polled_delivery_stream(config.clone(), Self::poll)
-        }))
+        holding_earliest_critical(stream::once(exposed).while_held(
+            move || polled_delivery_stream(config.clone(), Self::poll),
+            SourceDelivery::Absent,
+        ))
     }
 }
 

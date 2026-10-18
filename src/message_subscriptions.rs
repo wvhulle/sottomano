@@ -14,12 +14,8 @@ use iced::{
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
-use tokio::{
-    sync::mpsc,
-    task::spawn_blocking,
-    time::{MissedTickBehavior, interval},
-};
-use tokio_stream::wrappers::{IntervalStream, ReceiverStream};
+use tokio::{sync::mpsc, task::spawn_blocking};
+use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
 
 use crate::{
@@ -39,6 +35,7 @@ use crate::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
         notification_toasts::NotificationMessage,
     },
+    stream_operators::restarting,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
@@ -191,72 +188,6 @@ pub fn blocking<T: Default + Send + 'static>(
         },
         identity,
     )
-}
-
-pub fn ticked<T, F>(
-    every: Duration,
-    work: impl Fn() -> F + Send + Clone + 'static,
-) -> impl Stream<Item = T>
-where
-    T: Send + 'static,
-    F: Future<Output = T> + Send,
-{
-    use iced::futures::StreamExt;
-    let mut timer = interval(every);
-    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    IntervalStream::new(timer).then(move |_| work())
-}
-
-pub fn connected_until_failure<S, T, E>(
-    connecting: impl Future<Output = Result<S, E>>,
-) -> impl Stream<Item = Result<T, E>>
-where
-    S: Stream<Item = Result<T, E>>,
-{
-    use iced::futures::{TryStreamExt, stream};
-    until_first_failure(stream::once(connecting).try_flatten())
-}
-
-pub fn resubscribing_until_failure<F, S, T, E>(
-    subscribe: impl FnMut() -> F,
-) -> impl Stream<Item = Result<T, E>>
-where
-    F: Future<Output = Result<S, E>>,
-    S: Stream<Item = Result<T, E>>,
-{
-    use iced::futures::{StreamExt, TryStreamExt, stream};
-    until_first_failure(stream::repeat_with(subscribe).then(identity).try_flatten())
-}
-
-fn until_first_failure<T, E>(
-    items: impl Stream<Item = Result<T, E>>,
-) -> impl Stream<Item = Result<T, E>> {
-    use iced::futures::StreamExt;
-    items.scan(false, |failed, item| {
-        if *failed {
-            return ready(None);
-        }
-        *failed = item.is_err();
-        ready(Some(item))
-    })
-}
-
-pub fn restarting<F, S, E>(
-    source: &'static str,
-    connect: impl FnMut() -> F,
-) -> impl Stream<Item = S::Item>
-where
-    F: Future<Output = Result<S, E>>,
-    S: Stream,
-    E: Display,
-{
-    use iced::futures::{StreamExt, TryStreamExt, stream};
-    stream::repeat_with(connect)
-        .then(identity)
-        .inspect_err(move |e| tracing::warn!("{source}: {e}"))
-        .take_while(|attempt| ready(attempt.is_ok()))
-        .filter_map(|attempt| ready(attempt.ok()))
-        .flatten()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

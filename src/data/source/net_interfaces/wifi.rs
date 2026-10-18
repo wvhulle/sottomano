@@ -17,7 +17,7 @@ use crate::{
             ReadingError, device_or_absent, device_readings, nm, nm_readings, per_burst,
         },
     },
-    message_subscriptions::resubscribing_until_failure,
+    stream_operators::resubscribing_until_failure,
 };
 
 pub const NAME: &str = "wifi";
