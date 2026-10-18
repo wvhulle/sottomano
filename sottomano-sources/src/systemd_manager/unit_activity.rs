@@ -1,4 +1,7 @@
+use std::pin::pin;
+
 use futures::{Stream, StreamExt, stream};
+use tokio::select;
 
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
 use crate::{
@@ -53,6 +56,14 @@ impl UnitChange {
         match self {
             Self::Start => UnitActivity::Starting,
             Self::Stop => UnitActivity::Stopping,
+        }
+    }
+
+    #[must_use]
+    pub fn settled_activity(self) -> UnitActivity {
+        match self {
+            Self::Start => UnitActivity::Running,
+            Self::Stop => UnitActivity::Stopped,
         }
     }
 }
@@ -134,10 +145,20 @@ impl UnitControl {
         let manager = ManagerProxy::new(&connection).await?;
         manager.ensure_subscribed().await?;
         let mut removed_jobs = manager.receive_job_removed().await?;
-        let job = match change {
-            UnitChange::Start => manager.start_unit(&self.unit, "replace").await?,
-            UnitChange::Stop => manager.stop_unit(&self.unit, "replace").await?,
+        let mut removed_meanwhile = Vec::new();
+        let mut requested = pin!(async {
+            match change {
+                UnitChange::Start => manager.start_unit(&self.unit, "replace").await,
+                UnitChange::Stop => manager.stop_unit(&self.unit, "replace").await,
+            }
+        });
+        let job = loop {
+            select! {
+                job = &mut requested => break job?,
+                Some(removed) = removed_jobs.next() => removed_meanwhile.push(removed),
+            }
         };
+        let mut removed_jobs = stream::iter(removed_meanwhile).chain(removed_jobs);
         while let Some(removed) = removed_jobs.next().await {
             let removed = removed.args()?;
             if *removed.job() == job {

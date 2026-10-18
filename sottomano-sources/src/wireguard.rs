@@ -9,7 +9,7 @@ use crate::{
     bus::DesktopBuses,
     command,
     command::blocking::run,
-    net_interfaces::{nm, per_burst},
+    net_interfaces::nm,
     polled_delivery_stream, pushed_delivery_stream,
     stream_operators::{StreamOperators, read_once_then_per_burst},
 };
@@ -68,7 +68,7 @@ async fn address_changes(
     watched: TunnelOnBus,
 ) -> Result<impl Stream<Item = Result<TunnelAddress, command::Error>> + Send, command::Error> {
     let addressing = match nm::changes(&watched.buses.system, ADDRESSING_PROPERTIES).await {
-        Ok(signals) => per_burst(signals).left_stream(),
+        Ok(signals) => signals.left_stream(),
         Err(e) => {
             tracing::debug!("wireguard: no NetworkManager to follow: {e}");
             stream::empty().right_stream()

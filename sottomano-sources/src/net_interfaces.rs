@@ -6,10 +6,7 @@ pub mod wifi;
 
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use futures::{
-    Stream, StreamExt,
-    stream::{self, select},
-};
+use futures::{Stream, StreamExt, stream::select};
 use zbus::{
     Connection, MatchRule, MessageStream,
     fdo::{ManagedObjects, ObjectManagerProxy},
@@ -20,10 +17,8 @@ use zbus::{
 use crate::{
     ReadingSource, SourceDelivery,
     bus::{Properties, name_owned},
-    stream_operators::{StreamOperators, connected_until_failure},
+    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
 };
-
-const SIGNAL_BURST_LIMIT: usize = 64;
 
 #[derive(Debug)]
 pub enum ReadingError {
@@ -68,16 +63,6 @@ pub fn device_readings<T>(
     })
 }
 
-pub fn once_then_per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
-    stream::iter([()]).chain(per_burst(subscribed_signals))
-}
-
-pub fn per_burst(subscribed_signals: impl Stream<Item = ()>) -> impl Stream<Item = ()> {
-    subscribed_signals
-        .ready_chunks(SIGNAL_BURST_LIMIT)
-        .map(drop)
-}
-
 pub fn nm_readings<T, F>(
     system: Connection,
     watched_properties: &'static [&'static str],
@@ -100,7 +85,7 @@ where
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
     let signals = nm::changes(&connection, watched_properties).await?;
-    let readings = once_then_per_burst(signals).then(move |()| read(connection.clone()));
+    let readings = read_once_then_per_burst(signals, move || read(connection.clone()));
     Ok(device_readings(readings))
 }
 
@@ -127,7 +112,7 @@ async fn subscribe_managed_objects<T: Send + 'static>(
         ),
         properties_changed(&connection, service).await?.map(|_| ()),
     );
-    let readings = once_then_per_burst(signals).then(move |()| {
+    let readings = read_once_then_per_burst(signals, move || {
         let objects = objects.clone();
         async move {
             let managed = objects

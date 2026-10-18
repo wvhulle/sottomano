@@ -8,7 +8,9 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::{DesktopBuses, name_owned},
     clight,
-    stream_operators::{StreamOperators, connected_until_failure, ticked},
+    stream_operators::{
+        StreamOperators, connected_until_failure, read_once_then_per_burst, ticked,
+    },
 };
 
 const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
@@ -81,12 +83,13 @@ async fn backlight_readings(
         .build()
         .await?;
     let changes = proxy.receive_changed().await?.map(drop);
-    Ok(
-        select(ticked(INTERVAL, || ready(())), changes).then(move |()| {
+    Ok(read_once_then_per_burst(
+        select(ticked(INTERVAL, || ready(())), changes),
+        move || {
             let proxy = proxy.clone();
             async move { proxy.get_all("").await.map(backlights) }
-        }),
-    )
+        },
+    ))
 }
 
 fn blocking_backlight_proxy() -> Option<ClightdBacklightProxyBlocking<'static>> {

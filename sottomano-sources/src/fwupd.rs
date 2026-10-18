@@ -1,5 +1,3 @@
-use std::future::ready;
-
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
 use sottomano_config::severity::Severity;
@@ -8,7 +6,7 @@ use zbus::proxy;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::{self, DesktopBuses, Properties, name_owned, prop, service_absent},
-    stream_operators::{StreamOperators, connected_until_failure},
+    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
 };
 
 const UPDATABLE_DEVICE_FLAG: u64 = 1 << 1;
@@ -102,18 +100,12 @@ impl ReadingSource for Vec<FirmwareUpgrade> {
 }
 
 fn signalled_upgrades(system: zbus::Connection) -> impl Stream<Item = PendingUpgrades> + Send {
-    connected_until_failure(connected_then_daemon_changes(system.clone())).then(move |changed| {
-        let system = system.clone();
-        async move {
-            changed?;
-            pending_upgrades(&system).await
-        }
-    })
+    connected_until_failure(upgrades_on_daemon_changes(system))
 }
 
-async fn connected_then_daemon_changes(
+async fn upgrades_on_daemon_changes(
     system: zbus::Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<()>>> {
+) -> Result<impl Stream<Item = PendingUpgrades> + Send, bus::Error> {
     let fwupd = FwupdProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
@@ -125,7 +117,10 @@ async fn connected_then_daemon_changes(
             fwupd.receive_device_changed().await?.map(drop),
         ),
     );
-    Ok(stream::once(ready(())).chain(changes).map(Ok))
+    Ok(read_once_then_per_burst(changes, move || {
+        let system = system.clone();
+        async move { pending_upgrades(&system).await }
+    }))
 }
 
 async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {

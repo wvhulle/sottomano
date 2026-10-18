@@ -3,17 +3,19 @@ use std::{
     fmt::Display,
     future::{Future, pending, ready},
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
 
 use futures::{
-    FutureExt, Stream, StreamExt, TryStreamExt,
+    Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
 use tokio::{
     select,
+    sync::Notify,
     time::{MissedTickBehavior, interval, sleep_until},
 };
 use tokio_stream::wrappers::IntervalStream;
@@ -33,7 +35,7 @@ where
 
 pub fn read_once_then_per_burst<T, F>(
     triggers: impl Stream<Item = ()> + Send + 'static,
-    read: impl Fn() -> F + Send + 'static,
+    read: impl FnMut() -> F + Send + 'static,
 ) -> impl Stream<Item = T> + Send
 where
     T: Send + 'static,
@@ -42,36 +44,57 @@ where
     reread_on_trigger_or_deadline(triggers, read, |_| None)
 }
 
-enum NextRead {
-    Immediately,
-    OnTriggerOrAt(Option<Instant>),
-}
-
 pub fn reread_on_trigger_or_deadline<T, F>(
     triggers: impl Stream<Item = ()> + Send + 'static,
-    read: impl Fn() -> F + Send + 'static,
+    read: impl FnMut() -> F + Send + 'static,
     deadline_after: impl Fn(&T) -> Option<Instant> + Send + 'static,
 ) -> impl Stream<Item = T> + Send
 where
     T: Send + 'static,
     F: Future<Output = T> + Send,
 {
-    let triggers = triggers.fuse().boxed();
-    stream::unfold(
-        (triggers, read, deadline_after, NextRead::Immediately),
-        |(mut triggers, read, deadline_after, next)| async move {
-            if let NextRead::OnTriggerOrAt(deadline) = next {
-                select! {
-                    triggered = triggers.next() => triggered?,
-                    () = sleep_until_or_forever(deadline) => {}
-                }
-                while matches!(triggers.next().now_or_never(), Some(Some(()))) {}
-            }
-            let produced = read().await;
-            let next = NextRead::OnTriggerOrAt(deadline_after(&produced));
-            Some((produced, (triggers, read, deadline_after, next)))
+    let notify = Arc::new(Notify::new());
+    notify.notify_one();
+    let absorbing = triggers
+        .map({
+            let notify = notify.clone();
+            move |()| notify.notify_one()
+        })
+        .filter_map(|()| ready(None));
+    let rereading = stream::unfold(
+        Rereading {
+            notify,
+            read,
+            deadline_after,
+            deadline: None,
         },
-    )
+        Rereading::next_reading,
+    );
+    stream::select(absorbing, rereading)
+}
+
+struct Rereading<Read, Deadline> {
+    notify: Arc<Notify>,
+    read: Read,
+    deadline_after: Deadline,
+    deadline: Option<Instant>,
+}
+
+impl<T, F, Read, Deadline> Rereading<Read, Deadline>
+where
+    F: Future<Output = T>,
+    Read: FnMut() -> F,
+    Deadline: Fn(&T) -> Option<Instant>,
+{
+    async fn next_reading(mut self) -> Option<(T, Self)> {
+        select! {
+            () = self.notify.notified() => {}
+            () = sleep_until_or_forever(self.deadline) => {}
+        }
+        let produced = (self.read)().await;
+        self.deadline = (self.deadline_after)(&produced);
+        Some((produced, self))
+    }
 }
 
 async fn sleep_until_or_forever(deadline: Option<Instant>) {

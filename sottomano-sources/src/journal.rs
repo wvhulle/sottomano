@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use futures::{Stream, StreamExt, future::ready, stream};
+use futures::Stream;
 use serde::{
     Deserialize, Deserializer,
     de::{
@@ -18,10 +18,8 @@ use serde::{
 };
 use sottomano_config::severity::Severity;
 use systemd::journal::{Journal, JournalRecord, JournalWaitResult, OpenOptions};
-use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-
-use crate::systemd_manager::ScopedSystemdUnit;
 
 pub const EVENT_HORIZON: Duration = Duration::from_secs(3600);
 
@@ -78,40 +76,6 @@ fn journal_events<E: JournalEvent>() -> mpsc::Receiver<Result<Vec<E>, JournalFol
         }
     });
     rx
-}
-
-pub fn unit_log_appends(unit: ScopedSystemdUnit) -> impl Stream<Item = ()> + Send {
-    let (tx, rx) = mpsc::channel(1);
-    thread::spawn(move || {
-        if let Err(e) = signal_unit_log_appends(&unit, &tx) {
-            tracing::warn!("journal: following {} ended: {e}", unit.unit_name);
-        }
-    });
-    stream::once(ready(())).chain(ReceiverStream::new(rx))
-}
-
-fn signal_unit_log_appends(unit: &ScopedSystemdUnit, tx: &mpsc::Sender<()>) -> io::Result<()> {
-    let per_user = unit.scope.per_user();
-    let mut journal = OpenOptions::default()
-        .system(!per_user)
-        .current_user(per_user)
-        .open()?;
-    journal.match_add(
-        unit.scope.journal_logged_by_field(),
-        unit.unit_name.as_str(),
-    )?;
-    journal.seek_tail()?;
-    journal.previous()?;
-    while !tx.is_closed() {
-        if matches!(journal.wait(None)?, JournalWaitResult::Nop) {
-            continue;
-        }
-        while journal.next()? > 0 {}
-        if let Err(TrySendError::Closed(())) = tx.try_send(()) {
-            break;
-        }
-    }
-    Ok(())
 }
 
 struct WindowedJournal<E> {
