@@ -153,7 +153,7 @@
         }
       );
 
-      homeModule = import ./hm-module.nix { inherit self; };
+      homeModule = import ./nix/hm-module.nix { inherit self; };
     in
     {
       packages.${system} = {
@@ -170,7 +170,7 @@
         ];
       };
 
-      nixosModules.default = ./nixos-module.nix;
+      nixosModules.default = ./nix/nixos-module.nix;
 
       devShells.${system}.default = craneLib.devShell {
         packages =
