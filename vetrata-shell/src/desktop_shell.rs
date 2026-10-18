@@ -36,7 +36,6 @@ use vetrata_sources::{
     niri,
     niri_config::{ConfiguredWorkspaces, NiriConfigFile},
     sink::sound::SoundTheme,
-    window_label::WindowLabel,
 };
 use vetrata_state::{
     ShellSettings, idle, launches,
@@ -86,7 +85,7 @@ use vetrata_widgets::{
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
-        text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
+        text::FontFaces, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
@@ -147,7 +146,6 @@ pub struct DesktopShell {
     pub notifications: NotificationLayer,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
-    pub font_fallbacks: FontFallbacks,
     pub pointer_drag: ShellDrag,
     pub niri_config: NiriConfigFile,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
@@ -164,6 +162,7 @@ impl DesktopShell {
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("desktop shell init").entered();
+        FontFaces::point_generic_families_at(&config.theme);
         let shell = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
@@ -212,7 +211,6 @@ impl DesktopShell {
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
-            font_fallbacks: FontFallbacks::naming_theme_families(&config.theme),
             pointer_drag: ShellDrag::Idle,
             niri_config,
             configured_workspaces: None,
@@ -303,10 +301,6 @@ impl DesktopShell {
             }
             Message::FaviconsResolved(raw) => {
                 self.favicons.merge(raw);
-                Task::none()
-            }
-            Message::FallbackFontsResolved(fonts) => {
-                self.font_fallbacks.merge(fonts);
                 Task::none()
             }
             Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
@@ -660,7 +654,7 @@ impl DesktopShell {
         {
             return Task::none();
         }
-        self.font_fallbacks = FontFallbacks::naming_theme_families(theme);
+        FontFaces::point_generic_families_at(theme);
         font::load(self.config.theme.font.data.to_vec()).map(|loaded| {
             if let Err(e) = loaded {
                 tracing::warn!("config reload: font not loaded: {e:?}");
@@ -800,7 +794,11 @@ impl DesktopShell {
             self.collapse_groups();
         }
         if window_change {
-            tasks.push(self.refresh_window_assets());
+            tasks.push(
+                self.favicons
+                    .track_titles(&self.niri)
+                    .map(Message::FaviconsResolved),
+            );
         }
         if window_change || workspace_change {
             tasks.push(self.refresh_quick_launch());
@@ -839,24 +837,6 @@ impl DesktopShell {
         self.resolve_icons()
     }
 
-    fn refresh_window_assets(&mut self) -> Task<Message> {
-        let shown_titles = self
-            .niri_snapshot
-            .get()
-            .into_iter()
-            .flat_map(niri::Snapshot::all_windows)
-            .filter_map(|win| win.label.as_ref())
-            .flat_map(WindowLabel::shown_texts);
-        Task::batch([
-            self.favicons
-                .track_titles(&self.niri)
-                .map(Message::FaviconsResolved),
-            self.font_fallbacks
-                .resolve_missing(shown_titles.flat_map(str::chars), &self.config.theme.font)
-                .map(Message::FallbackFontsResolved),
-        ])
-    }
-
     fn resolve_icons(&mut self) -> Task<Message> {
         let snapshot = self.niri_snapshot.get();
         let mut app_keys = snapshot.map(app_icon::app_icon_keys).unwrap_or_default();
@@ -884,7 +864,6 @@ impl DesktopShell {
         WindowAssets {
             entries: &self.desktop_entries,
             favicons: &self.favicons,
-            fallbacks: &self.font_fallbacks,
         }
     }
 

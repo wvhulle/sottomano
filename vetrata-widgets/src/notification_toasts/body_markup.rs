@@ -130,7 +130,7 @@ fn lowercase_name(name: &LocalName) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, sync::Arc};
+    use std::sync::Arc;
 
     use vetrata_config::theme::font::FontRole;
 
@@ -144,7 +144,6 @@ mod tests {
             small_text_size_px: 12.0,
             icon_size_px: 14.0,
             data: Arc::from([].as_slice()),
-            covered: Arc::new(HashSet::new()),
         };
         body_paragraphs(
             body,

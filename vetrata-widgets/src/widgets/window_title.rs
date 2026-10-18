@@ -1,7 +1,9 @@
+use std::iter;
+
 use iced::{
     Element, Font,
     widget::{
-        rich_text,
+        rich_text, span,
         text::{Span, Wrapping},
     },
 };
@@ -10,7 +12,7 @@ use vetrata_sources::window_label::WindowLabel;
 
 use crate::widgets::{
     palette_colors::PaletteColors,
-    text::{FontFaces, FontFallbacks, LINE_HEIGHT, colored_span},
+    text::{FontFaces, LINE_HEIGHT},
 };
 
 const SEPARATOR: &str = " · ";
@@ -18,7 +20,6 @@ const SEPARATOR: &str = " · ";
 pub struct WindowTitle<'a> {
     label: &'a WindowLabel,
     config: &'a Config,
-    fallbacks: &'a FontFallbacks,
     size: f32,
     opacity: f32,
     wrapping: Wrapping,
@@ -26,11 +27,10 @@ pub struct WindowTitle<'a> {
 
 impl<'a> WindowTitle<'a> {
     #[must_use]
-    pub fn new(label: &'a WindowLabel, config: &'a Config, fallbacks: &'a FontFallbacks) -> Self {
+    pub fn new(label: &'a WindowLabel, config: &'a Config) -> Self {
         Self {
             label,
             config,
-            fallbacks,
             size: config.theme.font.text_size_px,
             opacity: 1.0,
             wrapping: Wrapping::default(),
@@ -52,51 +52,45 @@ impl<'a> WindowTitle<'a> {
         Self { wrapping, ..self }
     }
 
-    fn main_spans(&self, content: &str) -> Vec<Span<'static>> {
+    fn main_span(&self, content: &str) -> Span<'static> {
         self.styled(content, FontFaces::from(&self.config.theme.font).regular)
     }
 
-    fn context_spans(&self, content: &str) -> Vec<Span<'static>> {
+    fn context_span(&self, content: &str) -> Span<'static> {
         self.styled(content, FontFaces::from(&self.config.theme.font).italic)
     }
 
-    fn separator_spans(&self) -> Vec<Span<'static>> {
+    fn separator_span(&self) -> Span<'static> {
         self.styled(SEPARATOR, FontFaces::from(&self.config.theme.font).regular)
     }
 
-    fn styled(&self, content: &str, base: Font) -> Vec<Span<'static>> {
-        let color = PaletteColors::from(&self.config.theme.palette)
-            .bar_foreground
-            .scale_alpha(self.opacity);
-        self.fallbacks
-            .runs(&self.config.theme.font, content, base)
-            .into_iter()
-            .map(|(text, font)| colored_span(text, font, color))
-            .collect()
+    fn styled(&self, content: &str, font: Font) -> Span<'static> {
+        span(content.to_owned()).font(font).color(
+            PaletteColors::from(&self.config.theme.palette)
+                .bar_foreground
+                .scale_alpha(self.opacity),
+        )
     }
 
     fn spans(&self) -> Vec<Span<'static>> {
         match self.label {
-            WindowLabel::KittyAgent(kitty) => self
-                .main_spans(kitty.working_location.display_text())
-                .into_iter()
-                .chain(kitty.foreground_activity.iter().flat_map(|activity| {
-                    self.separator_spans()
-                        .into_iter()
-                        .chain(self.context_spans(activity.display_text()))
-                }))
-                .collect(),
+            WindowLabel::KittyAgent(kitty) => {
+                iter::once(self.main_span(kitty.working_location.display_text()))
+                    .chain(kitty.foreground_activity.iter().flat_map(|activity| {
+                        [
+                            self.separator_span(),
+                            self.context_span(activity.display_text()),
+                        ]
+                    }))
+                    .collect()
+            }
             WindowLabel::Firefox { page, .. } | WindowLabel::BrandedBrowser(page) => page
                 .site
                 .iter()
-                .flat_map(|site| {
-                    self.context_spans(site)
-                        .into_iter()
-                        .chain(self.separator_spans())
-                })
-                .chain(self.main_spans(&page.page))
+                .flat_map(|site| [self.context_span(site), self.separator_span()])
+                .chain(iter::once(self.main_span(&page.page)))
                 .collect(),
-            WindowLabel::Titled(title) => self.main_spans(title),
+            WindowLabel::Titled(title) => vec![self.main_span(title)],
         }
     }
 }

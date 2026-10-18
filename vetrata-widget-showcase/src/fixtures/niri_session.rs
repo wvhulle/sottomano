@@ -19,7 +19,7 @@ use vetrata_widgets::{
     widget_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
     },
-    widgets::{continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks},
+    widgets::{continuous_reading::ContinuousReading, favicon::Favicons},
 };
 
 use crate::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession};
@@ -54,7 +54,6 @@ fn session() -> ShowcasedNiriSession {
         snapshot,
         desktop_entries: DesktopIndex::default(),
         favicons: Favicons::default(),
-        font_fallbacks: FontFallbacks::default(),
     }
 }
 

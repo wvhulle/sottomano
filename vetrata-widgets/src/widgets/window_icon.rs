@@ -5,14 +5,13 @@ use vetrata_sources::{niri, window_label::IconCandidate};
 
 use crate::{
     desktop_index::DesktopIndex,
-    widgets::{favicon::Favicons, icon_handle::IconHandle, text::FontFallbacks},
+    widgets::{favicon::Favicons, icon_handle::IconHandle},
 };
 
 #[derive(Clone, Copy)]
 pub struct WindowAssets<'a> {
     pub entries: &'a DesktopIndex,
     pub favicons: &'a Favicons,
-    pub fallbacks: &'a FontFallbacks,
 }
 
 impl WindowAssets<'_> {

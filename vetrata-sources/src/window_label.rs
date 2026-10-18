@@ -6,7 +6,7 @@ use command_icons::command_icon;
 
 use crate::kitty_windows::{
     KITTY_APP_ID,
-    kitty_window_label::{ForegroundActivity, KittyWindowLabel, WorkingLocation},
+    kitty_window_label::{KittyWindowLabel, WorkingLocation},
 };
 
 const FIREFOX_APP_IDS: [&str; 2] = ["firefox", "org.mozilla.firefox"];
@@ -79,31 +79,12 @@ impl WindowLabel {
         };
         favicon_key.as_deref()
     }
-
-    pub fn shown_texts(&self) -> Vec<&str> {
-        match self {
-            WindowLabel::KittyAgent(label) => [Some(label.working_location.display_text())]
-                .into_iter()
-                .chain([label
-                    .foreground_activity
-                    .as_ref()
-                    .map(ForegroundActivity::display_text)])
-                .flatten()
-                .collect(),
-            WindowLabel::Firefox { page, .. } | WindowLabel::BrandedBrowser(page) => {
-                [Some(page.page.as_str()), page.site.as_deref()]
-                    .into_iter()
-                    .flatten()
-                    .collect()
-            }
-            WindowLabel::Titled(title) => vec![title],
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kitty_windows::kitty_window_label::ForegroundActivity;
 
     fn kitty_running(command_line: &str) -> KittyWindowLabel {
         KittyWindowLabel {
