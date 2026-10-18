@@ -51,9 +51,8 @@ fn mode_file() -> Option<PathBuf> {
     Some(state_home.join("umbra/mode.env"))
 }
 
-#[must_use]
-pub fn toggle_mode() -> bool {
-    command::blocking::run("umbra", &["toggle"])
+pub fn toggle_mode() -> Result<(), command::Error> {
+    command::blocking::output("umbra", &["toggle"]).map(drop)
 }
 
 #[must_use]

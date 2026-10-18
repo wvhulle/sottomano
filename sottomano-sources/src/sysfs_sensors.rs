@@ -13,6 +13,7 @@ use crate::Panicked;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Unreadable(String),
+    Unwritable { path: String, detail: String },
     Unparsable(String),
     NoTemperatureSensor,
     Panicked,
@@ -28,6 +29,7 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Unreadable(path) => write!(f, "cannot read {path}"),
+            Error::Unwritable { path, detail } => write!(f, "cannot write {path}: {detail}"),
             Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
             Error::NoTemperatureSensor => {
                 write!(f, "no matching temperature sensor in /sys/class/hwmon")

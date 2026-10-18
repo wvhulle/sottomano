@@ -91,12 +91,10 @@ fn no_auto_calib() -> Option<bool> {
         .ok()
 }
 
-fn set_no_auto_calib(value: bool) -> bool {
-    let Ok(connection) = Connection::session() else {
-        return false;
-    };
-    ConfBacklightProxyBlocking::new(&connection)
-        .is_ok_and(|proxy| proxy.set_no_auto_calib(value).is_ok())
+fn set_no_auto_calib(value: bool) -> Result<(), Error> {
+    let connection = Connection::session()?;
+    ConfBacklightProxyBlocking::new(&connection)?.set_no_auto_calib(value)?;
+    Ok(())
 }
 
 fn capture() {
@@ -118,20 +116,19 @@ fn persist(manual: bool) {
 }
 
 pub fn pause_auto_calib() {
-    set_no_auto_calib(true);
+    let _ = set_no_auto_calib(true);
     persist(true);
 }
 
-#[must_use]
-pub fn flip() -> bool {
+pub fn flip() -> Result<(), Error> {
     let currently_auto = no_auto_calib().is_some_and(|no| !no);
     let manual = currently_auto;
-    let ok = set_no_auto_calib(manual);
+    let outcome = set_no_auto_calib(manual);
     if manual {
         backlight::halt_ramp();
     } else {
         capture();
     }
     persist(manual);
-    ok
+    outcome
 }

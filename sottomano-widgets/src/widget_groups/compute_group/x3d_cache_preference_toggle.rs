@@ -1,4 +1,5 @@
 use sottomano_sources::sysfs_sensors::{
+    Error,
     cpu_topology::{CoreRole, CpuTopology},
     x3d_vcache::X3dCachePreference,
 };
@@ -93,7 +94,7 @@ impl ToggleableSource for X3dCachePreference {
         self.other()
     }
 
-    fn apply_toggle(&self) -> bool {
+    fn apply_toggle(&self) -> Result<(), Error> {
         self.other().write()
     }
 

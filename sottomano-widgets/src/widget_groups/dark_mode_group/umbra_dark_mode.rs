@@ -1,4 +1,7 @@
-use sottomano_sources::umbra::{self, Umbra};
+use sottomano_sources::{
+    command,
+    umbra::{self, Umbra},
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
@@ -30,7 +33,7 @@ impl ToggleableSource for Umbra {
         Umbra { dark: !self.dark }
     }
 
-    fn apply_toggle(&self) -> bool {
+    fn apply_toggle(&self) -> Result<(), command::Error> {
         umbra::toggle_mode()
     }
 

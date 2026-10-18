@@ -1,4 +1,7 @@
-use sottomano_sources::clight::{self, Clight};
+use sottomano_sources::{
+    bus,
+    clight::{self, Clight},
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},
@@ -35,7 +38,7 @@ impl ToggleableSource for Clight {
         Clight { auto: !self.auto }
     }
 
-    fn apply_toggle(&self) -> bool {
+    fn apply_toggle(&self) -> Result<(), bus::Error> {
         clight::flip()
     }
 
