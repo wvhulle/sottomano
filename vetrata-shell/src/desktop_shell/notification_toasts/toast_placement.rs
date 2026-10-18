@@ -9,8 +9,7 @@ use vetrata_sources::{
     notifications::model::NotificationData,
 };
 use vetrata_state::NotificationSettings;
-
-use super::toast_lifecycle::NotificationMessage;
+use vetrata_widgets::toast_messages::NotificationMessage;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {

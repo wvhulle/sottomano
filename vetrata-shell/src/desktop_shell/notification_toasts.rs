@@ -12,8 +12,8 @@ use std::cmp::Reverse;
 use iced::{Padding, Theme, time::Instant};
 use niri_ipc::state::EventStreamState;
 use toast_card::ToastCard;
+pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};
-pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
 use tokio::sync::mpsc;
@@ -25,15 +25,16 @@ use vetrata_sources::{
     sink::sound::SoundTheme,
 };
 use vetrata_state::ShellSettings;
-use window_anchored_toasts::WindowAnchoredToasts;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
+use vetrata_widgets::{
+    shell_message::Message,
     widgets::{
         announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
         widget_group::GroupToastRequests,
     },
 };
+use window_anchored_toasts::WindowAnchoredToasts;
+
+use crate::desktop_shell::{DesktopShell, bottom_bar::BottomBarGroups, top_bar::TopBarGroups};
 
 const DEFAULT_ACTION: &str = "default";
 

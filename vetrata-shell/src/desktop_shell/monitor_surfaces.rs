@@ -1,16 +1,15 @@
-use iced::{Padding, Rectangle, Task, window::Id};
+use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
-use iced_exwlshell::{
-    actions::ActionCallback,
-    reexport::{
-        Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings, OutputOption,
-    },
-};
+use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use vetrata_config::screen_edges::Position;
 use vetrata_sources::{background_work::blocking, niri};
 use vetrata_state::niri_rules::StyledSurface;
+use vetrata_widgets::{
+    layer_surfaces::{base_settings, input_regions},
+    shell_message::{Message, OutputChange},
+};
 
-use crate::desktop_shell::{DesktopShell, Message};
+use crate::desktop_shell::DesktopShell;
 
 trait EdgeStripLayer {
     fn anchor(self) -> Anchor;
@@ -44,49 +43,6 @@ pub enum SurfaceRole {
 pub struct Surface {
     pub output: String,
     pub role: SurfaceRole,
-}
-
-#[derive(Debug, Clone)]
-pub struct PanelEdge {
-    pub output: String,
-    pub position: Position,
-}
-
-#[must_use]
-pub fn input_region(surface: Id, bounds: Rectangle) -> Message {
-    input_regions(surface, vec![bounds])
-}
-
-#[must_use]
-pub fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
-    Message::SetInputRegion {
-        id: surface,
-        callback: ActionCallback::new(move |region| {
-            rects
-                .iter()
-                .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
-                .for_each(|rect| {
-                    region.add(
-                        rect.x as i32,
-                        rect.y as i32,
-                        rect.width.ceil() as i32,
-                        rect.height.ceil() as i32,
-                    );
-                });
-        }),
-    }
-}
-
-#[must_use]
-pub fn base_settings(output: Option<&str>, namespace: &str) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        keyboard_interactivity: KeyboardInteractivity::None,
-        output_option: output.map_or(OutputOption::Active, |name| {
-            OutputOption::OutputName(name.to_string())
-        }),
-        namespace: Some(namespace.to_string()),
-        ..Default::default()
-    }
 }
 
 fn panel_settings(output: &str) -> NewLayerShellSettings {
@@ -310,14 +266,6 @@ impl DesktopShell {
         );
         Task::batch(opens)
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum OutputChange {
-    Connected(String),
-    Rearranged,
-    Disconnected(String),
-    Unavailable(String),
 }
 
 pub fn query_outputs() -> Task<Message> {

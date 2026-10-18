@@ -1,10 +1,10 @@
 use uom::si::{angle::degree, f64::Angle};
 use vetrata_config::SecretPaths;
-use vetrata_shell::widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage};
 use vetrata_sources::{
     SourceDelivery,
     wallpaper::{Position, Wallpaper, WikipediaArticle},
 };
+use vetrata_widgets::widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage};
 
 use crate::showcased_group::ShowcasedGroup;
 

@@ -1,8 +1,6 @@
 mod command_line;
-pub mod desktop_shell;
+mod desktop_shell;
 mod message_subscriptions;
-pub mod widget_groups;
-pub mod widgets;
 
 use std::{error::Error, sync::Arc};
 
@@ -28,8 +26,8 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new(
-                "error,vetrata_shell=warn,vetrata_sources=warn,exwlshellev=warn,\
-                 iced_exwlshell=warn",
+                "error,vetrata_shell=warn,vetrata_widgets=warn,vetrata_state=warn,\
+                 vetrata_sources=warn,exwlshellev=warn,iced_exwlshell=warn",
             )
         }))
         .with_span_events(FmtSpan::CLOSE)

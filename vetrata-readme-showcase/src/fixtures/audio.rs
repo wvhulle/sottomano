@@ -1,10 +1,10 @@
 use std::{collections::HashMap, sync::Arc};
 
-use vetrata_shell::{
-    desktop_shell::Message,
+use vetrata_sources::audio::{AudioState, OutputKind, Peaks, Reading};
+use vetrata_widgets::{
+    shell_message::Message,
     widget_groups::audio_group::{AudioGroup, AudioMessage},
 };
-use vetrata_sources::audio::{AudioState, OutputKind, Peaks, Reading};
 
 use crate::{fixtures::cycled, showcased_group::ShowcasedGroup};
 

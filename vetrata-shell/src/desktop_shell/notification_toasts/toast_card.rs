@@ -18,19 +18,17 @@ use vetrata_sources::{
     notifications::model::{ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt},
 };
 use vetrata_state::ShellSettings;
-
-use super::{
-    Notification, NotificationMessage, body_markup, toast_lifecycle::ToastKind,
-    toast_reply::ReplyMessage,
-};
-use crate::{
-    desktop_shell::hover_tooltips::{ongoing_for, relative},
+use vetrata_widgets::{
+    hover_tooltips::{ongoing_for, relative},
+    toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         bar_widget::Glyph,
         icon_handle::IconHandle,
         text::{LINE_HEIGHT, bar_text},
     },
 };
+
+use super::{Notification, body_markup, toast_lifecycle::ToastKind};
 
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;

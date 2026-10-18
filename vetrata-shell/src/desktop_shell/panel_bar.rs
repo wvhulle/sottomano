@@ -5,14 +5,15 @@ use iced::{
 };
 use vetrata_config::screen_edges::Position;
 use vetrata_state::OutlinedSides;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message},
+use vetrata_widgets::{
+    shell_message::Message,
     widgets::{
         panel_frame::panel_frame,
         region_reporter::{RegionRoles, region_reporter},
     },
 };
+
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
     pub(super) fn panel_bar<'a>(

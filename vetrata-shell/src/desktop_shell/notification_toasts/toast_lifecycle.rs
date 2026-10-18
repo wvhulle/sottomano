@@ -6,25 +6,23 @@ use iced::{
     animation::Easing,
     time::{Duration, Instant},
 };
-use tokio::sync::mpsc;
 use vetrata_config::{
     Config,
     notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
     severity::Severity,
 };
-use vetrata_sources::notifications::model::{
-    ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
-};
-
-use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
-use crate::{
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+use vetrata_sources::notifications::model::{ExpireTimeout, NotificationData, close_reason};
+use vetrata_widgets::{
+    hover_tooltips::HoverTarget,
+    shell_message::Message,
     widgets::{
         announced_level::LevelReading,
         bar_widget::Glyph,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
     },
 };
+
+use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 
 const SHRUNK_SCALE: f32 = 0.95;
 
@@ -163,31 +161,6 @@ impl ToastContent {
                     .collect(),
             },
             body_click: BodyClick::Shell(Box::new(toast.on_body_clicked)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum NotificationMessage {
-    Connected(mpsc::Sender<Outbound>),
-    Served(Box<NotificationData>),
-    CloseRequested(u32),
-    BodyClicked(u32),
-    HoverChanged { id: u32, hovered: bool },
-    Dismiss(u32),
-    ActionClicked { id: u32, key: String },
-    DefaultActivated { id: u32, token: Option<String> },
-    Reply { id: u32, message: ReplyMessage },
-    OpenFile(u32),
-    CopyFilePath(u32),
-    Tick,
-}
-
-impl From<ServerEvent> for NotificationMessage {
-    fn from(event: ServerEvent) -> Self {
-        match event {
-            ServerEvent::Notify(data) => Self::Served(data),
-            ServerEvent::CloseRequested(id) => Self::CloseRequested(id),
         }
     }
 }

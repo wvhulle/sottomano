@@ -7632,9 +7632,9 @@ dependencies = [
  "situo-client",
  "uom",
  "vetrata-config",
- "vetrata-shell",
  "vetrata-sources",
  "vetrata-state",
+ "vetrata-widgets",
  "webp-animation",
 ]
 
@@ -7642,32 +7642,23 @@ dependencies = [
 name = "vetrata-shell"
 version = "0.1.0"
 dependencies = [
- "bytesize",
  "chrono",
- "chrono-tz",
  "clap",
- "form_urlencoded",
- "humantime",
  "iced",
  "iced_exwlshell",
  "iced_wayland_subscriber",
  "niri-ipc",
  "quick-xml 0.42.0",
  "reqwest",
- "rust_decimal",
- "rusty-money",
- "simpleicons-rs",
- "situo-client",
- "system-tray",
  "tokio",
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
  "uom",
- "usvg 0.48.1",
  "vetrata-config",
  "vetrata-sources",
  "vetrata-state",
+ "vetrata-widgets",
  "wayland-client",
  "zbus",
 ]
@@ -7737,6 +7728,34 @@ dependencies = [
  "turso",
  "vetrata-config",
  "vetrata-sources",
+]
+
+[[package]]
+name = "vetrata-widgets"
+version = "0.1.0"
+dependencies = [
+ "bytesize",
+ "chrono",
+ "chrono-tz",
+ "form_urlencoded",
+ "humantime",
+ "iced",
+ "iced_exwlshell",
+ "niri-ipc",
+ "reqwest",
+ "rust_decimal",
+ "rusty-money",
+ "simpleicons-rs",
+ "situo-client",
+ "system-tray",
+ "tokio",
+ "tracing",
+ "uom",
+ "usvg 0.48.1",
+ "vetrata-config",
+ "vetrata-sources",
+ "vetrata-state",
+ "zbus",
 ]
 
 [[package]]

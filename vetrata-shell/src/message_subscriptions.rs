@@ -1,4 +1,4 @@
-use std::{convert::identity, future::ready, time::Duration};
+use std::{future::ready, time::Duration};
 
 use iced::{
     Subscription, Task,
@@ -12,7 +12,6 @@ use iced_wayland_subscriber::output::{self, OutputEvent};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use vetrata_sources::{
-    ReadingSource, SourceDelivery,
     background_work::blocking,
     bus::{DesktopBuses, desktop_bus_events},
     config_file_changes, desktop_entries, niri,
@@ -20,15 +19,10 @@ use vetrata_sources::{
         model::{Outbound, ServerEvent},
         server,
     },
-    sink::clipboard,
 };
-use wayland_client::Connection;
-
-use crate::{
-    desktop_shell::{
-        DesktopShell, Message, monitor_surfaces::OutputChange,
-        notification_toasts::NotificationMessage,
-    },
+use vetrata_widgets::{
+    shell_message::{Message, OutputChange},
+    toast_messages::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
@@ -40,6 +34,9 @@ use crate::{
         window_group::WindowGroup,
     },
 };
+use wayland_client::Connection;
+
+use crate::desktop_shell::DesktopShell;
 
 const NOTIFICATION_EXPIRY_TICK: Duration = Duration::from_millis(250);
 
@@ -162,36 +159,9 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
     ])
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct SubscribedSource<I> {
-    name: &'static str,
-    inputs: I,
-}
-
-pub fn source_subscription<S: ReadingSource>(
-    inputs: S::StreamInputs,
-) -> Subscription<SourceDelivery<S>> {
-    Subscription::run_with(
-        SubscribedSource {
-            name: S::NAME,
-            inputs,
-        },
-        |subscribed| S::delivery_stream(subscribed.inputs.clone()),
-    )
-}
-
-pub fn first_delivery<S: ReadingSource>(inputs: S::StreamInputs) -> Task<SourceDelivery<S>> {
-    use iced::futures::StreamExt;
-    Task::run(S::delivery_stream(inputs).take(1), identity)
-}
-
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     blocking("niri action", move || niri::send_action(&action).err())
         .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
-}
-
-pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
-    blocking("clipboard", move || clipboard::write(&text)).discard()
 }
 
 fn niri_subscription() -> Subscription<Message> {

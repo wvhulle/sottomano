@@ -5,11 +5,11 @@ use uom::si::{
     ratio::percent,
     thermodynamic_temperature::degree_celsius,
 };
-use vetrata_shell::widget_groups::weather_group::{WeatherGroup, WeatherMessage};
 use vetrata_sources::{
     SourceDelivery,
     weather::{HourlyForecast, HourlyTemperature, Location, Temperature, WeatherCondition},
 };
+use vetrata_widgets::widget_groups::weather_group::{WeatherGroup, WeatherMessage};
 
 use crate::showcased_group::ShowcasedGroup;
 

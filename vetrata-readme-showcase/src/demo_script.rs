@@ -1,8 +1,6 @@
-use vetrata_shell::{
-    desktop_shell::{
-        Message,
-        hover_tooltips::{GroupHandle, HoverTarget},
-    },
+use vetrata_widgets::{
+    hover_tooltips::{GroupHandle, HoverTarget},
+    shell_message::Message,
     widget_groups::{
         audio_group::{AudioTarget, ControlKind},
         claude_usage_group::ClaudeUsageTarget,

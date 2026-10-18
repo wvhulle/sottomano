@@ -1,11 +1,11 @@
 use iced::Element;
 use vetrata_config::screen_edges::Position;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message},
-    widget_groups::notification_group::NotificationStatus,
+use vetrata_widgets::{
+    shell_message::Message, widget_groups::notification_group::NotificationStatus,
     widgets::widget_group::GroupContent,
 };
+
+use crate::desktop_shell::DesktopShell;
 
 pub(super) struct TopBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 10],

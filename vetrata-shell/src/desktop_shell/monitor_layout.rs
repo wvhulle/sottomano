@@ -4,15 +4,17 @@ use iced::{
     window::Id,
 };
 use vetrata_config::screen_edges::Position;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message, hover_tooltips::on_surface},
+use vetrata_widgets::{
+    hover_tooltips::on_surface,
+    shell_message::Message,
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
         DraggedBarSlot,
         drag_ghost::{GhostPlacement, drag_ghost},
     },
 };
+
+use crate::desktop_shell::DesktopShell;
 
 impl DesktopShell {
     pub(super) fn monitor_layout<'a>(
