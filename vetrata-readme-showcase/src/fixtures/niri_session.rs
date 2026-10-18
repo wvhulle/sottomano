@@ -6,13 +6,6 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use uom::si::{f64::Ratio, ratio::percent};
-use vetrata_shell::{
-    desktop_shell::hover_tooltips::HoverTarget,
-    widget_groups::window_group::{
-        WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
-    },
-    widgets::{continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks},
-};
 use vetrata_sources::{
     SourceDelivery,
     desktop_entries::DesktopIndex,
@@ -20,6 +13,13 @@ use vetrata_sources::{
     niri::Snapshot,
     nix_store::{Provenance, StorePackage},
     process::{Inspection, Launch, Process},
+};
+use vetrata_widgets::{
+    hover_tooltips::HoverTarget,
+    widget_groups::window_group::{
+        WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
+    },
+    widgets::{continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks},
 };
 
 use crate::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedNiriSession};

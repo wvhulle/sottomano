@@ -4,6 +4,7 @@ members = [
   "vetrata-config",
   "vetrata-sources",
   "vetrata-state",
+  "vetrata-widgets",
   "vetrata-shell",
   "vetrata-readme-showcase",
 ]
@@ -36,6 +37,7 @@ chrono-tz = { version = "0.10.4", features = ["serde"] }
 clap ={ version = "4.6.7", features = ["derive"] }
 form_urlencoded = "1.2.2"
 humantime = "2.4.0"
+iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",

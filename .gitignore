@@ -1,4 +1,4 @@
-!build/
+!vetrata-widgets/build/
 /target
 /result*
 rustc-ice-*

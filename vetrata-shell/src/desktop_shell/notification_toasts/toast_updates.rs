@@ -15,18 +15,9 @@ use vetrata_sources::{
     sink::sound::{self, SoundTheme},
 };
 use vetrata_state::{NotificationSettings, shell_settings};
-
-use super::{
-    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
-    toast_card::{self, CardIcons},
-    toast_lifecycle::{
-        Countdown, ExitPace, Notification, NotificationMessage, ToastContent, ToastKind, lifetime,
-    },
-    toast_placement::{ToastWindow, placement_for},
-};
-use crate::{
-    desktop_shell::{DesktopShell, Message},
-    message_subscriptions::niri_action,
+use vetrata_widgets::{
+    shell_message::Message,
+    toast_messages::NotificationMessage,
     widget_groups::{
         notification_group::NotificationGroupMessage,
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
@@ -37,6 +28,14 @@ use crate::{
         widget_group::GroupToastRequests,
     },
 };
+
+use super::{
+    DEFAULT_ACTION, NotificationLayer, SnoozedOngoingToast, ToastContext,
+    toast_card::{self, CardIcons},
+    toast_lifecycle::{Countdown, ExitPace, Notification, ToastContent, ToastKind, lifetime},
+    toast_placement::{ToastWindow, placement_for},
+};
+use crate::{desktop_shell::DesktopShell, message_subscriptions::niri_action};
 
 const ACTIVATION_TOKEN_GRACE: Duration = Duration::from_millis(300);
 

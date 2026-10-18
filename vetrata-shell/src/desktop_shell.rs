@@ -1,10 +1,10 @@
 pub mod bottom_bar;
-pub mod hover_tooltips;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
 pub mod notification_toasts;
 pub mod panel_bar;
 pub mod pointer_drag;
+pub mod tooltip_updates;
 pub mod top_bar;
 pub mod workspace_sidebar;
 
@@ -16,12 +16,11 @@ use std::{
 
 use chrono::Utc;
 use iced::{
-    Color, Element, Font, Length, Task, font,
+    Color, Element, Length, Task, font,
     theme::Style,
     widget::{Space, container},
     window::Id,
 };
-use iced_exwlshell::to_layer_message;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use vetrata_config::{
     Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig, screen_edges::Position,
@@ -29,13 +28,12 @@ use vetrata_config::{
 };
 use vetrata_sources::{
     app_icon::{self, DesktopEntries},
-    background_work::blocking,
+    background_work::{blocking, copy_to_clipboard},
     bus::{DesktopBusEvent, DesktopBuses},
     command::blocking::run,
-    desktop_entries::{self, DesktopIndex, ResolvedIcons},
-    favicons::RawFavicon,
+    desktop_entries::{self, DesktopIndex},
     launch_tracker::{Launch, LaunchTracker},
-    niri::{self, WindowOwner},
+    niri,
     niri_config::{ConfiguredWorkspaces, NiriConfigFile},
     sink::sound::SoundTheme,
     window_label::WindowLabel,
@@ -45,61 +43,58 @@ use vetrata_state::{
     niri_rules::{NiriRulesFile, StoredRules},
     shell_settings,
 };
-
-use crate::{
-    desktop_shell::{
-        hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_surfaces::{OutputChange, Surface, SurfaceRole, query_outputs},
-        notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
-        pointer_drag::{DragMessage, ShellDrag},
-    },
-    message_subscriptions::{copy_to_clipboard, niri_action},
+use vetrata_widgets::{
+    hover_tooltips::TooltipHost,
+    shell_message::{AppWindowFocus, Message},
     widget_groups::{
-        audio_group::{AudioGroup, AudioMessage},
-        claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
-        clock_group::{ClockGroup, ClockMessage},
-        color_temperature_group::{ColorTemperatureGroup, ColorTemperatureMessage},
-        compute_group::{ComputeGroup, ComputeMessage},
-        copilot_usage_group::{CopilotUsageGroup, CopilotUsageMessage},
-        dark_mode_group::{DarkModeGroup, DarkModeMessage},
-        disk_group::{DiskGroup, DiskMessage},
-        gpu_group::{GpuGroup, GpuMessage},
+        audio_group::AudioGroup,
+        claude_usage_group::ClaudeUsageGroup,
+        clock_group::ClockGroup,
+        color_temperature_group::ColorTemperatureGroup,
+        compute_group::ComputeGroup,
+        copilot_usage_group::CopilotUsageGroup,
+        dark_mode_group::DarkModeGroup,
+        disk_group::DiskGroup,
+        gpu_group::GpuGroup,
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
-        internet_group::{InternetGroup, InternetMessage},
-        journal_events_group::{JournalEventsGroup, JournalEventsMessage},
-        llama_server_group::{LlamaServerGroup, LlamaServerMessage},
-        login_session_group::{LoginSessionGroup, LoginSessionMessage},
+        internet_group::InternetGroup,
+        journal_events_group::JournalEventsGroup,
+        llama_server_group::LlamaServerGroup,
+        login_session_group::LoginSessionGroup,
         media_group::{self, MediaGroup, MediaMessage},
-        monitor_group::{MonitorGroup, MonitorMessage},
-        net_interfaces_group::{NetInterfacesGroup, NetInterfacesMessage},
-        niri_window_group::{NiriWindowGroup, NiriWindowMessage},
-        notification_group::{NotificationGroup, NotificationGroupMessage},
-        openrouter_credit_group::{OpenRouterCreditGroup, OpenRouterCreditMessage},
+        monitor_group::MonitorGroup,
+        net_interfaces_group::NetInterfacesGroup,
+        niri_window_group::NiriWindowGroup,
+        notification_group::NotificationGroup,
+        openrouter_credit_group::OpenRouterCreditGroup,
         overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
-        pending_upgrades_group::{PendingUpgradesGroup, PendingUpgradesMessage},
-        power_group::{PowerGroup, PowerMessage},
-        quiet_schedule_group::{QuietScheduleGroup, QuietScheduleMessage},
-        session_focus_group::{SessionFocusGroup, SessionFocusMessage},
+        pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup,
         session_menu::{self, SessionMenu, SessionMessage},
-        sidebar_settings_group::{SidebarSettingsGroup, SidebarSettingsMessage},
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage},
+        sidebar_settings_group::SidebarSettingsGroup,
+        systemd_manager_group::SystemdManagerGroup,
         tray_group::{self, TrayGroup, TrayMessage},
-        wallpaper_group::{WallpaperGroup, WallpaperMessage},
-        weather_group::{WeatherGroup, WeatherMessage},
+        wallpaper_group::WallpaperGroup,
+        weather_group::WeatherGroup,
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, text::FontFallbacks,
-        tooltip_body::Tooltip, widget_group::GroupEvent, window_icon::WindowAssets,
+        tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
-#[derive(Debug, Clone)]
-pub struct AppWindowFocus<M> {
-    pub owner: WindowOwner,
-    pub unmatched: M,
-}
+use crate::{
+    desktop_shell::{
+        monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+        notification_toasts::{NotificationLayer, ToastContext},
+        pointer_drag::ShellDrag,
+    },
+    message_subscriptions::niri_action,
+};
 
 pub struct DesktopShell {
     pub wayland: Option<wayland_client::Connection>,
@@ -157,91 +152,6 @@ pub struct DesktopShell {
     pub pointer_drag: ShellDrag,
     pub niri_config: NiriConfigFile,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
-}
-
-#[to_layer_message(multi)]
-#[derive(Debug, Clone)]
-pub enum Message {
-    Weather(WeatherMessage),
-    Wallpaper(WallpaperMessage),
-    Power(PowerMessage),
-    Compute(ComputeMessage),
-    Gpu(GpuMessage),
-    Disk(DiskMessage),
-    PanelSettings(PanelSettingsMessage),
-    SidebarSettings(SidebarSettingsMessage),
-    OverlaySettings(OverlaySettingsMessage),
-    NiriWindow(NiriWindowMessage),
-    Clock(ClockMessage),
-    NotificationGroup(NotificationGroupMessage),
-    QuietSchedule(QuietScheduleMessage),
-    Session(SessionMessage),
-    SystemdManager(SystemdManagerMessage),
-    JournalEvents(JournalEventsMessage),
-    PendingUpgrades(PendingUpgradesMessage),
-    Internet(InternetMessage),
-    NetInterfaces(NetInterfacesMessage),
-    Monitor(MonitorMessage),
-    ColorTemperature(ColorTemperatureMessage),
-    DarkMode(DarkModeMessage),
-    IdleTimeouts(IdleTimeoutsMessage),
-    Media(MediaMessage),
-    Tray(TrayMessage),
-    ShellSettingsLoaded(ShellSettings),
-    NiriRulesLoaded(StoredRules),
-    ConfigFileChanged,
-    ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
-    SoundThemeLoaded(SoundTheme),
-    Audio(AudioMessage),
-    ClaudeUsage(ClaudeUsageMessage),
-    CopilotUsage(CopilotUsageMessage),
-    OpenRouterCredit(OpenRouterCreditMessage),
-    LlamaServer(LlamaServerMessage),
-    SessionFocus(SessionFocusMessage),
-    LoginSession(LoginSessionMessage),
-    WindowGroup(WindowGroupMessage),
-    TrackerLoaded(Vec<Launch>),
-    DesktopEntriesLoaded(Arc<DesktopEntries>),
-    IconsResolved(ResolvedIcons),
-    FaviconsResolved(HashMap<String, RawFavicon>),
-    FallbackFontsResolved(HashMap<char, Font>),
-    DismissPressed,
-    Niri(Vec<niri_ipc::Event>),
-    Redraw,
-    WindowClosed(Id),
-    PointerLeft,
-    CopyText(String),
-    OpenUrl(String),
-    RefreshHoveredReading,
-    FocusWindow(u64),
-    TooltipTick,
-    TooltipHideElapsed,
-    Tooltip(TooltipMessage),
-    Notification(NotificationMessage),
-    OutputsResolved(HashMap<String, niri::OutputInfo>),
-    Output(OutputChange),
-    ReloadDesktopEntries,
-    SidebarWidthChanged { window: Id, width: f32 },
-    PointerDrag(DragMessage),
-    NiriActionFailed(niri::ActionFailure),
-    NiriConfigRead(Result<ConfiguredWorkspaces, String>),
-    RestoreWorkspaceOrder { output: String },
-    DesktopBus(Result<DesktopBusEvent, zbus::Error>),
-}
-
-impl From<TooltipMessage> for Message {
-    fn from(message: TooltipMessage) -> Self {
-        Message::Tooltip(message)
-    }
-}
-
-impl From<GroupEvent<Message>> for Message {
-    fn from(event: GroupEvent<Message>) -> Self {
-        match event {
-            GroupEvent::Group(message) => message,
-            GroupEvent::Tooltip(tooltip) => Message::Tooltip(tooltip),
-        }
-    }
 }
 
 impl DesktopShell {

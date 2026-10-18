@@ -5,48 +5,17 @@ use niri_ipc::{Action, WorkspaceReferenceArg};
 use tokio::time::sleep;
 use vetrata_sources::niri;
 use vetrata_state::WorkspacesPlacement;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message},
-    message_subscriptions::niri_action,
+use vetrata_widgets::{
+    bar_slot_drag::{DragMessage, SlotClick},
+    shell_message::Message,
     widgets::pointer_drag::{
-        self, ActiveDrag, DragEvent, DragOutcome, DragTransition, DragView, DraggedBarSlot,
-        ForeignHover, PointerDrag,
+        self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedBarSlot, PointerDrag,
     },
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum SlotClick {
-    Workspace { id: u64, is_active: bool },
-    FocusWindow(u64),
-    MaximizeColumn,
-}
+use crate::{desktop_shell::DesktopShell, message_subscriptions::niri_action};
 
 pub type ShellDrag = PointerDrag<SlotClick>;
-pub type SlotPress = pointer_drag::SlotPress<SlotClick>;
-pub type SlotDragEvent = DragEvent<SlotClick>;
-
-#[derive(Debug, Clone, Copy)]
-pub enum DragMessage {
-    Pointer(SlotDragEvent),
-    HoverSpringLoaded(ForeignHover),
-}
-
-impl DragView {
-    #[must_use]
-    pub fn window_source_workspace(&self) -> Option<u64> {
-        match self.drag?.item {
-            DraggedBarSlot::Window { workspace, .. } => Some(workspace),
-            DraggedBarSlot::Workspace(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn awaits_window_on(&self, workspace: u64) -> bool {
-        self.window_source_workspace().is_some()
-            && self.hovers(DraggedBarSlot::Workspace(workspace)).is_some()
-    }
-}
 
 impl DesktopShell {
     #[must_use]

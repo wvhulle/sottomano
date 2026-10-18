@@ -6,10 +6,6 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 use vetrata_config::widget_groups::temperature_sensors::ThresholdOverrides;
-use vetrata_shell::{
-    desktop_shell::Message,
-    widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
-};
 use vetrata_sources::{
     SourceDelivery,
     sysfs_sensors::{
@@ -18,6 +14,10 @@ use vetrata_sources::{
         memory::{Memory, MemoryProcess, MemoryProcesses},
         temperature::{TempReading, Temperature},
     },
+};
+use vetrata_widgets::{
+    shell_message::Message,
+    widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
 };
 
 use crate::{fixtures::cycled, showcased_group::ShowcasedGroup};

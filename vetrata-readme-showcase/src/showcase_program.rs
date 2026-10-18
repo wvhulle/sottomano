@@ -10,19 +10,17 @@ use iced::{
 };
 use iced_test::program::Program;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_shell::{
-    desktop_shell::{
-        Message,
-        hover_tooltips::{TooltipHost, TooltipMessage},
-        monitor_surfaces::PanelEdge,
-    },
+use vetrata_sources::desktop_entries::DesktopIndex;
+use vetrata_state::{OutlinedSides, ShellSettings};
+use vetrata_widgets::{
+    hover_tooltips::{TooltipHost, TooltipMessage},
+    layer_surfaces::PanelEdge,
+    shell_message::Message,
     widgets::{
         favicon::Favicons, panel_frame::panel_frame, text::FontFallbacks, tooltip_body::Tooltip,
         window_icon::WindowAssets,
     },
 };
-use vetrata_sources::desktop_entries::DesktopIndex;
-use vetrata_state::{OutlinedSides, ShellSettings};
 
 use crate::{
     demo_script::Demo,

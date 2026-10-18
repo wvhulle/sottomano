@@ -7,7 +7,7 @@ pub mod niri_session;
 pub mod wallpaper;
 pub mod weather;
 
-use vetrata_shell::desktop_shell::Message;
+use vetrata_widgets::shell_message::Message;
 
 pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
     values[usize::try_from(tick).unwrap_or_default() % values.len()]

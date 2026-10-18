@@ -1,6 +1,6 @@
 use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
-use vetrata_shell::desktop_shell::hover_tooltips::HoverTarget;
+use vetrata_widgets::hover_tooltips::HoverTarget;
 
 pub struct HoveredWidget(pub HoverTarget);
 

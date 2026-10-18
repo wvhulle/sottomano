@@ -1,8 +1,12 @@
 use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_shell::{
-    desktop_shell::{Message, hover_tooltips::HoverTarget},
+use vetrata_sources::{
+    desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
+};
+use vetrata_widgets::{
+    hover_tooltips::HoverTarget,
+    shell_message::Message,
     widget_groups::{
         audio_group::AudioGroup,
         claude_usage_group::ClaudeUsageGroup,
@@ -18,9 +22,6 @@ use vetrata_shell::{
         continuous_reading::ContinuousReading, favicon::Favicons, pointer_drag::DragView,
         text::FontFallbacks, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
-};
-use vetrata_sources::{
-    desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
 };
 
 use crate::fixtures::{compute, niri_session};

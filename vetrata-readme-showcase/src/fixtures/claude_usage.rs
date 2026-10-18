@@ -2,14 +2,14 @@ use chrono::{TimeDelta, Utc};
 use rust_decimal::Decimal;
 use rusty_money::iso;
 use uom::si::{f64::Ratio, ratio::percent};
-use vetrata_shell::{
-    desktop_shell::Message,
-    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
-};
 use vetrata_sources::{
     SourceDelivery,
     ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
     money::Money,
+};
+use vetrata_widgets::{
+    shell_message::Message,
+    widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 
 use crate::showcased_group::ShowcasedGroup;

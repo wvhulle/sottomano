@@ -1,12 +1,11 @@
 use iced::Element;
 use vetrata_config::screen_edges::Position;
 use vetrata_state::WorkspacesPlacement;
-
-use crate::{
-    desktop_shell::{DesktopShell, Message},
-    widget_groups::workspaces_group,
-    widgets::widget_group::GroupContent,
+use vetrata_widgets::{
+    shell_message::Message, widget_groups::workspaces_group, widgets::widget_group::GroupContent,
 };
+
+use crate::desktop_shell::DesktopShell;
 
 pub(super) struct BottomBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 4],

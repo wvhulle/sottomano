@@ -8,8 +8,10 @@ Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace: `vetrata-config/` holds the TOML config types and their loading,
 `vetrata-sources/` holds the data sources and sinks the shell reads and writes,
 `vetrata-state/` holds the runtime state the shell persists and restores,
-`vetrata-shell/` holds the shell (binary `vetrata`) and
-`vetrata-readme-showcase/` renders the README recordings. `cargo r` for a
+`vetrata-widgets/` holds the widgets, widget groups, hover tooltips and the
+`Message` they produce, `vetrata-shell/` composes them into the running shell
+(binary `vetrata`) and `vetrata-readme-showcase/` renders the README
+recordings. `cargo r` for a
 debug run, `cargo clippy --workspace --all-targets` before committing — the
 workspace warns on clippy pedantic plus `absolute_paths` — and `cargo fmt`, which
 needs a nightly toolchain for the options in `.rustfmt.toml`. Version control is jj, not the `git` CLI.
@@ -23,8 +25,8 @@ needs a nightly toolchain for the options in `.rustfmt.toml`. Version control is
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and
-  methods on the owning type (`vetrata-shell/src/widgets/`,
-  `vetrata-shell/src/widget_groups/`).
+  methods on the owning type (`vetrata-widgets/src/widgets/`,
+  `vetrata-widgets/src/widget_groups/`).
 - Widget state lives in its widget and routes through its group's `Action` —
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
