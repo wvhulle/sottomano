@@ -5,9 +5,9 @@ use iced::{
     futures::{StreamExt, future::ready},
     task,
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
     },

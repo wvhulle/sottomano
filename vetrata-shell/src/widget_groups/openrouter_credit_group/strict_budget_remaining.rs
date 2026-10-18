@@ -1,7 +1,8 @@
+use vetrata_config::severity::Severity;
+
 use crate::{
     data::{
         money::Money,
-        severity::Severity,
         source::ai::openrouter::{KeyLimit, LimitReset, OpenRouterStrictBudget},
     },
     widgets::{

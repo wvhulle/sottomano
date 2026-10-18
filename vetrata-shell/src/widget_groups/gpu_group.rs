@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         gpu::{

@@ -5,13 +5,11 @@ use iced::futures::{
     future::{join_all, ready},
     stream,
 };
+use vetrata_config::severity::Severity;
 use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
-use crate::data::{
-    severity::Severity,
-    source::{DeliveryCadence, ReadingSource, SourceDelivery, bus::DesktopBuses},
-};
+use crate::data::source::{DeliveryCadence, ReadingSource, SourceDelivery, bus::DesktopBuses};
 
 const SLOWEST_UNIT_COUNT: usize = 10;
 const SHORTEST_REPORTED_ACTIVATION: Duration = Duration::from_millis(100);

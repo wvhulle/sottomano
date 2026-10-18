@@ -2,8 +2,9 @@ use iced::{Subscription, Task};
 
 mod firmware_upgrade_list;
 
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::source::{SourceDelivery, bus::DesktopBuses, fwupd::FirmwareUpgrade},
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,

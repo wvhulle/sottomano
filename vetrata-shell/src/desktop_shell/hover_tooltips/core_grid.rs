@@ -3,11 +3,14 @@ use iced::{
     widget::{Row, Space, container},
 };
 use uom::si::ratio::ratio;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::Message,
-    widgets::tooltip_body::{PhysicalCoreCells, ThreadCell},
+    widgets::{
+        tooltip_body::{PhysicalCoreCells, ThreadCell},
+        widget_state::WidgetState,
+    },
 };
 
 const OUTLINE_PX: f32 = 1.0;
@@ -58,7 +61,7 @@ impl<'a> CoreCellGrid<'a> {
     }
 
     fn thread_column(&self, thread: ThreadCell, height: f32) -> Element<'static, Message> {
-        let ink: Color = thread.level.color(&self.config.theme.palette);
+        let ink: Color = WidgetState::from(thread.level).color(&self.config.theme.palette);
         let fill = thread.fill.get::<ratio>().clamp(0.0, 1.0) as f32;
         container(
             container(Space::new().width(Length::Fill).height(height * fill)).style(move |_| {

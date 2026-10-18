@@ -1,9 +1,9 @@
 use std::{thread, time::Duration};
 
 use iced::Task;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         logind::permissions::{self, Permissions},
         session_action::SessionAction,

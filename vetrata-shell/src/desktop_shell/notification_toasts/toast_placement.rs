@@ -1,13 +1,16 @@
 use iced::{Element, Rectangle};
+use vetrata_config::{
+    Config,
+    screen_edges::{HEdge, VEdge},
+};
 
 use super::toast_lifecycle::NotificationMessage;
 use crate::{
-    config::Config,
     data::{
         notifications::model::NotificationData,
         source::{
             bus::OwnerProcess,
-            niri::{HEdge, Placement, VEdge, WindowOwner},
+            niri::{Placement, WindowOwner},
         },
     },
     state::NotificationSettings,

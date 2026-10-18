@@ -2,10 +2,10 @@ use std::mem;
 
 use iced::{Task, time::Instant, window::Id};
 use iced_exwlshell::reexport::KeyboardInteractivity;
+use vetrata_config::Config;
 
 use super::{NotificationLayer, toast_lifecycle::ExitPace};
 use crate::{
-    config::Config,
     data::notifications::model::{Outbound, close_reason},
     desktop_shell::Message,
 };

@@ -6,9 +6,9 @@ use std::ops::RangeInclusive;
 use iced::{Subscription, Task};
 use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

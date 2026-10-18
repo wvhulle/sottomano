@@ -1,13 +1,11 @@
 use iced::{Alignment, Element, widget::row};
+use vetrata_config::Config;
 
-use crate::{
-    config::Config,
-    widgets::{
-        glyph_button,
-        phosphor::{Phosphor, Weight},
-        source_reading::icon_value_gap,
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    glyph_button,
+    phosphor::{Phosphor, Weight},
+    source_reading::icon_value_gap,
+    widget_state::WidgetState,
 };
 
 pub enum Press {

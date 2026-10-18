@@ -1,11 +1,9 @@
 use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, Weekday};
 use rust_decimal::{Decimal, prelude::FromPrimitive};
 use uom::si::{f64::Ratio, ratio::ratio};
+use vetrata_config::{Config, calendar::WorkingHours};
 
-use crate::{
-    config::{Config, calendar::WorkingHours},
-    data::{money::Money, source::ai::quota::Quota},
-};
+use crate::data::{money::Money, source::ai::quota::Quota};
 
 const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
 

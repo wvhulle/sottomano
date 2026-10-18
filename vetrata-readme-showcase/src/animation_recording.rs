@@ -25,7 +25,8 @@ use iced_test::{
     renderer::graphics::text::font_system,
     runtime::{UserInterface, user_interface::Cache},
 };
-use vetrata_shell::{config::Config, desktop_shell::hover_tooltips::HoverTarget};
+use vetrata_config::Config;
+use vetrata_shell::desktop_shell::hover_tooltips::HoverTarget;
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{

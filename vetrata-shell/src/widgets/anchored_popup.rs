@@ -13,9 +13,9 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::{Message, monitor_surfaces::Position},
     state::ShellSettings,
     widgets::{

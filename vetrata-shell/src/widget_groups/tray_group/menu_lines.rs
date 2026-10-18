@@ -1,7 +1,8 @@
 use std::{collections::HashSet, iter::once};
 
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::source::tray::{MenuKind, MenuNode},
     widgets::{
         bar_widget::Glyph,

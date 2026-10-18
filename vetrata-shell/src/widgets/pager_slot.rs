@@ -3,8 +3,9 @@ use iced::{
     alignment::Vertical,
     widget::{Column, Row, Space, container},
 };
+use vetrata_config::Config;
 
-use crate::{config::Config, desktop_shell::monitor_surfaces::Position};
+use crate::desktop_shell::monitor_surfaces::Position;
 
 pub struct PagerSlot<'a, Message> {
     content: Element<'a, Message>,

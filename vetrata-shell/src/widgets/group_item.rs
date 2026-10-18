@@ -5,9 +5,9 @@ use iced::{
     Element,
     widget::{button, mouse_area},
 };
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         announced_level::LevelReading,

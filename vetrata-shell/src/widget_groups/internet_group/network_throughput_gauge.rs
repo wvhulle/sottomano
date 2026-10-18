@@ -3,14 +3,12 @@ use uom::si::{
     information_rate::{kilobyte_per_second, megabyte_per_second},
     ratio::ratio,
 };
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::{
-            net_interfaces::nm::Connectivity,
-            throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
-        },
+    data::source::{
+        net_interfaces::nm::Connectivity,
+        throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},

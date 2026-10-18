@@ -1,11 +1,9 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::focus_ledger::{
-            Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
-        },
+    data::source::focus_ledger::{
+        Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
     },
     widget_groups::session_focus_group::BreakPledge,
     widgets::{
@@ -221,13 +219,12 @@ impl BarWidget for SessionFace<'_> {
 mod tests {
     use std::time::Duration;
 
+    use vetrata_config::widget_groups::focus_time::FocusTimeConfig;
+
     use super::*;
-    use crate::{
-        config::widget_groups::focus_time::FocusTimeConfig,
-        data::source::{
-            focus_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
-            idle_notify::IdleEdge,
-        },
+    use crate::data::source::{
+        focus_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
+        idle_notify::IdleEdge,
     };
 
     fn at(minutes: i64) -> DateTime<Utc> {

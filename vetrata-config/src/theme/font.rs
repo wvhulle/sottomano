@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt, fs, io, sync::Arc};
+use std::{collections::HashSet, fmt, fs, io, process::Command, sync::Arc};
 
 use iced::{
     Font,
@@ -7,7 +7,7 @@ use iced::{
 use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
 
-use crate::{config::layout::spacing::Spacing, data::source::command};
+use crate::layout::spacing::Spacing;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -32,7 +32,7 @@ impl Default for FontChoice {
 }
 
 impl FontChoice {
-    pub(in crate::config) fn text_size_px(&self) -> Result<f32, FontError> {
+    pub(crate) fn text_size_px(&self) -> Result<f32, FontError> {
         match self.text_size {
             Spacing::Px(px) => Ok(px),
             relative @ Spacing::Em(_) => Err(FontError::RelativeTextSize(relative)),
@@ -106,15 +106,12 @@ impl fmt::Display for FontError {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(in crate::config) enum FontRole {
+pub(crate) enum FontRole {
     Text,
     Monospace,
 }
 
-pub(in crate::config) fn resolve(
-    config: &FontChoice,
-    role: FontRole,
-) -> Result<ResolvedFont, FontError> {
+pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFont, FontError> {
     let configured = match role {
         FontRole::Text => config.name.as_deref(),
         FontRole::Monospace => config.monospace_name.as_deref(),
@@ -169,8 +166,19 @@ pub fn fallback_font(ch: char) -> Option<Font> {
         .map(|family| Font::with_name(String::leak(family)))
 }
 
+fn fc_match_stdout(pattern: &str, format: &str) -> Option<String> {
+    let output = Command::new("fc-match")
+        .args(["-f", format, pattern])
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 fn fc_match(pattern: &str, format: &str) -> Option<String> {
-    let stdout = command::blocking::output("fc-match", &["-f", format, pattern]).ok()?;
+    let stdout = fc_match_stdout(pattern, format)?;
     let value = stdout.lines().next()?.split(',').next()?.trim().to_owned();
     (!value.is_empty()).then_some(value)
 }
@@ -181,8 +189,7 @@ struct FontMatch {
 }
 
 fn fc_match_family_file(pattern: &str) -> Option<FontMatch> {
-    let stdout =
-        command::blocking::output("fc-match", &["-f", "%{family}\t%{file}", pattern]).ok()?;
+    let stdout = fc_match_stdout(pattern, "%{family}\t%{file}")?;
     let line = stdout.lines().next()?;
     let (family, file) = line.split_once('\t')?;
     let family = family.split(',').next()?.trim();

@@ -1,10 +1,8 @@
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth},
-    },
+    data::source::{hardware::Adapter, net_interfaces::bluetooth::Bluetooth},
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},

@@ -2,20 +2,20 @@ use std::{path::Path, time::Duration};
 
 use iced::futures::Stream;
 use uom::si::f64::ThermodynamicTemperature;
+use vetrata_config::widget_groups::temperature_sensors::{
+    SensorChoice, SensorConfig, ThresholdOverrides,
+};
 
 use super::{
     Error,
     btrfs::{BtrfsFilesystem, DeviceErrors},
     mount::{KernelDevice, RootMount},
 };
-use crate::{
-    config::widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
-    data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-        hardware::DriveIdentity,
-        polled_delivery_stream,
-        sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
-    },
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    hardware::DriveIdentity,
+    polled_delivery_stream,
+    sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
 };
 
 const COMPOSITE_LABEL: &str = "Composite";

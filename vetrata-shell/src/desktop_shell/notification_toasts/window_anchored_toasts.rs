@@ -13,6 +13,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
+use vetrata_config::{Config, notification_toasts::ToastPlacementConfig};
 
 use super::{
     toast_anchor_geometry,
@@ -20,7 +21,6 @@ use super::{
     toast_placement::{AnchoredToast, ToastAnchor},
 };
 use crate::{
-    config::{Config, notification_toasts::ToastPlacementConfig},
     state::LayerAppearance,
     widgets::{
         child_view::{ChildView, ChildViewMut},

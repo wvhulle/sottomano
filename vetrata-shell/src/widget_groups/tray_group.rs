@@ -7,9 +7,9 @@ use iced::{
     widget::{Column, mouse_area},
 };
 use tokio::sync::mpsc;
+use vetrata_config::{Config, widget_groups::tray::ClickAction};
 
 use crate::{
-    config::{Config, widget_groups::tray::ClickAction},
     data::source::{
         SourceDelivery,
         niri::WindowOwner,
@@ -268,15 +268,4 @@ fn item_view<'a>(
         clickable = clickable.on_right_press(GroupEvent::Group(message));
     }
     clickable.into()
-}
-
-impl ClickAction {
-    fn press_hint(self) -> &'static str {
-        match self {
-            ClickAction::ActivateItem => "activate",
-            ClickAction::SecondaryActivateItem => "secondary action",
-            ClickAction::FocusAppWindow => "focus its window",
-            ClickAction::Ignore => "nothing",
-        }
-    }
 }

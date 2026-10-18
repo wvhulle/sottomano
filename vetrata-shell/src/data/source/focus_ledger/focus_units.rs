@@ -1,8 +1,7 @@
 use std::{borrow::Cow, ffi::OsStr, fmt, path::PathBuf, str::FromStr};
 
 use chrono::TimeDelta;
-
-use crate::config::widget_groups::focus_time::FocusTimeConfig;
+use vetrata_config::widget_groups::focus_time::FocusTimeConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FocusUnit {

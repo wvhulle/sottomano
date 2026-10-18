@@ -6,9 +6,9 @@ use std::{ops::RangeInclusive, time::Duration};
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Function, Subscription, Task, task};
 use tokio::time::sleep;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::{
         source::{
             SourceDelivery,

@@ -1,10 +1,9 @@
 use iced::alignment::Horizontal;
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
     data::{
         notifications::model::ActionTint,
-        severity::Severity,
         source::fwupd::{FirmwareUpgrade, Urgency},
     },
     widget_groups::{

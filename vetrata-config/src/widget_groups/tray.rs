@@ -12,6 +12,18 @@ pub enum ClickAction {
     Ignore,
 }
 
+impl ClickAction {
+    #[must_use]
+    pub const fn press_hint(self) -> &'static str {
+        match self {
+            ClickAction::ActivateItem => "activate",
+            ClickAction::SecondaryActivateItem => "secondary action",
+            ClickAction::FocusAppWindow => "focus its window",
+            ClickAction::Ignore => "nothing",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TrayRule {

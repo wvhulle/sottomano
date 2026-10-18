@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::{severity::Severity, source::kernel_errors::KernelOccurrence},
+    data::source::kernel_errors::KernelOccurrence,
     widget_groups::{
         journal_events_group::{
             JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,

@@ -6,8 +6,9 @@ mod interface_sections;
 mod mobile_modem_tooltip;
 mod wifi_link_tooltip;
 
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

@@ -1,7 +1,7 @@
 use iced::Task;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::{
         Message,
         hover_tooltips::{GroupHandle, HoverTarget},

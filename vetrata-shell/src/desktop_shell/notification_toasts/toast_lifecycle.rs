@@ -7,18 +7,16 @@ use iced::{
     time::{Duration, Instant},
 };
 use tokio::sync::mpsc;
+use vetrata_config::{
+    Config,
+    notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
+    severity::Severity,
+};
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
 use crate::{
-    config::{
-        Config,
-        notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
-    },
-    data::{
-        notifications::model::{
-            ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
-        },
-        severity::Severity,
+    data::notifications::model::{
+        ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
     },
     desktop_shell::{Message, hover_tooltips::HoverTarget},
     widgets::{

@@ -2,9 +2,10 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::InformationRate, information_rate::megabit_per_second},
 };
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{severity::Severity, source::net_interfaces::nm::AddressBlock},
+    data::source::net_interfaces::nm::AddressBlock,
     widgets::tooltip_body::{KeyValue, Section},
 };
 

@@ -4,8 +4,9 @@ mod network_throughput_gauge;
 mod tailscale_mesh_tooltip;
 mod wireguard_tunnel_tooltip;
 
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::DesktopBuses,

@@ -2,14 +2,12 @@ use std::{cmp::Ordering, iter::once};
 
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        severity::Severity,
-        source::{
-            ai::quota::{Pace, Quota},
-            focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
-        },
+    data::source::{
+        ai::quota::{Pace, Quota},
+        focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
     },
     widgets::{
         amount_text::{coarse_duration_text, duration_text},

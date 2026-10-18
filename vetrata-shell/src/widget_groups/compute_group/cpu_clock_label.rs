@@ -2,16 +2,14 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Frequency, frequency::gigahertz},
 };
+use vetrata_config::severity::Severity;
 
 use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
-    data::{
-        severity::Severity,
-        source::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
-    },
+    data::source::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::Phosphor,

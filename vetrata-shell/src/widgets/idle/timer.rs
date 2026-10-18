@@ -3,9 +3,9 @@ use std::time::Duration;
 use chrono::Utc;
 use humantime::format_duration;
 use iced::Element;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::session_action::SessionAction,
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{

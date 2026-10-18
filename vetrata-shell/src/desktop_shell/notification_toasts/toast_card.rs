@@ -12,18 +12,17 @@ use iced::{
 };
 use reqwest::Url;
 use uom::si::{f64::Ratio, ratio::ratio};
+use vetrata_config::{Config, Palette, notification_toasts::ToastCardConfig, severity::Severity};
 
 use super::{
     Notification, NotificationMessage, body_markup, toast_lifecycle::ToastKind,
     toast_reply::ReplyMessage,
 };
 use crate::{
-    config::{Config, Palette, notification_toasts::ToastCardConfig},
     data::{
         notifications::model::{
             ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
         },
-        severity::Severity,
         source::app_icon::DesktopEntries,
     },
     desktop_shell::hover_tooltips::{ongoing_for, relative},

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["vetrata-shell", "vetrata-readme-showcase"]
+members = ["vetrata-config", "vetrata-shell", "vetrata-readme-showcase"]
 default-members = ["vetrata-shell"]
 
 [workspace.package]
@@ -26,7 +26,8 @@ chrono = { version = "0.4.45", default-features = false, features = [
   "std",
   "unstable-locales",
 ] }
-clap = { version = "4.6.7", features = ["derive"] }
+chrono-tz = { version = "0.10.4", features = ["serde"] }
+clap ={ version = "4.6.7", features = ["derive"] }
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
@@ -45,7 +46,9 @@ iced = { version = "0.14.0", default-features = false, features = [
 niri-ipc = "26.4.0"
 rust_decimal = { version = "1.43.0", features = ["serde-float"] }
 rusty-money = "0.5.1"
+serde = { version = "1.0.229", features = ["derive"] }
 situo-client = { git = "https://codeberg.org/wvhulle/situo", branch = "main" }
+toml = "1.1.8"
 uom = { version = "0.38.0", default-features = false, features = [
   "autoconvert",
   "f64",

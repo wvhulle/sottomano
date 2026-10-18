@@ -5,8 +5,9 @@ mod kernel_error_log;
 mod oom_kill_log;
 mod service_error_log;
 
+use vetrata_config::Config;
+
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery, coredumps::CoredumpEntry, kernel_errors::KernelOccurrence,
         oom_kills::OomKillEntry, service_errors::ServiceErrors,

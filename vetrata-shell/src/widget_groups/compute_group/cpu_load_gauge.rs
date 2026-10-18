@@ -2,18 +2,16 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, power::watt, ratio::percent},
 };
+use vetrata_config::severity::Severity;
 
 use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
 use crate::{
-    data::{
-        severity::Severity,
-        source::sysfs_sensors::{
-            cpu_power::CpuPower,
-            cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
-        },
+    data::source::sysfs_sensors::{
+        cpu_power::CpuPower,
+        cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},

@@ -1,6 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
+use vetrata_config::widget_groups::focus_time::FocusTimeConfig;
 
 use super::{
     FocusLedger, FocusSignal,
@@ -11,10 +12,7 @@ use super::{
     time_intervals::Interval,
     window_focus_timeline::WindowFocusChange,
 };
-use crate::{
-    config::widget_groups::focus_time::FocusTimeConfig,
-    data::source::{idle_notify::IdleEdge, logind::SleepEdge},
-};
+use crate::data::source::{idle_notify::IdleEdge, logind::SleepEdge};
 
 pub(super) fn at(minutes: i64) -> DateTime<Utc> {
     "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)

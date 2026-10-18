@@ -6,9 +6,9 @@ mod slot_occupancy_gauge;
 
 use iced::{Subscription, Task};
 use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{
         SourceDelivery,
         bus::{Bus, DesktopBuses},

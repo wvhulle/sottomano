@@ -6,9 +6,9 @@ use iced::{
     task::Handle,
 };
 use tokio::time::sleep;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::{ReadingSource, SourceDelivery},
     widgets::tooltip_body::{Freshness, Readiness, Section},
 };

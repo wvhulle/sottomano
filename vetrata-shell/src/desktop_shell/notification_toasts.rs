@@ -17,13 +17,12 @@ pub use toast_lifecycle::{Notification, NotificationMessage};
 use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
 use tokio::sync::mpsc;
+use vetrata_config::{Config, severity::Severity};
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
-    config::Config,
     data::{
         notifications::model::{NotificationData, Outbound},
-        severity::Severity,
         sink::sound::SoundTheme,
         source::{app_icon::DesktopEntries, niri::Placement},
     },

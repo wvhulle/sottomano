@@ -1,12 +1,10 @@
 use std::time::Duration;
 
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
-    data::{
-        notifications::model::{ExpireTimeout, NotificationData},
-        severity::Severity,
-    },
+    data::notifications::model::{ExpireTimeout, NotificationData},
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::bar_widget::Glyph,
 };

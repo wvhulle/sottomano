@@ -8,9 +8,9 @@ use iced::{
     futures::{Stream, StreamExt, stream},
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
+use vetrata_config::SecretPaths;
 
 use crate::{
-    config::SecretPaths,
     data::source::{
         DeliveryCadence, ReadingSource, SourceDelivery, command,
         wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},

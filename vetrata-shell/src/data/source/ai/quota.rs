@@ -5,8 +5,7 @@ use uom::si::{
     f64::Ratio,
     ratio::{percent, ratio},
 };
-
-use crate::data::severity::Severity;
+use vetrata_config::severity::Severity;
 
 const MIN_ELAPSED_PERCENT: f64 = 10.0;
 const CRITICAL_USED_PERCENT: f64 = 90.0;

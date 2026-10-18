@@ -28,7 +28,7 @@ use crate::{
         source::{
             ReadingSource, SourceDelivery,
             bus::{DesktopBuses, desktop_bus_events},
-            desktop_entries, niri,
+            config_file_changes, desktop_entries, niri,
         },
     },
     desktop_shell::{
@@ -84,10 +84,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
 
     Subscription::batch([
         outputs(state.wayland.as_ref()),
-        state
-            .config_file
-            .changes()
-            .map(|()| Message::ConfigFileChanged),
+        config_file_changes::subscription(&state.config_file).map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),

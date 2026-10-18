@@ -1,7 +1,7 @@
 use iced::Task;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     desktop_shell::hover_tooltips::HoverTarget,
     state::{
         LayerAppearance, ShellLayer, flag,

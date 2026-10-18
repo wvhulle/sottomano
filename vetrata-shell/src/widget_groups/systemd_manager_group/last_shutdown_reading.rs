@@ -1,11 +1,8 @@
 use iced::alignment::Horizontal;
+use vetrata_config::{Config, severity::Severity};
 
 use crate::{
-    config::Config,
-    data::{
-        severity::Severity,
-        source::previous_shutdown::{JobResult, LastShutdown, StopOutcome, UnitStop},
-    },
+    data::source::previous_shutdown::{JobResult, LastShutdown, StopOutcome, UnitStop},
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget, elapsed_text},
         terminal_command::TerminalCommand,

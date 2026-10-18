@@ -1,7 +1,7 @@
 use iced::alignment::Horizontal;
+use vetrata_config::Config;
 
 use crate::{
-    config::Config,
     data::source::coredumps::CoredumpEntry,
     widget_groups::{
         journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},

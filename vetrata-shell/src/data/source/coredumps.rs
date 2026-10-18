@@ -9,15 +9,13 @@ use iced::futures::{Stream, StreamExt};
 use libc::{c_int, pid_t};
 use serde::Deserialize;
 use systemd::journal::{Journal, OpenOptions};
+use vetrata_config::severity::Severity;
 
-use crate::data::{
-    severity::Severity,
-    source::{
-        DeliveryCadence, ReadingSource, SourceDelivery,
-        journal::{
-            CoredumpUnit, JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit,
-            decode_record, journal_windows,
-        },
+use crate::data::source::{
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    journal::{
+        CoredumpUnit, JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit,
+        decode_record, journal_windows,
     },
 };
 

@@ -246,12 +246,11 @@ impl BudgetStatus {
 mod tests {
     use std::path::{Path, PathBuf};
 
+    use vetrata_config::severity::Severity;
+
     use super::*;
-    use crate::data::{
-        severity::Severity,
-        source::focus_ledger::test_steps::{
-            at, config, focused, focused_in, folded, kitty, step, whole_day,
-        },
+    use crate::data::source::focus_ledger::test_steps::{
+        at, config, focused, focused_in, folded, kitty, step, whole_day,
     };
 
     #[test]

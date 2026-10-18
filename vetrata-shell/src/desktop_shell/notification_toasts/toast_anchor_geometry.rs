@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use iced::{Point, Rectangle, Size};
+use vetrata_config::{
+    notification_toasts::ToastPlacementConfig,
+    screen_edges::{HEdge, VEdge},
+};
 
 use super::toast_placement::{AnchorGroup, ToastAnchor};
-use crate::{
-    config::notification_toasts::ToastPlacementConfig,
-    data::source::niri::{HEdge, VEdge},
-};
 
 pub const STACK_SPACING: f32 = 8.0;
 

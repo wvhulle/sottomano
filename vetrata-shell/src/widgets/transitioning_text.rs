@@ -21,14 +21,12 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-
-use crate::{
-    config::{
-        theme::font::ResolvedFont,
-        tooltips::{IntroEffect, PlaceholderEffect, ReplaceEffect, TooltipLoading},
-    },
-    widgets::text::LINE_HEIGHT,
+use vetrata_config::{
+    theme::font::ResolvedFont,
+    tooltips::{IntroEffect, PlaceholderEffect, ReplaceEffect, TooltipLoading},
 };
+
+use crate::widgets::text::LINE_HEIGHT;
 
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
@@ -174,32 +172,6 @@ impl State {
             .transition_to(&next)
             .map(|kind| Transition { kind, started: now });
         self.shown = next;
-    }
-}
-
-impl IntroEffect {
-    fn length(self, text: &str) -> Duration {
-        match self {
-            IntroEffect::Fade { duration }
-            | IntroEffect::Decode { duration, .. }
-            | IntroEffect::Wipe { duration } => duration,
-            IntroEffect::Typewriter { per_char } => {
-                per_char.saturating_mul(u32::try_from(text.chars().count()).unwrap_or(u32::MAX))
-            }
-            IntroEffect::Immediate => Duration::ZERO,
-        }
-    }
-}
-
-impl ReplaceEffect {
-    fn length(self) -> Duration {
-        match self {
-            ReplaceEffect::Decode { duration, .. }
-            | ReplaceEffect::Crossfade { duration }
-            | ReplaceEffect::Roll { duration }
-            | ReplaceEffect::Flash { duration } => duration,
-            ReplaceEffect::Immediate => Duration::ZERO,
-        }
     }
 }
 

@@ -1,13 +1,7 @@
 use iced::Color;
+use vetrata_config::{severity::Severity, theme::palette::Palette};
 
-use crate::{config::theme::palette::Palette, data::severity::Severity, widgets::phosphor::Weight};
-
-impl Severity {
-    #[must_use]
-    pub fn color(self, palette: &Palette) -> Color {
-        WidgetState::from(self).color(palette)
-    }
-}
+use crate::widgets::phosphor::Weight;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WidgetState {

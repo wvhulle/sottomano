@@ -1,7 +1,7 @@
 use iced::{Element, widget::container};
 use niri_ipc::state::EventStreamState;
+use vetrata_config::Config;
 use vetrata_shell::{
-    config::Config,
     data::source::{
         desktop_entries::DesktopIndex, niri::Snapshot, niri_config::ConfiguredWorkspaces,
     },

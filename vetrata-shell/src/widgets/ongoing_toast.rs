@@ -2,11 +2,11 @@ use std::{borrow::Cow, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale, Utc};
 use uom::si::f64::Ratio;
+use vetrata_config::severity::Severity;
 
 use crate::{
     data::{
         notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
-        severity::Severity,
         source::ai::quota::{Pace, Quota},
     },
     desktop_shell::hover_tooltips::HoverTarget,
