@@ -1,38 +1,84 @@
-use std::iter::once;
+use std::{borrow::Cow, time::Duration};
 
 use iced::{
-    Element, Length, Settings, Task, Theme,
+    Element, Length, Padding, Settings, Subscription, Task, Theme,
     alignment::Vertical,
     executor,
+    futures::{Stream, StreamExt, stream},
     theme::Style,
     widget::{Column, Row, container, stack},
     window,
 };
-use iced_test::program::Program;
+use iced_test::program::{Preset, Program};
+use niri_ipc::state::EventStreamState;
+use tokio::time::sleep;
 use vetrata_config::{Config, screen_edges::Position};
-use vetrata_state::{OutlinedSides, ShellSettings};
+use vetrata_state::ShellSettings;
 use vetrata_widgets::{
     desktop_index::DesktopIndex,
     hover_tooltips::{TooltipHost, TooltipMessage},
     layer_surfaces::PanelEdge,
+    notification_toasts::{NotificationLayer, ToastContext},
     shell_message::Message,
+    toast_messages::NotificationMessage,
     widgets::{
-        favicon::Favicons, panel_frame::panel_frame, text::FontFallbacks, tooltip_body::Tooltip,
+        favicon::Favicons,
+        palette_colors::PaletteColors,
+        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+        text::{FontFaces, FontFallbacks},
+        tooltip_body::Tooltip,
         window_icon::WindowAssets,
     },
 };
 
 use crate::{
-    demo_script::Demo,
+    animation_recording::CANVAS,
+    demo_script::{DEMOS, Demo},
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
 };
 
+const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
+
 pub struct ShowcaseProgram {
-    pub demo: &'static Demo,
-    pub config: Config,
+    config: Config,
+    presets: Vec<Preset<ShowcaseState, Message>>,
+}
+
+impl ShowcaseProgram {
+    #[must_use]
+    pub fn new(config: &Config) -> Self {
+        let presets = DEMOS
+            .iter()
+            .map(|demo| {
+                let config = config.clone();
+                Preset::new(demo.name, move || ShowcaseState::boot(demo, &config))
+            })
+            .collect();
+        ShowcaseProgram {
+            config: config.clone(),
+            presets,
+        }
+    }
+
+    pub(crate) fn preset(&self, demo: &Demo) -> &Preset<ShowcaseState, Message> {
+        self.presets
+            .iter()
+            .find(|preset| preset.name() == demo.name)
+            .expect("every demo has a preset")
+    }
+}
+
+fn live_readings(live: fn(u32) -> Vec<Message>) -> impl Stream<Item = Message> {
+    stream::iter(1..)
+        .then(|tick| async move {
+            sleep(LIVE_INTERVAL).await;
+            tick
+        })
+        .flat_map(move |tick| stream::iter(live(tick)))
 }
 
 pub struct ShowcaseState {
+    demo: &'static Demo,
     config: Config,
     shell_settings: ShellSettings,
     desktop_entries: DesktopIndex,
@@ -41,9 +87,59 @@ pub struct ShowcaseState {
     theme: Theme,
     group: ShowcasedGroup,
     tooltip: TooltipHost,
+    notifications: NotificationLayer,
 }
 
 impl ShowcaseState {
+    fn boot(demo: &'static Demo, config: &Config) -> (Self, Task<Message>) {
+        let mut tooltip = TooltipHost::default();
+        let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
+        let mut shell_settings = ShellSettings::default();
+        shell_settings.notifications.sound = false;
+        let group = (demo.group)();
+        let opening_toasts = Task::batch(group.opening_toasts().iter().map(|toast| {
+            Task::done(Message::Notification(NotificationMessage::Served(
+                Box::new(toast.clone()),
+            )))
+        }));
+        let state = ShowcaseState {
+            demo,
+            config: config.clone(),
+            shell_settings,
+            desktop_entries: DesktopIndex::default(),
+            favicons: Favicons::default(),
+            font_fallbacks: FontFallbacks::naming_theme_families(&config.theme),
+            theme: Theme::from(&PaletteColors::from(&config.theme.palette)),
+            group,
+            tooltip,
+            notifications: NotificationLayer::default(),
+        };
+        (state, opening_toasts)
+    }
+
+    fn toast_layer(&self) -> Element<'_, Message> {
+        Element::from(self.notifications.anchored_toasts(
+            SHOWCASE_OUTPUT,
+            &self.config,
+            &self.theme,
+            &self.shell_settings,
+            Padding::ZERO,
+        ))
+        .map(Message::Notification)
+    }
+
+    fn update_notification(&mut self, message: NotificationMessage) -> Task<Message> {
+        let unplaced = EventStreamState::default();
+        let context = ToastContext::new(
+            self.group.niri().unwrap_or(&unplaced),
+            self.desktop_entries.get(),
+            &self.config,
+            &self.shell_settings,
+            false,
+        );
+        self.notifications.update(message, &context, &|_| None)
+    }
+
     fn shown_tooltip(&self) -> Option<Tooltip> {
         self.tooltip
             .target()
@@ -64,17 +160,16 @@ impl ShowcaseState {
             Position::Left => &self.shell_settings.sidebar,
             Position::Top | Position::Bottom => &self.shell_settings.panels,
         };
-        let frame_style = layer.frame_style(&self.config);
-        let outlined_sides = self
-            .shell_settings
-            .outlined_sides(OutlinedSides::from(position));
+        let frame_style = LayerFrameStyle::new(layer, &self.config).container_style();
+        let outlined_sides =
+            OutlinedSides::inward_of(position).all_when_floating(&self.shell_settings.layout);
         let framed = self
             .group
             .panel_groups(&self.config)
             .into_iter()
             .map(|group| {
                 let content = match position {
-                    Position::Left => container(group).padding([layer.corner_radius.top_left, 0.0]),
+                    Position::Left => container(group).padding([layer.corner_radius_px, 0.0]),
                     Position::Top | Position::Bottom => container(group)
                         .height(Length::Fixed(panel.height))
                         .align_y(Vertical::Center)
@@ -122,35 +217,31 @@ impl Program for ShowcaseProgram {
     type Executor = executor::Default;
 
     fn name() -> &'static str {
-        "vetrata_readme_showcase"
+        "vetrata_widget_showcase"
     }
 
     fn settings(&self) -> Settings {
         Settings {
-            default_font: self.config.theme.font.iced_font,
+            default_font: FontFaces::from(&self.config.theme.font).regular,
+            fonts: vec![Cow::Owned(self.config.theme.font.data.to_vec())],
             antialiasing: true,
             ..Settings::default()
         }
     }
 
     fn window(&self) -> Option<window::Settings> {
-        None
+        Some(window::Settings {
+            size: CANVAS,
+            ..window::Settings::default()
+        })
     }
 
     fn boot(&self) -> (ShowcaseState, Task<Message>) {
-        let mut tooltip = TooltipHost::default();
-        let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
-        let state = ShowcaseState {
-            config: self.config.clone(),
-            shell_settings: ShellSettings::default(),
-            desktop_entries: DesktopIndex::default(),
-            favicons: Favicons::default(),
-            font_fallbacks: FontFallbacks::default(),
-            theme: Theme::from(&self.config.theme.palette),
-            group: (self.demo.group)(),
-            tooltip,
-        };
-        (state, Task::none())
+        ShowcaseState::boot(&DEMOS[0], &self.config)
+    }
+
+    fn presets(&self) -> &[Preset<ShowcaseState, Message>] {
+        &self.presets
     }
 
     fn update(&self, state: &mut ShowcaseState, message: Message) -> Task<Message> {
@@ -173,6 +264,7 @@ impl Program for ShowcaseProgram {
                 state.tooltip.leave_elapsed(departing);
                 Task::none()
             }
+            Message::Notification(message) => state.update_notification(message),
             other => {
                 state.group.update(other);
                 Task::none()
@@ -192,10 +284,27 @@ impl Program for ShowcaseProgram {
             .height(Length::Fill)
             .align_y(panel_side)
             .into();
-        stack(once(strip).chain(state.tooltip_layer()))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        stack(
+            state
+                .group
+                .backdrop(&state.config)
+                .into_iter()
+                .chain([strip, state.toast_layer()])
+                .chain(state.tooltip_layer()),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+
+    fn subscription(&self, state: &ShowcaseState) -> Subscription<Message> {
+        Subscription::batch([
+            Subscription::run_with(state.demo.live, |&live| live_readings(live)),
+            state
+                .notifications
+                .expiry_ticks()
+                .map(Message::Notification),
+        ])
     }
 
     fn theme(&self, state: &ShowcaseState, _window: window::Id) -> Option<Theme> {
@@ -203,7 +312,7 @@ impl Program for ShowcaseProgram {
     }
 
     fn style(&self, state: &ShowcaseState, _theme: &Theme) -> Style {
-        let palette = &state.config.theme.palette;
+        let palette = PaletteColors::from(&state.config.theme.palette);
         Style {
             background_color: palette.surface_raised,
             text_color: palette.bar_foreground,

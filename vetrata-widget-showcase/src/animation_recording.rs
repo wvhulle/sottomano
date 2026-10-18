@@ -8,7 +8,7 @@ use std::{
 };
 
 use iced::{
-    Point, Size, Vector,
+    Point, Rectangle, Size, Vector,
     advanced::widget::operation::{Operation, Outcome, black_box},
     futures::{
         channel::mpsc::{self, Receiver},
@@ -20,19 +20,18 @@ use iced_test::{
     Emulator, Instruction, Selector,
     core::renderer::Headless,
     emulator::{Event, Mode},
-    instruction::{Interaction, Mouse, Target},
+    instruction::{Interaction, Key, Keyboard, Mouse, Target},
     program::Program,
     renderer::graphics::text::font_system,
     runtime::{UserInterface, user_interface::Cache},
 };
 use vetrata_config::Config;
-use vetrata_widgets::hover_tooltips::HoverTarget;
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
     demo_script::{Demo, Step},
-    hovered_widget::{AnyHoveredWidget, HoveredWidget},
+    hovered_widget::{AnyHoveredWidget, HoveredWidget, ReplyField},
     readme_embedding::RecordedAnimation,
     showcase_program::ShowcaseProgram,
 };
@@ -44,9 +43,9 @@ const REST_HOLD: Duration = Duration::from_millis(1000);
 const HOVER_HOLD: Duration = Duration::from_millis(2500);
 const PRESS_LEAD: Duration = Duration::from_millis(1000);
 const PRESS_HOLD: Duration = Duration::from_millis(1500);
-const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
+const KEYSTROKE_HOLD: Duration = Duration::from_millis(90);
 const FRAME_INTERVAL: Duration = Duration::from_millis(20);
 const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
 const LOSSLESS_EFFORT: f32 = 75.0;
@@ -59,20 +58,25 @@ struct CapturedFrame {
 }
 
 struct DemoRecorder {
+    demo: &'static Demo,
     program: ShowcaseProgram,
     emulator: Emulator<ShowcaseProgram>,
     events: Receiver<Event<ShowcaseProgram>>,
     layout_renderer: iced::Renderer,
     pointer: Point,
-    live_tick: u32,
-    next_live_delivery: Instant,
 }
 
 impl DemoRecorder {
-    fn start(demo: &'static Demo, config: Config) -> Self {
-        let program = ShowcaseProgram { demo, config };
+    fn start(demo: &'static Demo, config: &Config) -> Self {
+        let program = ShowcaseProgram::new(config);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
-        let emulator = Emulator::new(sender, &program, Mode::Immediate, CANVAS);
+        let emulator = Emulator::with_preset(
+            sender,
+            &program,
+            Mode::Immediate,
+            CANVAS,
+            Some(program.preset(demo)),
+        );
         let settings = program.settings();
         let layout_renderer = block_on(iced::Renderer::new(
             settings.default_font,
@@ -81,33 +85,26 @@ impl DemoRecorder {
         ))
         .expect("a headless renderer is available");
         let mut recorder = DemoRecorder {
+            demo,
             program,
             emulator,
             events,
             layout_renderer,
             pointer: REST_POINTER,
-            live_tick: 1,
-            next_live_delivery: Instant::now() + LIVE_INTERVAL,
         };
         recorder.settle();
         recorder
     }
 
-    fn deliver_live_readings(&mut self) {
-        if Instant::now() < self.next_live_delivery {
-            return;
-        }
-        (self.program.demo.live)(self.live_tick)
-            .into_iter()
-            .for_each(|reading| self.emulator.update(&self.program, reading));
-        self.live_tick += 1;
-        self.next_live_delivery += LIVE_INTERVAL;
-    }
-
     fn settle(&mut self) {
         while let Ok(event) = self.events.try_recv() {
-            if let Event::Action(action) = event {
-                self.emulator.perform(&self.program, action);
+            match event {
+                Event::Action(action) => self.emulator.perform(&self.program, action),
+                Event::Failed(instruction) => panic!(
+                    "demo {} cannot {instruction}: its target is not on screen",
+                    self.demo.name
+                ),
+                Event::Ready => {}
             }
         }
     }
@@ -133,14 +130,15 @@ impl DemoRecorder {
         self.interact(Mouse::Move(Target::Point(self.pointer)));
     }
 
-    fn locate(&mut self, target: &HoverTarget) -> Point {
+    fn locate(&mut self, selector: impl Selector<Output = Rectangle> + Send + 'static) -> Point {
         let mut interface = UserInterface::build(
             self.emulator.view(&self.program),
             CANVAS,
             Cache::default(),
             &mut self.layout_renderer,
         );
-        let mut finder = HoveredWidget(target.clone()).find();
+        let wanted = selector.description();
+        let mut finder = selector.find();
         interface.operate(&self.layout_renderer, &mut black_box(&mut finder));
         if let Outcome::Some(Some(bounds)) = finder.finish() {
             return bounds.center();
@@ -152,9 +150,26 @@ impl DemoRecorder {
             _ => Vec::new(),
         };
         panic!(
-            "demo {} hovers {target:?}, which no widget shows; shown now: {shown:?}",
-            self.program.demo.name
+            "demo {} points at {wanted}, which is not on screen; hover areas shown now: {shown:?}",
+            self.demo.name
         )
+    }
+
+    fn press_at(&mut self, pointer: Point) -> Vec<CapturedFrame> {
+        self.point_at(pointer);
+        let lead = self.capture_during(PRESS_LEAD);
+        self.click();
+        lead.into_iter()
+            .chain(self.capture_during(PRESS_HOLD))
+            .collect()
+    }
+
+    fn type_key(&mut self, keyboard: Keyboard) {
+        self.emulator.run(
+            &self.program,
+            Instruction::Interact(Interaction::Keyboard(keyboard)),
+        );
+        self.settle();
     }
 
     fn rest(&mut self) -> Vec<CapturedFrame> {
@@ -165,21 +180,52 @@ impl DemoRecorder {
     fn perform(&mut self, step: &Step) -> Vec<CapturedFrame> {
         match step {
             Step::Hover(target) => {
-                let pointer = self.locate(target);
+                let pointer = self.locate(HoveredWidget(target.clone()));
                 self.point_at(pointer);
                 self.capture_during(HOVER_HOLD)
             }
             Step::Press(target) => {
-                let pointer = self.locate(target);
-                self.point_at(pointer);
+                let pointer = self.locate(HoveredWidget(target.clone()));
+                self.press_at(pointer)
+            }
+            Step::HoverText(shown) => {
+                self.interact(Mouse::Move(Target::Text((*shown).to_owned())));
+                self.capture_during(HOVER_HOLD)
+            }
+            Step::PressText(shown) => {
+                self.interact(Mouse::Move(Target::Text((*shown).to_owned())));
                 let lead = self.capture_during(PRESS_LEAD);
-                self.click();
+                self.interact(Mouse::Click {
+                    button: Button::Left,
+                    target: Some(Target::Text((*shown).to_owned())),
+                });
                 lead.into_iter()
                     .chain(self.capture_during(PRESS_HOLD))
                     .collect()
             }
+            Step::TypeReply(reply) => {
+                let field = self.locate(ReplyField);
+                let focused = self.press_at(field);
+                let typed: Vec<CapturedFrame> = reply
+                    .chars()
+                    .flat_map(|typed| {
+                        self.type_key(Keyboard::Typewrite(typed.to_string()));
+                        self.capture_during(KEYSTROKE_HOLD)
+                    })
+                    .collect();
+                self.type_key(Keyboard::Type(Key::Enter));
+                focused
+                    .into_iter()
+                    .chain(typed)
+                    .chain(self.capture_during(PRESS_HOLD))
+                    .collect()
+            }
+            Step::RestFor(hold) => {
+                self.point_at(REST_POINTER);
+                self.capture_during(*hold)
+            }
             Step::Drag { target, by } => {
-                let grabbed = self.locate(target);
+                let grabbed = self.locate(HoveredWidget(target.clone()));
                 self.point_at(grabbed);
                 let lead = self.capture_during(PRESS_LEAD);
                 self.interact(Mouse::Press {
@@ -212,7 +258,6 @@ impl DemoRecorder {
 
     fn capture(&mut self) -> CapturedFrame {
         let frame_started = Instant::now();
-        self.deliver_live_readings();
         self.settle();
         let theme = self
             .emulator
@@ -417,11 +462,12 @@ fn encode_animation(frames: &[CapturedFrame], size: FrameSize, animation: &Path)
     fs::write(animation, &*webp_bytes).expect("recordings directory is writable");
 }
 
+#[must_use]
 pub fn record(demo: &'static Demo) -> RecordedAnimation {
     let config = Config::fallback();
     register_font(&config);
     let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
-    let mut recorder = DemoRecorder::start(demo, config);
+    let mut recorder = DemoRecorder::start(demo, &config);
     let opening = recorder.rest();
     let scripted: Vec<CapturedFrame> = demo
         .script

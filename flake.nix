@@ -74,8 +74,8 @@
       };
 
       showcaseArgs = commonArgs // {
-        pname = "vetrata-readme-showcase";
-        cargoExtraArgs = "--locked -p vetrata-readme-showcase";
+        pname = "vetrata-widget-showcase";
+        cargoExtraArgs = "--locked -p vetrata-widget-showcase";
       };
 
       workspaceArgs = commonArgs // {
@@ -136,7 +136,7 @@
         }
       );
 
-      readmeShowcase = craneLib.mkCargoDerivation (
+      readmeRecordings = craneLib.mkCargoDerivation (
         showcaseArgs
         // {
           cargoArtifacts = showcaseArtifacts;
@@ -148,7 +148,7 @@
               pkgs.dejavu_fonts
             ];
             includes = [
-              "${pkgs.writeTextDir "conf.d/60-readme-showcase-families.conf" ''
+              "${pkgs.writeTextDir "conf.d/60-widget-showcase-families.conf" ''
                 <?xml version="1.0"?>
                 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
                 <fontconfig>
@@ -179,7 +179,7 @@
         default = vetrata;
         vetrata = vetrata;
         deps = showcaseArtifacts;
-        readme-showcase = readmeShowcase;
+        readme-recordings = readmeRecordings;
       };
 
       checks.${system} = {

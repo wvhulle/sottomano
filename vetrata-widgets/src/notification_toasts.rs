@@ -149,7 +149,6 @@ impl NotificationLayer {
             .any(|n| n.countdown.is_some_and(Countdown::is_running))
     }
 
-    #[must_use]
     pub fn expiry_ticks(&self) -> Subscription<NotificationMessage> {
         if self.has_running_countdown() {
             every(EXPIRY_TICK).map(|_| NotificationMessage::Tick)

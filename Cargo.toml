@@ -6,7 +6,7 @@ members = [
   "vetrata-state",
   "vetrata-widgets",
   "vetrata-shell",
-  "vetrata-readme-showcase",
+  "vetrata-widget-showcase",
 ]
 default-members = ["vetrata-shell"]
 
@@ -111,6 +111,7 @@ iced_renderer = { git = "https://github.com/wvhulle/iced.git", branch = "skip-lo
 iced_runtime = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_selector = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_test = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+iced_tester = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_tiny_skia = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }

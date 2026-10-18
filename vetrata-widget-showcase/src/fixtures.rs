@@ -4,6 +4,7 @@ pub mod compute;
 pub mod idle_lock;
 pub mod media;
 pub mod niri_session;
+pub mod notification_toasts;
 pub mod wallpaper;
 pub mod weather;
 
