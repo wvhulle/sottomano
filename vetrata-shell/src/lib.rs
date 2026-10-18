@@ -1,9 +1,7 @@
 mod command_line;
-pub mod data;
 pub mod desktop_shell;
 mod message_subscriptions;
 pub mod state;
-mod stream_operators;
 pub mod widget_groups;
 pub mod widgets;
 
@@ -11,7 +9,6 @@ use std::{error::Error, sync::Arc};
 
 use clap::Parser;
 use command_line::CommandLine;
-use data::source::niri_config::NiriConfigFile;
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
     build_pattern::daemon,
@@ -21,6 +18,7 @@ use iced_exwlshell::{
 use state::niri_rules::NiriRulesFile;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 use vetrata_config::{Config, ConfigFile, SecretPaths};
+use vetrata_sources::niri_config::NiriConfigFile;
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
@@ -30,7 +28,10 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
 
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new("error,vetrata_shell=warn,exwlshellev=warn,iced_exwlshell=warn")
+            EnvFilter::new(
+                "error,vetrata_shell=warn,vetrata_sources=warn,exwlshellev=warn,\
+                 iced_exwlshell=warn",
+            )
         }))
         .with_span_events(FmtSpan::CLOSE)
         .init();

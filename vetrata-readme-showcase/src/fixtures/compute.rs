@@ -7,17 +7,17 @@ use uom::si::{
 };
 use vetrata_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use vetrata_shell::{
-    data::source::{
-        SourceDelivery,
-        sysfs_sensors::{
-            cpu_power::{CpuPower, PowerZone},
-            cpu_usage::CpuUsage,
-            memory::{Memory, MemoryProcess, MemoryProcesses},
-            temperature::{TempReading, Temperature},
-        },
-    },
     desktop_shell::Message,
     widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
+};
+use vetrata_sources::{
+    SourceDelivery,
+    sysfs_sensors::{
+        cpu_power::{CpuPower, PowerZone},
+        cpu_usage::CpuUsage,
+        memory::{Memory, MemoryProcess, MemoryProcesses},
+        temperature::{TempReading, Temperature},
+    },
 };
 
 use crate::{fixtures::cycled, showcased_group::ShowcasedGroup};

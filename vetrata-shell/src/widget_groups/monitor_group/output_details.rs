@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
-use crate::{
-    data::source::{
-        backlight::{Backlight, Kind},
-        niri::{OutputInfo, OutputMode},
-    },
-    widgets::tooltip_body::KeyValue,
+use vetrata_sources::{
+    backlight::{Backlight, Kind},
+    niri::{OutputInfo, OutputMode},
 };
+
+use crate::widgets::tooltip_body::KeyValue;
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
 

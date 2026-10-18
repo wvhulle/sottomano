@@ -2,20 +2,21 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, frequency::megahertz},
 };
+use vetrata_sources::{
+    hardware::Adapter,
+    net_interfaces::wifi::{Wifi, WifiDetails},
+};
 
 use crate::{
-    data::source::{
-        hardware::Adapter,
-        net_interfaces::wifi::{Wifi, WifiDetails},
-    },
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        hardware_section::HardwareEntries,
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -65,8 +66,8 @@ impl BarWidget for Wifi {
     }
 }
 
-impl WifiDetails {
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for WifiDetails {
+    fn sections(&self) -> Vec<Section> {
         let key = |label: &str| label.to_string();
         let addressing = self.addressing.iter().flat_map(|addressing| {
             [

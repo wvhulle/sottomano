@@ -1,24 +1,23 @@
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
-
-use crate::{
-    data::source::sysfs_sensors::{
+use vetrata_sources::{
+    sysfs_sensors::{
         memory::{Memory, MemoryProcesses},
         memory_module_temperatures::MemoryModuleTemperatures,
     },
-    widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        gauge::percent_fill,
-        phosphor::Phosphor,
-        temperature_thresholds::celsius_text,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+    temperature_thresholds::celsius_text,
 };
 
-impl MemoryModuleTemperatures {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+    gauge::percent_fill,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    widget_state::WidgetState,
+};
+
+impl ReadingSections for MemoryModuleTemperatures {
+    fn sections(&self) -> Vec<Section> {
         vec![
             Section::dictionary(self.modules.iter().map(|module| {
                 KeyValue::new(module.bus_address.clone(), celsius_text(module.temperature))
@@ -28,9 +27,8 @@ impl MemoryModuleTemperatures {
     }
 }
 
-impl MemoryProcesses {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for MemoryProcesses {
+    fn sections(&self) -> Vec<Section> {
         vec![
             Section::dictionary(self.processes.iter().map(|process| {
                 KeyValue::new(

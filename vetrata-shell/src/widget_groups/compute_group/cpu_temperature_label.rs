@@ -7,24 +7,24 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    sysfs_sensors::temperature::{
+        CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
+    },
+    temperature_thresholds::celsius_text,
+};
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
 };
-use crate::{
-    data::source::sysfs_sensors::temperature::{
-        CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
-    },
-    widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        localized_time::LocalizedTimeFormat,
-        ongoing_toast::OngoingBody,
-        phosphor::Phosphor,
-        temperature_thresholds::celsius_text,
-        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+    localized_time::LocalizedTimeFormat,
+    ongoing_toast::OngoingBody,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
+    widget_state::WidgetState,
 };
 
 const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
@@ -46,20 +46,6 @@ impl PerCoreReading for CoreTemperature {
     }
 }
 
-impl Temperature {
-    fn throttle_text(&self) -> Option<String> {
-        self.throttle_limit.map(celsius_text)
-    }
-
-    fn critical_sustained(&self) -> bool {
-        self.critical_since.is_some_and(|since| {
-            SystemTime::now()
-                .duration_since(since)
-                .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
-        })
-    }
-}
-
 impl BarWidget for Temperature {
     fn name(&self) -> &'static str {
         "CPU temperature"
@@ -70,8 +56,13 @@ impl BarWidget for Temperature {
     }
 
     fn state(&self) -> WidgetState {
+        let critical_sustained = self.critical_since.is_some_and(|since| {
+            SystemTime::now()
+                .duration_since(since)
+                .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
+        });
         match self.thresholds().level(self.hottest()) {
-            Severity::Critical if !self.critical_sustained() => Severity::Warning,
+            Severity::Critical if !critical_sustained => Severity::Warning,
             level => level,
         }
         .into()
@@ -135,8 +126,8 @@ impl BarWidget for Temperature {
         );
         let threshold_section = Section::dictionary(
             [
-                self.throttle_text()
-                    .map(|throttle| KeyValue::new("Throttles at", throttle)),
+                self.throttle_limit
+                    .map(|throttle| KeyValue::new("Throttles at", celsius_text(throttle))),
                 Some(KeyValue::new(
                     "Warns above",
                     celsius_text(thresholds.warning),
@@ -151,9 +142,8 @@ impl BarWidget for Temperature {
     }
 }
 
-impl CpuCoreTemperatures {
-    #[must_use]
-    pub fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+impl ChipletSections for CpuCoreTemperatures {
+    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
         vec![
             CoreGridSection {
                 topology: &self.topology,
@@ -186,12 +176,11 @@ impl CpuCoreTemperatures {
 #[cfg(test)]
 mod tests {
     use vetrata_config::widget_groups::temperature_sensors::ThresholdOverrides;
+    use vetrata_sources::{
+        sysfs_sensors::temperature::TempReading, temperature_thresholds::celsius,
+    };
 
     use super::*;
-    use crate::{
-        data::source::sysfs_sensors::temperature::TempReading,
-        widgets::temperature_thresholds::celsius,
-    };
 
     fn hot_reading(critical_since: Option<SystemTime>) -> Temperature {
         Temperature {

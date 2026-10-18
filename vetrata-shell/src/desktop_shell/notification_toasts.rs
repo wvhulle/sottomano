@@ -18,14 +18,15 @@ use toast_placement::AnchoredToast;
 use toast_reply::ReplyFocus;
 use tokio::sync::mpsc;
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::{
+    app_icon::DesktopEntries,
+    niri::Placement,
+    notifications::model::{NotificationData, Outbound},
+    sink::sound::SoundTheme,
+};
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
-    data::{
-        notifications::model::{NotificationData, Outbound},
-        sink::sound::SoundTheme,
-        source::{app_icon::DesktopEntries, niri::Placement},
-    },
     desktop_shell::{DesktopShell, Message, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
     state::ShellSettings,
     widgets::{

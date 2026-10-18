@@ -7,25 +7,25 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    ai::{
+        claude::{
+            ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
+            ClaudeOrganization, ClaudeUsageWindows,
+        },
+        working_time_forecast::SpendBudget,
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        ai::{
-            claude::{
-                ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
-                ClaudeOrganization, ClaudeUsageWindows,
-            },
-            working_time_forecast::SpendBudget,
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         continuous_reading::ContinuousReading,
         on_hover_reading::OnHoverReading,
         simple_icons::SimpleIcon,
-        tooltip_body::Tooltip,
+        tooltip_body::{ReadingSections, Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
         },

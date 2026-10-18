@@ -1,14 +1,12 @@
 use iced::alignment::Horizontal;
 use uom::si::{f64::Ratio, ratio::ratio};
+use vetrata_sources::llama_server::{LlamaSlot, SlotTask};
 
-use crate::{
-    data::source::llama_server::{LlamaSlot, SlotTask},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_text,
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
 };
 
 fn context_fill(task: &SlotTask, context: u32) -> Ratio {

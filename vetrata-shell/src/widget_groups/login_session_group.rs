@@ -9,18 +9,18 @@ mod service_manager_face;
 
 use iced::{Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    hostname::OperatingSystemIdentity,
+    logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
+    systemd_manager::{
+        graphical_session::{GraphicalSession, GraphicalSessionTarget},
+        user_service_manager::UserServiceManager,
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        hostname::OperatingSystemIdentity,
-        logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
-        systemd_manager::{
-            graphical_session::{GraphicalSession, GraphicalSessionTarget},
-            user_service_manager::UserServiceManager,
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widget_groups::login_session_group::{
@@ -35,7 +35,7 @@ use crate::{
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
-        tooltip_body::Tooltip,
+        tooltip_body::{ReadingSections, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

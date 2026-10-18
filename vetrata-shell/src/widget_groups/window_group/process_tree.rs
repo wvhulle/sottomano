@@ -12,9 +12,9 @@ use uom::{
     si::{f64::Ratio, ratio::percent},
 };
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::process::Process;
 
 use crate::{
-    data::source::process::Process,
     desktop_shell::Message,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{

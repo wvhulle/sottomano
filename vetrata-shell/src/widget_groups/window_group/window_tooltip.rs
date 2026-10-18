@@ -2,13 +2,13 @@ use std::time::{Duration, SystemTime};
 
 use niri_ipc::state::EventStreamState;
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    nix_package_facts::{Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
+    nix_store::StorePackage,
+    process::{self, Inspection, Launch},
+};
 
 use crate::{
-    data::source::{
-        nix_package_facts::{Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
-        nix_store::StorePackage,
-        process::{self, Inspection, Launch},
-    },
     desktop_shell::hover_tooltips::relative,
     widgets::tooltip_body::{Cell, KeyValue, Section, TooltipBody},
 };

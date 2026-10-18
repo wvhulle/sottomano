@@ -2,20 +2,14 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{angle::degree, f64::Velocity, velocity::kilometer_per_hour},
 };
+use vetrata_sources::weather::Wind;
 
-use crate::{
-    data::source::weather::Wind,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        tooltip_body::{KeyValue, TooltipBody},
-        weather_icons::WeatherIcon,
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    tooltip_body::{KeyValue, TooltipBody},
+    weather_icons::WeatherIcon,
+    widget_state::WidgetState,
 };
-
-const BEAUFORT_LOWER_BOUNDS_KM_PER_H: [f64; 12] = [
-    1.0, 6.0, 12.0, 20.0, 29.0, 39.0, 50.0, 62.0, 75.0, 89.0, 103.0, 118.0,
-];
 
 const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
 
@@ -24,21 +18,6 @@ fn speed_text(speed: Velocity) -> String {
         "{:.0}",
         speed.into_format_args(kilometer_per_hour, Abbreviation)
     )
-}
-
-impl Wind {
-    fn beaufort(&self) -> usize {
-        BEAUFORT_LOWER_BOUNDS_KM_PER_H
-            .iter()
-            .take_while(|&&bound| self.speed >= Velocity::new::<kilometer_per_hour>(bound))
-            .count()
-    }
-
-    fn compass_point(&self) -> &'static str {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let sector = (self.direction.get::<degree>().rem_euclid(360.0) / 45.0).round() as usize;
-        COMPASS_POINTS[sector % COMPASS_POINTS.len()]
-    }
 }
 
 impl BarWidget for Wind {
@@ -67,11 +46,16 @@ impl BarWidget for Wind {
     }
 
     fn tooltip(&self) -> TooltipBody {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let sector = (self.direction.get::<degree>().rem_euclid(360.0) / 45.0).round() as usize;
         TooltipBody::dictionary([
             KeyValue::new("Speed", speed_text(self.speed)),
             KeyValue::new("Beaufort", self.beaufort().to_string()),
             KeyValue::new("Gusts", speed_text(self.gusts)),
-            KeyValue::new("From", self.compass_point().to_owned()),
+            KeyValue::new(
+                "From",
+                COMPASS_POINTS[sector % COMPASS_POINTS.len()].to_owned(),
+            ),
             KeyValue::new(
                 "Bearing",
                 format!(

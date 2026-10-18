@@ -12,12 +12,12 @@ use vetrata_config::{
     notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
     severity::Severity,
 };
+use vetrata_sources::notifications::model::{
+    ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
+};
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement, toast_reply::ReplyMessage};
 use crate::{
-    data::notifications::model::{
-        ExpireTimeout, NotificationData, Outbound, ServerEvent, close_reason,
-    },
     desktop_shell::{Message, hover_tooltips::HoverTarget},
     widgets::{
         announced_level::LevelReading,

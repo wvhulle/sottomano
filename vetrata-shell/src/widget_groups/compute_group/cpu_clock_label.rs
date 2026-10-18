@@ -3,19 +3,19 @@ use uom::{
     si::{f64::Frequency, frequency::gigahertz},
 };
 use vetrata_config::severity::Severity;
+use vetrata_sources::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit};
 
 use super::{
     chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    core_grid_sections::{ChipletSections, CoreGridSection, PerCoreReading},
 };
-use crate::{
-    data::source::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{ColumnHeading, KeyValue, Section, TableRecord, ThreadCell, TooltipBody},
-        widget_state::WidgetState,
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{
+        ColumnHeading, KeyValue, Section, TableRecord, TableRow, ThreadCell, TooltipBody,
     },
+    widget_state::WidgetState,
 };
 
 pub(super) fn frequency_text(frequency: Frequency) -> String {
@@ -26,42 +26,6 @@ fn limit_level(limit: FrequencyLimit) -> Severity {
     match limit {
         FrequencyLimit::Unrestricted(_) => Severity::Normal,
         FrequencyLimit::Capped(_) => Severity::Warning,
-    }
-}
-
-impl CpuClock {
-    fn frequency_section(&self) -> Section {
-        let frequency = |key, frequency: Option<Frequency>| {
-            frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
-        };
-        Section::dictionary(
-            [
-                frequency("min", self.lowest()),
-                frequency("avg", self.average()),
-                frequency("max", self.highest()),
-                frequency("cap", self.shared_ceiling()),
-                self.capped_summary(),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled("Frequency")
-    }
-
-    fn shared_ceiling(&self) -> Option<Frequency> {
-        let first = self.cores.first()?.limit.ceiling();
-        self.cores
-            .iter()
-            .all(|core| core.limit.ceiling() == first)
-            .then_some(first)
-    }
-
-    fn capped_summary(&self) -> Option<KeyValue> {
-        let capped = self.capped_cores();
-        (capped > 0).then(|| {
-            KeyValue::new("capped", format!("{capped} of {} cores", self.cores.len()))
-                .level(Severity::Warning)
-        })
     }
 }
 
@@ -87,12 +51,31 @@ impl BarWidget for CpuClock {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections([self.frequency_section()])
+        let frequency = |key, frequency: Option<Frequency>| {
+            frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
+        };
+        let capped = self.capped_cores();
+        let capped_summary = (capped > 0).then(|| {
+            KeyValue::new("capped", format!("{capped} of {} cores", self.cores.len()))
+                .level(Severity::Warning)
+        });
+        TooltipBody::sections([Section::dictionary(
+            [
+                frequency("min", self.lowest()),
+                frequency("avg", self.average()),
+                frequency("max", self.highest()),
+                frequency("cap", self.shared_ceiling()),
+                capped_summary,
+            ]
+            .into_iter()
+            .flatten(),
+        )
+        .titled("Frequency")])
     }
 }
 
-impl CpuClock {
-    pub fn core_sections(&self, live: &ChipletLiveState) -> Vec<Section> {
+impl ChipletSections for CpuClock {
+    fn sections(&self, live: &ChipletLiveState) -> Vec<Section> {
         let grid = CoreGridSection {
             topology: &self.topology,
             readings: &self.cores,
@@ -109,7 +92,7 @@ impl CpuClock {
             .cores
             .iter()
             .filter(|core| core.limit.is_capped())
-            .map(CoreFreq::table_record)
+            .map(TableRow::table_record)
             .collect();
         let capped_section = (!capped.is_empty()).then(|| {
             Section::column_table(
@@ -135,7 +118,7 @@ impl PerCoreReading for CoreFreq {
     }
 }
 
-impl CoreFreq {
+impl TableRow<2> for CoreFreq {
     fn table_record(&self) -> TableRecord<2> {
         TableRecord::new(
             format!("Core {}", self.core),

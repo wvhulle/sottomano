@@ -11,7 +11,6 @@ use iced::{
 use iced_test::program::Program;
 use vetrata_config::Config;
 use vetrata_shell::{
-    data::source::desktop_entries::DesktopIndex,
     desktop_shell::{
         Message,
         hover_tooltips::{TooltipHost, TooltipMessage},
@@ -23,6 +22,7 @@ use vetrata_shell::{
         window_icon::WindowAssets,
     },
 };
+use vetrata_sources::desktop_entries::DesktopIndex;
 
 use crate::{
     demo_script::Demo,

@@ -27,29 +27,28 @@ use vetrata_config::{
     Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig,
     theme::font::ResolvedFont,
 };
+use vetrata_sources::{
+    app_icon::{self, DesktopEntries},
+    background_work::blocking,
+    bus::{DesktopBusEvent, DesktopBuses},
+    command::blocking::run,
+    desktop_entries::{self, DesktopIndex, ResolvedIcons},
+    favicons::RawFavicon,
+    launch_tracker::{Launch, LaunchTracker},
+    niri::{self, WindowOwner},
+    niri_config::{ConfiguredWorkspaces, NiriConfigFile},
+    sink::sound::SoundTheme,
+    window_label::WindowLabel,
+};
 
 use crate::{
-    data::{
-        sink::sound::SoundTheme,
-        source::{
-            app_icon::{self, DesktopEntries},
-            bus::{DesktopBusEvent, DesktopBuses},
-            command::blocking::run,
-            desktop_entries::{self, DesktopIndex, ResolvedIcons},
-            favicons::RawFavicon,
-            launch_tracker::{Launch, LaunchTracker},
-            niri::{self, WindowOwner},
-            niri_config::{ConfiguredWorkspaces, NiriConfigFile},
-            window_label::WindowLabel,
-        },
-    },
     desktop_shell::{
         hover_tooltips::{TooltipHost, TooltipMessage},
         monitor_surfaces::{OutputChange, Position, Surface, SurfaceRole, query_outputs},
         notification_toasts::{NotificationLayer, NotificationMessage, ToastContext},
         pointer_drag::{DragMessage, ShellDrag},
     },
-    message_subscriptions::{blocking, copy_to_clipboard, niri_action},
+    message_subscriptions::{copy_to_clipboard, niri_action},
     state::{
         self, ShellSettings,
         niri_rules::{NiriRulesFile, StoredRules},

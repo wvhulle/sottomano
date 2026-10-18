@@ -1,11 +1,9 @@
 use chrono::{DateTime, Utc};
+use vetrata_sources::focus_ledger::{Accounting, FocusScope, FocusUnit, Interval, WakingWindow};
 
-use crate::{
-    data::source::focus_ledger::{Accounting, FocusScope, FocusUnit, Interval, WakingWindow},
-    widgets::{
-        amount_text::duration_text,
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
-    },
+use crate::widgets::{
+    amount_text::duration_text,
+    tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
 };
 
 pub struct WindowUsage<'a> {

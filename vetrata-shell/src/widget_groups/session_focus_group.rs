@@ -7,16 +7,14 @@ use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use vetrata_config::Config;
+use vetrata_sources::{
+    bus::DesktopBuses,
+    focus_ledger::{ScreenEdge, WakingWindow},
+    kitty_windows::WindowProcesses,
+    notifications::model::ActionTint,
+};
 
 use crate::{
-    data::{
-        notifications::model::ActionTint,
-        source::{
-            bus::DesktopBuses,
-            focus_ledger::{ScreenEdge, WakingWindow},
-            kitty_windows::WindowProcesses,
-        },
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     state::focus_tracker::{FocusTracker, TrackerMessage},
     widget_groups::session_focus_group::{

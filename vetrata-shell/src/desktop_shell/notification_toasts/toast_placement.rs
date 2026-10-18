@@ -3,18 +3,14 @@ use vetrata_config::{
     Config,
     screen_edges::{HEdge, VEdge},
 };
+use vetrata_sources::{
+    bus::OwnerProcess,
+    niri::{Placement, WindowOwner},
+    notifications::model::NotificationData,
+};
 
 use super::toast_lifecycle::NotificationMessage;
-use crate::{
-    data::{
-        notifications::model::NotificationData,
-        source::{
-            bus::OwnerProcess,
-            niri::{Placement, WindowOwner},
-        },
-    },
-    state::NotificationSettings,
-};
+use crate::state::NotificationSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {

@@ -7,20 +7,20 @@ mod slot_occupancy_gauge;
 use iced::{Subscription, Task};
 use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    bus::{Bus, DesktopBuses},
+    llama_server::LlamaModelProps,
+    systemd_manager::SystemdUnitScope,
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::{Bus, DesktopBuses},
-        llama_server::LlamaModelProps,
-        systemd_manager::SystemdUnitScope,
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::Tooltip,
+        tooltip_body::{ReadingSections, Tooltip},
         unit_switch::UnitSwitchFace,
         widget_group::{
             ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,

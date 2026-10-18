@@ -1,9 +1,4 @@
-use std::{
-    convert::identity,
-    fmt::Display,
-    future::{Future, ready},
-    time::Duration,
-};
+use std::{convert::identity, future::ready, time::Duration};
 
 use iced::{
     Subscription, Task,
@@ -14,28 +9,26 @@ use iced::{
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
-use tokio::{sync::mpsc, task::spawn_blocking};
+use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+use vetrata_sources::{
+    ReadingSource, SourceDelivery,
+    background_work::blocking,
+    bus::{DesktopBuses, desktop_bus_events},
+    config_file_changes, desktop_entries, niri,
+    notifications::{
+        model::{Outbound, ServerEvent},
+        server,
+    },
+    sink::clipboard,
+};
 use wayland_client::Connection;
 
 use crate::{
-    data::{
-        notifications::{
-            model::{Outbound, ServerEvent},
-            server,
-        },
-        sink::clipboard,
-        source::{
-            ReadingSource, SourceDelivery,
-            bus::{DesktopBuses, desktop_bus_events},
-            config_file_changes, desktop_entries, niri,
-        },
-    },
     desktop_shell::{
         DesktopShell, Message, monitor_surfaces::OutputChange,
         notification_toasts::NotificationMessage,
     },
-    stream_operators::restarting,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
@@ -169,24 +162,6 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
     ])
 }
 
-pub fn blocking<T: Default + Send + 'static>(
-    context: &'static str,
-    work: impl FnOnce() -> T + Send + 'static,
-) -> Task<T> {
-    Task::perform(
-        async move {
-            let span = tracing::debug_span!("blocking", context);
-            spawn_blocking(move || span.in_scope(work))
-                .await
-                .unwrap_or_else(|e| {
-                    tracing::error!("{context}: task panicked: {e}");
-                    T::default()
-                })
-        },
-        identity,
-    )
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct SubscribedSource<I> {
     name: &'static str,
@@ -208,21 +183,6 @@ pub fn source_subscription<S: ReadingSource>(
 pub fn first_delivery<S: ReadingSource>(inputs: S::StreamInputs) -> Task<SourceDelivery<S>> {
     use iced::futures::StreamExt;
     Task::run(S::delivery_stream(inputs).take(1), identity)
-}
-
-pub fn restarting_subscription<F, S, E>(
-    source: &'static str,
-    connect: fn() -> F,
-) -> Subscription<S::Item>
-where
-    F: Future<Output = Result<S, E>> + Send + 'static,
-    S: Stream + Send + 'static,
-    S::Item: Send + 'static,
-    E: Display + Send + 'static,
-{
-    Subscription::run_with((source, connect), |&(source, connect)| {
-        restarting(source, connect)
-    })
 }
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {

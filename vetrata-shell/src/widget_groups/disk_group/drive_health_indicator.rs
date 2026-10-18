@@ -1,23 +1,21 @@
-use uom::si::f64::ThermodynamicTemperature;
 use vetrata_config::severity::Severity;
-
-use crate::{
-    data::source::disk::{
+use vetrata_sources::{
+    disk::{
         btrfs::DeviceErrors,
         health::{DriveHealth, DriveTemperature, MissingSensor},
     },
-    widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        phosphor::Phosphor,
-        temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius, celsius_text},
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+    temperature_thresholds::celsius_text,
+};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+    hardware_section::HardwareEntries,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 const ERROR_RESET_COMMAND: &str = "btrfs device stats -z /";
-const UNREPORTED_WARNING_CELSIUS: f64 = 60.0;
-const UNREPORTED_CRITICAL_CELSIUS: f64 = 70.0;
 
 impl BarWidget for DriveHealth {
     fn name(&self) -> &'static str {
@@ -53,9 +51,18 @@ impl BarWidget for DriveHealth {
             .temperature
             .current()
             .map(|_| self.temperature_thresholds());
+        let temperature_text = match self.temperature {
+            DriveTemperature::Reported { current, .. } => celsius_text(current),
+            DriveTemperature::Unreported(MissingSensor::DrivetempNotLoaded) => {
+                "load the drivetemp kernel module".to_owned()
+            }
+            DriveTemperature::Unreported(MissingSensor::NotExposed) => {
+                "not reported by the drive".to_owned()
+            }
+        };
         let summary = Section::dictionary([
             KeyValue::new("Drive", self.device_name.as_str()),
-            KeyValue::new("Temperature", self.temperature.text()),
+            KeyValue::new("Temperature", temperature_text),
         ]);
         let threshold_section =
             Section::dictionary(thresholds.into_iter().flat_map(|thresholds| {
@@ -71,74 +78,6 @@ impl BarWidget for DriveHealth {
             Section::hardware_identity(self.identity.hardware_entries()),
             Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
         ])
-    }
-}
-
-impl DriveHealth {
-    fn temperature_level(&self) -> Severity {
-        match self.temperature {
-            DriveTemperature::Reported { current, .. } => {
-                self.temperature_thresholds().level(current)
-            }
-            DriveTemperature::Unreported(_) => Severity::Normal,
-        }
-    }
-
-    fn temperature_thresholds(&self) -> TemperatureThresholds {
-        TemperatureThresholds {
-            warning: self
-                .temperature
-                .warning()
-                .unwrap_or_else(|| celsius(UNREPORTED_WARNING_CELSIUS)),
-            critical: self
-                .temperature
-                .critical()
-                .unwrap_or_else(|| celsius(UNREPORTED_CRITICAL_CELSIUS)),
-            basis: match self.temperature.critical() {
-                Some(_) => ThresholdBasis::Reported,
-                None => ThresholdBasis::Assumed,
-            },
-        }
-        .overridden_by(self.overrides)
-    }
-}
-
-impl DriveTemperature {
-    fn text(self) -> String {
-        match self {
-            DriveTemperature::Reported { current, .. } => celsius_text(current),
-            DriveTemperature::Unreported(missing) => missing.explanation().to_owned(),
-        }
-    }
-
-    fn current(&self) -> Option<ThermodynamicTemperature> {
-        match self {
-            DriveTemperature::Reported { current, .. } => Some(*current),
-            DriveTemperature::Unreported(_) => None,
-        }
-    }
-
-    fn warning(&self) -> Option<ThermodynamicTemperature> {
-        match self {
-            DriveTemperature::Reported { warning, .. } => *warning,
-            DriveTemperature::Unreported(_) => None,
-        }
-    }
-
-    fn critical(&self) -> Option<ThermodynamicTemperature> {
-        match self {
-            DriveTemperature::Reported { critical, .. } => *critical,
-            DriveTemperature::Unreported(_) => None,
-        }
-    }
-}
-
-impl MissingSensor {
-    fn explanation(self) -> &'static str {
-        match self {
-            MissingSensor::DrivetempNotLoaded => "load the drivetemp kernel module",
-            MissingSensor::NotExposed => "not reported by the drive",
-        }
     }
 }
 

@@ -1,15 +1,14 @@
 use chrono::{DateTime, Local, Utc};
+use vetrata_sources::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::Quota};
 
-use crate::{
-    data::source::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::Quota},
-    widgets::{
-        amount_text::{spend_text, token_count},
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{spend_text, token_count},
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_forecast_basis::BudgetEntries,
+    spend_to_level::level_from_cost,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for ClaudeCcusagePeriods {
@@ -41,6 +40,23 @@ impl BarWidget for ClaudeCcusagePeriods {
     fn tooltip(&self) -> TooltipBody {
         let recent = &self.recent;
         let now = Local::now();
+        let period_section = |title: String, period: &Period, threshold: Option<KeyValue>| {
+            let projected = period
+                .projected_cost(now, &self.budget)
+                .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
+            Section::dictionary(
+                [
+                    Some(KeyValue::new("Cost", period.usage.cost.to_string())),
+                    projected,
+                    threshold,
+                    Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
+                    Some(KeyValue::new("Models", period.usage.models.clone())),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .titled(title)
+        };
         TooltipBody::sections([
             Section::dictionary(
                 [
@@ -50,47 +66,20 @@ impl BarWidget for ClaudeCcusagePeriods {
                 .into_iter()
                 .chain(self.budget.forecast_basis()),
             ),
-            self.period_section("Today".to_owned(), &recent.today, None, now),
-            self.period_section(recent.week.span.week_heading(), &recent.week, None, now),
-            self.period_section(
+            period_section("Today".to_owned(), &recent.today, None),
+            period_section(recent.week.span.week_heading(), &recent.week, None),
+            period_section(
                 recent.month.span.month_heading(),
                 &recent.month,
                 Some(self.budget.monthly_budget_entry(
                     &recent.month.usage.cost,
                     recent.month.projected_cost(now, &self.budget),
                 )),
-                now,
             ),
         ])
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.quotas(now)
-    }
-}
-
-impl ClaudeCcusagePeriods {
-    fn period_section(
-        &self,
-        title: String,
-        period: &Period,
-        threshold: Option<KeyValue>,
-        now: DateTime<Local>,
-    ) -> Section {
-        let projected = period
-            .projected_cost(now, &self.budget)
-            .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
-        Section::dictionary(
-            [
-                Some(KeyValue::new("Cost", period.usage.cost.to_string())),
-                projected,
-                threshold,
-                Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
-                Some(KeyValue::new("Models", period.usage.models.clone())),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled(title)
     }
 }

@@ -1,11 +1,10 @@
-use crate::{
-    data::source::tailscale::{Peer, Tailnet, Tailscale},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use vetrata_sources::tailscale::Tailscale;
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for Tailscale {
@@ -31,43 +30,32 @@ impl BarWidget for Tailscale {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        match self {
-            Tailscale::Stopped => {
-                TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")])
-            }
-            Tailscale::Running(tailnet) => tailnet.tooltip(),
-        }
-    }
-}
-
-impl Tailnet {
-    fn tooltip(&self) -> TooltipBody {
-        let own_ip = self
+        let Tailscale::Running(tailnet) = self else {
+            return TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")]);
+        };
+        let own_ip = tailnet
             .own_node
             .ip
             .as_deref()
             .map(|ip| KeyValue::new("IP", ip));
+        let online_peers = tailnet.online.iter().filter_map(|peer| {
+            let ip = peer.ip.as_deref()?;
+            Some(KeyValue::new(peer.name.as_str(), format!("→ {ip}")))
+        });
         TooltipBody::sections([
             Section::dictionary(
                 [
                     KeyValue::new("Tailscale", "connected"),
-                    KeyValue::new("Self", self.own_node.name.as_str()),
+                    KeyValue::new("Self", tailnet.own_node.name.as_str()),
                 ]
                 .into_iter()
                 .chain(own_ip)
                 .chain([KeyValue::new(
                     "Peers",
-                    format!("{}/{} online", self.online.len(), self.total_peers),
+                    format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
                 )]),
             ),
-            Section::dictionary(self.online.iter().filter_map(Peer::key_value)),
+            Section::dictionary(online_peers),
         ])
-    }
-}
-
-impl Peer {
-    fn key_value(&self) -> Option<KeyValue> {
-        let ip = self.ip.as_deref()?;
-        Some(KeyValue::new(self.name.as_str(), format!("→ {ip}")))
     }
 }

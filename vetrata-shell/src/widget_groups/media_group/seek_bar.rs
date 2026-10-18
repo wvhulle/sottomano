@@ -2,11 +2,9 @@ use std::time::{Duration, Instant};
 
 use iced::{Element, mouse::ScrollDelta};
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::mpris::{Command, Media, SeekMode, micros};
 
-use crate::{
-    data::source::mpris::{Command, Media, SeekMode, micros},
-    widgets::{inline_slider::inline_slider, slider_control::scroll_direction},
-};
+use crate::widgets::{inline_slider::inline_slider, slider_control::scroll_direction};
 
 const SCROLL_SEEK_STEP: Duration = Duration::from_secs(5);
 const DRAG_STEP_SECONDS: f32 = 1.0;
@@ -185,13 +183,13 @@ fn seek_to(media: &Media, target: Duration, now: Instant) -> Option<Command> {
 
 #[cfg(test)]
 mod tests {
-    use zbus::zvariant::{ObjectPath, OwnedObjectPath};
-
-    use super::*;
-    use crate::data::source::{
+    use vetrata_sources::{
         bus::OwnerProcess,
         mpris::{Capabilities, Progress, Status},
     };
+    use zbus::zvariant::{ObjectPath, OwnedObjectPath};
+
+    use super::*;
 
     fn track(path: &str) -> SeekMode {
         SeekMode::Absolute(OwnedObjectPath::from(ObjectPath::try_from(path).unwrap()))

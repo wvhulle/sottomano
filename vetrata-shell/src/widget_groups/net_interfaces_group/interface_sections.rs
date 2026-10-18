@@ -3,11 +3,9 @@ use uom::{
     si::{f64::InformationRate, information_rate::megabit_per_second},
 };
 use vetrata_config::severity::Severity;
+use vetrata_sources::net_interfaces::nm::AddressBlock;
 
-use crate::{
-    data::source::net_interfaces::nm::AddressBlock,
-    widgets::tooltip_body::{KeyValue, Section},
-};
+use crate::widgets::tooltip_body::{KeyValue, Section};
 
 pub fn signal_level(quality: i64) -> Severity {
     match quality {

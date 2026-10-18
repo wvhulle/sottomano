@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["vetrata-config", "vetrata-shell", "vetrata-readme-showcase"]
+members = [
+  "vetrata-config",
+  "vetrata-sources",
+  "vetrata-shell",
+  "vetrata-readme-showcase",
+]
 default-members = ["vetrata-shell"]
 
 [workspace.package]
@@ -28,6 +33,8 @@ chrono = { version = "0.4.45", default-features = false, features = [
 ] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 clap ={ version = "4.6.7", features = ["derive"] }
+form_urlencoded = "1.2.2"
+humantime = "2.4.0"
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
@@ -43,17 +50,42 @@ iced = { version = "0.14.0", default-features = false, features = [
   "svg",
   "canvas",
 ] }
+kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
+nalgebra = "0.35"
 niri-ipc = "26.4.0"
+reqwest = { version = "0.13.5", default-features = false, features = [
+  "rustls",
+] }
 rust_decimal = { version = "1.43.0", features = ["serde-float"] }
 rusty-money = "0.5.1"
 serde = { version = "1.0.229", features = ["derive"] }
 situo-client = { git = "https://codeberg.org/wvhulle/situo", branch = "main" }
+system-tray = "0.8.9"
+tokio = { version = "1.53.3", features = [
+  "fs",
+  "process",
+  "rt-multi-thread",
+  "macros",
+  "time",
+  "sync",
+] }
+tokio-stream = { version = "0.1.19", default-features = false, features = [
+  "sync",
+  "time",
+] }
 toml = "1.1.8"
+tracing = "0.1.44"
+turso = "0.8.3"
 uom = { version = "0.38.0", default-features = false, features = [
   "autoconvert",
   "f64",
   "si",
   "std",
+] }
+usvg = "0.48.1"
+zbus = { version = "5.19.0", default-features = false, features = [
+  "tokio",
+  "blocking-api",
 ] }
 
 [patch.crates-io]

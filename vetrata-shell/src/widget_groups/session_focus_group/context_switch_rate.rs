@@ -1,15 +1,13 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use vetrata_config::severity::Severity;
+use vetrata_sources::focus_ledger::{Accounting, Interval, WakingWindow};
 
-use crate::{
-    data::source::focus_ledger::{Accounting, Interval, WakingWindow},
-    widgets::{
-        amount_text::duration_text,
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::duration_text,
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 pub struct ContextSwitchRate<'a> {

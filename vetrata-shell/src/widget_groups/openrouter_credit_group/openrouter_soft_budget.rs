@@ -1,22 +1,16 @@
 use chrono::{DateTime, Local, Utc};
-use rust_decimal::Decimal;
-use vetrata_config::severity::Severity;
+use vetrata_sources::ai::{
+    openrouter::{OpenRouterSpend, SpanSpend},
+    quota::Quota,
+};
 
-use crate::{
-    data::{
-        money::{Money, usd},
-        source::ai::{
-            openrouter::{OpenRouterSpend, SpanSpend},
-            quota::Quota,
-        },
-    },
-    widgets::{
-        amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::spend_text,
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    spend_forecast_basis::BudgetEntries,
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for OpenRouterSpend {
@@ -55,19 +49,33 @@ impl BarWidget for OpenRouterSpend {
             &self.month.cost(),
             self.month.projected_cost(now, &self.budget),
         );
+        let span_section = |title: String, spent: &SpanSpend, threshold: Option<KeyValue>| {
+            let projected = spent
+                .projected_cost(now, &self.budget)
+                .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
+            Section::dictionary(
+                [
+                    Some(KeyValue::new("Cost", spent.cost().to_string())),
+                    projected,
+                    threshold,
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .titled(title)
+        };
         TooltipBody::sections([
             Section::dictionary(
                 [KeyValue::new("Source", "OpenRouter analytics")]
                     .into_iter()
                     .chain(self.budget.forecast_basis()),
             ),
-            self.span_section("Today".to_owned(), &self.today, Some(daily_warning), now),
-            self.span_section(self.week.span.week_heading(), &self.week, None, now),
-            self.span_section(
+            span_section("Today".to_owned(), &self.today, Some(daily_warning)),
+            span_section(self.week.span.week_heading(), &self.week, None),
+            span_section(
                 self.month.span.month_heading(),
                 &self.month,
                 Some(monthly_budget),
-                now,
             ),
         ])
     }
@@ -78,41 +86,5 @@ impl BarWidget for OpenRouterSpend {
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
         self.quotas(now)
-    }
-}
-
-impl OpenRouterSpend {
-    fn daily_warning(&self) -> Money {
-        usd(Decimal::from(self.daily_warning_usd))
-    }
-
-    fn daily_severity(&self) -> Severity {
-        if self.today.cost().amount() >= self.daily_warning().amount() {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
-    }
-
-    fn span_section(
-        &self,
-        title: String,
-        spent: &SpanSpend,
-        threshold: Option<KeyValue>,
-        now: DateTime<Local>,
-    ) -> Section {
-        let projected = spent
-            .projected_cost(now, &self.budget)
-            .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
-        Section::dictionary(
-            [
-                Some(KeyValue::new("Cost", spent.cost().to_string())),
-                projected,
-                threshold,
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled(title)
     }
 }

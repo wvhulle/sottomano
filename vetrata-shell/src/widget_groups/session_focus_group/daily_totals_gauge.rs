@@ -3,20 +3,18 @@ use std::{cmp::Ordering, iter::once};
 use chrono::{DateTime, TimeDelta, Utc};
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    ai::quota::{Pace, Quota},
+    focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
+};
 
-use crate::{
-    data::source::{
-        ai::quota::{Pace, Quota},
-        focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
-    },
-    widgets::{
-        amount_text::{coarse_duration_text, duration_text},
-        bar_widget::{BarWidget, Glyph},
-        localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::{coarse_duration_text, duration_text},
+    bar_widget::{BarWidget, Glyph},
+    localized_time::LocalizedTimeFormat,
+    phosphor::Phosphor,
+    tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+    widget_state::WidgetState,
 };
 
 pub struct DailyTotalsGauge {

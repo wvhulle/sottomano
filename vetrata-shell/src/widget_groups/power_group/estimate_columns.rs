@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use crate::{
-    data::battery_forecast::Estimate,
-    widgets::tooltip_body::{Cell, ColumnHeading},
-};
+use vetrata_sources::battery_forecast::Estimate;
+
+use crate::widgets::tooltip_body::{Cell, ColumnHeading};
 
 pub const ESTIMATE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::new("Earliest"),

@@ -4,8 +4,7 @@ use std::time::Duration;
 
 use iced::futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
-
-use crate::data::source::{
+use vetrata_sources::{
     idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
     session_action::SessionAction,
 };

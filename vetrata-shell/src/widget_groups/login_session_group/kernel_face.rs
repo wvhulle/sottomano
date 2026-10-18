@@ -1,10 +1,9 @@
-use crate::{
-    data::source::hostname::{Chassis, OperatingSystemIdentity, entry},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-    },
+use vetrata_sources::hostname::{Chassis, OperatingSystemIdentity};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
 };
 
 pub struct KernelFace<'a> {

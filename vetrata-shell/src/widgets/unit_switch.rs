@@ -1,14 +1,14 @@
 use iced::{Subscription, Task};
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    systemd_manager::{
+        ScopedSystemdUnit, SystemdUnitOnBus,
+        unit_activity::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        systemd_manager::{
-            ScopedSystemdUnit, SystemdUnitOnBus,
-            unit_activity::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
-        },
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,
     widgets::{

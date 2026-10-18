@@ -1,10 +1,9 @@
-use crate::{
-    data::source::logind::session_facts::SessionIdentity,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
-    },
+use vetrata_sources::logind::session_facts::SessionIdentity;
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{KeyValue, Section, TooltipBody},
 };
 
 pub struct AccountFace<'a> {

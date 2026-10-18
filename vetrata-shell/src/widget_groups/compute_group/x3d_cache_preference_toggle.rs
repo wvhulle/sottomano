@@ -1,15 +1,14 @@
+use vetrata_sources::sysfs_sensors::{
+    cpu_topology::{CoreRole, CpuTopology},
+    x3d_vcache::X3dCachePreference,
+};
+
 use super::core_grid_sections::topology_facts;
-use crate::{
-    data::source::sysfs_sensors::{
-        cpu_topology::{CoreRole, CpuTopology},
-        x3d_vcache::X3dCachePreference,
-    },
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        toggle_control::ToggleableSource,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    toggle_control::ToggleableSource,
+    tooltip_body::{KeyValue, Section, TooltipBody},
 };
 
 impl BarWidget for X3dCachePreference {

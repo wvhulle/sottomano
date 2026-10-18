@@ -2,14 +2,14 @@ use std::{thread, time::Duration};
 
 use iced::Task;
 use vetrata_config::Config;
+use vetrata_sources::{
+    background_work::blocking,
+    logind::permissions::{self, Permissions},
+    session_action::SessionAction,
+};
 
 use crate::{
-    data::source::{
-        logind::permissions::{self, Permissions},
-        session_action::SessionAction,
-    },
     desktop_shell::hover_tooltips::{HoverTarget, pressable_card},
-    message_subscriptions::blocking,
     state::idle::Timeouts,
     widgets::{
         bar_widget::Glyph,
@@ -27,6 +27,30 @@ const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionTarget {
     Menu,
+}
+
+impl From<SessionAction> for Phosphor {
+    fn from(action: SessionAction) -> Self {
+        let weight = Weight::Regular;
+        match action {
+            SessionAction::Lock => Phosphor::Lock(weight),
+            SessionAction::LockAllSessions => Phosphor::LockKey(weight),
+            SessionAction::ScreenOff => Phosphor::Monitor(weight),
+            SessionAction::Sleep => Phosphor::Moon(weight),
+            SessionAction::Suspend | SessionAction::SuspendThenHibernate => Phosphor::Bed(weight),
+            SessionAction::Hibernate => Phosphor::Snowflake(weight),
+            SessionAction::HybridSleep => Phosphor::CloudMoon(weight),
+            SessionAction::Reboot => Phosphor::ArrowsClockwise(weight),
+            SessionAction::RebootToFirmwareSetup => Phosphor::Cpu(weight),
+            SessionAction::RebootToBootLoaderMenu => Phosphor::ListBullets(weight),
+            SessionAction::Halt => Phosphor::Prohibit(weight),
+            SessionAction::PowerOff => Phosphor::Power(weight),
+            SessionAction::CancelScheduledShutdown => Phosphor::XCircle(weight),
+            SessionAction::LogOut => Phosphor::SignOut(weight),
+            SessionAction::TerminateSession => Phosphor::DoorOpen(weight),
+            SessionAction::RestartShell => Phosphor::ArrowClockwise(weight),
+        }
+    }
 }
 
 impl From<SessionTarget> for HoverTarget {

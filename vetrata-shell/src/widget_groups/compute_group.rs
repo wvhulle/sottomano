@@ -1,3 +1,4 @@
+mod board_firmware_face;
 mod chiplet_live_state;
 mod core_grid_sections;
 mod cpu_clock_label;
@@ -6,36 +7,39 @@ mod cpu_temperature_label;
 mod memory_usage_gauge;
 mod x3d_cache_preference_toggle;
 
+use board_firmware_face::BoardFirmwareFace;
 use chiplet_live_state::ChipletLiveState;
+use core_grid_sections::ChipletSections;
 use iced::{Subscription, Task};
 use vetrata_config::{Config, widget_groups::temperature_sensors::SensorConfig};
+use vetrata_sources::{
+    SourceDelivery,
+    bus::DesktopBuses,
+    hardware::HostHardware,
+    sysfs_sensors::{
+        cpu_clock::CpuClock,
+        cpu_power::CpuPower,
+        cpu_usage::{CpuCoreLoads, CpuUsage},
+        l3_cache_traffic::L3CacheTraffic,
+        memory::{Memory, MemoryProcesses},
+        memory_module_temperatures::MemoryModuleTemperatures,
+        temperature::{CpuCoreTemperatures, Temperature},
+        x3d_vcache::X3dCachePreference,
+    },
+};
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        bus::DesktopBuses,
-        hardware::HostHardware,
-        sysfs_sensors::{
-            cpu_clock::CpuClock,
-            cpu_power::CpuPower,
-            cpu_usage::{CpuCoreLoads, CpuUsage},
-            l3_cache_traffic::L3CacheTraffic,
-            memory::{Memory, MemoryProcesses},
-            memory_module_temperatures::MemoryModuleTemperatures,
-            temperature::{CpuCoreTemperatures, Temperature},
-            x3d_vcache::X3dCachePreference,
-        },
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::{first_delivery, source_subscription},
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        hardware_section::HardwareEntries,
         on_hover_reading::OnHoverReading,
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{ReadingSections, Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -216,7 +220,7 @@ impl ComputeGroup {
                 ),
                 self.hardware
                     .get()
-                    .and_then(|hardware| hardware.machine.board_firmware())
+                    .and_then(|hardware| BoardFirmwareFace::identified(&hardware.machine))
                     .map(|board| GroupItem::reading(board, ComputeTarget::Board)),
             ]
             .into_iter()
@@ -253,7 +257,7 @@ impl ComputeGroup {
                     self.core_loads.sections(|loads| loads.sections(&live)),
                     self.cpu_power.sections(CpuPower::sections),
                     self.hardware
-                        .sections(|hardware| vec![hardware.cpu.processor_section()]),
+                        .sections(|hardware| vec![Section::from(&hardware.cpu)]),
                 ]
                 .concat(),
             ),
@@ -272,7 +276,7 @@ impl ComputeGroup {
             ),
             ComputeTarget::CpuClock => self
                 .clock
-                .tooltip_with_sections(self.clock.sections(|clock| clock.core_sections(&live))),
+                .tooltip_with_sections(self.clock.sections(|clock| clock.sections(&live))),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
                     .sections(|temperatures| temperatures.sections(&live)),
@@ -285,9 +289,9 @@ impl ComputeGroup {
                     .sections()
                 }))
             }),
-            ComputeTarget::Board => self
-                .hardware
-                .tooltip_with(self.hardware.get()?.machine.board_firmware()?.tooltip()),
+            ComputeTarget::Board => self.hardware.tooltip_with(
+                BoardFirmwareFace::identified(&self.hardware.get()?.machine)?.tooltip(),
+            ),
         }
     }
 }

@@ -1,23 +1,22 @@
-use crate::{
-    data::source::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use vetrata_sources::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus, LlamaServer};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
-impl LlamaModelStatus {
-    fn described(self) -> &'static str {
-        match self {
+impl From<LlamaModelStatus> for Cell {
+    fn from(status: LlamaModelStatus) -> Self {
+        Cell::from(match status {
             LlamaModelStatus::Downloading => "downloading",
             LlamaModelStatus::Downloaded => "downloaded",
             LlamaModelStatus::Unloaded => "unloaded",
             LlamaModelStatus::Loading => "loading",
             LlamaModelStatus::Loaded => "loaded",
             LlamaModelStatus::Sleeping => "sleeping",
-        }
+        })
     }
 }
 
@@ -49,7 +48,7 @@ impl BarWidget for LlamaModel {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("Status", self.status.described())])
+        TooltipBody::dictionary([KeyValue::new("Status", self.status)])
     }
 }
 
@@ -80,37 +79,41 @@ impl BarWidget for ServedModel<'_> {
     }
 }
 
-impl LlamaServer {
-    #[must_use]
-    pub fn model_sections(&self, endpoint: &str) -> Vec<Section> {
-        let resident = self.resident_model();
+pub struct ServerModels<'a> {
+    pub server: &'a LlamaServer,
+    pub endpoint: &'a str,
+}
+
+impl ReadingSections for ServerModels<'_> {
+    fn sections(&self) -> Vec<Section> {
+        let resident = self.server.resident_model();
         vec![
             Section::dictionary(
                 resident
-                    .map(|model| KeyValue::new("Status", model.status.described()))
+                    .map(|model| KeyValue::new("Status", model.status))
                     .into_iter()
                     .chain([KeyValue::new(
                         "Web UI",
                         Cell::Link {
-                            label: endpoint.to_owned(),
-                            url: endpoint.to_owned(),
+                            label: self.endpoint.to_owned(),
+                            url: self.endpoint.to_owned(),
                         },
                     )]),
             ),
             Section::dictionary(
-                self.models
+                self.server
+                    .models
                     .iter()
                     .filter(|model| Some(*model) != resident)
-                    .map(|model| KeyValue::new(model.id.clone(), model.status.described())),
+                    .map(|model| KeyValue::new(model.id.clone(), model.status)),
             )
             .titled("Available models"),
         ]
     }
 }
 
-impl LlamaModelProps {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for LlamaModelProps {
+    fn sections(&self) -> Vec<Section> {
         let modalities = [
             ("text", true),
             ("vision", self.modalities.vision),

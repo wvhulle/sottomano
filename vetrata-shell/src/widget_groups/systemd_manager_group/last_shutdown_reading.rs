@@ -1,31 +1,22 @@
 use iced::alignment::Horizontal;
-use vetrata_config::{Config, severity::Severity};
+use vetrata_config::Config;
+use vetrata_sources::previous_shutdown::{JobResult, LastShutdown, StopOutcome, UnitStop};
 
 use crate::{
-    data::source::previous_shutdown::{JobResult, LastShutdown, StopOutcome, UnitStop},
     widget_groups::{
         systemd_manager_group::{SystemdManagerMessage, SystemdTarget, elapsed_text},
         terminal_command::TerminalCommand,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{ConfiguredGroupItem, GroupItem},
         phosphor::Phosphor,
-        tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl StopOutcome {
-    fn severity(&self) -> Severity {
-        match self {
-            StopOutcome::Unfinished => Severity::Warning,
-            StopOutcome::Finished { severity, .. } => *severity,
-        }
-    }
-}
-
-impl UnitStop {
+impl TableRow<2> for UnitStop {
     fn table_record(&self) -> TableRecord<2> {
         let cells = match &self.outcome {
             StopOutcome::Unfinished => [Some("did not finish".into()), None],
@@ -80,9 +71,8 @@ impl BarWidget for LastShutdown {
     }
 }
 
-impl LastShutdown {
-    #[must_use]
-    pub fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
+impl ConfiguredGroupItem<SystemdManagerMessage> for LastShutdown {
+    fn group_item(&self, config: &Config) -> GroupItem<'_, SystemdManagerMessage> {
         GroupItem::reading(self, SystemdTarget::LastShutdown).on_press(
             TerminalCommand::JOURNAL_PRESS_HINT,
             SystemdManagerMessage::OpenLog(TerminalCommand::journal(

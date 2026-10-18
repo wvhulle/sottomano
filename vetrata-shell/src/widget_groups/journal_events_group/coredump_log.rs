@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
 use vetrata_config::Config;
+use vetrata_sources::coredumps::CoredumpEntry;
 
 use crate::{
-    data::source::coredumps::CoredumpEntry,
     widget_groups::{
         journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
@@ -12,12 +12,12 @@ use crate::{
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl CoredumpEntry {
+impl TableRow<4> for CoredumpEntry {
     fn table_record(&self) -> TableRecord<4> {
         TableRecord::new(
             Cell::Time {

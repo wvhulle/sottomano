@@ -8,10 +8,10 @@ use iced::{
 };
 use uom::si::{f64::Ratio, ratio};
 use vetrata_config::{Config, severity::Severity};
+use vetrata_sources::background_work::blocking;
 
 use crate::{
     desktop_shell::hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
-    message_subscriptions::blocking,
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
         bar_widget::{BarWidget, Glyph},

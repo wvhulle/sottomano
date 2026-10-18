@@ -1,10 +1,7 @@
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
-
-use crate::{
-    data::source::focus_ledger::{
-        FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet,
-    },
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    focus_ledger::{FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet},
+    store::{Columns, StoreError, with_table},
 };
 
 const RETENTION: TimeDelta = TimeDelta::days(400);
@@ -202,9 +199,9 @@ mod tests {
     use std::path::PathBuf;
 
     use chrono::TimeDelta;
+    use vetrata_sources::focus_ledger::Presence;
 
     use super::*;
-    use crate::data::source::focus_ledger::Presence;
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();

@@ -5,11 +5,12 @@ use iced::{
     widget::{Row, hover, image, svg},
 };
 use vetrata_config::Config;
+use vetrata_sources::{
+    app_icon::DesktopEntries, background_work::blocking, desktop_entries::DesktopIndex, niri,
+};
 
 use crate::{
-    data::source::{app_icon::DesktopEntries, desktop_entries::DesktopIndex, niri},
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
-    message_subscriptions::blocking,
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},

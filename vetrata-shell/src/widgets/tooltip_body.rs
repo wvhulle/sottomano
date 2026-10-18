@@ -1,3 +1,5 @@
+mod source_error_sections;
+
 use std::{
     collections::HashSet,
     convert::Infallible,
@@ -10,12 +12,12 @@ use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
 use uom::si::f64::Ratio;
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
+    tray::MenuNode, window_label::WindowLabel,
+};
 
 use crate::{
-    data::source::{
-        DeliveryCadence, ReadingSource, process::Process, session_action::SessionAction,
-        tray::MenuNode, window_label::WindowLabel,
-    },
     desktop_shell::hover_tooltips::PressHints,
     state::idle::ScheduledAfterIdle,
     widget_groups::window_group::process_tree::Folding,
@@ -85,6 +87,18 @@ impl KeyValue {
     pub fn severity(&self) -> Severity {
         self.level
     }
+}
+
+pub fn entry(key: &'static str, value: Option<impl Into<Cell>>) -> Option<KeyValue> {
+    value.map(|value| KeyValue::new(key, value))
+}
+
+pub trait ReadingSections {
+    fn sections(&self) -> Vec<Section>;
+}
+
+pub trait TableRow<const COLUMNS: usize> {
+    fn table_record(&self) -> TableRecord<COLUMNS>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -588,7 +602,7 @@ mod tests {
         moons: u32,
     }
 
-    impl Planet {
+    impl TableRow<2> for Planet {
         fn table_record(&self) -> TableRecord<2> {
             let level = if self.moons == 0 {
                 Severity::Warning

@@ -1,7 +1,7 @@
 use iced::Task;
+use vetrata_sources::bus::DesktopBuses;
 
 use crate::{
-    data::source::bus::DesktopBuses,
     desktop_shell::{
         DesktopShell, Message,
         hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},

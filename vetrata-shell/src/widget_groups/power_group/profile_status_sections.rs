@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
+use vetrata_sources::power_profile::{ProfileHold, ProfileStatus};
 
-use crate::{
-    data::source::power_profile::{ProfileHold, ProfileStatus},
-    widgets::tooltip_body::{ColumnHeading, KeyValue, Section, TableRecord},
+use crate::widgets::tooltip_body::{
+    ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,
 };
 
 const HOLD_HEADINGS: [ColumnHeading; 2] = [
@@ -10,7 +10,7 @@ const HOLD_HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::new("Reason").align_x(Horizontal::Left),
 ];
 
-impl ProfileHold {
+impl TableRow<2> for ProfileHold {
     fn table_record(&self) -> TableRecord<2> {
         TableRecord::new(
             self.application_id.clone(),
@@ -22,9 +22,8 @@ impl ProfileHold {
     }
 }
 
-impl ProfileStatus {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for ProfileStatus {
+    fn sections(&self) -> Vec<Section> {
         let held_by = (!self.holds.is_empty()).then(|| {
             Section::column_table(
                 HOLD_HEADINGS,

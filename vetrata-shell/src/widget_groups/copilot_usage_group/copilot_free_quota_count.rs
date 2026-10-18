@@ -1,12 +1,11 @@
-use crate::{
-    data::source::ai::copilot::{CopilotFree, USER_ENDPOINT},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        localized_time::LocalizedTimeFormat,
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use vetrata_sources::ai::copilot::{CopilotFree, USER_ENDPOINT};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    localized_time::LocalizedTimeFormat,
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for CopilotFree {

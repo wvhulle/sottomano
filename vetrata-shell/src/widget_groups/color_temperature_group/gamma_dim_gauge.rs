@@ -2,15 +2,13 @@ use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, thermodynamic_temperature::kelvin},
 };
+use vetrata_sources::gamma::Gamma;
 
-use crate::{
-    data::source::gamma::Gamma,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        gauge::percent_fill,
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, TooltipBody},
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    gauge::percent_fill,
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, TooltipBody},
 };
 
 impl BarWidget for Gamma {

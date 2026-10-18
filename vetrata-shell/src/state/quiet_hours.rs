@@ -2,10 +2,9 @@ use std::{convert::Infallible, time::Duration};
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
 use iced::futures::{Stream, StreamExt, stream};
-
-use crate::{
-    data::source::{DeliveryCadence, ReadingSource, SourceDelivery},
-    state::{Columns, StoreError, with_table},
+use vetrata_sources::{
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS quiet_hours (

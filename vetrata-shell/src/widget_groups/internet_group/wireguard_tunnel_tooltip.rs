@@ -1,11 +1,10 @@
-use crate::{
-    data::source::wireguard::{Peer, Tunnel, TunnelAddress, Wireguard},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use vetrata_sources::wireguard::{Peer, Tunnel, TunnelAddress, Wireguard};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::Phosphor,
+    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for Wireguard {
@@ -51,16 +50,29 @@ impl BarWidget for Tunnel {
     }
 
     fn tooltip(&self) -> TooltipBody {
-        if self.server {
-            self.server_tooltip()
-        } else {
-            self.client_tooltip()
+        if !self.server {
+            let peer_entries = self.peers.first().into_iter().flat_map(|peer| {
+                [
+                    peer.endpoint
+                        .as_deref()
+                        .map(|endpoint| KeyValue::new("server", endpoint)),
+                    peer.handshake_ago
+                        .map(|ago| KeyValue::new("handshake", format!("{ago}s ago"))),
+                    Some(KeyValue::new(
+                        "received",
+                        peer.rx.display().iec().to_string(),
+                    )),
+                    Some(KeyValue::new("sent", peer.tx.display().iec().to_string())),
+                ]
+                .into_iter()
+                .flatten()
+            });
+            return TooltipBody::dictionary(
+                [KeyValue::new(self.name.as_str(), "client")]
+                    .into_iter()
+                    .chain(peer_entries),
+            );
         }
-    }
-}
-
-impl Tunnel {
-    fn server_tooltip(&self) -> TooltipBody {
         let connected_peers = self
             .peers
             .iter()
@@ -83,35 +95,10 @@ impl Tunnel {
             Section::dictionary(connected_peers),
         ])
     }
-
-    fn client_tooltip(&self) -> TooltipBody {
-        let peer_entries = self.peers.first().into_iter().flat_map(|peer| {
-            [
-                peer.endpoint
-                    .as_deref()
-                    .map(|endpoint| KeyValue::new("server", endpoint)),
-                peer.handshake_ago
-                    .map(|ago| KeyValue::new("handshake", format!("{ago}s ago"))),
-                Some(KeyValue::new(
-                    "received",
-                    peer.rx.display().iec().to_string(),
-                )),
-                Some(KeyValue::new("sent", peer.tx.display().iec().to_string())),
-            ]
-            .into_iter()
-            .flatten()
-        });
-        TooltipBody::dictionary(
-            [KeyValue::new(self.name.as_str(), "client")]
-                .into_iter()
-                .chain(peer_entries),
-        )
-    }
 }
 
-impl TunnelAddress {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for TunnelAddress {
+    fn sections(&self) -> Vec<Section> {
         vec![Section::dictionary(
             self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
         )]

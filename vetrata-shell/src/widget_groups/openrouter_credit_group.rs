@@ -6,15 +6,15 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use vetrata_config::Config;
+use vetrata_sources::{
+    SourceDelivery,
+    ai::{
+        openrouter::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
+        working_time_forecast::SpendBudget,
+    },
+};
 
 use crate::{
-    data::source::{
-        SourceDelivery,
-        ai::{
-            openrouter::{OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
-            working_time_forecast::SpendBudget,
-        },
-    },
     desktop_shell::hover_tooltips::{GroupHandle, HoverTarget},
     message_subscriptions::{first_delivery, source_subscription},
     widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,

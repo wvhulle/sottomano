@@ -4,9 +4,9 @@ use chrono::Utc;
 use humantime::format_duration;
 use iced::Element;
 use vetrata_config::Config;
+use vetrata_sources::session_action::SessionAction;
 
 use crate::{
-    data::source::session_action::SessionAction,
     desktop_shell::hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,

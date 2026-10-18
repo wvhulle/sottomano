@@ -9,15 +9,15 @@ use iced::{
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 use vetrata_config::SecretPaths;
+use vetrata_sources::{
+    DeliveryCadence, ReadingSource, SourceDelivery, command,
+    stream_operators::StreamOperators,
+    wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
+};
 
 use crate::{
-    data::source::{
-        DeliveryCadence, ReadingSource, SourceDelivery, command,
-        wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
-    },
     desktop_shell::hover_tooltips::HoverTarget,
     message_subscriptions::source_subscription,
-    stream_operators::StreamOperators,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,

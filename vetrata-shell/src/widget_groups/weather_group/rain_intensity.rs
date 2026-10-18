@@ -1,13 +1,11 @@
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
+use vetrata_sources::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour};
 
-use crate::{
-    data::source::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour},
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        localized_time::LocalizedTimeFormat,
-        tooltip_body::{Cell, KeyValue, TooltipBody},
-        weather_icons::WeatherIcon,
-    },
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    localized_time::LocalizedTimeFormat,
+    tooltip_body::{Cell, KeyValue, TooltipBody},
+    weather_icons::WeatherIcon,
 };
 
 fn intensity_text(intensity: Velocity) -> String {

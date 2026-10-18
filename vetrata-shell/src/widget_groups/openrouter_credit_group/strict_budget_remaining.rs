@@ -1,17 +1,15 @@
 use vetrata_config::severity::Severity;
+use vetrata_sources::{
+    ai::openrouter::{KeyLimit, LimitReset, OpenRouterStrictBudget},
+    money::Money,
+};
 
-use crate::{
-    data::{
-        money::Money,
-        source::ai::openrouter::{KeyLimit, LimitReset, OpenRouterStrictBudget},
-    },
-    widgets::{
-        amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
-        widget_state::WidgetState,
-    },
+use crate::widgets::{
+    amount_text::spend_text,
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{KeyValue, Section, TooltipBody},
+    widget_state::WidgetState,
 };
 
 impl BarWidget for OpenRouterStrictBudget {
@@ -47,7 +45,7 @@ impl BarWidget for OpenRouterStrictBudget {
             ])
             .titled("Credits")]
             .into_iter()
-            .chain(self.key_limits.iter().map(KeyLimit::section)),
+            .chain(self.key_limits.iter().map(Section::from)),
         )
     }
 
@@ -56,29 +54,26 @@ impl BarWidget for OpenRouterStrictBudget {
     }
 }
 
-impl KeyLimit {
-    fn section(&self) -> Section {
+impl From<&KeyLimit> for Section {
+    fn from(key_limit: &KeyLimit) -> Self {
+        let resets = key_limit.reset.map(|reset| {
+            let period_name = match reset {
+                LimitReset::Daily => "daily",
+                LimitReset::Weekly => "weekly",
+                LimitReset::Monthly => "monthly",
+            };
+            KeyValue::new("Resets", period_name)
+        });
         Section::dictionary(
             [
-                Some(KeyValue::new("Limit", self.limit.to_string())),
-                Some(remaining_entry(self.remaining)),
-                self.reset
-                    .map(|reset| KeyValue::new("Resets", reset.period_name())),
+                Some(KeyValue::new("Limit", key_limit.limit.to_string())),
+                Some(remaining_entry(key_limit.remaining)),
+                resets,
             ]
             .into_iter()
             .flatten(),
         )
-        .titled((self.name.as_str(), "API key limit"))
-    }
-}
-
-impl LimitReset {
-    fn period_name(self) -> &'static str {
-        match self {
-            LimitReset::Daily => "daily",
-            LimitReset::Weekly => "weekly",
-            LimitReset::Monthly => "monthly",
-        }
+        .titled((key_limit.name.as_str(), "API key limit"))
     }
 }
 

@@ -1,9 +1,7 @@
 use iced::alignment::Horizontal;
+use vetrata_sources::sysfs_sensors::cpu_tuning::CpuTuning;
 
-use crate::{
-    data::source::sysfs_sensors::cpu_tuning::CpuTuning,
-    widgets::tooltip_body::{Cell, ColumnHeading, Section, TableRecord},
-};
+use crate::widgets::tooltip_body::{Cell, ColumnHeading, ReadingSections, Section, TableRecord};
 
 const HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::new("Value"),
@@ -17,9 +15,8 @@ fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> 
     )
 }
 
-impl CpuTuning {
-    #[must_use]
-    pub fn sections(&self) -> Vec<Section> {
+impl ReadingSections for CpuTuning {
+    fn sections(&self) -> Vec<Section> {
         let driver = match &self.driver_mode {
             Some(mode) => format!("{} ({mode})", self.driver),
             None => self.driver.clone(),

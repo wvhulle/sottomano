@@ -10,8 +10,7 @@ use iced::{
     },
 };
 use vetrata_config::theme::font::{ResolvedFont, fallback_font};
-
-use crate::message_subscriptions::blocking;
+use vetrata_sources::background_work::blocking;
 
 pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Relative(1.1);
 

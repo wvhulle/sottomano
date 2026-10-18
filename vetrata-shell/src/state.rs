@@ -8,14 +8,11 @@ pub mod layer_appearance;
 pub mod niri_rules;
 pub mod power;
 pub mod quiet_hours;
-pub mod rate_limit;
 pub mod shell_settings;
-pub mod store;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
 use iced::{Border, Color, Shadow, Vector, border::Radius, widget::container};
-pub use store::{Columns, StoreError, connect, flag, real, upsert_column, with_table};
 use vetrata_config::Config;
 
 use crate::widgets::panel_frame::OutlinedSides;

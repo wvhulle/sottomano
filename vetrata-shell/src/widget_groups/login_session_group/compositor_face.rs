@@ -1,10 +1,11 @@
-use crate::{
-    data::source::logind::session_facts::SessionIdentity,
-    widgets::{
-        bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-    },
+use vetrata_sources::{
+    logind::session_facts::SessionIdentity, systemd_manager::graphical_session::GraphicalSession,
+};
+
+use crate::widgets::{
+    bar_widget::{BarWidget, Glyph},
+    phosphor::{Phosphor, Weight},
+    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
 };
 
 pub struct CompositorFace<'a> {
@@ -39,5 +40,34 @@ impl BarWidget for CompositorFace<'_> {
             "Compositor drawing the desktop",
             "The compositor draws every window and routes input; apps connect to it.",
         ))])
+    }
+}
+
+impl ReadingSections for GraphicalSession {
+    fn sections(&self) -> Vec<Section> {
+        let distinct_session_desktop = self
+            .session_desktop
+            .clone()
+            .filter(|session| Some(session) != self.current_desktop.as_ref());
+        vec![
+            Section::dictionary(
+                [
+                    Some(KeyValue::new("Runs", self.compositor_version.clone())),
+                    Some(KeyValue::new(
+                        "Wayland apps connect to",
+                        self.wayland_display.clone(),
+                    )),
+                    entry("X11 apps connect to", self.x11_display.clone()),
+                    entry("Desktop name", self.current_desktop.clone()),
+                    entry("Session desktop name", distinct_session_desktop),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .titled((
+                "Where apps connect to it",
+                "Apps find the compositor through these sockets.",
+            )),
+        ]
     }
 }

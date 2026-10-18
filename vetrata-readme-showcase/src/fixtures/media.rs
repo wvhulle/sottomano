@@ -1,14 +1,14 @@
 use std::time::{Duration, Instant};
 
 use vetrata_shell::{
-    data::source::{
-        SourceDelivery,
-        bus::OwnerProcess,
-        desktop_entries::DesktopIndex,
-        mpris::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
-    },
     desktop_shell::Message,
     widget_groups::media_group::{MediaGroup, MediaMessage},
+};
+use vetrata_sources::{
+    SourceDelivery,
+    bus::OwnerProcess,
+    desktop_entries::DesktopIndex,
+    mpris::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
 };
 
 use crate::showcased_group::{ShowcasedGroup, ShowcasedMedia};

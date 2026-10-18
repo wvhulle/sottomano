@@ -1,20 +1,21 @@
 use rust_decimal::Decimal;
 use vetrata_config::severity::Severity;
-
-use crate::{
-    data::{
-        money::{Money, usd},
-        source::ai::working_time_forecast::{CalendarSpan, SpendBudget},
-    },
-    widgets::tooltip_body::KeyValue,
+use vetrata_sources::{
+    ai::working_time_forecast::SpendBudget,
+    money::{Money, usd},
 };
 
-const WEEK_START_FORMAT: &str = "%a %-d %b";
-const MONTH_FORMAT: &str = "%B";
+use crate::widgets::tooltip_body::KeyValue;
+
 const CLOCK_FORMAT: &str = "%H:%M";
 
-impl SpendBudget {
-    pub fn forecast_basis(&self) -> impl Iterator<Item = KeyValue> {
+pub trait BudgetEntries {
+    fn forecast_basis(&self) -> impl Iterator<Item = KeyValue>;
+    fn monthly_budget_entry(&self, spent: &Money, projected: Option<Money>) -> KeyValue;
+}
+
+impl BudgetEntries for SpendBudget {
+    fn forecast_basis(&self) -> impl Iterator<Item = KeyValue> {
         let working_days = self
             .working_days
             .iter()
@@ -34,8 +35,7 @@ impl SpendBudget {
         .into_iter()
     }
 
-    #[must_use]
-    pub fn monthly_budget_entry(&self, spent: &Money, projected: Option<Money>) -> KeyValue {
+    fn monthly_budget_entry(&self, spent: &Money, projected: Option<Money>) -> KeyValue {
         let limit = usd(Decimal::from(self.monthly_limit_usd));
         let entry = KeyValue::new("Monthly Budget", limit.to_string());
         let exceeds_limit = |cost: &Money| cost.amount() > limit.amount();
@@ -44,17 +44,5 @@ impl SpendBudget {
         } else {
             entry
         }
-    }
-}
-
-impl CalendarSpan {
-    #[must_use]
-    pub fn week_heading(self) -> String {
-        format!("Week Since {}", self.since.format(WEEK_START_FORMAT))
-    }
-
-    #[must_use]
-    pub fn month_heading(self) -> String {
-        self.since.format(MONTH_FORMAT).to_string()
     }
 }

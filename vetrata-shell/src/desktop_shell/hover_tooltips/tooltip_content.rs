@@ -324,7 +324,9 @@ impl<'a> TooltipContent<'a> {
             ScheduledAfterIdle::Never => Trailing::Nothing,
         };
         MenuLine::Row(MenuRow {
-            leading: Some(Glyph::from(entry.action.glyph()).view(icon_size, self.foreground())),
+            leading: Some(
+                Glyph::from(Phosphor::from(entry.action)).view(icon_size, self.foreground()),
+            ),
             label: Some(entry.action.verb().to_owned()),
             trailing: note,
             enabled: true,
