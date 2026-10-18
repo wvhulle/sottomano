@@ -1,15 +1,12 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
-use futures::{
-    Stream, StreamExt,
-    future::{join_all, ready},
-    stream::{self, BoxStream},
-};
-use zbus::{names::MemberName, proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
+use futures::{Stream, StreamExt, future::join_all};
+use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{ManagerProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::connected_until_failure,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
 };
 
 const SERVICE_SUFFIX: &str = ".service";
@@ -86,90 +83,16 @@ async fn watch_service_commands(
         ],
     )
     .await?
-    .filter_map(|signal| ready(signal.ok()))
-    .boxed();
-    let watch = ServiceCommandWatch {
-        services: all_service_commands(&manager).await?,
-        manager,
-        signals,
-    };
-    Ok(stream::once(ready(Ok(watch.listing())))
-        .chain(stream::unfold(watch, ServiceCommandWatch::next_listing)))
-}
-
-struct ServiceCommandWatch {
-    manager: ManagerProxy<'static>,
-    signals: BoxStream<'static, zbus::Message>,
-    services: BTreeMap<String, ServiceCommand>,
-}
-
-enum ServiceChange {
-    Loaded(String, OwnedObjectPath),
-    Removed(String),
-    Reloaded,
-    Unrelated,
-}
-
-impl ServiceChange {
-    fn of(signal: &zbus::Message) -> Self {
-        let header = signal.header();
-        let body = signal.body();
-        let service = |(unit, path): (String, OwnedObjectPath)| {
-            unit.ends_with(SERVICE_SUFFIX).then_some((unit, path))
-        };
-        match header.member().map(MemberName::as_str) {
-            Some("UnitNew") => body
-                .deserialize()
-                .ok()
-                .and_then(service)
-                .map_or(Self::Unrelated, |(unit, path)| Self::Loaded(unit, path)),
-            Some("UnitRemoved") => body
-                .deserialize()
-                .ok()
-                .and_then(service)
-                .map_or(Self::Unrelated, |(unit, _)| Self::Removed(unit)),
-            Some("Reloading") => match body.deserialize::<bool>() {
-                Ok(false) => Self::Reloaded,
-                _ => Self::Unrelated,
-            },
-            _ => Self::Unrelated,
+    .map(drop);
+    Ok(read_once_then_per_burst(signals, move || {
+        let manager = manager.clone();
+        async move {
+            all_service_commands(&manager)
+                .await
+                .map(|services| services.into_values().collect())
         }
-    }
-}
-
-impl ServiceCommandWatch {
-    fn listing(&self) -> Vec<ServiceCommand> {
-        self.services.values().cloned().collect()
-    }
-
-    async fn next_listing(mut self) -> Option<(zbus::Result<Vec<ServiceCommand>>, Self)> {
-        loop {
-            let signal = self.signals.next().await?;
-            let changed = match ServiceChange::of(&signal) {
-                ServiceChange::Loaded(unit, path) => {
-                    match service_command(&self.manager, unit.clone(), path).await {
-                        Some(command) => {
-                            self.services.insert(unit, command.clone()) != Some(command)
-                        }
-                        None => self.services.remove(&unit).is_some(),
-                    }
-                }
-                ServiceChange::Removed(unit) => self.services.remove(&unit).is_some(),
-                ServiceChange::Reloaded => match all_service_commands(&self.manager).await {
-                    Ok(services) => {
-                        let changed = services != self.services;
-                        self.services = services;
-                        changed
-                    }
-                    Err(failure) => return Some((Err(failure), self)),
-                },
-                ServiceChange::Unrelated => false,
-            };
-            if changed {
-                return Some((Ok(self.listing()), self));
-            }
-        }
-    }
+    })
+    .distinct_until_changed())
 }
 
 async fn all_service_commands(

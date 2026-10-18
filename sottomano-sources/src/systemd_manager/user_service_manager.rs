@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt};
 use zbus::proxy::CacheProperties;
 
 use crate::{
@@ -7,6 +7,7 @@ use crate::{
     bus::{self, DesktopBuses},
     hostname::at_micros,
     pushed_delivery_stream,
+    stream_operators::read_once_then_per_burst,
     systemd_manager::{
         ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
     },
@@ -57,18 +58,15 @@ async fn manager_state_changes(
         ],
     )
     .await?
-    .ready_chunks(64)
     .map(drop);
-    Ok(stream::once(async {})
-        .chain(state_triggers)
-        .then(move |()| {
-            let manager = manager.clone();
-            let launched = launched.clone();
-            async move {
-                Ok(UserServiceManager {
-                    state: manager.system_state().await?,
-                    ..launched
-                })
-            }
-        }))
+    Ok(read_once_then_per_burst(state_triggers, move || {
+        let manager = manager.clone();
+        let launched = launched.clone();
+        async move {
+            Ok(UserServiceManager {
+                state: manager.system_state().await?,
+                ..launched
+            })
+        }
+    }))
 }

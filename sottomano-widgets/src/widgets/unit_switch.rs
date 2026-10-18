@@ -85,6 +85,7 @@ pub enum UnitSwitchMessage {
     ActiveState(SourceDelivery<UnitActiveState>),
     Press,
     Requested {
+        change: UnitChange,
         before: Option<UnitActivity>,
         accepted: bool,
     },
@@ -126,8 +127,17 @@ impl UnitSwitch {
                 Some(activity) => self.request(activity.press_change()),
                 None => Task::none(),
             },
-            UnitSwitchMessage::Requested { before, accepted } => {
-                if let Some(activity) = before.filter(|_| !accepted) {
+            UnitSwitchMessage::Requested {
+                change,
+                before,
+                accepted,
+            } => {
+                let activity = if accepted {
+                    Some(change.settled_activity())
+                } else {
+                    before
+                };
+                if let Some(activity) = activity {
                     self.active_state.assume(UnitActiveState { activity });
                 }
                 Task::none()
@@ -145,7 +155,11 @@ impl UnitSwitch {
             unit: self.unit.unit_name.clone(),
         };
         Task::perform(control.accepts(change), move |accepted| {
-            UnitSwitchMessage::Requested { before, accepted }
+            UnitSwitchMessage::Requested {
+                change,
+                before,
+                accepted,
+            }
         })
     }
 

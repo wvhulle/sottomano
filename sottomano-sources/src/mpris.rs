@@ -6,14 +6,10 @@ use std::{
     time::Instant,
 };
 
-use futures::{
-    Stream, StreamExt,
-    future::ready,
-    stream::{self, select},
-};
+use futures::{Stream, StreamExt, future::ready, stream::select};
 use image::{DynamicImage, RgbaImage};
 use reqwest::Url;
-use tokio::time::Duration;
+use tokio::{sync::Mutex, time::Duration};
 use uom::si::{f64::Ratio, ratio::ratio};
 use zbus::{
     Connection, MatchRule, MessageStream,
@@ -30,7 +26,7 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     background_work::blocking,
     bus::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
-    stream_operators::connected_until_failure,
+    stream_operators::{connected_until_failure, read_once_then_per_burst},
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
@@ -486,13 +482,6 @@ impl ReadingSource for Vec<Media> {
     }
 }
 
-struct Session<Changes> {
-    connection: Connection,
-    dbus: DBusProxy<'static>,
-    changes: Changes,
-    art: ArtCache,
-}
-
 async fn connect(
     connection: Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Vec<Media>>>> {
@@ -512,27 +501,16 @@ async fn connect(
         .await?
         .filter(|signal| ready(names_player(signal)))
         .map(drop);
-    let session = Session {
-        changes: stream::iter([()]).chain(select(select(properties, seeks), owners)),
-        connection,
-        dbus,
-        art: ArtCache::new(),
-    };
-    Ok(session.readings())
-}
-
-impl<Changes: Stream<Item = ()> + Unpin + Send> Session<Changes> {
-    fn readings(self) -> impl Stream<Item = zbus::Result<Vec<Media>>> {
-        stream::unfold(self, |mut session| async move {
-            let players = session.next_reading().await?;
-            Some((players, session))
-        })
-    }
-
-    async fn next_reading(&mut self) -> Option<zbus::Result<Vec<Media>>> {
-        self.changes.next().await?;
-        Some(read_all(&self.connection, &self.dbus, &mut self.art).await)
-    }
+    let art = Arc::new(Mutex::new(ArtCache::new()));
+    Ok(read_once_then_per_burst(
+        select(select(properties, seeks), owners),
+        move || {
+            let connection = connection.clone();
+            let dbus = dbus.clone();
+            let art = art.clone();
+            async move { read_all(&connection, &dbus, &mut *art.lock().await).await }
+        },
+    ))
 }
 
 async fn signals(

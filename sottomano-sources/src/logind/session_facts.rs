@@ -15,6 +15,7 @@ use crate::{
     hostname::at_micros,
     logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
     pushed_delivery_stream,
+    stream_operators::read_once_then_per_burst,
 };
 
 #[proxy(
@@ -280,7 +281,7 @@ async fn power_changes(
         sleep_order: uncached.sleep_operation().await?,
     };
     let changes = select_all(power_triggers(&signalled).await?);
-    Ok(changes.then(move |()| {
+    Ok(read_once_then_per_burst(changes, move || {
         let manager = uncached.clone();
         let configured = configured.clone();
         async move { read_power(&manager, configured).await }

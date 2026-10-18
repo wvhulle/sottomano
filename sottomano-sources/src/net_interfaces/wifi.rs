@@ -12,8 +12,8 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::DesktopBuses,
     hardware::Adapter,
-    net_interfaces::{ReadingError, device_or_absent, device_readings, nm, nm_readings, per_burst},
-    stream_operators::resubscribing_until_failure,
+    net_interfaces::{ReadingError, device_or_absent, device_readings, nm, nm_readings},
+    stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
 };
 
 pub const NAME: &str = "wifi";
@@ -128,8 +128,10 @@ impl ReadingSource for Wifi {
 async fn readings_while_access_point_holds(
     connection: Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Option<Wifi>>>> {
-    let first = read(connection.clone()).await;
-    let watched_access_point = first.as_ref().ok().and_then(Wifi::access_point);
+    let watched_access_point = read(connection.clone())
+        .await
+        .ok()
+        .and_then(|wifi| wifi.access_point());
     let device_changes = nm::changes(
         &connection,
         &[
@@ -144,17 +146,16 @@ async fn readings_while_access_point_holds(
         None => None,
     };
     let strength_changes = stream::iter(strength_changes).flatten();
-    let later = per_burst(select(device_changes, strength_changes))
-        .then(move |()| read(connection.clone()));
-    let readings = stream::once(ready(first))
-        .chain(later)
-        .take_while(move |reading| {
-            ready(
-                reading
-                    .as_ref()
-                    .map_or(true, |wifi| wifi.access_point() == watched_access_point),
-            )
-        });
+    let readings = read_once_then_per_burst(select(device_changes, strength_changes), move || {
+        read(connection.clone())
+    })
+    .take_while(move |reading| {
+        ready(
+            reading
+                .as_ref()
+                .map_or(true, |wifi| wifi.access_point() == watched_access_point),
+        )
+    });
     Ok(device_readings(readings))
 }
 

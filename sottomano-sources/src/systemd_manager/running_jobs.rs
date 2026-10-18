@@ -1,19 +1,15 @@
-use std::{
-    collections::HashMap,
-    pin::Pin,
-    time::{Duration, SystemTime},
-};
+use std::time::{Duration, Instant, SystemTime};
 
-use futures::{Stream, StreamExt, future::join_all, stream};
-use zbus::{proxy::CacheProperties, zvariant::OwnedObjectPath};
+use futures::{Stream, StreamExt, future::join_all};
+use zbus::proxy::CacheProperties;
 
 use super::{
     JobRow, ManagerProxy, SystemdOnBus, SystemdUnitScope, manager_signal, signals_matching,
-    sleep_until, state_changed_at,
+    state_changed_at,
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    stream_operators::{StreamOperators, connected_until_failure},
+    stream_operators::{StreamOperators, connected_until_failure, reread_on_trigger_or_deadline},
 };
 
 const RUNNING_JOB_STATE: &str = "running";
@@ -83,29 +79,6 @@ impl RunningJob {
     }
 }
 
-enum JobSignal {
-    Queued(u32),
-    Removed(u32),
-}
-
-impl JobSignal {
-    fn of_message(message: &zbus::Message) -> Option<Self> {
-        let header = message.header();
-        let body = message.body();
-        match header.member()?.as_str() {
-            "JobNew" => body
-                .deserialize::<(u32, OwnedObjectPath, String)>()
-                .ok()
-                .map(|(id, _, _)| JobSignal::Queued(id)),
-            "JobRemoved" => body
-                .deserialize::<(u32, OwnedObjectPath, String, String)>()
-                .ok()
-                .map(|(id, _, _, _)| JobSignal::Removed(id)),
-            _ => None,
-        }
-    }
-}
-
 async fn watch_running_jobs(
     connection: zbus::Connection,
     slow_after: Duration,
@@ -120,69 +93,28 @@ async fn watch_running_jobs(
         [manager_signal("JobNew")?, manager_signal("JobRemoved")?],
     )
     .await?
-    .ready_chunks(64)
-    .map(|messages| {
-        messages
-            .iter()
-            .filter_map(|message| message.as_ref().ok().and_then(JobSignal::of_message))
-            .collect()
-    });
-    Ok(stream::unfold(
-        RunningJobWatch {
-            manager,
-            job_signals: Box::pin(job_signals),
-            queued_at: HashMap::new(),
-            running: None,
-            slow_after,
+    .map(drop);
+    let listings = reread_on_trigger_or_deadline(
+        job_signals,
+        move || {
+            let manager = manager.clone();
+            async move { running_jobs(&manager).await }
         },
-        RunningJobWatch::next_report,
-    ))
+        move |listed| {
+            let running = listed.as_ref().ok()?;
+            next_slow_deadline(running, slow_after, SystemTime::now()).map(instant_at)
+        },
+    );
+    Ok(listings.map(move |listed| {
+        listed.map(|running| slow_jobs(&running, slow_after, SystemTime::now()))
+    }))
 }
 
-struct RunningJobWatch {
-    manager: ManagerProxy<'static>,
-    job_signals: Pin<Box<dyn Stream<Item = Vec<JobSignal>> + Send>>,
-    queued_at: HashMap<u32, SystemTime>,
-    running: Option<Vec<RunningJob>>,
-    slow_after: Duration,
-}
-
-impl RunningJobWatch {
-    async fn next_report(mut self) -> Option<(zbus::Result<Vec<SlowJob>>, Self)> {
-        let listed = match self.running.take() {
-            None => running_jobs(&self.manager, &self.queued_at, &[]).await,
-            Some(running) => {
-                let next_slow = next_slow_deadline(&running, self.slow_after, SystemTime::now());
-                tokio::select! {
-                    signals = self.job_signals.next() => {
-                        self.remember(signals?);
-                        running_jobs(&self.manager, &self.queued_at, &running).await
-                    }
-                    () = sleep_until(next_slow) => Ok(running),
-                }
-            }
-        };
-        let report = listed.map(|running| {
-            let slow = slow_jobs(&running, self.slow_after, SystemTime::now());
-            self.running = Some(running);
-            slow
-        });
-        Some((report, self))
-    }
-
-    fn remember(&mut self, signals: Vec<JobSignal>) {
-        let now = SystemTime::now();
-        for signal in signals {
-            match signal {
-                JobSignal::Queued(id) => {
-                    self.queued_at.insert(id, now);
-                }
-                JobSignal::Removed(id) => {
-                    self.queued_at.remove(&id);
-                }
-            }
-        }
-    }
+fn instant_at(time: SystemTime) -> Instant {
+    Instant::now()
+        + time
+            .duration_since(SystemTime::now())
+            .unwrap_or(Duration::ZERO)
 }
 
 fn next_slow_deadline(
@@ -211,41 +143,23 @@ fn slow_jobs(running: &[RunningJob], slow_after: Duration, now: SystemTime) -> V
         .collect()
 }
 
-async fn running_jobs(
-    manager: &ManagerProxy<'static>,
-    queued_at: &HashMap<u32, SystemTime>,
-    already_running: &[RunningJob],
-) -> zbus::Result<Vec<RunningJob>> {
+async fn running_jobs(manager: &ManagerProxy<'static>) -> zbus::Result<Vec<RunningJob>> {
     let rows = manager.list_jobs().await?;
     let connection = manager.inner().connection();
     Ok(join_all(
         rows.into_iter()
             .filter(|row| row.state == RUNNING_JOB_STATE)
-            .map(|row| {
-                let known = already_running.iter().find(|job| job.id == row.id).cloned();
-                let queued_at = queued_at.get(&row.id).copied();
-                async move {
-                    match known {
-                        Some(known) => known,
-                        None => running_job(connection, row, queued_at).await,
-                    }
-                }
-            }),
+            .map(|row| running_job(connection, row)),
     )
     .await)
 }
 
-async fn running_job(
-    connection: &zbus::Connection,
-    row: JobRow,
-    queued_at: Option<SystemTime>,
-) -> RunningJob {
-    let unit_state_changed_at = state_changed_at(connection, row.unit_path).await;
+async fn running_job(connection: &zbus::Connection, row: JobRow) -> RunningJob {
     RunningJob {
+        started_at: state_changed_at(connection, row.unit_path).await,
         id: row.id,
         unit: row.unit,
         job_type: row.job_type,
-        started_at: queued_at.max(unit_state_changed_at),
     }
 }
 

@@ -7,7 +7,6 @@ pub mod unit_activity;
 pub mod user_service_manager;
 
 use std::{
-    future::pending,
     hash::Hash,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -17,7 +16,6 @@ use futures::{
     stream::{SelectAll, select_all},
 };
 use serde::Deserialize;
-use tokio::time::sleep;
 use zbus::{
     MatchRule, MessageStream,
     match_rule::Builder,
@@ -289,16 +287,4 @@ async fn state_changed_at(
 ) -> Option<SystemTime> {
     let unit = unit_proxy(connection, path).await.ok()?;
     wall_time_of_realtime_usec(unit.state_change_timestamp().await.ok()?)
-}
-
-async fn sleep_until(deadline: Option<SystemTime>) {
-    match deadline {
-        Some(deadline) => {
-            let remaining = deadline
-                .duration_since(SystemTime::now())
-                .unwrap_or(Duration::ZERO);
-            sleep(remaining).await;
-        }
-        None => pending().await,
-    }
 }

@@ -1,4 +1,8 @@
-use std::{future::ready, path::PathBuf, time::Instant};
+use std::{
+    future::ready,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
@@ -8,8 +12,7 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     bus::DesktopBuses,
     http,
-    journal::unit_log_appends,
-    stream_operators::StreamOperators,
+    stream_operators::{StreamOperators, ticked},
     systemd_manager::{
         ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
         unit_activity::unit_running,
@@ -17,6 +20,7 @@ use crate::{
 };
 
 const FETCH_TIMEOUT_SECS: u64 = 3;
+const POLL_INTERVAL: Duration = Duration::from_secs(2);
 const PROGRAM_NAME: &str = "llama-server";
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: &str = "8080";
@@ -270,7 +274,7 @@ impl ReadingSource for LlamaServer {
     type StreamInputs = LlamaServerOnBus;
 
     const NAME: &'static str = PROGRAM_NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
 
     fn delivery_stream(watch: LlamaServerOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let LlamaServerOnBus { buses, server } = watch;
@@ -281,18 +285,17 @@ impl ReadingSource for LlamaServer {
         running.while_held(
             move || {
                 let endpoint = server.endpoint.clone();
-                unit_log_appends(server.unit.clone())
-                    .then(move |()| {
-                        let endpoint = endpoint.clone();
-                        async move { fetch_server(&endpoint).await }
-                    })
-                    .scan(None, |previous: &mut Option<Self>, fetched| {
-                        let rated = fetched.map(|server| server.rated_since(previous.as_ref()));
-                        if let Ok(server) = &rated {
-                            *previous = Some(server.clone());
-                        }
-                        ready(Some(SourceDelivery::Reading(rated)))
-                    })
+                ticked(POLL_INTERVAL, move || {
+                    let endpoint = endpoint.clone();
+                    async move { fetch_server(&endpoint).await }
+                })
+                .scan(None, |previous: &mut Option<Self>, fetched| {
+                    let rated = fetched.map(|server| server.rated_since(previous.as_ref()));
+                    if let Ok(server) = &rated {
+                        *previous = Some(server.clone());
+                    }
+                    ready(Some(SourceDelivery::Reading(rated)))
+                })
             },
             SourceDelivery::Absent,
         )
