@@ -1,10 +1,13 @@
 use sottomano_sources::network_connectivity::tailscale_status::Tailscale;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for Tailscale {
@@ -13,10 +16,10 @@ impl BarWidget for Tailscale {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Graph(self.state().weight()).into()
+        Phosphor::Graph(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(matches!(self, Tailscale::Running(_)))
     }
 
@@ -29,7 +32,7 @@ impl BarWidget for Tailscale {
             .filter(|count| *count > 0)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let Tailscale::Running(tailnet) = self else {
             return TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")]);
         };

@@ -1,10 +1,13 @@
 use sottomano_sources::systemd_units_journal::user_service_manager::UserServiceManager;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+    },
 };
 
 pub struct ServiceManagerFace;
@@ -18,7 +21,7 @@ impl BarWidget for ServiceManagerFace {
         Phosphor::GearSix(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
             KeyValue::new("Service manager", "systemd --user"),
             KeyValue::new(
@@ -37,7 +40,7 @@ impl BarWidget for ServiceManagerFace {
 }
 
 impl ReadingSections for UserServiceManager {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(
                 [

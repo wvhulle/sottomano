@@ -13,6 +13,7 @@ use sottomano_sources::login_session_presence::{
 use sottomano_state::idle::{self, Timeouts};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
@@ -186,7 +187,7 @@ impl IdleTimeoutsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, kind: TimerKind) -> Tooltip {
+    pub fn tooltip_for(&self, kind: TimerKind, clock: Clock) -> Tooltip {
         let timer = match kind {
             TimerKind::LockUser => &self.lock,
             TimerKind::ScreenOff => &self.screen_off,
@@ -196,9 +197,9 @@ impl IdleTimeoutsGroup {
         if kind == TimerKind::ScreenOff
             && let Some(override_timeout) = self.quiet_screen_off
         {
-            timer.tooltip_overridden_by("Quiet hours", override_timeout)
+            timer.tooltip_overridden_by("Quiet hours", override_timeout, clock)
         } else {
-            timer.tooltip()
+            timer.tooltip(clock)
         }
     }
 
@@ -248,12 +249,16 @@ impl IdleTimeoutsGroup {
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
             self.entries().map(|(kind, timer)| {
-                GroupItem::control(timer.reading(), timer.target().clone(), move |reveal| {
-                    timer.view(config, reveal).map(move |m| match m {
-                        ControlMessage::Tooltip(t) => GroupEvent::Tooltip(t),
-                        m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
-                    })
-                })
+                GroupItem::control(
+                    timer.reading(),
+                    timer.target().clone(),
+                    move |reveal, clock| {
+                        timer.view(config, reveal, clock).map(move |m| match m {
+                            ControlMessage::Tooltip(t) => GroupEvent::Tooltip(t),
+                            m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
+                        })
+                    },
+                )
             }),
         )
         .face(HandleFace::Icon {

@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use chrono::Locale;
 use iced::Task;
 use sottomano_config::severity::Severity;
 use sottomano_sources::battery_power_profiles::{
@@ -13,6 +14,7 @@ use uom::si::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
@@ -38,7 +40,7 @@ pub struct BatteryTimeReading {
 pub struct CurveLoaded(Box<ChargeCurve>);
 
 impl BatteryTimeReading {
-    pub fn learn(&mut self, battery: &Battery) -> Task<CurveLoaded> {
+    pub fn learn(&mut self, battery: &Battery, now: Instant) -> Task<CurveLoaded> {
         let Some(curve) = &self.curve else {
             return self.start_loading(&battery.serial);
         };
@@ -46,7 +48,6 @@ impl BatteryTimeReading {
             self.previous_sample_at = None;
             return Task::none();
         };
-        let now = Instant::now();
         let since_previous = self
             .previous_sample_at
             .replace(now)
@@ -207,18 +208,18 @@ impl BarWidget for BatteryTime {
     fn icon(&self) -> Glyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),
-            BatteryTime::Countdown(_) => Phosphor::HourglassMedium(self.state().weight()).into(),
+            BatteryTime::Countdown(_) => Phosphor::HourglassMedium(Weight::Regular).into(),
         }
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         match self {
             BatteryTime::Idle(idle) => Some(idle.label().to_string()),
             BatteryTime::Countdown(countdown) => Some(countdown.forecast().label()),
         }
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         match self {
             BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_CRITICAL =>
@@ -241,7 +242,7 @@ impl BarWidget for BatteryTime {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         match self {
             BatteryTime::Idle(idle) => idle.tooltip(),
             BatteryTime::Countdown(countdown) => {
@@ -278,7 +279,7 @@ mod tests {
                 capacity: Ratio::new::<percent>(99.0),
                 charge_limit: Ratio::new::<percent>(100.0),
             })
-            .label()
+            .label(Clock::real(), Locale::en_US)
         };
         assert_eq!(idle(IdleReason::Full).as_deref(), Some("Full"));
         assert_eq!(idle(IdleReason::AtLimit).as_deref(), Some("At limit"));

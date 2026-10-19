@@ -1,19 +1,24 @@
-use std::f32::consts::{FRAC_PI_2, TAU};
+use std::{
+    f32::consts::{FRAC_PI_2, TAU},
+    time::{Duration, Instant},
+};
 
 use iced::{
-    Color, Element, Length, Point, Radians, Rectangle, Renderer, Theme,
+    Color, Element, Event, Length, Point, Radians, Rectangle, Renderer, Theme,
     mouse::Cursor,
     widget::{
-        canvas,
+        Action, canvas,
         canvas::{LineCap, Stroke},
     },
+    window,
 };
-use uom::si::{f64::Ratio, ratio::ratio};
 
 const RING_THICKNESS_FRACTION: f32 = 0.12;
 
 pub struct RefreshDial {
-    elapsed_fraction: Ratio,
+    elapsed: Duration,
+    period: Duration,
+    viewed_at: Instant,
     diameter: f32,
     fill: Color,
     track: Color,
@@ -21,9 +26,18 @@ pub struct RefreshDial {
 
 impl RefreshDial {
     #[must_use]
-    pub fn new(elapsed_fraction: Ratio, diameter: f32, fill: Color, track: Color) -> Self {
+    pub fn new(
+        elapsed: Duration,
+        period: Duration,
+        viewed_at: Instant,
+        diameter: f32,
+        fill: Color,
+        track: Color,
+    ) -> Self {
         Self {
-            elapsed_fraction,
+            elapsed,
+            period,
+            viewed_at,
             diameter,
             fill,
             track,
@@ -39,43 +53,64 @@ impl RefreshDial {
             .into()
     }
 
+    fn elapsed_fraction(&self, frame: Option<Instant>) -> f32 {
+        let since_view = frame.map_or(Duration::ZERO, |frame| {
+            frame.saturating_duration_since(self.viewed_at)
+        });
+        let elapsed = self.elapsed + since_view;
+        (elapsed.as_secs_f32() / self.period.as_secs_f32().max(f32::EPSILON)).min(1.0)
+    }
+
     fn ring(&self, color: Color) -> Stroke<'static> {
         Stroke::default()
             .with_color(color)
             .with_width(self.diameter * RING_THICKNESS_FRACTION)
             .with_line_cap(LineCap::Butt)
     }
+}
 
-    fn arc(center: Point, radius: f32, swept: f32) -> canvas::Path {
-        canvas::Path::new(|builder| {
-            builder.arc(canvas::path::Arc {
-                center,
-                radius,
-                start_angle: Radians(-FRAC_PI_2),
-                end_angle: Radians(-FRAC_PI_2 + swept),
-            });
-        })
-    }
+fn arc_path(center: Point, radius: f32, swept: f32) -> canvas::Path {
+    canvas::Path::new(|builder| {
+        builder.arc(canvas::path::Arc {
+            center,
+            radius,
+            start_angle: Radians(-FRAC_PI_2),
+            end_angle: Radians(-FRAC_PI_2 + swept),
+        });
+    })
 }
 
 impl<Message> canvas::Program<Message> for RefreshDial {
-    type State = ();
+    type State = Option<Instant>;
 
-    #[allow(clippy::cast_possible_truncation)]
+    fn update(
+        &self,
+        frame: &mut Self::State,
+        event: &Event,
+        _bounds: Rectangle,
+        _cursor: Cursor,
+    ) -> Option<Action<Message>> {
+        let Event::Window(window::Event::RedrawRequested(now)) = event else {
+            return None;
+        };
+        *frame = Some(*now);
+        (self.elapsed_fraction(*frame) < 1.0).then(Action::request_redraw)
+    }
+
     fn draw(
         &self,
-        (): &Self::State,
+        frame: &Self::State,
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let mut geometry = canvas::Frame::new(renderer, bounds.size());
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let radius = self.diameter * (1.0 - RING_THICKNESS_FRACTION) / 2.0;
-        frame.stroke(&canvas::Path::circle(center, radius), self.ring(self.track));
-        let swept = TAU * self.elapsed_fraction.get::<ratio>() as f32;
-        frame.stroke(&Self::arc(center, radius, swept), self.ring(self.fill));
-        vec![frame.into_geometry()]
+        geometry.stroke(&canvas::Path::circle(center, radius), self.ring(self.track));
+        let swept = TAU * self.elapsed_fraction(*frame);
+        geometry.stroke(&arc_path(center, radius, swept), self.ring(self.fill));
+        vec![geometry.into_geometry()]
     }
 }

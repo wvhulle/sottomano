@@ -33,6 +33,10 @@ pub trait JournalEvent: Clone + Send + 'static {
     fn admit(record: Self::Record, at: SystemTime) -> Option<Self>;
 
     fn at(&self) -> SystemTime;
+
+    fn expires_at(&self) -> SystemTime {
+        self.at() + EVENT_HORIZON
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -138,20 +142,20 @@ impl<E: JournalEvent> WindowedJournal<E> {
             let Ok(at) = self.journal.timestamp() else {
                 continue;
             };
-            if let Some(event) = Self::admitted_event(record, at) {
+            if let Some(event) = admitted_event(record, at) {
                 self.window.events.push_back(event);
                 appended = true;
             }
         }
         appended
     }
+}
 
-    fn admitted_event(record: JournalRecord, at: SystemTime) -> Option<E> {
-        decode_record(record)
-            .inspect_err(|e| tracing::debug!("journal: malformed {} record: {e}", E::NAME))
-            .ok()
-            .and_then(|record| E::admit(record, at))
-    }
+fn admitted_event<E: JournalEvent>(record: JournalRecord, at: SystemTime) -> Option<E> {
+    decode_record(record)
+        .inspect_err(|e| tracing::debug!("journal: malformed {} record: {e}", E::NAME))
+        .ok()
+        .and_then(|record| E::admit(record, at))
 }
 
 struct EventWindow<E> {
@@ -167,16 +171,12 @@ impl<E> Default for EventWindow<E> {
 }
 
 impl<E: JournalEvent> EventWindow<E> {
-    fn expiry_of(event: &E) -> SystemTime {
-        event.at() + EVENT_HORIZON
-    }
-
     fn drop_expired(&mut self, now: SystemTime) -> bool {
         let before = self.events.len();
         while self
             .events
             .front()
-            .is_some_and(|oldest| Self::expiry_of(oldest) <= now)
+            .is_some_and(|oldest| oldest.expires_at() <= now)
         {
             self.events.pop_front();
         }
@@ -186,7 +186,8 @@ impl<E: JournalEvent> EventWindow<E> {
     fn time_until_next_expiry(&self, now: SystemTime) -> Option<Duration> {
         let oldest = self.events.front()?;
         Some(
-            Self::expiry_of(oldest)
+            oldest
+                .expires_at()
                 .duration_since(now)
                 .unwrap_or(Duration::ZERO),
         )

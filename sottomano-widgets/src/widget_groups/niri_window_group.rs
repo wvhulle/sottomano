@@ -3,6 +3,7 @@ use sottomano_config::{Config, severity::Severity};
 use sottomano_state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widgets::{
@@ -86,13 +87,18 @@ impl NiriWindowGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: NiriWindowTarget, rules: &NiriRulesFile) -> Tooltip {
+    pub fn tooltip_for(
+        &self,
+        target: NiriWindowTarget,
+        rules: &NiriRulesFile,
+        clock: Clock,
+    ) -> Tooltip {
         let control = match target {
             NiriWindowTarget::CornerRadius => {
                 self.corner_radius.readout_tooltip("Window corner radius")
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
-            NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(),
+            NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(clock),
         };
         control.with_sections(rules.unreadable().map(|unreadable| {
             Section::dictionary([KeyValue::new(

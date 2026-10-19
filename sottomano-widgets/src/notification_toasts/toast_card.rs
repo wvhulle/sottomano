@@ -141,6 +141,7 @@ pub struct ToastCard<'a> {
     config: &'a Config,
     theme: &'a Theme,
     settings: &'a ShellSettings,
+    now: SystemTime,
     hovered: bool,
     reveal: f32,
 }
@@ -151,12 +152,14 @@ impl<'a> ToastCard<'a> {
         config: &'a Config,
         theme: &'a Theme,
         settings: &'a ShellSettings,
+        now: SystemTime,
     ) -> Self {
         Self {
             notif,
             config,
             theme,
             settings,
+            now,
             hovered: false,
             reveal: 1.0,
         }
@@ -290,7 +293,7 @@ impl ToastCard<'_> {
             .collect();
         let previewed = self.notif.icons.previewed_file().is_some();
         let has_actions = !button_actions.is_empty() || previewed;
-        let now = SystemTime::now();
+        let now = self.now;
         let body_text = self.notif.body_text(now, self.config.calendar.locale);
         let has_body = body_text.is_some();
         let reltime = match &self.notif.kind {

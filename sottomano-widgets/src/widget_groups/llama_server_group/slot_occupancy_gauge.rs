@@ -1,11 +1,15 @@
+use chrono::Locale;
 use sottomano_sources::ai_usage_spend::llama_server_slots::LlamaSlot;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 pub struct SlotOccupancy<'a>(pub &'a [LlamaSlot]);
@@ -22,18 +26,18 @@ impl BarWidget for SlotOccupancy<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Stack(self.state().weight()).into()
+        Phosphor::Stack(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Stack(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!("{}/{}", self.busy(), self.0.len()))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.busy() > 0 {
             WidgetState::On
         } else {
@@ -48,7 +52,7 @@ impl BarWidget for SlotOccupancy<'_> {
         ))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
             KeyValue::new("Processing", self.busy().to_string()),
             KeyValue::new("Slots", self.0.len().to_string()),

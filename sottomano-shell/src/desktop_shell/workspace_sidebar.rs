@@ -38,6 +38,7 @@ impl DesktopShell {
                     config,
                     &self.drag_view(),
                     self.configured_workspaces.as_ref(),
+                    self.clock,
                 )
             })
             .map(|workspaces| {

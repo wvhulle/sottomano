@@ -22,6 +22,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,
@@ -101,6 +102,7 @@ impl LoginSessionGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
+        clock: Clock,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
         self.service_manager.stop();
@@ -113,6 +115,7 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => {
@@ -120,16 +123,18 @@ impl LoginSessionGroup {
                     buses.clone(),
                     LoginSessionMessage::ServiceManagerFetched,
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
                 .graphical
-                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config),
+                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config, clock),
             Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => {
                 self.graphical_target.start_hover_fetch(
                     buses.clone(),
                     LoginSessionMessage::GraphicalTargetFetched,
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
@@ -137,33 +142,40 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
                     config,
+                    clock,
                 )
             }
             _ => Task::none(),
         }
     }
 
-    pub fn update(&mut self, message: LoginSessionMessage) -> Task<LoginSessionMessage> {
+    pub fn update(
+        &mut self,
+        message: LoginSessionMessage,
+        clock: Clock,
+    ) -> Task<LoginSessionMessage> {
         match message {
             LoginSessionMessage::SystemFetched(delivery) => {
-                self.system.receive_keeping_last_reading(delivery);
+                self.system.receive_keeping_last_reading(delivery, clock);
             }
             LoginSessionMessage::IdentityFetched(delivery) => {
-                self.identity.receive_keeping_last_reading(delivery);
+                self.identity.receive_keeping_last_reading(delivery, clock);
             }
             LoginSessionMessage::SessionFetched(delivery) => {
-                self.session.receive_delivery(*delivery);
+                self.session.receive_delivery(*delivery, clock);
             }
             LoginSessionMessage::ServiceManagerFetched(delivery) => {
-                self.service_manager.receive_delivery(delivery);
+                self.service_manager.receive_delivery(delivery, clock);
             }
             LoginSessionMessage::GraphicalFetched(delivery) => {
-                self.graphical.receive_delivery(delivery);
+                self.graphical.receive_delivery(delivery, clock);
             }
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
-                self.graphical_target.receive_delivery(delivery);
+                self.graphical_target.receive_delivery(delivery, clock);
             }
-            LoginSessionMessage::PowerFetched(delivery) => self.power.receive_delivery(*delivery),
+            LoginSessionMessage::PowerFetched(delivery) => {
+                self.power.receive_delivery(*delivery, clock);
+            }
             LoginSessionMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
             }
@@ -220,15 +232,15 @@ impl LoginSessionGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: LoginSessionTarget) -> Option<Tooltip> {
-        let session_face = |face: &dyn BarWidget| self.identity.tooltip_with(face.tooltip());
+    pub fn tooltip_for(&self, target: LoginSessionTarget, clock: Clock) -> Option<Tooltip> {
+        let session_face = |face: &dyn BarWidget| self.identity.tooltip_with(face.tooltip(clock));
         let identity = self.identity.get();
         match target {
             LoginSessionTarget::Kernel => self.system.tooltip_with(
-                KernelFace {
+                (KernelFace {
                     system: self.system.get()?,
-                }
-                .tooltip(),
+                })
+                .tooltip(clock),
             ),
             LoginSessionTarget::Seat => {
                 let identity = identity?;
@@ -240,20 +252,20 @@ impl LoginSessionGroup {
             LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_sections(self.session.sections())),
+            .map(|tooltip| tooltip.with_sections(self.session.sections(clock))),
             LoginSessionTarget::Account => session_face(&AccountFace {
                 identity: identity?,
             }),
             LoginSessionTarget::Compositor => session_face(&CompositorFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_sections(self.graphical.sections())),
+            .map(|tooltip| tooltip.with_sections(self.graphical.sections(clock))),
             LoginSessionTarget::ServiceManager => session_face(&ServiceManagerFace)
-                .map(|tooltip| tooltip.with_sections(self.service_manager.sections())),
+                .map(|tooltip| tooltip.with_sections(self.service_manager.sections(clock))),
             LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
-                .map(|tooltip| tooltip.with_sections(self.graphical_target.sections())),
+                .map(|tooltip| tooltip.with_sections(self.graphical_target.sections(clock))),
             LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
-                .map(|tooltip| tooltip.with_sections(self.power.sections())),
+                .map(|tooltip| tooltip.with_sections(self.power.sections(clock))),
         }
     }
 }

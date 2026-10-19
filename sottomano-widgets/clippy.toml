@@ -1,0 +1,8 @@
+disallowed-methods = [
+  { path = "iced_core::renderer::Renderer::with_translation", reason = "shifting content only while drawing leaves its layout bounds, and so tooltip anchors, at the unshifted position; move the child node in layout instead" },
+  { path = "iced_widget::helpers::scrollable", reason = "scrollable translates content only while drawing, so hover anchors inside it are off by the scroll offset" },
+  { path = "std::time::Instant::now", reason = "widgets receive the time as a Clock argument from the program that renders them; only Clock::real reads it" },
+  { path = "std::time::SystemTime::now", reason = "widgets receive the time as a Clock argument from the program that renders them; only Clock::real reads it" },
+  { path = "chrono::offset::Utc::now", reason = "widgets receive the time as a Clock argument from the program that renders them; use Clock::utc" },
+  { path = "chrono::offset::Local::now", reason = "widgets receive the time as a Clock argument from the program that renders them; use Clock::local" },
+]

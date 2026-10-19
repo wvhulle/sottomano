@@ -1,17 +1,20 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Locale, Utc};
 use rust_decimal::Decimal;
 use sottomano_sources::ai_usage_spend::{
     copilot_usage::CopilotCcusage, spend_money::usd, usage_quota::Quota,
 };
 
-use crate::widgets::{
-    amount_text::spend_text,
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_forecast_basis::MONTH_HEADING_FORMAT,
-    spend_to_level::level_from_cost,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::spend_text,
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_forecast_basis::MONTH_HEADING_FORMAT,
+        spend_to_level::level_from_cost,
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for CopilotCcusage {
@@ -20,14 +23,14 @@ impl BarWidget for CopilotCcusage {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::TerminalWindow(self.state().weight()).into()
+        Phosphor::TerminalWindow(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::TerminalWindow(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(if self.period.usage.cost.is_positive() {
             format!("{} cli", spend_text(&self.period.usage.cost))
         } else {
@@ -35,13 +38,13 @@ impl BarWidget for CopilotCcusage {
         })
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_cost(&self.period.usage.cost))
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let usage = &self.period.usage;
         TooltipBody::sections([
             Section::dictionary(

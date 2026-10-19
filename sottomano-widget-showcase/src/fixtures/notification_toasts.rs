@@ -6,12 +6,17 @@ use niri_ipc::{
 };
 use sottomano_config::severity::Severity;
 use sottomano_sources::desktop_notifications::notification_data::{
-    ActionTint, ExpireTimeout, NotifAction, NotificationData, ReplyPrompt,
+    ActionTint, ExpireTimeout, NotifAction, NotificationData,
 };
-use sottomano_widgets::{shell_message::Message, toast_messages::NotificationMessage};
+use sottomano_widgets::{
+    clock::Clock, shell_message::Message, toast_messages::NotificationMessage,
+};
 use uom::si::{f64::Ratio, ratio::percent};
 
-use crate::showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts};
+use crate::{
+    fixtures::sample,
+    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts},
+};
 
 const DESK_WORKSPACE: u64 = 1;
 const EDITOR_WINDOW: u64 = 1;
@@ -20,7 +25,6 @@ const EDITOR_POSITION_IN_VIEW: (f64, f64) = (24.0, 120.0);
 const ARRIVAL_TOAST: u32 = 1;
 const PROGRESS_TOAST: u32 = 2;
 const ACTIONS_TOAST: u32 = 3;
-const REPLY_TOAST: u32 = 4;
 const WINDOW_TOAST: u32 = 5;
 const PROGRESS_STEP_PERCENT: f64 = 15.0;
 
@@ -28,65 +32,60 @@ pub const ARRIVAL_SUMMARY: &str = "Standup in 5 minutes";
 pub const ACTIONS_SUMMARY: &str = "Meeting invitation";
 pub const WINDOW_SUMMARY: &str = "Build finished";
 
-pub fn arrival() -> ShowcasedGroup {
-    desk(NotificationData {
-        id: ARRIVAL_TOAST,
-        app_name: Some("Calendar".to_owned()),
-        summary: ARRIVAL_SUMMARY.to_owned(),
-        body: Some("Room 2 with the platform team".to_owned()),
-        expire_timeout: ExpireTimeout::After(Duration::from_secs(3)),
-        ..quiet_toast()
-    })
-}
-
-pub fn progress() -> ShowcasedGroup {
-    desk(download(0))
-}
-
-pub fn actions() -> ShowcasedGroup {
-    desk(NotificationData {
-        id: ACTIONS_TOAST,
-        app_name: Some("Calendar".to_owned()),
-        summary: ACTIONS_SUMMARY.to_owned(),
-        body: Some("Design review, Thursday 14:00".to_owned()),
-        actions: vec![
-            action("accept", "Accept"),
-            action("later", "Later"),
-            action("deny", "Decline"),
-        ],
-        expire_timeout: ExpireTimeout::Never,
-        ..quiet_toast()
-    })
-}
-
-pub fn reply() -> ShowcasedGroup {
-    desk(NotificationData {
-        id: REPLY_TOAST,
-        app_name: Some("Chat".to_owned()),
-        summary: "Alex".to_owned(),
-        body: Some("Lunch at noon?".to_owned()),
-        reply: ReplyPrompt::Offered {
-            placeholder: "Reply".to_owned(),
-            submit: "Send".to_owned(),
+pub fn arrival(clock: Clock) -> ShowcasedGroup {
+    desk(
+        NotificationData {
+            id: ARRIVAL_TOAST,
+            app_name: Some("Calendar".to_owned()),
+            summary: ARRIVAL_SUMMARY.to_owned(),
+            body: Some("Room 2 with the platform team".to_owned()),
+            expire_timeout: ExpireTimeout::After(Duration::from_secs(3)),
+            ..quiet_toast()
         },
-        expire_timeout: ExpireTimeout::Never,
-        ..quiet_toast()
-    })
+        clock,
+    )
 }
 
-pub fn next_to_window() -> ShowcasedGroup {
-    desk(NotificationData {
-        id: WINDOW_TOAST,
-        app_name: Some("foot".to_owned()),
-        summary: WINDOW_SUMMARY.to_owned(),
-        body: Some("cargo build finished in 42 s".to_owned()),
-        window_id_hint: Some(EDITOR_WINDOW),
-        expire_timeout: ExpireTimeout::Never,
-        ..quiet_toast()
-    })
+pub fn progress(clock: Clock) -> ShowcasedGroup {
+    desk(download(0), clock)
 }
 
-pub fn downloading(tick: u32) -> Vec<Message> {
+pub fn actions(clock: Clock) -> ShowcasedGroup {
+    desk(
+        NotificationData {
+            id: ACTIONS_TOAST,
+            app_name: Some("Calendar".to_owned()),
+            summary: ACTIONS_SUMMARY.to_owned(),
+            body: Some("Design review, Thursday 14:00".to_owned()),
+            actions: vec![
+                action("accept", "Accept"),
+                action("later", "Later"),
+                action("deny", "Decline"),
+            ],
+            expire_timeout: ExpireTimeout::Never,
+            ..quiet_toast()
+        },
+        clock,
+    )
+}
+
+pub fn next_to_window(clock: Clock) -> ShowcasedGroup {
+    desk(
+        NotificationData {
+            id: WINDOW_TOAST,
+            app_name: Some("foot".to_owned()),
+            summary: WINDOW_SUMMARY.to_owned(),
+            body: Some("cargo build finished in 42 s".to_owned()),
+            window_id_hint: Some(EDITOR_WINDOW),
+            expire_timeout: ExpireTimeout::Never,
+            ..quiet_toast()
+        },
+        clock,
+    )
+}
+
+pub fn downloading(clock: Clock) -> Vec<Message> {
+    let tick = sample(clock);
     vec![Message::Notification(NotificationMessage::Served(
         Box::new(download(tick)),
     ))]
@@ -121,7 +120,7 @@ fn action(key: &str, label: &str) -> NotifAction {
     }
 }
 
-fn desk(opening: NotificationData) -> ShowcasedGroup {
+fn desk(opening: NotificationData, _clock: Clock) -> ShowcasedGroup {
     let editor_view = opening.window_id_hint.map(|_| EDITOR_POSITION_IN_VIEW);
     let niri = [workspaces(), windows(editor_view)].into_iter().fold(
         EventStreamState::default(),

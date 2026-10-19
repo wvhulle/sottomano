@@ -30,7 +30,17 @@ pub fn expand_animation<'a, Message: 'a>(
 
 struct State {
     animation: Animation<bool>,
-    at: Instant,
+    at: Option<Instant>,
+}
+
+impl State {
+    fn fraction(&self) -> f32 {
+        match self.at {
+            Some(at) => self.animation.interpolate(0.0, 1.0, at),
+            None if self.animation.value() => 1.0,
+            None => 0.0,
+        }
+    }
 }
 
 struct ExpandAnimation<'a, Message> {
@@ -43,7 +53,7 @@ struct ExpandAnimation<'a, Message> {
 impl<Message> ExpandAnimation<'_, Message> {
     fn rebuild(&mut self, tree: &mut Tree) {
         let state = tree.state.downcast_ref::<State>();
-        let fraction = state.animation.interpolate(0.0, 1.0, state.at);
+        let fraction = state.fraction();
         self.content = (self.view)(fraction);
         tree.diff_children(slice::from_ref(&self.content));
     }
@@ -59,7 +69,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandAnimation<'
             animation: Animation::new(self.expanded)
                 .easing(Easing::EaseOutCubic)
                 .duration(self.duration),
-            at: Instant::now(),
+            at: None,
         })
     }
 
@@ -132,9 +142,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ExpandAnimation<'
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            let laid_out_mid_animation = state.animation.is_animating(state.at);
+            let laid_out_mid_animation =
+                state.at.is_some_and(|at| state.animation.is_animating(at));
             state.animation.go_mut(self.expanded, *now);
-            state.at = *now;
+            state.at = Some(*now);
             let animating = state.animation.is_animating(*now);
             if animating || laid_out_mid_animation {
                 shell.invalidate_layout();

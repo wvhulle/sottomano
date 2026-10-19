@@ -37,6 +37,7 @@ impl DesktopShell {
             &self.theme,
             &self.shell_settings,
             self.bar_clearance(output),
+            self.clock,
         ))
         .map(Message::Notification);
         stack![

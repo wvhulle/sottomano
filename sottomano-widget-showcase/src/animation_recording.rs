@@ -1,9 +1,7 @@
 use std::{
     borrow::Cow,
     fs,
-    iter::from_fn,
     path::Path,
-    thread::sleep,
     time::{Duration, Instant},
 };
 
@@ -11,6 +9,7 @@ use iced::{
     Point, Rectangle, Size, Vector,
     advanced::widget::operation::{Operation, Outcome, black_box},
     futures::{
+        StreamExt,
         channel::mpsc::{self, Receiver},
         executor::block_on,
     },
@@ -20,20 +19,21 @@ use iced_test::{
     Emulator, Instruction, Selector,
     core::renderer::Headless,
     emulator::{Event, Mode},
-    instruction::{Interaction, Key, Keyboard, Mouse, Target},
+    instruction::{Interaction, Mouse, Target},
     program::Program,
     renderer::graphics::text::font_system,
     runtime::{UserInterface, user_interface::Cache},
 };
 use sottomano_config::Config;
+use sottomano_widgets::clock::Clock;
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
     demo_script::{Demo, Step},
-    hovered_widget::{AnyHoveredWidget, HoveredWidget, ReplyField},
+    hovered_widget::{AnyHoveredWidget, HoveredWidget},
     readme_embedding::RecordedAnimation,
-    showcase_program::ShowcaseProgram,
+    showcase_program::{ShowcaseMessage, ShowcaseProgram},
 };
 
 pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
@@ -45,8 +45,7 @@ const PRESS_LEAD: Duration = Duration::from_millis(1000);
 const PRESS_HOLD: Duration = Duration::from_millis(1500);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
-const KEYSTROKE_HOLD: Duration = Duration::from_millis(90);
-const FRAME_INTERVAL: Duration = Duration::from_millis(20);
+pub(crate) const FRAME_INTERVAL: Duration = Duration::from_millis(20);
 const LAST_FRAME_DURATION: Duration = Duration::from_millis(100);
 const LOSSLESS_EFFORT: f32 = 75.0;
 const LOSSLESS_METHOD: usize = 4;
@@ -65,16 +64,17 @@ struct DemoRecorder {
     layout_renderer: iced::Renderer,
     pointer: Point,
     background: [u8; 4],
+    clock: Clock,
 }
 
 impl DemoRecorder {
-    fn start(demo: &'static Demo, config: &Config) -> Self {
-        let program = ShowcaseProgram::new(config);
+    fn start(demo: &'static Demo, config: &Config, clock: Clock) -> Self {
+        let program = ShowcaseProgram::scripted(config, clock);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
         let mut emulator = Emulator::with_preset(
             sender,
             &program,
-            Mode::Immediate,
+            Mode::Zen,
             CANVAS,
             Some(program.preset(demo)),
         );
@@ -101,20 +101,22 @@ impl DemoRecorder {
             layout_renderer,
             pointer: REST_POINTER,
             background,
+            clock,
         };
         recorder.settle();
         recorder
     }
 
     fn settle(&mut self) {
-        while let Ok(event) = self.events.try_recv() {
-            match event {
-                Event::Action(action) => self.emulator.perform(&self.program, action),
-                Event::Failed(instruction) => panic!(
+        loop {
+            match block_on(self.events.next()) {
+                Some(Event::Action(action)) => self.emulator.perform(&self.program, action),
+                Some(Event::Failed(instruction)) => panic!(
                     "demo {} cannot {instruction}: its target is not on screen",
                     self.demo.name
                 ),
-                Event::Ready => {}
+                Some(Event::Ready) => return,
+                None => panic!("demo {} lost its emulator", self.demo.name),
             }
         }
     }
@@ -174,14 +176,6 @@ impl DemoRecorder {
             .collect()
     }
 
-    fn type_key(&mut self, keyboard: Keyboard) {
-        self.emulator.run(
-            &self.program,
-            Instruction::Interact(Interaction::Keyboard(keyboard)),
-        );
-        self.settle();
-    }
-
     fn rest(&mut self) -> Vec<CapturedFrame> {
         self.point_at(REST_POINTER);
         self.capture_during(REST_HOLD)
@@ -210,23 +204,6 @@ impl DemoRecorder {
                     target: Some(Target::Text((*shown).to_owned())),
                 });
                 lead.into_iter()
-                    .chain(self.capture_during(PRESS_HOLD))
-                    .collect()
-            }
-            Step::TypeReply(reply) => {
-                let field = self.locate(ReplyField);
-                let focused = self.press_at(field);
-                let typed: Vec<CapturedFrame> = reply
-                    .chars()
-                    .flat_map(|typed| {
-                        self.type_key(Keyboard::Typewrite(typed.to_string()));
-                        self.capture_during(KEYSTROKE_HOLD)
-                    })
-                    .collect();
-                self.type_key(Keyboard::Type(Key::Enter));
-                focused
-                    .into_iter()
-                    .chain(typed)
                     .chain(self.capture_during(PRESS_HOLD))
                     .collect()
             }
@@ -262,8 +239,8 @@ impl DemoRecorder {
     }
 
     fn capture_during(&mut self, hold: Duration) -> Vec<CapturedFrame> {
-        let deadline = Instant::now() + hold;
-        from_fn(|| (Instant::now() < deadline).then(|| self.capture())).fold(
+        let frame_count = hold.as_millis() / FRAME_INTERVAL.as_millis();
+        (0..frame_count).map(|_| self.capture()).fold(
             Vec::new(),
             |mut frames: Vec<CapturedFrame>, frame| {
                 if frames
@@ -289,14 +266,13 @@ impl DemoRecorder {
     }
 
     fn capture(&mut self) -> CapturedFrame {
-        let frame_started = Instant::now();
-        self.settle();
-        let captured_at = Instant::now();
+        self.clock = self.clock.advanced(FRAME_INTERVAL);
+        self.emulator
+            .update(&self.program, ShowcaseMessage::Frame(self.clock));
         let rgba = self.screenshot();
-        sleep(FRAME_INTERVAL.saturating_sub(frame_started.elapsed()));
         CapturedFrame {
             content: ContentRows::differing_from(self.background, &rgba, FrameSize::of_canvas()),
-            captured_at,
+            captured_at: self.clock.instant,
         }
     }
 }
@@ -491,11 +467,11 @@ fn encode_animation(frames: &[CroppedFrame], size: FrameSize, animation: &Path) 
 }
 
 #[must_use]
-pub fn record(demo: &'static Demo) -> RecordedAnimation {
+pub fn record(demo: &'static Demo, start: Clock) -> RecordedAnimation {
     let config = Config::fallback();
     register_font(&config);
     let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
-    let mut recorder = DemoRecorder::start(demo, &config);
+    let mut recorder = DemoRecorder::start(demo, &config, start);
     let opening = recorder.rest();
     let scripted: Vec<CapturedFrame> = demo
         .script

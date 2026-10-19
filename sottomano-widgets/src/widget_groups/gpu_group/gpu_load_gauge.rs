@@ -7,11 +7,14 @@ use uom::{
     },
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    },
 };
 
 impl BarWidget for GpuSnapshot {
@@ -20,7 +23,7 @@ impl BarWidget for GpuSnapshot {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::GraphicsCard(self.state().weight()).into()
+        Phosphor::GraphicsCard(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
@@ -31,13 +34,13 @@ impl BarWidget for GpuSnapshot {
         Some(self.load)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("GPU", percent_text(self.load))])
     }
 }
 
 impl ReadingSections for GpuClocks {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let clock_text = |key: &'static str, clock: Option<Frequency>| {
             clock.map(|frequency| {
                 KeyValue::new(

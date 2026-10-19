@@ -5,14 +5,17 @@ use sottomano_sources::ai_usage_spend::{
 };
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    amount_text::{percent_text, two_decimals},
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    spend_to_level::level_from_used,
-    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::{percent_text, two_decimals},
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for CopilotMetered {
@@ -21,15 +24,15 @@ impl BarWidget for CopilotMetered {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Gauge(self.state().weight()).into()
+        Phosphor::Gauge(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_used(self.used_share))
             .into()
     }
@@ -38,7 +41,7 @@ impl BarWidget for CopilotMetered {
         Some(self.used_share)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::dictionary(
                 self.plan

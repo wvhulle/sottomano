@@ -17,7 +17,7 @@ impl DesktopShell {
     pub(super) fn top_bar<'a>(&'a self) -> Element<'a, Message> {
         let config = &self.config;
         let TopBarGroups { start, center, end } = self.top_bar_groups();
-        let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top);
+        let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top, self.clock);
         self.panel_bar(
             Position::Top,
             start.map(view),
@@ -44,10 +44,10 @@ impl DesktopShell {
                 self.gpu_group.group_content().map(Message::Gpu),
                 self.disk_group.group_content().map(Message::Disk),
                 self.net_interfaces_group
-                    .group_content()
+                    .group_content(self.clock)
                     .map(Message::NetInterfaces),
                 self.systemd_manager_group
-                    .group_content(config)
+                    .group_content(config, self.clock)
                     .map(Message::SystemdManager),
                 self.journal_events_group
                     .group_content(config)
@@ -96,11 +96,15 @@ impl DesktopShell {
                     .map(Message::IdleTimeouts),
                 self.wallpaper_group.group_content().map(Message::Wallpaper),
                 self.media_group
-                    .group_content(config, &self.desktop_entries)
+                    .group_content(config, &self.desktop_entries, self.clock)
                     .map(Message::Media),
                 self.audio_group.group_content(config).map(Message::Audio),
                 self.session_focus_group
-                    .group_content(config, self.quiet_schedule_group.waking_window())
+                    .group_content(
+                        config,
+                        self.quiet_schedule_group.waking_window(),
+                        self.clock,
+                    )
                     .map(Message::SessionFocus),
                 self.login_session_group
                     .group_content()

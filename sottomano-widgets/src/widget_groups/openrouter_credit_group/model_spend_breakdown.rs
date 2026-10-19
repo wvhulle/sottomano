@@ -1,14 +1,18 @@
+use chrono::Locale;
 use sottomano_sources::ai_usage_spend::{
     openrouter_credits::{OpenRouterSpend, SpanSpend},
     spend_money::usd,
 };
 
-use crate::widgets::{
-    amount_text::spend_text,
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::spend_text,
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const LISTED_MODELS: usize = 6;
@@ -21,19 +25,19 @@ impl BarWidget for ModelSpendBreakdown<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Sparkle(self.state().weight()).into()
+        Phosphor::Sparkle(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         let top = self.0.month.models.first()?;
         Some(format!("{} {}", top.model, spend_text(&top.cost)))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::Idle
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let ranked = self.ranked_models();
         let listed = &ranked[..ranked.len().min(LISTED_MODELS)];
         let other = TableRecord::new(

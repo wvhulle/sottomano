@@ -100,21 +100,14 @@ impl<'a, Message: 'a> From<TransitioningText<'a, Message>> for Element<'a, Messa
 
 #[derive(Debug, Clone, PartialEq)]
 enum ShownText {
-    Placeholder { since: Instant },
+    Placeholder,
     Text { text: String, identity: u64 },
 }
 
 impl ShownText {
-    fn continues_as(&self, next: &ShownText) -> bool {
-        match self {
-            ShownText::Placeholder { .. } => matches!(next, ShownText::Placeholder { .. }),
-            ShownText::Text { .. } => self == next,
-        }
-    }
-
     fn transition_to(&self, next: &ShownText) -> Option<TransitionKind> {
         match self {
-            ShownText::Placeholder { .. } => {
+            ShownText::Placeholder => {
                 matches!(next, ShownText::Text { .. }).then_some(TransitionKind::Intro)
             }
             ShownText::Text { text, identity } => match next {
@@ -123,7 +116,7 @@ impl ShownText {
                     ..
                 } => (next_identity == identity)
                     .then(|| TransitionKind::Replace { from: text.clone() }),
-                ShownText::Placeholder { .. } => None,
+                ShownText::Placeholder => None,
             },
         }
     }
@@ -158,14 +151,40 @@ impl Running<'_> {
 
 struct State {
     shown: ShownText,
+    pending: Option<ShownText>,
     transition: Option<Transition>,
-    now: Instant,
+    placeholder_since: Option<Instant>,
+    now: Option<Instant>,
 }
 
 impl State {
-    fn observe(&mut self, next: ShownText, now: Instant) {
-        if self.shown.continues_as(&next) {
+    fn settled(shown: ShownText) -> Self {
+        Self {
+            shown,
+            pending: None,
+            transition: None,
+            placeholder_since: None,
+            now: None,
+        }
+    }
+
+    fn expect(&mut self, next: ShownText) {
+        if self.shown == next {
+            self.pending = None;
+        } else {
+            self.pending = Some(next);
+        }
+    }
+
+    fn frame(&mut self, now: Instant) {
+        self.now = Some(now);
+        let Some(next) = self.pending.take() else {
             return;
+        };
+        if next == ShownText::Placeholder {
+            self.placeholder_since.get_or_insert(now);
+        } else {
+            self.placeholder_since = None;
         }
         self.transition = self
             .shown
@@ -173,12 +192,19 @@ impl State {
             .map(|kind| Transition { kind, started: now });
         self.shown = next;
     }
+
+    fn placeholder_elapsed(&self) -> Duration {
+        match (self.now, self.placeholder_since) {
+            (Some(now), Some(since)) => now.saturating_duration_since(since),
+            _ => Duration::ZERO,
+        }
+    }
 }
 
 impl<Message> TransitioningText<'_, Message> {
-    fn shown_text(&self, now: Instant) -> ShownText {
+    fn shown_text(&self) -> ShownText {
         match self.style.presence {
-            TextPresence::Placeholder => ShownText::Placeholder { since: now },
+            TextPresence::Placeholder => ShownText::Placeholder,
             TextPresence::Shown => ShownText::Text {
                 text: self.text.clone(),
                 identity: self.identity,
@@ -192,7 +218,7 @@ impl<Message> TransitioningText<'_, Message> {
             TransitionKind::Intro => self.style.loading.intro.length(&self.text),
             TransitionKind::Replace { .. } => self.style.loading.replace.length(),
         };
-        let elapsed = state.now.saturating_duration_since(transition.started);
+        let elapsed = state.now?.saturating_duration_since(transition.started);
         (elapsed < length).then_some(Running {
             kind: &transition.kind,
             elapsed,
@@ -202,7 +228,7 @@ impl<Message> TransitioningText<'_, Message> {
 
     fn animating(&self, state: &State) -> bool {
         match state.shown {
-            ShownText::Placeholder { .. } => true,
+            ShownText::Placeholder => true,
             ShownText::Text { .. } => self.running(state).is_some(),
         }
     }
@@ -459,12 +485,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
     }
 
     fn state(&self) -> tree::State {
-        let now = Instant::now();
-        tree::State::new(State {
-            shown: self.shown_text(now),
-            transition: None,
-            now,
-        })
+        tree::State::new(State::settled(self.shown_text()))
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -472,10 +493,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
     }
 
     fn diff(&self, tree: &mut Tree) {
-        let now = Instant::now();
-        tree.state
-            .downcast_mut::<State>()
-            .observe(self.shown_text(now), now);
+        tree.state.downcast_mut::<State>().expect(self.shown_text());
         tree.diff_children(slice::from_ref(&self.settled));
     }
 
@@ -505,8 +523,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
         let settled = layout.children().next().unwrap();
         let area = settled.bounds();
         match &state.shown {
-            ShownText::Placeholder { since } => {
-                self.draw_placeholder(renderer, area, state.now.saturating_duration_since(*since));
+            ShownText::Placeholder => {
+                self.draw_placeholder(renderer, area, state.placeholder_elapsed());
             }
             ShownText::Text { .. } => match self.running(state) {
                 None => self.settled.as_widget().draw(
@@ -556,7 +574,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
             let state = tree.state.downcast_mut::<State>();
-            state.now = *now;
+            state.frame(*now);
             if self.animating(state) {
                 shell.request_redraw();
             }

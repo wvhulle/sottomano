@@ -1,11 +1,10 @@
 use std::mem;
 
-use iced::{Task, time::Instant, window::Id};
+use iced::{Task, window::Id};
 use iced_exwlshell::reexport::KeyboardInteractivity;
-use sottomano_config::Config;
 use sottomano_sources::desktop_notifications::notification_data::{Outbound, close_reason};
 
-use super::{NotificationLayer, toast_lifecycle::ExitPace};
+use super::{NotificationLayer, ToastContext, toast_lifecycle::ExitPace};
 use crate::{shell_message::Message, toast_messages::ReplyMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -24,7 +23,7 @@ impl NotificationLayer {
         id: u32,
         message: ReplyMessage,
         panel_on: &dyn Fn(&str) -> Option<Id>,
-        config: &Config,
+        context: &ToastContext,
     ) -> Task<Message> {
         match message {
             ReplyMessage::PointerEntered => self.claim_keyboard(id, panel_on),
@@ -34,10 +33,10 @@ impl NotificationLayer {
                 if let Some(notif) = self.live.iter_mut().find(|n| n.data.id == id) {
                     notif.reply_draft = text;
                 }
-                self.sync_countdowns(Instant::now());
+                self.sync_countdowns(context.clock.instant);
                 Task::none()
             }
-            ReplyMessage::Submitted => self.submit_reply(id, config),
+            ReplyMessage::Submitted => self.submit_reply(id, context),
         }
     }
 
@@ -86,7 +85,7 @@ impl NotificationLayer {
         }
     }
 
-    fn submit_reply(&mut self, id: u32, config: &Config) -> Task<Message> {
+    fn submit_reply(&mut self, id: u32, context: &ToastContext) -> Task<Message> {
         let text = self
             .live
             .iter_mut()
@@ -96,7 +95,12 @@ impl NotificationLayer {
         if text.trim().is_empty() {
             return Task::none();
         }
-        let withdrawn = self.withdraw_showing([id], ExitPace::Dismissed, config);
+        let withdrawn = self.withdraw_showing(
+            [id],
+            ExitPace::Dismissed,
+            context.config,
+            context.clock.instant,
+        );
         let closed = withdrawn
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))

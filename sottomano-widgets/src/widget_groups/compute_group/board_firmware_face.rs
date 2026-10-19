@@ -1,12 +1,16 @@
+use chrono::Locale;
 use sottomano_sources::{
     host_machine_identity::hostname1_os_identity::MachineInfo, non_empty_text::non_empty,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, Section, TooltipBody, entry},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, Section, TooltipBody, entry},
+    },
 };
 
 impl BarWidget for MachineInfo {
@@ -22,11 +26,11 @@ impl BarWidget for MachineInfo {
         Phosphor::Circuitry(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.hardware_model.clone()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let firmware = non_empty(
             [
                 self.firmware_vendor.as_deref(),

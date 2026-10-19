@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use sottomano_sources::{
     SourceDelivery,
@@ -8,30 +8,26 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_widgets::{
+    clock::Clock,
     desktop_index::DesktopIndex,
-    shell_message::Message,
     widget_groups::media_group::{MediaGroup, MediaMessage},
 };
 
 use crate::showcased_group::{ShowcasedGroup, ShowcasedMedia};
 
-pub fn live(_tick: u32) -> Vec<Message> {
-    vec![Message::Media(MediaMessage::Tick(Instant::now()))]
-}
-
-pub fn group() -> ShowcasedGroup {
+pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MediaGroup::default();
-    let _ = group.update(MediaMessage::Tick(Instant::now()));
-    let _ = group.update(MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![
-        now_playing(),
-    ]))));
+    let _ = group.update(
+        MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![now_playing(clock)]))),
+        clock,
+    );
     ShowcasedGroup::Media(Box::new(ShowcasedMedia {
         group,
         desktop_entries: DesktopIndex::default(),
     }))
 }
 
-fn now_playing() -> Media {
+fn now_playing(clock: Clock) -> Media {
     Media {
         bus: "org.mpris.MediaPlayer2.spotify".to_owned(),
         owner: OwnerProcess::Unidentified,
@@ -44,7 +40,7 @@ fn now_playing() -> Media {
         status: Status::Playing,
         progress: Progress::Timed {
             position: Duration::from_secs(83),
-            sampled_at: Instant::now(),
+            sampled_at: clock.instant,
             length: Duration::from_secs(241),
             rate: 1.0,
         },

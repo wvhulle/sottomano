@@ -6,16 +6,19 @@ use sottomano_sources::cpu_memory_compute::{
 };
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    gauge::percent_fill,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        gauge::percent_fill,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl ReadingSections for MemoryModuleTemperatures {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.modules.iter().map(|module| {
                 KeyValue::new(module.bus_address.clone(), celsius_text(module.temperature))
@@ -26,7 +29,7 @@ impl ReadingSections for MemoryModuleTemperatures {
 }
 
 impl ReadingSections for MemoryProcesses {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.processes.iter().map(|process| {
                 KeyValue::new(
@@ -45,10 +48,10 @@ impl BarWidget for Memory {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Memory(self.state().weight()).into()
+        Phosphor::Memory(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         match self.percent() {
             p if p > 90 => WidgetState::Critical,
             p if p > 75 => WidgetState::Warning,
@@ -67,7 +70,7 @@ impl BarWidget for Memory {
         Some(percent_fill(self.percent()))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
             KeyValue::new("Memory", format!("{}%", self.percent())),
             KeyValue::new("Used", self.used.display().iec().to_string()),

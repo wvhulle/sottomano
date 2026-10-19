@@ -8,12 +8,31 @@ pub mod notification_toasts;
 pub mod wallpaper;
 pub mod weather;
 
-use sottomano_widgets::shell_message::Message;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use sottomano_widgets::{clock::Clock, shell_message::Message};
+
+pub const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
+const SHOWCASE_EPOCH_UNIX_SECONDS: u64 = 1_781_517_600;
+
+#[must_use]
+pub fn showcase_epoch() -> SystemTime {
+    UNIX_EPOCH + Duration::from_secs(SHOWCASE_EPOCH_UNIX_SECONDS)
+}
+
+#[must_use]
+pub fn sample(clock: Clock) -> u32 {
+    let elapsed = clock
+        .wall
+        .duration_since(showcase_epoch())
+        .unwrap_or(Duration::ZERO);
+    u32::try_from(elapsed.as_millis() / LIVE_INTERVAL.as_millis()).unwrap_or(u32::MAX)
+}
 
 pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
     values[usize::try_from(tick).unwrap_or_default() % values.len()]
 }
 
-pub fn unchanging(_tick: u32) -> Vec<Message> {
+pub fn unchanging(_clock: Clock) -> Vec<Message> {
     Vec::new()
 }

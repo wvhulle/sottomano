@@ -1,5 +1,3 @@
-use std::time::SystemTime;
-
 use iced::{
     Task,
     futures::{StreamExt, stream},
@@ -9,7 +7,10 @@ use sottomano_config::Config;
 use sottomano_sources::{ReadingSource, SourceDelivery};
 use tokio::time::sleep;
 
-use crate::widgets::tooltip_body::{Freshness, Readiness, ReadingSections, Section};
+use crate::{
+    clock::Clock,
+    widgets::tooltip_body::{Freshness, Readiness, ReadingSections, Section},
+};
 
 #[derive(Debug)]
 pub struct OnHoverReading<S: ReadingSource> {
@@ -36,9 +37,10 @@ impl<S: ReadingSource> OnHoverReading<S> {
         inputs: S::StreamInputs,
         delivered: fn(SourceDelivery<S>) -> Message,
         config: &Config,
+        clock: Clock,
     ) -> Task<Message> {
         self.keep_shape();
-        self.freshness = Some(Freshness::from_source_cadence::<S>());
+        self.freshness = Some(Freshness::from_source_cadence::<S>(clock));
         let debug_delay = config.tooltips.loading.debug_delay;
         let delayed = stream::once(async move {
             sleep(debug_delay).await;
@@ -61,7 +63,7 @@ impl<S: ReadingSource> OnHoverReading<S> {
         }
     }
 
-    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>) {
+    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
         if self.fetching.is_none() {
             return;
         }
@@ -74,7 +76,7 @@ impl<S: ReadingSource> OnHoverReading<S> {
             SourceDelivery::Unchanged => {}
         }
         if let Some(Freshness::Polled { last, .. }) = &mut self.freshness {
-            *last = SystemTime::now();
+            *last = clock.wall;
         }
     }
 
@@ -111,7 +113,7 @@ impl<S: ReadingSource> OnHoverReading<S> {
 }
 
 impl<S: ReadingSource<Error: Into<Section>> + ReadingSections> OnHoverReading<S> {
-    pub fn sections(&self) -> Vec<Section> {
-        self.sections_described_by(S::sections)
+    pub fn sections(&self, clock: Clock) -> Vec<Section> {
+        self.sections_described_by(|reading| reading.sections(clock))
     }
 }

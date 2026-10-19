@@ -11,11 +11,14 @@ use uom::{
     },
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const POWER_WARN_W: f64 = 10.0;
@@ -63,7 +66,7 @@ impl PowerDraw {
 }
 
 impl ReadingSections for ChargerSupply {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.limit.iter().flat_map(|limit| {
                 [
@@ -97,13 +100,13 @@ impl BarWidget for PowerDraw {
 
     fn icon(&self) -> Glyph {
         if self.on_battery() {
-            Phosphor::Plugs(self.state().weight()).into()
+            Phosphor::Plugs(Weight::Regular).into()
         } else {
-            Phosphor::PlugsConnected(self.state().weight()).into()
+            Phosphor::PlugsConnected(Weight::Regular).into()
         }
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.status != Some(ChargeStatus::Discharging) {
             WidgetState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
@@ -119,7 +122,7 @@ impl BarWidget for PowerDraw {
         Some(self.power / Power::new::<watt>(POWER_GAUGE_MAX_W))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if self.on_battery() {
             self.breakdown_on_battery()
         } else {
@@ -152,7 +155,7 @@ mod tests {
             }),
         };
         assert_eq!(
-            charger.sections(),
+            charger.sections(Clock::real()),
             [Section::dictionary([
                 KeyValue::new("Limit", "65.0 W"),
                 KeyValue::new("Voltage", "20 V"),

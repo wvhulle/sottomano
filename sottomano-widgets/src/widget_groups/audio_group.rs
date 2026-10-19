@@ -12,6 +12,7 @@ use sottomano_sources::{
 };
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -151,7 +152,7 @@ impl AudioGroup {
         })
     }
 
-    pub fn update(&mut self, msg: AudioMessage) -> Task<AudioMessage> {
+    pub fn update(&mut self, msg: AudioMessage, clock: Clock) -> Task<AudioMessage> {
         match msg {
             AudioMessage::Connected(commands) => {
                 self.commands = Some(commands);
@@ -160,20 +161,20 @@ impl AudioGroup {
             }
             AudioMessage::Disconnected => {
                 self.commands = None;
-                self.state.receive_delivery(SourceDelivery::Absent);
+                self.state.receive_delivery(SourceDelivery::Absent, clock);
                 Task::none()
             }
             AudioMessage::ConnectFailed(failure) => {
                 self.commands = None;
                 self.state
-                    .receive_delivery(SourceDelivery::Reading(Err(failure)));
+                    .receive_delivery(SourceDelivery::Reading(Err(failure)), clock);
                 Task::none()
             }
             AudioMessage::State(state) => {
                 feed(&mut self.sink_control, state.sink.as_ref());
                 feed(&mut self.source_control, state.source.as_ref());
                 self.sink_control.set_icon(Phosphor::from(&state));
-                self.state.load(state);
+                self.state.load(state, clock);
                 Task::none()
             }
             AudioMessage::Peaks(peaks) => {
@@ -264,9 +265,9 @@ impl AudioGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: AudioTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: AudioTarget, clock: Clock) -> Option<Tooltip> {
         let AudioTarget::Control(kind) = target else {
-            return self.state.tooltip();
+            return self.state.tooltip(clock);
         };
         let state = self.state.get()?;
         let (reading, control) = match kind {
@@ -359,7 +360,7 @@ impl BarWidget for AudioState {
         Phosphor::from(self).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let sink = self
             .sink
             .iter()

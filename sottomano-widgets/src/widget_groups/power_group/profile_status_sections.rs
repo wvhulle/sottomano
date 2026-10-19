@@ -3,8 +3,11 @@ use sottomano_sources::battery_power_profiles::power_profiles_daemon::{
     ProfileHold, ProfileStatus,
 };
 
-use crate::widgets::tooltip_body::{
-    ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,
+use crate::{
+    clock::Clock,
+    widgets::tooltip_body::{
+        ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,
+    },
 };
 
 const HOLD_HEADINGS: [ColumnHeading; 2] = [
@@ -25,7 +28,7 @@ impl TableRow<2> for &ProfileHold {
 }
 
 impl ReadingSections for ProfileStatus {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let held_by = (!self.holds.is_empty()).then(|| {
             Section::column_table(HOLD_HEADINGS, self.holds.iter()).titled((
                 "Held by",

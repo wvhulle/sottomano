@@ -7,6 +7,7 @@ use sottomano_state::{
 };
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         group_item::GroupItem,
@@ -143,19 +144,24 @@ impl LayerAppearanceControls {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: AppearanceTarget, appearance: &LayerAppearance) -> Tooltip {
+    pub fn tooltip_for(
+        &self,
+        target: AppearanceTarget,
+        appearance: &LayerAppearance,
+        clock: Clock,
+    ) -> Tooltip {
         match target {
             AppearanceTarget::Opacity => self.opacity.readout_tooltip("Opacity"),
             AppearanceTarget::CornerRadius => self.corner_radius.readout_tooltip("Corner radius"),
-            AppearanceTarget::Blur => blur_toggle(appearance).switch_tooltip(),
-            AppearanceTarget::DropShadow => shadow_toggle(appearance).switch_tooltip(),
+            AppearanceTarget::Blur => blur_toggle(appearance).switch_tooltip(clock),
+            AppearanceTarget::DropShadow => shadow_toggle(appearance).switch_tooltip(clock),
             AppearanceTarget::ShadowSoftness => {
                 self.shadow_softness.readout_tooltip("Shadow softness")
             }
             AppearanceTarget::ShadowOpacity => {
                 self.shadow_opacity.readout_tooltip("Shadow opacity")
             }
-            AppearanceTarget::Outline => outline_toggle(appearance).switch_tooltip(),
+            AppearanceTarget::Outline => outline_toggle(appearance).switch_tooltip(clock),
         }
     }
 

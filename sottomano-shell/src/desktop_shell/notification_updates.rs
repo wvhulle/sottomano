@@ -29,7 +29,7 @@ impl DesktopShell {
             .chain(&end)
             .chain(&bottom_start)
             .chain(&bottom_end)
-            .map(|group| group.toast_requests(locale))
+            .map(|group| group.toast_requests(locale, self.clock))
             .collect()
     }
 
@@ -46,6 +46,7 @@ impl DesktopShell {
                 &self.config,
                 &self.shell_settings,
                 self.quiet_schedule_group.is_quiet(),
+                self.clock,
             ),
             &|output| panels.get(output).copied(),
         )
@@ -69,7 +70,7 @@ impl DesktopShell {
     }
 
     pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
-        let QuietUpdate { task, change } = self.quiet_schedule_group.update(msg);
+        let QuietUpdate { task, change } = self.quiet_schedule_group.update(msg, self.clock);
         Task::batch([
             task.map(Message::QuietSchedule),
             self.apply_quiet_change(change),
@@ -90,6 +91,7 @@ impl DesktopShell {
                     &self.config,
                     &self.shell_settings,
                     false,
+                    self.clock,
                 ));
                 Task::batch([
                     released,

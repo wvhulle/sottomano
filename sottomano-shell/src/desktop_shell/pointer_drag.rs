@@ -66,6 +66,7 @@ impl DesktopShell {
                     mem::replace(&mut self.pointer_drag, PointerDrag::Idle),
                     event,
                     self.config.panel_bar.drag_start_distance,
+                    self.clock.instant,
                 );
                 self.pointer_drag = drag;
                 self.follow_drag_outcome(outcome)
@@ -201,7 +202,7 @@ impl DesktopShell {
         reshape: impl FnOnce(niri_window_snapshot::Snapshot) -> niri_window_snapshot::Snapshot,
     ) {
         if let Some(snapshot) = self.niri_snapshot.get().cloned() {
-            self.niri_snapshot.load(reshape(snapshot));
+            self.niri_snapshot.load(reshape(snapshot), self.clock);
         }
     }
 }

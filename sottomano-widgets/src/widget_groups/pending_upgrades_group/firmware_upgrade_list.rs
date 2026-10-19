@@ -6,6 +6,7 @@ use sottomano_sources::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::{
         pending_upgrades_group::{
             PendingUpgradesGroup, PendingUpgradesMessage, PendingUpgradesTarget,
@@ -17,7 +18,7 @@ use crate::{
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -53,14 +54,14 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Circuitry(self.state().weight()).into()
+        Phosphor::Circuitry(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
         u32::try_from(self.len()).ok()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.iter()
             .map(FirmwareUpgrade::severity)
             .max()
@@ -75,7 +76,7 @@ impl BarWidget for Vec<FirmwareUpgrade> {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::new("Vendor").align_x(Horizontal::Left),

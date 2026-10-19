@@ -1,4 +1,4 @@
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use chrono::{DateTime, Local, Locale};
 use sottomano_config::severity::Severity;
@@ -16,13 +16,16 @@ use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    localized_time::LocalizedTimeFormat,
-    ongoing_toast::OngoingBody,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_time::LocalizedTimeFormat,
+        ongoing_toast::OngoingBody,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const SUSTAINED_CRITICAL: Duration = Duration::from_secs(30);
@@ -50,12 +53,13 @@ impl BarWidget for Temperature {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ThermometerSimple(self.state().weight()).into()
+        Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, clock: Clock) -> WidgetState {
         let critical_sustained = self.critical_since.is_some_and(|since| {
-            SystemTime::now()
+            clock
+                .wall
                 .duration_since(since)
                 .is_ok_and(|held| held >= SUSTAINED_CRITICAL)
         });
@@ -66,7 +70,7 @@ impl BarWidget for Temperature {
         .into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(celsius_text(self.hottest()))
     }
 
@@ -77,7 +81,7 @@ impl BarWidget for Temperature {
         }
     }
 
-    fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
+    fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> OngoingBody {
         let thresholds = self.thresholds();
         let hottest = self.hottest_reading().map_or_else(
             || format!("CPU at {}", celsius_text(self.hottest())),
@@ -106,7 +110,7 @@ impl BarWidget for Temperature {
         ))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
         let thresholds = self.thresholds();
@@ -173,6 +177,8 @@ impl ChipletLiveState<'_> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
     use sottomano_sources::cpu_memory_compute::{
         cpu_temperature::TempReading, temperature_thresholds::celsius,
@@ -196,9 +202,10 @@ mod tests {
 
     #[test]
     fn critical_heat_counts_as_warning_until_sustained() {
-        let fresh = hot_reading(Some(SystemTime::now()));
-        assert_eq!(fresh.state(), WidgetState::Warning);
-        let sustained = hot_reading(Some(SystemTime::now() - SUSTAINED_CRITICAL));
-        assert_eq!(sustained.state(), WidgetState::Critical);
+        let clock = Clock::real();
+        let fresh = hot_reading(Some(clock.wall));
+        assert_eq!(fresh.state(clock), WidgetState::Warning);
+        let sustained = hot_reading(Some(clock.wall - SUSTAINED_CRITICAL));
+        assert_eq!(sustained.state(clock), WidgetState::Critical);
     }
 }

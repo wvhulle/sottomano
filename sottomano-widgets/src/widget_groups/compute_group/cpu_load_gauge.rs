@@ -12,12 +12,15 @@ use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, ReadingSections, Section, ThreadCell, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, ThreadCell, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 fn busy_level(busy: Ratio) -> Severity {
@@ -118,10 +121,10 @@ impl BarWidget for CpuUsage {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Cpu(self.state().weight()).into()
+        Phosphor::Cpu(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         busy_level(self.busy).into()
     }
 
@@ -129,13 +132,13 @@ impl BarWidget for CpuUsage {
         Some(self.busy)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("CPU", percent_text(self.busy))])
     }
 }
 
 impl ReadingSections for CpuPower {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.zones.iter().map(|zone| {
                 KeyValue::new(

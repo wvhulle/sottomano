@@ -3,6 +3,7 @@ pub mod demo_script;
 mod fixtures;
 mod hovered_widget;
 pub mod readme_embedding;
+mod scripted_frames;
 pub mod showcase_program;
 mod showcased_group;
 

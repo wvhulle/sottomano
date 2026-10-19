@@ -153,6 +153,7 @@ pub fn advance<Click: Copy>(
     drag: PointerDrag<Click>,
     event: DragEvent<Click>,
     start_distance: f32,
+    now: Instant,
 ) -> DragTransition<Click> {
     match event {
         DragEvent::Pressed(press) => PointerDrag::Pressed(press).into(),
@@ -169,7 +170,7 @@ pub fn advance<Click: Copy>(
                 PointerDrag::Idle => DragOutcome::Unchanged,
             },
         },
-        DragEvent::EnteredSlot { item, position } => entered_slot(drag, item, position),
+        DragEvent::EnteredSlot { item, position } => entered_slot(drag, item, position, now),
         DragEvent::LeftList(list) => match drag {
             PointerDrag::Dragging(active) => PointerDrag::Dragging(active.left(list)).into(),
             unaffected => unaffected.into(),
@@ -214,6 +215,7 @@ fn entered_slot<Click: Copy>(
     drag: PointerDrag<Click>,
     item: DraggedBarSlot,
     position: usize,
+    now: Instant,
 ) -> DragTransition<Click> {
     let PointerDrag::Dragging(active) = drag else {
         return drag.into();
@@ -228,10 +230,7 @@ fn entered_slot<Click: Copy>(
         })
         .into();
     }
-    let hover = ForeignHover {
-        item,
-        since: Instant::now(),
-    };
+    let hover = ForeignHover { item, since: now };
     DragTransition {
         drag: PointerDrag::Dragging(ActiveDrag {
             target: DragTarget::ForeignSlot(hover),
@@ -301,12 +300,15 @@ impl DragView {
     }
 
     #[must_use]
-    pub fn hover_charge(&self, item: DraggedBarSlot, full_after: Duration) -> Option<f32> {
+    pub fn hover_charge(
+        &self,
+        item: DraggedBarSlot,
+        full_after: Duration,
+        now: Instant,
+    ) -> Option<f32> {
         let hover = self.hovers(item)?;
-        Some(
-            (hover.since.elapsed().as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON))
-                .min(1.0),
-        )
+        let held = now.saturating_duration_since(hover.since);
+        Some((held.as_secs_f32() / full_after.as_secs_f32().max(f32::EPSILON)).min(1.0))
     }
 
     pub fn previewed<'s, T>(

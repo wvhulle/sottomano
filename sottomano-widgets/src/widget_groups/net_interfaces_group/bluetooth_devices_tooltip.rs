@@ -5,11 +5,12 @@ use sottomano_sources::network_connectivity::bluez_bluetooth::Bluetooth;
 use uom::si::f64::Ratio;
 
 use crate::{
+    clock::Clock,
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -21,7 +22,7 @@ impl BarWidget for Bluetooth {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Bluetooth(self.state().weight()).into()
+        Phosphor::Bluetooth(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -30,7 +31,7 @@ impl BarWidget for Bluetooth {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.radio.as_ref().map_or(WidgetState::Off, |radio| {
             radio
                 .best_signal()
@@ -43,7 +44,7 @@ impl BarWidget for Bluetooth {
         self.radio.as_ref()?.best_signal().map(percent_fill)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let hardware = self.adapter.iter().map(Section::from);
         let Some(radio) = &self.radio else {
             return TooltipBody::sections(

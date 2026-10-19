@@ -1,11 +1,10 @@
-use std::{future::ready, time::Duration};
+use std::future::ready;
 
 use iced::{
     Subscription,
     event::listen_with,
     futures::Stream,
     mouse::Event,
-    time::every,
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
@@ -40,8 +39,6 @@ use wayland_client::Connection;
 
 use crate::desktop_shell::DesktopShell;
 
-const REFRESH_DIAL_TICK: Duration = Duration::from_secs(1);
-
 fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
     let Some(connection) = wayland else {
         return Subscription::none();
@@ -58,13 +55,8 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.notifications.is_transitioning() {
+    let animation = if state.notifications.is_transitioning(state.clock.instant) {
         frames().map(|_| Message::Redraw)
-    } else {
-        Subscription::none()
-    };
-    let tooltip_tick = if state.tooltip_has_polled_data() {
-        every(REFRESH_DIAL_TICK).map(|_| Message::TooltipTick)
     } else {
         Subscription::none()
     };
@@ -121,7 +113,6 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         notifications_subscription(),
         animation,
         state.pointer_drag_subscription(),
-        tooltip_tick,
         state
             .notifications
             .expiry_subscription()

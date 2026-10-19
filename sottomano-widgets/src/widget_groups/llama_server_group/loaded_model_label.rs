@@ -1,12 +1,16 @@
+use chrono::Locale;
 use sottomano_sources::ai_usage_spend::llama_server_slots::{
     LlamaModel, LlamaModelProps, LlamaModelStatus,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl From<LlamaModelStatus> for Cell {
@@ -28,18 +32,18 @@ impl BarWidget for LlamaModel {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Brain(self.state().weight()).into()
+        Phosphor::Brain(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Brain(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.id.clone())
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         match self.status {
             LlamaModelStatus::Loading | LlamaModelStatus::Downloading => WidgetState::Pending,
             LlamaModelStatus::Sleeping
@@ -49,7 +53,7 @@ impl BarWidget for LlamaModel {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("Status", self.status)])
     }
 }
@@ -64,25 +68,29 @@ impl BarWidget for ServedModel<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Brain(self.state().weight()).into()
+        Phosphor::Brain(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
-        self.resident.and_then(BarWidget::label)
-    }
-
-    fn state(&self) -> WidgetState {
-        self.resident.map_or(WidgetState::Off, BarWidget::state)
-    }
-
-    fn tooltip(&self) -> TooltipBody {
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         self.resident
-            .map_or_else(|| TooltipBody::sections([]), BarWidget::tooltip)
+            .and_then(|resident| resident.label(clock, locale))
+    }
+
+    fn state(&self, clock: Clock) -> WidgetState {
+        self.resident
+            .map_or(WidgetState::Off, |resident| resident.state(clock))
+    }
+
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        self.resident.map_or_else(
+            || TooltipBody::sections([]),
+            |resident| resident.tooltip(clock),
+        )
     }
 }
 
 impl ReadingSections for LlamaModelProps {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let modalities = [
             ("text", true),
             ("vision", self.modalities.vision),

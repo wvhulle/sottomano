@@ -1,3 +1,4 @@
+use chrono::Locale;
 use sottomano_sources::{
     cpu_memory_compute::{
         amd_x3d_cache_preference::X3dCachePreference,
@@ -7,11 +8,14 @@ use sottomano_sources::{
 };
 
 use super::core_grid_sections::topology_facts;
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    toggle_control::ToggleableSource,
-    tooltip_body::{KeyValue, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        toggle_control::ToggleableSource,
+        tooltip_body::{KeyValue, Section, TooltipBody},
+    },
 };
 
 impl BarWidget for X3dCachePreference {
@@ -26,7 +30,7 @@ impl BarWidget for X3dCachePreference {
         }
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(
             match self {
                 X3dCachePreference::Cache => "cache first",
@@ -36,7 +40,7 @@ impl BarWidget for X3dCachePreference {
         )
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }

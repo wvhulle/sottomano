@@ -20,6 +20,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -90,17 +91,27 @@ impl NetInterfacesGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: NetInterfacesMessage) -> Task<NetInterfacesMessage> {
+    pub fn update(
+        &mut self,
+        msg: NetInterfacesMessage,
+        clock: Clock,
+    ) -> Task<NetInterfacesMessage> {
         match msg {
-            NetInterfacesMessage::Bluetooth(delivery) => self.bluetooth.receive_delivery(delivery),
-            NetInterfacesMessage::Ethernet(delivery) => self.ethernet.receive_delivery(delivery),
-            NetInterfacesMessage::Wifi(delivery) => self.wifi.receive_delivery(delivery),
-            NetInterfacesMessage::Mobile(delivery) => self.mobile.receive_delivery(*delivery),
+            NetInterfacesMessage::Bluetooth(delivery) => {
+                self.bluetooth.receive_delivery(delivery, clock);
+            }
+            NetInterfacesMessage::Ethernet(delivery) => {
+                self.ethernet.receive_delivery(delivery, clock);
+            }
+            NetInterfacesMessage::Wifi(delivery) => self.wifi.receive_delivery(delivery, clock),
+            NetInterfacesMessage::Mobile(delivery) => {
+                self.mobile.receive_delivery(*delivery, clock);
+            }
             NetInterfacesMessage::WifiDetailsFetched(fetched) => {
-                self.wifi_details.receive_delivery(*fetched);
+                self.wifi_details.receive_delivery(*fetched, clock);
             }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
-                self.ethernet_details.receive_delivery(fetched);
+                self.ethernet_details.receive_delivery(fetched, clock);
             }
             NetInterfacesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -114,6 +125,7 @@ impl NetInterfacesGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
+        clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         self.wifi_details.stop();
         self.ethernet_details.stop();
@@ -123,6 +135,7 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
@@ -130,6 +143,7 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     NetInterfacesMessage::EthernetDetailsFetched,
                     config,
+                    clock,
                 )
             }
             _ => Task::none(),
@@ -137,20 +151,20 @@ impl NetInterfacesGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: NetInterfaceTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: NetInterfaceTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            NetInterfaceTarget::Bluetooth => self.bluetooth.tooltip(),
+            NetInterfaceTarget::Bluetooth => self.bluetooth.tooltip(clock),
             NetInterfaceTarget::Ethernet => self
                 .ethernet
-                .tooltip_with_sections(self.ethernet_details.sections()),
+                .tooltip_with_sections(self.ethernet_details.sections(clock), clock),
             NetInterfaceTarget::Wifi => self
                 .wifi
-                .tooltip_with_sections(self.wifi_details.sections()),
-            NetInterfaceTarget::Mobile => self.mobile.tooltip(),
+                .tooltip_with_sections(self.wifi_details.sections(clock), clock),
+            NetInterfaceTarget::Mobile => self.mobile.tooltip(clock),
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, NetInterfacesMessage> {
+    pub fn group_content(&self, clock: Clock) -> GroupContent<'_, NetInterfacesMessage> {
         GroupContent::new(
             &self.expansion,
             NetInterfacesMessage::Expansion,
@@ -167,13 +181,13 @@ impl NetInterfacesGroup {
             glyph: Phosphor::Link(Weight::Regular).into(),
             handle: GroupHandle::NetInterfaces,
         })
-        .preview(self.preferred_uplink().map(PreviewedValue::Plain))
+        .preview(self.preferred_uplink(clock).map(PreviewedValue::Plain))
     }
 
-    fn preferred_uplink(&self) -> Option<&dyn BarWidget> {
+    fn preferred_uplink(&self, clock: Clock) -> Option<&dyn BarWidget> {
         [self.mobile.display(), self.wifi.display()]
             .into_iter()
             .flatten()
-            .find(|widget| widget.state() != WidgetState::Off && widget.gauge().is_some())
+            .find(|widget| widget.state(clock) != WidgetState::Off && widget.gauge().is_some())
     }
 }

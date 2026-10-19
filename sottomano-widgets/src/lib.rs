@@ -1,5 +1,6 @@
 pub mod background_work;
 pub mod bar_slot_drag;
+pub mod clock;
 pub mod desktop_index;
 pub mod hover_tooltips;
 pub mod layer_surfaces;

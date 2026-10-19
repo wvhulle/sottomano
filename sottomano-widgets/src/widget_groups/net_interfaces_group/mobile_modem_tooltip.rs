@@ -3,11 +3,12 @@ use sottomano_sources::network_connectivity::modem_manager_mobile::{Mobile, Mode
 use uom::si::f64::Ratio;
 
 use crate::{
+    clock::Clock,
     widget_groups::net_interfaces_group::interface_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -19,10 +20,10 @@ impl BarWidget for Mobile {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Broadcast(self.state().weight()).into()
+        Phosphor::Broadcast(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.state == Some(ModemState::Connected) {
             self.signal.map_or(Severity::Normal, signal_level).into()
         } else {
@@ -34,7 +35,7 @@ impl BarWidget for Mobile {
         self.signal.map(percent_fill)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let signal_suffix = if self.signal_recent { "" } else { " (cached)" };
         TooltipBody::sections([
             Section::dictionary(

@@ -2,11 +2,12 @@ use iced::alignment::Horizontal;
 use sottomano_sources::systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors};
 
 use crate::{
+    clock::Clock,
     widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -36,14 +37,14 @@ impl BarWidget for ServiceErrors {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::WarningCircle(self.state().weight()).into()
+        Phosphor::WarningCircle(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
         u32::try_from(self.by_unit_oldest_first.len()).ok()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.by_unit_oldest_first
             .iter()
             .map(|errors| errors.severity)
@@ -52,7 +53,7 @@ impl BarWidget for ServiceErrors {
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::new("Latest"),

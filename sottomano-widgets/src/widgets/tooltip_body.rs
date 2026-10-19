@@ -21,6 +21,7 @@ use sottomano_state::idle::ScheduledAfterIdle;
 use uom::si::f64::Ratio;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::PressHints,
     widget_groups::window_group::process_tree::Folding,
     widgets::{bar_widget::Glyph, icon_handle::PixmapHandles, localized_time::LocalizedTimeFormat},
@@ -96,7 +97,7 @@ pub fn entry(key: &'static str, value: Option<impl Into<Cell>>) -> Option<KeyVal
 }
 
 pub trait ReadingSections {
-    fn sections(&self) -> Vec<Section>;
+    fn sections(&self, clock: Clock) -> Vec<Section>;
 }
 
 pub trait TableRow<const COLUMNS: usize> {
@@ -509,15 +510,6 @@ impl TooltipBody {
         }
     }
 
-    fn has_polled_data(&self) -> bool {
-        match self {
-            TooltipBody::Sections(sections) => sections
-                .iter()
-                .any(|section| matches!(section.freshness, Freshness::Polled { .. })),
-            TooltipBody::Whole { freshness, .. } => matches!(freshness, Freshness::Polled { .. }),
-        }
-    }
-
     fn is_empty(&self) -> bool {
         match self {
             TooltipBody::Sections(sections) => {
@@ -543,11 +535,11 @@ pub enum Freshness {
 
 impl Freshness {
     #[must_use]
-    pub fn from_source_cadence<S: ReadingSource>() -> Self {
+    pub fn from_source_cadence<S: ReadingSource>(clock: Clock) -> Self {
         match S::DELIVERY_CADENCE {
             DeliveryCadence::PolledEvery(every) => Freshness::Polled {
                 every,
-                last: SystemTime::now(),
+                last: clock.wall,
             },
             DeliveryCadence::PushedLive => Freshness::Live,
             DeliveryCadence::ReadOnce => Freshness::Fixed,
@@ -588,11 +580,6 @@ impl Tooltip {
             body: self.body.with_sections(extra),
             ..self
         }
-    }
-
-    #[must_use]
-    pub fn has_polled_data(&self) -> bool {
-        self.body.has_polled_data()
     }
 
     #[must_use]

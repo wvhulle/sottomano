@@ -20,6 +20,7 @@ use sottomano_sources::{
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         continuous_reading::ContinuousReading, pointer_drag::DragView, tooltip_body::Tooltip,
@@ -75,6 +76,7 @@ impl WindowGroup {
         niri_state: &EventStreamState,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<WindowGroupMessage> {
         let watched = match hovered {
             Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
@@ -83,7 +85,7 @@ impl WindowGroup {
             _ => None,
         };
         self.window_list
-            .hover_process(watched, config)
+            .hover_process(watched, config, clock)
             .map(WindowGroupMessage::WindowList)
     }
 
@@ -92,23 +94,26 @@ impl WindowGroup {
         niri_state: &EventStreamState,
         snapshot: &ContinuousReading<niri_window_snapshot::Snapshot>,
         window: u64,
+        clock: Clock,
     ) -> Option<Tooltip> {
-        snapshot.tooltip_with(window_tooltip::pick_body(niri_state, window)?)
+        snapshot.tooltip_with(window_tooltip::pick_body(niri_state, window, clock.wall)?)
     }
 
     #[must_use]
-    pub fn inspect_tooltip(&self) -> Tooltip {
-        Tooltip::sections(self.window_list.process_sections())
+    pub fn inspect_tooltip(&self, clock: Clock) -> Tooltip {
+        Tooltip::sections(self.window_list.process_sections(clock))
     }
 
-    pub fn update(&mut self, msg: WindowGroupMessage) -> Action {
+    pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
         match msg {
             WindowGroupMessage::QuickLaunch(m) => Action::Run(
                 self.quick_launch
                     .update(m)
                     .map(WindowGroupMessage::QuickLaunch),
             ),
-            WindowGroupMessage::WindowList(m) => Action::WindowList(self.window_list.update(m)),
+            WindowGroupMessage::WindowList(m) => {
+                Action::WindowList(self.window_list.update(m, clock))
+            }
         }
     }
 
@@ -140,12 +145,13 @@ impl WindowGroup {
         config: &'a Config,
         position: Position,
         drag: &DragView,
+        clock: Clock,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let quick_launch = self
             .quick_launch
             .group_content(icons.entries, output, config)
             .map(WindowGroupMessage::QuickLaunch)
-            .view(config, position);
+            .view(config, position, clock);
         let window_list = self
             .window_list
             .view(niri, icons, audio, output, config, position, drag)

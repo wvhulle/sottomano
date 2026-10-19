@@ -2,11 +2,14 @@ use sottomano_sources::network_connectivity::wireguard_tunnels::{
     Peer, Tunnel, TunnelAddress, Wireguard,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for Wireguard {
@@ -15,10 +18,10 @@ impl BarWidget for Wireguard {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ShieldCheck(self.state().weight()).into()
+        Phosphor::ShieldCheck(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }
@@ -30,13 +33,13 @@ impl BarWidget for Tunnel {
 
     fn icon(&self) -> Glyph {
         if self.server {
-            Phosphor::ArrowsInSimple(self.state().weight()).into()
+            Phosphor::ArrowsInSimple(Weight::Regular).into()
         } else {
-            Phosphor::MapPinLine(self.state().weight()).into()
+            Phosphor::MapPinLine(Weight::Regular).into()
         }
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(if self.server {
             self.connected_peers() > 0
         } else {
@@ -51,7 +54,7 @@ impl BarWidget for Tunnel {
             .filter(|count| *count > 0)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if !self.server {
             let peer_entries = self.peers.first().into_iter().flat_map(|peer| {
                 [
@@ -100,7 +103,7 @@ impl BarWidget for Tunnel {
 }
 
 impl ReadingSections for TunnelAddress {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(
             self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
         )]

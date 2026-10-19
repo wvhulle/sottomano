@@ -35,6 +35,7 @@ use tokio::{sync::mpsc, time::sleep_until};
 use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
+    clock::Clock,
     shell_message::Message,
     toast_messages::NotificationMessage,
     widgets::{announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y},
@@ -48,6 +49,7 @@ pub struct ToastContext<'a> {
     pub config: &'a Config,
     pub shell_settings: &'a ShellSettings,
     pub quiet: bool,
+    pub clock: Clock,
 }
 
 impl<'a> ToastContext<'a> {
@@ -58,6 +60,7 @@ impl<'a> ToastContext<'a> {
         config: &'a Config,
         shell_settings: &'a ShellSettings,
         quiet: bool,
+        clock: Clock,
     ) -> Self {
         Self {
             placement: Placement::derive(niri),
@@ -65,6 +68,7 @@ impl<'a> ToastContext<'a> {
             config,
             shell_settings,
             quiet,
+            clock,
         }
     }
 }
@@ -96,8 +100,9 @@ impl NotificationLayer {
         theme: &'a Theme,
         settings: &'a ShellSettings,
         bar_clearance: Padding,
+        clock: Clock,
     ) -> WindowAnchoredToasts<'a> {
-        let now = Instant::now();
+        let now = clock.instant;
         let mut ordered: Vec<&Notification> = self
             .live
             .iter()
@@ -110,7 +115,7 @@ impl NotificationLayer {
                 id: notif.data.id,
                 anchor: notif.place.anchor,
                 card: reveal_y(
-                    ToastCard::new(notif, config, theme, settings)
+                    ToastCard::new(notif, config, theme, settings, clock.wall)
                         .hovered(self.hovered == Some(notif.data.id))
                         .reveal(notif.opacity(now)),
                     notif.slot(now),
@@ -128,8 +133,7 @@ impl NotificationLayer {
     }
 
     #[must_use]
-    pub fn is_transitioning(&self) -> bool {
-        let now = Instant::now();
+    pub fn is_transitioning(&self, now: Instant) -> bool {
         self.live
             .iter()
             .any(|n| n.is_animating(now) || n.is_withdrawing())
@@ -145,16 +149,21 @@ impl NotificationLayer {
         self.held.len()
     }
 
-    pub fn expiry_subscription(&self) -> Subscription<NotificationMessage> {
-        let earliest = self
-            .showing()
+    #[must_use]
+    pub fn next_expiry(&self) -> Option<Instant> {
+        self.showing()
             .filter_map(|n| n.countdown.and_then(Countdown::deadline))
-            .min();
-        earliest.map_or_else(Subscription::none, |deadline| {
-            Subscription::run_with(deadline, |&deadline| {
-                stream::once(sleep_until(deadline.into())).map(|()| NotificationMessage::ExpiryDue)
+            .min()
+    }
+
+    pub fn expiry_subscription(&self) -> Subscription<NotificationMessage> {
+        self.next_expiry()
+            .map_or_else(Subscription::none, |deadline| {
+                Subscription::run_with(deadline, |&deadline| {
+                    stream::once(sleep_until(deadline.into()))
+                        .map(|()| NotificationMessage::ExpiryDue)
+                })
             })
-        })
     }
 
     fn showing(&self) -> impl Iterator<Item = &Notification> {

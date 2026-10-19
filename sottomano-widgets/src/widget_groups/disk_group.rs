@@ -14,6 +14,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
@@ -85,11 +86,11 @@ impl DiskGroup {
         }
     }
 
-    pub fn update(&mut self, msg: DiskMessage) -> Task<DiskMessage> {
+    pub fn update(&mut self, msg: DiskMessage, clock: Clock) -> Task<DiskMessage> {
         match msg {
-            DiskMessage::Usage(reading) => self.usage.receive_delivery(reading),
-            DiskMessage::DiskActivity(reading) => self.activity.receive_delivery(reading),
-            DiskMessage::DriveHealth(reading) => self.drive_health.receive_delivery(reading),
+            DiskMessage::Usage(reading) => self.usage.receive_delivery(reading, clock),
+            DiskMessage::DiskActivity(reading) => self.activity.receive_delivery(reading, clock),
+            DiskMessage::DriveHealth(reading) => self.drive_health.receive_delivery(reading, clock),
             DiskMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -115,17 +116,17 @@ impl DiskGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: DiskTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: DiskTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            DiskTarget::Usage => self.usage.tooltip(),
+            DiskTarget::Usage => self.usage.tooltip(clock),
             DiskTarget::Read => match self.activity.get() {
-                Some(activity) => self.activity.tooltip_with(activity.read.tooltip()),
-                None => self.activity.tooltip(),
+                Some(activity) => self.activity.tooltip_with(activity.read.tooltip(clock)),
+                None => self.activity.tooltip(clock),
             },
             DiskTarget::Write => self
                 .activity
-                .tooltip_with(self.activity.get()?.write.tooltip()),
-            DiskTarget::DriveHealth => self.drive_health.tooltip(),
+                .tooltip_with(self.activity.get()?.write.tooltip(clock)),
+            DiskTarget::DriveHealth => self.drive_health.tooltip(clock),
         }
     }
 }

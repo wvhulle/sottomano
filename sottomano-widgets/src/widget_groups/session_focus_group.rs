@@ -16,6 +16,7 @@ use sottomano_sources::{
 use sottomano_state::focus_tracker::{FocusTracker, TrackerMessage};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::session_focus_group::{
         context_switch_rate::ContextSwitchRate, daily_totals_gauge::DailyTotalsGauge,
@@ -92,10 +93,12 @@ impl SessionFocusGroup {
         &mut self,
         edge: ScreenEdge,
         waking: WakingWindow,
+        clock: Clock,
     ) -> Task<SessionFocusMessage> {
         self.update(
             SessionFocusMessage::Tracker(TrackerMessage::ScreenPowerChanged(edge)),
             waking,
+            clock,
         )
     }
 
@@ -115,13 +118,14 @@ impl SessionFocusGroup {
         &mut self,
         message: SessionFocusMessage,
         waking: WakingWindow,
+        clock: Clock,
     ) -> Task<SessionFocusMessage> {
         match message {
             SessionFocusMessage::Tracker(message) => {
                 Task::future(self.tracker.update(message, waking)).discard()
             }
             SessionFocusMessage::BreakPledged => {
-                self.pledge = Some(BreakPledge { at: Utc::now() });
+                self.pledge = Some(BreakPledge { at: clock.utc() });
                 Task::none()
             }
             SessionFocusMessage::Expansion(expansion) => {
@@ -146,6 +150,7 @@ impl SessionFocusGroup {
         &'a self,
         config: &'a Config,
         waking: WakingWindow,
+        clock: Clock,
     ) -> DailyTotalsGauge {
         DailyTotalsGauge::new(
             &self
@@ -153,6 +158,7 @@ impl SessionFocusGroup {
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
             waking,
+            clock.utc(),
         )
     }
 
@@ -176,6 +182,7 @@ impl SessionFocusGroup {
         window: u64,
         config: &Config,
         waking: WakingWindow,
+        clock: Clock,
     ) -> Tooltip {
         let usage = WindowUsage {
             accounting: self
@@ -185,13 +192,14 @@ impl SessionFocusGroup {
             waking,
             window,
         };
-        Tooltip::sourced(usage.body(), Freshness::Live)
+        Tooltip::sourced(usage.body(clock.utc()), Freshness::Live)
     }
 
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
         waking: WakingWindow,
+        clock: Clock,
     ) -> GroupContent<'a, SessionFocusMessage> {
         let session = GroupItem::reading(
             self.session_face(config, waking),
@@ -203,7 +211,7 @@ impl SessionFocusGroup {
             on_button_pressed: SessionFocusMessage::BreakPledged,
         }]);
         let totals = GroupItem::reading(
-            self.daily_totals_gauge(config, waking),
+            self.daily_totals_gauge(config, waking, clock),
             SessionFocusTarget::DailyTotals,
         );
         let switches = GroupItem::reading(
@@ -223,12 +231,15 @@ impl SessionFocusGroup {
         target: SessionFocusTarget,
         config: &Config,
         waking: WakingWindow,
+        clock: Clock,
     ) -> Tooltip {
         let body = match target {
-            SessionFocusTarget::Session => self.session_face(config, waking).tooltip(),
-            SessionFocusTarget::DailyTotals => self.daily_totals_gauge(config, waking).tooltip(),
+            SessionFocusTarget::Session => self.session_face(config, waking).tooltip(clock),
+            SessionFocusTarget::DailyTotals => self
+                .daily_totals_gauge(config, waking, clock)
+                .tooltip(clock),
             SessionFocusTarget::ContextSwitches => {
-                self.context_switch_rate(config, waking).tooltip()
+                self.context_switch_rate(config, waking).tooltip(clock)
             }
         };
         Tooltip::sourced(body, Freshness::Live)

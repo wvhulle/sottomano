@@ -7,13 +7,16 @@ use sottomano_sources::ai_usage_spend::{
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
-use crate::widgets::{
-    amount_text::{countdown, percent_text},
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_to_level::level_from_used,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::{countdown, percent_text},
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for ClaudeUsageWindows {
@@ -22,15 +25,15 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Gauge(self.state().weight()).into()
+        Phosphor::Gauge(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_used(self.session_used()))
             .into()
     }
@@ -39,8 +42,8 @@ impl BarWidget for ClaudeUsageWindows {
         Some(self.session_used())
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        let now = Utc::now();
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        let now = clock.utc();
         let sonnet = self.sonnet.as_ref().map(|sonnet| {
             window_section(
                 "Weekly Sonnet",

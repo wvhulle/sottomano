@@ -1,13 +1,16 @@
-use chrono::Utc;
+use chrono::Locale;
 use sottomano_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
 
-use crate::widgets::{
-    amount_text::{countdown, spend_text},
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_to_level::level_from_cost,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::{countdown, spend_text},
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_cost,
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for ClaudeCcusageBlock {
@@ -16,26 +19,26 @@ impl BarWidget for ClaudeCcusageBlock {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Timer(self.state().weight()).into()
+        Phosphor::Timer(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Timer(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.active
             .as_ref()
             .map(|block| format!("{} block", spend_text(&block.cost)))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.active.as_ref().map_or(WidgetState::Idle, |block| {
             level_from_cost(&block.cost).into()
         })
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
         let source = Section::dictionary([
             KeyValue::new("Source", "ccusage, local Claude Code logs"),
             KeyValue::new("Cost Basis", "API list prices"),
@@ -56,7 +59,7 @@ impl BarWidget for ClaudeCcusageBlock {
                         .map(|cost| KeyValue::new("Projected Cost", cost.to_string())),
                     Some(KeyValue::new(
                         "Ends In",
-                        countdown(block.ends_at, Utc::now()),
+                        countdown(block.ends_at, clock.utc()),
                     )),
                 ]
                 .into_iter()

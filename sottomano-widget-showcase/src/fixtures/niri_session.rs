@@ -15,6 +15,7 @@ use sottomano_sources::{
     },
 };
 use sottomano_widgets::{
+    clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
     widget_groups::window_group::{
@@ -32,15 +33,15 @@ const CHAT_WORKSPACE: u64 = 3;
 const TERMINAL_WINDOW: u64 = 2;
 const TERMINAL_PID: i32 = 4200;
 
-pub fn bottom_bar() -> ShowcasedGroup {
-    ShowcasedGroup::BottomBar(Box::new(session()))
+pub fn bottom_bar(clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::BottomBar(Box::new(session(clock)))
 }
 
-pub fn workspace_sidebar() -> ShowcasedGroup {
-    ShowcasedGroup::WorkspaceSidebar(Box::new(session()))
+pub fn workspace_sidebar(clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::WorkspaceSidebar(Box::new(session(clock)))
 }
 
-fn session() -> ShowcasedNiriSession {
+fn session(clock: Clock) -> ShowcasedNiriSession {
     let niri = [workspaces(), windows()].into_iter().fold(
         EventStreamState::default(),
         |mut state, event| {
@@ -49,7 +50,7 @@ fn session() -> ShowcasedNiriSession {
         },
     );
     let mut snapshot = ContinuousReading::default();
-    snapshot.load(Snapshot::derive(&niri, &WindowProcesses::default()));
+    snapshot.load(Snapshot::derive(&niri, &WindowProcesses::default()), clock);
     ShowcasedNiriSession {
         window_group: WindowGroup::default(),
         niri,

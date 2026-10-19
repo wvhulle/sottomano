@@ -3,6 +3,7 @@ use sottomano_config::Config;
 use sottomano_state::{LayerAppearance, ShellLayer, ShellLayout, shell_settings};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widgets::{
@@ -100,16 +101,19 @@ impl PanelSettingsGroup {
         target: PanelSettingsTarget,
         shell_layout: &ShellLayout,
         panels: &LayerAppearance,
+        clock: Clock,
     ) -> Tooltip {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
-                disconnected_toggle(shell_layout).switch_tooltip()
+                disconnected_toggle(shell_layout).switch_tooltip(clock)
             }
             PanelSettingsTarget::AutoCollapseGroups => {
-                pinned_groups_toggle(shell_layout).switch_tooltip()
+                pinned_groups_toggle(shell_layout).switch_tooltip(clock)
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
-            PanelSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, panels),
+            PanelSettingsTarget::Appearance(target) => {
+                self.appearance.tooltip_for(target, panels, clock)
+            }
         }
     }
 

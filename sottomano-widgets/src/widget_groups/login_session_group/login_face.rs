@@ -1,12 +1,16 @@
+use chrono::Locale;
 use sottomano_sources::login_session_presence::logind_session_facts::{
     SessionIdentity, SessionInfo,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+    },
 };
 
 pub struct LoginFace<'a> {
@@ -22,11 +26,11 @@ impl BarWidget for LoginFace<'_> {
         Phosphor::SignIn(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.identity.login_manager.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
             KeyValue::new("Logged in through", self.identity.login_manager.clone()),
             KeyValue::new(
@@ -45,7 +49,7 @@ impl BarWidget for LoginFace<'_> {
 }
 
 impl ReadingSections for SessionInfo {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(entry("Greeter", self.greeter.clone())).titled((
                 "Login screen shown before this session",

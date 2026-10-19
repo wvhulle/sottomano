@@ -1,3 +1,4 @@
+use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::cpu_clock_frequency::{
     CoreFreq, CpuClock, FrequencyLimit,
@@ -11,13 +12,16 @@ use super::{
     chiplet_live_state::ChipletLiveState,
     core_grid_sections::{CoreGridSection, PerCoreReading},
 };
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{
-        ColumnHeading, KeyValue, Section, TableRecord, TableRow, ThreadCell, TooltipBody,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{
+            ColumnHeading, KeyValue, Section, TableRecord, TableRow, ThreadCell, TooltipBody,
+        },
+        widget_state::WidgetState,
     },
-    widget_state::WidgetState,
 };
 
 pub(super) fn frequency_text(frequency: Frequency) -> String {
@@ -37,10 +41,10 @@ impl BarWidget for CpuClock {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::WaveSine(self.state().weight()).into()
+        Phosphor::WaveSine(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.capped_cores() > 0 {
             WidgetState::Warning
         } else {
@@ -48,11 +52,11 @@ impl BarWidget for CpuClock {
         }
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.average().map(frequency_text)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let frequency = |key, frequency: Option<Frequency>| {
             frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
         };

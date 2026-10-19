@@ -1,9 +1,13 @@
+use chrono::Locale;
 use sottomano_sources::login_session_presence::logind_session_facts::SessionIdentity;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+    },
 };
 
 pub struct AccountFace<'a> {
@@ -19,11 +23,11 @@ impl BarWidget for AccountFace<'_> {
         Phosphor::User(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.identity.user.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
             KeyValue::new("User", self.identity.user.clone()),
             KeyValue::new("User id", self.identity.uid.to_string()),

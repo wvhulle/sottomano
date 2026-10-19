@@ -5,13 +5,14 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::session_focus_group::BreakPledge,
     widgets::{
         amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingBody,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -120,12 +121,11 @@ impl SessionFace<'_> {
         .titled("Thresholds")
     }
 
-    pub fn sections(&self) -> [Section; 3] {
-        [self.now(), self.today(), self.thresholds()]
+    pub fn sections(&self, now: DateTime<Utc>) -> [Section; 3] {
+        [self.present(now), self.today(now), self.thresholds()]
     }
 
-    fn today(&self) -> Section {
-        let now = Utc::now();
+    fn today(&self, now: DateTime<Utc>) -> Section {
         let window = self.waking.around(now);
         let breaks = self.accounting.breaks_within(window, now);
         let longest_break = breaks.iter().copied().max_by_key(|gap| gap.length());
@@ -152,8 +152,7 @@ impl SessionFace<'_> {
         Section::dictionary(entries.into_iter().flatten()).titled("Today")
     }
 
-    fn now(&self) -> Section {
-        let now = Utc::now();
+    fn present(&self, now: DateTime<Utc>) -> Section {
         let units = self.accounting.ledger.focused_units();
         let project = units.iter().find_map(|unit| match unit {
             FocusUnit::Project(root) => Some(root.clone()),
@@ -211,15 +210,15 @@ impl BarWidget for SessionFace<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::UserFocus(self.state().weight()).into()
+        Phosphor::UserFocus(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
-        self.run_length(Utc::now()).map(coarse_duration_text)
+    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+        self.run_length(clock.utc()).map(coarse_duration_text)
     }
 
-    fn state(&self) -> WidgetState {
-        self.severity(Utc::now()).into()
+    fn state(&self, clock: Clock) -> WidgetState {
+        self.severity(clock.utc()).into()
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
@@ -229,13 +228,13 @@ impl BarWidget for SessionFace<'_> {
         }
     }
 
-    fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
-        self.screen_run_summary(Utc::now(), locale)
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+        self.screen_run_summary(clock.utc(), locale)
             .map_or(OngoingBody::None, OngoingBody::Text)
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(self.sections())
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        TooltipBody::sections(self.sections(clock.utc()))
     }
 }
 

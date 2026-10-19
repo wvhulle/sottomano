@@ -7,12 +7,15 @@ use uom::si::{
     ratio::{percent, ratio},
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    rate_text::per_second_text,
-    tooltip_body::{KeyValue, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        rate_text::per_second_text,
+        tooltip_body::{KeyValue, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
@@ -35,10 +38,10 @@ impl BarWidget for DiskTransfer {
             DiskTransferDirection::Read => Phosphor::TrayArrowUp(Weight::Regular),
             DiskTransferDirection::Write => Phosphor::TrayArrowDown(Weight::Regular),
         };
-        direction_icon.with_weight(self.state().weight()).into()
+        direction_icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.rate <= background_rate() {
             WidgetState::Off
         } else {
@@ -59,7 +62,7 @@ impl BarWidget for DiskTransfer {
         ))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let rate_label = match self.direction {
             DiskTransferDirection::Read => "Read",
             DiskTransferDirection::Write => "Write",
@@ -88,7 +91,7 @@ impl BarWidget for DiskActivity {
         false
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        self.read.tooltip()
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        self.read.tooltip(clock)
     }
 }

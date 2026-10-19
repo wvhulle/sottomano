@@ -2,12 +2,15 @@ use humantime::format_duration;
 use iced::alignment::Horizontal;
 use sottomano_sources::login_session_presence::logind_session_facts::{InhibitMode, PowerPolicy};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{
-        Cell, ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TooltipBody,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{
+            Cell, ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TooltipBody,
+        },
     },
 };
 
@@ -22,7 +25,7 @@ impl BarWidget for PowerPolicyFace {
         Phosphor::Plug(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
             KeyValue::new("Decided by", "systemd-logind"),
             KeyValue::new(
@@ -45,7 +48,7 @@ fn yes_no(flag: bool) -> &'static str {
 }
 
 impl ReadingSections for PowerPolicy {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let idle_after = self
             .idle_action_after
             .filter(|_| self.idle_action != "ignore")

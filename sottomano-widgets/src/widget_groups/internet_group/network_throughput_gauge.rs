@@ -11,12 +11,15 @@ use uom::si::{
     ratio::ratio,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    rate_text::per_second_text,
-    tooltip_body::{KeyValue, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        rate_text::per_second_text,
+        tooltip_body::{KeyValue, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const HI_RES_AUDIO_STREAM_KB_PER_S: f64 = 1_152.0;
@@ -57,10 +60,10 @@ impl BarWidget for Throughput {
             NetworkTrafficDirection::Download => Phosphor::DownloadSimple(Weight::Regular),
             NetworkTrafficDirection::Combined => Phosphor::ArrowsDownUp(Weight::Regular),
         };
-        direction_icon.with_weight(self.state().weight()).into()
+        direction_icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let severity = severity(self);
         if self.unused() && severity == Severity::Normal {
             WidgetState::Off
@@ -77,7 +80,7 @@ impl BarWidget for Throughput {
         Some(Ratio::new::<ratio>(f64::from(self.current_fraction())))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if self.interfaces.is_empty() {
             return TooltipBody::dictionary([KeyValue::new("Connectivity", "none")]);
         }
@@ -120,8 +123,8 @@ impl BarWidget for InterfaceThroughput {
         false
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        self.total.tooltip()
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        self.total.tooltip(clock)
     }
 }
 

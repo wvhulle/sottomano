@@ -1,4 +1,4 @@
-use std::{borrow::Cow, iter, mem, path::Path, time::SystemTime};
+use std::{borrow::Cow, iter, mem, path::Path};
 
 use iced::{
     Task,
@@ -67,9 +67,10 @@ impl NotificationLayer {
                 self.outbound = Some(handle);
                 Task::none()
             }
-            NotificationMessage::Served(data) => {
-                self.serve(ToastContent::from_dbus_client(*data), context)
-            }
+            NotificationMessage::Served(data) => self.serve(
+                ToastContent::from_dbus_client(*data, context.clock.wall),
+                context,
+            ),
             NotificationMessage::BodyClicked(id) => {
                 self.activate_action(id, DEFAULT_ACTION, context, panel_on)
             }
@@ -79,28 +80,38 @@ impl NotificationLayer {
                 } else if self.hovered == Some(id) {
                     self.hovered = None;
                 }
-                self.sync_countdowns(Instant::now());
+                self.sync_countdowns(context.clock.instant);
                 Task::none()
             }
             NotificationMessage::Dismiss(id) => {
                 self.snooze_ongoing_toast(id);
-                self.close_all([id], close_reason::DISMISSED, context.config)
+                self.close_all(
+                    [id],
+                    close_reason::DISMISSED,
+                    context.config,
+                    context.clock.instant,
+                )
             }
             NotificationMessage::ActionClicked { id, key } => {
                 self.activate_action(id, &key, context, panel_on)
             }
             NotificationMessage::DefaultActivated { id, token } => {
-                self.invoke_default(id, token, context.config)
+                self.invoke_default(id, token, context)
             }
             NotificationMessage::CloseRequested(id) => Task::batch([
                 self.drop_held(id),
-                self.close_all([id], close_reason::CLOSED_BY_CALL, context.config),
+                self.close_all(
+                    [id],
+                    close_reason::CLOSED_BY_CALL,
+                    context.config,
+                    context.clock.instant,
+                ),
             ]),
-            NotificationMessage::ExpiryDue => self.expire(context.config),
+            NotificationMessage::ExpiryDue => self.expire(context),
             NotificationMessage::Reply { id, message } => {
-                self.update_reply(id, message, panel_on, context.config)
+                self.update_reply(id, message, panel_on, context)
             }
-            NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context.config),
+            NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
         }
     }
@@ -113,13 +124,18 @@ impl NotificationLayer {
             .map(|file| file.to_string_lossy().into_owned())
     }
 
-    fn open_previewed_file(&mut self, id: u32, config: &Config) -> Task<Message> {
+    fn open_previewed_file(&mut self, id: u32, context: &ToastContext) -> Task<Message> {
         let Some(file) = self.previewed_file(id) else {
             return Task::none();
         };
         Task::batch([
             Task::done(Message::OpenUrl(file)),
-            self.close_all([id], close_reason::DISMISSED, config),
+            self.close_all(
+                [id],
+                close_reason::DISMISSED,
+                context.config,
+                context.clock.instant,
+            ),
         ])
     }
 
@@ -166,7 +182,12 @@ impl NotificationLayer {
             })
             .map(|n| n.data.id)
             .collect();
-        let closed = self.close_all(cleared, close_reason::CLOSED_BY_CALL, context.config);
+        let closed = self.close_all(
+            cleared,
+            close_reason::CLOSED_BY_CALL,
+            context.config,
+            context.clock.instant,
+        );
         let to_raise: Vec<OngoingToast<Message>> = active
             .into_iter()
             .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
@@ -207,7 +228,10 @@ impl NotificationLayer {
             .showing()
             .find(|n| n.announces_level_of(&reading.hover_target))
             .map_or_else(|| self.fresh_shell_toast_id(), |n| n.data.id);
-        self.serve(ToastContent::level_announcement(reading, toast_id), context)
+        self.serve(
+            ToastContent::level_announcement(reading, toast_id, context.clock.wall),
+            context,
+        )
     }
 
     pub fn show_config_error(
@@ -235,7 +259,7 @@ impl NotificationLayer {
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
                 body: OngoingBody::Text(body),
                 progress: None,
-                since: SystemTime::now(),
+                since: context.clock.wall,
                 on_body_clicked: Message::OpenUrl(path.display().to_string()),
                 action_buttons: Vec::new(),
             },
@@ -259,7 +283,11 @@ impl NotificationLayer {
             ..NotificationData::from_shell(toast_id, failure.summary())
         };
         self.serve(
-            ToastContent::shell_failure(data, Message::CopyText(failure.to_string())),
+            ToastContent::shell_failure(
+                data,
+                Message::CopyText(failure.to_string()),
+                context.clock.wall,
+            ),
             context,
         )
     }
@@ -279,18 +307,22 @@ impl NotificationLayer {
             ..NotificationData::from_shell(toast_id, "Could not connect to the D-Bus buses")
         };
         self.serve(
-            ToastContent::shell_failure(data, Message::CopyText(failure.to_string())),
+            ToastContent::shell_failure(
+                data,
+                Message::CopyText(failure.to_string()),
+                context.clock.wall,
+            ),
             context,
         )
     }
 
-    pub fn withdraw_config_error(&mut self, config: &Config) -> Task<Message> {
+    pub fn withdraw_config_error(&mut self, config: &Config, now: Instant) -> Task<Message> {
         let shown: Vec<u32> = self
             .showing()
             .filter(|n| n.shows_ongoing(&OngoingKey::ConfigFile))
             .map(|n| n.data.id)
             .collect();
-        self.close_all(shown, close_reason::CLOSED_BY_CALL, config)
+        self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
     }
 
     fn hold_while_quiet(&mut self, toast: ToastContent) {
@@ -303,10 +335,12 @@ impl NotificationLayer {
 
     pub fn release_held(&mut self, context: &ToastContext) -> Task<Message> {
         let held: Vec<NotificationData> = mem::take(&mut self.held);
-        Task::batch(
-            held.into_iter()
-                .map(|data| self.serve(ToastContent::from_dbus_client(data), context)),
-        )
+        Task::batch(held.into_iter().map(|data| {
+            self.serve(
+                ToastContent::from_dbus_client(data, context.clock.wall),
+                context,
+            )
+        }))
     }
 
     fn drop_held(&mut self, id: u32) -> Task<Message> {
@@ -343,6 +377,7 @@ impl NotificationLayer {
             config,
             shell_settings,
             quiet,
+            clock,
         } = context;
         let notifications = &shell_settings.notifications;
         if *quiet {
@@ -360,13 +395,13 @@ impl NotificationLayer {
                 .filter(|n| n.data.app_name == data.app_name)
                 .map(|n| n.data.id)
                 .collect();
-            tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config));
+            tasks.push(self.close_all(superseded, close_reason::UNDEFINED, config, clock.instant));
         }
         let icons = toast.kind.glyph().map_or_else(
             || toast_card::resolve_icons(data, *entries),
             CardIcons::of_glyph,
         );
-        let now = Instant::now();
+        let now = clock.instant;
         let countdown = lifetime(
             data.expire_timeout,
             data.severity,
@@ -391,7 +426,7 @@ impl NotificationLayer {
             let seq = self.next_seq;
             self.next_seq += 1;
             self.live.push(Notification::appearing(
-                toast, icons, countdown, seq, place, config,
+                toast, icons, countdown, seq, place, config, now,
             ));
         }
         self.sync_countdowns(now);
@@ -403,31 +438,31 @@ impl NotificationLayer {
         placement: &Placement,
         config: &Config,
         notifications: NotificationSettings,
+        now: Instant,
     ) -> Task<Message> {
         let stale: Vec<u32> = self
             .showing()
             .filter(|n| is_stale(n, placement))
             .map(|n| n.data.id)
             .collect();
-        let closed = self.close_all(stale, close_reason::UNDEFINED, config);
+        let closed = self.close_all(stale, close_reason::UNDEFINED, config, now);
         self.reposition(placement, config, notifications);
         Task::batch([closed, self.release_orphaned_keyboard()])
     }
 
-    pub fn prune(&mut self) {
-        let now = Instant::now();
+    pub fn prune(&mut self, now: Instant) {
         self.live.retain(|n| !n.has_faded(now));
     }
 
-    fn expire(&mut self, config: &Config) -> Task<Message> {
-        let now = Instant::now();
+    fn expire(&mut self, context: &ToastContext) -> Task<Message> {
+        let now = context.clock.instant;
         let expired: Vec<u32> = self
             .showing()
             .filter(|n| n.countdown.is_some_and(|c| c.has_elapsed(now)))
             .map(|n| n.data.id)
             .collect();
-        let closed = self.close_all(expired, close_reason::EXPIRED, config);
-        self.prune();
+        let closed = self.close_all(expired, close_reason::EXPIRED, context.config, now);
+        self.prune(now);
         closed
     }
 
@@ -450,8 +485,8 @@ impl NotificationLayer {
         candidates: impl IntoIterator<Item = u32>,
         pace: ExitPace,
         config: &Config,
+        now: Instant,
     ) -> Vec<u32> {
-        let now = Instant::now();
         let closing: Vec<u32> = candidates
             .into_iter()
             .filter(|id| self.showing().any(|n| n.data.id == *id))
@@ -469,9 +504,10 @@ impl NotificationLayer {
         candidates: impl IntoIterator<Item = u32>,
         reason: u32,
         config: &Config,
+        now: Instant,
     ) -> Task<Message> {
         let closed = self
-            .withdraw_showing(candidates, reason.into(), config)
+            .withdraw_showing(candidates, reason.into(), config, now)
             .into_iter()
             .filter(|id| self.sent_by_dbus_client(*id))
             .map(|id| Outbound::Closed { id, reason })
@@ -496,7 +532,12 @@ impl NotificationLayer {
             self.snooze_ongoing_toast(id);
             return Task::batch([
                 Task::done(shell_message),
-                self.close_all([id], close_reason::DISMISSED, context.config),
+                self.close_all(
+                    [id],
+                    close_reason::DISMISSED,
+                    context.config,
+                    context.clock.instant,
+                ),
             ]);
         }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
@@ -521,7 +562,12 @@ impl NotificationLayer {
         } else {
             Task::batch([
                 activation,
-                self.close_all([id], close_reason::DISMISSED, context.config),
+                self.close_all(
+                    [id],
+                    close_reason::DISMISSED,
+                    context.config,
+                    context.clock.instant,
+                ),
             ])
         }
     }
@@ -564,7 +610,12 @@ impl NotificationLayer {
         ])
     }
 
-    fn invoke_default(&mut self, id: u32, token: Option<String>, config: &Config) -> Task<Message> {
+    fn invoke_default(
+        &mut self,
+        id: u32,
+        token: Option<String>,
+        context: &ToastContext,
+    ) -> Task<Message> {
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
         let mut outbound: Vec<Outbound> = token
             .map(|token| Outbound::ActivationToken { id, token })
@@ -580,12 +631,17 @@ impl NotificationLayer {
         }
 
         outbound.extend(
-            self.withdraw_showing([id], ExitPace::Dismissed, config)
-                .into_iter()
-                .map(|id| Outbound::Closed {
-                    id,
-                    reason: close_reason::DISMISSED,
-                }),
+            self.withdraw_showing(
+                [id],
+                ExitPace::Dismissed,
+                context.config,
+                context.clock.instant,
+            )
+            .into_iter()
+            .map(|id| Outbound::Closed {
+                id,
+                reason: close_reason::DISMISSED,
+            }),
         );
         self.emit_in_order(outbound)
     }

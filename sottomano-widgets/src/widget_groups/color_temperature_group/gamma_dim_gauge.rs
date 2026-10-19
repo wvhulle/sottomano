@@ -4,11 +4,14 @@ use uom::{
     si::{f64::Ratio, thermodynamic_temperature::kelvin},
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_fill,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, TooltipBody},
+    },
 };
 
 impl BarWidget for ColorTemperature {
@@ -17,14 +20,14 @@ impl BarWidget for ColorTemperature {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ThermometerHot(self.state().weight()).into()
+        Phosphor::ThermometerHot(Weight::Regular).into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
         Some(percent_fill(self.brightness))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
             KeyValue::new("Dim", format!("{}%", self.brightness)),
             KeyValue::new(

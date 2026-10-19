@@ -10,6 +10,7 @@ use sottomano_sources::{
     },
 };
 use sottomano_widgets::{
+    clock::Clock,
     shell_message::Message,
     widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
 };
@@ -20,24 +21,28 @@ use uom::si::{
     thermodynamic_temperature::degree_celsius,
 };
 
-use crate::{fixtures::cycled, showcased_group::ShowcasedGroup};
+use crate::{
+    fixtures::{cycled, sample},
+    showcased_group::ShowcasedGroup,
+};
 
 const CPU_BUSY_PERCENT: &[f64] = &[37.0, 52.0, 44.0, 61.0, 48.0];
 const MEMORY_USED_MEBIBYTES: &[u64] = &[21_500, 21_900, 22_300, 21_800];
 const TEMPERATURE_CELSIUS: &[f64] = &[58.0, 61.0, 63.0, 60.0];
 const PACKAGE_WATTS: &[f64] = &[48.0, 63.0, 55.0, 71.0];
 
-pub fn group() -> ShowcasedGroup {
+pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::Compute(Box::new(continuous_readings(0).into_iter().fold(
         ComputeGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading);
+            let _ = group.update(reading, clock);
             group
         },
     )))
 }
 
-pub fn live(tick: u32) -> Vec<Message> {
+pub fn live(clock: Clock) -> Vec<Message> {
+    let tick = sample(clock);
     continuous_readings(tick)
         .into_iter()
         .chain(on_hover_readings(ComputeTarget::Cpu, tick))

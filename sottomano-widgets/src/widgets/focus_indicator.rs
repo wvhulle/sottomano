@@ -86,8 +86,8 @@ impl<Message> FocusIndicator<'_, Message> {
 
     fn travelled(&self, tree: &Tree, layout: Layout<'_>) -> Option<Travelled> {
         self.active_slot(layout)?;
-        let travel = tree.state.downcast_ref::<State>().travel.as_ref()?;
-        Some(travel.travelled(Instant::now()))
+        let state = tree.state.downcast_ref::<State>();
+        Some(state.travel.as_ref()?.travelled(state.frame?))
     }
 }
 
@@ -170,6 +170,7 @@ impl Travel {
 
 #[derive(Default)]
 struct State {
+    frame: Option<Instant>,
     travel: Option<Travel>,
 }
 
@@ -283,16 +284,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         let Event::Window(window::Event::RedrawRequested(now)) = event else {
             return;
         };
+        let now = *now;
+        let state = tree.state.downcast_mut::<State>();
+        state.frame = Some(now);
         let Some(slot) = self.active_slot(layout) else {
             return;
         };
         let span = self.span(slot);
-        let state = tree.state.downcast_mut::<State>();
         let travel = state
             .travel
             .get_or_insert_with(|| Travel::resting_at(span, self.motion));
-        travel.aim(span, *now);
-        if travel.is_animating(*now) {
+        travel.aim(span, now);
+        if travel.is_animating(now) {
             shell.request_redraw();
         }
     }

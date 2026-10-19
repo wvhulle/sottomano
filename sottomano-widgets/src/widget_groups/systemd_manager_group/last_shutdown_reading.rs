@@ -1,13 +1,15 @@
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_sources::systemd_units_journal::journal_previous_shutdown::{
     JobResult, LastShutdown, ShutdownReadError, StopOutcome, UnitStop,
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -42,14 +44,14 @@ impl BarWidget for LastShutdown {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Power(self.state().weight()).into()
+        Phosphor::Power(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(elapsed_text(self.duration))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.slowest_stops
             .iter()
             .map(|stop| stop.outcome.severity())
@@ -58,7 +60,7 @@ impl BarWidget for LastShutdown {
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::new("Took"),

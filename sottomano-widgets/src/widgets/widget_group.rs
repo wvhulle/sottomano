@@ -9,6 +9,7 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         activity_line::activity_line,
@@ -117,6 +118,7 @@ impl<'a> HandleFace<'a> {
         config: &'a Config,
         items: &mut Vec<GroupItem<'a, M>>,
         handle_hints: PressHints,
+        clock: Clock,
     ) -> GroupItem<'a, M> {
         match self {
             HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
@@ -128,7 +130,7 @@ impl<'a> HandleFace<'a> {
             HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
                 glyph.view(
                     config.theme.font.icon_size_px,
-                    reading_color(config, reading),
+                    reading_color(config, reading, clock),
                 )
             }),
             HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_hints),
@@ -297,30 +299,34 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    fn ongoing_toasts(&self, locale: Locale) -> impl Iterator<Item = OngoingToast<M>> {
+    fn ongoing_toasts(
+        &self,
+        locale: Locale,
+        clock: Clock,
+    ) -> impl Iterator<Item = OngoingToast<M>> {
         self.handle
             .expand_message()
             .into_iter()
             .flat_map(|expand| {
-                self.items
-                    .iter()
-                    .flat_map(move |item| item.ongoing_toasts_with_reading(expand.clone(), locale))
+                self.items.iter().flat_map(move |item| {
+                    item.ongoing_toasts_with_reading(expand.clone(), locale, clock)
+                })
             })
             .collect::<Vec<_>>()
             .into_iter()
     }
 
     #[must_use]
-    pub fn toast_requests(&self, locale: Locale) -> GroupToastRequests<M> {
+    pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
         let Some(expand) = self.handle.expand_message() else {
             return GroupToastRequests::default();
         };
         GroupToastRequests {
-            ongoing_toasts: self.ongoing_toasts(locale).collect(),
+            ongoing_toasts: self.ongoing_toasts(locale, clock).collect(),
             levels: self
                 .items
                 .iter()
-                .filter_map(|item| item.level_reading(expand.clone()))
+                .filter_map(|item| item.level_reading(expand.clone(), clock))
                 .collect(),
         }
     }
@@ -329,12 +335,13 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         self,
         config: &'a Config,
         bar_position: Position,
+        clock: Clock,
     ) -> Option<Element<'a, Outer>> {
         if self.items.is_empty() {
             return None;
         }
         let highest_alert_severity = self
-            .ongoing_toasts(config.calendar.locale)
+            .ongoing_toasts(config.calendar.locale, clock)
             .map(|toast| toast.severity)
             .max()
             .unwrap_or_default();
@@ -352,6 +359,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 highest_alert_severity,
                 config,
                 bar_position,
+                clock,
             ));
         };
         let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
@@ -359,10 +367,10 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .as_ref()
             .and_then(PreviewedValue::hover_target)
             .or(face.hover_target());
-        let face = face.into_face_item(config, &mut items, handle_hints);
-        let draw_face = move || face.view(config, 1.0);
+        let face = face.into_face_item(config, &mut items, handle_hints, clock);
+        let draw_face = move || face.view(config, 1.0, clock);
         let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-            Row::with_children(items.iter().map(|item| item.view(config, reveal)))
+            Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
                 .spacing(config.layout.panel.widget_spacing)
                 .align_y(Alignment::Center)
                 .into()
@@ -385,6 +393,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                         config,
                         preview.as_ref().map(PreviewedValue::widget),
                         reveal,
+                        clock,
                     ),
                 ])
                 .align_y(Alignment::Center),
@@ -432,8 +441,9 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     highest_alert_severity: Severity,
     config: &'a Config,
     bar_position: Position,
+    clock: Clock,
 ) -> Element<'a, Outer> {
-    let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0)))
+    let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
         .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center);
     let indicator = EdgeIndicator {
@@ -488,12 +498,12 @@ fn collapsing_previewed_value<'a, Message: 'a>(
     config: &Config,
     previewed_value: Option<&dyn BarWidget>,
     reveal: f32,
+    clock: Clock,
 ) -> Element<'a, Message> {
     let hidden = 1.0 - reveal;
-    let Some(value) = previewed_value
-        .filter(|_| hidden > 0.0)
-        .and_then(|widget| reading_value(config, widget, reading_color(config, widget)))
-    else {
+    let Some(value) = previewed_value.filter(|_| hidden > 0.0).and_then(|widget| {
+        reading_value(config, widget, reading_color(config, widget, clock), clock)
+    }) else {
         return Row::new().into();
     };
     reveal_x(

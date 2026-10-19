@@ -20,9 +20,9 @@ use iced::{
 };
 use sottomano_config::{Config, theme::font::ResolvedFont};
 use sottomano_state::idle::ScheduledAfterIdle;
-use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{MouseGesture, PressHints, core_grid::CoreCellGrid},
     shell_message::Message,
     widget_groups::{
@@ -73,7 +73,7 @@ pub struct TooltipContent<'a> {
     config: &'a Config,
     corner_radius: Radius,
     assets: WindowAssets<'a>,
-    now: SystemTime,
+    clock: Clock,
     presence: TextPresence,
 }
 
@@ -84,13 +84,14 @@ impl<'a> TooltipContent<'a> {
         config: &'a Config,
         corner_radius: Radius,
         assets: WindowAssets<'a>,
+        clock: Clock,
     ) -> Self {
         Self {
             tooltip,
             config,
             corner_radius,
             assets,
-            now: SystemTime::now(),
+            clock,
             presence: TextPresence::Shown,
         }
     }
@@ -197,15 +198,12 @@ impl<'a> TooltipContent<'a> {
                 labelled(
                     self.small_dim_text(humantime::format_duration(every).to_string()),
                     RefreshDial::new(
-                        Ratio::new::<ratio>(
-                            (self
-                                .now
-                                .duration_since(last)
-                                .unwrap_or(Duration::ZERO)
-                                .as_secs_f64()
-                                / every.as_secs_f64())
-                            .min(1.0),
-                        ),
+                        self.clock
+                            .wall
+                            .duration_since(last)
+                            .unwrap_or(Duration::ZERO),
+                        every,
+                        self.clock.instant,
                         glyph_size,
                         dim,
                         dim.scale_alpha(REFRESH_TRACK_ALPHA),

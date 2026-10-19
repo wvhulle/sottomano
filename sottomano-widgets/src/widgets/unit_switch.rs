@@ -10,12 +10,13 @@ use sottomano_sources::{
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
@@ -50,10 +51,10 @@ impl BarWidget for UnitSwitchReading {
     }
 
     fn icon(&self) -> Glyph {
-        self.face.icon.with_weight(self.state().weight()).into()
+        self.face.icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         match self.activity {
             UnitActivity::Running => WidgetState::On,
             UnitActivity::Starting | UnitActivity::Stopping => WidgetState::Pending,
@@ -61,7 +62,7 @@ impl BarWidget for UnitSwitchReading {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new(
             "Service",
             match self.activity {
@@ -117,10 +118,11 @@ impl UnitSwitch {
         .map(UnitSwitchMessage::ActiveState)
     }
 
-    pub fn update(&mut self, message: UnitSwitchMessage) -> Task<UnitSwitchMessage> {
+    pub fn update(&mut self, message: UnitSwitchMessage, clock: Clock) -> Task<UnitSwitchMessage> {
         match message {
             UnitSwitchMessage::ActiveState(delivery) => {
-                self.active_state.receive_keeping_last_reading(delivery);
+                self.active_state
+                    .receive_keeping_last_reading(delivery, clock);
                 Task::none()
             }
             UnitSwitchMessage::Press => match self.activity() {
@@ -175,9 +177,9 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn tooltip(&self, serving: bool) -> Option<Tooltip> {
+    pub fn tooltip(&self, serving: bool, clock: Clock) -> Option<Tooltip> {
         self.active_state
-            .tooltip_with(self.reading(serving)?.tooltip())
+            .tooltip_with(self.reading(serving)?.tooltip(clock))
     }
 
     pub fn group_item<'a, M: 'a>(

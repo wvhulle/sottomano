@@ -1,4 +1,4 @@
-use std::iter::once;
+use std::{iter::once, mem};
 
 use iced::{
     Animation, Border, Color, Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
@@ -112,7 +112,8 @@ struct AnchoredPopup<'a> {
 struct MorphState {
     seq: u64,
     morph: Animation<bool>,
-    now: Instant,
+    morph_pending: bool,
+    now: Option<Instant>,
     progress: f32,
     from: Rectangle,
     current: Rectangle,
@@ -316,7 +317,8 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         tree::State::new(MorphState {
             seq: 0,
             morph: Animation::new(true),
-            now: Instant::now(),
+            morph_pending: false,
+            now: None,
             progress: 1.0,
             from: Rectangle::default(),
             current: Rectangle::default(),
@@ -381,13 +383,15 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             } else {
                 at_anchor
             };
-            state.now = Instant::now();
-            state.morph = Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(self.morph)
-                .go(true, state.now);
+            state.morph_pending = true;
         }
-        state.progress = state.morph.interpolate(0.0, 1.0, state.now);
+        state.progress = if state.morph_pending {
+            0.0
+        } else {
+            state
+                .now
+                .map_or(1.0, |now| state.morph.interpolate(0.0, 1.0, now))
+        };
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
         state.current = lerp(state.from, target, state.progress);
         let popup = state.current;
@@ -512,7 +516,13 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             return;
         };
         let state: &mut MorphState = tree.state.downcast_mut();
-        state.now = *now;
+        state.now = Some(*now);
+        if mem::take(&mut state.morph_pending) {
+            state.morph = Animation::new(false)
+                .easing(Easing::EaseOutCubic)
+                .duration(self.morph)
+                .go(true, *now);
+        }
         if state.progress < 1.0 {
             shell.invalidate_layout();
             shell.request_redraw();

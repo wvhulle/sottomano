@@ -23,6 +23,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -103,13 +104,14 @@ impl PowerGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: Option<&DesktopBuses>,
+        clock: Clock,
     ) -> Task<PowerMessage> {
         self.charger.stop();
         self.cpu_tuning.stop();
         match hovered {
             Some(HoverTarget::Power(PowerTarget::Draw)) => {
                 self.charger
-                    .start_hover_fetch((), PowerMessage::ChargerFetched, config)
+                    .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock)
             }
             Some(HoverTarget::Power(PowerTarget::Profile)) => {
                 buses.map_or_else(Task::none, |buses| {
@@ -117,6 +119,7 @@ impl PowerGroup {
                         buses.clone(),
                         PowerMessage::CpuTuningFetched,
                         config,
+                        clock,
                     )
                 })
             }
@@ -124,18 +127,18 @@ impl PowerGroup {
         }
     }
 
-    pub fn update(&mut self, msg: PowerMessage) -> Task<PowerMessage> {
+    pub fn update(&mut self, msg: PowerMessage, clock: Clock) -> Task<PowerMessage> {
         let task = match msg {
             PowerMessage::Battery(reading) => {
-                self.battery.receive_delivery(reading);
-                self.observe_battery()
+                self.battery.receive_delivery(reading, clock);
+                self.observe_battery(clock)
             }
             PowerMessage::ChargerFetched(fetched) => {
-                self.charger.receive_delivery(fetched);
+                self.charger.receive_delivery(fetched, clock);
                 Task::none()
             }
             PowerMessage::CpuTuningFetched(fetched) => {
-                self.cpu_tuning.receive_delivery(fetched);
+                self.cpu_tuning.receive_delivery(fetched, clock);
                 Task::none()
             }
             PowerMessage::ChargeCurveLoaded(curve) => {
@@ -144,7 +147,7 @@ impl PowerGroup {
             }
             PowerMessage::PowerProfile(msg) => self
                 .power_profile
-                .update(msg)
+                .update(msg, clock)
                 .map(PowerMessage::PowerProfile),
             PowerMessage::Expansion(msg) => {
                 if self.expansion.update(msg) {
@@ -167,45 +170,49 @@ impl PowerGroup {
             .map(|battery| PowerDraw::of(battery, self.power_profile.expected_draw()))
     }
 
-    fn observe_battery(&mut self) -> Task<PowerMessage> {
+    fn observe_battery(&mut self, clock: Clock) -> Task<PowerMessage> {
+        let now = clock.instant;
         let Some(battery) = self.battery.get() else {
             return Task::none();
         };
         Task::batch([
             self.time_reading
-                .learn(battery)
+                .learn(battery, now)
                 .map(PowerMessage::ChargeCurveLoaded),
             self.power_profile
-                .observe_battery(battery)
+                .observe_battery(battery, now)
                 .map(PowerMessage::PowerProfile),
         ])
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: PowerTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: PowerTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             PowerTarget::Battery => self.battery.tooltip_with_sections(
                 self.battery
                     .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
+                clock,
             ),
             PowerTarget::Draw => {
                 let draw = self.draw()?;
                 let charger = if draw.on_battery() {
                     Vec::new()
                 } else {
-                    self.charger.sections()
+                    self.charger.sections(clock)
                 };
                 Some(
                     self.battery
-                        .tooltip_with(draw.tooltip())?
+                        .tooltip_with(draw.tooltip(clock))?
                         .with_sections(charger),
                 )
             }
-            PowerTarget::BatteryTime => self.battery.tooltip_with(self.time.as_ref()?.tooltip()),
+            PowerTarget::BatteryTime => self
+                .battery
+                .tooltip_with(self.time.as_ref()?.tooltip(clock)),
             PowerTarget::Profile => self
                 .power_profile
-                .tooltip()
-                .map(|tooltip| tooltip.with_sections(self.cpu_tuning.sections())),
+                .tooltip(clock)
+                .map(|tooltip| tooltip.with_sections(self.cpu_tuning.sections(clock))),
         }
     }
 
