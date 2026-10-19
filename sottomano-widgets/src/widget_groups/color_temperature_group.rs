@@ -7,7 +7,7 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    screen_brightness_color::gammarelay_color_temperature::{self, Gamma},
+    screen_brightness_color::gammarelay_color_temperature::{self, ColorTemperature},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
 };
@@ -50,7 +50,7 @@ impl From<ColorTemperatureTarget> for HoverTarget {
 }
 
 pub struct ColorTemperatureGroup {
-    gamma: ContinuousReading<Gamma>,
+    gamma: ContinuousReading<ColorTemperature>,
     dim: SliderControl,
     warmth: SliderControl,
     auto: UnitSwitch,
@@ -60,7 +60,7 @@ pub struct ColorTemperatureGroup {
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
     Expansion(ExpansionMessage),
-    Gamma(SourceDelivery<Gamma>),
+    ColorTemperature(SourceDelivery<ColorTemperature>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Auto(UnitSwitchMessage),
@@ -102,7 +102,8 @@ impl ColorTemperatureGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<ColorTemperatureMessage> {
         Subscription::batch([
-            source_subscription::<Gamma>(buses.clone()).map(ColorTemperatureMessage::Gamma),
+            source_subscription::<ColorTemperature>(buses.clone())
+                .map(ColorTemperatureMessage::ColorTemperature),
             self.auto
                 .subscription(buses)
                 .map(ColorTemperatureMessage::Auto),
@@ -117,7 +118,8 @@ impl ColorTemperatureGroup {
             ColorTemperatureTarget::GammaDim
             | ColorTemperatureTarget::Temperature
             | ColorTemperatureTarget::Automatic => {
-                first_delivery::<Gamma>(buses.clone()).map(ColorTemperatureMessage::Gamma)
+                first_delivery::<ColorTemperature>(buses.clone())
+                    .map(ColorTemperatureMessage::ColorTemperature)
             }
         }
     }
@@ -145,7 +147,7 @@ impl ColorTemperatureGroup {
                 }
                 Task::none()
             }
-            ColorTemperatureMessage::Gamma(reading) => {
+            ColorTemperatureMessage::ColorTemperature(reading) => {
                 self.gamma.receive_delivery(reading);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim

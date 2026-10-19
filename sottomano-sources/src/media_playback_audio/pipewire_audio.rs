@@ -55,7 +55,7 @@ const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 const DEFAULT_REMOTE: &str = "pipewire-0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Reading {
+pub struct ChannelLevels {
     pub percent: i64,
     pub muted: bool,
     pub device: Option<String>,
@@ -111,8 +111,8 @@ impl OutputKind {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AudioState {
-    pub sink: Option<Reading>,
-    pub source: Option<Reading>,
+    pub sink: Option<ChannelLevels>,
+    pub source: Option<ChannelLevels>,
     pub output_kind: OutputKind,
     pub windows: Arc<HashMap<i32, WindowAudio>>,
 }
@@ -528,11 +528,11 @@ fn effective_levels<'graph>(graph: &'graph Graph, node: &'graph AudioNode) -> &'
     route_levels(graph, node).unwrap_or(&node.levels)
 }
 
-fn reading(graph: &Graph, name: &str) -> Option<Reading> {
+fn reading(graph: &Graph, name: &str) -> Option<ChannelLevels> {
     let node = graph.nodes.get(&node_id_by_name(graph, name)?)?;
     let levels = effective_levels(graph, node);
     let percent = levels.percent();
-    Some(Reading {
+    Some(ChannelLevels {
         percent,
         muted: levels.mute || percent == 0,
         device: node.description.clone(),

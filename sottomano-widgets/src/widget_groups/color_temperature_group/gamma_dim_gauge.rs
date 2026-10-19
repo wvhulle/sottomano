@@ -1,4 +1,4 @@
-use sottomano_sources::screen_brightness_color::gammarelay_color_temperature::Gamma;
+use sottomano_sources::screen_brightness_color::gammarelay_color_temperature::ColorTemperature;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, thermodynamic_temperature::kelvin},
@@ -11,7 +11,7 @@ use crate::widgets::{
     tooltip_body::{KeyValue, TooltipBody},
 };
 
-impl BarWidget for Gamma {
+impl BarWidget for ColorTemperature {
     fn name(&self) -> &'static str {
         "Screen dimming"
     }

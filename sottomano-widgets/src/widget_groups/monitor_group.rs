@@ -15,7 +15,7 @@ use sottomano_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::niri_window_snapshot::OutputInfo,
     screen_brightness_color::{
-        clight_auto_brightness::Clight,
+        clight_auto_brightness::AutoBrightness,
         clightd_backlight::{self, Backlight},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -57,7 +57,7 @@ impl From<MonitorTarget> for HoverTarget {
 pub struct MonitorGroup {
     backlights: ContinuousReading<Vec<Backlight>>,
     sliders: BTreeMap<String, SliderControl>,
-    clight: ToggleControl<Clight>,
+    clight: ToggleControl<AutoBrightness>,
     expansion: GroupExpansion,
 }
 
@@ -66,14 +66,15 @@ pub enum MonitorMessage {
     Expansion(ExpansionMessage),
     Backlights(SourceDelivery<Vec<Backlight>>),
     Backlight(String, ControlMessage),
-    Clight(ToggleMessage<Clight>),
+    AutoBrightness(ToggleMessage<AutoBrightness>),
 }
 
 impl MonitorGroup {
     pub fn subscription(buses: &DesktopBuses) -> Subscription<MonitorMessage> {
         Subscription::batch([
             source_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
-            ToggleControl::<Clight>::subscription(buses.clone()).map(MonitorMessage::Clight),
+            ToggleControl::<AutoBrightness>::subscription(buses.clone())
+                .map(MonitorMessage::AutoBrightness),
         ])
     }
 
@@ -82,9 +83,8 @@ impl MonitorGroup {
             MonitorTarget::Backlight(_) => {
                 first_delivery::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights)
             }
-            MonitorTarget::ClightAuto => {
-                ToggleControl::<Clight>::refresh(buses.clone()).map(MonitorMessage::Clight)
-            }
+            MonitorTarget::ClightAuto => ToggleControl::<AutoBrightness>::refresh(buses.clone())
+                .map(MonitorMessage::AutoBrightness),
         }
     }
 
@@ -133,7 +133,9 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
-            MonitorMessage::Clight(m) => self.clight.update(m).map(MonitorMessage::Clight),
+            MonitorMessage::AutoBrightness(m) => {
+                self.clight.update(m).map(MonitorMessage::AutoBrightness)
+            }
         }
     }
 
@@ -222,7 +224,7 @@ impl MonitorGroup {
             MonitorMessage::Expansion,
             backlight_items.chain(
                 self.clight
-                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::Clight),
+                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::AutoBrightness),
             ),
         )
         .face(HandleFace::Icon {

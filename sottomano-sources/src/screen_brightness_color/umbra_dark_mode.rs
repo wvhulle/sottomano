@@ -13,11 +13,11 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Umbra {
+pub struct DarkMode {
     pub dark: bool,
 }
 
-impl ReadingSource for Umbra {
+impl ReadingSource for DarkMode {
     type Error = shell_command_output::Error;
     type StreamInputs = ();
 
@@ -37,10 +37,10 @@ impl ReadingSource for Umbra {
     }
 }
 
-impl Umbra {
+impl DarkMode {
     async fn read() -> Result<Self, shell_command_output::Error> {
         let mode = shell_command_output::output("umbra", &["get"]).await?;
-        Ok(Umbra {
+        Ok(DarkMode {
             dark: mode.trim() == "dark",
         })
     }

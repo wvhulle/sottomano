@@ -16,7 +16,7 @@ pub mod sqlite_state_store;
 pub mod stream_operators;
 pub mod system_protocol_clients;
 pub mod systemd_units_journal;
-pub mod wallpaper;
+pub mod wallpaper_place_article;
 pub mod weather;
 
 use std::{

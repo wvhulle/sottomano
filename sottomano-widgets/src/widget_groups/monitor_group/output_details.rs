@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sottomano_sources::{
     desktop_windows_apps::niri_window_snapshot::{OutputInfo, OutputMode},
-    screen_brightness_color::clightd_backlight::{Backlight, Kind},
+    screen_brightness_color::clightd_backlight::{Backlight, BacklightKind},
 };
 
 use crate::widgets::tooltip_body::KeyValue;
@@ -22,10 +22,10 @@ impl<'a> ConnectedOutput<'a> {
         outputs
             .iter()
             .find(|(connector, info)| match backlight.kind {
-                Kind::Internal => INTERNAL_CONNECTOR_PREFIXES
+                BacklightKind::Internal => INTERNAL_CONNECTOR_PREFIXES
                     .iter()
                     .any(|prefix| connector.starts_with(prefix)),
-                Kind::External => info.serial.as_ref() == Some(&backlight.serial),
+                BacklightKind::External => info.serial.as_ref() == Some(&backlight.serial),
             })
             .map(|(connector, info)| Self { connector, info })
     }
@@ -90,7 +90,7 @@ mod tests {
     fn internal_backlight() -> Backlight {
         Backlight {
             serial: "intel_backlight".to_owned(),
-            kind: Kind::Internal,
+            kind: BacklightKind::Internal,
             percent: 50,
         }
     }
@@ -138,7 +138,7 @@ mod tests {
         let outputs = laptop_panel();
         let external = Backlight {
             serial: "ABC123".to_owned(),
-            kind: Kind::External,
+            kind: BacklightKind::External,
             percent: 50,
         };
         assert!(ConnectedOutput::driving(&external, &outputs).is_none());

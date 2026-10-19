@@ -6,8 +6,8 @@ use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{
-        self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
-        Target, WindowAudio,
+        self, AudioConnectError, AudioEvent, AudioState, ChannelLevels, Commands, OutputKind,
+        Peaks, Target, WindowAudio,
     },
 };
 
@@ -372,7 +372,7 @@ impl BarWidget for AudioState {
     }
 }
 
-fn device_entries(kind: ControlKind, reading: &Reading) -> impl Iterator<Item = KeyValue> {
+fn device_entries(kind: ControlKind, reading: &ChannelLevels) -> impl Iterator<Item = KeyValue> {
     let device = reading
         .device
         .as_deref()
@@ -390,7 +390,7 @@ fn input_glyph(_value: f32, muted: bool) -> Phosphor {
     }
 }
 
-fn feed(control: &mut SliderControl, reading: Option<&Reading>) {
+fn feed(control: &mut SliderControl, reading: Option<&ChannelLevels>) {
     if let Some(reading) = reading {
         control.update(ControlMessage::Reading(percent_f(reading.percent)));
         control.update(ControlMessage::Disabled(reading.muted));

@@ -41,11 +41,11 @@ trait ClightDaemon {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Clight {
+pub struct AutoBrightness {
     pub auto: bool,
 }
 
-impl ReadingSource for Clight {
+impl ReadingSource for AutoBrightness {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
@@ -62,7 +62,7 @@ impl ReadingSource for Clight {
 
 async fn calibration_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<Clight, Error>> + Send, Error> {
+) -> Result<impl Stream<Item = Result<AutoBrightness, Error>> + Send, Error> {
     let conf = ConfBacklightProxy::builder(buses.on(dbus_desktop_buses::Bus::Session))
         .cache_properties(CacheProperties::No)
         .build()
@@ -71,7 +71,7 @@ async fn calibration_changes(
     Ok(read_once_then_per_burst(config_written, move || {
         let conf = conf.clone();
         async move {
-            Ok(Clight {
+            Ok(AutoBrightness {
                 auto: !conf.no_auto_calib().await?,
             })
         }

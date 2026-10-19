@@ -87,13 +87,13 @@ impl Throughput {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Readings {
+pub struct InterfaceThroughput {
     pub down: Throughput,
     pub up: Throughput,
     pub total: Throughput,
 }
 
-impl ReadingSource for Readings {
+impl ReadingSource for InterfaceThroughput {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
@@ -176,7 +176,7 @@ impl ThroughputSampler {
         }
     }
 
-    fn readings(&self) -> Option<Readings> {
+    fn readings(&self) -> Option<InterfaceThroughput> {
         self.latest
             .as_ref()
             .map(|latest| readings(latest, self.rates, self.peak, self.connectivity))
@@ -261,9 +261,9 @@ fn readings(
     rates: Rates,
     peak: Rates,
     connectivity: Option<Connectivity>,
-) -> Readings {
+) -> InterfaceThroughput {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
-    Readings {
+    InterfaceThroughput {
         down: Throughput {
             interfaces: interfaces.clone(),
             rate: rates.rx,

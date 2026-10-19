@@ -12,7 +12,7 @@ use sottomano_sources::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
-    wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
+    wallpaper_place_article::{self, DisplayedWallpaper, Position, Wallpaper},
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
@@ -51,7 +51,7 @@ impl Lookup {
 #[derive(Debug, Clone)]
 pub enum Failure {
     Query(shell_command_output::Error),
-    Resolve(wallpaper::Error),
+    Resolve(wallpaper_place_article::Error),
 }
 
 impl Display for Failure {
@@ -66,7 +66,7 @@ impl Display for Failure {
 impl From<Failure> for Section {
     fn from(failure: Failure) -> Self {
         match failure {
-            Failure::Resolve(wallpaper::Error::Fetch(fetch)) => fetch.into(),
+            Failure::Resolve(wallpaper_place_article::Error::Fetch(fetch)) => fetch.into(),
             other => Section::error(other),
         }
     }
@@ -80,10 +80,10 @@ impl ReadingSource for Lookup {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(wallpaper::daemon_installed()).while_held(
+        stream::once(wallpaper_place_article::daemon_installed()).while_held(
             move || {
                 let unsplash_key = unsplash_key.clone();
-                wallpaper::displayed()
+                wallpaper_place_article::displayed()
                     .distinct_until_changed()
                     .flat_map(move |displayed| {
                         let unsplash_key = unsplash_key.clone();
@@ -99,13 +99,14 @@ impl ReadingSource for Lookup {
                             }
                             Ok(DisplayedWallpaper::ImageFile(path)) => path,
                         };
-                        let Some(id) = wallpaper::photo_id(&path) else {
+                        let Some(id) = wallpaper_place_article::photo_id(&path) else {
                             return stream::iter([SourceDelivery::Absent]).left_stream();
                         };
-                        let unresolved = Lookup::of(&wallpaper::unresolved(&path, &id));
+                        let unresolved =
+                            Lookup::of(&wallpaper_place_article::unresolved(&path, &id));
                         let resolved = async move {
                             SourceDelivery::Reading(
-                                wallpaper::resolve(path, id, &unsplash_key)
+                                wallpaper_place_article::resolve(path, id, &unsplash_key)
                                     .await
                                     .map(|wallpaper| Lookup::of(&wallpaper))
                                     .map_err(Failure::Resolve),

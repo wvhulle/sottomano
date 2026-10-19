@@ -8,7 +8,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     network_connectivity::{
-        interface_throughput::Readings,
+        interface_throughput::InterfaceThroughput,
         tailscale_status::{self, Tailscale, open_admin},
         wireguard_tunnels::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
     },
@@ -54,7 +54,7 @@ impl From<InternetTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct InternetGroup {
-    throughput: ContinuousReading<Readings>,
+    throughput: ContinuousReading<InterfaceThroughput>,
     wireguard: ContinuousReading<Wireguard>,
     tailscale: ContinuousReading<Tailscale>,
     tunnel_address: OnHoverReading<TunnelAddress>,
@@ -63,7 +63,7 @@ pub struct InternetGroup {
 
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
-    Throughput(SourceDelivery<Readings>),
+    Throughput(SourceDelivery<InterfaceThroughput>),
     Wireguard(SourceDelivery<Wireguard>),
     TunnelAddressFetched(SourceDelivery<TunnelAddress>),
     Tailscale(SourceDelivery<Tailscale>),
@@ -79,7 +79,8 @@ impl InternetGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<InternetMessage> {
         Subscription::batch([
-            source_subscription::<Readings>(buses.clone()).map(InternetMessage::Throughput),
+            source_subscription::<InterfaceThroughput>(buses.clone())
+                .map(InternetMessage::Throughput),
             self.expansion.while_expanded(
                 source_subscription::<Wireguard>(()).map(InternetMessage::Wireguard),
             ),
@@ -92,7 +93,8 @@ impl InternetGroup {
     pub fn refresh(target: &InternetTarget, buses: &DesktopBuses) -> Task<InternetMessage> {
         match target {
             InternetTarget::Down | InternetTarget::Up | InternetTarget::Total => {
-                first_delivery::<Readings>(buses.clone()).map(InternetMessage::Throughput)
+                first_delivery::<InterfaceThroughput>(buses.clone())
+                    .map(InternetMessage::Throughput)
             }
             InternetTarget::Wireguard(_) => {
                 first_delivery::<Wireguard>(()).map(InternetMessage::Wireguard)
