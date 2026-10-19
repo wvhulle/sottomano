@@ -12,7 +12,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
-    mpris::{self, Command, Media, Progress, Status},
+    media_playback_audio::mpris_players::{self, Command, Media, Progress, Status},
     niri::WindowOwner,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
@@ -221,7 +221,7 @@ impl MediaGroup {
             let bus = media.bus;
             let loading = {
                 let url = url.clone();
-                async move { mpris::load_art(&url).await }
+                async move { mpris_players::load_art(&url).await }
             };
             Some(Task::perform(loading, move |pixels| {
                 MediaMessage::ArtLoaded {
@@ -294,7 +294,7 @@ impl MediaGroup {
         };
         let bus = media.bus.clone();
         Task::future(blocking("mpris control", move || {
-            mpris::control(&bus, command)
+            mpris_players::control(&bus, command)
         }))
     }
 

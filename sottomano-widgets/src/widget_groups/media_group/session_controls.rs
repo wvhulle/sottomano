@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, widget::Row};
 use sottomano_config::Config;
-use sottomano_sources::mpris::{Command, Media, Status};
+use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 
 use crate::{
     hover_tooltips::{PressHints, TooltipMessage, hoverable},

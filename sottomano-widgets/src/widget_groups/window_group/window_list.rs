@@ -10,10 +10,10 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
     SourceDelivery,
-    audio::WindowAudio,
     job_view::{self, Jobs},
     kitty_windows::{self, WindowProcesses},
     launcher_entry::{self, LauncherEntries, LauncherEntry},
+    media_playback_audio::pipewire_audio::WindowAudio,
     niri,
     nix_package_facts::{NixPackageFacts, PackageWatch},
     process::{Inspection, Process, Watched},
