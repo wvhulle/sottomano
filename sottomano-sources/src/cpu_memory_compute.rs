@@ -1,4 +1,7 @@
+mod acpi_processor_cooling;
+pub mod amd_l3_pmu_cache_traffic;
 pub mod amd_x3d_cache_preference;
+mod arm_cpuinfo_core_parts;
 pub mod cpu_clock_frequency;
 pub mod cpu_core_deep_idle;
 pub mod cpu_core_loads;
@@ -6,14 +9,16 @@ pub mod cpu_power_draw;
 pub mod cpu_temperature;
 pub mod cpu_topology;
 pub mod hwmon_temperature_sensors;
+mod intel_hybrid_core_designs;
+mod intel_pstate_no_turbo;
+mod intel_thermal_throttle_counters;
 pub mod kernel_frequency_limit_causes;
-pub mod l3_cache_traffic;
 pub mod memory_module_temperatures;
 pub mod memory_usage;
 pub mod nvml_gpu_readings;
 pub mod temperature_thresholds;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use self::cpu_clock_frequency::{CoreFreq, FrequencyBand};
 use crate::system_protocol_clients::sysfs_attribute_reads::{
@@ -21,6 +26,10 @@ use crate::system_protocol_clients::sysfs_attribute_reads::{
 };
 
 pub(crate) const CPU_FREQ: &str = "/sys/devices/system/cpu";
+
+fn cpu_dir(core: u32) -> PathBuf {
+    Path::new(CPU_FREQ).join(format!("cpu{core}"))
+}
 
 pub(super) fn core_freqs() -> Vec<CoreFreq> {
     let mut cores: Vec<CoreFreq> = list_dir(CPU_FREQ)

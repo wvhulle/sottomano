@@ -16,12 +16,12 @@ use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig}
 use sottomano_sources::{
     SourceDelivery,
     cpu_memory_compute::{
+        amd_l3_pmu_cache_traffic::L3CacheTraffic,
         amd_x3d_cache_preference::X3dCachePreference,
         cpu_clock_frequency::CpuClock,
         cpu_core_loads::{CpuCoreLoads, CpuUsage},
         cpu_power_draw::CpuPower,
         cpu_temperature::{CpuCoreTemperatures, Temperature},
-        l3_cache_traffic::L3CacheTraffic,
         memory_module_temperatures::MemoryModuleTemperatures,
         memory_usage::{Memory, MemoryProcesses},
     },

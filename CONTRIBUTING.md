@@ -38,6 +38,12 @@ a pull request when the recordings changed.
   journal access that names no daemon and implements no `ReadingSource`.
   Consumers spell out the new module path rather than aliasing it back to a
   short name.
+- A source that only works with one vendor's driver carries that vendor in its
+  file name (`amd_l3_pmu_cache_traffic`, `intel_thermal_throttle_counters`,
+  `arm_cpuinfo_core_parts`). Generic sources read the kernel's shared
+  frameworks (cpufreq, hwmon, thermal, powercap) and compose the vendor files
+  rather than branching on vendor inline. No per-model constants: a limit or
+  cause is shown only when the kernel publishes it.
 - Strict config/state separation: no field appears in both the TOML config
   (`sottomano-config/src/`) and runtime state (`sottomano-state/src/`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.

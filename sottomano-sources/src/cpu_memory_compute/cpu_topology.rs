@@ -11,12 +11,8 @@ use uom::si::{
     information::{kibibyte, mebibyte},
 };
 
-use super::CPU_FREQ;
+use super::{CPU_FREQ, arm_cpuinfo_core_parts, intel_hybrid_core_designs};
 use crate::system_protocol_clients::sysfs_attribute_reads::{read_kilohertz, read_trimmed};
-
-const INTEL_PERFORMANCE_PMU: &str = "/sys/devices/cpu_core/cpus";
-const INTEL_EFFICIENT_PMU: &str = "/sys/devices/cpu_atom/cpus";
-const CPU_INFO: &str = "/proc/cpuinfo";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CoreRole {
@@ -217,7 +213,7 @@ fn highest_peak_clock<'a>(cpus: impl Iterator<Item = &'a LogicalCpu>) -> Option<
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum CoreDesign {
+pub(super) enum CoreDesign {
     IntelPerformanceCore,
     IntelEfficientCore,
     ArmCorePart { part: String, capacity: u32 },
@@ -226,30 +222,9 @@ enum CoreDesign {
 
 impl CoreDesign {
     fn read_all() -> HashMap<u32, CoreDesign> {
-        Self::intel_hybrid_designs()
-            .or_else(Self::arm_core_parts)
+        intel_hybrid_core_designs::read()
+            .or_else(arm_cpuinfo_core_parts::read)
             .unwrap_or_default()
-    }
-
-    fn intel_hybrid_designs() -> Option<HashMap<u32, CoreDesign>> {
-        let performance = read_trimmed(INTEL_PERFORMANCE_PMU)?;
-        let efficient = read_trimmed(INTEL_EFFICIENT_PMU)?;
-        Some(Self::from_intel_cpulists(&performance, &efficient))
-    }
-
-    fn from_intel_cpulists(performance: &str, efficient: &str) -> HashMap<u32, CoreDesign> {
-        let performance = cpulist(performance).map(|cpu| (cpu, CoreDesign::IntelPerformanceCore));
-        let efficient = cpulist(efficient).map(|cpu| (cpu, CoreDesign::IntelEfficientCore));
-        performance.chain(efficient).collect()
-    }
-
-    fn arm_core_parts() -> Option<HashMap<u32, CoreDesign>> {
-        let cpuinfo = fs::read_to_string(CPU_INFO).ok()?;
-        Some(
-            CorePart::parse_all(&cpuinfo)
-                .filter_map(|core_part| Some((core_part.core, core_part.design_with_capacity()?)))
-                .collect(),
-        )
     }
 
     fn is_exposed(&self) -> bool {
@@ -508,40 +483,6 @@ fn parse_cache_size(text: &str) -> Option<Information> {
     Some(Information::new::<mebibyte>(mebibytes.parse().ok()?))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CorePart {
-    core: u32,
-    part: String,
-}
-
-impl CorePart {
-    fn parse_all(cpuinfo: &str) -> impl Iterator<Item = CorePart> + '_ {
-        cpuinfo.split("\n\n").filter_map(Self::parse)
-    }
-
-    fn parse(block: &str) -> Option<Self> {
-        Some(CorePart {
-            core: cpuinfo_field(block, "processor")?.parse().ok()?,
-            part: cpuinfo_field(block, "CPU part")?.to_owned(),
-        })
-    }
-
-    fn design_with_capacity(&self) -> Option<CoreDesign> {
-        let capacity = read_trimmed(format!("{CPU_FREQ}/cpu{}/cpu_capacity", self.core))?;
-        Some(CoreDesign::ArmCorePart {
-            part: self.part.clone(),
-            capacity: capacity.parse().ok()?,
-        })
-    }
-}
-
-fn cpuinfo_field<'a>(block: &'a str, name: &str) -> Option<&'a str> {
-    block.lines().find_map(|line| {
-        let (key, value) = line.split_once(':')?;
-        (key.trim() == name).then(|| value.trim())
-    })
-}
-
 pub(super) fn cpulist(list: &str) -> impl Iterator<Item = u32> + '_ {
     list.split(',').filter_map(cpu_range).flatten()
 }
@@ -607,13 +548,6 @@ mod tests {
             cpulist("0-3,8,10-11").collect::<Vec<_>>(),
             [0, 1, 2, 3, 8, 10, 11]
         );
-    }
-
-    #[test]
-    fn intel_pmu_lists_split_performance_from_efficient() {
-        let designs = CoreDesign::from_intel_cpulists("0-1", "2-3");
-        assert_eq!(designs[&1], CoreDesign::IntelPerformanceCore);
-        assert_eq!(designs[&2], CoreDesign::IntelEfficientCore);
     }
 
     #[test]
@@ -836,24 +770,6 @@ mod tests {
         assert_eq!(
             parse_cache_size("4M"),
             Some(Information::new::<mebibyte>(4.0))
-        );
-    }
-
-    #[test]
-    fn cpuinfo_blocks_yield_each_cores_part() {
-        let cpuinfo = "processor\t: 0\nCPU part\t: 0xd05\n\nprocessor\t: 1\nCPU part\t: 0xd0b\n";
-        assert_eq!(
-            CorePart::parse_all(cpuinfo).collect::<Vec<_>>(),
-            [
-                CorePart {
-                    core: 0,
-                    part: "0xd05".to_owned()
-                },
-                CorePart {
-                    core: 1,
-                    part: "0xd0b".to_owned()
-                },
-            ]
         );
     }
 }
