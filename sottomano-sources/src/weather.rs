@@ -15,12 +15,15 @@ use uom::si::{
     velocity::kilometer_per_hour,
 };
 
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery, http, polled_delivery_stream};
+use crate::{
+    DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream,
+    system_protocol_clients::http_json_client,
+};
 
 #[derive(Debug, Clone)]
 pub enum Error {
     Situo(situo_client::Error),
-    Fetch(http::Error),
+    Fetch(http_json_client::Error),
     Malformed,
     OutsideRainRadar,
 }
@@ -44,8 +47,8 @@ impl From<situo_client::Error> for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Error {
+    fn from(error: http_json_client::Error) -> Self {
         Error::Fetch(error)
     }
 }
@@ -317,7 +320,7 @@ impl Temperature {
         "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
         here.latitude, here.longitude
     );
-        let forecast: TemperatureForecast = http::get_json(&url, &[], 10).await?;
+        let forecast: TemperatureForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Temperature {
             condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
             temp: forecast.current.temperature_2m,
@@ -371,7 +374,7 @@ impl Wind {
         "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
         here.latitude, here.longitude
     );
-        let forecast: WindForecast = http::get_json(&url, &[], 10).await?;
+        let forecast: WindForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(forecast.current)
     }
 }
@@ -521,10 +524,12 @@ impl Rain {
             "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
             here.latitude, here.longitude
         );
-        let body = http::get_text(&url, 5).await.map_err(|error| match error {
-            http::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
-            other => Error::from(other),
-        })?;
+        let body = http_json_client::get_text(&url, 5)
+            .await
+            .map_err(|error| match error {
+                http_json_client::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
+                other => Error::from(other),
+            })?;
         let now = Local::now();
         let forecast: Vec<Downpour> = body
             .lines()
@@ -645,7 +650,7 @@ impl Pollen {
         "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
         here.latitude, here.longitude
     );
-        let air: AirQuality = http::get_json(&url, &[], 10).await?;
+        let air: AirQuality = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Pollen::of(&air.current))
     }
 }

@@ -6,10 +6,11 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{self, DesktopBuses},
-    empty_text::non_empty,
     hostname::at_micros,
-    niri, pushed_delivery_stream,
+    niri,
+    non_empty_text::non_empty,
+    pushed_delivery_stream,
+    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_manager::{ManagerProxy, UnitProxy},
 };
 
@@ -31,7 +32,7 @@ pub struct GraphicalSessionTarget {
 }
 
 impl ReadingSource for GraphicalSession {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "graphical session";
@@ -43,12 +44,12 @@ impl ReadingSource for GraphicalSession {
 }
 
 impl GraphicalSession {
-    async fn read() -> Result<Self, bus::Error> {
+    async fn read() -> Result<Self, dbus_desktop_buses::Error> {
         let compositor_version = spawn_blocking(niri::version)
             .await
             .ok()
             .flatten()
-            .ok_or(bus::Error::Absent)?;
+            .ok_or(dbus_desktop_buses::Error::Absent)?;
         Ok(Self {
             current_desktop: env::var("XDG_CURRENT_DESKTOP").ok().and_then(non_empty),
             session_desktop: env::var("XDG_SESSION_DESKTOP").ok().and_then(non_empty),
@@ -56,14 +57,14 @@ impl GraphicalSession {
             wayland_display: env::var("WAYLAND_DISPLAY")
                 .ok()
                 .and_then(non_empty)
-                .ok_or(bus::Error::Absent)?,
+                .ok_or(dbus_desktop_buses::Error::Absent)?,
             x11_display: env::var("DISPLAY").ok().and_then(non_empty),
         })
     }
 }
 
 impl ReadingSource for GraphicalSessionTarget {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "graphical session target";
@@ -76,7 +77,10 @@ impl ReadingSource for GraphicalSessionTarget {
 
 async fn target_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<GraphicalSessionTarget, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<GraphicalSessionTarget, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let manager = ManagerProxy::new(&buses.session).await?;
     manager.ensure_subscribed().await?;
     let unit = UnitProxy::builder(&buses.session)

@@ -5,7 +5,7 @@ use iced::{
     widget::{Row, hover, image, svg},
 };
 use sottomano_config::Config;
-use sottomano_sources::{app_icon::DesktopEntries, background_work::blocking, niri};
+use sottomano_sources::{app_icon::DesktopEntries, blocking_background_work::blocking, niri};
 
 use crate::{
     desktop_index::DesktopIndex,

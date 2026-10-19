@@ -5,11 +5,13 @@ use zbus::{blocking::Connection, proxy};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-    bus::{self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop},
-    empty_text::non_empty,
+    non_empty_text::non_empty,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure},
     sysfs_sensors,
+    system_protocol_clients::dbus_desktop_buses::{
+        self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
+    },
 };
 
 const DAEMON_SERVICE: &str = "net.hadess.PowerProfiles";
@@ -176,7 +178,7 @@ pub struct ProfileStatus {
 }
 
 impl ReadingSource for ProfileStatus {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power profile";
@@ -212,7 +214,10 @@ pub fn active_profile_changes(system: zbus::Connection) -> impl Stream<Item = ()
 
 async fn status_changes(
     system: zbus::Connection,
-) -> Result<impl Stream<Item = Result<ProfileStatus, bus::Error>>, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<ProfileStatus, dbus_desktop_buses::Error>>,
+    dbus_desktop_buses::Error,
+> {
     let daemon = PowerProfilesProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
@@ -233,10 +238,13 @@ async fn status_changes(
     }))
 }
 
-async fn read_status(daemon: &PowerProfilesProxy<'_>) -> Result<ProfileStatus, bus::Error> {
+async fn read_status(
+    daemon: &PowerProfilesProxy<'_>,
+) -> Result<ProfileStatus, dbus_desktop_buses::Error> {
     let active = daemon.active_profile().await?;
-    let active = Profile::from_name(&active)
-        .ok_or_else(|| bus::Error::Call(format!("unknown power profile {active:?}")))?;
+    let active = Profile::from_name(&active).ok_or_else(|| {
+        dbus_desktop_buses::Error::Call(format!("unknown power profile {active:?}"))
+    })?;
     let holds = daemon.active_profile_holds().await?;
     let degraded = daemon.performance_degraded().await?;
     Ok(ProfileStatus {

@@ -9,8 +9,8 @@ use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    bus::{Bus, DesktopBuses},
     llama_server::LlamaModelProps,
+    system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
     systemd_manager::SystemdUnitScope,
 };
 

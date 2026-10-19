@@ -4,7 +4,7 @@ use chrono::{NaiveTime, TimeDelta, Timelike};
 use futures::{Stream, StreamExt, stream};
 use sottomano_sources::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS quiet_hours (

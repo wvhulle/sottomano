@@ -5,8 +5,8 @@ use futures::{Stream, StreamExt};
 
 use crate::{
     app_icon::DesktopEntries,
-    background_work::blocking,
-    directory_changes::{WatchTarget, changes},
+    blocking_background_work::blocking,
+    system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
 
 const CHANGE_BURST_LIMIT: usize = 64;

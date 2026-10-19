@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use super::{Error, backoff, plan, read_credentials};
-use crate::http;
+use crate::system_protocol_clients::http_json_client;
 
 pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
 pub const PROFILE_URL: &str = "https://api.anthropic.com/api/oauth/profile";
@@ -28,7 +28,7 @@ pub async fn fetch<Reply: DeserializeOwned>(
     let token = oauth.access_token.as_ref().ok_or(Error::NoToken)?;
 
     let auth = format!("Bearer {token}");
-    let mut resp = http::get(
+    let mut resp = http_json_client::get(
         url,
         &[
             ("Authorization", &auth),
@@ -43,7 +43,7 @@ pub async fn fetch<Reply: DeserializeOwned>(
         return Err(backoff::schedule_retry(&resp, body).await);
     }
     if resp.status != 200 {
-        let failure = http::Error::status(resp.status, Some(body));
+        let failure = http_json_client::Error::status(resp.status, Some(body));
         tracing::warn!("claude usage: {failure}");
         return Err(failure.into());
     }
@@ -51,6 +51,6 @@ pub async fn fetch<Reply: DeserializeOwned>(
 
     Ok(PlanReply {
         plan: plan(oauth),
-        reply: http::decode(Some(body))?,
+        reply: http_json_client::decode(Some(body))?,
     })
 }

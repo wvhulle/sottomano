@@ -23,7 +23,8 @@ use tokio::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries, empty_text::non_empty,
+    DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries,
+    non_empty_text::non_empty,
 };
 
 #[derive(Debug, Clone, PartialEq)]

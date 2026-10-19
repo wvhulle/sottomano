@@ -11,7 +11,10 @@ use zbus::{
     zvariant::{OwnedObjectPath, Type},
 };
 
-use crate::{bus::DesktopBuses, stream_operators::connected_until_failure};
+use crate::{
+    stream_operators::connected_until_failure,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+};
 
 const BOOT_LOADER_MENU_DEFAULT_TIMEOUT: u64 = 0;
 

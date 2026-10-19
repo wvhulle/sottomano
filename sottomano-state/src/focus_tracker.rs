@@ -4,8 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use sottomano_sources::{
-    background_work::blocking,
-    bus::DesktopBuses,
+    blocking_background_work::blocking,
     focus_ledger::{
         AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans, ScreenEdge,
         SpanWrite, WakingWindow, WindowFocusChange,
@@ -13,6 +12,7 @@ use sottomano_sources::{
     idle_notify::{IdleEdge, idle_edges},
     kitty_windows::WindowProcesses,
     logind::{self, SleepEdge},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::focus_spans;

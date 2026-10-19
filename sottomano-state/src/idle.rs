@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sottomano_sources::{
     session_action::SessionAction,
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (

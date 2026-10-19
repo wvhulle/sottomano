@@ -13,12 +13,12 @@ use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
     notifications::model::ActionTint,
     sysfs_sensors::{
         battery::{Battery, ChargerSupply},
         cpu_tuning::CpuTuning,
     },
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{

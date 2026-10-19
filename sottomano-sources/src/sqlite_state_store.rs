@@ -1,4 +1,4 @@
-pub mod rate_limit;
+pub mod write_rate_limit;
 
 use std::{collections::HashMap, env, fmt, fs, io, ops::Deref, path::PathBuf, time::Duration};
 

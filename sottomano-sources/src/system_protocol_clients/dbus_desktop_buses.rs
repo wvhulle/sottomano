@@ -15,7 +15,7 @@ use zbus::{
 };
 
 use crate::{
-    empty_text::non_empty,
+    non_empty_text::non_empty,
     stream_operators::{connected_until_failure, resubscribing_until_failure},
 };
 

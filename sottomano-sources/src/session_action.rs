@@ -1,4 +1,4 @@
-use crate::{command, logind, niri};
+use crate::{logind, niri, system_protocol_clients::shell_command_output};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionAction {
@@ -142,8 +142,10 @@ impl SessionAction {
             }),
             SessionAction::TerminateSession => logind::terminate_session(),
             SessionAction::RestartShell => {
-                if !command::blocking::run("systemctl", &["--user", "restart", "sottomano.service"])
-                {
+                if !shell_command_output::blocking::run(
+                    "systemctl",
+                    &["--user", "restart", "sottomano.service"],
+                ) {
                     tracing::warn!("systemctl: restarting sottomano.service failed");
                 }
             }

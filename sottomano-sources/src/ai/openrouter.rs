@@ -15,12 +15,12 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     ai::{
         quota::Quota,
-        read_secret,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    http,
     money::{Money, deserialize_usd, usd},
     polled_delivery_stream,
+    secret_file_reads::read_secret,
+    system_protocol_clients::http_json_client,
 };
 
 const ANALYTICS_URL: &str = "https://openrouter.ai/api/v1/analytics/query";
@@ -32,7 +32,7 @@ const ANALYTICS_HOUR_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 pub enum Error {
     Secret,
     LocalMidnight,
-    Fetch(http::Error),
+    Fetch(http_json_client::Error),
 }
 
 impl Display for Error {
@@ -45,8 +45,8 @@ impl Display for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Error {
+    fn from(error: http_json_client::Error) -> Self {
         Error::Fetch(error)
     }
 }
@@ -325,11 +325,13 @@ async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Us
         "limit": 10000,
     });
     let auth = format!("Bearer {key}");
-    let resp = http::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15).await?;
+    let resp =
+        http_json_client::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15)
+            .await?;
     if resp.status != 200 {
-        return Err(http::Error::status(resp.status, resp.body).into());
+        return Err(http_json_client::Error::status(resp.status, resp.body).into());
     }
-    let analytics: Envelope<Analytics> = http::decode(resp.body)?;
+    let analytics: Envelope<Analytics> = http_json_client::decode(resp.body)?;
     Ok(analytics.data.data)
 }
 
@@ -343,14 +345,14 @@ fn utc_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>,
 async fn credits(key: &str) -> Result<Credits, Error> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Credits> =
-        http::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
+        http_json_client::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
     Ok(envelope.data)
 }
 
 async fn key_limits(key: &str) -> Result<Vec<KeyLimit>, Error> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Vec<ApiKey>> =
-        http::get_json(KEYS_URL, &[("Authorization", &auth)], 10).await?;
+        http_json_client::get_json(KEYS_URL, &[("Authorization", &auth)], 10).await?;
     Ok(envelope
         .data
         .into_iter()

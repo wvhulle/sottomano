@@ -4,10 +4,10 @@ use zbus::proxy::CacheProperties;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{self, DesktopBuses},
     hostname::at_micros,
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
+    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_manager::{
         ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
     },
@@ -21,7 +21,7 @@ pub struct UserServiceManager {
 }
 
 impl ReadingSource for UserServiceManager {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "user service manager";
@@ -34,7 +34,10 @@ impl ReadingSource for UserServiceManager {
 
 async fn manager_state_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<UserServiceManager, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<UserServiceManager, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let manager = ManagerProxy::builder(&buses.session)
         .cache_properties(CacheProperties::No)
         .build()

@@ -1,6 +1,6 @@
 use sottomano_sources::{
-    bus,
     clight::{self, Clight},
+    system_protocol_clients::dbus_desktop_buses,
 };
 
 use crate::widgets::{
@@ -38,7 +38,7 @@ impl ToggleableSource for Clight {
         Clight { auto: !self.auto }
     }
 
-    fn apply_toggle(&self) -> Result<(), bus::Error> {
+    fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {
         clight::flip()
     }
 

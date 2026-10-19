@@ -9,11 +9,12 @@ use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, command,
+    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
     nix_store::{Provenance, StorePackage, below_derivation},
     polled_delivery_after_setup,
     process::{Watched, launch},
     stream_operators::StreamOperators,
+    system_protocol_clients::shell_command_output,
 };
 
 const NIXPKGS_META: &str = "p: {
@@ -36,7 +37,7 @@ pub struct PackageWatch {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     OutsideStore,
-    Command(command::Error),
+    Command(shell_command_output::Error),
     Malformed,
     Interrupted,
 }
@@ -52,8 +53,8 @@ impl Display for Error {
     }
 }
 
-impl From<command::Error> for Error {
-    fn from(error: command::Error) -> Self {
+impl From<shell_command_output::Error> for Error {
+    fn from(error: shell_command_output::Error) -> Self {
         Error::Command(error)
     }
 }
@@ -165,7 +166,7 @@ impl ReadingSource for NixPackageFacts {
         DeliveryCadence::PolledEvery(Duration::from_secs(600));
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(command::exists("nix")).while_held(
+        stream::once(shell_command_output::exists("nix")).while_held(
             move || {
                 polled_delivery_after_setup(
                     InstalledPackage::read(inputs.clone()),
@@ -192,7 +193,7 @@ impl InstalledPackage {
         let package = blocking_poll(move || hovered_package(&watched)).await?;
         let root = package.root.to_string_lossy().into_owned();
         let info = path_info(&root).await?;
-        let path_count = command::output("nix", &["path-info", "-r", &root])
+        let path_count = shell_command_output::output("nix", &["path-info", "-r", &root])
             .await?
             .lines()
             .count();
@@ -252,7 +253,7 @@ fn hovered_package(watched: &Watched) -> Result<StorePackage, Error> {
 }
 
 async fn path_info(root: &str) -> Result<PathInfo, Error> {
-    let raw = command::output(
+    let raw = shell_command_output::output(
         "nix",
         &["path-info", "--json", "--json-format", "1", "-S", root],
     )
@@ -280,11 +281,13 @@ fn origin(info: &PathInfo) -> Origin {
 }
 
 async fn nixpkgs_entry(package: &StorePackage, root: &str) -> Option<NixpkgsEntry> {
-    let raw = command::output("nixos-version", &["--json"]).await.ok()?;
+    let raw = shell_command_output::output("nixos-version", &["--json"])
+        .await
+        .ok()?;
     let system: NixosVersion = serde_json::from_str(&raw).ok()?;
     let revision = system.nixpkgs_revision;
     let installable = format!("github:NixOS/nixpkgs/{revision}#{}", package.name);
-    let raw = command::output(
+    let raw = shell_command_output::output(
         "nix",
         &["eval", "--json", &installable, "--apply", NIXPKGS_META],
     )
@@ -318,7 +321,7 @@ fn definition(position: &str, revision: &str) -> Option<Definition> {
 
 async fn upstream_state(package: &StorePackage, root: &str, branch: &str) -> Option<UpstreamState> {
     let installable = format!("github:NixOS/nixpkgs/{branch}#{}", package.name);
-    let raw = command::output(
+    let raw = shell_command_output::output(
         "nix",
         &["eval", "--json", &installable, "--apply", UPSTREAM_VERSION],
     )

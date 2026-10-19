@@ -16,8 +16,8 @@ use zbus::{
 
 use crate::{
     ReadingSource, SourceDelivery,
-    bus::{Properties, name_owned},
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
+    system_protocol_clients::dbus_desktop_buses::{Properties, name_owned},
 };
 
 #[derive(Debug)]

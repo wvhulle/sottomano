@@ -11,10 +11,10 @@ use iced::{
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    background_work::blocking,
-    bus::{DesktopBuses, OwnerProcess},
+    blocking_background_work::blocking,
     mpris::{self, Command, Media, Progress, Status},
     niri::WindowOwner,
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
 use uom::si::f64::Ratio;
 

@@ -7,7 +7,7 @@ mod wireguard_tunnel_tooltip;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     tailscale::{self, Tailscale, open_admin},
     throughput::Readings,
     wireguard::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
@@ -102,7 +102,7 @@ impl InternetGroup {
     }
 
     pub fn update(&mut self, msg: InternetMessage) -> Task<InternetMessage> {
-        use sottomano_sources::background_work::blocking;
+        use sottomano_sources::blocking_background_work::blocking;
         match msg {
             InternetMessage::Throughput(delivery) => {
                 self.throughput.receive_delivery(delivery);

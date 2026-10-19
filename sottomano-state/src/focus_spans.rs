@@ -1,7 +1,7 @@
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use sottomano_sources::{
     focus_ledger::{FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet},
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 const RETENTION: TimeDelta = TimeDelta::days(400);

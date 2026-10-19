@@ -5,12 +5,11 @@ use serde::{Deserialize, Serialize};
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{DesktopBuses, name_owned},
-    clight,
+    DeliveryCadence, ReadingSource, SourceDelivery, clight,
     stream_operators::{
         StreamOperators, connected_until_failure, read_once_then_per_burst, ticked,
     },
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, name_owned},
 };
 
 const CLIGHTD_SERVICE: &str = "org.clightd.clightd";

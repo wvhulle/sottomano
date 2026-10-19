@@ -9,7 +9,7 @@ use niri_ipc::state::EventStreamState;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::{
-    directory_changes::{WatchTarget, changes},
+    system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
     window_label::{WindowLabel, browser_page::strip_unread_badge},
 };
 

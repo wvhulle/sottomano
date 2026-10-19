@@ -22,9 +22,11 @@ use zbus::{
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    background_work::blocking,
-    bus::{DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties},
+    blocking_background_work::blocking,
     stream_operators::{connected_until_failure, read_once_then_per_burst},
+    system_protocol_clients::dbus_desktop_buses::{
+        DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties,
+    },
 };
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";

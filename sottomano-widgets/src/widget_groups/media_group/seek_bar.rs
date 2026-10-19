@@ -184,8 +184,8 @@ fn seek_to(media: &Media, target: Duration, now: Instant) -> Option<Command> {
 #[cfg(test)]
 mod tests {
     use sottomano_sources::{
-        bus::OwnerProcess,
         mpris::{Capabilities, Progress, Status},
+        system_protocol_clients::dbus_desktop_buses::OwnerProcess,
     };
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 

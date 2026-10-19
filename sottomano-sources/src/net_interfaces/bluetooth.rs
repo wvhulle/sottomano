@@ -3,9 +3,9 @@ use zbus::fdo::ManagedObjects;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{DesktopBuses, prop},
     hardware::Adapter,
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, prop},
 };
 
 pub const NAME: &str = "bluetooth";

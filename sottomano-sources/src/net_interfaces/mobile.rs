@@ -9,9 +9,9 @@ use zbus::{
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{DesktopBuses, Properties, prop},
     hardware::{Adapter, ModemIdentity, reported},
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
+    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 
 pub const NAME: &str = "mobile-broadband";

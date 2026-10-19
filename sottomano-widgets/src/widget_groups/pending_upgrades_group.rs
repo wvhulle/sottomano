@@ -3,7 +3,10 @@ use iced::{Subscription, Task};
 mod firmware_upgrade_list;
 
 use sottomano_config::Config;
-use sottomano_sources::{SourceDelivery, bus::DesktopBuses, fwupd::FirmwareUpgrade};
+use sottomano_sources::{
+    SourceDelivery, fwupd::FirmwareUpgrade,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+};
 
 use crate::{
     background_work::source_subscription,

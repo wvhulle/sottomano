@@ -1,6 +1,6 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::{background_work::blocking, niri};
+use sottomano_sources::{blocking_background_work::blocking, niri};
 
 #[derive(Debug, Clone)]
 pub struct TerminalCommand {

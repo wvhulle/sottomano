@@ -20,8 +20,11 @@ pub use self::{
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
 use crate::{
-    ReadingSource, SourceDelivery, ai::ccusage, file_presence::path_present, http,
-    polled_delivery_stream, stream_operators::StreamOperators,
+    ReadingSource, SourceDelivery,
+    ai::ccusage,
+    polled_delivery_stream,
+    stream_operators::StreamOperators,
+    system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
 
 const SUBSCRIPTION_SCOPE: &str = "user:inference";
@@ -31,12 +34,12 @@ const ENTERPRISE_SUBSCRIPTION: &str = "enterprise";
 pub enum Error {
     Credentials,
     NoToken,
-    RateLimited(http::Error),
+    RateLimited(http_json_client::Error),
     Backoff {
         remaining: Duration,
-        cause: http::Error,
+        cause: http_json_client::Error,
     },
-    Fetch(http::Error),
+    Fetch(http_json_client::Error),
     Ccusage(ccusage::Error),
     UnknownCurrency(String),
 }
@@ -58,8 +61,8 @@ impl Display for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Error {
+    fn from(error: http_json_client::Error) -> Self {
         Error::Fetch(error)
     }
 }

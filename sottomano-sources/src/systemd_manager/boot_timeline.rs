@@ -9,7 +9,10 @@ use sottomano_config::severity::Severity;
 use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery, bus::DesktopBuses};
+use crate::{
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+};
 
 const SLOWEST_UNIT_COUNT: usize = 10;
 const SHORTEST_REPORTED_ACTIVATION: Duration = Duration::from_millis(100);

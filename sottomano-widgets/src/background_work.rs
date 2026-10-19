@@ -5,7 +5,7 @@ use iced::{
     futures::{Stream, StreamExt},
 };
 use sottomano_sources::{
-    ReadingSource, SourceDelivery, background_work::blocking, niri, sink::clipboard,
+    ReadingSource, SourceDelivery, blocking_background_work::blocking, niri, sink::clipboard,
     stream_operators::restarting,
 };
 

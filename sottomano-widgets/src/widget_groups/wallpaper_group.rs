@@ -9,8 +9,9 @@ use iced::{
 };
 use sottomano_config::SecretPaths;
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery, command,
+    DeliveryCadence, ReadingSource, SourceDelivery,
     stream_operators::StreamOperators,
+    system_protocol_clients::shell_command_output,
     wallpaper::{self, DisplayedWallpaper, Position, Wallpaper},
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
@@ -49,7 +50,7 @@ impl Lookup {
 
 #[derive(Debug, Clone)]
 pub enum Failure {
-    Query(command::Error),
+    Query(shell_command_output::Error),
     Resolve(wallpaper::Error),
 }
 
