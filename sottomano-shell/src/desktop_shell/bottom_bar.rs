@@ -2,7 +2,8 @@ use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
-    shell_message::Message, widget_groups::workspaces_group, widgets::widget_group::GroupContent,
+    shell_message::Message, widget_groups::workspaces_group::inline_strip,
+    widgets::widget_group::GroupContent,
 };
 
 use crate::desktop_shell::DesktopShell;
@@ -58,7 +59,7 @@ impl DesktopShell {
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
         match self.shell_settings.layout.workspaces_placement {
             WorkspacesPlacement::Sidebar => None,
-            WorkspacesPlacement::BottomPanel => workspaces_group::inline_view(
+            WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 self.niri_snapshot.get()?,
                 output,
                 &self.config,

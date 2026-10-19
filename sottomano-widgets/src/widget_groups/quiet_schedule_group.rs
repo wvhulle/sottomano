@@ -1,8 +1,9 @@
+mod clock_slider;
 pub mod quiet_window;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, Local, NaiveTime, TimeDelta, Timelike, Utc};
+use chrono::{DateTime, Local, Utc};
 use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
@@ -14,6 +15,7 @@ use sottomano_sources::{
 use sottomano_state::quiet_hours::{self, QuietHoursSchedule};
 use tokio::time::sleep;
 
+use self::clock_slider::{clock_at, clock_minutes, new_clock_slider};
 use crate::{
     background_work::source_subscription,
     clock::Clock,
@@ -459,30 +461,4 @@ impl QuietScheduleGroup {
             Phosphor::ClockUser(Weight::Regular)
         }
     }
-}
-
-fn new_clock_slider(
-    name: &'static str,
-    target: QuietScheduleTarget,
-    icon: WeatherIcon,
-) -> SliderControl {
-    SliderControl::new(name, CLOCK_MINUTES, target, icon)
-        .scroll_step(CLOCK_STEP_MINUTES)
-        .slider_step(CLOCK_STEP_MINUTES)
-        .readout(|minutes| clock_text(clock_at(minutes)))
-        .label(|minutes| Some(clock_text(clock_at(minutes))))
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn clock_minutes(time: NaiveTime) -> f32 {
-    (time.hour() * 60 + time.minute()) as f32
-}
-
-#[allow(clippy::cast_possible_truncation)]
-fn clock_at(minutes: f32) -> NaiveTime {
-    NaiveTime::MIN + TimeDelta::minutes(minutes.round().max(0.0) as i64)
-}
-
-fn clock_text(time: NaiveTime) -> String {
-    time.format("%H:%M").to_string()
 }

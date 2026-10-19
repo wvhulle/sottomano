@@ -1,9 +1,10 @@
 mod auto_switch_toggle;
+mod offset_slider;
 mod umbra_dark_mode;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
@@ -20,12 +21,13 @@ use sottomano_sources::{
 use sottomano_state::dark_mode::{self, DarkModeSchedule};
 use tokio::time::sleep;
 
+use self::offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes};
 use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::dark_mode_group::auto_switch_toggle::{
-        AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
+        AutoSwitchToggle, ScheduleStatus, SwitchDecision,
     },
     widgets::{
         bar_widget::BarWidget,
@@ -353,23 +355,4 @@ impl DarkModeGroup {
         })
         .preview(self.mode_toggle.reading().map(PreviewedValue::Plain))
     }
-}
-
-fn new_offset_slider(
-    name: &'static str,
-    target: DarkModeTarget,
-    icon: WeatherIcon,
-) -> SliderControl {
-    SliderControl::new(name, OFFSET_MINUTES, target, icon)
-        .scroll_step(OFFSET_STEP_MINUTES)
-        .slider_step(OFFSET_STEP_MINUTES)
-        .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))
-}
-
-fn minutes_to_time_delta(minutes: f32) -> TimeDelta {
-    TimeDelta::minutes(minutes.round() as i64)
-}
-
-fn time_delta_to_minutes(offset: TimeDelta) -> f32 {
-    offset.num_minutes() as f32
 }

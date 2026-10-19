@@ -7,7 +7,7 @@ use sottomano_config::screen_edges::Position;
 use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
     shell_message::Message,
-    widget_groups::workspaces_group,
+    widget_groups::workspaces_group::sidebar_column,
     widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
@@ -32,7 +32,7 @@ impl DesktopShell {
             .then(|| self.niri_snapshot.get())
             .flatten()
             .and_then(|snapshot| {
-                workspaces_group::vertical_view(
+                sidebar_column::vertical_view(
                     snapshot,
                     output,
                     config,
