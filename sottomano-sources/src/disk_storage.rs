@@ -6,7 +6,7 @@ pub mod root_mount_facts;
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::Panicked;
+use crate::blocking_background_work::Panicked;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {

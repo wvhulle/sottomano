@@ -5,7 +5,7 @@ use futures::Stream;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     battery_power_profiles::power_profiles_daemon::active_profile_changes,
-    blocking_poll,
+    blocking_background_work::blocking_poll,
     cpu_memory_compute::CPU_FREQ,
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,

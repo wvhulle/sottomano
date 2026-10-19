@@ -7,9 +7,8 @@ use systemd::journal::Journal;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    systemd_units_journal::journal_follow::{
-        JournalEvent, JournalFollowError, JournalPriority, JournalTransport, journal_windows,
-    },
+    system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
+    systemd_units_journal::journal_record_fields::{JournalPriority, JournalTransport},
 };
 
 impl ReadingSource for Vec<KernelOccurrence> {

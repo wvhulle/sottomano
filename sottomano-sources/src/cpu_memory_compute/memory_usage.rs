@@ -5,7 +5,7 @@ use futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
     desktop_windows_apps::process_tree_inspection::binary_name, polled_delivery_stream,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };

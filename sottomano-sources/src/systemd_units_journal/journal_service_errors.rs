@@ -7,9 +7,9 @@ use systemd::journal::Journal;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    systemd_units_journal::journal_follow::{
-        JournalEvent, JournalFollowError, JournalPriority, JournalTransport, LoggingUnit,
-        MessageId, OwningUnit, either_of, journal_windows,
+    system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
+    systemd_units_journal::journal_record_fields::{
+        JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit, either_of,
     },
 };
 
@@ -162,7 +162,7 @@ fn errors_by_unit(entries: Vec<ServiceErrorEntry>) -> Vec<UnitErrors> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systemd_units_journal::journal_follow::{decode_record, journal_record};
+    use crate::system_protocol_clients::journal_follow::{decode_record, journal_record};
 
     fn admitted<'a>(
         fields: impl IntoIterator<Item = (&'a str, &'a str)>,

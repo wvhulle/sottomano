@@ -1,4 +1,4 @@
-use sottomano_sources::weather::Wind;
+use sottomano_sources::weather::open_meteo_wind::Wind;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{angle::degree, f64::Velocity, velocity::kilometer_per_hour},

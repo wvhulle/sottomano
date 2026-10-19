@@ -5,8 +5,8 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use super::hwmon_temperature_sensors::{HwmonChip, TemperatureSensor};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
-    system_protocol_clients::sysfs_attribute_reads::Error,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
+    polled_delivery_after_setup, system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const MEMORY_MODULE_SENSOR_CHIPS: [&str; 2] = ["spd5118", "jc42"];

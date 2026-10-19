@@ -3,7 +3,8 @@ use std::{fmt, fs, path::PathBuf, str::FromStr};
 use futures::{Stream, StreamExt, stream};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };

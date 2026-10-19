@@ -1,5 +1,5 @@
 use iced::{Color, Element};
-use sottomano_sources::weather::{
+use sottomano_sources::weather::open_meteo_temperature::{
     Intensity,
     WeatherCondition::{
         self, Clear, Drizzle, Fog, FreezingDrizzle, FreezingRain, MainlyClear, Overcast,

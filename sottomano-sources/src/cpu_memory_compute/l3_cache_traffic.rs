@@ -7,7 +7,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::cpu_topology::cpulist;
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
+    polled_delivery_stream,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
 };

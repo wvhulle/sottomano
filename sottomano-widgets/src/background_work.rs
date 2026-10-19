@@ -7,7 +7,7 @@ use iced::{
 use sottomano_sources::{
     ReadingSource, SourceDelivery,
     blocking_background_work::blocking,
-    desktop_windows_apps::{clipboard_copy, niri_window_snapshot},
+    desktop_windows_apps::{clipboard_copy, niri_action_requests},
     stream_operators::restarting,
 };
 
@@ -15,7 +15,7 @@ use crate::shell_message::Message;
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     Task::future(blocking("niri action", move || {
-        niri_window_snapshot::send_action(&action).err()
+        niri_action_requests::send_action(&action).err()
     }))
     .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
 }

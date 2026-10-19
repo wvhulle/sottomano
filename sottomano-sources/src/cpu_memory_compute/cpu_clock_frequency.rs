@@ -6,8 +6,9 @@ use uom::si::f64::Frequency;
 
 use super::{CPU_FREQ, core_freqs, cpu_topology::CpuTopology};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
-    stream_operators::StreamOperators, system_protocol_clients::sysfs_attribute_reads::Error,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
+    polled_delivery_after_setup, stream_operators::StreamOperators,
+    system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

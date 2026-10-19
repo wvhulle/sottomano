@@ -9,7 +9,8 @@ use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::{Panicked, blocking_poll},
     desktop_windows_apps::{
         nix_store_provenance::{Provenance, StorePackage, below_derivation},
         process_tree_inspection::{Watched, launch},

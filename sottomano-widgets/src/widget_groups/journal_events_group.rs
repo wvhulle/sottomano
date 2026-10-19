@@ -8,10 +8,10 @@ mod service_error_log;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
+    system_protocol_clients::journal_follow::JournalFollowError,
     systemd_units_journal::{
-        journal_coredumps::CoredumpEntry, journal_follow::JournalFollowError,
-        journal_kernel_errors::KernelOccurrence, journal_oom_kills::OomKillEntry,
-        journal_service_errors::ServiceErrors,
+        journal_coredumps::CoredumpEntry, journal_kernel_errors::KernelOccurrence,
+        journal_oom_kills::OomKillEntry, journal_service_errors::ServiceErrors,
     },
 };
 

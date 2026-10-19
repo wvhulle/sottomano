@@ -3,7 +3,7 @@ pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::screen_edges::Position;
 use sottomano_sources::{
-    blocking_background_work::blocking, desktop_windows_apps::niri_window_snapshot,
+    blocking_background_work::blocking, desktop_windows_apps::niri_output_facts,
 };
 use sottomano_state::niri_rules::StyledSurface;
 use sottomano_widgets::{
@@ -272,7 +272,7 @@ impl DesktopShell {
 
 pub fn query_outputs() -> Task<Message> {
     Task::perform(
-        blocking("niri outputs", niri_window_snapshot::output_info),
+        blocking("niri outputs", niri_output_facts::output_info),
         Message::OutputsResolved,
     )
 }

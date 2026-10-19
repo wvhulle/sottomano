@@ -5,7 +5,7 @@ use sottomano_config::{
 };
 use sottomano_sources::{
     desktop_notifications::notification_data::NotificationData,
-    desktop_windows_apps::niri_window_snapshot::{Placement, WindowOwner},
+    desktop_windows_apps::niri_window_placement::{Placement, WindowOwner},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_state::NotificationSettings;

@@ -33,9 +33,9 @@ use sottomano_sources::{
     desktop_windows_apps::{
         app_launch_history::{Launch, LaunchTracker},
         desktop_entry_app_icons::{self, DesktopEntries},
-        desktop_entry_changes,
+        desktop_entry_changes, niri_action_requests,
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
-        niri_window_snapshot,
+        niri_output_facts, niri_window_placement, niri_window_snapshot,
     },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
@@ -143,7 +143,7 @@ pub struct DesktopShell {
     pub launch_tracker: LaunchTracker,
     pub niri: EventStreamState,
     pub niri_snapshot: ContinuousReading<niri_window_snapshot::Snapshot>,
-    pub outputs: HashMap<String, niri_window_snapshot::OutputInfo>,
+    pub outputs: HashMap<String, niri_output_facts::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
@@ -502,7 +502,7 @@ impl DesktopShell {
         ) {
             overlay_settings_group::Action::Run(task) => task,
             overlay_settings_group::Action::ReflowToasts(task) => {
-                let placement = niri_window_snapshot::Placement::derive(&self.niri);
+                let placement = niri_window_placement::Placement::derive(&self.niri);
                 Task::batch([
                     self.notifications.on_niri_changed(
                         &placement,
@@ -528,10 +528,10 @@ impl DesktopShell {
 
     fn adopt_outputs(
         &mut self,
-        outputs: HashMap<String, niri_window_snapshot::OutputInfo>,
+        outputs: HashMap<String, niri_output_facts::OutputInfo>,
     ) -> Task<Message> {
         self.outputs = outputs;
-        let placement = niri_window_snapshot::Placement::derive(&self.niri);
+        let placement = niri_window_placement::Placement::derive(&self.niri);
         self.notifications.on_niri_changed(
             &placement,
             &self.config,
@@ -606,7 +606,7 @@ impl DesktopShell {
         focus: AppWindowFocus<M>,
         lift: fn(M) -> Message,
     ) -> Task<Message> {
-        let placement = niri_window_snapshot::Placement::derive(&self.niri);
+        let placement = niri_window_placement::Placement::derive(&self.niri);
         let Some(window) = placement.window_owned_by(&focus.owner) else {
             tracing::debug!("no single window owned by {:?}", focus.owner);
             return Task::done(lift(focus.unmatched));
@@ -716,7 +716,7 @@ impl DesktopShell {
 
     fn show_niri_failure(
         &mut self,
-        failure: &niri_window_snapshot::ActionFailure,
+        failure: &niri_action_requests::ActionFailure,
     ) -> Task<Message> {
         tracing::warn!("{failure}");
         self.derive_niri_snapshot();
@@ -815,7 +815,7 @@ impl DesktopShell {
             tasks.push(self.refresh_quick_launch());
         }
         if self.notifications.is_active() {
-            let placement = niri_window_snapshot::Placement::derive(&self.niri);
+            let placement = niri_window_placement::Placement::derive(&self.niri);
             tasks.push(self.notifications.on_niri_changed(
                 &placement,
                 &self.config,

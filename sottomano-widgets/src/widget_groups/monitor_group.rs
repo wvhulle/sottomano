@@ -13,7 +13,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
-    desktop_windows_apps::niri_window_snapshot::OutputInfo,
+    desktop_windows_apps::niri_output_facts::OutputInfo,
     screen_brightness_color::{
         clight_auto_brightness::AutoBrightness,
         clightd_backlight::{self, Backlight},

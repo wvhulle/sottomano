@@ -8,7 +8,14 @@ mod wind_speed;
 
 use sottomano_sources::{
     SourceDelivery,
-    weather::{self, Allergen, Location, Pollen, Rain, Temperature, Wind},
+    weather::{
+        self,
+        buienradar_rain::Rain,
+        open_meteo_pollen::{Allergen, Pollen},
+        open_meteo_temperature::Temperature,
+        open_meteo_wind::Wind,
+        situo_location_fix::Location,
+    },
 };
 
 use crate::{

@@ -23,7 +23,8 @@ use uom::si::{
 use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure, restarting},

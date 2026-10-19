@@ -10,7 +10,8 @@ use futures::{Stream, StreamExt, stream};
 use serde_json::Value;
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::{Panicked, blocking_poll},
     host_machine_identity::hostname1_os_identity::MachineInfo,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, shell_command_output},
 };

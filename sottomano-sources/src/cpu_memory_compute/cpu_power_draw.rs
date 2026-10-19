@@ -8,7 +8,9 @@ use futures::Stream;
 use uom::si::{f64::Power, power::watt};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
+    polled_delivery_stream,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_i64, read_trimmed},
 };
 

@@ -9,8 +9,9 @@ use super::{
     cpu_topology::CpuTopology,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
-    polled_delivery_stream, system_protocol_clients::sysfs_attribute_reads::Error,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
+    polled_delivery_after_setup, polled_delivery_stream,
+    system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const CPU_STAT: &str = "/proc/stat";

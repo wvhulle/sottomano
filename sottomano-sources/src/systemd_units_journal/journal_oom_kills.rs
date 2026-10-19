@@ -12,9 +12,9 @@ use systemd::journal::Journal;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    systemd_units_journal::journal_follow::{
-        JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit, SubjectUnit,
-        journal_windows,
+    system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
+    systemd_units_journal::journal_record_fields::{
+        JournalPriority, MessageId, OwningUnit, SubjectUnit,
     },
 };
 
@@ -147,7 +147,7 @@ impl OomKillEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systemd_units_journal::journal_follow::{decode_record, journal_record};
+    use crate::system_protocol_clients::journal_follow::{decode_record, journal_record};
 
     const KERNEL_OOM_KILL: &str = "fe6faa94e7774663a0da52717891d8ef";
 

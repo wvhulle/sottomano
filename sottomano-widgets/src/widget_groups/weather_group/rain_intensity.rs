@@ -1,4 +1,6 @@
-use sottomano_sources::weather::{Rain, RainOutlook, precipitation::millimeter_per_hour};
+use sottomano_sources::weather::buienradar_rain::{
+    Rain, RainOutlook, precipitation::millimeter_per_hour,
+};
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::widgets::{
