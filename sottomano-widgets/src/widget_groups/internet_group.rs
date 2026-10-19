@@ -195,7 +195,8 @@ impl InternetGroup {
                 .into_iter()
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
-                        GroupItem::reading(&readings.down, InternetTarget::Down),
+                        GroupItem::reading(&readings.down, InternetTarget::Down)
+                            .previewed_on_handle(),
                         GroupItem::reading(&readings.up, InternetTarget::Up),
                     ]
                 }))

@@ -1,7 +1,7 @@
 use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_sources::weather::open_meteo_temperature::{
-    HourlyTemperature, Temperature, WeatherCondition,
+    Daylight, HourlyTemperature, Temperature, WeatherCondition,
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -29,7 +29,7 @@ impl BarWidget for Temperature {
     fn icon(&self) -> Glyph {
         self.condition
             .map_or_else(Self::fallback_icon, |condition| {
-                WeatherIcon::from(condition).into()
+                WeatherIcon::Sky(condition, self.daylight).into()
             })
     }
 
@@ -48,8 +48,9 @@ impl BarWidget for Temperature {
                     ColumnHeading::new(""),
                     ColumnHeading::new("Conditions").align_x(Horizontal::Left),
                 ],
-                self.condition
-                    .map(|condition| TableRecord::new("Conditions", condition_cells(condition))),
+                self.condition.map(|condition| {
+                    TableRecord::new("Conditions", condition_cells(condition, self.daylight))
+                }),
             ),
             Section::dictionary([
                 KeyValue::new("Now", celsius_text(self.temp)),
@@ -65,28 +66,36 @@ impl BarWidget for Temperature {
     }
 }
 
-const HOURLY_HEADINGS: [ColumnHeading; 3] = [
+const HOURLY_HEADINGS: [ColumnHeading; 4] = [
     ColumnHeading::new("Temp"),
     ColumnHeading::new(""),
     ColumnHeading::new("Conditions").align_x(Horizontal::Left),
+    ColumnHeading::new("Daylight").align_x(Horizontal::Left),
 ];
 
-fn condition_cells(condition: WeatherCondition) -> [Option<Cell>; 2] {
+fn condition_cells(condition: WeatherCondition, daylight: Daylight) -> [Option<Cell>; 2] {
     [
-        Some(Cell::Glyph(WeatherIcon::from(condition).into())),
+        Some(Cell::Glyph(WeatherIcon::Sky(condition, daylight).into())),
         Some(condition.to_string().into()),
     ]
 }
 
-impl TableRow<3> for &HourlyTemperature {
-    fn table_record(self) -> TableRecord<3> {
-        let [glyph, text] = self.condition.map_or([None, None], condition_cells);
+impl TableRow<4> for &HourlyTemperature {
+    fn table_record(self) -> TableRecord<4> {
+        let [glyph, text] = self.condition.map_or([None, None], |condition| {
+            condition_cells(condition, self.daylight)
+        });
         TableRecord::new(
             Cell::Time {
                 at: self.time,
-                format: LocalizedTimeFormat::TimeOfDay,
+                format: LocalizedTimeFormat::HourOfDay,
             },
-            [Some(celsius_text(self.temp).into()), glyph, text],
+            [
+                Some(celsius_text(self.temp).into()),
+                glyph,
+                text,
+                Some(self.daylight.to_string().into()),
+            ],
         )
     }
 }
