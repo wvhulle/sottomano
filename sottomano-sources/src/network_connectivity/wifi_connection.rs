@@ -11,7 +11,9 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     host_machine_identity::udev_hardware_identity::Adapter,
-    net_interfaces::{ReadingError, device_or_absent, device_readings, nm, nm_readings},
+    network_connectivity::{
+        ReadingError, device_or_absent, device_readings, network_manager_proxies, nm_readings,
+    },
     stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -36,8 +38,8 @@ pub struct Wifi {
 #[derive(Debug, Clone)]
 pub struct Addressing {
     pub mac: String,
-    pub ipv4: Option<nm::AddressBlock>,
-    pub ipv6: Option<nm::AddressBlock>,
+    pub ipv4: Option<network_manager_proxies::AddressBlock>,
+    pub ipv6: Option<network_manager_proxies::AddressBlock>,
     pub dns: Vec<String>,
     pub bitrate: InformationRate,
     pub mtu: u32,
@@ -49,24 +51,26 @@ pub struct WifiDetails {
     pub addressing: Option<Addressing>,
 }
 
-async fn wifi_device(connection: &Connection) -> Result<nm::DeviceInfo, ReadingError> {
-    nm::devices(connection)
+async fn wifi_device(
+    connection: &Connection,
+) -> Result<network_manager_proxies::DeviceInfo, ReadingError> {
+    network_manager_proxies::devices(connection)
         .await?
         .into_iter()
-        .find(|device| device.kind == nm::DeviceKind::Wifi)
+        .find(|device| device.kind == network_manager_proxies::DeviceKind::Wifi)
         .ok_or(ReadingError::Absent)
 }
 
 async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
     let device = wifi_device(&connection).await?;
     let ap_path = if device.connected {
-        Some(nm::active_access_point(&connection, &device).await?)
+        Some(network_manager_proxies::active_access_point(&connection, &device).await?)
     } else {
         None
     };
-    let link = match ap_path.filter(|path| !nm::is_unset(path)) {
+    let link = match ap_path.filter(|path| !network_manager_proxies::is_unset(path)) {
         Some(path) => {
-            let ap = nm::access_point(&connection, path.clone()).await?;
+            let ap = network_manager_proxies::access_point(&connection, path.clone()).await?;
             Some(Link {
                 access_point: path,
                 ssid: ap.ssid,
@@ -87,10 +91,10 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     let device = wifi_device(&connection).await?;
     let addressing = if device.connected {
         let (ip, mac, bitrate, mtu) = try_join!(
-            nm::ip(&connection, &device),
-            nm::hw_address(&device),
-            nm::wireless_rate(&connection, &device),
-            nm::mtu(&device)
+            network_manager_proxies::ip(&connection, &device),
+            network_manager_proxies::hw_address(&device),
+            network_manager_proxies::wireless_rate(&connection, &device),
+            network_manager_proxies::mtu(&device)
         )?;
         Some(Addressing {
             mac,
@@ -118,10 +122,16 @@ impl ReadingSource for Wifi {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        device_or_absent(system.clone(), nm::SERVICE, move || {
-            let system = system.clone();
-            resubscribing_until_failure(move || readings_while_access_point_holds(system.clone()))
-        })
+        device_or_absent(
+            system.clone(),
+            network_manager_proxies::SERVICE,
+            move || {
+                let system = system.clone();
+                resubscribing_until_failure(move || {
+                    readings_while_access_point_holds(system.clone())
+                })
+            },
+        )
     }
 }
 
@@ -132,17 +142,17 @@ async fn readings_while_access_point_holds(
         .await
         .ok()
         .and_then(|wifi| wifi.access_point());
-    let device_changes = nm::changes(
+    let device_changes = network_manager_proxies::changes(
         &connection,
         &[
-            nm::MANAGER_PROPERTIES,
-            nm::DEVICE_PROPERTIES,
-            nm::WIRELESS_PROPERTIES,
+            network_manager_proxies::MANAGER_PROPERTIES,
+            network_manager_proxies::DEVICE_PROPERTIES,
+            network_manager_proxies::WIRELESS_PROPERTIES,
         ],
     )
     .await?;
     let strength_changes = match watched_access_point.clone() {
-        Some(path) => Some(nm::access_point_changes(&connection, path).await?),
+        Some(path) => Some(network_manager_proxies::access_point_changes(&connection, path).await?),
         None => None,
     };
     let strength_changes = stream::iter(strength_changes).flatten();
@@ -174,18 +184,22 @@ impl ReadingSource for WifiDetails {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        device_or_absent(system.clone(), nm::SERVICE, move || {
-            nm_readings(
-                system.clone(),
-                &[
-                    nm::MANAGER_PROPERTIES,
-                    nm::DEVICE_PROPERTIES,
-                    nm::WIRELESS_PROPERTIES,
-                    nm::IP4_CONFIG_PROPERTIES,
-                    nm::IP6_CONFIG_PROPERTIES,
-                ],
-                read_details,
-            )
-        })
+        device_or_absent(
+            system.clone(),
+            network_manager_proxies::SERVICE,
+            move || {
+                nm_readings(
+                    system.clone(),
+                    &[
+                        network_manager_proxies::MANAGER_PROPERTIES,
+                        network_manager_proxies::DEVICE_PROPERTIES,
+                        network_manager_proxies::WIRELESS_PROPERTIES,
+                        network_manager_proxies::IP4_CONFIG_PROPERTIES,
+                        network_manager_proxies::IP6_CONFIG_PROPERTIES,
+                    ],
+                    read_details,
+                )
+            },
+        )
     }
 }

@@ -1,4 +1,6 @@
-use sottomano_sources::wireguard::{Peer, Tunnel, TunnelAddress, Wireguard};
+use sottomano_sources::network_connectivity::wireguard_tunnels::{
+    Peer, Tunnel, TunnelAddress, Wireguard,
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

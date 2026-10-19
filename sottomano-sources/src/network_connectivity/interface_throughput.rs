@@ -20,8 +20,8 @@ use uom::si::{
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    net_interfaces::{
-        nm::{self, Connectivity},
+    network_connectivity::{
+        network_manager_proxies::{self, Connectivity},
         nm_readings,
     },
     stream_operators::{StreamOperators, ticked},
@@ -101,12 +101,15 @@ impl ReadingSource for Readings {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        let uplink_changes = nm_readings(buses.system, nm::UPLINK_PROPERTIES, nm::uplink).map(
-            |uplink| match uplink {
-                Ok(uplink) => ThroughputEvent::UplinkChanged(uplink),
-                Err(failure) => ThroughputEvent::UplinkUnreadable(failure),
-            },
-        );
+        let uplink_changes = nm_readings(
+            buses.system,
+            network_manager_proxies::UPLINK_PROPERTIES,
+            network_manager_proxies::uplink,
+        )
+        .map(|uplink| match uplink {
+            Ok(uplink) => ThroughputEvent::UplinkChanged(uplink),
+            Err(failure) => ThroughputEvent::UplinkUnreadable(failure),
+        });
         let ticks = ticked(SAMPLE_INTERVAL, || ready(ThroughputEvent::Tick));
         select(uplink_changes, ticks)
             .scan(ThroughputSampler::default(), |sampler, event| {
@@ -131,7 +134,7 @@ impl ReadingSource for Readings {
 }
 
 enum ThroughputEvent {
-    UplinkChanged(Option<nm::Uplink>),
+    UplinkChanged(Option<network_manager_proxies::Uplink>),
     UplinkUnreadable(zbus::Error),
     Tick,
 }

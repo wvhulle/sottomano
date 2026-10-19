@@ -5,7 +5,7 @@ use zbus::Connection;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     host_machine_identity::udev_hardware_identity::Adapter,
-    net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
+    network_connectivity::{ReadingError, device_or_absent, network_manager_proxies, nm_readings},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -15,8 +15,8 @@ pub const NAME: &str = "ethernet";
 pub struct Link {
     pub connection: Option<String>,
     pub mac: String,
-    pub ipv4: Option<nm::AddressBlock>,
-    pub ipv6: Option<nm::AddressBlock>,
+    pub ipv4: Option<network_manager_proxies::AddressBlock>,
+    pub ipv6: Option<network_manager_proxies::AddressBlock>,
     pub dns: Vec<String>,
     pub speed: InformationRate,
     pub mtu: u32,
@@ -52,7 +52,10 @@ pub struct EthernetDetails {
     pub ports: Vec<Port>,
 }
 
-async fn port(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<Port> {
+async fn port(
+    connection: &Connection,
+    device: network_manager_proxies::DeviceInfo,
+) -> zbus::Result<Port> {
     let adapter = Adapter::of_net_interface(&device.interface);
     let link = if device.connected {
         Some(link(connection, &device).await?)
@@ -66,18 +69,21 @@ async fn port(connection: &Connection, device: nm::DeviceInfo) -> zbus::Result<P
     })
 }
 
-async fn link(connection: &Connection, device: &nm::DeviceInfo) -> zbus::Result<Link> {
+async fn link(
+    connection: &Connection,
+    device: &network_manager_proxies::DeviceInfo,
+) -> zbus::Result<Link> {
     let (ip, active_connection, mac, speed, mtu) = try_join!(
-        nm::ip(connection, device),
-        nm::active_connection(device),
-        nm::hw_address(device),
-        nm::wired_speed(connection, device),
-        nm::mtu(device)
+        network_manager_proxies::ip(connection, device),
+        network_manager_proxies::active_connection(device),
+        network_manager_proxies::hw_address(device),
+        network_manager_proxies::wired_speed(connection, device),
+        network_manager_proxies::mtu(device)
     )?;
-    let profile = if nm::is_unset(&active_connection) {
+    let profile = if network_manager_proxies::is_unset(&active_connection) {
         None
     } else {
-        Some(nm::connection_id(connection, active_connection).await?)
+        Some(network_manager_proxies::connection_id(connection, active_connection).await?)
     };
     Ok(Link {
         connection: profile,
@@ -90,12 +96,15 @@ async fn link(connection: &Connection, device: &nm::DeviceInfo) -> zbus::Result<
     })
 }
 
-async fn ethernet_devices(connection: &Connection) -> Result<Vec<nm::DeviceInfo>, ReadingError> {
-    let devices: Vec<nm::DeviceInfo> = nm::devices(connection)
-        .await?
-        .into_iter()
-        .filter(|device| device.kind == nm::DeviceKind::Ethernet)
-        .collect();
+async fn ethernet_devices(
+    connection: &Connection,
+) -> Result<Vec<network_manager_proxies::DeviceInfo>, ReadingError> {
+    let devices: Vec<network_manager_proxies::DeviceInfo> =
+        network_manager_proxies::devices(connection)
+            .await?
+            .into_iter()
+            .filter(|device| device.kind == network_manager_proxies::DeviceKind::Ethernet)
+            .collect();
     if devices.is_empty() {
         return Err(ReadingError::Absent);
     }
@@ -130,9 +139,17 @@ impl ReadingSource for Ethernet {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        device_or_absent(system.clone(), nm::SERVICE, move || {
-            nm_readings(system.clone(), nm::UPLINK_PROPERTIES, read)
-        })
+        device_or_absent(
+            system.clone(),
+            network_manager_proxies::SERVICE,
+            move || {
+                nm_readings(
+                    system.clone(),
+                    network_manager_proxies::UPLINK_PROPERTIES,
+                    read,
+                )
+            },
+        )
     }
 }
 
@@ -145,18 +162,22 @@ impl ReadingSource for EthernetDetails {
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let system = buses.system;
-        device_or_absent(system.clone(), nm::SERVICE, move || {
-            nm_readings(
-                system.clone(),
-                &[
-                    nm::MANAGER_PROPERTIES,
-                    nm::DEVICE_PROPERTIES,
-                    nm::WIRED_PROPERTIES,
-                    nm::IP4_CONFIG_PROPERTIES,
-                    nm::IP6_CONFIG_PROPERTIES,
-                ],
-                read_details,
-            )
-        })
+        device_or_absent(
+            system.clone(),
+            network_manager_proxies::SERVICE,
+            move || {
+                nm_readings(
+                    system.clone(),
+                    &[
+                        network_manager_proxies::MANAGER_PROPERTIES,
+                        network_manager_proxies::DEVICE_PROPERTIES,
+                        network_manager_proxies::WIRED_PROPERTIES,
+                        network_manager_proxies::IP4_CONFIG_PROPERTIES,
+                        network_manager_proxies::IP6_CONFIG_PROPERTIES,
+                    ],
+                    read_details,
+                )
+            },
+        )
     }
 }

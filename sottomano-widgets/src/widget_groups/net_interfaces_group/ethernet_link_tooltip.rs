@@ -1,4 +1,6 @@
-use sottomano_sources::net_interfaces::ethernet::{Ethernet, EthernetDetails, Link, Port};
+use sottomano_sources::network_connectivity::ethernet_connection::{
+    Ethernet, EthernetDetails, Link, Port,
+};
 
 use crate::{
     widget_groups::net_interfaces_group::interface_sections::{

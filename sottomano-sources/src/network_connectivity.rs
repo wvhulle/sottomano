@@ -1,8 +1,11 @@
-pub mod bluetooth;
-pub mod ethernet;
-pub mod mobile;
-pub mod nm;
-pub mod wifi;
+pub mod bluez_bluetooth;
+pub mod ethernet_connection;
+pub mod interface_throughput;
+pub mod modem_manager_mobile;
+pub mod network_manager_proxies;
+pub mod tailscale_status;
+pub mod wifi_connection;
+pub mod wireguard_tunnels;
 
 use std::{collections::HashMap, future::Future, sync::Arc};
 
@@ -84,7 +87,7 @@ where
     T: Send + 'static,
     F: Future<Output = Result<T, ReadingError>> + Send + 'static,
 {
-    let signals = nm::changes(&connection, watched_properties).await?;
+    let signals = network_manager_proxies::changes(&connection, watched_properties).await?;
     let readings = read_once_then_per_burst(signals, move || read(connection.clone()));
     Ok(device_readings(readings))
 }

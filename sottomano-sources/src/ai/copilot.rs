@@ -18,7 +18,7 @@ pub use self::{
 use crate::{
     ReadingSource, SourceDelivery,
     ai::ccusage,
-    net_interfaces::nm,
+    network_connectivity::network_manager_proxies,
     polled_delivery_stream,
     secret_file_reads::read_secret,
     stream_operators::StreamOperators,
@@ -123,7 +123,7 @@ where
         move || {
             let account = account.clone();
             let poll = poll.clone();
-            nm::connected(account.buses.system.clone()).while_held(
+            network_manager_proxies::connected(account.buses.system.clone()).while_held(
                 move || {
                     let checked = account.gh_auth_token.clone();
                     let polled = account.clone();
