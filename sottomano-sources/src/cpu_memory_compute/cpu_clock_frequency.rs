@@ -7,9 +7,8 @@ use uom::si::f64::Frequency;
 use super::{
     CPU_FREQ, core_freqs,
     cpu_topology::CpuTopology,
-    kernel_frequency_limit_causes::{
-        CoreLimitCauses, FrequencyLimitCause, ThrottleBaseline, core_limit_causes,
-    },
+    intel_thermal_throttle_counters::ThrottleBaseline,
+    kernel_frequency_limit_causes::{CoreLimitCauses, FrequencyLimitCause, core_limit_causes},
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,

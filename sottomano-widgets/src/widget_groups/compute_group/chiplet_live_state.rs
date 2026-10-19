@@ -1,6 +1,6 @@
 use sottomano_sources::cpu_memory_compute::{
-    cpu_clock_frequency::CpuClock, cpu_temperature::Temperature, cpu_topology::CoreGroup,
-    l3_cache_traffic::L3CacheTraffic, temperature_thresholds::celsius_text,
+    amd_l3_pmu_cache_traffic::L3CacheTraffic, cpu_clock_frequency::CpuClock,
+    cpu_temperature::Temperature, cpu_topology::CoreGroup, temperature_thresholds::celsius_text,
 };
 
 use crate::widgets::{gauge::percent_text, tooltip_body::KeyValue};
