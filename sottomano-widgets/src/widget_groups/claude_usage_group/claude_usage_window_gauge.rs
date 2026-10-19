@@ -1,9 +1,9 @@
 use std::iter::once;
 
 use chrono::{DateTime, Utc};
-use sottomano_sources::ai::{
-    claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-    quota::{Pace, Quota},
+use sottomano_sources::ai_usage_spend::{
+    claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+    usage_quota::{Pace, Quota},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 

@@ -13,11 +13,11 @@ use sottomano_config::severity::Severity;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::{
-        quota::Quota,
+    ai_usage_spend::{
+        spend_money::{Money, deserialize_usd, usd},
+        usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    money::{Money, deserialize_usd, usd},
     polled_delivery_stream,
     secret_file_reads::read_secret,
     system_protocol_clients::http_json_client,

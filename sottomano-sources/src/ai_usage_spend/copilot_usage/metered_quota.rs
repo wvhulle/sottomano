@@ -6,7 +6,7 @@ use super::{
     CopilotAccount, Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, plan_polls, quota_reset,
     user_info,
 };
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery, ai::quota::Quota};
+use crate::{DeliveryCadence, ReadingSource, SourceDelivery, ai_usage_spend::usage_quota::Quota};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {

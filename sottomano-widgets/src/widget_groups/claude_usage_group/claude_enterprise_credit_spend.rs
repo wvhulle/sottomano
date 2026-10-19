@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
-use sottomano_sources::ai::{
-    claude::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
-    quota::Quota,
+use sottomano_sources::ai_usage_spend::{
+    claude_usage::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
+    usage_quota::Quota,
 };
 use uom::si::f64::Ratio;
 

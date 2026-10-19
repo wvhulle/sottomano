@@ -8,8 +8,8 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    ai::{
-        copilot::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
+    ai_usage_spend::{
+        copilot_usage::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::SpendBudget,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -35,10 +35,10 @@ pub enum CopilotUsageTarget {
     Cli,
 }
 
-impl From<copilot::Error> for Section {
-    fn from(error: copilot::Error) -> Self {
+impl From<copilot_usage::Error> for Section {
+    fn from(error: copilot_usage::Error) -> Self {
         match error {
-            copilot::Error::Fetch(fetch) => fetch.into(),
+            copilot_usage::Error::Fetch(fetch) => fetch.into(),
             other => Section::error(other),
         }
     }

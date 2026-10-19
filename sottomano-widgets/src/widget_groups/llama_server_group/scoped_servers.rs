@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, mem::take};
 use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
-    llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
+    ai_usage_spend::llama_server_slots::{
+        LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
 };

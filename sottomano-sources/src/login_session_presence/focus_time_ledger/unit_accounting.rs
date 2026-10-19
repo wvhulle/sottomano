@@ -9,7 +9,7 @@ use super::{
     recorded_spans::{FocusPiece, FocusScope},
     time_intervals::{Interval, merged, overlaps_with},
 };
-use crate::ai::quota::Quota;
+use crate::ai_usage_spend::usage_quota::Quota;
 
 struct UnitTally<'a> {
     unit: &'a FocusUnit,

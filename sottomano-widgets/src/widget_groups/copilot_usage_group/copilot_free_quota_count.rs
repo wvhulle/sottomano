@@ -1,4 +1,4 @@
-use sottomano_sources::ai::copilot::{CopilotFree, USER_ENDPOINT};
+use sottomano_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

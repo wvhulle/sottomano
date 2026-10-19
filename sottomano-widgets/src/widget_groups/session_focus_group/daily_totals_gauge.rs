@@ -3,7 +3,7 @@ use std::{cmp::Ordering, iter::once};
 use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
-    ai::quota::{Pace, Quota},
+    ai_usage_spend::usage_quota::{Pace, Quota},
     login_session_presence::focus_time_ledger::{
         Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow,
     },

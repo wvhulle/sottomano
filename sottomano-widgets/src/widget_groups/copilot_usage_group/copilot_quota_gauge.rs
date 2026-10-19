@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
-use sottomano_sources::ai::{
-    copilot::{CopilotMetered, USER_ENDPOINT},
-    quota::Quota,
+use sottomano_sources::ai_usage_spend::{
+    copilot_usage::{CopilotMetered, USER_ENDPOINT},
+    usage_quota::Quota,
 };
 use uom::si::f64::Ratio;
 

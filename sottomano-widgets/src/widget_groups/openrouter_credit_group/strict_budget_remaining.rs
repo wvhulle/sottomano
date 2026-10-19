@@ -1,7 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
-    ai::openrouter::{KeyLimit, LimitReset, OpenRouterStrictBudget},
-    money::Money,
+use sottomano_sources::ai_usage_spend::{
+    openrouter_credits::{KeyLimit, LimitReset, OpenRouterStrictBudget},
+    spend_money::Money,
 };
 
 use crate::widgets::{
