@@ -47,9 +47,9 @@ use crate::{
     system_protocol_clients::inotify_file_presence::path_present,
 };
 
-mod meter;
+mod peak_level_meter;
 
-pub use meter::Peaks;
+pub use peak_level_meter::Peaks;
 
 const REPLY_TIMEOUT: Duration = Duration::from_millis(750);
 const DEFAULT_REMOTE: &str = "pipewire-0";
@@ -823,7 +823,7 @@ fn serve(
         core,
         registry,
     } = pipewire;
-    let _meters = meter::attach(core, peaks);
+    let _meters = peak_level_meter::attach(core, peaks);
     let session = Shared::default();
 
     let _attached = commands.attach(main_loop.loop_(), {

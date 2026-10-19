@@ -1,6 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
-use sottomano_sources::audio::{AudioState, OutputKind, Peaks, Reading};
+use sottomano_sources::media_playback_audio::pipewire_audio::{
+    AudioState, OutputKind, Peaks, Reading,
+};
 use sottomano_widgets::{
     shell_message::Message,
     widget_groups::audio_group::{AudioGroup, AudioMessage},

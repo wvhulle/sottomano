@@ -4,11 +4,11 @@ use iced::{Function, Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    audio::{
+    blocking_background_work::blocking,
+    media_playback_audio::pipewire_audio::{
         self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
         Target, WindowAudio,
     },
-    blocking_background_work::blocking,
 };
 
 use crate::{
@@ -142,7 +142,7 @@ pub enum AudioMessage {
 
 impl AudioGroup {
     pub fn subscription() -> Subscription<AudioMessage> {
-        Subscription::run(audio::connection_events).map(|event| match event {
+        Subscription::run(pipewire_audio::connection_events).map(|event| match event {
             Some(Ok(AudioEvent::Connected(commands))) => AudioMessage::Connected(commands),
             Some(Ok(AudioEvent::State(state))) => AudioMessage::State(state),
             Some(Ok(AudioEvent::Peaks(peaks))) => AudioMessage::Peaks(peaks),

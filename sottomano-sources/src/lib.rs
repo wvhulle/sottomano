@@ -1,6 +1,5 @@
 pub mod ai;
 pub mod app_icon;
-pub mod audio;
 pub mod battery_power_profiles;
 pub mod blocking_background_work;
 pub mod cpu_memory_compute;
@@ -15,8 +14,8 @@ pub mod launch_tracker;
 pub mod launcher_entry;
 pub mod llama_server;
 pub mod login_session_presence;
+pub mod media_playback_audio;
 pub mod money;
-pub mod mpris;
 pub mod network_connectivity;
 pub mod niri;
 pub mod niri_config;
