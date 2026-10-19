@@ -8,7 +8,7 @@ use bytesize::ByteSize;
 
 use super::{
     Error,
-    mount::{Compression, KernelDevice},
+    root_mount_facts::{Compression, KernelDevice},
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 

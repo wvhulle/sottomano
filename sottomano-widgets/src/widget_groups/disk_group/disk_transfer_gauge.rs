@@ -1,4 +1,6 @@
-use sottomano_sources::disk::activity::{DiskActivity, DiskTransfer, DiskTransferDirection};
+use sottomano_sources::disk_storage::disk_io_activity::{
+    DiskActivity, DiskTransfer, DiskTransferDirection,
+};
 use uom::si::{
     f64::{InformationRate, Ratio},
     information_rate::{gibibyte_per_second, kibibyte_per_second},

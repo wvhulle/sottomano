@@ -12,7 +12,7 @@ use uom::si::{
     time::{millisecond, second},
 };
 
-use super::{Error, mount::RootMount};
+use super::{Error, root_mount_facts::RootMount};
 use crate::{DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
