@@ -8,6 +8,7 @@ use iced::{
 use sottomano_config::Config;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         announced_level::LevelReading,
@@ -23,6 +24,7 @@ use crate::{
 };
 
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawControl<'a, M> = Box<dyn Fn(f32, Clock) -> Element<'a, GroupEvent<M>> + 'a>;
 
 enum ItemKind<'a, M> {
     Reading {
@@ -32,7 +34,7 @@ enum ItemKind<'a, M> {
     Control {
         widget: &'a dyn BarWidget,
         target: HoverTarget,
-        draw: DrawItem<'a, M>,
+        draw: DrawControl<'a, M>,
     },
     Element {
         draw: DrawItem<'a, M>,
@@ -65,6 +67,9 @@ impl<'a, M: 'a> ItemKind<'a, M> {
         let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Outer> {
             Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
         };
+        let lift_control = |draw: DrawControl<'a, M>| -> DrawControl<'a, Outer> {
+            Box::new(move |reveal, clock| draw(reveal, clock).map(move |event| event.map(lift)))
+        };
         match self {
             ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
             ItemKind::Control {
@@ -74,7 +79,7 @@ impl<'a, M: 'a> ItemKind<'a, M> {
             } => ItemKind::Control {
                 widget,
                 target,
-                draw: lift_draw(draw),
+                draw: lift_control(draw),
             },
             ItemKind::Element { draw } => ItemKind::Element {
                 draw: lift_draw(draw),
@@ -133,7 +138,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub fn control(
         widget: &'a dyn BarWidget,
         target: impl Into<HoverTarget>,
-        draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a,
+        draw: impl Fn(f32, Clock) -> Element<'a, GroupEvent<M>> + 'a,
     ) -> Self {
         Self::of_kind(ItemKind::Control {
             widget,
@@ -148,10 +153,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
-        Self::control(slider, slider.target().clone(), move |reveal| {
+        Self::control(slider, slider.target().clone(), move |reveal, clock| {
             let on_control = Rc::clone(&on_control);
             slider
-                .view(config, reveal)
+                .view(config, reveal, clock)
                 .map(move |message| match message {
                     ControlMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
                     message => GroupEvent::Group(on_control(message)),
@@ -257,12 +262,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(super) fn level_reading(&self, on_body_clicked: M) -> Option<LevelReading<M>> {
+    pub(super) fn level_reading(
+        &self,
+        on_body_clicked: M,
+        clock: Clock,
+    ) -> Option<LevelReading<M>> {
         let widget = self.kind.announcing_widget()?;
         let target = self.kind.hover_target()?;
         widget.announced_level().map(|level| LevelReading {
             hover_target: target.clone(),
-            glyph: widget.icon(),
+            glyph: widget.icon_at(clock),
             level,
             on_body_clicked,
         })
@@ -272,17 +281,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         &self,
         on_body_clicked: M,
         locale: Locale,
+        clock: Clock,
     ) -> impl Iterator<Item = OngoingToast<M>>
     where
         M: Clone,
     {
         let quota_toast = self.kind.announcing_widget().and_then(|widget| {
             let target = self.kind.hover_target()?;
-            OngoingToast::from_quota_pace(target.clone(), widget, on_body_clicked.clone())
+            OngoingToast::from_quota_pace(target.clone(), widget, on_body_clicked.clone(), clock)
         });
         let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
             let target = self.kind.hover_target()?;
-            OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale)
+            OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale, clock)
         });
         ongoing_toast
             .map(|alert| {
@@ -296,13 +306,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .chain(self.ongoing_toasts.iter().cloned())
     }
 
-    pub(super) fn view(&self, config: &Config, reveal: f32) -> Element<'a, GroupEvent<M>>
+    pub(super) fn view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
         let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => hoverable(
-                source_reading(config, widget.as_ref(), reveal),
+                source_reading(config, widget.as_ref(), reveal, clock),
                 target.clone(),
                 self.press_hints(),
                 GroupEvent::Tooltip,
@@ -313,7 +328,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 self.press_hints(),
                 GroupEvent::Tooltip,
             ),
-            ItemKind::Control { draw, .. } | ItemKind::Element { draw } => draw(reveal),
+            ItemKind::Control { draw, .. } => draw(reveal, clock),
+            ItemKind::Element { draw } => draw(reveal),
         };
         if let Some(press) = self.on_press.clone() {
             element = button(element)

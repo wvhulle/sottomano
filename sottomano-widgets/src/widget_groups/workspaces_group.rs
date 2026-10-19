@@ -12,6 +12,7 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::{
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
+    clock::Clock,
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     shell_message::Message,
     widgets::{
@@ -82,6 +83,7 @@ pub fn vertical_view<'a>(
     config: &Config,
     drag: &DragView,
     configured: Option<&ConfiguredWorkspaces>,
+    clock: Clock,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
@@ -89,7 +91,7 @@ pub fn vertical_view<'a>(
     }
     let order = drag.previewed(workspaces, |p| DraggedBarSlot::Workspace(p.id));
     let rows = order.iter().enumerate().map(|(position, p)| {
-        let row = sidebar_row(config, niri, p, drag);
+        let row = sidebar_row(config, niri, p, drag, clock);
         (
             DraggedBarSlot::Workspace(p.id),
             hit_area(p, position, row, drag),
@@ -146,6 +148,7 @@ fn sidebar_row<'a>(
     niri: &niri_window_snapshot::Snapshot,
     p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
+    clock: Clock,
 ) -> Element<'a, WorkspacesMessage> {
     let tone = slot_tone(p, drag);
     let label_over_markers = column![
@@ -156,7 +159,7 @@ fn sidebar_row<'a>(
     .align_x(Alignment::Center);
     let label_with_edge = row![
         label_over_markers,
-        edge_line(config, p, Position::Left, tone, drag)
+        edge_line(config, p, Position::Left, tone, drag, clock)
     ]
     .spacing(config.layout.panel.widget_spacing)
     .height(config.layout.panel.height)
@@ -175,6 +178,7 @@ pub fn inline_view<'a>(
     position: Position,
     drag: &DragView,
     configured: Option<&ConfiguredWorkspaces>,
+    clock: Clock,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
@@ -185,7 +189,7 @@ pub fn inline_view<'a>(
         let tone = slot_tone(p, drag);
         let slot = PagerSlot::new(
             inline_label(config, p, tone),
-            edge_line(config, p, position, tone, drag),
+            edge_line(config, p, position, tone, drag, clock),
         )
         .ticks(window_markers(config, niri, p.id, position, drag, tone).view())
         .spaced_by(config.layout.panel.widget_spacing)
@@ -236,10 +240,12 @@ fn edge_line<'a>(
     position: Position,
     tone: SlotTone,
     drag: &DragView,
+    clock: Clock,
 ) -> Element<'a, WorkspacesMessage> {
     let Some(charge) = drag.hover_charge(
         DraggedBarSlot::Workspace(p.id),
         config.panel_bar.drag_spring_load,
+        clock.instant,
     ) else {
         return urgency_line(config, p, position, tone);
     };

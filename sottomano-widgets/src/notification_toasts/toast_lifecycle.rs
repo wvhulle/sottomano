@@ -113,33 +113,41 @@ pub struct ToastContent {
 }
 
 impl ToastContent {
-    pub(super) fn from_dbus_client(data: NotificationData) -> Self {
+    pub(super) fn from_dbus_client(data: NotificationData, at: SystemTime) -> Self {
         Self {
             data,
             kind: ToastKind::Event {
-                at: SystemTime::now(),
+                at,
                 source: EventSource::DbusClient,
             },
             body_click: BodyClick::DbusDefaultAction,
         }
     }
 
-    pub(super) fn shell_failure(data: NotificationData, on_body_clicked: Message) -> Self {
+    pub(super) fn shell_failure(
+        data: NotificationData,
+        on_body_clicked: Message,
+        at: SystemTime,
+    ) -> Self {
         Self {
             data,
             kind: ToastKind::Event {
-                at: SystemTime::now(),
+                at,
                 source: EventSource::ShellFailure,
             },
             body_click: BodyClick::Shell(Box::new(on_body_clicked)),
         }
     }
 
-    pub(super) fn level_announcement(reading: LevelReading<Message>, toast_id: u32) -> Self {
+    pub(super) fn level_announcement(
+        reading: LevelReading<Message>,
+        toast_id: u32,
+        at: SystemTime,
+    ) -> Self {
         Self {
             data: reading.toast_notification_data(toast_id),
             kind: ToastKind::Event {
-                at: SystemTime::now(),
+                at,
                 source: EventSource::LevelAnnouncement {
                     hover_target: reading.hover_target,
                     glyph: reading.glyph,
@@ -192,8 +200,8 @@ impl Notification {
         seq: u64,
         place: ToastPlacement,
         config: &Config,
+        now: Instant,
     ) -> Self {
-        let now = Instant::now();
         Self {
             data,
             kind,
@@ -392,6 +400,7 @@ pub fn lifetime(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::clock::Clock;
 
     fn config() -> ToastLifetimeConfig {
         ToastLifetimeConfig {
@@ -403,7 +412,7 @@ mod tests {
 
     #[test]
     fn the_slot_stays_open_while_the_card_fades_and_closes_after() {
-        let now = Instant::now();
+        let now = Clock::real().instant;
         let dismissed = ExitPace::Dismissed.fade(&ToastCardConfig::default());
         let fade = fading_out(now, dismissed);
         let slot = collapsing_after_fade(now, dismissed);
@@ -459,7 +468,7 @@ mod tests {
 
     #[test]
     fn pausing_then_resuming_preserves_remaining_time() {
-        let start = Instant::now();
+        let start = Clock::real().instant;
         let countdown = Countdown::started(Duration::from_secs(10), start);
         let paused = countdown.paused(start + Duration::from_secs(4));
         let Countdown::Paused { remaining } = paused else {
@@ -474,7 +483,7 @@ mod tests {
 
     #[test]
     fn paused_countdowns_never_elapse() {
-        let start = Instant::now();
+        let start = Clock::real().instant;
         let paused = Countdown::started(Duration::from_secs(1), start).paused(start);
         assert!(!paused.has_elapsed(start + Duration::from_secs(600)));
         assert_eq!(paused.deadline(), None);

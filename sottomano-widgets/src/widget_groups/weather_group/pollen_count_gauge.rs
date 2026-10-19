@@ -1,11 +1,14 @@
 use sottomano_sources::weather::open_meteo_pollen::{Allergen, AllergenConcentration, Pollen};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 struct ConcentrationThresholds {
@@ -57,7 +60,7 @@ impl BarWidget for AllergenConcentration {
     }
 
     fn icon(&self) -> Glyph {
-        let weight = self.state().weight();
+        let weight = Weight::Regular;
         match self.allergen {
             Allergen::Alder => Phosphor::Leaf(weight),
             Allergen::Birch => Phosphor::Tree(weight),
@@ -69,7 +72,7 @@ impl BarWidget for AllergenConcentration {
         .into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
         if self.grains_per_cubic_metre >= thresholds.high {
             WidgetState::Critical
@@ -86,7 +89,7 @@ impl BarWidget for AllergenConcentration {
         Some(Ratio::new::<ratio>(logarithmic_share))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
         TooltipBody::sections([
             Section::dictionary([KeyValue::new(
@@ -118,7 +121,7 @@ impl BarWidget for Pollen {
         Phosphor::Flower(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }

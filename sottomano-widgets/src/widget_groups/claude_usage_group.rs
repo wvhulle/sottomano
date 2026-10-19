@@ -20,6 +20,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         continuous_reading::ContinuousReading,
@@ -105,6 +106,7 @@ impl ClaudeUsageGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
         self.organization.stop();
         let Some(HoverTarget::ClaudeUsage(ClaudeUsageTarget::EnterpriseSpend)) = hovered else {
@@ -117,6 +119,7 @@ impl ClaudeUsageGroup {
             credentials,
             ClaudeUsageMessage::OrganizationFetched,
             config,
+            clock,
         )
     }
 
@@ -169,22 +172,26 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn update(&mut self, message: ClaudeUsageMessage) -> Task<ClaudeUsageMessage> {
+    pub fn update(
+        &mut self,
+        message: ClaudeUsageMessage,
+        clock: Clock,
+    ) -> Task<ClaudeUsageMessage> {
         match message {
             ClaudeUsageMessage::UsageWindows(reading) => {
-                self.usage_windows.receive_delivery(*reading);
+                self.usage_windows.receive_delivery(*reading, clock);
             }
             ClaudeUsageMessage::EnterpriseSpend(reading) => {
-                self.enterprise_spend.receive_delivery(reading);
+                self.enterprise_spend.receive_delivery(reading, clock);
             }
             ClaudeUsageMessage::OrganizationFetched(fetched) => {
-                self.organization.receive_delivery(fetched);
+                self.organization.receive_delivery(fetched, clock);
             }
             ClaudeUsageMessage::CcusagePeriods(reading) => {
-                self.ccusage_periods.receive_delivery(reading);
+                self.ccusage_periods.receive_delivery(reading, clock);
             }
             ClaudeUsageMessage::CcusageBlock(reading) => {
-                self.ccusage_block.receive_delivery(reading);
+                self.ccusage_block.receive_delivery(reading, clock);
             }
             ClaudeUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);
@@ -194,14 +201,14 @@ impl ClaudeUsageGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ClaudeUsageTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            ClaudeUsageTarget::UsageWindows => self.usage_windows.tooltip(),
+            ClaudeUsageTarget::UsageWindows => self.usage_windows.tooltip(clock),
             ClaudeUsageTarget::EnterpriseSpend => self
                 .enterprise_spend
-                .tooltip_with_sections(self.organization.sections()),
-            ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(),
-            ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(),
+                .tooltip_with_sections(self.organization.sections(clock), clock),
+            ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(clock),
+            ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(clock),
         }
     }
 

@@ -190,6 +190,7 @@ mod tests {
     use zbus::zvariant::{ObjectPath, OwnedObjectPath};
 
     use super::*;
+    use crate::clock::Clock;
 
     fn track(path: &str) -> SeekMode {
         SeekMode::Absolute(OwnedObjectPath::from(ObjectPath::try_from(path).unwrap()))
@@ -233,7 +234,7 @@ mod tests {
 
     #[test]
     fn released_seek_keeps_target_until_the_player_arrives() {
-        let now = Instant::now();
+        let now = Clock::real().instant;
         let target = Duration::from_secs(120);
         let before = paused_at(Duration::from_secs(10), track("/t/1"), now);
         let mut bar = released_at(target, &before, now);
@@ -253,7 +254,7 @@ mod tests {
 
     #[test]
     fn track_change_abandons_the_seek() {
-        let now = Instant::now();
+        let now = Clock::real().instant;
         let before = paused_at(Duration::from_secs(10), track("/t/1"), now);
         let mut bar = released_at(Duration::from_secs(120), &before, now);
         bar.player_reported(&paused_at(Duration::ZERO, track("/t/2"), now), now);
@@ -262,7 +263,7 @@ mod tests {
 
     #[test]
     fn rejected_seek_follows_the_player_again() {
-        let now = Instant::now();
+        let now = Clock::real().instant;
         let before = paused_at(Duration::from_secs(10), track("/t/1"), now);
         let mut bar = released_at(Duration::from_secs(120), &before, now);
         bar.update(SeekMessage::Rejected, &before, now);
@@ -271,7 +272,7 @@ mod tests {
 
     #[test]
     fn scrolling_accumulates_from_the_requested_position() {
-        let now = Instant::now();
+        let now = Clock::real().instant;
         let media = paused_at(Duration::from_secs(10), track("/t/1"), now);
         let mut bar = SeekBar::default();
         let forward = ScrollDelta::Lines { x: 0.0, y: 1.0 };

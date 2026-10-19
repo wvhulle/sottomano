@@ -1,11 +1,14 @@
 use sottomano_sources::cpu_memory_compute::nvml_gpu_readings::{GpuProcesses, VramUsage};
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    },
 };
 
 impl BarWidget for VramUsage {
@@ -14,20 +17,20 @@ impl BarWidget for VramUsage {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Memory(self.state().weight()).into()
+        Phosphor::Memory(Weight::Regular).into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
         Some(self.fill())
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(self.sections())
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        TooltipBody::sections(self.sections(clock))
     }
 }
 
 impl ReadingSections for VramUsage {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary([
             KeyValue::new("VRAM", percent_text(self.fill())),
             KeyValue::new("Used", self.used.display().iec().to_string()),
@@ -37,7 +40,7 @@ impl ReadingSections for VramUsage {
 }
 
 impl ReadingSections for GpuProcesses {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.processes.iter().filter_map(|process| {
                 Some(KeyValue::new(

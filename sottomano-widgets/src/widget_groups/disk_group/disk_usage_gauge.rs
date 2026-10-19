@@ -3,12 +3,15 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::disk_storage::root_filesystem_usage::{Filesystem, RootFilesystem};
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    gauge::percent_fill,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        gauge::percent_fill,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const FREE_WARN: ByteSize = ByteSize::gb(100);
@@ -21,10 +24,10 @@ impl BarWidget for RootFilesystem {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Database(self.state().weight()).into()
+        Phosphor::Database(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let free_space_level = if self.free < FREE_CRITICAL {
             Severity::Critical
         } else if self.free < FREE_WARN {
@@ -50,7 +53,7 @@ impl BarWidget for RootFilesystem {
         Some(percent_fill(self.used_pct()))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let capacity = Section::dictionary([
             KeyValue::new("Mount", "/".to_owned()),
             KeyValue::new("Used", format!("{}%", self.used_pct())),

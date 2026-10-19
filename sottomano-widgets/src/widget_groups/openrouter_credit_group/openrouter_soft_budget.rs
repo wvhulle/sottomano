@@ -1,16 +1,19 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Locale, Utc};
 use sottomano_sources::ai_usage_spend::{
     openrouter_credits::{OpenRouterSpend, SpanSpend},
     usage_quota::Quota,
 };
 
-use crate::widgets::{
-    amount_text::spend_text,
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::spend_text,
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for OpenRouterSpend {
@@ -19,30 +22,30 @@ impl BarWidget for OpenRouterSpend {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Coins(self.state().weight()).into()
+        Phosphor::Coins(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Coins(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         let today = self.today.cost();
         today
             .is_positive()
             .then(|| format!("{} today", spend_text(&today)))
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .map_or(self.daily_severity(), |monthly| {
                 monthly.max(self.daily_severity())
             })
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        let now = Local::now();
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        let now = clock.local();
         let daily_warning = KeyValue::new("Daily Warning", self.daily_warning().to_string())
             .level(self.daily_severity());
         let monthly_budget = KeyValue::monthly_budget(

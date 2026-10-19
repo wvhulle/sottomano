@@ -3,16 +3,20 @@ use sottomano_sources::{
     SourceDelivery,
     wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
 };
-use sottomano_widgets::widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage};
+use sottomano_widgets::{
+    clock::Clock,
+    widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage},
+};
 use uom::si::{angle::degree, f64::Angle};
 
 use crate::showcased_group::ShowcasedGroup;
 
-pub fn group() -> ShowcasedGroup {
+pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = WallpaperGroup::new(&SecretPaths::default());
-    let _ = group.update(WallpaperMessage::Lookup(Box::new(SourceDelivery::Reading(
-        Ok(Lookup::of(&milos())),
-    ))));
+    let _ = group.update(
+        WallpaperMessage::Lookup(Box::new(SourceDelivery::Reading(Ok(Lookup::of(&milos()))))),
+        clock,
+    );
     ShowcasedGroup::Wallpaper(Box::new(group))
 }
 

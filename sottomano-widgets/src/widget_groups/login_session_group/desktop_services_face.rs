@@ -1,10 +1,13 @@
 use sottomano_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+    },
 };
 
 pub struct DesktopServicesFace;
@@ -18,7 +21,7 @@ impl BarWidget for DesktopServicesFace {
         Phosphor::ListChecks(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([KeyValue::new(
             "Started by",
             "systemd --user",
@@ -31,7 +34,7 @@ impl BarWidget for DesktopServicesFace {
 }
 
 impl ReadingSections for GraphicalSessionTarget {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let entries = [
             Some(KeyValue::new("State", self.state.clone())),
             self.reached_at.map(|at| {

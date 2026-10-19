@@ -19,6 +19,7 @@ use uom::si::{f64::Power, power::watt};
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
@@ -120,10 +121,10 @@ impl PowerProfileControl {
         ])
     }
 
-    pub fn update(&mut self, msg: PowerProfileMessage) -> Task<PowerProfileMessage> {
+    pub fn update(&mut self, msg: PowerProfileMessage, clock: Clock) -> Task<PowerProfileMessage> {
         match msg {
             PowerProfileMessage::Status(delivery) => {
-                self.status.receive_keeping_last_reading(delivery);
+                self.status.receive_keeping_last_reading(delivery, clock);
                 if let Some(profile) = self.active_profile() {
                     self.control
                         .update(ControlMessage::Reading(profile.position()));
@@ -169,8 +170,12 @@ impl PowerProfileControl {
         })
     }
 
-    pub fn observe_battery(&mut self, battery: &Battery) -> Task<PowerProfileMessage> {
-        let task = self.learn(battery);
+    pub fn observe_battery(
+        &mut self,
+        battery: &Battery,
+        now: Instant,
+    ) -> Task<PowerProfileMessage> {
+        let task = self.learn(battery, now);
         self.battery = Some(battery.clone());
         self.recompute();
         task
@@ -186,7 +191,7 @@ impl PowerProfileControl {
         })
     }
 
-    fn learn(&mut self, battery: &Battery) -> Task<PowerProfileMessage> {
+    fn learn(&mut self, battery: &Battery, now: Instant) -> Task<PowerProfileMessage> {
         let sample = self.drain_sample(battery);
         let Some(models) = self.profile_models.as_mut() else {
             return self.start_loading(&battery.serial);
@@ -195,7 +200,6 @@ impl PowerProfileControl {
             self.previous_sample_at = None;
             return Task::none();
         };
-        let now = Instant::now();
         let since_previous = self
             .previous_sample_at
             .replace(now)
@@ -245,7 +249,7 @@ impl PowerProfileControl {
             .flatten()
     }
 
-    pub fn tooltip(&self) -> Option<Tooltip> {
+    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
         let profile = Section::dictionary([KeyValue::new("Active", self.control.readout_text())])
             .titled((
                 "Power profile",
@@ -256,7 +260,7 @@ impl PowerProfileControl {
             .tooltip_with(TooltipBody::sections(
                 [Some(profile), battery_life].into_iter().flatten(),
             ))
-            .map(|tooltip| tooltip.with_sections(self.status.sections()))
+            .map(|tooltip| tooltip.with_sections(self.status.sections(clock)))
     }
 
     fn battery_life_section(&self) -> Section {

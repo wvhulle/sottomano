@@ -4,12 +4,15 @@ use uom::{
     si::{energy::watt_hour, f64::Ratio, ratio::percent},
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for Battery {
@@ -18,10 +21,10 @@ impl BarWidget for Battery {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::BatteryCharging(self.state().weight()).into()
+        Phosphor::BatteryCharging(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.capacity <= Ratio::new::<percent>(15.0) {
             WidgetState::Critical
         } else if self.capacity <= Ratio::new::<percent>(30.0) {
@@ -35,7 +38,7 @@ impl BarWidget for Battery {
         Some(self.capacity)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(
             [
                 Some(KeyValue::new("Battery", percent_text(self.capacity))),

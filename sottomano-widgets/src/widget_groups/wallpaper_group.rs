@@ -3,6 +3,7 @@ use std::{
     path::PathBuf,
 };
 
+use chrono::Locale;
 use iced::{
     Subscription, Task,
     futures::{Stream, StreamExt, stream},
@@ -18,12 +19,13 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -128,10 +130,10 @@ impl BarWidget for Lookup {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Image(self.state().weight()).into()
+        Phosphor::Image(Weight::Regular).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new("File", self.photo.file_name.clone())])
     }
 }
@@ -163,14 +165,14 @@ impl BarWidget for Place {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::MapPin(self.state().weight()).into()
+        Phosphor::MapPin(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.name.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let coordinates = self.position.into_iter().flat_map(|position| {
             [
                 KeyValue::new(
@@ -206,11 +208,11 @@ impl BarWidget for Article {
         SimpleIcon::Wikipedia.into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.title.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::dictionary([KeyValue::new(
                 "Article",
@@ -239,11 +241,11 @@ impl BarWidget for Photo {
         SimpleIcon::Unsplash.into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.photographer.clone()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::dictionary(
                 [
@@ -352,9 +354,9 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn update(&mut self, message: WallpaperMessage) -> Task<WallpaperMessage> {
+    pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
         match message {
-            WallpaperMessage::Lookup(delivery) => self.lookup.receive_delivery(*delivery),
+            WallpaperMessage::Lookup(delivery) => self.lookup.receive_delivery(*delivery, clock),
             WallpaperMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -363,16 +365,18 @@ impl WallpaperGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: WallpaperTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: WallpaperTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            WallpaperTarget::Lookup => self.lookup.tooltip(),
+            WallpaperTarget::Lookup => self.lookup.tooltip(clock),
             WallpaperTarget::Place => self
                 .lookup
-                .tooltip_with(self.lookup.get()?.place.as_ref()?.tooltip()),
+                .tooltip_with(self.lookup.get()?.place.as_ref()?.tooltip(clock)),
             WallpaperTarget::Article => self
                 .lookup
-                .tooltip_with(self.lookup.get()?.article.as_ref()?.tooltip()),
-            WallpaperTarget::Photo => self.lookup.tooltip_with(self.lookup.get()?.photo.tooltip()),
+                .tooltip_with(self.lookup.get()?.article.as_ref()?.tooltip(clock)),
+            WallpaperTarget::Photo => self
+                .lookup
+                .tooltip_with(self.lookup.get()?.photo.tooltip(clock)),
         }
     }
 

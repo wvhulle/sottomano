@@ -1,10 +1,14 @@
+use chrono::Locale;
 use situo_client::{Estimate, Origin, Place, Position};
 use sottomano_sources::weather::situo_location_fix::Location;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    },
 };
 
 const OPENSTREETMAP_ZOOM: u8 = 15;
@@ -48,8 +52,8 @@ impl BarWidget for Location {
 
     fn icon(&self) -> Glyph {
         match self.geo.origin {
-            Origin::Manual => Phosphor::MapPinLine(self.state().weight()).into(),
-            Origin::Estimated(_) => Phosphor::MapPin(self.state().weight()).into(),
+            Origin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
+            Origin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
         }
     }
 
@@ -57,11 +61,11 @@ impl BarWidget for Location {
         Phosphor::MapPin(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.geo.place.as_ref().map(|place| place.name.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let estimate = match &self.geo.origin {
             Origin::Manual => None,
             Origin::Estimated(estimate) => Some(estimate),

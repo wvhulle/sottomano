@@ -3,12 +3,13 @@ use sottomano_sources::network_connectivity::ethernet_connection::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -20,14 +21,14 @@ impl BarWidget for Ethernet {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Network(self.state().weight()).into()
+        Phosphor::Network(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(self.connected_count() > 0)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(self.ports.iter().map(|port| {
             KeyValue::new(
                 port.name.as_str(),
@@ -42,7 +43,7 @@ impl BarWidget for Ethernet {
 }
 
 impl ReadingSections for EthernetDetails {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let prefixed = self.ports.iter().filter(|port| port.link.is_some()).count() > 1;
         self.ports
             .iter()

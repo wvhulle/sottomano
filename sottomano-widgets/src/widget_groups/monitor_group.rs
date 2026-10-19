@@ -23,6 +23,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -98,7 +99,7 @@ impl MonitorGroup {
         }
     }
 
-    pub fn update(&mut self, msg: MonitorMessage) -> Task<MonitorMessage> {
+    pub fn update(&mut self, msg: MonitorMessage, clock: Clock) -> Task<MonitorMessage> {
         match msg {
             MonitorMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
                 self.scroll_all_backlights(delta)
@@ -110,7 +111,8 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlights(delivery) => {
-                self.backlights.receive_keeping_last_reading(delivery);
+                self.backlights
+                    .receive_keeping_last_reading(delivery, clock);
                 let list = self.backlights.get().into_iter().flatten();
                 self.sliders
                     .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
@@ -133,9 +135,10 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
-            MonitorMessage::AutoBrightness(m) => {
-                self.clight.update(m).map(MonitorMessage::AutoBrightness)
-            }
+            MonitorMessage::AutoBrightness(m) => self
+                .clight
+                .update(m, clock)
+                .map(MonitorMessage::AutoBrightness),
         }
     }
 
@@ -187,6 +190,7 @@ impl MonitorGroup {
         &self,
         target: &MonitorTarget,
         outputs: &HashMap<String, OutputInfo>,
+        clock: Clock,
     ) -> Option<Tooltip> {
         match target {
             MonitorTarget::Backlight(serial) => {
@@ -202,7 +206,7 @@ impl MonitorGroup {
                     ConnectedOutput::driving(backlight, outputs).as_ref(),
                 ))
             }
-            MonitorTarget::ClightAuto => self.clight.tooltip(),
+            MonitorTarget::ClightAuto => self.clight.tooltip(clock),
         }
     }
 

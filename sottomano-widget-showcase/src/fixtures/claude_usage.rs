@@ -1,4 +1,4 @@
-use chrono::{TimeDelta, Utc};
+use chrono::TimeDelta;
 use rust_decimal::Decimal;
 use rusty_money::iso;
 use sottomano_sources::{
@@ -9,31 +9,35 @@ use sottomano_sources::{
     },
 };
 use sottomano_widgets::{
+    clock::Clock,
     shell_message::Message,
     widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
-use crate::showcased_group::ShowcasedGroup;
+use crate::{fixtures::sample, showcased_group::ShowcasedGroup};
 
-pub fn group() -> ShowcasedGroup {
+pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = ClaudeUsageGroup::new(None);
-    let _ = group.update(usage_windows_delivered(0));
+    let _ = group.update(usage_windows_delivered(0, clock), clock);
     ShowcasedGroup::ClaudeUsage(Box::new(group))
 }
 
-pub fn live(tick: u32) -> Vec<Message> {
-    vec![Message::ClaudeUsage(usage_windows_delivered(tick))]
+pub fn live(clock: Clock) -> Vec<Message> {
+    let tick = sample(clock);
+    vec![Message::ClaudeUsage(usage_windows_delivered(tick, clock))]
 }
 
-fn usage_windows_delivered(tick: u32) -> ClaudeUsageMessage {
-    ClaudeUsageMessage::UsageWindows(Box::new(SourceDelivery::Reading(Ok(usage_windows(tick)))))
+fn usage_windows_delivered(tick: u32, clock: Clock) -> ClaudeUsageMessage {
+    ClaudeUsageMessage::UsageWindows(Box::new(SourceDelivery::Reading(Ok(usage_windows(
+        tick, clock,
+    )))))
 }
 
-fn window(utilization_percent: f64, resets_in: TimeDelta) -> WindowUsage {
+fn window(utilization_percent: f64, resets_in: TimeDelta, clock: Clock) -> WindowUsage {
     WindowUsage {
         utilization: Ratio::new::<percent>(utilization_percent),
-        resets_at: Some(Utc::now() + resets_in),
+        resets_at: Some(clock.utc() + resets_in),
     }
 }
 
@@ -41,15 +45,19 @@ fn euro_cents(cents: u32) -> Money {
     Money::from_decimal(Decimal::new(i64::from(cents), 2), iso::EUR)
 }
 
-fn usage_windows(tick: u32) -> ClaudeUsageWindows {
+fn usage_windows(tick: u32, clock: Clock) -> ClaudeUsageWindows {
     let elapsed_ticks = f64::from(tick);
     let spent_cents = 1981 + 37 * tick;
     let limit_cents = 3000;
     ClaudeUsageWindows {
         plan: Some("Max".to_owned()),
-        session: window(42.0 + 2.0 * elapsed_ticks, TimeDelta::minutes(95)),
-        weekly: window(31.0 + 0.5 * elapsed_ticks, TimeDelta::days(3)),
-        sonnet: Some(window(12.0 + 0.5 * elapsed_ticks, TimeDelta::days(3))),
+        session: window(42.0 + 2.0 * elapsed_ticks, TimeDelta::minutes(95), clock),
+        weekly: window(31.0 + 0.5 * elapsed_ticks, TimeDelta::days(3), clock),
+        sonnet: Some(window(
+            12.0 + 0.5 * elapsed_ticks,
+            TimeDelta::days(3),
+            clock,
+        )),
         extra: Some(ExtraUsage {
             status: ExtraStatus::Enabled,
             spent: Some(euro_cents(spent_cents)),

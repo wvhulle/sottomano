@@ -1,11 +1,15 @@
+use chrono::Locale;
 use sottomano_sources::host_machine_identity::hostname1_os_identity::{
     Chassis, OperatingSystemIdentity,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
+    },
 };
 
 pub struct KernelFace<'a> {
@@ -21,11 +25,11 @@ impl BarWidget for KernelFace<'_> {
         Phosphor::LinuxLogo(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.system.kernel.clone())
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary(
             [
                 Some(KeyValue::new("Host", self.system.hostname.clone())),

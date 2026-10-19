@@ -1,14 +1,18 @@
+use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::{
     nvml_gpu_readings::GpuTemperatureLimits, temperature_thresholds::celsius_text,
 };
 use uom::si::f64::ThermodynamicTemperature;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 pub struct GpuTemperatureLabel {
@@ -22,10 +26,10 @@ impl BarWidget for GpuTemperatureLabel {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ThermometerSimple(self.state().weight()).into()
+        Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let reached = |limit: Option<ThermodynamicTemperature>| {
             limit.is_some_and(|limit| self.current >= limit)
         };
@@ -38,7 +42,7 @@ impl BarWidget for GpuTemperatureLabel {
         }
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(celsius_text(self.current))
     }
 
@@ -49,7 +53,7 @@ impl BarWidget for GpuTemperatureLabel {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::dictionary([KeyValue::new("GPU", celsius_text(self.current))]),
             Section::dictionary(

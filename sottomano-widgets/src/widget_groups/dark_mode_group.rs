@@ -22,11 +22,13 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision, format_offset_minutes,
     },
     widgets::{
+        bar_widget::BarWidget,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
@@ -82,11 +84,12 @@ pub enum DarkModeMessage {
     Expansion(ExpansionMessage),
 }
 
-impl Default for DarkModeGroup {
-    fn default() -> Self {
+impl DarkModeGroup {
+    #[must_use]
+    pub fn new(clock: Clock) -> Self {
         Self {
             mode_toggle: ToggleControl::default(),
-            auto_switch_toggle: AutoSwitchToggle::default(),
+            auto_switch_toggle: AutoSwitchToggle::new(clock),
             sunrise_offset_slider: new_offset_slider(
                 "Sunrise offset",
                 DarkModeTarget::SunriseOffset,
@@ -130,8 +133,8 @@ impl DarkModeGroup {
         }
     }
 
-    fn upcoming_switch(&self) -> Option<DateTime<Utc>> {
-        match self.auto_switch_toggle.status_at(Utc::now()) {
+    fn upcoming_switch(&self, clock: Clock) -> Option<DateTime<Utc>> {
+        match self.auto_switch_toggle.status_at(clock.utc()) {
             ScheduleStatus::Following { upcoming, .. } => Some(upcoming.switch_time),
             ScheduleStatus::Disarmed
             | ScheduleStatus::AwaitingLocationFix
@@ -139,8 +142,8 @@ impl DarkModeGroup {
         }
     }
 
-    fn rearm_switch(&mut self) -> Task<DarkModeMessage> {
-        let upcoming = self.upcoming_switch();
+    fn rearm_switch(&mut self, clock: Clock) -> Task<DarkModeMessage> {
+        let upcoming = self.upcoming_switch(clock);
         if self.armed_switch.as_ref().map(|armed| armed.at) == upcoming {
             return Task::none();
         }
@@ -148,7 +151,7 @@ impl DarkModeGroup {
             self.armed_switch = None;
             return Task::none();
         };
-        let remaining = (at - Utc::now()).to_std().unwrap_or_default();
+        let remaining = (at - clock.utc()).to_std().unwrap_or_default();
         let (timer, handle) = Task::future(sleep(remaining + SWITCH_TIMER_MARGIN))
             .map(|()| DarkModeMessage::SwitchDue)
             .abortable();
@@ -170,17 +173,17 @@ impl DarkModeGroup {
         }
     }
 
-    pub fn update(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
-        let handled = self.handle(msg);
-        Task::batch([handled, self.rearm_switch()])
+    pub fn update(&mut self, msg: DarkModeMessage, clock: Clock) -> Task<DarkModeMessage> {
+        let handled = self.handle(msg, clock);
+        Task::batch([handled, self.rearm_switch(clock)])
     }
 
-    fn handle(&mut self, msg: DarkModeMessage) -> Task<DarkModeMessage> {
+    fn handle(&mut self, msg: DarkModeMessage, clock: Clock) -> Task<DarkModeMessage> {
         match msg {
             DarkModeMessage::ScheduleLoaded(delivery) => {
                 self.auto_switch_toggle
                     .saved_schedule
-                    .receive_keeping_last_reading(delivery);
+                    .receive_keeping_last_reading(delivery, clock);
                 let saved = self
                     .auto_switch_toggle
                     .saved_schedule
@@ -201,15 +204,16 @@ impl DarkModeGroup {
                 }
                 Task::none()
             }
-            DarkModeMessage::SwitchDue => self.switch_if_due(Utc::now()),
-            DarkModeMessage::ModeToggle(m) => {
-                self.mode_toggle.update(m).map(DarkModeMessage::ModeToggle)
-            }
+            DarkModeMessage::SwitchDue => self.switch_if_due(clock.utc()),
+            DarkModeMessage::ModeToggle(m) => self
+                .mode_toggle
+                .update(m, clock)
+                .map(DarkModeMessage::ModeToggle),
             DarkModeMessage::ToggleAutoSwitch => {
-                self.auto_switch_toggle.toggle_auto_switch();
+                self.auto_switch_toggle.toggle_auto_switch(clock);
                 self.persist_saved_schedule()
             }
-            DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m),
+            DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m, clock),
             DarkModeMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -223,6 +227,7 @@ impl DarkModeGroup {
         &mut self,
         edge: ColorMode,
         m: ControlMessage,
+        clock: Clock,
     ) -> Task<DarkModeMessage> {
         match self.offset_slider_for_mut(edge).update(m) {
             Action::Opened => {
@@ -238,7 +243,8 @@ impl DarkModeGroup {
                     .unwrap_or_default()
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
-                self.auto_switch_toggle.change_sun_event_offsets(offsets);
+                self.auto_switch_toggle
+                    .change_sun_event_offsets(offsets, clock);
                 Task::future(dark_mode::save(
                     self.auto_switch_toggle
                         .saved_schedule
@@ -296,10 +302,10 @@ impl DarkModeGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: DarkModeTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: DarkModeTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            DarkModeTarget::Mode => self.mode_toggle.tooltip(),
-            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_tooltip(),
+            DarkModeTarget::Mode => self.mode_toggle.tooltip(clock),
+            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_tooltip(clock),
             DarkModeTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
             DarkModeTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
         }
@@ -326,7 +332,11 @@ impl DarkModeGroup {
                 self.mode_toggle
                     .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle),
                 mode_known.then(|| {
-                    GroupItem::reading(&self.auto_switch_toggle, DarkModeTarget::Schedule).on_press(
+                    GroupItem::reading(
+                        &self.auto_switch_toggle as &dyn BarWidget,
+                        DarkModeTarget::Schedule,
+                    )
+                    .on_press(
                         self.auto_switch_toggle.press_does(),
                         DarkModeMessage::ToggleAutoSwitch,
                     )

@@ -3,6 +3,7 @@ use std::mem::take;
 use sottomano_sources::{ReadingSource, SourceDelivery};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -26,11 +27,11 @@ impl<S: ReadingSource<Error: Into<Section>>> BarWidget for FailedReading<S> {
         self.icon
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::Failed
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([self.error.clone().into()])
     }
 }
@@ -121,13 +122,14 @@ impl<S: ReadingSource> ContinuousReading<S> {
 }
 
 impl<S: ReadingSource + ReadingSections> ContinuousReading<S> {
-    pub fn sections(&self) -> Vec<Section> {
-        self.sections_described_by(S::sections)
+    pub fn sections(&self, clock: Clock) -> Vec<Section> {
+        self.sections_described_by(|reading| reading.sections(clock))
     }
 }
 
 impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
-    fn accepted(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
+    fn accepted(self, delivery: SourceDelivery<S>, clock: Clock) -> Self {
+        let freshness = Freshness::from_source_cadence::<S>(clock);
         match delivery {
             SourceDelivery::Absent => ContinuousReading::Absent,
             SourceDelivery::Unchanged => self.restamped(freshness),
@@ -150,27 +152,21 @@ impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
         }
     }
 
-    fn accept_with(&mut self, delivery: SourceDelivery<S>, freshness: Freshness) {
-        *self = take(self).accepted(delivery, freshness);
+    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
+        *self = take(self).accepted(delivery, clock);
     }
 }
 
 impl<S: ReadingSource> ContinuousReading<S> {
-    pub fn load(&mut self, data: S) {
+    pub fn load(&mut self, data: S, clock: Clock) {
         *self = ContinuousReading::Read {
             data,
-            freshness: Freshness::from_source_cadence::<S>(),
+            freshness: Freshness::from_source_cadence::<S>(clock),
         };
     }
 
-    pub fn receive_keeping_last_reading(&mut self, delivery: SourceDelivery<S>) {
-        self.keep_with(delivery, Freshness::from_source_cadence::<S>());
-    }
-}
-
-impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
-    pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>) {
-        self.accept_with(delivery, Freshness::from_source_cadence::<S>());
+    pub fn receive_keeping_last_reading(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
+        self.keep_with(delivery, Freshness::from_source_cadence::<S>(clock));
     }
 }
 
@@ -206,15 +202,16 @@ impl<S: ReadingSource<Error: Into<Section>> + BarWidget> ContinuousReading<S> {
             .map(|widget| GroupItem::reading(widget, target))
     }
 
-    pub fn tooltip(&self) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip())
+    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
+        self.tooltip_with(self.display()?.tooltip(clock))
     }
 
     pub fn tooltip_with_sections(
         &self,
         extra: impl IntoIterator<Item = Section>,
+        clock: Clock,
     ) -> Option<Tooltip> {
-        let own = self.tooltip_with(self.display()?.tooltip())?;
+        let own = self.tooltip_with(self.display()?.tooltip(clock))?;
         Some(own.with_sections(extra))
     }
 }

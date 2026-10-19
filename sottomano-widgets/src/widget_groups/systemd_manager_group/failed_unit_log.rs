@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::Reverse, time::SystemTime};
+use std::{borrow::Cow, cmp::Reverse};
 
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
@@ -15,6 +15,7 @@ use sottomano_sources::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::{
         systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
         terminal_command::TerminalCommand,
@@ -24,105 +25,103 @@ use crate::{
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-impl SystemdManagerGroup {
-    pub(super) fn failed_units_item<'a>(
-        failed: &'a FailedUnits,
-        config: &'a Config,
-    ) -> GroupItem<'a, SystemdManagerMessage> {
-        let open_log =
-            |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
-        let failed_unit_toasts = failed.units.iter().map(|unit| {
-            let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+impl SystemdManagerGroup {}
+
+pub(super) fn failed_units_item<'a>(
+    failed: &'a FailedUnits,
+    config: &'a Config,
+    clock: Clock,
+) -> GroupItem<'a, SystemdManagerMessage> {
+    let open_log = |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
+    let failed_unit_toasts = failed.units.iter().map(|unit| {
+        let open_unit_log = SystemdManagerMessage::OpenLog(TerminalCommand::journal(
+            config,
+            failed.scope.follow_units_log_args([unit.name.as_str()]),
+        ));
+        let inspect_coredump = |crash: &CoredumpEntry, inspection| {
+            SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
                 config,
-                failed.scope.follow_units_log_args([unit.name.as_str()]),
-            ));
-            let inspect_coredump = |crash: &CoredumpEntry, inspection| {
-                SystemdManagerMessage::InspectCoredump(TerminalCommand::running(
-                    config,
-                    crash.coredumpctl_args(inspection),
-                ))
-            };
-            let coredump_buttons = unit.crash.iter().flat_map(|crash| {
-                [
-                    OngoingToastActionButton {
-                        button_label: "Info".to_owned(),
-                        tint: ActionTint::Inspect,
-                        on_button_pressed: inspect_coredump(crash, CoredumpInspection::Info),
-                    },
-                    OngoingToastActionButton {
-                        button_label: "Debug".to_owned(),
-                        tint: ActionTint::Inspect,
-                        on_button_pressed: inspect_coredump(crash, CoredumpInspection::Debug),
-                    },
-                ]
-                .into_iter()
-                .chain(
-                    crash
-                        .stored_file
-                        .as_ref()
-                        .map(|file| OngoingToastActionButton {
-                            button_label: "Copy path".to_owned(),
-                            tint: ActionTint::Inspect,
-                            on_button_pressed: SystemdManagerMessage::CopyToClipboard(
-                                file.display().to_string(),
-                            ),
-                        }),
-                )
-            });
-            OngoingToast {
-                widget_name: failed.name(),
-                key: OngoingKey::Reading(
-                    SystemdTarget::failed_unit(failed.scope, unit.name.clone()).into(),
-                ),
-                severity: UNIT_FAILURE_PRIORITY.severity(),
-                summary_text: Cow::Owned(format!("{} failed", unit.name)),
-                body: failure_summary(unit, config.calendar.locale)
-                    .map_or(OngoingBody::None, OngoingBody::Text),
-                progress: None,
-                since: unit.at.unwrap_or_else(SystemTime::now),
-                on_body_clicked: open_unit_log.clone(),
-                action_buttons: [
-                    OngoingToastActionButton {
-                        button_label: "Restart".to_owned(),
-                        tint: ActionTint::Proceed,
-                        on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
-                            FailedUnitRestart {
-                                per_user: failed.scope.per_user(),
-                                unit: unit.name.clone(),
-                            },
-                        ),
-                    },
-                    OngoingToastActionButton {
-                        button_label: "Journal".to_owned(),
-                        tint: ActionTint::Inspect,
-                        on_button_pressed: open_unit_log,
-                    },
-                    OngoingToastActionButton {
-                        button_label: "Copy name".to_owned(),
+                crash.coredumpctl_args(inspection),
+            ))
+        };
+        let coredump_buttons = unit.crash.iter().flat_map(|crash| {
+            [
+                OngoingToastActionButton {
+                    button_label: "Info".to_owned(),
+                    tint: ActionTint::Inspect,
+                    on_button_pressed: inspect_coredump(crash, CoredumpInspection::Info),
+                },
+                OngoingToastActionButton {
+                    button_label: "Debug".to_owned(),
+                    tint: ActionTint::Inspect,
+                    on_button_pressed: inspect_coredump(crash, CoredumpInspection::Debug),
+                },
+            ]
+            .into_iter()
+            .chain(
+                crash
+                    .stored_file
+                    .as_ref()
+                    .map(|file| OngoingToastActionButton {
+                        button_label: "Copy path".to_owned(),
                         tint: ActionTint::Inspect,
                         on_button_pressed: SystemdManagerMessage::CopyToClipboard(
-                            unit.name.clone(),
+                            file.display().to_string(),
                         ),
-                    },
-                ]
-                .into_iter()
-                .chain(coredump_buttons)
-                .collect(),
-            }
-        });
-        GroupItem::reading(failed, SystemdTarget::failed_units(failed.scope))
-            .on_press(
-                TerminalCommand::JOURNAL_PRESS_HINT,
-                open_log(failed.follow_log_args()),
+                    }),
             )
-            .ongoing_toasts(failed_unit_toasts)
-    }
+        });
+        OngoingToast {
+            widget_name: failed.name(),
+            key: OngoingKey::Reading(
+                SystemdTarget::failed_unit(failed.scope, unit.name.clone()).into(),
+            ),
+            severity: UNIT_FAILURE_PRIORITY.severity(),
+            summary_text: Cow::Owned(format!("{} failed", unit.name)),
+            body: failure_summary(unit, config.calendar.locale)
+                .map_or(OngoingBody::None, OngoingBody::Text),
+            progress: None,
+            since: unit.at.unwrap_or(clock.wall),
+            on_body_clicked: open_unit_log.clone(),
+            action_buttons: [
+                OngoingToastActionButton {
+                    button_label: "Restart".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: SystemdManagerMessage::RestartFailedUnit(
+                        FailedUnitRestart {
+                            per_user: failed.scope.per_user(),
+                            unit: unit.name.clone(),
+                        },
+                    ),
+                },
+                OngoingToastActionButton {
+                    button_label: "Journal".to_owned(),
+                    tint: ActionTint::Inspect,
+                    on_button_pressed: open_unit_log,
+                },
+                OngoingToastActionButton {
+                    button_label: "Copy name".to_owned(),
+                    tint: ActionTint::Inspect,
+                    on_button_pressed: SystemdManagerMessage::CopyToClipboard(unit.name.clone()),
+                },
+            ]
+            .into_iter()
+            .chain(coredump_buttons)
+            .collect(),
+        }
+    });
+    GroupItem::reading(failed, SystemdTarget::failed_units(failed.scope))
+        .on_press(
+            TerminalCommand::JOURNAL_PRESS_HINT,
+            open_log(failed.follow_log_args()),
+        )
+        .ongoing_toasts(failed_unit_toasts)
 }
 
 fn service_outcome_reason(outcome: &ServiceOutcome) -> String {
@@ -184,7 +183,7 @@ impl BarWidget for FailedUnits {
 
     fn icon(&self) -> Glyph {
         Phosphor::from(self.scope)
-            .with_weight(self.state().weight())
+            .with_weight(Weight::Regular)
             .into()
     }
 
@@ -194,11 +193,11 @@ impl BarWidget for FailedUnits {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         UNIT_FAILURE_PRIORITY.severity().into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
         TooltipBody::sections([Section::column_table(
@@ -232,7 +231,7 @@ impl TableRow<2> for &FailedUnitInfo {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, SystemTime};
+    use std::time::Duration;
 
     use sottomano_sources::systemd_units_journal::SystemdUnitScope;
 
@@ -246,7 +245,7 @@ mod tests {
                 result: "exit-code".to_string(),
                 exit_status: 1,
             }),
-            at: age.map(|age| SystemTime::now() - age),
+            at: age.map(|age| Clock::real().wall - age),
             crash: None,
         }
     }
@@ -271,7 +270,7 @@ mod tests {
             ],
             scope: SystemdUnitScope::SystemWide,
         };
-        let TooltipBody::Sections(sections) = units.tooltip() else {
+        let TooltipBody::Sections(sections) = units.tooltip(Clock::real()) else {
             panic!("expected sections");
         };
         assert_eq!(

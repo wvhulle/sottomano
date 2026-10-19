@@ -49,6 +49,7 @@ impl<Message, Key> KeyedSlotList<'_, Message, Key> {
 struct State<Key> {
     keys: Vec<Key>,
     slot_starts: HashMap<Key, Animation<f32>>,
+    frame: Option<Instant>,
 }
 
 impl<Key: Copy + Eq + Hash> State<Key> {
@@ -60,7 +61,10 @@ impl<Key: Copy + Eq + Hash> State<Key> {
 }
 
 impl<Message, Key: Copy + Eq + Hash + 'static> KeyedSlotList<'_, Message, Key> {
-    fn sliding_start(&self, state: &mut State<Key>, key: Key, target: f32, now: Instant) -> f32 {
+    fn sliding_start(&self, state: &mut State<Key>, key: Key, target: f32) -> f32 {
+        let Some(now) = state.frame else {
+            return target;
+        };
         let start = state.slot_starts.entry(key).or_insert_with(|| {
             Animation::new(target)
                 .easing(Easing::EaseOutCubic)
@@ -146,6 +150,7 @@ impl<Message, Key: Copy + Eq + Hash + 'static> Widget<Message, iced::Theme, iced
         tree::State::new(State {
             keys: self.keys.clone(),
             slot_starts: HashMap::new(),
+            frame: None,
         })
     }
 
@@ -189,12 +194,11 @@ impl<Message, Key: Copy + Eq + Hash + 'static> Widget<Message, iced::Theme, iced
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let nodes = self.laid_out_slots(&mut tree.children, renderer, limits);
         let state = tree.state.downcast_mut::<State<Key>>();
-        let now = Instant::now();
         let (placed, end) = self.keys.clone().into_iter().zip(nodes).fold(
             (Vec::new(), 0.0),
             |(mut placed, target), (key, node)| {
                 let next = target + self.extent(&node) + self.spacing;
-                let start = self.sliding_start(state, key, target, now);
+                let start = self.sliding_start(state, key, target);
                 placed.push(self.placed_at(node, start));
                 (placed, next)
             },
@@ -223,11 +227,13 @@ impl<Message, Key: Copy + Eq + Hash + 'static> Widget<Message, iced::Theme, iced
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        if let Event::Window(window::Event::RedrawRequested(now)) = event
-            && tree.state.downcast_ref::<State<Key>>().is_sliding(*now)
-        {
-            shell.invalidate_layout();
-            shell.request_redraw();
+        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+            let state = tree.state.downcast_mut::<State<Key>>();
+            state.frame = Some(*now);
+            if state.is_sliding(*now) {
+                shell.invalidate_layout();
+                shell.request_redraw();
+            }
         }
         for ((slot, tree), layout) in self
             .slots

@@ -1,16 +1,19 @@
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Locale, Utc};
 use sottomano_sources::ai_usage_spend::{
     ccusage_cli_reports::Period, claude_usage::ClaudeCcusagePeriods, usage_quota::Quota,
 };
 
-use crate::widgets::{
-    amount_text::{spend_text, token_count},
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
-    spend_to_level::level_from_cost,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::{spend_text, token_count},
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
+        spend_to_level::level_from_cost,
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for ClaudeCcusagePeriods {
@@ -19,29 +22,29 @@ impl BarWidget for ClaudeCcusagePeriods {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::CalendarDots(self.state().weight()).into()
+        Phosphor::CalendarDots(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::CalendarDots(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!(
             "{} today",
             spend_text(&self.recent.today.usage.cost)
         ))
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_cost(&self.recent.today.usage.cost))
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
         let recent = &self.recent;
-        let now = Local::now();
+        let now = clock.local();
         let period_section = |title: String, period: &Period, threshold: Option<KeyValue>| {
             let projected = period
                 .projected_cost(now, &self.budget)

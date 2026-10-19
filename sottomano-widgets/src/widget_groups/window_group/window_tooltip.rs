@@ -9,11 +9,16 @@ use sottomano_sources::desktop_windows_apps::{
 };
 
 use crate::{
+    clock::Clock,
     hover_tooltips::relative,
     widgets::tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
 };
 
-pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBody> {
+pub fn pick_body(
+    niri_state: &EventStreamState,
+    window: u64,
+    now: SystemTime,
+) -> Option<TooltipBody> {
     let window = niri_state.windows.windows.get(&window)?;
     let window_entries = [
         window
@@ -25,12 +30,7 @@ pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBo
             .as_deref()
             .map(|app_id| KeyValue::new("App id", app_id)),
         Some(KeyValue::new("Window id", window.id.to_string())),
-        focus_age(window).map(|focused| {
-            KeyValue::new(
-                "Focused",
-                relative(SystemTime::now() - focused, SystemTime::now()),
-            )
-        }),
+        focus_age(window).map(|focused| KeyValue::new("Focused", relative(now - focused, now))),
     ];
     Some(TooltipBody::sections([Section::dictionary(
         window_entries.into_iter().flatten(),
@@ -50,7 +50,7 @@ impl From<nix_package_facts::Error> for Section {
 }
 
 impl ReadingSections for Inspection {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let provenance = &self.provenance;
         let profile = provenance
             .profile
@@ -79,7 +79,7 @@ impl ReadingSections for Inspection {
 }
 
 impl ReadingSections for NixPackageFacts {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, clock: Clock) -> Vec<Section> {
         let nixpkgs = self.nixpkgs.as_ref();
         let closure = &self.closure;
         let rows = [
@@ -112,7 +112,7 @@ impl ReadingSections for NixPackageFacts {
             )),
             Some(KeyValue::new(
                 "Added",
-                relative(self.registered, SystemTime::now()),
+                relative(self.registered, clock.wall),
             )),
             origin_entry(&self.origin),
             nixpkgs.and_then(|entry| generation_entry(&entry.generation)),

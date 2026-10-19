@@ -3,6 +3,7 @@ use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
 
 use crate::{
+    clock::Clock,
     widget_groups::{
         journal_events_group::{
             JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,
@@ -13,7 +14,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -61,7 +62,7 @@ impl BarWidget for Vec<KernelOccurrence> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::LinuxLogo(self.state().weight()).into()
+        Phosphor::LinuxLogo(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -72,7 +73,7 @@ impl BarWidget for Vec<KernelOccurrence> {
         u32::try_from(distinct).ok().filter(|count| *count > 0)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.iter()
             .map(|occurrence| occurrence.severity)
             .max()
@@ -80,7 +81,7 @@ impl BarWidget for Vec<KernelOccurrence> {
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let hidden = self.len().saturating_sub(TOOLTIP_ROWS);
         let hidden_notice = (hidden > 0).then(|| {
             TableRecord::new(
@@ -132,7 +133,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
         );
-        let TooltipBody::Sections(sections) = errors.tooltip() else {
+        let TooltipBody::Sections(sections) = errors.tooltip(Clock::real()) else {
             panic!("expected sections");
         };
         let SectionBody::ColumnTable { records, .. } = sections[0].body() else {

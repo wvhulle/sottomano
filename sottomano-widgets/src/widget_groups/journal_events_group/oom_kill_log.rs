@@ -3,6 +3,7 @@ use sottomano_config::Config;
 use sottomano_sources::systemd_units_journal::journal_oom_kills::{OomKillEntry, OomKiller};
 
 use crate::{
+    clock::Clock,
     widget_groups::{
         journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
@@ -11,7 +12,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -56,14 +57,14 @@ impl BarWidget for Vec<OomKillEntry> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Memory(self.state().weight()).into()
+        Phosphor::Memory(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
         u32::try_from(self.len()).ok()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.iter()
             .map(|entry| entry.severity)
             .max()
@@ -71,7 +72,7 @@ impl BarWidget for Vec<OomKillEntry> {
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::new("Unit").align_x(Horizontal::Left),

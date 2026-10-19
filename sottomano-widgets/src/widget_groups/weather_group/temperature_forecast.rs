@@ -1,3 +1,4 @@
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_sources::weather::open_meteo_temperature::{
     HourlyTemperature, Temperature, WeatherCondition,
@@ -7,12 +8,17 @@ use uom::{
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    localized_time::LocalizedTimeFormat,
-    tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody},
-    weather_icons::WeatherIcon,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        localized_time::LocalizedTimeFormat,
+        tooltip_body::{
+            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
+        },
+        weather_icons::WeatherIcon,
+    },
 };
 
 impl BarWidget for Temperature {
@@ -31,11 +37,11 @@ impl BarWidget for Temperature {
         WeatherIcon::Thermometer.into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(celsius_text(self.temp))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::column_table(
                 [

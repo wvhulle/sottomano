@@ -16,6 +16,7 @@ use uom::si::thermodynamic_temperature::kelvin;
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
@@ -135,12 +136,17 @@ impl ColorTemperatureGroup {
         }
     }
 
-    pub fn update(&mut self, msg: ColorTemperatureMessage) -> Task<ColorTemperatureMessage> {
+    pub fn update(
+        &mut self,
+        msg: ColorTemperatureMessage,
+        clock: Clock,
+    ) -> Task<ColorTemperatureMessage> {
         match msg {
             ColorTemperatureMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => self
-                .update(ColorTemperatureMessage::Warmth(ControlMessage::Scroll(
-                    delta,
-                ))),
+                .update(
+                    ColorTemperatureMessage::Warmth(ControlMessage::Scroll(delta)),
+                    clock,
+                ),
             ColorTemperatureMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -148,7 +154,7 @@ impl ColorTemperatureGroup {
                 Task::none()
             }
             ColorTemperatureMessage::ColorTemperature(reading) => {
-                self.gamma.receive_delivery(reading);
+                self.gamma.receive_delivery(reading, clock);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
                         .update(ControlMessage::Reading(percent_f(gamma.brightness)));
@@ -186,14 +192,15 @@ impl ColorTemperatureGroup {
                     ),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
             },
-            ColorTemperatureMessage::Auto(m) => {
-                self.auto.update(m).map(ColorTemperatureMessage::Auto)
-            }
+            ColorTemperatureMessage::Auto(m) => self
+                .auto
+                .update(m, clock)
+                .map(ColorTemperatureMessage::Auto),
         }
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ColorTemperatureTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ColorTemperatureTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             ColorTemperatureTarget::GammaDim => {
                 self.gamma
@@ -209,7 +216,7 @@ impl ColorTemperatureGroup {
                         self.warmth.readout_text(),
                     )]))
             }
-            ColorTemperatureTarget::Automatic => self.auto.tooltip(true),
+            ColorTemperatureTarget::Automatic => self.auto.tooltip(true, clock),
         }
     }
 

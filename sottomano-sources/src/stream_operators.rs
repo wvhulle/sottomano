@@ -7,13 +7,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::{DateTime, Local};
 use futures::{
     Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::time::{MissedTickBehavior, Sleep, interval, sleep_until};
+use tokio::time::{MissedTickBehavior, Sleep, interval, sleep, sleep_until};
 use tokio_stream::wrappers::IntervalStream;
+
+use crate::{ReadingSource, SourceDelivery};
 
 pub fn ticked<T, F>(
     every: Duration,
@@ -258,5 +261,59 @@ where
             }
             polled => polled,
         }
+    }
+}
+
+pub fn ticked_at_boundaries<S: ReadingSource>(
+    period: Duration,
+    reading: impl Fn() -> S + Send + Clone + 'static,
+) -> impl Stream<Item = SourceDelivery<S>> + Send {
+    stream::repeat_with(move || {
+        let reading = reading.clone();
+        async move {
+            sleep(until_next_boundary(Local::now(), period)).await;
+            reading()
+        }
+    })
+    .then(identity)
+    .map(|reading| SourceDelivery::Reading(Ok(reading)))
+}
+
+fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
+    let secs_into = now
+        .timestamp()
+        .rem_euclid(period.as_secs().cast_signed())
+        .cast_unsigned();
+    let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
+    Duration::from_secs(period.as_secs() - secs_into)
+        .saturating_sub(Duration::from_nanos(subsec_ns))
+}
+
+#[cfg(test)]
+mod boundary_tests {
+    use chrono::TimeZone;
+
+    use super::*;
+
+    #[test]
+    fn boundary_delay_completes_the_period() {
+        let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
+        assert_eq!(
+            until_next_boundary(now, Duration::from_secs(1)),
+            Duration::from_millis(750)
+        );
+        assert_eq!(
+            until_next_boundary(now, Duration::from_secs(60)),
+            Duration::from_millis(19750)
+        );
+    }
+
+    #[test]
+    fn exact_boundary_waits_a_full_period() {
+        let now = Local.timestamp_opt(1_000, 0).unwrap();
+        assert_eq!(
+            until_next_boundary(now, Duration::from_secs(1)),
+            Duration::from_secs(1)
+        );
     }
 }

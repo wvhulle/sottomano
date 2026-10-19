@@ -1,14 +1,18 @@
+use chrono::Locale;
 use sottomano_sources::weather::open_meteo_wind::Wind;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{angle::degree, f64::Velocity, velocity::kilometer_per_hour},
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    tooltip_body::{KeyValue, TooltipBody},
-    weather_icons::WeatherIcon,
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        tooltip_body::{KeyValue, TooltipBody},
+        weather_icons::WeatherIcon,
+        widget_state::WidgetState,
+    },
 };
 
 const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
@@ -33,11 +37,11 @@ impl BarWidget for Wind {
         WeatherIcon::StrongWind.into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(self.beaufort().to_string())
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         match self.beaufort() {
             0..=6 => WidgetState::Idle,
             7..=8 => WidgetState::Warning,
@@ -45,7 +49,7 @@ impl BarWidget for Wind {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let sector = (self.direction.get::<degree>().rem_euclid(360.0) / 45.0).round() as usize;
         TooltipBody::dictionary([

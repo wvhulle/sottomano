@@ -1,14 +1,14 @@
-use std::{
-    convert::Infallible,
-    future::{Future, ready},
+use std::convert::Infallible;
+
+use chrono::Locale;
+use iced::futures::Stream;
+use sottomano_sources::{
+    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::ticked_at_boundaries,
 };
 
-use chrono::{DateTime, Local, Locale};
-use iced::futures::Stream;
-use sottomano_sources::{DeliveryCadence, ReadingSource, SourceDelivery};
-
 use crate::{
-    widget_groups::clock_group::{TICK, polled_at_second_boundaries},
+    clock::Clock,
+    widget_groups::clock_group::TICK,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
@@ -17,8 +17,8 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct LocalTime(pub DateTime<Local>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LocalTime;
 
 impl ReadingSource for LocalTime {
     type Error = Infallible;
@@ -27,14 +27,8 @@ impl ReadingSource for LocalTime {
     const NAME: &'static str = "local time";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_at_second_boundaries(inputs, Self::poll)
-    }
-}
-
-impl LocalTime {
-    fn poll(_key: ()) -> impl Future<Output = Result<Self, Infallible>> + Send {
-        ready(Ok(LocalTime(Local::now())))
+    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        ticked_at_boundaries(TICK, || LocalTime)
     }
 }
 
@@ -47,14 +41,15 @@ impl BarWidget for LocalTime {
         Phosphor::Clock(Weight::Regular).into()
     }
 
-    fn localized_label(&self, locale: Locale) -> Option<String> {
-        Some(LocalizedTimeFormat::TimeOfDay.format(&self.0, locale))
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+        Some(LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        let local = clock.local();
         TooltipBody::dictionary([
-            KeyValue::new("UTC offset", self.0.format("%:z").to_string()),
-            KeyValue::new("Unix time", self.0.timestamp().to_string()),
+            KeyValue::new("UTC offset", local.format("%:z").to_string()),
+            KeyValue::new("Unix time", local.timestamp().to_string()),
         ])
     }
 }

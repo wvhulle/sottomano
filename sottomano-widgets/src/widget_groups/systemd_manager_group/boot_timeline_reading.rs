@@ -1,13 +1,15 @@
 use std::time::Duration;
 
+use chrono::Locale;
 use iced::alignment::Horizontal;
 use sottomano_sources::systemd_units_journal::boot_timeline::{BootTimeline, RankedActivations};
 
 use crate::{
+    clock::Clock,
     widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
@@ -29,14 +31,14 @@ impl BarWidget for BootTimeline {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::RocketLaunch(self.state().weight()).into()
+        Phosphor::RocketLaunch(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(elapsed_text(self.phases.total()))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let login_gap = self
             .user_startup
             .as_ref()
@@ -77,7 +79,7 @@ impl BarWidget for StartupUnits<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Stack(self.state().weight()).into()
+        Phosphor::Stack(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -95,7 +97,7 @@ impl BarWidget for StartupUnits<'_> {
         u32::try_from(count).ok().filter(|count| *count > 0)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let slowness_state = |ranked: &RankedActivations| -> WidgetState {
             ranked
                 .slowest_first
@@ -122,7 +124,7 @@ impl BarWidget for StartupUnits<'_> {
         .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let blame_section = |ranked: &RankedActivations, title: &str| {
             Section::dictionary(ranked.slowest_first.iter().map(|activation| {
                 KeyValue::new(activation.name.clone(), elapsed_text(activation.duration))

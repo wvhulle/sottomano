@@ -1,15 +1,19 @@
+use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::ai_usage_spend::{
     openrouter_credits::{KeyLimit, LimitReset, OpenRouterStrictBudget},
     spend_money::Money,
 };
 
-use crate::widgets::{
-    amount_text::spend_text,
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::spend_text,
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for OpenRouterStrictBudget {
@@ -18,18 +22,18 @@ impl BarWidget for OpenRouterStrictBudget {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Wallet(self.state().weight()).into()
+        Phosphor::Wallet(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Wallet(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!("{} left", spend_text(&self.tightest_remaining())))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.exhausted() {
             WidgetState::Critical
         } else {
@@ -37,7 +41,7 @@ impl BarWidget for OpenRouterStrictBudget {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections(
             [Section::dictionary([
                 remaining_entry(self.credits.remaining()),

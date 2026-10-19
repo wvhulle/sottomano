@@ -15,6 +15,7 @@ use sottomano_sources::{
 };
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         on_hover_reading::OnHoverReading,
@@ -103,6 +104,7 @@ impl LlamaServerGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<LlamaServerMessage> {
         self.model_props.stop();
         let Some(HoverTarget::LlamaServer(
@@ -121,20 +123,30 @@ impl LlamaServerGroup {
         let Some(instance) = instance else {
             return Task::none();
         };
-        self.model_props
-            .start_hover_fetch(instance, LlamaServerMessage::ModelPropsFetched, config)
+        self.model_props.start_hover_fetch(
+            instance,
+            LlamaServerMessage::ModelPropsFetched,
+            config,
+            clock,
+        )
     }
 
-    pub fn update(&mut self, message: LlamaServerMessage) -> Task<LlamaServerMessage> {
+    pub fn update(
+        &mut self,
+        message: LlamaServerMessage,
+        clock: Clock,
+    ) -> Task<LlamaServerMessage> {
         match message {
-            LlamaServerMessage::User(message) => {
-                self.user.update(message).map(LlamaServerMessage::User)
-            }
-            LlamaServerMessage::System(message) => {
-                self.system.update(message).map(LlamaServerMessage::System)
-            }
+            LlamaServerMessage::User(message) => self
+                .user
+                .update(message, clock)
+                .map(LlamaServerMessage::User),
+            LlamaServerMessage::System(message) => self
+                .system
+                .update(message, clock)
+                .map(LlamaServerMessage::System),
             LlamaServerMessage::ModelPropsFetched(delivery) => {
-                self.model_props.receive_delivery(delivery);
+                self.model_props.receive_delivery(delivery, clock);
                 Task::none()
             }
             LlamaServerMessage::Expansion(message) => {
@@ -145,11 +157,11 @@ impl LlamaServerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &LlamaServerTarget) -> Option<Tooltip> {
-        let model_props = self.model_props.sections();
+    pub fn tooltip_for(&self, target: &LlamaServerTarget, clock: Clock) -> Option<Tooltip> {
+        let model_props = self.model_props.sections(clock);
         match target.bus {
-            Bus::Session => self.user.tooltip_for(target, model_props),
-            Bus::System => self.system.tooltip_for(target, model_props),
+            Bus::Session => self.user.tooltip_for(target, model_props, clock),
+            Bus::System => self.system.tooltip_for(target, model_props, clock),
         }
     }
 

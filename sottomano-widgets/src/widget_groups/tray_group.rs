@@ -18,6 +18,7 @@ use system_tray::error;
 use tokio::sync::mpsc;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},
     shell_message::AppWindowFocus,
     widgets::{
@@ -81,7 +82,7 @@ impl TrayGroup {
         iced::Subscription::run(status_notifier_tray::updates).map(TrayMessage::Update)
     }
 
-    pub fn update(&mut self, message: TrayMessage) -> Action {
+    pub fn update(&mut self, message: TrayMessage, clock: Clock) -> Action {
         match message {
             TrayMessage::Update(TrayUpdate::Connected(commands)) => {
                 self.commands = Some(commands);
@@ -91,13 +92,13 @@ impl TrayGroup {
                 self.pixmap_handles = self
                     .pixmap_handles
                     .refreshed(items.iter().flat_map(TrayItem::pixmaps));
-                self.items.load(items);
+                self.items.load(items, clock);
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::HostFailed(failure)) => {
                 self.commands = None;
                 self.items
-                    .receive_keeping_last_reading(SourceDelivery::Reading(Err(failure)));
+                    .receive_keeping_last_reading(SourceDelivery::Reading(Err(failure)), clock);
                 Action::None
             }
             TrayMessage::Expansion(m) => {

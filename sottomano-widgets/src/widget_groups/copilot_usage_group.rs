@@ -17,6 +17,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         continuous_reading::ContinuousReading,
@@ -82,13 +83,6 @@ impl CopilotUsageGroup {
         }
     }
 
-    fn cli_budget(config: &Config) -> SpendBudget {
-        SpendBudget::new(
-            config,
-            config.widget_groups.copilot_usage.monthly_budget_usd,
-        )
-    }
-
     fn account(&self, buses: &DesktopBuses) -> Option<CopilotAccount> {
         Some(CopilotAccount {
             gh_auth_token: self.gh_auth_token.clone()?,
@@ -110,14 +104,14 @@ impl CopilotUsageGroup {
             CopilotUsageTarget::Free => account.map_or_else(Task::none, |key| {
                 first_delivery::<CopilotFree>(key).map(CopilotUsageMessage::Free)
             }),
-            CopilotUsageTarget::Cli => first_delivery::<CopilotCcusage>(Self::cli_budget(config))
-                .map(CopilotUsageMessage::Cli),
+            CopilotUsageTarget::Cli => {
+                first_delivery::<CopilotCcusage>(cli_budget(config)).map(CopilotUsageMessage::Cli)
+            }
         }
     }
 
     pub fn subscription(config: &Config) -> Subscription<CopilotUsageMessage> {
-        source_subscription::<CopilotCcusage>(Self::cli_budget(config))
-            .map(CopilotUsageMessage::Cli)
+        source_subscription::<CopilotCcusage>(cli_budget(config)).map(CopilotUsageMessage::Cli)
     }
 
     pub fn account_subscription(&self, buses: &DesktopBuses) -> Subscription<CopilotUsageMessage> {
@@ -130,11 +124,15 @@ impl CopilotUsageGroup {
         }))
     }
 
-    pub fn update(&mut self, message: CopilotUsageMessage) -> Task<CopilotUsageMessage> {
+    pub fn update(
+        &mut self,
+        message: CopilotUsageMessage,
+        clock: Clock,
+    ) -> Task<CopilotUsageMessage> {
         match message {
-            CopilotUsageMessage::Metered(reading) => self.metered.receive_delivery(reading),
-            CopilotUsageMessage::Free(reading) => self.free.receive_delivery(reading),
-            CopilotUsageMessage::Cli(reading) => self.cli.receive_delivery(reading),
+            CopilotUsageMessage::Metered(reading) => self.metered.receive_delivery(reading, clock),
+            CopilotUsageMessage::Free(reading) => self.free.receive_delivery(reading, clock),
+            CopilotUsageMessage::Cli(reading) => self.cli.receive_delivery(reading, clock),
             CopilotUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -143,11 +141,11 @@ impl CopilotUsageGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: CopilotUsageTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: CopilotUsageTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            CopilotUsageTarget::Metered => self.metered.tooltip(),
-            CopilotUsageTarget::Free => self.free.tooltip(),
-            CopilotUsageTarget::Cli => self.cli.tooltip(),
+            CopilotUsageTarget::Metered => self.metered.tooltip(clock),
+            CopilotUsageTarget::Free => self.free.tooltip(clock),
+            CopilotUsageTarget::Cli => self.cli.tooltip(clock),
         }
     }
 
@@ -169,4 +167,11 @@ impl CopilotUsageGroup {
         })
         .preview(self.metered.display().map(PreviewedValue::Plain))
     }
+}
+
+fn cli_budget(config: &Config) -> SpendBudget {
+    SpendBudget::new(
+        config,
+        config.widget_groups.copilot_usage.monthly_budget_usd,
+    )
 }

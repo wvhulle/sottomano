@@ -111,7 +111,6 @@ pub enum Message {
     OpenUrl(String),
     RefreshHoveredReading,
     FocusWindow(u64),
-    TooltipTick,
     TooltipHideElapsed,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),

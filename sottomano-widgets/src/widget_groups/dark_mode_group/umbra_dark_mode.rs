@@ -3,11 +3,14 @@ use sottomano_sources::{
     system_protocol_clients::shell_command_output,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    toggle_control::ToggleableSource,
-    tooltip_body::TooltipBody,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        toggle_control::ToggleableSource,
+        tooltip_body::TooltipBody,
+    },
 };
 
 impl BarWidget for DarkMode {
@@ -23,7 +26,7 @@ impl BarWidget for DarkMode {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }

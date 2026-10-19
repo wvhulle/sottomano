@@ -1,13 +1,17 @@
+use chrono::Locale;
 use sottomano_sources::weather::buienradar_rain::{
     Rain, RainOutlook, precipitation::millimeter_per_hour,
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    tooltip_body::{Cell, KeyValue, TooltipBody},
-    weather_icons::WeatherIcon,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        tooltip_body::{Cell, KeyValue, TooltipBody},
+        weather_icons::WeatherIcon,
+    },
 };
 
 fn intensity_text(intensity: Velocity) -> String {
@@ -37,7 +41,7 @@ impl BarWidget for Rain {
         WeatherIcon::Raindrop.into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         match self.outlook {
             RainOutlook::Dry => None,
             RainOutlook::StartsIn(until_wet) => Some(format!("in {}m", until_wet.num_minutes())),
@@ -48,7 +52,7 @@ impl BarWidget for Rain {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let now = if self.intensity <= Velocity::default() {
             "none right now".to_string()
         } else {

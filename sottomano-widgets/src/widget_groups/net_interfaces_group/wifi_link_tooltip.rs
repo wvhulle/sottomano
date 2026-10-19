@@ -5,13 +5,14 @@ use uom::{
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::net_interfaces_group::interface_sections::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -23,10 +24,10 @@ impl BarWidget for Wifi {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::WifiHigh(self.state().weight()).into()
+        Phosphor::WifiHigh(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         self.link
             .as_ref()
             .map_or(WidgetState::Off, |link| signal_level(link.signal).into())
@@ -36,7 +37,7 @@ impl BarWidget for Wifi {
         self.link.as_ref().map(|link| percent_fill(link.signal))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let Some(link) = &self.link else {
             return TooltipBody::dictionary([KeyValue::new("WiFi", "disconnected")]);
         };
@@ -63,7 +64,7 @@ impl BarWidget for Wifi {
 }
 
 impl ReadingSections for WifiDetails {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let key = |label: &str| label.to_string();
         let addressing = self.addressing.iter().flat_map(|addressing| {
             [

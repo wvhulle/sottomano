@@ -30,15 +30,6 @@ impl ChipletLiveState<'_> {
             .collect()
     }
 
-    fn highest_preference_rank(clock: &CpuClock, group: &CoreGroup) -> Option<u32> {
-        clock
-            .cores
-            .iter()
-            .filter(|core| group.contains(core.core))
-            .filter_map(|core| core.preference_rank)
-            .max()
-    }
-
     fn scheduler_prefers(&self, group: &CoreGroup) -> bool {
         let Some(clock) = self.clock else {
             return false;
@@ -47,11 +38,11 @@ impl ChipletLiveState<'_> {
             .topology
             .core_groups()
             .iter()
-            .filter_map(|other| Self::highest_preference_rank(clock, other))
+            .filter_map(|other| highest_preference_rank(clock, other))
             .collect();
         let differ = ranks.iter().any(|rank| Some(rank) != ranks.first());
         differ
-            && Self::highest_preference_rank(clock, group)
+            && highest_preference_rank(clock, group)
                 .is_some_and(|rank| ranks.iter().all(|other| *other <= rank))
     }
 
@@ -104,4 +95,13 @@ impl ChipletLiveState<'_> {
             })
             .collect()
     }
+}
+
+fn highest_preference_rank(clock: &CpuClock, group: &CoreGroup) -> Option<u32> {
+    clock
+        .cores
+        .iter()
+        .filter(|core| group.contains(core.core))
+        .filter_map(|core| core.preference_rank)
+        .max()
 }

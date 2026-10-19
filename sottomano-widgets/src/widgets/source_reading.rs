@@ -4,41 +4,49 @@ use iced::{
 };
 use sottomano_config::Config;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::Gauge,
-    palette_colors::PaletteColors,
-    phosphor::{Phosphor, Weight},
-    text::{FontFaces, bar_text},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::Gauge,
+        palette_colors::PaletteColors,
+        phosphor::{Phosphor, Weight},
+        text::{FontFaces, bar_text},
+        widget_state::WidgetState,
+    },
 };
 
 pub fn source_reading<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     opacity: f32,
+    clock: Clock,
 ) -> Element<'a, Message> {
-    composed_reading(config, widget, opacity, reading_value)
+    composed_reading(config, widget, opacity, clock, reading_value)
 }
 
 pub fn labeled_reading<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     opacity: f32,
+    clock: Clock,
 ) -> Element<'a, Message> {
-    composed_reading(config, widget, opacity, label_value)
+    composed_reading(config, widget, opacity, clock, label_value)
 }
 
 fn composed_reading<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     opacity: f32,
-    value: fn(&Config, &dyn BarWidget, Color) -> Option<Element<'a, Message>>,
+    clock: Clock,
+    value: fn(&Config, &dyn BarWidget, Color, Clock) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let color = reading_color(config, widget).scale_alpha(opacity);
-    let icon = widget.icon().view(config.theme.font.icon_size_px, color);
+    let color = reading_color(config, widget, clock).scale_alpha(opacity);
+    let icon = widget
+        .icon_at(clock)
+        .view(config.theme.font.icon_size_px, color);
 
-    let reading = match value(config, widget, color) {
+    let reading = match value(config, widget, color, clock) {
         Some(value) => row![icon, value]
             .spacing(icon_value_gap(config))
             .align_y(Alignment::Center)
@@ -46,7 +54,7 @@ fn composed_reading<'a, Message: 'a>(
         None => icon,
     };
 
-    if widget.state() == WidgetState::Failed {
+    if widget.state(clock) == WidgetState::Failed {
         return reading;
     }
     badged(config, reading, widget.badge(), color)
@@ -57,9 +65,9 @@ pub fn icon_value_gap(config: &Config) -> f32 {
     config.layout.panel.widget_spacing / 2.0
 }
 
-pub fn reading_color(config: &Config, widget: &dyn BarWidget) -> Color {
+pub fn reading_color(config: &Config, widget: &dyn BarWidget, clock: Clock) -> Color {
     widget
-        .state()
+        .state(clock)
         .color(&PaletteColors::from(&config.theme.palette))
 }
 
@@ -67,8 +75,9 @@ pub fn reading_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     color: Color,
+    clock: Clock,
 ) -> Option<Element<'a, Message>> {
-    if widget.state() == WidgetState::Failed {
+    if widget.state(clock) == WidgetState::Failed {
         return Some(failure_marker(config, color));
     }
     match widget.gauge() {
@@ -77,7 +86,7 @@ pub fn reading_value<'a, Message: 'a>(
                 .live(widget.live_gauge().unwrap_or(fill))
                 .into(),
         ),
-        None => label_text(config, widget, color),
+        None => label_text(config, widget, color, clock),
     }
 }
 
@@ -85,20 +94,22 @@ fn label_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     color: Color,
+    clock: Clock,
 ) -> Option<Element<'a, Message>> {
-    if widget.state() == WidgetState::Failed {
+    if widget.state(clock) == WidgetState::Failed {
         return Some(failure_marker(config, color));
     }
-    label_text(config, widget, color)
+    label_text(config, widget, color, clock)
 }
 
 fn label_text<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
     color: Color,
+    clock: Clock,
 ) -> Option<Element<'a, Message>> {
     widget
-        .localized_label(config.calendar.locale)
+        .label(clock, config.calendar.locale)
         .filter(|label| !label.is_empty())
         .map(|label| bar_text(&config.theme.font, label).color(color).into())
 }

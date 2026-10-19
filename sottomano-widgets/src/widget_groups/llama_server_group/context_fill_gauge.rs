@@ -2,11 +2,14 @@ use iced::alignment::Horizontal;
 use sottomano_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    gauge::percent_text,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
+    },
 };
 
 fn context_fill(task: &SlotTask, context: u32) -> Ratio {
@@ -55,7 +58,7 @@ impl BarWidget for ContextFill<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Scroll(self.state().weight()).into()
+        Phosphor::Scroll(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
@@ -66,7 +69,7 @@ impl BarWidget for ContextFill<'_> {
         Some(self.fullest)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::new("State").align_x(Horizontal::Left),

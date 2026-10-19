@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Locale, TimeDelta, Utc};
 use humantime::format_duration;
 use situo_client::Position;
 use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
@@ -6,13 +6,16 @@ use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
 };
 use sottomano_state::dark_mode::DarkModeSchedule;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    continuous_reading::ContinuousReading,
-    localized_time::LocalizedTimeFormat,
-    phosphor::Phosphor,
-    tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        continuous_reading::ContinuousReading,
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 pub struct AutoSwitchToggle {
@@ -41,19 +44,17 @@ pub enum SwitchDecision {
     Hold,
 }
 
-impl Default for AutoSwitchToggle {
-    fn default() -> Self {
+impl AutoSwitchToggle {
+    pub fn new(clock: Clock) -> Self {
         Self {
             saved_schedule: ContinuousReading::default(),
             observer: Observer::AwaitingLocationFix,
-            last_switch_check: Utc::now(),
+            last_switch_check: clock.utc(),
         }
     }
-}
 
-impl AutoSwitchToggle {
-    pub fn schedule_tooltip(&self) -> Option<Tooltip> {
-        self.saved_schedule.tooltip_with(self.tooltip())
+    pub fn schedule_tooltip(&self, clock: Clock) -> Option<Tooltip> {
+        self.saved_schedule.tooltip_with(self.tooltip(clock))
     }
 
     pub fn press_does(&self) -> &'static str {
@@ -74,16 +75,16 @@ impl AutoSwitchToggle {
         self.observer = Observer::Located(observer_location);
     }
 
-    pub fn toggle_auto_switch(&mut self) {
+    pub fn toggle_auto_switch(&mut self, clock: Clock) {
         let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
         schedule.auto_switch_armed = !schedule.auto_switch_armed;
-        self.saved_schedule.load(schedule);
+        self.saved_schedule.load(schedule, clock);
     }
 
-    pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets) {
+    pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets, clock: Clock) {
         let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
         schedule.sun_event_offsets = offsets;
-        self.saved_schedule.load(schedule);
+        self.saved_schedule.load(schedule, clock);
     }
 
     pub fn mark_checked(&mut self, now: DateTime<Utc>) {
@@ -135,11 +136,11 @@ impl BarWidget for AutoSwitchToggle {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Clock(self.state().weight()).into()
+        Phosphor::Clock(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
-        let now = Utc::now();
+    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+        let now = clock.utc();
         match self.status_at(now) {
             ScheduleStatus::Following { upcoming, .. } => {
                 let whole_minutes = TimeDelta::minutes((upcoming.switch_time - now).num_minutes());
@@ -151,7 +152,7 @@ impl BarWidget for AutoSwitchToggle {
         }
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(
             self.saved_schedule
                 .get()
@@ -161,8 +162,8 @@ impl BarWidget for AutoSwitchToggle {
         )
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        let upcoming = match self.status_at(Utc::now()) {
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        let upcoming = match self.status_at(clock.utc()) {
             ScheduleStatus::Disarmed => return TooltipBody::sections([]),
             ScheduleStatus::AwaitingLocationFix => {
                 return TooltipBody::dictionary([KeyValue::new(

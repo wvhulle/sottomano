@@ -16,6 +16,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,
     widgets::{
@@ -81,15 +82,6 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    fn account(management_key: PathBuf, config: &Config) -> OpenRouterAccount {
-        let budget = &config.widget_groups.openrouter_credit;
-        OpenRouterAccount {
-            management_key,
-            budget: SpendBudget::new(config, budget.monthly_budget_usd),
-            daily_warning_usd: budget.daily_warning_usd,
-        }
-    }
-
     pub fn refresh(
         &self,
         target: OpenRouterCreditTarget,
@@ -100,7 +92,7 @@ impl OpenRouterCreditGroup {
         };
         match target {
             OpenRouterCreditTarget::SoftBudget | OpenRouterCreditTarget::ModelBreakdown => {
-                first_delivery::<OpenRouterSpend>(Self::account(key, config))
+                first_delivery::<OpenRouterSpend>(account(key, config))
                     .map(OpenRouterCreditMessage::SoftBudget)
             }
             OpenRouterCreditTarget::StrictBudget => first_delivery::<OpenRouterStrictBudget>(key)
@@ -111,7 +103,7 @@ impl OpenRouterCreditGroup {
     pub fn subscription(&self, config: &Config) -> Subscription<OpenRouterCreditMessage> {
         Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
             [
-                source_subscription::<OpenRouterSpend>(Self::account(key.clone(), config))
+                source_subscription::<OpenRouterSpend>(account(key.clone(), config))
                     .map(OpenRouterCreditMessage::SoftBudget),
                 source_subscription::<OpenRouterStrictBudget>(key)
                     .map(OpenRouterCreditMessage::StrictBudget),
@@ -119,11 +111,17 @@ impl OpenRouterCreditGroup {
         }))
     }
 
-    pub fn update(&mut self, message: OpenRouterCreditMessage) -> Task<OpenRouterCreditMessage> {
+    pub fn update(
+        &mut self,
+        message: OpenRouterCreditMessage,
+        clock: Clock,
+    ) -> Task<OpenRouterCreditMessage> {
         match message {
-            OpenRouterCreditMessage::SoftBudget(reading) => self.spend.receive_delivery(reading),
+            OpenRouterCreditMessage::SoftBudget(reading) => {
+                self.spend.receive_delivery(reading, clock);
+            }
             OpenRouterCreditMessage::StrictBudget(reading) => {
-                self.strict_budget.receive_delivery(reading);
+                self.strict_budget.receive_delivery(reading, clock);
             }
             OpenRouterCreditMessage::Expansion(menu) => {
                 self.expansion.update(menu);
@@ -140,13 +138,13 @@ impl OpenRouterCreditGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: OpenRouterCreditTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: OpenRouterCreditTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(),
-            OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(),
-            OpenRouterCreditTarget::ModelBreakdown => {
-                self.spend.tooltip_with(self.model_breakdown()?.tooltip())
-            }
+            OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(clock),
+            OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(clock),
+            OpenRouterCreditTarget::ModelBreakdown => self
+                .spend
+                .tooltip_with(self.model_breakdown()?.tooltip(clock)),
         }
     }
 
@@ -170,5 +168,14 @@ impl OpenRouterCreditGroup {
             handle: GroupHandle::OpenRouterCredit,
         })
         .preview(self.spend.display().map(PreviewedValue::Plain))
+    }
+}
+
+fn account(management_key: PathBuf, config: &Config) -> OpenRouterAccount {
+    let budget = &config.widget_groups.openrouter_credit;
+    OpenRouterAccount {
+        management_key,
+        budget: SpendBudget::new(config, budget.monthly_budget_usd),
+        daily_warning_usd: budget.daily_warning_usd,
     }
 }

@@ -20,6 +20,7 @@ use uom::si::f64::Ratio;
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     shell_message::AppWindowFocus,
@@ -81,7 +82,6 @@ pub struct MediaGroup {
     forced: Option<String>,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
-    now: Instant,
     expansion: GroupExpansion,
 }
 
@@ -93,7 +93,6 @@ impl Default for MediaGroup {
             forced: None,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(true),
-            now: Instant::now(),
             expansion: GroupExpansion::default(),
         }
     }
@@ -112,7 +111,7 @@ pub enum MediaMessage {
         url: String,
         handle: Option<IconHandle>,
     },
-    Tick(Instant),
+    ProgressAdvanced,
     Expansion(ExpansionMessage),
     Command(Command),
     Seek(SeekMessage),
@@ -135,7 +134,10 @@ impl MediaGroup {
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<MediaMessage> {
         let readings = source_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
         if self.is_progressing() {
-            Subscription::batch([readings, every(PROGRESS_TICK).map(MediaMessage::Tick)])
+            Subscription::batch([
+                readings,
+                every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced),
+            ])
         } else {
             readings
         }
@@ -157,13 +159,12 @@ impl MediaGroup {
             .or_else(|| players.first())
     }
 
-    pub fn update(&mut self, msg: MediaMessage) -> Action {
+    pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
         match msg {
-            MediaMessage::Tick(now) => self.now = now,
+            MediaMessage::ProgressAdvanced => {}
             MediaMessage::Reading(delivery) => {
-                self.players.receive_keeping_last_reading(delivery);
+                self.players.receive_keeping_last_reading(delivery, clock);
                 let art_loads = self.art_loads();
-                self.now = Instant::now();
                 if let Some(bus) = &self.forced
                     && !self
                         .players
@@ -175,7 +176,7 @@ impl MediaGroup {
                     self.forced = None;
                 }
                 if let Some(media) = self.current().cloned() {
-                    self.seek_bar.player_reported(&media, self.now);
+                    self.seek_bar.player_reported(&media, clock.instant);
                 }
                 return Action::Run(art_loads);
             }
@@ -188,7 +189,7 @@ impl MediaGroup {
                 }
             }
             MediaMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
-                return Action::Run(self.seek_by(SeekMessage::Scroll(delta)));
+                return Action::Run(self.seek_by(SeekMessage::Scroll(delta), clock.instant));
             }
             MediaMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -197,7 +198,9 @@ impl MediaGroup {
             MediaMessage::Command(Command::Raise) => return self.raise(),
             MediaMessage::RaiseByMpris => return Action::Run(self.raise_by_mpris()),
             MediaMessage::Command(command) => return Action::Run(self.send(command)),
-            MediaMessage::Seek(message) => return Action::Run(self.seek_by(message)),
+            MediaMessage::Seek(message) => {
+                return Action::Run(self.seek_by(message, clock.instant));
+            }
             MediaMessage::CancelQuit => self.quit_button.disarm(),
             MediaMessage::Quit => match self.quit_button.press() {
                 Press::Armed => {}
@@ -233,11 +236,11 @@ impl MediaGroup {
         }))
     }
 
-    fn seek_by(&mut self, message: SeekMessage) -> Task<MediaMessage> {
+    fn seek_by(&mut self, message: SeekMessage, now: Instant) -> Task<MediaMessage> {
         let Some(media) = self.current().cloned() else {
             return Task::none();
         };
-        let Some(command) = self.seek_bar.update(message, &media, self.now) else {
+        let Some(command) = self.seek_bar.update(message, &media, now) else {
             return Task::none();
         };
         self.seek(command)
@@ -317,50 +320,18 @@ impl MediaGroup {
             .collect()
     }
 
-    fn sources<'a>(
-        config: &Config,
-        index: &DesktopIndex,
-        players: &[&Media],
-        current: &Media,
-        reveal: f32,
-    ) -> Element<'a, GroupEvent<MediaMessage>> {
-        let side = config.theme.font.icon_size_px;
-        let icons: Vec<Element<'a, GroupEvent<MediaMessage>>> = players
-            .iter()
-            .map(|m| {
-                let selected = m.bus == current.bus;
-                let opacity = reveal * if selected { 1.0 } else { 0.4 };
-                let icon = source_icon(config, index, m, side, opacity).map(GroupEvent::Group);
-                hoverable(
-                    button(icon)
-                        .padding(0)
-                        .style(flat_button(
-                            PaletteColors::from(&config.theme.palette).bar_foreground,
-                        ))
-                        .on_press(GroupEvent::Group(MediaMessage::Source(m.bus.clone())))
-                        .into(),
-                    MediaTarget::Source(m.bus.clone()).into(),
-                    PressHints {
-                        left: (!selected).then_some("control this player"),
-                        ..PressHints::default()
-                    },
-                    GroupEvent::Tooltip,
-                )
-            })
-            .collect();
-        Row::with_children(icons)
-            .spacing(config.layout.panel.widget_spacing)
-            .align_y(Alignment::Center)
-            .into()
-    }
-
     #[must_use]
-    pub fn tooltip_for(&self, target: &MediaTarget, index: &DesktopIndex) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: &MediaTarget,
+        index: &DesktopIndex,
+        clock: Clock,
+    ) -> Option<Tooltip> {
         let media = self.current()?;
         match target {
             MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
                 track_section(media, index),
-                playback_section(media, self.now),
+                playback_section(media, clock.instant),
                 search_section(media, index),
             ])),
             MediaTarget::Source(bus) => {
@@ -386,6 +357,7 @@ impl MediaGroup {
         &'a self,
         config: &'a Config,
         index: &'a DesktopIndex,
+        clock: Clock,
     ) -> GroupContent<'a, MediaMessage> {
         let Some(media) = self.current() else {
             return GroupContent::new(&self.expansion, MediaMessage::Expansion, []);
@@ -397,14 +369,14 @@ impl MediaGroup {
         };
         let players = self.titled_players();
         let sources = (players.len() >= 2).then(|| {
-            GroupItem::element(move |reveal| Self::sources(config, index, &players, media, reveal))
+            GroupItem::element(move |reveal| sources_strip(config, index, &players, media, reveal))
         });
-        let seekable = SeekBar::seekable(media, self.now);
+        let seekable = SeekBar::seekable(media, clock.instant);
         let seek = seekable.then(|| {
             GroupItem::element(move |_| {
                 hoverable(
                     self.seek_bar
-                        .view(config, media, self.now)
+                        .view(config, media, clock.instant)
                         .map_or_else(|| Row::new().into(), |bar| bar.map(MediaMessage::Seek))
                         .map(GroupEvent::Group),
                     MediaTarget::Seek.into(),
@@ -419,7 +391,7 @@ impl MediaGroup {
         });
         let gauge_fraction = media
             .progress
-            .fraction(media.status, self.now)
+            .fraction(media.status, clock.instant)
             .filter(|_| !(seekable && self.expansion.is_expanded()));
         let session = (!self.session_controls(config, media, 1.0).is_empty()).then(|| {
             GroupItem::element(move |reveal| self.session_controls(config, media, reveal).into())
@@ -480,6 +452,43 @@ impl MediaGroup {
             },
         )
     }
+}
+
+fn sources_strip<'a>(
+    config: &Config,
+    index: &DesktopIndex,
+    players: &[&Media],
+    current: &Media,
+    reveal: f32,
+) -> Element<'a, GroupEvent<MediaMessage>> {
+    let side = config.theme.font.icon_size_px;
+    let icons: Vec<Element<'a, GroupEvent<MediaMessage>>> = players
+        .iter()
+        .map(|m| {
+            let selected = m.bus == current.bus;
+            let opacity = reveal * if selected { 1.0 } else { 0.4 };
+            let icon = source_icon(config, index, m, side, opacity).map(GroupEvent::Group);
+            hoverable(
+                button(icon)
+                    .padding(0)
+                    .style(flat_button(
+                        PaletteColors::from(&config.theme.palette).bar_foreground,
+                    ))
+                    .on_press(GroupEvent::Group(MediaMessage::Source(m.bus.clone())))
+                    .into(),
+                MediaTarget::Source(m.bus.clone()).into(),
+                PressHints {
+                    left: (!selected).then_some("control this player"),
+                    ..PressHints::default()
+                },
+                GroupEvent::Tooltip,
+            )
+        })
+        .collect();
+    Row::with_children(icons)
+        .spacing(config.layout.panel.widget_spacing)
+        .align_y(Alignment::Center)
+        .into()
 }
 
 fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaMessage> {

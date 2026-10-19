@@ -225,12 +225,6 @@ Actions the sender offers appear as buttons in the toast.
 
 <img src="recordings/toast_actions.webp" width="720" alt="Hovering the actions of an invitation toast and accepting it">
 
-#### Reply
-
-A chat toast takes a reply inline, when the sender supports it.
-
-<img src="recordings/toast_reply.webp" width="720" alt="Typing an inline reply into a chat toast and sending it">
-
 #### Next to its window
 
 When the sending window is visible, the toast sits beside it instead of in a corner.

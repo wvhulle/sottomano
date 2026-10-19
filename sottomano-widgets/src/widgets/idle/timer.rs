@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use chrono::Utc;
 use humantime::format_duration;
 use iced::Element;
 use sottomano_config::Config;
 use sottomano_sources::login_session_presence::session_power_actions::SessionAction;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
@@ -105,22 +105,32 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn tooltip(&self) -> Tooltip {
-        self.tooltip_of(timeout_at(self.control.current()), None)
+    pub fn tooltip(&self, clock: Clock) -> Tooltip {
+        self.tooltip_of(timeout_at(self.control.current()), None, clock)
     }
 
     #[must_use]
-    pub fn tooltip_overridden_by(&self, overrider: &'static str, timeout: Duration) -> Tooltip {
-        self.tooltip_of(Some(timeout), Some(overrider))
+    pub fn tooltip_overridden_by(
+        &self,
+        overrider: &'static str,
+        timeout: Duration,
+        clock: Clock,
+    ) -> Tooltip {
+        self.tooltip_of(Some(timeout), Some(overrider), clock)
     }
 
-    fn tooltip_of(&self, timeout: Option<Duration>, overrider: Option<&'static str>) -> Tooltip {
+    fn tooltip_of(
+        &self,
+        timeout: Option<Duration>,
+        overrider: Option<&'static str>,
+        clock: Clock,
+    ) -> Tooltip {
         let when = match timeout {
             None => KeyValue::new("State", "disabled"),
             Some(timeout) => KeyValue::new(
                 format!("{} at", self.action.verb()),
                 Cell::Time {
-                    at: Utc::now() + chrono::Duration::from_std(timeout).unwrap_or_default(),
+                    at: clock.utc() + chrono::Duration::from_std(timeout).unwrap_or_default(),
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
@@ -139,7 +149,12 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, ControlMessage> {
-        self.control.view(config, reveal)
+    pub fn view<'a>(
+        &'a self,
+        config: &'a Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, ControlMessage> {
+        self.control.view(config, reveal, clock)
     }
 }

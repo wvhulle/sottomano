@@ -11,6 +11,7 @@ use sottomano_sources::{
 use uom::si::f64::Ratio;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         amount_text::{duration_text, percent_text},
@@ -143,6 +144,7 @@ impl<Message> OngoingToast<Message> {
         widget: &dyn BarWidget,
         on_body_clicked: Message,
         locale: Locale,
+        clock: Clock,
     ) -> Option<Self> {
         let OngoingToastThreshold::NotifyFromSeverity {
             minimum_severity,
@@ -151,15 +153,15 @@ impl<Message> OngoingToast<Message> {
         else {
             return None;
         };
-        let severity = alerting_severity_of(widget.state());
+        let severity = alerting_severity_of(widget.state(clock));
         (severity > Severity::Normal && severity >= minimum_severity).then(|| Self {
             widget_name: widget.name(),
             key: OngoingKey::Reading(hover_target),
             severity,
             summary_text: Cow::Borrowed(summary_text),
-            body: widget.ongoing_toast_body(locale),
+            body: widget.ongoing_toast_body(clock, locale),
             progress: widget.gauge(),
-            since: SystemTime::now(),
+            since: clock.wall,
             on_body_clicked,
             action_buttons: Vec::new(),
         })
@@ -169,9 +171,10 @@ impl<Message> OngoingToast<Message> {
         hover_target: impl Into<HoverTarget>,
         widget: &dyn BarWidget,
         on_body_clicked: Message,
+        clock: Clock,
     ) -> Option<Self> {
         let alerting: Vec<Quota> = widget
-            .quota_windows(Utc::now())
+            .quota_windows(clock.utc())
             .into_iter()
             .filter(|quota| quota.severity() >= Severity::Warning)
             .collect();
@@ -183,7 +186,7 @@ impl<Message> OngoingToast<Message> {
             summary_text: Cow::Owned(format!("{} runs out before reset", worst.label)),
             progress: Some(worst.used),
             body: OngoingBody::QuotaPace(alerting),
-            since: SystemTime::now(),
+            since: clock.wall,
             on_body_clicked,
             action_buttons: Vec::new(),
         })
@@ -261,7 +264,7 @@ mod tests {
             Phosphor::Question(Weight::Regular).into()
         }
 
-        fn state(&self) -> WidgetState {
+        fn state(&self, _clock: Clock) -> WidgetState {
             self.state
         }
 
@@ -269,7 +272,7 @@ mod tests {
             self.threshold
         }
 
-        fn tooltip(&self) -> TooltipBody {
+        fn tooltip(&self, _clock: Clock) -> TooltipBody {
             TooltipBody::sections([])
         }
     }
@@ -290,6 +293,7 @@ mod tests {
             &FixedReading { state, threshold },
             0,
             Locale::default(),
+            Clock::real(),
         )
     }
 

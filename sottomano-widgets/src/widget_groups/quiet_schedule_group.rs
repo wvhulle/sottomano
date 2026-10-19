@@ -16,6 +16,7 @@ use tokio::time::sleep;
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
@@ -199,10 +200,10 @@ impl QuietScheduleGroup {
         [manual_expiry, scheduled].into_iter().flatten().min()
     }
 
-    pub fn update(&mut self, msg: QuietScheduleMessage) -> QuietUpdate {
+    pub fn update(&mut self, msg: QuietScheduleMessage, clock: Clock) -> QuietUpdate {
         let before = self.phase;
-        let handled = self.handle(msg);
-        let now = Local::now();
+        let handled = self.handle(msg, clock);
+        let now = clock.local();
         self.phase = self.phase_at(now);
         let change = if before == self.phase {
             QuietChange::None
@@ -219,10 +220,10 @@ impl QuietScheduleGroup {
         }
     }
 
-    fn handle(&mut self, msg: QuietScheduleMessage) -> Task<QuietScheduleMessage> {
+    fn handle(&mut self, msg: QuietScheduleMessage, clock: Clock) -> Task<QuietScheduleMessage> {
         match msg {
             QuietScheduleMessage::ScheduleLoaded(delivery) => {
-                self.saved.receive_keeping_last_reading(delivery);
+                self.saved.receive_keeping_last_reading(delivery, clock);
                 let schedule = self.schedule();
                 self.start_slider
                     .update(ControlMessage::Reading(clock_minutes(schedule.start)));
@@ -232,28 +233,28 @@ impl QuietScheduleGroup {
                     .update(ControlMessage::Reading(position(schedule.screen_off)));
                 self.screen_off_slider
                     .update(ControlMessage::Disabled(schedule.screen_off.is_none()));
-                self.phase = self.phase_at(Local::now());
+                self.phase = self.phase_at(clock.local());
                 Task::none()
             }
             QuietScheduleMessage::EdgeDue => {
-                let now = Local::now();
+                let now = clock.local();
                 if self.manual.is_some() && self.manual_at(now).is_none() {
                     self.manual = None;
                 }
                 Task::none()
             }
             QuietScheduleMessage::ToggleQuietNow => {
-                self.toggle_quiet_now(Local::now());
+                self.toggle_quiet_now(clock.local());
                 Task::none()
             }
             QuietScheduleMessage::ToggleFollowsSchedule => {
                 let mut schedule = self.schedule();
                 schedule.follows_schedule = !schedule.follows_schedule;
                 self.manual = None;
-                self.saved.load(schedule);
+                self.saved.load(schedule, clock);
                 Task::future(quiet_hours::save(schedule)).discard()
             }
-            QuietScheduleMessage::Slider(slider, m) => self.update_slider(slider, m),
+            QuietScheduleMessage::Slider(slider, m) => self.update_slider(slider, m, clock),
             QuietScheduleMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_sliders();
@@ -280,6 +281,7 @@ impl QuietScheduleGroup {
         &mut self,
         slider: QuietSlider,
         m: ControlMessage,
+        clock: Clock,
     ) -> Task<QuietScheduleMessage> {
         match self.slider_mut(slider).update(m) {
             Action::Opened => {
@@ -297,7 +299,7 @@ impl QuietScheduleGroup {
                             .update(ControlMessage::Disabled(schedule.screen_off.is_none()));
                     }
                 }
-                self.saved.load(schedule);
+                self.saved.load(schedule, clock);
                 Task::future(quiet_hours::save(schedule)).map(move |ok| {
                     QuietScheduleMessage::Slider(slider, ControlMessage::Persisted { value, ok })
                 })
@@ -375,11 +377,13 @@ impl QuietScheduleGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: QuietScheduleTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: QuietScheduleTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            QuietScheduleTarget::DoNotDisturb => self.saved.tooltip_with(self.status_tooltip()),
+            QuietScheduleTarget::DoNotDisturb => {
+                self.saved.tooltip_with(self.status_tooltip(clock))
+            }
             QuietScheduleTarget::FollowSchedule => {
-                Some(self.follow_schedule_toggle().switch_tooltip())
+                Some(self.follow_schedule_toggle().switch_tooltip(clock))
             }
             QuietScheduleTarget::Start => Some(self.start_slider.readout_tooltip("Quiet from")),
             QuietScheduleTarget::End => Some(self.end_slider.readout_tooltip("Quiet until")),
@@ -390,8 +394,8 @@ impl QuietScheduleGroup {
         }
     }
 
-    fn status_tooltip(&self) -> TooltipBody {
-        let now = Local::now();
+    fn status_tooltip(&self, clock: Clock) -> TooltipBody {
+        let now = clock.local();
         let manual = self
             .manual_at(now)
             .map(|_| KeyValue::new("Set", "by hand, until the schedule next changes"));

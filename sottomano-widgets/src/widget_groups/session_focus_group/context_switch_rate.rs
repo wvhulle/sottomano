@@ -1,15 +1,18 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
     Accounting, Interval, WakingWindow,
 };
 
-use crate::widgets::{
-    amount_text::duration_text,
-    bar_widget::{BarWidget, Glyph},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::duration_text,
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 pub struct ContextSwitchRate<'a> {
@@ -18,15 +21,8 @@ pub struct ContextSwitchRate<'a> {
 }
 
 impl ContextSwitchRate<'_> {
-    fn last_hour(now: DateTime<Utc>) -> Interval {
-        Interval {
-            from: now - TimeDelta::hours(1),
-            until: now,
-        }
-    }
-
     fn per_hour(&self, now: DateTime<Utc>) -> usize {
-        self.accounting.switches_within(Self::last_hour(now), now)
+        self.accounting.switches_within(last_hour(now), now)
     }
 
     fn severity(&self, now: DateTime<Utc>) -> Severity {
@@ -40,9 +36,8 @@ impl ContextSwitchRate<'_> {
         }
     }
 
-    pub fn sections(&self) -> [Section; 2] {
-        let now = Utc::now();
-        let last_hour = Self::last_hour(now);
+    pub fn sections(&self, now: DateTime<Utc>) -> [Section; 2] {
+        let last_hour = last_hour(now);
         let today = self.waking.around(now);
         let switches_today = self.accounting.switches_within(today, now);
         let active_today = self.accounting.screen_spent(today, now);
@@ -80,24 +75,31 @@ impl ContextSwitchRate<'_> {
     }
 }
 
+fn last_hour(now: DateTime<Utc>) -> Interval {
+    Interval {
+        from: now - TimeDelta::hours(1),
+        until: now,
+    }
+}
+
 impl BarWidget for ContextSwitchRate<'_> {
     fn name(&self) -> &'static str {
         "Context switches"
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Shuffle(self.state().weight()).into()
+        Phosphor::Shuffle(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
-        Some(format!("{}/h", self.per_hour(Utc::now())))
+    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+        Some(format!("{}/h", self.per_hour(clock.utc())))
     }
 
-    fn state(&self) -> WidgetState {
-        self.severity(Utc::now()).into()
+    fn state(&self, clock: Clock) -> WidgetState {
+        self.severity(clock.utc()).into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        TooltipBody::sections(self.sections())
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        TooltipBody::sections(self.sections(clock.utc()))
     }
 }

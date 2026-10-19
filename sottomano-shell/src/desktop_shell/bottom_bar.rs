@@ -16,7 +16,8 @@ impl DesktopShell {
     pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let config = &self.config;
         let BottomBarGroups { start, end } = self.bottom_bar_groups();
-        let view = |group: GroupContent<'a, Message>| group.view(config, Position::Bottom);
+        let view =
+            |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
         self.panel_bar(
             Position::Bottom,
             start
@@ -64,6 +65,7 @@ impl DesktopShell {
                 Position::Bottom,
                 &self.drag_view(),
                 self.configured_workspaces.as_ref(),
+                self.clock,
             )
             .map(|workspaces| workspaces.map(Message::from)),
         }
@@ -79,6 +81,7 @@ impl DesktopShell {
                 &self.config,
                 Position::Bottom,
                 &self.drag_view(),
+                self.clock,
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }

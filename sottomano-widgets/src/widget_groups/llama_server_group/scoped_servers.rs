@@ -17,6 +17,7 @@ use super::{
 };
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -110,23 +111,29 @@ impl ScopedLlamaServers {
             .collect();
     }
 
-    pub fn update(&mut self, message: ScopedServersMessage) -> Task<ScopedServersMessage> {
+    pub fn update(
+        &mut self,
+        message: ScopedServersMessage,
+        clock: Clock,
+    ) -> Task<ScopedServersMessage> {
         match message {
             ScopedServersMessage::Services(delivery) => {
-                self.services.receive_keeping_last_reading(delivery);
+                self.services.receive_keeping_last_reading(delivery, clock);
                 self.adopt_discovered();
                 Task::none()
             }
             ScopedServersMessage::Switch(unit, message) => match self.servers.get_mut(&unit) {
                 Some(readings) => readings
                     .switch
-                    .update(message)
+                    .update(message, clock)
                     .map(move |message| ScopedServersMessage::Switch(unit.clone(), message)),
                 None => Task::none(),
             },
             ScopedServersMessage::Server(unit, delivery) => {
                 if let Some(readings) = self.servers.get_mut(&unit) {
-                    readings.server.receive_keeping_last_reading(delivery);
+                    readings
+                        .server
+                        .receive_keeping_last_reading(delivery, clock);
                 }
                 Task::none()
             }
@@ -147,12 +154,13 @@ impl ScopedLlamaServers {
         &self,
         target: &LlamaServerTarget,
         model_props: Vec<Section>,
+        clock: Clock,
     ) -> Option<Tooltip> {
         let readings = self.servers.get(&target.unit)?;
         let reading = &readings.server;
         let server = reading.get();
         match target.reading {
-            LlamaServerReading::Switch => readings.switch.tooltip(server.is_some()),
+            LlamaServerReading::Switch => readings.switch.tooltip(server.is_some(), clock),
             LlamaServerReading::Model => {
                 let server = server?;
                 let resident = server.resident_model();
@@ -184,13 +192,13 @@ impl ScopedLlamaServers {
                 )
             }
             LlamaServerReading::GenerationRate => {
-                reading.tooltip_with(GenerationRate(server?.generation_rate?).tooltip())
+                reading.tooltip_with(GenerationRate(server?.generation_rate?).tooltip(clock))
             }
             LlamaServerReading::Slots => {
-                reading.tooltip_with(SlotOccupancy(&server?.slots).tooltip())
+                reading.tooltip_with(SlotOccupancy(&server?.slots).tooltip(clock))
             }
             LlamaServerReading::ContextFill => {
-                reading.tooltip_with(ContextFill::of_busy_slots(&server?.slots)?.tooltip())
+                reading.tooltip_with(ContextFill::of_busy_slots(&server?.slots)?.tooltip(clock))
             }
         }
     }

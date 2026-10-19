@@ -3,6 +3,7 @@ use sottomano_config::Config;
 use sottomano_state::{LayerAppearance, NotificationSettings, ShellLayer, shell_settings};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widgets::{
@@ -78,13 +79,14 @@ impl OverlaySettingsGroup {
         target: OverlaySettingsTarget,
         notifications: NotificationSettings,
         overlays: &LayerAppearance,
+        clock: Clock,
     ) -> Tooltip {
         match target {
             OverlaySettingsTarget::ToastSpatialLayout => {
-                toast_spatial_layout_toggle(notifications).switch_tooltip()
+                toast_spatial_layout_toggle(notifications).switch_tooltip(clock)
             }
             OverlaySettingsTarget::Appearance(target) => {
-                self.appearance.tooltip_for(target, overlays)
+                self.appearance.tooltip_for(target, overlays, clock)
             }
         }
     }

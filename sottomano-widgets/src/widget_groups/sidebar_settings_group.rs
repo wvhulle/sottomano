@@ -5,6 +5,7 @@ use sottomano_state::{
 };
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widgets::{
@@ -71,13 +72,14 @@ impl SidebarSettingsGroup {
         target: SidebarSettingsTarget,
         shell_layout: &ShellLayout,
         sidebar: &LayerAppearance,
+        clock: Clock,
     ) -> Tooltip {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(shell_layout).switch_tooltip()
+                workspaces_sidebar_toggle(shell_layout).switch_tooltip(clock)
             }
             SidebarSettingsTarget::Appearance(target) => {
-                self.appearance.tooltip_for(target, sidebar)
+                self.appearance.tooltip_for(target, sidebar, clock)
             }
         }
     }

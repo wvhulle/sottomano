@@ -14,7 +14,6 @@ use std::{
     sync::Arc,
 };
 
-use chrono::Utc;
 use iced::{
     Color, Element, Length, Task, font,
     task::Handle,
@@ -49,6 +48,7 @@ use sottomano_state::{
 };
 use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
+    clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::TooltipHost,
     notification_toasts::{NotificationLayer, ToastContext},
@@ -103,6 +103,7 @@ pub struct DesktopShell {
     pub wayland: Option<wayland_client::Connection>,
     pub desktop_buses: Option<DesktopBuses>,
     pub config_file: ConfigFile,
+    pub clock: Clock,
     pub config: Config,
     pub theme: iced::Theme,
     pub shell_settings: ShellSettings,
@@ -169,6 +170,7 @@ impl DesktopShell {
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("desktop shell init").entered();
         FontFaces::point_generic_families_at(&config.theme);
+        let clock = Clock::real();
         let shell = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
@@ -194,7 +196,7 @@ impl DesktopShell {
             color_temperature_group: ColorTemperatureGroup::new(
                 config.launched_programs.color_temperature_service.clone(),
             ),
-            dark_mode_group: DarkModeGroup::default(),
+            dark_mode_group: DarkModeGroup::new(clock),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             audio_group: AudioGroup::default(),
@@ -202,7 +204,7 @@ impl DesktopShell {
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
             openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
             llama_server_group: LlamaServerGroup::default(),
-            session_focus_group: SessionFocusGroup::started_at(Utc::now()),
+            session_focus_group: SessionFocusGroup::started_at(clock.utc()),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
@@ -227,6 +229,7 @@ impl DesktopShell {
             desktop_buses: None,
             config,
             config_file,
+            clock,
         };
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
@@ -256,6 +259,7 @@ impl DesktopShell {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
+        self.clock = Clock::real();
         let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
         let dispatched = self.dispatch_message(message);
@@ -273,6 +277,7 @@ impl DesktopShell {
                 &self.config,
                 &self.shell_settings,
                 self.quiet_schedule_group.is_quiet(),
+                self.clock,
             ),
         );
         Task::batch([
@@ -313,13 +318,22 @@ impl DesktopShell {
                 .favicons
                 .retry_unresolved()
                 .map(Message::FaviconsResolved),
-            Message::Weather(msg) => self.weather_group.update(msg).map(Message::Weather),
-            Message::Wallpaper(msg) => self.wallpaper_group.update(msg).map(Message::Wallpaper),
+            Message::Weather(msg) => self
+                .weather_group
+                .update(msg, self.clock)
+                .map(Message::Weather),
+            Message::Wallpaper(msg) => self
+                .wallpaper_group
+                .update(msg, self.clock)
+                .map(Message::Wallpaper),
             Message::Notification(msg) => self.update_notification(msg),
-            Message::Power(msg) => self.power_group.update(msg).map(Message::Power),
-            Message::Compute(msg) => self.compute_group.update(msg).map(Message::Compute),
-            Message::Gpu(msg) => self.gpu_group.update(msg).map(Message::Gpu),
-            Message::Disk(msg) => self.disk_group.update(msg).map(Message::Disk),
+            Message::Power(msg) => self.power_group.update(msg, self.clock).map(Message::Power),
+            Message::Compute(msg) => self
+                .compute_group
+                .update(msg, self.clock)
+                .map(Message::Compute),
+            Message::Gpu(msg) => self.gpu_group.update(msg, self.clock).map(Message::Gpu),
+            Message::Disk(msg) => self.disk_group.update(msg, self.clock).map(Message::Disk),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::SidebarSettings(msg) => self.sidebar_settings_group.update(
                 msg,
@@ -329,38 +343,51 @@ impl DesktopShell {
             Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
-            Message::Clock(msg) => self.clock_group.update(msg).map(Message::Clock),
+            Message::Clock(msg) => self.clock_group.update(msg, self.clock).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
             Message::Session(msg) => self.update_session(msg),
             Message::SystemdManager(msg) => self
                 .systemd_manager_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::SystemdManager),
             Message::JournalEvents(msg) => self
                 .journal_events_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::JournalEvents),
             Message::PendingUpgrades(msg) => self
                 .pending_upgrades_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::PendingUpgrades),
             Message::NetInterfaces(msg) => self
                 .net_interfaces_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::NetInterfaces),
-            Message::Internet(msg) => self.internet_group.update(msg).map(Message::Internet),
-            Message::Monitor(msg) => self.monitor_group.update(msg).map(Message::Monitor),
+            Message::Internet(msg) => self
+                .internet_group
+                .update(msg, self.clock)
+                .map(Message::Internet),
+            Message::Monitor(msg) => self
+                .monitor_group
+                .update(msg, self.clock)
+                .map(Message::Monitor),
             Message::ColorTemperature(msg) => self
                 .color_temperature_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::ColorTemperature),
-            Message::DarkMode(msg) => self.dark_mode_group.update(msg).map(Message::DarkMode),
+            Message::DarkMode(msg) => self
+                .dark_mode_group
+                .update(msg, self.clock)
+                .map(Message::DarkMode),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
                 self.session_focus_group
-                    .screen_power_changed(edge, self.quiet_schedule_group.waking_window())
+                    .screen_power_changed(
+                        edge,
+                        self.quiet_schedule_group.waking_window(),
+                        self.clock,
+                    )
                     .map(Message::SessionFocus)
             }
             Message::IdleTimeouts(msg) => self
@@ -377,30 +404,30 @@ impl DesktopShell {
             Message::ConfigFileChanged => self.reload_config(),
             Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
             Message::ConfigLoaded(Err(error)) => self.reject_config(&error),
-            Message::Audio(msg) => self.audio_group.update(msg).map(Message::Audio),
+            Message::Audio(msg) => self.audio_group.update(msg, self.clock).map(Message::Audio),
             Message::ClaudeUsage(msg) => self
                 .claude_usage_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::ClaudeUsage),
             Message::CopilotUsage(msg) => self
                 .copilot_usage_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::CopilotUsage),
             Message::OpenRouterCredit(msg) => self
                 .openrouter_credit_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::OpenRouterCredit),
             Message::LlamaServer(msg) => self
                 .llama_server_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::LlamaServer),
             Message::SessionFocus(msg) => self
                 .session_focus_group
-                .update(msg, self.quiet_schedule_group.waking_window())
+                .update(msg, self.quiet_schedule_group.waking_window(), self.clock)
                 .map(Message::SessionFocus),
             Message::LoginSession(msg) => self
                 .login_session_group
-                .update(msg)
+                .update(msg, self.clock)
                 .map(Message::LoginSession),
             Message::DismissPressed => {
                 self.collapse_groups();
@@ -414,7 +441,7 @@ impl DesktopShell {
             Message::Tooltip(msg) => self.update_tooltip(msg),
             Message::PointerLeft => {
                 self.pointer_drag = ShellDrag::Idle;
-                self.tooltip.leave_after_grace()
+                self.leave_tooltip()
             }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
@@ -437,6 +464,7 @@ impl DesktopShell {
                         &self.config,
                         &self.shell_settings,
                         self.quiet_schedule_group.is_quiet(),
+                        self.clock,
                     ),
                 )
             }
@@ -462,11 +490,10 @@ impl DesktopShell {
             Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => {
-                self.notifications.prune();
+                self.notifications.prune(self.clock.instant);
                 Task::none()
             }
-            Message::TooltipTick
-            | Message::LayoutChange { .. }
+            Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
             | Message::PopUpReposition { .. }
             | Message::SetInputRegion { .. }
@@ -508,6 +535,7 @@ impl DesktopShell {
                         &placement,
                         &self.config,
                         self.shell_settings.notifications,
+                        self.clock.instant,
                     ),
                     task,
                 ])
@@ -536,6 +564,7 @@ impl DesktopShell {
             &placement,
             &self.config,
             self.shell_settings.notifications,
+            self.clock.instant,
         )
     }
 
@@ -551,7 +580,7 @@ impl DesktopShell {
     }
 
     fn dispatch_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
-        match self.window_group.update(msg) {
+        match self.window_group.update(msg, self.clock) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
@@ -569,7 +598,7 @@ impl DesktopShell {
 
     fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
         let players_changed = matches!(msg, MediaMessage::Reading(_));
-        let task = match self.media_group.update(msg) {
+        let task = match self.media_group.update(msg, self.clock) {
             media_group::Action::Run(task) => task.map(Message::Media),
             media_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Media)
@@ -592,7 +621,7 @@ impl DesktopShell {
     }
 
     fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
-        match self.tray_group.update(msg) {
+        match self.tray_group.update(msg, self.clock) {
             tray_group::Action::None => Task::none(),
             tray_group::Action::MenuItemActivated => self.dismiss_tooltip(),
             tray_group::Action::FocusAppWindow(focus) => {
@@ -645,7 +674,8 @@ impl DesktopShell {
         let previous = mem::replace(&mut self.config, config);
         self.theme = iced::Theme::from(&PaletteColors::from(&self.config.theme.palette));
         Task::batch([
-            self.notifications.withdraw_config_error(&self.config),
+            self.notifications
+                .withdraw_config_error(&self.config, self.clock.instant),
             self.adopt_fonts(&previous.theme),
             self.adopt_panel_bar(&previous.panel_bar),
             self.adopt_color_temperature_service(
@@ -702,16 +732,19 @@ impl DesktopShell {
                 &self.config,
                 &self.shell_settings,
                 self.quiet_schedule_group.is_quiet(),
+                self.clock,
             ),
         )
     }
 
     fn derive_niri_snapshot(&mut self) {
-        self.niri_snapshot
-            .load(niri_window_snapshot::Snapshot::derive(
+        self.niri_snapshot.load(
+            niri_window_snapshot::Snapshot::derive(
                 &self.niri,
                 self.window_group.window_processes(),
-            ));
+            ),
+            self.clock,
+        );
     }
 
     fn show_niri_failure(
@@ -728,6 +761,7 @@ impl DesktopShell {
                 &self.config,
                 &self.shell_settings,
                 self.quiet_schedule_group.is_quiet(),
+                self.clock,
             ),
         )
     }
@@ -820,6 +854,7 @@ impl DesktopShell {
                 &placement,
                 &self.config,
                 self.shell_settings.notifications,
+                self.clock.instant,
             ));
         }
         Task::batch(tasks)
@@ -832,7 +867,7 @@ impl DesktopShell {
         let Some(snapshot) = self.niri_snapshot.get() else {
             return Task::none();
         };
-        let now = Utc::now();
+        let now = self.clock.utc();
         let ranked = snapshot
             .active_workspaces()
             .filter_map(|active| {
@@ -890,6 +925,7 @@ impl DesktopShell {
             &self.shell_settings,
             self.window_assets(),
             |target| self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
+            self.clock,
         ) {
             return tooltip;
         }

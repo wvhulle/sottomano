@@ -2,12 +2,16 @@ use std::time::Duration;
 
 use iced::{Subscription, Task};
 
+use crate::clock::Clock;
+
 mod boot_timeline_reading;
 mod failed_unit_log;
 mod last_shutdown_reading;
 mod running_job_reading;
 
 use boot_timeline_reading::StartupUnits;
+use failed_unit_log::failed_units_item;
+use running_job_reading::slow_jobs_item;
 use sottomano_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use sottomano_sources::{
     SourceDelivery,
@@ -173,25 +177,29 @@ impl SystemdManagerGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: SystemdManagerMessage) -> Task<SystemdManagerMessage> {
+    pub fn update(
+        &mut self,
+        msg: SystemdManagerMessage,
+        clock: Clock,
+    ) -> Task<SystemdManagerMessage> {
         match msg {
             SystemdManagerMessage::Boot(delivery) => {
-                self.boot.receive_keeping_last_reading(delivery);
+                self.boot.receive_keeping_last_reading(delivery, clock);
             }
             SystemdManagerMessage::FailedSystem(delivery) => {
-                self.failed_system.receive_delivery(delivery);
+                self.failed_system.receive_delivery(delivery, clock);
             }
             SystemdManagerMessage::FailedUser(delivery) => {
-                self.failed_user.receive_delivery(delivery);
+                self.failed_user.receive_delivery(delivery, clock);
             }
             SystemdManagerMessage::SlowSystemJobs(delivery) => {
-                self.slow_system_jobs.receive_delivery(delivery);
+                self.slow_system_jobs.receive_delivery(delivery, clock);
             }
             SystemdManagerMessage::SlowUserJobs(delivery) => {
-                self.slow_user_jobs.receive_delivery(delivery);
+                self.slow_user_jobs.receive_delivery(delivery, clock);
             }
             SystemdManagerMessage::LastShutdown(delivery) => {
-                self.last_shutdown.receive_delivery(delivery);
+                self.last_shutdown.receive_delivery(delivery, clock);
             }
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {
@@ -207,20 +215,20 @@ impl SystemdManagerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &SystemdTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &SystemdTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            SystemdTarget::BootPhases => self.boot.tooltip(),
+            SystemdTarget::BootPhases => self.boot.tooltip(clock),
             SystemdTarget::StartupUnits => self.boot.tooltip_with(
-                StartupUnits {
+                (StartupUnits {
                     timeline: self.boot.get()?,
-                }
-                .tooltip(),
+                })
+                .tooltip(clock),
             ),
-            SystemdTarget::FailedSystemUnits => self.failed_system.tooltip(),
-            SystemdTarget::FailedUserUnits => self.failed_user.tooltip(),
-            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.tooltip(),
-            SystemdTarget::SlowUserJobs => self.slow_user_jobs.tooltip(),
-            SystemdTarget::LastShutdown => self.last_shutdown.tooltip(),
+            SystemdTarget::FailedSystemUnits => self.failed_system.tooltip(clock),
+            SystemdTarget::FailedUserUnits => self.failed_user.tooltip(clock),
+            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.tooltip(clock),
+            SystemdTarget::SlowUserJobs => self.slow_user_jobs.tooltip(clock),
+            SystemdTarget::LastShutdown => self.last_shutdown.tooltip(clock),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
@@ -231,6 +239,7 @@ impl SystemdManagerGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
+        clock: Clock,
     ) -> GroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
         GroupContent::new(
@@ -243,25 +252,25 @@ impl SystemdManagerGroup {
                 }),
                 self.slow_system_jobs
                     .visible_reading()
-                    .map(|jobs| Self::slow_jobs_item(jobs, config))
+                    .map(|jobs| slow_jobs_item(jobs, config))
                     .or_else(|| {
                         self.slow_system_jobs
                             .group_item(SystemdTarget::SlowSystemJobs)
                     }),
                 self.slow_user_jobs
                     .visible_reading()
-                    .map(|jobs| Self::slow_jobs_item(jobs, config))
+                    .map(|jobs| slow_jobs_item(jobs, config))
                     .or_else(|| self.slow_user_jobs.group_item(SystemdTarget::SlowUserJobs)),
                 self.failed_system
                     .visible_reading()
-                    .map(|failed| Self::failed_units_item(failed, config))
+                    .map(|failed| failed_units_item(failed, config, clock))
                     .or_else(|| {
                         self.failed_system
                             .group_item(SystemdTarget::FailedSystemUnits)
                     }),
                 self.failed_user
                     .visible_reading()
-                    .map(|failed| Self::failed_units_item(failed, config))
+                    .map(|failed| failed_units_item(failed, config, clock))
                     .or_else(|| self.failed_user.group_item(SystemdTarget::FailedUserUnits)),
                 self.last_shutdown
                     .get()
@@ -314,23 +323,23 @@ impl BarWidget for SystemdManagerGroup {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Heartbeat(self.state().weight()).into()
+        Phosphor::Heartbeat(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, clock: Clock) -> WidgetState {
         if self.boot.get().is_none() {
             return WidgetState::Pending;
         }
         self.current_health()
             .into_iter()
             .flatten()
-            .map(|reading| reading.state().severity())
+            .map(|reading| reading.state(clock).severity())
             .max()
             .unwrap_or_default()
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let slow_jobs_count =
             |jobs: &SlowJobs| KeyValue::new(jobs.name(), jobs.jobs.len().to_string());
         let failed_units_count =

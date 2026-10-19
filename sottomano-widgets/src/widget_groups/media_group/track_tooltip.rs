@@ -47,15 +47,15 @@ impl SearchPlatform {
             Self::YouTubeMusic | Self::Bandcamp => {
                 format!("https://{host}/search?{}", query_string("q", query))
             }
-            Self::Spotify => Self::spotify_link(&format!("/search/{}", path_segment(query)), index),
+            Self::Spotify => self.spotify_link(&format!("/search/{}", path_segment(query)), index),
         }
     }
 
-    fn spotify_link(path: &str, index: &DesktopIndex) -> String {
+    fn spotify_link(self, path: &str, index: &DesktopIndex) -> String {
         if index.handles_scheme("spotify") {
             format!("spotify{}", path.replace('/', ":"))
         } else {
-            format!("https://{}{path}", Self::Spotify.host())
+            format!("https://{}{path}", self.host())
         }
     }
 }
@@ -80,8 +80,8 @@ pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
             Cell::Link {
                 label,
                 url: match SearchPlatform::hosting(url) {
-                    Some(SearchPlatform::Spotify) => {
-                        SearchPlatform::spotify_link(url.path(), index)
+                    Some(spotify @ SearchPlatform::Spotify) => {
+                        spotify.spotify_link(url.path(), index)
                     }
                     Some(SearchPlatform::YouTubeMusic | SearchPlatform::Bandcamp) | None => {
                         url.to_string()

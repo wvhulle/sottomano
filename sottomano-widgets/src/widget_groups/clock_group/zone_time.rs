@@ -1,16 +1,15 @@
-use std::{
-    cmp::Ordering,
-    convert::Infallible,
-    future::{Future, ready},
-};
+use std::{cmp::Ordering, convert::Infallible};
 
-use chrono::{DateTime, Local, Locale, Offset};
+use chrono::{DateTime, Locale, Offset};
 use chrono_tz::Tz;
 use iced::futures::Stream;
-use sottomano_sources::{DeliveryCadence, ReadingSource, SourceDelivery};
+use sottomano_sources::{
+    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::ticked_at_boundaries,
+};
 
 use crate::{
-    widget_groups::clock_group::{TICK, polled_at_second_boundaries},
+    clock::Clock,
+    widget_groups::clock_group::TICK,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
@@ -19,8 +18,8 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ZoneTime(pub DateTime<Tz>);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ZoneTime(pub Tz);
 
 impl ReadingSource for ZoneTime {
     type Error = Infallible;
@@ -30,31 +29,31 @@ impl ReadingSource for ZoneTime {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
 
     fn delivery_stream(zone: Tz) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_at_second_boundaries(zone, Self::poll)
+        ticked_at_boundaries(TICK, move || ZoneTime(zone))
     }
 }
 
 impl ZoneTime {
-    fn poll(zone: Tz) -> impl Future<Output = Result<Self, Infallible>> + Send {
-        ready(Ok(ZoneTime(Local::now().with_timezone(&zone))))
-    }
-}
-
-impl ZoneTime {
-    pub fn zone(&self) -> Tz {
-        self.0.timezone()
+    #[must_use]
+    pub fn zone(self) -> Tz {
+        self.0
     }
 
-    fn local(&self) -> DateTime<Local> {
-        self.0.with_timezone(&Local)
+    fn there(self, clock: Clock) -> DateTime<Tz> {
+        clock.utc().with_timezone(&self.0)
     }
 
-    fn seconds_ahead_of_local(&self) -> i32 {
-        self.0.offset().fix().local_minus_utc() - self.local().offset().local_minus_utc()
+    fn seconds_ahead_of_local(self, clock: Clock) -> i32 {
+        self.there(clock).offset().fix().local_minus_utc()
+            - clock.local().offset().local_minus_utc()
     }
 
-    fn day_relative_to_local(&self) -> &'static str {
-        match self.0.date_naive().cmp(&self.local().date_naive()) {
+    fn day_relative_to_local(self, clock: Clock) -> &'static str {
+        match self
+            .there(clock)
+            .date_naive()
+            .cmp(&clock.local().date_naive())
+        {
             Ordering::Less => "Previous day",
             Ordering::Equal => "Same day",
             Ordering::Greater => "Next day",
@@ -71,23 +70,24 @@ impl BarWidget for ZoneTime {
         Phosphor::GlobeHemisphereWest(Weight::Regular).into()
     }
 
-    fn localized_label(&self, locale: Locale) -> Option<String> {
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         Some(format!(
             "{} {}",
             city_name(self.zone()),
-            LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.0, locale)
+            LocalizedTimeFormat::TimeOfDay.format_in_own_zone(&self.there(clock), locale)
         ))
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        let there = self.there(clock);
         TooltipBody::dictionary([
             KeyValue::new("Zone", self.zone().name().to_owned()),
-            KeyValue::new("Abbreviation", self.0.format("%Z").to_string()),
-            KeyValue::new("UTC offset", self.0.format("%:z").to_string()),
-            KeyValue::new("Day", self.day_relative_to_local().to_owned()),
+            KeyValue::new("Abbreviation", there.format("%Z").to_string()),
+            KeyValue::new("UTC offset", there.format("%:z").to_string()),
+            KeyValue::new("Day", self.day_relative_to_local(clock).to_owned()),
             KeyValue::new(
                 "Offset from local",
-                signed_hours_and_minutes(self.seconds_ahead_of_local()),
+                signed_hours_and_minutes(self.seconds_ahead_of_local(clock)),
             ),
         ])
     }

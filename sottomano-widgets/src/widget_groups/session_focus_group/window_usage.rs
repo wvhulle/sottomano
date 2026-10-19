@@ -59,8 +59,7 @@ impl WindowUsage<'_> {
         })
     }
 
-    pub fn body(&self) -> TooltipBody {
-        let now = Utc::now();
+    pub fn body(&self, now: DateTime<Utc>) -> TooltipBody {
         let today = self.waking.around(now);
         let scope = FocusScope::Window(self.window);
         TooltipBody::sections(

@@ -1,5 +1,7 @@
 use iced::{Subscription, Task};
 
+use crate::widgets::phosphor::Weight;
+
 mod firmware_upgrade_list;
 
 use sottomano_config::Config;
@@ -10,6 +12,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
@@ -58,9 +61,15 @@ impl PendingUpgradesGroup {
             .map(PendingUpgradesMessage::Firmware)
     }
 
-    pub fn update(&mut self, msg: PendingUpgradesMessage) -> Task<PendingUpgradesMessage> {
+    pub fn update(
+        &mut self,
+        msg: PendingUpgradesMessage,
+        clock: Clock,
+    ) -> Task<PendingUpgradesMessage> {
         match msg {
-            PendingUpgradesMessage::Firmware(upgrades) => self.firmware.receive_delivery(upgrades),
+            PendingUpgradesMessage::Firmware(upgrades) => {
+                self.firmware.receive_delivery(upgrades, clock);
+            }
             PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
             PendingUpgradesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -70,10 +79,10 @@ impl PendingUpgradesGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: PendingUpgradesTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            PendingUpgradesTarget::Firmware => self.firmware.tooltip(),
-            PendingUpgradesTarget::Summary => self.firmware.tooltip_with(self.tooltip()),
+            PendingUpgradesTarget::Firmware => self.firmware.tooltip(clock),
+            PendingUpgradesTarget::Summary => self.firmware.tooltip_with(self.tooltip(clock)),
         }
     }
 
@@ -86,7 +95,9 @@ impl PendingUpgradesGroup {
             &self.expansion,
             PendingUpgradesMessage::Expansion,
             [
-                has_categories.then(|| GroupItem::reading(self, PendingUpgradesTarget::Summary)),
+                has_categories.then(|| {
+                    GroupItem::reading(self as &dyn BarWidget, PendingUpgradesTarget::Summary)
+                }),
                 self.firmware_upgrade_item(config),
                 self.firmware
                     .failure()
@@ -108,7 +119,7 @@ impl BarWidget for PendingUpgradesGroup {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ArrowCircleUp(self.state().weight()).into()
+        Phosphor::ArrowCircleUp(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -121,17 +132,17 @@ impl BarWidget for PendingUpgradesGroup {
         (total > 0).then_some(total)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, clock: Clock) -> WidgetState {
         self.categories()
             .into_iter()
             .flatten()
-            .map(|category| category.state().severity())
+            .map(|category| category.state(clock).severity())
             .max()
             .unwrap_or_default()
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
             KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
         }))

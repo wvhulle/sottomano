@@ -20,6 +20,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
@@ -97,13 +98,13 @@ impl WeatherGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: WeatherMessage) -> Task<WeatherMessage> {
+    pub fn update(&mut self, msg: WeatherMessage, clock: Clock) -> Task<WeatherMessage> {
         match msg {
-            WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading),
-            WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading),
-            WeatherMessage::Rain(reading) => self.rain.receive_delivery(reading),
-            WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading),
-            WeatherMessage::Location(reading) => self.location.receive_delivery(reading),
+            WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading, clock),
+            WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading, clock),
+            WeatherMessage::Rain(reading) => self.rain.receive_delivery(reading, clock),
+            WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading, clock),
+            WeatherMessage::Location(reading) => self.location.receive_delivery(reading, clock),
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -129,16 +130,16 @@ impl WeatherGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: WeatherTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: WeatherTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            WeatherTarget::Temperature => self.temp.tooltip(),
-            WeatherTarget::Wind => self.wind.tooltip(),
-            WeatherTarget::Rain => self.rain.tooltip(),
-            WeatherTarget::Pollen => self.pollen.tooltip(),
+            WeatherTarget::Temperature => self.temp.tooltip(clock),
+            WeatherTarget::Wind => self.wind.tooltip(clock),
+            WeatherTarget::Rain => self.rain.tooltip(clock),
+            WeatherTarget::Pollen => self.pollen.tooltip(clock),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
-                .tooltip_with(self.pollen.get()?.concentration(allergen)?.tooltip()),
-            WeatherTarget::Location => self.location.tooltip(),
+                .tooltip_with(self.pollen.get()?.concentration(allergen)?.tooltip(clock)),
+            WeatherTarget::Location => self.location.tooltip(clock),
         }
     }
 

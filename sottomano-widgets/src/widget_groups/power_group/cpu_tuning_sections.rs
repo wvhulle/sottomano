@@ -1,7 +1,10 @@
 use iced::alignment::Horizontal;
 use sottomano_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuTuning;
 
-use crate::widgets::tooltip_body::{Cell, ColumnHeading, ReadingSections, Section, TableRecord};
+use crate::{
+    clock::Clock,
+    widgets::tooltip_body::{Cell, ColumnHeading, ReadingSections, Section, TableRecord},
+};
 
 const HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::new("Value"),
@@ -16,7 +19,7 @@ fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> 
 }
 
 impl ReadingSections for CpuTuning {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let driver = match &self.driver_mode {
             Some(mode) => format!("{} ({mode})", self.driver),
             None => self.driver.clone(),

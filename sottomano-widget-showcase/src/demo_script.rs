@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use sottomano_widgets::{
+    clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widget_groups::{
@@ -25,8 +26,8 @@ use crate::{
 
 pub struct Demo {
     pub name: &'static str,
-    pub group: fn() -> ShowcasedGroup,
-    pub live: fn(u32) -> Vec<Message>,
+    pub group: fn(Clock) -> ShowcasedGroup,
+    pub live: fn(Clock) -> Vec<Message>,
     pub script: &'static [Step],
 }
 
@@ -36,7 +37,6 @@ pub enum Step {
     Drag { target: HoverTarget, by: f32 },
     HoverText(&'static str),
     PressText(&'static str),
-    TypeReply(&'static str),
     RestFor(Duration),
 }
 
@@ -94,7 +94,7 @@ pub const DEMOS: &[Demo] = &[
     Demo {
         name: "media_track",
         group: media::group,
-        live: media::live,
+        live: unchanging,
         script: &[Step::Hover(HoverTarget::Media(MediaTarget::Track))],
     },
     Demo {
@@ -206,12 +206,6 @@ pub const DEMOS: &[Demo] = &[
             Step::HoverText("Decline"),
             Step::PressText("Accept"),
         ],
-    },
-    Demo {
-        name: "toast_reply",
-        group: notification_toasts::reply,
-        live: unchanging,
-        script: &[Step::TypeReply("Sure, see you there")],
     },
     Demo {
         name: "toast_window_anchored",

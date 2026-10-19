@@ -74,7 +74,7 @@ impl IdleActionConnection {
                             },
                         ))
                     }
-                    Err(failure) => Self::after_failure(&failure, attempts_left),
+                    Err(failure) => after_failure(&failure, attempts_left),
                 }
             }
             IdleActionConnection::Connected {
@@ -91,22 +91,22 @@ impl IdleActionConnection {
                         },
                     ))
                 }
-                Err(failure) => Self::after_failure(&failure, attempts_left),
+                Err(failure) => after_failure(&failure, attempts_left),
             },
         }
     }
+}
 
-    fn after_failure(failure: &WaylandError, attempts_left: usize) -> NextIdleActionEdges {
-        tracing::warn!("idle daemon: {failure}");
-        matches!(failure, WaylandError::Io(_)).then(|| {
-            (
-                Vec::new(),
-                IdleActionConnection::Reconnecting {
-                    attempts_left: attempts_left - 1,
-                },
-            )
-        })
-    }
+fn after_failure(failure: &WaylandError, attempts_left: usize) -> NextIdleActionEdges {
+    tracing::warn!("idle daemon: {failure}");
+    matches!(failure, WaylandError::Io(_)).then(|| {
+        (
+            Vec::new(),
+            IdleActionConnection::Reconnecting {
+                attempts_left: attempts_left - 1,
+            },
+        )
+    })
 }
 
 fn perform_idled_actions(edges: &[IdleActionEdge]) {

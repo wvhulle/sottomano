@@ -29,6 +29,7 @@ use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
@@ -106,6 +107,7 @@ impl ComputeGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<ComputeMessage> {
         self.core_loads.stop();
         self.core_temperatures.stop();
@@ -115,14 +117,23 @@ impl ComputeGroup {
         self.module_temperatures.stop();
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::Cpu)) => Task::batch([
-                self.core_loads
-                    .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
-                self.cpu_power
-                    .start_hover_fetch((), ComputeMessage::CpuPowerFetched, config),
+                self.core_loads.start_hover_fetch(
+                    (),
+                    ComputeMessage::CoreLoadsFetched,
+                    config,
+                    clock,
+                ),
+                self.cpu_power.start_hover_fetch(
+                    (),
+                    ComputeMessage::CpuPowerFetched,
+                    config,
+                    clock,
+                ),
                 self.cache_traffic.start_hover_fetch(
                     (),
                     ComputeMessage::CacheTrafficFetched,
                     config,
+                    clock,
                 ),
             ]),
             Some(HoverTarget::Compute(ComputeTarget::Temperature)) => {
@@ -130,6 +141,7 @@ impl ComputeGroup {
                     config.widget_groups.temperature_sensors.cpu.overrides(),
                     ComputeMessage::CoreTemperaturesFetched,
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::Compute(ComputeTarget::Memory)) => Task::batch([
@@ -137,11 +149,13 @@ impl ComputeGroup {
                     (),
                     ComputeMessage::MemoryProcessesFetched,
                     config,
+                    clock,
                 ),
                 self.module_temperatures.start_hover_fetch(
                     (),
                     ComputeMessage::ModuleTemperaturesFetched,
                     config,
+                    clock,
                 ),
             ]),
             _ => Task::none(),
@@ -172,35 +186,41 @@ impl ComputeGroup {
             .map(|delivery| ComputeMessage::Hardware(Box::new(delivery)))
     }
 
-    pub fn update(&mut self, msg: ComputeMessage) -> Task<ComputeMessage> {
+    pub fn update(&mut self, msg: ComputeMessage, clock: Clock) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::Hardware(delivery) => {
-                self.hardware.receive_keeping_last_reading(*delivery);
+                self.hardware.receive_keeping_last_reading(*delivery, clock);
             }
             ComputeMessage::CachePreference(m) => {
                 return self
                     .cache_preference
-                    .update(m)
+                    .update(m, clock)
                     .map(ComputeMessage::CachePreference);
             }
-            ComputeMessage::CoreLoadsFetched(fetched) => self.core_loads.receive_delivery(fetched),
-            ComputeMessage::CoreTemperaturesFetched(fetched) => {
-                self.core_temperatures.receive_delivery(fetched);
+            ComputeMessage::CoreLoadsFetched(fetched) => {
+                self.core_loads.receive_delivery(fetched, clock);
             }
-            ComputeMessage::CpuPowerFetched(fetched) => self.cpu_power.receive_delivery(fetched),
+            ComputeMessage::CoreTemperaturesFetched(fetched) => {
+                self.core_temperatures.receive_delivery(fetched, clock);
+            }
+            ComputeMessage::CpuPowerFetched(fetched) => {
+                self.cpu_power.receive_delivery(fetched, clock);
+            }
             ComputeMessage::CacheTrafficFetched(fetched) => {
-                self.cache_traffic.receive_delivery(fetched);
+                self.cache_traffic.receive_delivery(fetched, clock);
             }
             ComputeMessage::MemoryProcessesFetched(fetched) => {
-                self.memory_processes.receive_delivery(fetched);
+                self.memory_processes.receive_delivery(fetched, clock);
             }
             ComputeMessage::ModuleTemperaturesFetched(fetched) => {
-                self.module_temperatures.receive_delivery(fetched);
+                self.module_temperatures.receive_delivery(fetched, clock);
             }
-            ComputeMessage::Cpu(reading) => self.cpu.receive_delivery(reading),
-            ComputeMessage::Memory(reading) => self.memory.receive_delivery(reading),
-            ComputeMessage::Clock(reading) => self.clock.receive_delivery(reading),
-            ComputeMessage::Temperature(reading) => self.temperature.receive_delivery(reading),
+            ComputeMessage::Cpu(reading) => self.cpu.receive_delivery(reading, clock),
+            ComputeMessage::Memory(reading) => self.memory.receive_delivery(reading, clock),
+            ComputeMessage::Clock(reading) => self.clock.receive_delivery(reading, clock),
+            ComputeMessage::Temperature(reading) => {
+                self.temperature.receive_delivery(reading, clock);
+            }
             ComputeMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -254,39 +274,43 @@ impl ComputeGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ComputeTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: ComputeTarget, clock: Clock) -> Option<Tooltip> {
         let live = self.live();
         match target {
             ComputeTarget::Cpu => self.cpu.tooltip_with_sections(
                 [
                     self.core_loads
                         .sections_described_by(|loads| live.core_load_sections(loads)),
-                    self.cpu_power.sections(),
+                    self.cpu_power.sections(clock),
                     self.hardware
                         .sections_described_by(|hardware| vec![Section::from(&hardware.cpu)]),
                 ]
                 .concat(),
+                clock,
             ),
             ComputeTarget::Memory => self.memory.tooltip_with_sections(
                 [
-                    self.memory_processes.sections(),
-                    self.module_temperatures.sections(),
+                    self.memory_processes.sections(clock),
+                    self.module_temperatures.sections(clock),
                     self.hardware
                         .sections_described_by(|hardware| vec![Section::from(&hardware.memory)]),
                 ]
                 .concat(),
+                clock,
             ),
             ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
                 self.clock
                     .sections_described_by(|clock| live.clock_sections(clock)),
+                clock,
             ),
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
                     .sections_described_by(|temperatures| {
                         live.core_temperature_sections(temperatures)
                     }),
+                clock,
             ),
-            ComputeTarget::CachePreference => self.cache_preference.tooltip().map(|tooltip| {
+            ComputeTarget::CachePreference => self.cache_preference.tooltip(clock).map(|tooltip| {
                 tooltip.with_sections(self.clock.sections_described_by(|clock| {
                     ChipletRoles {
                         topology: &clock.topology,
@@ -297,7 +321,7 @@ impl ComputeGroup {
             ComputeTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
                 self.hardware
-                    .tooltip_with(machine.visible_in_bar().then(|| machine.tooltip())?)
+                    .tooltip_with(machine.visible_in_bar().then(|| machine.tooltip(clock))?)
             }
         }
     }

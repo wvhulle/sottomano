@@ -4,14 +4,17 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::ai_usage_spend::usage_quota::Quota;
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    announced_level::AnnouncedLevel,
-    ongoing_toast::OngoingBody,
-    phosphor::{Phosphor, Weight},
-    simple_icons::SimpleIcon,
-    tooltip_body::TooltipBody,
-    weather_icons::WeatherIcon,
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        announced_level::AnnouncedLevel,
+        ongoing_toast::OngoingBody,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        tooltip_body::TooltipBody,
+        weather_icons::WeatherIcon,
+        widget_state::WidgetState,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,15 +65,11 @@ pub trait BarWidget {
         Phosphor::Question(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         None
     }
 
-    fn localized_label(&self, _locale: Locale) -> Option<String> {
-        self.label()
-    }
-
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::Idle
     }
 
@@ -78,8 +77,8 @@ pub trait BarWidget {
         OngoingToastThreshold::NeverNotify
     }
 
-    fn ongoing_toast_body(&self, locale: Locale) -> OngoingBody {
-        self.localized_label(locale)
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+        self.label(clock, locale)
             .map_or(OngoingBody::None, OngoingBody::Text)
     }
 
@@ -107,7 +106,11 @@ pub trait BarWidget {
         Vec::new()
     }
 
-    fn tooltip(&self) -> TooltipBody;
+    fn tooltip(&self, clock: Clock) -> TooltipBody;
+
+    fn icon_at(&self, clock: Clock) -> Glyph {
+        self.icon().with_weight(self.state(clock).weight())
+    }
 }
 
 impl<W: BarWidget + ?Sized> BarWidget for &W {
@@ -119,20 +122,20 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).icon()
     }
 
-    fn label(&self) -> Option<String> {
-        (**self).label()
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+        (**self).label(clock, locale)
     }
 
-    fn localized_label(&self, locale: Locale) -> Option<String> {
-        (**self).localized_label(locale)
-    }
-
-    fn state(&self) -> WidgetState {
-        (**self).state()
+    fn state(&self, clock: Clock) -> WidgetState {
+        (**self).state(clock)
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
         (**self).ongoing_toast_threshold()
+    }
+
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+        (**self).ongoing_toast_body(clock, locale)
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -159,7 +162,7 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).quota_windows(now)
     }
 
-    fn tooltip(&self) -> TooltipBody {
-        (**self).tooltip()
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        (**self).tooltip(clock)
     }
 }

@@ -2,21 +2,17 @@ mod local_date;
 mod local_time;
 mod zone_time;
 
-use std::{convert::identity, time::Duration};
+use std::time::Duration;
 
-use chrono::{DateTime, Local};
 use chrono_tz::Tz;
-use iced::{
-    Subscription, Task,
-    futures::{Stream, StreamExt, stream},
-};
+use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{ReadingSource, SourceDelivery};
-use tokio::time::sleep;
+use sottomano_sources::SourceDelivery;
 
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         continuous_reading::ContinuousReading,
@@ -61,11 +57,13 @@ impl ClockGroup {
         self.expansion.collapse();
     }
 
-    pub fn update(&mut self, msg: ClockMessage) -> Task<ClockMessage> {
+    pub fn update(&mut self, msg: ClockMessage, clock: Clock) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Time(reading) => self.time.receive_delivery(reading),
-            ClockMessage::Date(reading) => self.date.receive_delivery(reading),
-            ClockMessage::Zone(zone, reading) => self.zone_time_mut(zone).receive_delivery(reading),
+            ClockMessage::Time(reading) => self.time.receive_delivery(reading, clock),
+            ClockMessage::Date(reading) => self.date.receive_delivery(reading, clock),
+            ClockMessage::Zone(zone, reading) => {
+                self.zone_time_mut(zone).receive_delivery(reading, clock);
+            }
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -118,11 +116,11 @@ impl ClockGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &ClockTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: &ClockTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            ClockTarget::LocalTime => self.time.tooltip(),
-            ClockTarget::LocalDate => self.date.tooltip(),
-            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.tooltip(),
+            ClockTarget::LocalTime => self.time.tooltip(clock),
+            ClockTarget::LocalDate => self.date.tooltip(clock),
+            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.tooltip(clock),
         }
     }
 
@@ -142,64 +140,5 @@ impl ClockGroup {
             )
             .flatten(),
         )
-    }
-}
-
-pub fn polled_at_second_boundaries<S, F>(
-    inputs: S::StreamInputs,
-    poll: impl Fn(S::StreamInputs) -> F + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
-where
-    S: ReadingSource,
-    F: Future<Output = Result<S, S::Error>> + Send,
-{
-    stream::repeat_with(move || {
-        let inputs = inputs.clone();
-        let poll = poll.clone();
-        async move {
-            sleep(until_next_boundary(Local::now(), TICK)).await;
-            poll(inputs).await
-        }
-    })
-    .then(identity)
-    .map(SourceDelivery::Reading)
-}
-
-fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
-    let secs_into = now
-        .timestamp()
-        .rem_euclid(period.as_secs().cast_signed())
-        .cast_unsigned();
-    let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
-    Duration::from_secs(period.as_secs() - secs_into)
-        .saturating_sub(Duration::from_nanos(subsec_ns))
-}
-
-#[cfg(test)]
-mod tests {
-    use chrono::TimeZone;
-
-    use super::*;
-
-    #[test]
-    fn boundary_delay_completes_the_period() {
-        let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_millis(750)
-        );
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(60)),
-            Duration::from_millis(19750)
-        );
-    }
-
-    #[test]
-    fn exact_boundary_waits_a_full_period() {
-        let now = Local.timestamp_opt(1_000, 0).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_secs(1)
-        );
     }
 }

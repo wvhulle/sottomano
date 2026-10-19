@@ -1,9 +1,14 @@
 use std::num::NonZeroU32;
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+use chrono::Locale;
+
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    },
 };
 
 pub struct SeatFace<'a> {
@@ -20,14 +25,14 @@ impl BarWidget for SeatFace<'_> {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(
             self.virtual_terminal
                 .map_or_else(|| self.seat.to_owned(), |vt| format!("tty{vt}")),
         )
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let seat = Section::dictionary([
             KeyValue::new("Hardware seat", self.seat.to_owned()),
             KeyValue::new(

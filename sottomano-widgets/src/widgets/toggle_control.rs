@@ -3,12 +3,13 @@ use sottomano_sources::{ReadingSource, SourceDelivery, blocking_background_work:
 
 use crate::{
     background_work::{first_delivery, source_subscription},
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Freshness, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
@@ -49,8 +50,8 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_tooltip(&self) -> Tooltip {
-        Tooltip::sourced(self.tooltip(), Freshness::Live)
+    pub fn switch_tooltip(&self, clock: Clock) -> Tooltip {
+        Tooltip::sourced(self.tooltip(clock), Freshness::Live)
     }
 }
 
@@ -60,14 +61,14 @@ impl BarWidget for IconToggle {
     }
 
     fn icon(&self) -> Glyph {
-        self.icon.with_weight(self.state().weight()).into()
+        self.icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(self.enabled)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }
@@ -108,10 +109,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         first_delivery::<S>(inputs).map(ToggleMessage::Reading)
     }
 
-    pub fn update(&mut self, message: ToggleMessage<S>) -> Task<ToggleMessage<S>> {
+    pub fn update(&mut self, message: ToggleMessage<S>, clock: Clock) -> Task<ToggleMessage<S>> {
         match message {
             ToggleMessage::Reading(reading) => {
-                self.reading.receive_delivery(reading);
+                self.reading.receive_delivery(reading, clock);
                 Task::none()
             }
             ToggleMessage::Press => match self.reading.get().cloned() {
@@ -126,7 +127,7 @@ impl<S: ToggleableSource> ToggleControl<S> {
             ToggleMessage::Applied => Task::none(),
             ToggleMessage::Refused(refusal) => {
                 self.reading
-                    .receive_delivery(SourceDelivery::Reading(Err(refusal)));
+                    .receive_delivery(SourceDelivery::Reading(Err(refusal)), clock);
                 Task::none()
             }
         }
@@ -136,10 +137,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.assume(value);
     }
 
-    pub fn tooltip(&self) -> Option<Tooltip> {
+    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
         match self.reading.get() {
             Some(_) => self.reading.tooltip_with(TooltipBody::sections([])),
-            None => self.reading.tooltip(),
+            None => self.reading.tooltip(clock),
         }
     }
 
@@ -182,33 +183,40 @@ mod tests {
     #[test]
     fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
         let mut control = ToggleControl::<X3dCachePreference>::default();
-        control.reading.load(X3dCachePreference::Frequency);
+        control
+            .reading
+            .load(X3dCachePreference::Frequency, Clock::real());
         control.assume(X3dCachePreference::Cache);
 
-        let _ = control.update(ToggleMessage::Refused(refused_write()));
+        let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
 
         assert!(control.reading().is_none());
         let shown = control
             .reading
             .display()
             .expect("failed reading still shows");
-        assert_eq!(shown.state(), WidgetState::Failed);
+        assert_eq!(shown.state(Clock::real()), WidgetState::Failed);
         assert!(
             control
                 .group_item::<()>(HoverTarget::Compute(ComputeTarget::CachePreference), |_| ())
                 .is_some()
         );
-        let hover_card = format!("{:?}", control.tooltip().map(|tooltip| tooltip.body));
+        let hover_card = format!(
+            "{:?}",
+            control.tooltip(Clock::real()).map(|tooltip| tooltip.body)
+        );
         assert!(hover_card.contains(&refused_write().to_string()));
     }
 
     #[test]
     fn an_accepted_write_keeps_the_assumed_value() {
         let mut control = ToggleControl::<X3dCachePreference>::default();
-        control.reading.load(X3dCachePreference::Frequency);
+        control
+            .reading
+            .load(X3dCachePreference::Frequency, Clock::real());
         control.assume(X3dCachePreference::Cache);
 
-        let _ = control.update(ToggleMessage::Applied);
+        let _ = control.update(ToggleMessage::Applied, Clock::real());
 
         assert_eq!(control.reading.get(), Some(&X3dCachePreference::Cache));
     }

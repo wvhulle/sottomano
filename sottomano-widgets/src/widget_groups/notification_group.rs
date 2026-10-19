@@ -1,6 +1,7 @@
 use sottomano_state::NotificationSettings;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::quiet_schedule_group::QuietScheduleTarget,
     widgets::{
@@ -60,10 +61,11 @@ impl NotificationGroup {
         target: NotificationTarget,
         notification_settings: NotificationSettings,
         status: NotificationStatus,
+        clock: Clock,
     ) -> Tooltip {
         match target {
-            NotificationTarget::Status => Tooltip::sourced(status.tooltip(), Freshness::Live),
-            NotificationTarget::Sound => sound_toggle(notification_settings).switch_tooltip(),
+            NotificationTarget::Status => Tooltip::sourced(status.tooltip(clock), Freshness::Live),
+            NotificationTarget::Sound => sound_toggle(notification_settings).switch_tooltip(clock),
         }
     }
 
@@ -122,9 +124,9 @@ impl BarWidget for NotificationStatus {
 
     fn icon(&self) -> Glyph {
         if self.quiet {
-            Phosphor::ChatCircleSlash(self.state().weight()).into()
+            Phosphor::ChatCircleSlash(Weight::Regular).into()
         } else {
-            Phosphor::ChatCircle(self.state().weight()).into()
+            Phosphor::ChatCircle(Weight::Regular).into()
         }
     }
 
@@ -134,7 +136,7 @@ impl BarWidget for NotificationStatus {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.quiet {
             WidgetState::Off
         } else if self.live > 0 {
@@ -144,7 +146,7 @@ impl BarWidget for NotificationStatus {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if self.held > 0 {
             TooltipBody::dictionary([KeyValue::new(
                 "Held until do not disturb ends",
@@ -167,14 +169,14 @@ impl BarWidget for DoNotDisturbStatus {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Prohibit(self.state().weight()).into()
+        Phosphor::Prohibit(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::of_toggle(self.quiet)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }

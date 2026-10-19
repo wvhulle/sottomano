@@ -1,12 +1,16 @@
+use chrono::Locale;
 use sottomano_sources::{
     login_session_presence::logind_session_facts::SessionIdentity,
     systemd_units_journal::graphical_session_target::GraphicalSession,
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+    },
 };
 
 pub struct CompositorFace<'a> {
@@ -22,11 +26,11 @@ impl BarWidget for CompositorFace<'_> {
         Phosphor::AppWindow(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.identity.desktop.clone()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
             KeyValue::new("Protocol", self.identity.session_type.clone()),
             KeyValue::new(
@@ -45,7 +49,7 @@ impl BarWidget for CompositorFace<'_> {
 }
 
 impl ReadingSections for GraphicalSession {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let distinct_session_desktop = self
             .session_desktop
             .clone()

@@ -1,5 +1,6 @@
 use std::ops::RangeInclusive;
 
+use chrono::Locale;
 use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
@@ -11,6 +12,7 @@ use sottomano_sources::blocking_background_work::blocking;
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
@@ -371,19 +373,29 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn view<'a>(&'a self, config: &'a Config, reveal: f32) -> Element<'a, ControlMessage> {
+    pub fn view<'a>(
+        &'a self,
+        config: &'a Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, ControlMessage> {
         let expansion = config.panel_bar.slider_expansion;
         expand_animation(self.open, expansion, move |expand| {
             if expand > 0.0 {
-                self.expanded_view(config, expand)
+                self.expanded_view(config, expand, clock)
             } else {
-                self.collapsed_view(config, reveal)
+                self.collapsed_view(config, reveal, clock)
             }
         })
     }
 
-    fn expanded_view<'a>(&self, config: &Config, expand: f32) -> Element<'a, ControlMessage> {
-        let state = self.state();
+    fn expanded_view<'a>(
+        &self,
+        config: &Config,
+        expand: f32,
+        clock: Clock,
+    ) -> Element<'a, ControlMessage> {
+        let state = self.state(clock);
         let glyph = button(self.effective_icon().with_weight(state.weight()).view(
             config.theme.font.icon_size_px,
             state.color(&PaletteColors::from(&config.theme.palette)),
@@ -451,10 +463,15 @@ impl SliderControl {
         area.into()
     }
 
-    fn collapsed_view<'a>(&self, config: &Config, reveal: f32) -> Element<'a, ControlMessage> {
+    fn collapsed_view<'a>(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, ControlMessage> {
         let reading = match self.label {
-            Some(_) => labeled_reading(config, self, reveal),
-            None => source_reading(config, self, reveal),
+            Some(_) => labeled_reading(config, self, reveal, clock),
+            None => source_reading(config, self, reveal, clock),
         };
         let press_hints = PressHints {
             left: Some("open the slider"),
@@ -487,11 +504,11 @@ impl BarWidget for SliderControl {
         self.effective_icon()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.label.and_then(|format| format(self.current()))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.disabled {
             WidgetState::Off
         } else {
@@ -519,7 +536,7 @@ impl BarWidget for SliderControl {
         announcement.level(self.range_fill(), body_text)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
     }
 }

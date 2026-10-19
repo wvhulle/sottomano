@@ -25,6 +25,7 @@ use sottomano_sources::{
 use crate::{
     background_work::restarting_subscription,
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
+    clock::Clock,
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
     widget_groups::window_group::{WindowTarget, process_tree::Folding},
     widgets::{
@@ -113,6 +114,7 @@ impl WindowList {
         &mut self,
         watched: Option<Watched>,
         config: &Config,
+        clock: Clock,
     ) -> Task<WindowListMessage> {
         let Some(watched) = watched else {
             self.hovered_window = None;
@@ -127,11 +129,13 @@ impl WindowList {
                 watched.clone(),
                 WindowListMessage::ProcessTreeScanned,
                 config,
+                clock,
             ),
             self.inspection.start_hover_fetch(
                 watched.clone(),
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
+                clock,
             ),
             self.package_facts.start_hover_fetch(
                 PackageWatch {
@@ -140,6 +144,7 @@ impl WindowList {
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,
+                clock,
             ),
         ])
     }
@@ -150,13 +155,13 @@ impl WindowList {
     }
 
     #[must_use]
-    pub fn process_sections(&self) -> Vec<Section> {
+    pub fn process_sections(&self, clock: Clock) -> Vec<Section> {
         self.hovered_window
             .iter()
             .flat_map(|window| {
                 [
-                    self.inspection.sections(),
-                    self.package_facts.sections(),
+                    self.inspection.sections(clock),
+                    self.package_facts.sections(clock),
                     self.process_tree.sections_described_by(|tree| {
                         let kept = self
                             .window_processes
@@ -170,7 +175,7 @@ impl WindowList {
             .collect()
     }
 
-    pub fn update(&mut self, msg: WindowListMessage) -> Action {
+    pub fn update(&mut self, msg: WindowListMessage, clock: Clock) -> Action {
         match msg {
             WindowListMessage::ToggleAudio(pid) => Action::ToggleAudio(pid),
             WindowListMessage::LauncherEntriesChanged(entries) => {
@@ -183,7 +188,7 @@ impl WindowList {
             }
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
-                self.process_tree.receive_delivery(fetched);
+                self.process_tree.receive_delivery(fetched, clock);
                 Action::None
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
@@ -195,11 +200,11 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
-                self.inspection.receive_delivery(*fetched);
+                self.inspection.receive_delivery(*fetched, clock);
                 Action::None
             }
             WindowListMessage::PackageFactsRead(fetched) => {
-                self.package_facts.receive_delivery(*fetched);
+                self.package_facts.receive_delivery(*fetched, clock);
                 Action::None
             }
             WindowListMessage::Scrolled(offset) => {

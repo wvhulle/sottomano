@@ -119,20 +119,11 @@ fn motion(value: f32, duration: Duration) -> Animation<f32> {
         .duration(duration)
 }
 
+#[derive(Default)]
 struct FieldState {
     order: ChildOrder,
     drift: Drifts,
-    frame: Instant,
-}
-
-impl Default for FieldState {
-    fn default() -> Self {
-        Self {
-            order: ChildOrder::default(),
-            drift: Drifts::default(),
-            frame: Instant::now(),
-        }
-    }
+    frame: Option<Instant>,
 }
 
 #[derive(Default)]
@@ -363,11 +354,11 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             return;
         };
         let state = tree.state.downcast_mut::<FieldState>();
-        if state.frame == *frame {
+        if state.frame == Some(*frame) {
             shell.request_redraw();
             return;
         }
-        state.frame = *frame;
+        state.frame = Some(*frame);
         let drifting = state.drift.advance(*frame);
         if drifting {
             shell.invalidate_layout();

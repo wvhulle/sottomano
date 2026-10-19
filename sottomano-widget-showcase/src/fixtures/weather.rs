@@ -1,4 +1,4 @@
-use chrono::{DurationRound, TimeDelta, Utc};
+use chrono::{DurationRound, TimeDelta};
 use situo_client::{Estimate, Fix, Method, Observations, Origin, Place, Position};
 use sottomano_sources::{
     SourceDelivery,
@@ -9,7 +9,10 @@ use sottomano_sources::{
         situo_location_fix::Location,
     },
 };
-use sottomano_widgets::widget_groups::weather_group::{WeatherGroup, WeatherMessage};
+use sottomano_widgets::{
+    clock::Clock,
+    widget_groups::weather_group::{WeatherGroup, WeatherMessage},
+};
 use uom::si::{
     f64::{Ratio, ThermodynamicTemperature},
     ratio::percent,
@@ -18,11 +21,11 @@ use uom::si::{
 
 use crate::showcased_group::ShowcasedGroup;
 
-pub fn group() -> ShowcasedGroup {
-    ShowcasedGroup::Weather(Box::new(readings().into_iter().fold(
+pub fn group(clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::Weather(Box::new(readings(clock).into_iter().fold(
         WeatherGroup::default(),
         |mut group, reading| {
-            let _ = group.update(reading);
+            let _ = group.update(reading, clock);
             group
         },
     )))
@@ -32,9 +35,15 @@ fn celsius(degrees: f64) -> ThermodynamicTemperature {
     ThermodynamicTemperature::new::<degree_celsius>(degrees)
 }
 
-fn hourly(hours_from_now: i64, degrees: f64, condition: WeatherCondition) -> HourlyTemperature {
+fn hourly(
+    hours_from_now: i64,
+    degrees: f64,
+    condition: WeatherCondition,
+    clock: Clock,
+) -> HourlyTemperature {
     HourlyTemperature {
-        time: Utc::now()
+        time: clock
+            .utc()
             .duration_trunc(TimeDelta::hours(1))
             .expect("the current hour is representable")
             + TimeDelta::hours(hours_from_now),
@@ -43,7 +52,7 @@ fn hourly(hours_from_now: i64, degrees: f64, condition: WeatherCondition) -> Hou
     }
 }
 
-fn readings() -> [WeatherMessage; 2] {
+fn readings(clock: Clock) -> [WeatherMessage; 2] {
     [
         WeatherMessage::Temp(SourceDelivery::Reading(Ok(Temperature {
             condition: Some(WeatherCondition::PartlyCloudy),
@@ -54,13 +63,13 @@ fn readings() -> [WeatherMessage; 2] {
             humidity: Ratio::new::<percent>(64.0),
             hourly: HourlyForecast {
                 earlier: vec![
-                    hourly(-2, 15.0, WeatherCondition::Overcast),
-                    hourly(-1, 17.0, WeatherCondition::PartlyCloudy),
+                    hourly(-2, 15.0, WeatherCondition::Overcast, clock),
+                    hourly(-1, 17.0, WeatherCondition::PartlyCloudy, clock),
                 ],
                 later: vec![
-                    hourly(1, 19.0, WeatherCondition::MainlyClear),
-                    hourly(2, 20.0, WeatherCondition::Clear),
-                    hourly(3, 21.0, WeatherCondition::Clear),
+                    hourly(1, 19.0, WeatherCondition::MainlyClear, clock),
+                    hourly(2, 20.0, WeatherCondition::Clear, clock),
+                    hourly(3, 21.0, WeatherCondition::Clear, clock),
                 ],
             },
         }))),
@@ -85,7 +94,7 @@ fn readings() -> [WeatherMessage; 2] {
                     country: "BE".to_owned(),
                     distance_km: 0.48,
                 }),
-                timestamp: Utc::now().timestamp(),
+                timestamp: clock.utc().timestamp(),
             },
         }))),
     ]

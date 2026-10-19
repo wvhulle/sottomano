@@ -1,3 +1,4 @@
+use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     cpu_memory_compute::temperature_thresholds::celsius_text,
@@ -7,11 +8,14 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-    phosphor::Phosphor,
-    tooltip_body::{KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 const ERROR_RESET_COMMAND: &str = "btrfs device stats -z /";
@@ -22,10 +26,10 @@ impl BarWidget for DriveHealth {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Thermometer(self.state().weight()).into()
+        Phosphor::Thermometer(Weight::Regular).into()
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         let error_level = if self.errors.is_some_and(|errors| errors.total() > 0) {
             Severity::Critical
         } else {
@@ -34,7 +38,7 @@ impl BarWidget for DriveHealth {
         self.temperature_level().max(error_level).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.temperature.current().map(celsius_text)
     }
 
@@ -45,7 +49,7 @@ impl BarWidget for DriveHealth {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let thresholds = self
             .temperature
             .current()

@@ -1,5 +1,7 @@
 use iced::{Subscription, Task};
 
+use crate::widgets::phosphor::Weight;
+
 mod coredump_log;
 mod kernel_error_log;
 mod oom_kill_log;
@@ -17,6 +19,7 @@ use sottomano_sources::{
 
 use crate::{
     background_work::source_subscription,
+    clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
@@ -86,19 +89,23 @@ impl JournalEventsGroup {
         ])
     }
 
-    pub fn update(&mut self, msg: JournalEventsMessage) -> Task<JournalEventsMessage> {
+    pub fn update(
+        &mut self,
+        msg: JournalEventsMessage,
+        clock: Clock,
+    ) -> Task<JournalEventsMessage> {
         match msg {
             JournalEventsMessage::Kernel(delivery) => {
-                self.kernel.receive_delivery(delivery);
+                self.kernel.receive_delivery(delivery, clock);
             }
             JournalEventsMessage::ServiceErrors(delivery) => {
-                self.service_errors.receive_delivery(delivery);
+                self.service_errors.receive_delivery(delivery, clock);
             }
             JournalEventsMessage::Coredumps(delivery) => {
-                self.coredumps.receive_delivery(delivery);
+                self.coredumps.receive_delivery(delivery, clock);
             }
             JournalEventsMessage::OomKills(delivery) => {
-                self.oom_kills.receive_delivery(delivery);
+                self.oom_kills.receive_delivery(delivery, clock);
             }
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {
@@ -109,18 +116,18 @@ impl JournalEventsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: JournalTarget) -> Option<Tooltip> {
+    pub fn tooltip_for(&self, target: JournalTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            JournalTarget::Kernel => self.kernel.tooltip(),
-            JournalTarget::ServiceErrors => self.service_errors.tooltip(),
-            JournalTarget::Coredumps => self.coredumps.tooltip(),
-            JournalTarget::OomKills => self.oom_kills.tooltip(),
+            JournalTarget::Kernel => self.kernel.tooltip(clock),
+            JournalTarget::ServiceErrors => self.service_errors.tooltip(clock),
+            JournalTarget::Coredumps => self.coredumps.tooltip(clock),
+            JournalTarget::OomKills => self.oom_kills.tooltip(clock),
             JournalTarget::Events => self
                 .kernel
-                .tooltip_with(self.tooltip())
-                .or_else(|| self.service_errors.tooltip_with(self.tooltip()))
-                .or_else(|| self.coredumps.tooltip_with(self.tooltip()))
-                .or_else(|| self.oom_kills.tooltip_with(self.tooltip())),
+                .tooltip_with(self.tooltip(clock))
+                .or_else(|| self.service_errors.tooltip_with(self.tooltip(clock)))
+                .or_else(|| self.coredumps.tooltip_with(self.tooltip(clock)))
+                .or_else(|| self.oom_kills.tooltip_with(self.tooltip(clock))),
         }
     }
 
@@ -133,7 +140,8 @@ impl JournalEventsGroup {
             &self.expansion,
             JournalEventsMessage::Expansion,
             [
-                has_kinds.then(|| GroupItem::reading(self, JournalTarget::Events)),
+                has_kinds
+                    .then(|| GroupItem::reading(self as &dyn BarWidget, JournalTarget::Events)),
                 self.kernel_log_item(config),
                 self.service_errors
                     .visible_reading()
@@ -175,7 +183,7 @@ impl BarWidget for JournalEventsGroup {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Scroll(self.state().weight()).into()
+        Phosphor::Scroll(Weight::Regular).into()
     }
 
     fn badge(&self) -> Option<u32> {
@@ -188,17 +196,17 @@ impl BarWidget for JournalEventsGroup {
         (total > 0).then_some(total)
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, clock: Clock) -> WidgetState {
         self.kinds()
             .into_iter()
             .flatten()
-            .map(|kind| kind.state().severity())
+            .map(|kind| kind.state(clock).severity())
             .max()
             .unwrap_or_default()
             .into()
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let kernel = self
             .kernel
             .visible_reading()

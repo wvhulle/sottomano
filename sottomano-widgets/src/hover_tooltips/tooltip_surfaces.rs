@@ -3,17 +3,16 @@ use std::collections::HashMap;
 use iced::{
     Element, Rectangle, Task,
     border::Radius,
-    task::Handle,
-    time::Duration,
+    time::{Duration, Instant},
     widget::{container, mouse_area},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_state::{ShellSettings, niri_rules::StyledSurface};
-use tokio::time::sleep;
 
 use crate::{
+    clock::Clock,
     hover_tooltips::{
         HoverTarget, PressHints, TooltipMessage,
         tooltip_content::TooltipContent,
@@ -39,37 +38,47 @@ pub struct PendingSwitch {
     seq: u64,
 }
 
+pub struct DeferredSwitch {
+    pub seq: u64,
+    pub after: Duration,
+}
+
 #[derive(Default)]
 pub struct TooltipHost {
     surfaces: HashMap<String, Id>,
     transition: TooltipTransition,
     pending_switch: Option<PendingSwitch>,
     switch_seq: u64,
-    hide_grace: Option<Handle>,
+    hide_due: Option<Instant>,
 }
 
 impl TooltipHost {
-    pub fn update(&mut self, message: TooltipMessage) -> Task<Message> {
+    pub fn update(&mut self, message: TooltipMessage, now: Instant) -> Option<Instant> {
         match message {
-            TooltipMessage::Exit { target } => self.exit(&target),
+            TooltipMessage::Exit { target } => self.exit(&target, now),
             TooltipMessage::EnterTooltip => {
                 self.pending_switch = None;
-                self.hide_grace = None;
+                self.hide_due = None;
                 self.transition.cancel_leave();
-                Task::none()
+                None
             }
-            TooltipMessage::ExitTooltip => self.leave_after_grace(),
+            TooltipMessage::ExitTooltip => Some(self.leave_after_grace(now)),
             TooltipMessage::PressHintsChanged {
                 target,
                 press_hints,
             } => {
                 self.transition.revise_press_hints(&target, press_hints);
-                Task::none()
+                None
             }
             TooltipMessage::Enter { .. }
             | TooltipMessage::EnterAnchor { .. }
-            | TooltipMessage::SwitchIntentElapsed { .. } => Task::none(),
+            | TooltipMessage::SwitchIntentElapsed { .. } => None,
         }
+    }
+
+    #[must_use]
+    pub fn hide_due(&self) -> Option<Instant> {
+        self.hide_due
     }
 
     pub fn defer_switch(
@@ -78,7 +87,7 @@ impl TooltipHost {
         target: &HoverTarget,
         anchor: Rectangle,
         press_hints: PressHints,
-    ) -> Option<Task<Message>> {
+    ) -> Option<DeferredSwitch> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
             return None;
@@ -93,10 +102,10 @@ impl TooltipHost {
             press_hints,
             seq,
         });
-        Some(
-            Task::future(sleep(SWITCH_INTENT))
-                .map(move |()| Message::Tooltip(TooltipMessage::SwitchIntentElapsed { seq })),
-        )
+        Some(DeferredSwitch {
+            seq,
+            after: SWITCH_INTENT,
+        })
     }
 
     pub fn take_pending_switch(&mut self, seq: u64) -> Option<PendingSwitch> {
@@ -130,35 +139,33 @@ impl TooltipHost {
         });
     }
 
-    fn exit(&mut self, target: &HoverTarget) -> Task<Message> {
+    fn exit(&mut self, target: &HoverTarget, now: Instant) -> Option<Instant> {
         if self
             .pending_switch
             .take_if(|pending| &pending.target == target)
             .is_some()
         {
-            return self.leave_after_grace();
+            return Some(self.leave_after_grace(now));
         }
         if !self
             .transition
             .current()
             .is_some_and(|current| &current.target == target)
         {
-            return Task::none();
+            return None;
         }
-        self.leave_after_grace()
+        Some(self.leave_after_grace(now))
     }
 
-    pub fn leave_after_grace(&mut self) -> Task<Message> {
+    pub fn leave_after_grace(&mut self, now: Instant) -> Instant {
         self.transition.request_leave();
-        let (task, handle) = Task::future(sleep(HIDE_GRACE))
-            .map(|()| Message::TooltipHideElapsed)
-            .abortable();
-        self.hide_grace = Some(handle.abort_on_drop());
-        task
+        let due = now + HIDE_GRACE;
+        self.hide_due = Some(due);
+        due
     }
 
-    pub fn leave_elapsed(&mut self, departing: Option<Departed>) {
-        if self.transition.is_leaving() {
+    pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
+        if self.transition.is_leaving() && self.hide_due.take_if(|due| *due <= now).is_some() {
             self.transition.hide(departing);
         }
     }
@@ -256,6 +263,7 @@ impl TooltipHost {
         shell_settings: &ShellSettings,
         assets: WindowAssets<'a>,
         content: impl Fn(&HoverTarget) -> Tooltip,
+        clock: Clock,
     ) -> Option<Element<'a, Message>> {
         if !self.hosts(surface) {
             return None;
@@ -279,7 +287,7 @@ impl TooltipHost {
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
-                TooltipContent::new(&previous.content, config, corner_radius, assets).view(),
+                TooltipContent::new(&previous.content, config, corner_radius, assets, clock).view(),
             ));
         }
         if let Some(current) = self.transition.current() {
@@ -289,6 +297,7 @@ impl TooltipHost {
                     config,
                     corner_radius,
                     assets,
+                    clock,
                 )
                 .view(),
             )));

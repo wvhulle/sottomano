@@ -1,17 +1,20 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Locale, Utc};
 use sottomano_sources::ai_usage_spend::{
     claude_usage::{ClaudeEnterpriseSpend, ClaudeOrganization, ExtraStatus},
     usage_quota::Quota,
 };
 use uom::si::f64::Ratio;
 
-use crate::widgets::{
-    amount_text::{percent_text, spend_text},
-    bar_widget::{BarWidget, Glyph},
-    phosphor::{Phosphor, Weight},
-    spend_to_level::level_from_used,
-    tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        amount_text::{percent_text, spend_text},
+        bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
+        spend_to_level::level_from_used,
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for ClaudeEnterpriseSpend {
@@ -20,19 +23,19 @@ impl BarWidget for ClaudeEnterpriseSpend {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Buildings(self.state().weight()).into()
+        Phosphor::Buildings(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::Buildings(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!("{} month", spend_text(&self.used)))
     }
 
-    fn state(&self) -> WidgetState {
-        Quota::worst_severity(&self.quotas(Utc::now()))
+    fn state(&self, clock: Clock) -> WidgetState {
+        Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_used(self.used_share))
             .into()
     }
@@ -41,7 +44,7 @@ impl BarWidget for ClaudeEnterpriseSpend {
         self.limit.as_ref().map(|_| self.used_share)
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let (status, reason) = match &self.status {
             ExtraStatus::Enabled => ("enabled", None),
             ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
@@ -72,7 +75,7 @@ impl BarWidget for ClaudeEnterpriseSpend {
 }
 
 impl ReadingSections for ClaudeOrganization {
-    fn sections(&self) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary([
             KeyValue::new("Organization", self.organization.as_str()),
             KeyValue::new("Seat Tier", self.seat_tier.as_str()),

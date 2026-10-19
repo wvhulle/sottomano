@@ -1,11 +1,15 @@
+use chrono::Locale;
 use sottomano_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT};
 
-use crate::widgets::{
-    bar_widget::{BarWidget, Glyph},
-    localized_time::LocalizedTimeFormat,
-    phosphor::{Phosphor, Weight},
-    tooltip_body::{Cell, KeyValue, Section, TooltipBody},
-    widget_state::WidgetState,
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        widget_state::WidgetState,
+    },
 };
 
 impl BarWidget for CopilotFree {
@@ -14,18 +18,18 @@ impl BarWidget for CopilotFree {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ChatCircleDots(self.state().weight()).into()
+        Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 
     fn fallback_icon() -> Glyph {
         Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 
-    fn label(&self) -> Option<String> {
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         Some(format!("{} chats", self.chat))
     }
 
-    fn state(&self) -> WidgetState {
+    fn state(&self, _clock: Clock) -> WidgetState {
         if self.chat <= 5 {
             WidgetState::Critical
         } else if self.chat <= 20 {
@@ -35,7 +39,7 @@ impl BarWidget for CopilotFree {
         }
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
             Section::dictionary(
                 self.plan

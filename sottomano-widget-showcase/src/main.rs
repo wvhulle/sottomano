@@ -3,7 +3,10 @@ use std::error::Error;
 use clap::Parser;
 use sottomano_config::Config;
 use sottomano_widget_showcase::{
-    animation_recording, demo_script::DEMOS, readme_embedding, showcase_program::ShowcaseProgram,
+    animation_recording,
+    demo_script::DEMOS,
+    readme_embedding,
+    showcase_program::{ShowcaseProgram, booting_clock},
 };
 
 #[derive(Debug, Parser)]
@@ -25,14 +28,15 @@ struct CommandLine {
 fn main() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
     if command_line.window {
-        let program = ShowcaseProgram::new(&Config::fallback());
+        let program = ShowcaseProgram::interactive(&Config::fallback());
         return Ok(iced_winit::run(iced_tester::attach(program))?);
     }
+    let start = booting_clock();
     let only = command_line.demo;
     let recorded: Vec<_> = DEMOS
         .iter()
         .filter(|demo| only.as_deref().is_none_or(|name| name == demo.name))
-        .map(animation_recording::record)
+        .map(|demo| animation_recording::record(demo, start))
         .collect();
     if only.is_none() {
         readme_embedding::assert_embedded(&recorded);
