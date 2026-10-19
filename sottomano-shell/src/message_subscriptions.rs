@@ -57,6 +57,7 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
+    let working_days = state.quiet_schedule_group.working_days();
     let animation = if state.notifications.is_transitioning(state.clock.instant) {
         frames().map(|_| Message::Redraw)
     } else {
@@ -93,9 +94,9 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         AudioGroup::subscription().map(Message::Audio),
         state
             .claude_usage_group
-            .subscription(&state.config)
+            .subscription(&state.config, working_days)
             .map(Message::ClaudeUsage),
-        CopilotUsageGroup::subscription(&state.config).map(Message::CopilotUsage),
+        CopilotUsageGroup::subscription(&state.config, working_days).map(Message::CopilotUsage),
         state
             .openrouter_credit_group
             .subscription(&state.config)

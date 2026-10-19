@@ -9,7 +9,7 @@ use sottomano_sources::{
     SourceDelivery,
     ai_usage_spend::{
         openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
-        working_time_forecast::SpendBudget,
+        working_time_forecast::{SpendBudget, SpendPacing},
     },
 };
 
@@ -202,7 +202,10 @@ fn account(management_key: PathBuf, config: &Config) -> OpenRouterAccount {
     let budget = &config.widget_groups.openrouter_credit;
     OpenRouterAccount {
         management_key,
-        budget: SpendBudget::new(config, budget.monthly_budget_usd),
+        budget: SpendBudget {
+            pacing: SpendPacing::CalendarTime,
+            monthly_limit_usd: budget.monthly_budget_usd,
+        },
         daily_warning_usd: budget.daily_warning_usd,
     }
 }

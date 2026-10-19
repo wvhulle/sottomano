@@ -3,7 +3,7 @@ pub mod quiet_window;
 
 use std::{ops::RangeInclusive, time::Duration};
 
-use chrono::{DateTime, Local, Utc};
+use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
 use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
@@ -12,7 +12,10 @@ use sottomano_sources::{
     login_session_presence::{focus_time_ledger::WakingWindow, logind_manager},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_state::quiet_hours::{self, QuietHoursSchedule};
+use sottomano_state::{
+    quiet_hours::{self, QuietHoursSchedule},
+    working_days::{self, WorkingDays},
+};
 use tokio::time::sleep;
 
 use self::clock_slider::{clock_at, clock_minutes, new_clock_slider};
@@ -31,7 +34,8 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
@@ -47,6 +51,7 @@ pub enum QuietScheduleTarget {
     Start,
     End,
     ScreenOff,
+    WorkingDay(Weekday),
 }
 
 impl From<QuietScheduleTarget> for HoverTarget {
@@ -65,6 +70,8 @@ pub enum QuietSlider {
 #[derive(Debug, Clone)]
 pub enum QuietScheduleMessage {
     ScheduleLoaded(SourceDelivery<QuietHoursSchedule>),
+    WorkingDaysLoaded(SourceDelivery<WorkingDays>),
+    ToggleWorkingDay(Weekday),
     EdgeDue,
     ToggleQuietNow,
     ToggleFollowsSchedule,
@@ -96,6 +103,7 @@ struct ArmedEdge {
 
 pub struct QuietScheduleGroup {
     saved: ContinuousReading<QuietHoursSchedule>,
+    working_days: ContinuousReading<WorkingDays>,
     start_slider: SliderControl,
     end_slider: SliderControl,
     screen_off_slider: SliderControl,
@@ -109,6 +117,7 @@ impl Default for QuietScheduleGroup {
     fn default() -> Self {
         Self {
             saved: ContinuousReading::default(),
+            working_days: ContinuousReading::default(),
             start_slider: new_clock_slider(
                 "Quiet from",
                 QuietScheduleTarget::Start,
@@ -142,7 +151,10 @@ impl Default for QuietScheduleGroup {
 
 impl QuietScheduleGroup {
     pub fn subscription() -> Subscription<QuietScheduleMessage> {
-        source_subscription::<QuietHoursSchedule>(()).map(QuietScheduleMessage::ScheduleLoaded)
+        Subscription::batch([
+            source_subscription::<QuietHoursSchedule>(()).map(QuietScheduleMessage::ScheduleLoaded),
+            source_subscription::<WorkingDays>(()).map(QuietScheduleMessage::WorkingDaysLoaded),
+        ])
     }
 
     pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<QuietScheduleMessage> {
@@ -162,6 +174,15 @@ impl QuietScheduleGroup {
             start: schedule.end,
             end: schedule.start,
         }
+    }
+
+    #[must_use]
+    pub fn working_days(&self) -> WeekdaySet {
+        self.working_days
+            .get()
+            .copied()
+            .unwrap_or_default()
+            .weekdays
     }
 
     fn schedule(&self) -> QuietHoursSchedule {
@@ -237,6 +258,19 @@ impl QuietScheduleGroup {
                     .update(ControlMessage::Disabled(schedule.screen_off.is_none()));
                 self.phase = self.phase_at(clock.local());
                 Task::none()
+            }
+            QuietScheduleMessage::WorkingDaysLoaded(delivery) => {
+                self.working_days
+                    .receive_keeping_last_reading(delivery, clock);
+                Task::none()
+            }
+            QuietScheduleMessage::ToggleWorkingDay(day) => {
+                let toggled = WorkingDays {
+                    weekdays: self.working_days(),
+                }
+                .toggled(day);
+                self.working_days.load(toggled, clock);
+                Task::future(working_days::save(toggled)).discard()
             }
             QuietScheduleMessage::EdgeDue => {
                 let now = clock.local();
@@ -379,7 +413,12 @@ impl QuietScheduleGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: QuietScheduleTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: QuietScheduleTarget,
+        locale: Locale,
+        clock: Clock,
+    ) -> Option<Tooltip> {
         match target {
             QuietScheduleTarget::DoNotDisturb => {
                 self.saved.tooltip_with(self.status_tooltip(clock))
@@ -393,6 +432,18 @@ impl QuietScheduleGroup {
                 self.screen_off_slider
                     .readout_tooltip("Screen off while quiet"),
             ),
+            QuietScheduleTarget::WorkingDay(day) => {
+                let kind = if self.working_days().contains(day) {
+                    "working day"
+                } else {
+                    "day off"
+                };
+                self.working_days
+                    .tooltip_with(TooltipBody::dictionary([KeyValue::new(
+                        weekday_name(day, locale),
+                        kind,
+                    )]))
+            }
         }
     }
 
@@ -446,6 +497,25 @@ impl QuietScheduleGroup {
                 slider(QuietSlider::Start),
                 slider(QuietSlider::End),
                 slider(QuietSlider::ScreenOff),
+                GroupItem::element(move |reveal| {
+                    WeekdayPicker::new(
+                        config,
+                        self.working_days(),
+                        SwitchPresses {
+                            turning_on: "count as a working day",
+                            turning_off: "count as a day off",
+                        },
+                        reveal,
+                        WeekdayPickerMessages {
+                            target: |day| QuietScheduleTarget::WorkingDay(day).into(),
+                            on_toggle: |day| {
+                                GroupEvent::Group(QuietScheduleMessage::ToggleWorkingDay(day))
+                            },
+                            on_tooltip: GroupEvent::Tooltip,
+                        },
+                    )
+                    .into()
+                }),
             ],
         )
         .face(HandleFace::Icon {

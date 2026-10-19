@@ -1,4 +1,5 @@
 use iced::{Subscription, Task};
+use sottomano_config::Config;
 
 mod geolocation_fix;
 mod pollen_count_gauge;
@@ -22,6 +23,7 @@ use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::weather_group::rain_intensity::RainForecast,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -89,10 +91,9 @@ impl WeatherGroup {
         Subscription::batch([
             location,
             source_subscription::<Temperature>(here).map(WeatherMessage::Temp),
+            source_subscription::<Rain>(here).map(WeatherMessage::Rain),
             self.expansion
                 .while_expanded(source_subscription::<Wind>(here).map(WeatherMessage::Wind)),
-            self.expansion
-                .while_expanded(source_subscription::<Rain>(here).map(WeatherMessage::Rain)),
             self.expansion
                 .while_expanded(source_subscription::<Pollen>(here).map(WeatherMessage::Pollen)),
         ])
@@ -143,7 +144,20 @@ impl WeatherGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, WeatherMessage> {
+    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherMessage>> {
+        let Some(rain) = self.rain.visible_reading() else {
+            return self.rain.group_item(WeatherTarget::Rain);
+        };
+        Some(GroupItem::reading(
+            RainForecast {
+                rain,
+                alerts: &config.widget_groups.rain_alerts,
+            },
+            WeatherTarget::Rain,
+        ))
+    }
+
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, WeatherMessage> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
@@ -158,7 +172,7 @@ impl WeatherGroup {
             [
                 self.temp.group_item(WeatherTarget::Temperature),
                 self.wind.group_item(WeatherTarget::Wind),
-                self.rain.group_item(WeatherTarget::Rain),
+                self.rain_item(config),
             ]
             .into_iter()
             .flatten()

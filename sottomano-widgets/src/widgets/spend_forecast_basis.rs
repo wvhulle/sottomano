@@ -1,8 +1,9 @@
+use chrono::Weekday;
 use rust_decimal::Decimal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::ai_usage_spend::{
     spend_money::{Money, usd},
-    working_time_forecast::SpendBudget,
+    working_time_forecast::{SpendBudget, SpendPacing},
 };
 
 use crate::widgets::tooltip_body::{KeyValue, Section};
@@ -18,22 +19,34 @@ impl Section {
         sources: impl IntoIterator<Item = KeyValue>,
         budget: &SpendBudget,
     ) -> Self {
-        let working_days = budget
-            .working_days
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join(", ");
-        let working_hours = format!(
-            "{}–{}",
-            budget.working_hours.start.format(CLOCK_FORMAT),
-            budget.working_hours.end.format(CLOCK_FORMAT)
-        );
-        Section::dictionary(sources.into_iter().chain([
-            KeyValue::new("Working Days", working_days),
-            KeyValue::new("Working Hours", working_hours),
-            KeyValue::new("Projection", "cost per working hour elapsed so far"),
-        ]))
+        Section::dictionary(sources.into_iter().chain(pacing_entries(&budget.pacing)))
+    }
+}
+
+fn pacing_entries(pacing: &SpendPacing) -> Vec<KeyValue> {
+    match pacing {
+        SpendPacing::CalendarTime => vec![KeyValue::new(
+            "Projection",
+            "cost per hour elapsed so far, every day",
+        )],
+        SpendPacing::WorkingTime(working_time) => {
+            let working_days = working_time
+                .days
+                .iter(Weekday::Mon)
+                .map(|day| day.to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let working_hours = format!(
+                "{}–{}",
+                working_time.hours.start.format(CLOCK_FORMAT),
+                working_time.hours.end.format(CLOCK_FORMAT)
+            );
+            vec![
+                KeyValue::new("Working Days", working_days),
+                KeyValue::new("Working Hours", working_hours),
+                KeyValue::new("Projection", "cost per working hour elapsed so far"),
+            ]
+        }
     }
 }
 

@@ -242,9 +242,11 @@ impl DesktopShell {
                 self.login_session_group.tooltip_for(*target, self.clock)
             }
             HoverTarget::Clock(target) => self.clock_group.tooltip_for(target, self.clock),
-            HoverTarget::QuietSchedule(target) => {
-                self.quiet_schedule_group.tooltip_for(*target, self.clock)
-            }
+            HoverTarget::QuietSchedule(target) => self.quiet_schedule_group.tooltip_for(
+                *target,
+                self.config.calendar.locale,
+                self.clock,
+            ),
             HoverTarget::PanelSettings(_)
             | HoverTarget::SidebarSettings(_)
             | HoverTarget::OverlaySettings(_)
@@ -268,6 +270,7 @@ impl DesktopShell {
             buses.map_or_else(Task::none, refresh)
         };
         let sensors = &self.config.widget_groups.temperature_sensors;
+        let working_days = self.quiet_schedule_group.working_days();
         match target {
             HoverTarget::Weather(target) => {
                 self.weather_group.refresh(*target).map(Message::Weather)
@@ -286,11 +289,11 @@ impl DesktopShell {
             HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),
             HoverTarget::ClaudeUsage(target) => self
                 .claude_usage_group
-                .refresh(*target, &self.config)
+                .refresh(*target, &self.config, working_days)
                 .map(Message::ClaudeUsage),
             HoverTarget::CopilotUsage(target) => self
                 .copilot_usage_group
-                .refresh(*target, &self.config, buses)
+                .refresh(*target, &self.config, working_days, buses)
                 .map(Message::CopilotUsage),
             HoverTarget::OpenRouterCredit(target) => self
                 .openrouter_credit_group

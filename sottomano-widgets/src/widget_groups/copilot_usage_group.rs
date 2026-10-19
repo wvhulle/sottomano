@@ -4,13 +4,14 @@ mod copilot_quota_gauge;
 
 use std::path::PathBuf;
 
+use chrono::WeekdaySet;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     ai_usage_spend::{
         copilot_usage::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
-        working_time_forecast::SpendBudget,
+        working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -97,6 +98,7 @@ impl CopilotUsageGroup {
         &self,
         target: CopilotUsageTarget,
         config: &Config,
+        working_days: WeekdaySet,
         buses: Option<&DesktopBuses>,
     ) -> Task<CopilotUsageMessage> {
         let account = buses.and_then(|buses| self.account(buses));
@@ -110,13 +112,18 @@ impl CopilotUsageGroup {
             CopilotUsageTarget::Cli
             | CopilotUsageTarget::MostUsedModel
             | CopilotUsageTarget::MostUsedModelSpend => {
-                first_delivery::<CopilotCcusage>(cli_budget(config)).map(CopilotUsageMessage::Cli)
+                first_delivery::<CopilotCcusage>(cli_budget(config, working_days))
+                    .map(CopilotUsageMessage::Cli)
             }
         }
     }
 
-    pub fn subscription(config: &Config) -> Subscription<CopilotUsageMessage> {
-        source_subscription::<CopilotCcusage>(cli_budget(config)).map(CopilotUsageMessage::Cli)
+    pub fn subscription(
+        config: &Config,
+        working_days: WeekdaySet,
+    ) -> Subscription<CopilotUsageMessage> {
+        source_subscription::<CopilotCcusage>(cli_budget(config, working_days))
+            .map(CopilotUsageMessage::Cli)
     }
 
     pub fn account_subscription(&self, buses: &DesktopBuses) -> Subscription<CopilotUsageMessage> {
@@ -201,9 +208,9 @@ impl CopilotUsageGroup {
     }
 }
 
-fn cli_budget(config: &Config) -> SpendBudget {
-    SpendBudget::new(
-        config,
-        config.widget_groups.copilot_usage.monthly_budget_usd,
-    )
+fn cli_budget(config: &Config, working_days: WeekdaySet) -> SpendBudget {
+    SpendBudget {
+        pacing: SpendPacing::WorkingTime(WorkingTime::new(config, working_days)),
+        monthly_limit_usd: config.widget_groups.copilot_usage.monthly_budget_usd,
+    }
 }

@@ -18,7 +18,7 @@ use serde::Deserialize;
 pub use self::{
     ccusage_billing_blocks::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     ccusage_model_ranking::ClaudeCcusageModels,
-    enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
+    enterprise_spend::{ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeOrganization},
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
 use crate::{
@@ -138,7 +138,7 @@ fn login_polls<S, F>(
     poll: impl Fn(PathBuf) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SourceDelivery<S>> + Send
 where
-    S: ReadingSource<StreamInputs = PathBuf> + PartialEq,
+    S: ReadingSource + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
     logins(credentials.clone())

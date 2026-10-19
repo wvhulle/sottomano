@@ -1,4 +1,5 @@
-use chrono::Locale;
+use chrono::{DateTime, Local, Locale, TimeDelta};
+use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use sottomano_sources::weather::buienradar_rain::{
     Rain, RainOutlook, precipitation::millimeter_per_hour,
 };
@@ -7,10 +8,12 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
+        ongoing_toast::{definition_list, moment_text},
         tooltip_body::{Cell, KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
+        widget_state::WidgetState,
     },
 };
 
@@ -19,6 +22,100 @@ fn intensity_text(intensity: Velocity) -> String {
         "{:.1}",
         intensity.into_format_args(millimeter_per_hour, Abbreviation)
     )
+}
+
+fn current_intensity_text(intensity: Velocity) -> String {
+    if intensity <= Velocity::default() {
+        "none right now".to_string()
+    } else {
+        intensity_text(intensity)
+    }
+}
+
+fn minutes_until(at: DateTime<Local>, clock: Clock) -> i64 {
+    (at - clock.local()).num_minutes().max(0)
+}
+
+pub struct RainForecast<'a> {
+    pub rain: &'a Rain,
+    pub alerts: &'a RainAlertsConfig,
+}
+
+impl RainForecast<'_> {
+    fn alerting_intensity(&self, now: DateTime<Local>) -> Option<Velocity> {
+        match self.rain.outlook {
+            RainOutlook::Dry => None,
+            RainOutlook::StartsAt(at) => TimeDelta::from_std(self.alerts.lead_time)
+                .is_ok_and(|lead_time| at - now <= lead_time)
+                .then_some(self.rain.peak.intensity),
+            RainOutlook::StopsAt(_) | RainOutlook::OutlastsForecastUntil(_) => {
+                Some(self.rain.intensity.max(self.rain.peak.intensity))
+            }
+        }
+    }
+
+    fn severity(&self, now: DateTime<Local>) -> Severity {
+        let heavy = Velocity::new::<millimeter_per_hour>(self.alerts.heavy_millimeters_per_hour);
+        let minimum =
+            Velocity::new::<millimeter_per_hour>(self.alerts.minimum_millimeters_per_hour);
+        match self.alerting_intensity(now) {
+            Some(intensity) if intensity >= heavy => Severity::Critical,
+            Some(intensity) if intensity >= minimum => Severity::Warning,
+            _ => Severity::Normal,
+        }
+    }
+}
+
+impl BarWidget for RainForecast<'_> {
+    fn name(&self) -> &'static str {
+        self.rain.name()
+    }
+
+    fn icon(&self) -> Glyph {
+        self.rain.icon()
+    }
+
+    fn fallback_icon() -> Glyph {
+        Rain::fallback_icon()
+    }
+
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+        self.rain.label(clock, locale)
+    }
+
+    fn state(&self, clock: Clock) -> WidgetState {
+        self.severity(clock.local()).into()
+    }
+
+    fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
+        OngoingToastThreshold::NotifyFromSeverity {
+            minimum_severity: Severity::Warning,
+            summary_text: "Rain on the radar",
+        }
+    }
+
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
+        let moment = |at: DateTime<Local>| moment_text(at.to_utc(), clock.utc(), locale);
+        let turn = match self.rain.outlook {
+            RainOutlook::Dry => None,
+            RainOutlook::StartsAt(at) => Some(("Starts", moment(at))),
+            RainOutlook::StopsAt(at) => Some(("Stops", moment(at))),
+            RainOutlook::OutlastsForecastUntil(at) => Some(("Lasts past", moment(at))),
+        };
+        Some(definition_list(turn.into_iter().chain([
+            ("Now", current_intensity_text(self.rain.intensity)),
+            ("Peak", intensity_text(self.rain.peak.intensity)),
+            ("Peak at", moment(self.rain.peak.at)),
+        ])))
+    }
+
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        self.rain.tooltip(clock)
+    }
+
+    fn visible_in_bar(&self) -> bool {
+        self.rain.visible_in_bar()
+    }
 }
 
 impl BarWidget for Rain {
@@ -41,25 +138,20 @@ impl BarWidget for Rain {
         WeatherIcon::Raindrop.into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
         match self.outlook {
             RainOutlook::Dry => None,
-            RainOutlook::StartsIn(until_wet) => Some(format!("in {}m", until_wet.num_minutes())),
-            RainOutlook::StopsIn(until_dry) => Some(format!("for {}m", until_dry.num_minutes())),
-            RainOutlook::OutlastsForecast(horizon) => {
-                Some(format!("for {}m+", horizon.num_minutes()))
+            RainOutlook::StartsAt(at) => Some(format!("in {}m", minutes_until(at, clock))),
+            RainOutlook::StopsAt(at) => Some(format!("for {}m", minutes_until(at, clock))),
+            RainOutlook::OutlastsForecastUntil(at) => {
+                Some(format!("for {}m+", minutes_until(at, clock)))
             }
         }
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let now = if self.intensity <= Velocity::default() {
-            "none right now".to_string()
-        } else {
-            intensity_text(self.intensity)
-        };
         TooltipBody::dictionary([
-            KeyValue::new("Rain", now),
+            KeyValue::new("Rain", current_intensity_text(self.intensity)),
             KeyValue::new("Peak", intensity_text(self.peak.intensity)),
             KeyValue::new(
                 "Peak at",
@@ -78,6 +170,9 @@ impl BarWidget for Rain {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use sottomano_sources::weather::buienradar_rain::Downpour;
     use uom::si::{
         f64::{Length, Time},
         length::millimeter,
@@ -85,12 +180,132 @@ mod tests {
     };
 
     use super::*;
+    use crate::{
+        hover_tooltips::HoverTarget, widget_groups::weather_group::WeatherTarget,
+        widgets::ongoing_toast::OngoingToast,
+    };
 
     #[test]
     fn millimeter_per_hour_is_a_millimeter_each_hour() {
         let from_unit = Velocity::new::<millimeter_per_hour>(2.5);
         let from_parts = Length::new::<millimeter>(2.5) / Time::new::<hour>(1.0);
         assert!((from_unit - from_parts).abs() < Velocity::new::<millimeter_per_hour>(1e-9));
+    }
+
+    fn rain_at(
+        clock: Clock,
+        now_mm_per_hour: f64,
+        peak_mm_per_hour: f64,
+        outlook: RainOutlook,
+    ) -> Rain {
+        Rain {
+            intensity: Velocity::new::<millimeter_per_hour>(now_mm_per_hour),
+            peak: Downpour {
+                intensity: Velocity::new::<millimeter_per_hour>(peak_mm_per_hour),
+                at: clock.local() + TimeDelta::minutes(20),
+            },
+            outlook,
+        }
+    }
+
+    fn severity_of(rain: &Rain, clock: Clock) -> Severity {
+        RainForecast {
+            rain,
+            alerts: &RainAlertsConfig::default(),
+        }
+        .severity(clock.local())
+    }
+
+    fn starting_in(clock: Clock, minutes: i64) -> RainOutlook {
+        RainOutlook::StartsAt(clock.local() + TimeDelta::minutes(minutes))
+    }
+
+    #[test]
+    fn a_dry_forecast_never_alerts() {
+        let clock = Clock::real();
+        assert_eq!(
+            severity_of(&rain_at(clock, 0.0, 0.0, RainOutlook::Dry), clock),
+            Severity::Normal
+        );
+    }
+
+    #[test]
+    fn rain_beyond_the_lead_time_waits_until_it_comes_closer() {
+        let clock = Clock::real();
+        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 40));
+        assert_eq!(severity_of(&rain, clock), Severity::Normal);
+        assert_eq!(
+            severity_of(&rain, clock.advanced(Duration::from_mins(30))),
+            Severity::Warning
+        );
+    }
+
+    #[test]
+    fn heavy_rain_within_the_lead_time_is_critical() {
+        let clock = Clock::real();
+        let rain = rain_at(clock, 0.0, 12.0, starting_in(clock, 10));
+        assert_eq!(severity_of(&rain, clock), Severity::Critical);
+    }
+
+    #[test]
+    fn drizzle_below_the_minimum_stays_quiet() {
+        let clock = Clock::real();
+        let stops = RainOutlook::StopsAt(clock.local() + TimeDelta::minutes(15));
+        assert_eq!(
+            severity_of(&rain_at(clock, 0.2, 0.3, stops), clock),
+            Severity::Normal
+        );
+        assert_eq!(
+            severity_of(&rain_at(clock, 2.0, 2.0, stops), clock),
+            Severity::Warning
+        );
+    }
+
+    #[test]
+    fn the_label_counts_down_with_the_clock() {
+        let clock = Clock::real();
+        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 10));
+        let later = clock.advanced(Duration::from_mins(4));
+        assert_eq!(
+            rain.label(later, Locale::default()),
+            Some("in 6m".to_owned())
+        );
+    }
+
+    #[test]
+    fn the_toast_body_stays_the_same_as_the_clock_advances() {
+        let clock = Clock::real();
+        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 10));
+        let forecast = RainForecast {
+            rain: &rain,
+            alerts: &RainAlertsConfig::default(),
+        };
+        let body = forecast.ongoing_toast_body(clock, Locale::default());
+        assert!(
+            body.as_deref()
+                .is_some_and(|body| body.contains("<dt>Starts</dt>"))
+        );
+        assert_eq!(
+            forecast.ongoing_toast_body(clock.advanced(Duration::from_secs(50)), Locale::default()),
+            body
+        );
+    }
+
+    #[test]
+    fn rain_starting_soon_raises_a_toast() {
+        let clock = Clock::real();
+        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 5));
+        let toast = OngoingToast::from_widget_state(
+            HoverTarget::Weather(WeatherTarget::Rain),
+            &RainForecast {
+                rain: &rain,
+                alerts: &RainAlertsConfig::default(),
+            },
+            0_u8,
+            Locale::default(),
+            clock,
+        );
+        assert_eq!(toast.map(|toast| toast.severity), Some(Severity::Warning));
     }
 
     #[test]

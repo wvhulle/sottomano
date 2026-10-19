@@ -5,6 +5,7 @@ mod claude_usage_window_gauge;
 
 use std::path::PathBuf;
 
+use chrono::WeekdaySet;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
@@ -12,9 +13,10 @@ use sottomano_sources::{
     ai_usage_spend::{
         claude_usage::{
             self, ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods,
-            ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization, ClaudeUsageWindows,
+            ClaudeEnterpriseAccount, ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization,
+            ClaudeUsageWindows,
         },
-        working_time_forecast::SpendBudget,
+        working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
 };
 
@@ -131,12 +133,20 @@ impl ClaudeUsageGroup {
 
     fn local_logs(&self, config: &Config) -> ClaudeLocalLogs {
         ClaudeLocalLogs {
-            budget: SpendBudget::new(config, config.widget_groups.claude_usage.monthly_budget_usd),
+            budget: SpendBudget {
+                pacing: SpendPacing::CalendarTime,
+                monthly_limit_usd: config.widget_groups.claude_usage.monthly_budget_usd,
+            },
             credentials: self.oauth_credentials.clone(),
         }
     }
 
-    pub fn refresh(&self, target: ClaudeUsageTarget, config: &Config) -> Task<ClaudeUsageMessage> {
+    pub fn refresh(
+        &self,
+        target: ClaudeUsageTarget,
+        config: &Config,
+        working_days: WeekdaySet,
+    ) -> Task<ClaudeUsageMessage> {
         let account = self.oauth_credentials.clone();
         match target {
             ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |key| {
@@ -144,8 +154,12 @@ impl ClaudeUsageGroup {
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
             }),
             ClaudeUsageTarget::EnterpriseSpend => account.map_or_else(Task::none, |key| {
-                first_delivery::<ClaudeEnterpriseSpend>(key)
-                    .map(ClaudeUsageMessage::EnterpriseSpend)
+                first_delivery::<ClaudeEnterpriseSpend>(enterprise_account(
+                    key,
+                    config,
+                    working_days,
+                ))
+                .map(ClaudeUsageMessage::EnterpriseSpend)
             }),
             ClaudeUsageTarget::CcusagePeriods => {
                 first_delivery::<ClaudeCcusagePeriods>(self.local_logs(config))
@@ -162,13 +176,21 @@ impl ClaudeUsageGroup {
         }
     }
 
-    pub fn subscription(&self, config: &Config) -> Subscription<ClaudeUsageMessage> {
+    pub fn subscription(
+        &self,
+        config: &Config,
+        working_days: WeekdaySet,
+    ) -> Subscription<ClaudeUsageMessage> {
         let account = self.oauth_credentials.clone().into_iter().flat_map(|key| {
             [
                 source_subscription::<ClaudeUsageWindows>(key.clone())
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
-                source_subscription::<ClaudeEnterpriseSpend>(key)
-                    .map(ClaudeUsageMessage::EnterpriseSpend),
+                source_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
+                    key,
+                    config,
+                    working_days,
+                ))
+                .map(ClaudeUsageMessage::EnterpriseSpend),
             ]
         });
         let local_logs = self.local_logs(config);
@@ -293,5 +315,16 @@ impl ClaudeUsageGroup {
             glyph: SimpleIcon::Claude.into(),
             handle: GroupHandle::ClaudeUsage,
         })
+    }
+}
+
+fn enterprise_account(
+    credentials: PathBuf,
+    config: &Config,
+    working_days: WeekdaySet,
+) -> ClaudeEnterpriseAccount {
+    ClaudeEnterpriseAccount {
+        credentials,
+        working_time: WorkingTime::new(config, working_days),
     }
 }

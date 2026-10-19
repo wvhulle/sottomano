@@ -38,7 +38,9 @@ impl DesktopShell {
         let config = &self.config;
         TopBarGroups {
             start: [
-                self.weather_group.group_content().map(Message::Weather),
+                self.weather_group
+                    .group_content(config)
+                    .map(Message::Weather),
                 self.power_group.group_content(config).map(Message::Power),
                 self.compute_group.group_content().map(Message::Compute),
                 self.memory_board_group

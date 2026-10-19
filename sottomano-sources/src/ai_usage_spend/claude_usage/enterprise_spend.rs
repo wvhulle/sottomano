@@ -1,6 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use futures::Stream;
 use rust_decimal::Decimal;
 use rusty_money::iso;
@@ -17,6 +17,7 @@ use crate::{
     ai_usage_spend::{
         spend_money::{Money, from_minor_units},
         usage_quota::Quota,
+        working_time_forecast::{CalendarSpan, SpendPacing, WorkingTime},
     },
 };
 
@@ -74,6 +75,13 @@ pub struct ClaudeEnterpriseSpend {
     pub used: Money,
     pub limit: Option<Money>,
     pub used_share: Ratio,
+    pub working_time: WorkingTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ClaudeEnterpriseAccount {
+    pub credentials: PathBuf,
+    pub working_time: WorkingTime,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,41 +123,46 @@ impl ClaudeOrganization {
 
 impl ReadingSource for ClaudeEnterpriseSpend {
     type Error = Error;
-    type StreamInputs = PathBuf;
+    type StreamInputs = ClaudeEnterpriseAccount;
 
     const NAME: &'static str = "claude-enterprise-spend";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
 
-    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(inputs, LoginKind::Enterprise, Self::poll)
+    fn delivery_stream(
+        account: ClaudeEnterpriseAccount,
+    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+        let working_time = account.working_time;
+        login_polls(account.credentials, LoginKind::Enterprise, move |key| {
+            Self::poll(key, working_time.clone())
+        })
     }
 }
 
 impl ClaudeEnterpriseSpend {
-    async fn poll(key: PathBuf) -> Result<Self, Error> {
+    async fn poll(key: PathBuf, working_time: WorkingTime) -> Result<Self, Error> {
         let PlanReply { reply: usage, .. } =
             oauth_usage_api::fetch::<Usage>(&key, oauth_usage_api::USAGE_URL).await?;
-        ClaudeEnterpriseSpend::try_from(usage.spend)
+        ClaudeEnterpriseSpend::paced_by(usage.spend, working_time)
     }
-}
 
-impl ClaudeEnterpriseSpend {
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
+        let now = now.with_timezone(&Local);
         self.limit
             .as_ref()
             .and_then(|_| {
-                Quota::within_calendar_month("Claude monthly spend limit", self.used_share, now)
+                CalendarSpan::month_containing(now.date_naive()).paced_quota(
+                    "Claude monthly spend limit",
+                    self.used_share,
+                    &SpendPacing::WorkingTime(self.working_time.clone()),
+                    now,
+                )
             })
             .into_iter()
             .collect()
     }
-}
 
-impl TryFrom<Spend> for ClaudeEnterpriseSpend {
-    type Error = Error;
-
-    fn try_from(spend: Spend) -> Result<Self, Self::Error> {
+    fn paced_by(spend: Spend, working_time: WorkingTime) -> Result<Self, Error> {
         let status = if spend.enabled {
             ExtraStatus::Enabled
         } else {
@@ -165,12 +178,16 @@ impl TryFrom<Spend> for ClaudeEnterpriseSpend {
             used: Money::try_from(spend.used)?,
             limit: spend.limit.map(Money::try_from).transpose()?,
             used_share: Ratio::new::<percent>(spend.percent),
+            working_time,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use chrono::WeekdaySet;
+    use sottomano_config::calendar::WorkingHours;
+
     use super::*;
 
     const ENTERPRISE_USAGE: &str = r#"{
@@ -198,7 +215,11 @@ mod tests {
 
     fn enterprise_spend() -> ClaudeEnterpriseSpend {
         let usage: Usage = serde_json::from_str(ENTERPRISE_USAGE).unwrap();
-        ClaudeEnterpriseSpend::try_from(usage.spend).unwrap()
+        let working_time = WorkingTime {
+            days: WeekdaySet::ALL,
+            hours: WorkingHours::default(),
+        };
+        ClaudeEnterpriseSpend::paced_by(usage.spend, working_time).unwrap()
     }
 
     #[test]
