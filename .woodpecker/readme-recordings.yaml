@@ -2,6 +2,9 @@ when:
   - repo: wvhulle/sottomano
     event: [push, manual]
     branch: main
+    path:
+      exclude: ["recordings/**"]
+    evaluate: 'not (CI_COMMIT_MESSAGE contains "update README recordings")'
 
 depends_on:
   - checks
