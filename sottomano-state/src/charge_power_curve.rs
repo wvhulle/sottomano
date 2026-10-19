@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
+    battery_power_profiles::battery_time_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 

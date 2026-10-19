@@ -6,9 +6,9 @@ use uom::si::{f64::Power, power::watt};
 
 #[cfg(test)]
 use crate::battery_power_profiles::upower_battery_state::BATTERY_POLL_INTERVAL;
-use crate::{
-    battery_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
-    power_profile::Conditions,
+use crate::battery_power_profiles::{
+    battery_time_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
+    power_profiles_daemon::Conditions,
 };
 
 const BASE_DRIFT_W2_PER_S: f64 = 2e-7;

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_sources::battery_forecast::Estimate;
+use sottomano_sources::battery_power_profiles::battery_time_forecast::Estimate;
 
 use crate::widgets::tooltip_body::{Cell, ColumnHeading};
 

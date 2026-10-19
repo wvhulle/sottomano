@@ -7,9 +7,11 @@ use std::{
 use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
-    battery_forecast::{Estimate, RegressionState, time_until_empty},
-    battery_power_profiles::upower_battery_state::Battery,
-    power_profile::{self, Conditions, Profile, ProfileStatus},
+    battery_power_profiles::{
+        battery_time_forecast::{Estimate, RegressionState, time_until_empty},
+        power_profiles_daemon::{self, Conditions, Profile, ProfileStatus},
+        upower_battery_state::Battery,
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::power;
@@ -88,7 +90,7 @@ pub enum PowerProfileMessage {
 
 fn commit_profile_switch(profile: Profile) -> Task<PowerProfileMessage> {
     ControlMessage::commit("power profile set", profile.position(), move || {
-        power_profile::set(profile)
+        power_profiles_daemon::set(profile)
     })
     .map(PowerProfileMessage::Control)
 }

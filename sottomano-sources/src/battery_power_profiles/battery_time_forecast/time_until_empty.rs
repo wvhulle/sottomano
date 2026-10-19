@@ -2,14 +2,14 @@ use std::{collections::HashMap, time::Duration};
 
 use uom::si::f64::{Energy, Power};
 
-use crate::{
-    battery_forecast::{
+use crate::battery_power_profiles::{
+    battery_time_forecast::{
         Estimate,
         discharge_power_regression::RegressionState,
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
-    battery_power_profiles::upower_battery_state::Battery,
-    power_profile::{Conditions, Profile},
+    power_profiles_daemon::{Conditions, Profile},
+    upower_battery_state::Battery,
 };
 
 struct Draining<'a> {
@@ -101,9 +101,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        battery_forecast::discharge_power_regression::trained,
-        battery_power_profiles::upower_battery_state::{
-            BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus,
+        battery_power_profiles::{
+            battery_time_forecast::discharge_power_regression::trained,
+            upower_battery_state::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
         },
         host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     };
