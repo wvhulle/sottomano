@@ -1,4 +1,4 @@
-use sottomano_sources::weather::{Allergen, AllergenConcentration, Pollen};
+use sottomano_sources::weather::open_meteo_pollen::{Allergen, AllergenConcentration, Pollen};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::widgets::{

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sottomano_sources::{
-    desktop_windows_apps::niri_window_snapshot::{OutputInfo, OutputMode},
+    desktop_windows_apps::niri_output_facts::{OutputInfo, OutputMode},
     screen_brightness_color::clightd_backlight::{Backlight, BacklightKind},
 };
 

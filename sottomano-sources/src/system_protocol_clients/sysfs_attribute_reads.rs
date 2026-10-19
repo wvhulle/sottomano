@@ -7,7 +7,7 @@ use std::{
 
 use uom::si::{f64::Frequency, frequency::kilohertz};
 
-use crate::Panicked;
+use crate::blocking_background_work::Panicked;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {

@@ -13,9 +13,11 @@ use systemd::journal::{Journal, OpenOptions};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    systemd_units_journal::journal_follow::{
-        CoredumpUnit, JournalEvent, JournalFollowError, JournalPriority, MessageId, OwningUnit,
-        decode_record, journal_windows,
+    system_protocol_clients::journal_follow::{
+        JournalEvent, JournalFollowError, decode_record, journal_windows,
+    },
+    systemd_units_journal::journal_record_fields::{
+        CoredumpUnit, JournalPriority, MessageId, OwningUnit,
     },
 };
 
@@ -222,7 +224,7 @@ mod tests {
     use systemd::journal::JournalRecord;
 
     use super::*;
-    use crate::systemd_units_journal::journal_follow::journal_record;
+    use crate::system_protocol_clients::journal_follow::journal_record;
 
     fn firefox_coredump<'a>(
         varying_fields: impl IntoIterator<Item = (&'a str, &'a str)>,

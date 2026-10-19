@@ -13,7 +13,7 @@ use sottomano_sources::{
         alert_sound_player::{self, SoundTheme},
         notification_data::{NotificationData, Outbound, close_reason},
     },
-    desktop_windows_apps::niri_window_snapshot::{self, Placement},
+    desktop_windows_apps::{niri_action_requests, niri_window_placement::Placement},
 };
 use sottomano_state::NotificationSettings;
 use tokio::{sync::mpsc, time::timeout};
@@ -245,7 +245,7 @@ impl NotificationLayer {
 
     pub fn show_niri_failure(
         &mut self,
-        failure: &niri_window_snapshot::ActionFailure,
+        failure: &niri_action_requests::ActionFailure,
         context: &ToastContext,
     ) -> Task<Message> {
         let toast_id = self.fresh_shell_toast_id();

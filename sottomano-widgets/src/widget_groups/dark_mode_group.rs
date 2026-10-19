@@ -15,7 +15,7 @@ use sottomano_sources::{
         umbra_dark_mode::{DarkMode, set_mode},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    weather::Location,
+    weather::situo_location_fix::Location,
 };
 use sottomano_state::dark_mode::{self, DarkModeSchedule};
 use tokio::time::sleep;

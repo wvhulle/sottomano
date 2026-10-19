@@ -6,7 +6,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    desktop_windows_apps::niri_window_snapshot,
+    desktop_windows_apps::niri_output_facts,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
     pushed_delivery_stream,
@@ -45,7 +45,7 @@ impl ReadingSource for GraphicalSession {
 
 impl GraphicalSession {
     async fn read() -> Result<Self, dbus_desktop_buses::Error> {
-        let compositor_version = spawn_blocking(niri_window_snapshot::version)
+        let compositor_version = spawn_blocking(niri_output_facts::version)
             .await
             .ok()
             .flatten()

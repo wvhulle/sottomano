@@ -2,7 +2,12 @@ use chrono::{DurationRound, TimeDelta, Utc};
 use situo_client::{Estimate, Fix, Method, Observations, Origin, Place, Position};
 use sottomano_sources::{
     SourceDelivery,
-    weather::{HourlyForecast, HourlyTemperature, Location, Temperature, WeatherCondition},
+    weather::{
+        open_meteo_temperature::{
+            HourlyForecast, HourlyTemperature, Temperature, WeatherCondition,
+        },
+        situo_location_fix::Location,
+    },
 };
 use sottomano_widgets::widget_groups::weather_group::{WeatherGroup, WeatherMessage};
 use uom::si::{

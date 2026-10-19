@@ -1,7 +1,7 @@
 use iced::Task;
 use sottomano_config::Config;
 use sottomano_sources::{
-    blocking_background_work::blocking, desktop_windows_apps::niri_window_snapshot,
+    blocking_background_work::blocking, desktop_windows_apps::niri_action_requests,
 };
 
 #[derive(Debug, Clone)]
@@ -37,7 +37,7 @@ impl TerminalCommand {
     pub fn open<M: Send + 'static>(self) -> Task<M> {
         let command = self.command;
         Task::future(blocking("terminal command", move || {
-            niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::Spawn { command });
+            niri_action_requests::send_action_or_warn(&niri_ipc::Action::Spawn { command });
         }))
         .discard()
     }

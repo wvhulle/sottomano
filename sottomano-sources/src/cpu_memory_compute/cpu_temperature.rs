@@ -23,7 +23,8 @@ use super::{
     hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     polled_delivery_after_setup,
     stream_operators::StreamOperators,

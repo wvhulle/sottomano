@@ -7,7 +7,7 @@ use iced::{
 use sottomano_config::Config;
 use sottomano_sources::{
     blocking_background_work::blocking,
-    desktop_windows_apps::{desktop_entry_app_icons::DesktopEntries, niri_window_snapshot},
+    desktop_windows_apps::{desktop_entry_app_icons::DesktopEntries, niri_action_requests},
 };
 
 use crate::{
@@ -76,7 +76,7 @@ impl QuickLaunch {
             .and_then(|entries| entries.exec_command(&app_id))
             .unwrap_or_else(|| vec![app_id]);
         Task::future(blocking("quicklaunch launch", move || {
-            niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::Spawn { command });
+            niri_action_requests::send_action_or_warn(&niri_ipc::Action::Spawn { command });
         }))
         .discard()
     }

@@ -22,7 +22,7 @@ use sottomano_sources::{
         notification_data::{NotificationData, Outbound},
     },
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, niri_window_snapshot::Placement,
+        desktop_entry_app_icons::DesktopEntries, niri_window_placement::Placement,
     },
 };
 use sottomano_state::ShellSettings;

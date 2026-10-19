@@ -1,5 +1,5 @@
 use situo_client::{Estimate, Origin, Place, Position};
-use sottomano_sources::weather::Location;
+use sottomano_sources::weather::situo_location_fix::Location;
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

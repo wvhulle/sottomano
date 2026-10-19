@@ -9,7 +9,8 @@ use super::{
     root_mount_facts::RootMount,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
+    polled_delivery_stream,
 };
 
 #[derive(Debug, Clone, PartialEq)]

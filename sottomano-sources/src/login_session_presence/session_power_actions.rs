@@ -1,5 +1,5 @@
 use crate::{
-    desktop_windows_apps::niri_window_snapshot, login_session_presence::logind_manager,
+    desktop_windows_apps::niri_action_requests, login_session_presence::logind_manager,
     system_protocol_clients::shell_command_output,
 };
 
@@ -127,7 +127,7 @@ impl SessionAction {
             SessionAction::Lock => logind_manager::lock(),
             SessionAction::LockAllSessions => logind_manager::lock_all_sessions(),
             SessionAction::ScreenOff => {
-                niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
+                niri_action_requests::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
             }
             SessionAction::Sleep => logind_manager::sleep(),
             SessionAction::Suspend => logind_manager::suspend(),
@@ -141,7 +141,7 @@ impl SessionAction {
             SessionAction::PowerOff => logind_manager::power_off(),
             SessionAction::CancelScheduledShutdown => logind_manager::cancel_scheduled_shutdown(),
             SessionAction::LogOut => {
-                niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::Quit {
+                niri_action_requests::send_action_or_warn(&niri_ipc::Action::Quit {
                     skip_confirmation: true,
                 });
             }

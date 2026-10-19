@@ -18,7 +18,7 @@ use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::Panicked,
     desktop_windows_apps::nix_store_provenance::Provenance, non_empty_text::non_empty,
     polled_delivery_stream,
 };

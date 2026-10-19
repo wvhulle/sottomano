@@ -26,7 +26,9 @@ use uom::si::{
 };
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::{Panicked, blocking_poll},
+    polled_delivery_stream,
 };
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";

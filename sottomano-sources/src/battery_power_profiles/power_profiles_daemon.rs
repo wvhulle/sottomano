@@ -4,7 +4,8 @@ use futures::{Stream, StreamExt, stream};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
     cpu_memory_compute::cpu_core_loads,
     non_empty_text::non_empty,
     polled_delivery_stream,

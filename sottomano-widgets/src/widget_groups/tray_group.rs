@@ -10,7 +10,7 @@ use sottomano_config::{Config, widget_groups::tray::ClickAction};
 use sottomano_sources::{
     SourceDelivery,
     desktop_windows_apps::{
-        niri_window_snapshot::WindowOwner,
+        niri_window_placement::WindowOwner,
         status_notifier_tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
     },
 };

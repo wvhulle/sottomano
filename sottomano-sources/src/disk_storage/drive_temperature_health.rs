@@ -13,7 +13,8 @@ use super::{
     root_mount_facts::{KernelDevice, RootMount},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::blocking_poll,
     cpu_memory_compute::{
         hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind},
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},

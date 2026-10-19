@@ -1,5 +1,7 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::weather::{HourlyTemperature, Temperature, WeatherCondition};
+use sottomano_sources::weather::open_meteo_temperature::{
+    HourlyTemperature, Temperature, WeatherCondition,
+};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},

@@ -12,10 +12,10 @@ use sottomano_config::severity::Severity;
 use systemd::{id128::Id128, journal::OpenOptions};
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
-    systemd_units_journal::journal_follow::{
-        MessageId, OwningUnit, SubjectUnit, decode_record, either_of,
-    },
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    blocking_background_work::{Panicked, blocking_poll},
+    system_protocol_clients::journal_follow::decode_record,
+    systemd_units_journal::journal_record_fields::{MessageId, OwningUnit, SubjectUnit, either_of},
 };
 
 const SLOWEST_STOP_COUNT: usize = 10;
@@ -348,7 +348,7 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::systemd_units_journal::journal_follow::journal_record;
+    use crate::system_protocol_clients::journal_follow::journal_record;
 
     #[test]
     fn stops_pair_by_job_and_a_stop_that_never_ended_ranks_first() {

@@ -20,37 +20,15 @@ pub mod wallpaper_place_article;
 pub mod weather;
 
 use std::{
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::{Debug, Display},
     future::{Future, ready},
     hash::Hash,
     time::Duration,
 };
 
 use futures::{Stream, StreamExt, stream};
-use tokio::task::spawn_blocking;
 
 use crate::stream_operators::{StreamOperators, connected_until_failure, ticked};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Panicked;
-
-impl Display for Panicked {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str("reading task panicked")
-    }
-}
-
-pub async fn blocking_poll<T, E>(
-    read: impl FnOnce() -> Result<T, E> + Send + 'static,
-) -> Result<T, E>
-where
-    T: Send + 'static,
-    E: From<Panicked> + Send + 'static,
-{
-    spawn_blocking(read)
-        .await
-        .unwrap_or_else(|_| Err(E::from(Panicked)))
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeliveryCadence {
