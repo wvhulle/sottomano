@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use iced::alignment::Horizontal;
-use sottomano_sources::systemd_manager::boot_timeline::{BootTimeline, RankedActivations};
+use sottomano_sources::systemd_units_journal::boot_timeline::{BootTimeline, RankedActivations};
 
 use crate::{
     widget_groups::systemd_manager_group::elapsed_text,

@@ -11,13 +11,13 @@ use boot_timeline_reading::StartupUnits;
 use sottomano_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use sottomano_sources::{
     SourceDelivery,
-    previous_shutdown::LastShutdown,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_manager::{
+    systemd_units_journal::{
         SystemdOnBus, SystemdUnitScope,
         boot_timeline::{BootTimeline, BootTimelineWatch},
         failed_units::{FailedUnitRestart, FailedUnits},
-        running_jobs::{SlowJobs, SlowJobsWatch},
+        journal_previous_shutdown::LastShutdown,
+        slow_running_jobs::{SlowJobs, SlowJobsWatch},
     },
 };
 

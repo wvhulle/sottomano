@@ -9,7 +9,7 @@ use sottomano_sources::{
     SourceDelivery,
     screen_brightness_color::gammarelay_color_temperature::{self, Gamma},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
+    systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
 };
 use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;

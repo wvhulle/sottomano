@@ -1,4 +1,4 @@
-use sottomano_sources::systemd_manager::user_service_manager::UserServiceManager;
+use sottomano_sources::systemd_units_journal::user_service_manager::UserServiceManager;
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

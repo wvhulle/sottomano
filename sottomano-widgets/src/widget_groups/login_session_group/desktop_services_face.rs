@@ -1,4 +1,4 @@
-use sottomano_sources::systemd_manager::graphical_session::GraphicalSessionTarget;
+use sottomano_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

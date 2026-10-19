@@ -4,13 +4,13 @@ use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_config::Config;
 use sottomano_sources::{
-    coredumps::{CoredumpEntry, CoredumpInspection},
     notifications::model::ActionTint,
-    systemd_manager::{
+    systemd_units_journal::{
         SystemdUnitScope,
         failed_units::{
             FailedUnitInfo, FailedUnitRestart, FailedUnits, ServiceOutcome, UNIT_FAILURE_PRIORITY,
         },
+        journal_coredumps::{CoredumpEntry, CoredumpInspection},
     },
 };
 
@@ -234,7 +234,7 @@ impl TableRow<2> for &FailedUnitInfo {
 mod tests {
     use std::time::{Duration, SystemTime};
 
-    use sottomano_sources::systemd_manager::SystemdUnitScope;
+    use sottomano_sources::systemd_units_journal::SystemdUnitScope;
 
     use super::*;
     use crate::widgets::tooltip_body::{Section, SectionBody};
