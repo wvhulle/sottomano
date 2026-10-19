@@ -28,13 +28,15 @@ use sottomano_config::{
     theme::Theme,
 };
 use sottomano_sources::{
-    app_icon::{self, DesktopEntries},
     blocking_background_work::blocking,
-    desktop_entries,
     desktop_notifications::alert_sound_player::SoundTheme,
-    launch_tracker::{Launch, LaunchTracker},
-    niri,
-    niri_config::{ConfiguredWorkspaces, NiriConfigFile},
+    desktop_windows_apps::{
+        app_launch_history::{Launch, LaunchTracker},
+        desktop_entry_app_icons::{self, DesktopEntries},
+        desktop_entry_changes,
+        niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
+        niri_window_snapshot,
+    },
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
         shell_command_output::blocking::run,
@@ -140,8 +142,8 @@ pub struct DesktopShell {
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
     pub niri: EventStreamState,
-    pub niri_snapshot: ContinuousReading<niri::Snapshot>,
-    pub outputs: HashMap<String, niri::OutputInfo>,
+    pub niri_snapshot: ContinuousReading<niri_window_snapshot::Snapshot>,
+    pub outputs: HashMap<String, niri_window_snapshot::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
@@ -228,7 +230,7 @@ impl DesktopShell {
         };
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
-            Task::perform(desktop_entries::load(), Message::DesktopEntriesLoaded),
+            Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
             Task::perform(launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
@@ -298,7 +300,7 @@ impl DesktopShell {
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
             Message::ReloadDesktopEntries => {
-                Task::perform(desktop_entries::load(), Message::DesktopEntriesLoaded)
+                Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded)
             }
             Message::IconsResolved(resolved) => {
                 self.desktop_entries.merge(resolved);
@@ -500,7 +502,7 @@ impl DesktopShell {
         ) {
             overlay_settings_group::Action::Run(task) => task,
             overlay_settings_group::Action::ReflowToasts(task) => {
-                let placement = niri::Placement::derive(&self.niri);
+                let placement = niri_window_snapshot::Placement::derive(&self.niri);
                 Task::batch([
                     self.notifications.on_niri_changed(
                         &placement,
@@ -524,9 +526,12 @@ impl DesktopShell {
         self.refresh_quick_launch()
     }
 
-    fn adopt_outputs(&mut self, outputs: HashMap<String, niri::OutputInfo>) -> Task<Message> {
+    fn adopt_outputs(
+        &mut self,
+        outputs: HashMap<String, niri_window_snapshot::OutputInfo>,
+    ) -> Task<Message> {
         self.outputs = outputs;
-        let placement = niri::Placement::derive(&self.niri);
+        let placement = niri_window_snapshot::Placement::derive(&self.niri);
         self.notifications.on_niri_changed(
             &placement,
             &self.config,
@@ -601,7 +606,7 @@ impl DesktopShell {
         focus: AppWindowFocus<M>,
         lift: fn(M) -> Message,
     ) -> Task<Message> {
-        let placement = niri::Placement::derive(&self.niri);
+        let placement = niri_window_snapshot::Placement::derive(&self.niri);
         let Some(window) = placement.window_owned_by(&focus.owner) else {
             tracing::debug!("no single window owned by {:?}", focus.owner);
             return Task::done(lift(focus.unmatched));
@@ -702,13 +707,17 @@ impl DesktopShell {
     }
 
     fn derive_niri_snapshot(&mut self) {
-        self.niri_snapshot.load(niri::Snapshot::derive(
-            &self.niri,
-            self.window_group.window_processes(),
-        ));
+        self.niri_snapshot
+            .load(niri_window_snapshot::Snapshot::derive(
+                &self.niri,
+                self.window_group.window_processes(),
+            ));
     }
 
-    fn show_niri_failure(&mut self, failure: &niri::ActionFailure) -> Task<Message> {
+    fn show_niri_failure(
+        &mut self,
+        failure: &niri_window_snapshot::ActionFailure,
+    ) -> Task<Message> {
         tracing::warn!("{failure}");
         self.derive_niri_snapshot();
         self.notifications.show_niri_failure(
@@ -806,7 +815,7 @@ impl DesktopShell {
             tasks.push(self.refresh_quick_launch());
         }
         if self.notifications.is_active() {
-            let placement = niri::Placement::derive(&self.niri);
+            let placement = niri_window_snapshot::Placement::derive(&self.niri);
             tasks.push(self.notifications.on_niri_changed(
                 &placement,
                 &self.config,
@@ -841,10 +850,14 @@ impl DesktopShell {
 
     fn resolve_icons(&mut self) -> Task<Message> {
         let snapshot = self.niri_snapshot.get();
-        let mut app_keys = snapshot.map(app_icon::app_icon_keys).unwrap_or_default();
+        let mut app_keys = snapshot
+            .map(desktop_entry_app_icons::app_icon_keys)
+            .unwrap_or_default();
         app_keys.extend(self.window_group.icon_keys());
         app_keys.extend(self.media_group.icon_keys());
-        let theme_keys = snapshot.map(app_icon::theme_icon_keys).unwrap_or_default();
+        let theme_keys = snapshot
+            .map(desktop_entry_app_icons::theme_icon_keys)
+            .unwrap_or_default();
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)

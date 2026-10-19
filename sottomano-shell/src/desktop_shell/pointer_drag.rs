@@ -2,7 +2,7 @@ use std::mem;
 
 use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
-use sottomano_sources::niri;
+use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
     background_work::niri_action,
@@ -196,7 +196,10 @@ impl DesktopShell {
         })
     }
 
-    fn reshape_snapshot(&mut self, reshape: impl FnOnce(niri::Snapshot) -> niri::Snapshot) {
+    fn reshape_snapshot(
+        &mut self,
+        reshape: impl FnOnce(niri_window_snapshot::Snapshot) -> niri_window_snapshot::Snapshot,
+    ) {
         if let Some(snapshot) = self.niri_snapshot.get().cloned() {
             self.niri_snapshot.load(reshape(snapshot));
         }

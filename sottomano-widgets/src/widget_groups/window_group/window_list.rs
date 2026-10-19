@@ -10,13 +10,15 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
     SourceDelivery,
-    job_view::{self, Jobs},
-    kitty_windows::{self, WindowProcesses},
-    launcher_entry::{self, LauncherEntries, LauncherEntry},
+    desktop_windows_apps::{
+        kde_job_view_progress::{self, Jobs},
+        kitty_terminal_windows::{self, WindowProcesses},
+        niri_window_snapshot,
+        nix_package_facts::{NixPackageFacts, PackageWatch},
+        process_tree_inspection::{Inspection, Process, Watched},
+        unity_launcher_badges::{self, LauncherEntries, LauncherEntry},
+    },
     media_playback_audio::pipewire_audio::WindowAudio,
-    niri,
-    nix_package_facts::{NixPackageFacts, PackageWatch},
-    process::{Inspection, Process, Watched},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -89,11 +91,13 @@ pub enum Action {
 impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
-            restarting_subscription("job view", job_view::serve)
+            restarting_subscription("job view", kde_job_view_progress::serve)
                 .map(WindowListMessage::JobsChanged),
             if agents.kitty {
-                Subscription::run_with(agents.clone(), |_| kitty_windows::window_pairings())
-                    .map(WindowListMessage::WindowProcessesPaired)
+                Subscription::run_with(agents.clone(), |_| {
+                    kitty_terminal_windows::window_pairings()
+                })
+                .map(WindowListMessage::WindowProcessesPaired)
             } else {
                 Subscription::none()
             },
@@ -101,7 +105,7 @@ impl WindowList {
     }
 
     pub fn launcher_entry_subscription(buses: &DesktopBuses) -> Subscription<WindowListMessage> {
-        Subscription::run_with(buses.clone(), launcher_entry::entry_updates)
+        Subscription::run_with(buses.clone(), unity_launcher_badges::entry_updates)
             .map(WindowListMessage::LauncherEntriesChanged)
     }
 
@@ -214,7 +218,7 @@ impl WindowList {
     #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
-        niri: &niri::Snapshot,
+        niri: &niri_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
@@ -234,7 +238,7 @@ impl WindowList {
         if windows.is_empty() {
             return None;
         }
-        let dragged_item = |win: &niri::WinEntry| DraggedBarSlot::Window {
+        let dragged_item = |win: &niri_window_snapshot::WinEntry| DraggedBarSlot::Window {
             window: win.id,
             workspace,
         };
@@ -281,7 +285,7 @@ impl WindowList {
     #[must_use]
     pub fn drag_ghost<'a>(
         &'a self,
-        niri: &niri::Snapshot,
+        niri: &niri_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         window: u64,
@@ -318,7 +322,7 @@ impl WindowList {
 
     fn extras(
         &self,
-        win: &niri::WinEntry,
+        win: &niri_window_snapshot::WinEntry,
         audio: Option<&HashMap<i32, WindowAudio>>,
         config: &Config,
     ) -> Extras<'_> {
@@ -340,7 +344,7 @@ fn dragged(event: SlotDragEvent) -> WindowListMessage {
 }
 
 struct WindowSlot<'w, 'e> {
-    win: &'w niri::WinEntry,
+    win: &'w niri_window_snapshot::WinEntry,
     item: DraggedBarSlot,
     extras: Extras<'e>,
     position_in_bar: usize,
@@ -423,7 +427,7 @@ impl WindowSlot<'_, '_> {
 fn window_slot_content<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    win: &niri::WinEntry,
+    win: &niri_window_snapshot::WinEntry,
     extras: Extras<'_>,
     position: Position,
     opacity: f32,
@@ -492,7 +496,7 @@ fn secondary_glyph<'a>(
 fn button_content<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    win: &niri::WinEntry,
+    win: &niri_window_snapshot::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
@@ -533,7 +537,7 @@ fn audio_glyph<'a>(
 
 fn indicator_line<'a>(
     config: &Config,
-    win: &niri::WinEntry,
+    win: &niri_window_snapshot::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
@@ -622,7 +626,7 @@ fn count_badge<'a>(
 fn badged_icon<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    win: &niri::WinEntry,
+    win: &niri_window_snapshot::WinEntry,
     extras: Extras<'_>,
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
@@ -639,7 +643,7 @@ fn badged_icon<'a>(
 fn resolved_icon<'a>(
     config: &Config,
     icons: WindowAssets<'a>,
-    win: &niri::WinEntry,
+    win: &niri_window_snapshot::WinEntry,
     opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let path = icons.path_for(win);

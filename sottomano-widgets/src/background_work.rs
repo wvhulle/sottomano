@@ -5,7 +5,9 @@ use iced::{
     futures::{Stream, StreamExt},
 };
 use sottomano_sources::{
-    ReadingSource, SourceDelivery, blocking_background_work::blocking, niri, sink::clipboard,
+    ReadingSource, SourceDelivery,
+    blocking_background_work::blocking,
+    desktop_windows_apps::{clipboard_copy, niri_window_snapshot},
     stream_operators::restarting,
 };
 
@@ -13,7 +15,7 @@ use crate::shell_message::Message;
 
 pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
     Task::future(blocking("niri action", move || {
-        niri::send_action(&action).err()
+        niri_window_snapshot::send_action(&action).err()
     }))
     .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
 }
@@ -56,5 +58,5 @@ pub fn first_delivery<S: ReadingSource>(inputs: S::StreamInputs) -> Task<SourceD
 }
 
 pub fn copy_to_clipboard<M: Send + 'static>(text: String) -> Task<M> {
-    Task::future(blocking("clipboard", move || clipboard::write(&text))).discard()
+    Task::future(blocking("clipboard", move || clipboard_copy::write(&text))).discard()
 }

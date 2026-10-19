@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AgentWindow,
     kitty_window_label::{ActiveKittyWindow, KittyWindowLabel, program_name},
-    shell_title::{ShellState, ShellTitleFormat},
+    shell_prompt_title::{ShellState, ShellTitleFormat},
 };
 
 const FRAME_START: &[u8] = b"\x1bP@kitty-cmd";
@@ -226,7 +226,7 @@ mod tests {
     use std::path::Path;
 
     use super::OsWindow;
-    use crate::kitty_windows::kitty_window_label::{
+    use crate::desktop_windows_apps::kitty_terminal_windows::kitty_window_label::{
         ForegroundActivity, KittyWindowLabel, WorkingLocation,
     };
 

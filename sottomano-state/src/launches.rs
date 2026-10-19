@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use sottomano_sources::{
-    launch_tracker::Launch,
+    desktop_windows_apps::app_launch_history::Launch,
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 

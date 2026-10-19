@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use super::shell_title::{ShellState, ShellTitle, ShellTitleFormat};
-use crate::project_directory::project_relative_directory;
+use super::shell_prompt_title::{ShellState, ShellTitle, ShellTitleFormat};
+use crate::desktop_windows_apps::project_directory_labels::project_relative_directory;
 
 const SSH_VALUE_FLAGS: [&str; 20] = [
     "-b", "-c", "-D", "-E", "-e", "-F", "-I", "-i", "-J", "-L", "-l", "-m", "-O", "-o", "-p", "-Q",

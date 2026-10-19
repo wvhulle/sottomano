@@ -6,7 +6,9 @@ use iced::{
     widget::{Column, Row, Text, column, container, progress_bar, row},
 };
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_sources::{niri, niri_config::ConfiguredWorkspaces};
+use sottomano_sources::desktop_windows_apps::{
+    niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
+};
 
 use crate::{
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
@@ -51,7 +53,7 @@ impl From<WorkspacesMessage> for Message {
 
 fn order_restore<'a>(
     configured: Option<&ConfiguredWorkspaces>,
-    workspaces: &[niri::WorkspaceIndicator],
+    workspaces: &[niri_window_snapshot::WorkspaceIndicator],
     output: &str,
     config: &Config,
 ) -> Option<Element<'a, WorkspacesMessage>> {
@@ -75,7 +77,7 @@ fn order_restore<'a>(
 }
 
 pub fn vertical_view<'a>(
-    niri: &niri::Snapshot,
+    niri: &niri_window_snapshot::Snapshot,
     output: &str,
     config: &Config,
     drag: &DragView,
@@ -114,7 +116,7 @@ pub fn vertical_view<'a>(
 
 #[must_use]
 pub fn drag_ghost<'a>(
-    niri: &niri::Snapshot,
+    niri: &niri_window_snapshot::Snapshot,
     output: &str,
     workspace: u64,
     config: &Config,
@@ -141,8 +143,8 @@ fn dragged(event: SlotDragEvent) -> WorkspacesMessage {
 
 fn sidebar_row<'a>(
     config: &Config,
-    niri: &niri::Snapshot,
-    p: &niri::WorkspaceIndicator,
+    niri: &niri_window_snapshot::Snapshot,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
 ) -> Element<'a, WorkspacesMessage> {
     let tone = slot_tone(p, drag);
@@ -167,7 +169,7 @@ fn sidebar_row<'a>(
 }
 
 pub fn inline_view<'a>(
-    niri: &niri::Snapshot,
+    niri: &niri_window_snapshot::Snapshot,
     output: &str,
     config: &Config,
     position: Position,
@@ -214,7 +216,7 @@ pub fn inline_view<'a>(
 
 fn drop_tint(
     config: &Config,
-    p: &niri::WorkspaceIndicator,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
 ) -> impl Fn(&Theme) -> container::Style + 'static {
     let tint = drag.awaits_window_on(p.id).then(|| {
@@ -230,7 +232,7 @@ fn drop_tint(
 
 fn edge_line<'a>(
     config: &Config,
-    p: &niri::WorkspaceIndicator,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     position: Position,
     tone: SlotTone,
     drag: &DragView,
@@ -272,7 +274,7 @@ impl SlotTone {
     }
 }
 
-fn slot_tone(p: &niri::WorkspaceIndicator, drag: &DragView) -> SlotTone {
+fn slot_tone(p: &niri_window_snapshot::WorkspaceIndicator, drag: &DragView) -> SlotTone {
     if drag.is_dragging(DraggedBarSlot::Workspace(p.id)) {
         SlotTone::Dragged
     } else {
@@ -282,7 +284,7 @@ fn slot_tone(p: &niri::WorkspaceIndicator, drag: &DragView) -> SlotTone {
 
 fn indicated<'a>(
     slots: Element<'a, WorkspacesMessage>,
-    workspaces: &[&niri::WorkspaceIndicator],
+    workspaces: &[&niri_window_snapshot::WorkspaceIndicator],
     config: &Config,
     position: Position,
 ) -> Element<'a, WorkspacesMessage> {
@@ -299,7 +301,7 @@ fn indicated<'a>(
 }
 
 fn hit_area<'a>(
-    p: &niri::WorkspaceIndicator,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     position: usize,
     content: Element<'a, WorkspacesMessage>,
     drag: &DragView,
@@ -328,7 +330,7 @@ fn hit_area<'a>(
     )
 }
 
-fn window_color(config: &Config, w: &niri::WinEntry, unfocused: Color) -> Color {
+fn window_color(config: &Config, w: &niri_window_snapshot::WinEntry, unfocused: Color) -> Color {
     if w.is_urgent {
         PaletteColors::from(&config.theme.palette).urgent
     } else if w.is_focused {
@@ -340,7 +342,7 @@ fn window_color(config: &Config, w: &niri::WinEntry, unfocused: Color) -> Color 
 
 fn window_markers(
     config: &Config,
-    niri: &niri::Snapshot,
+    niri: &niri_window_snapshot::Snapshot,
     workspace: u64,
     position: Position,
     drag: &DragView,
@@ -369,7 +371,7 @@ fn window_markers(
 
 fn urgency_line<'a>(
     config: &Config,
-    p: &niri::WorkspaceIndicator,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     position: Position,
     tone: SlotTone,
 ) -> Element<'a, WorkspacesMessage> {
@@ -382,19 +384,23 @@ fn urgency_line<'a>(
     )
 }
 
-fn given_name(p: &niri::WorkspaceIndicator) -> Option<&str> {
+fn given_name(p: &niri_window_snapshot::WorkspaceIndicator) -> Option<&str> {
     p.name.as_deref().filter(|name| !name.is_empty())
 }
 
-fn display_name(p: &niri::WorkspaceIndicator) -> String {
+fn display_name(p: &niri_window_snapshot::WorkspaceIndicator) -> String {
     given_name(p).map_or_else(|| p.idx.to_string(), str::to_string)
 }
 
-fn has_superscript(p: &niri::WorkspaceIndicator) -> bool {
+fn has_superscript(p: &niri_window_snapshot::WorkspaceIndicator) -> bool {
     given_name(p).is_some() && p.idx <= 9
 }
 
-fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator, tone: SlotTone) -> Text<'a> {
+fn superscript<'a>(
+    config: &Config,
+    p: &niri_window_snapshot::WorkspaceIndicator,
+    tone: SlotTone,
+) -> Text<'a> {
     bar_text(&config.theme.font, p.idx.to_string())
         .size(config.theme.font.small_text_size_px)
         .color(tone.tint(config, PaletteColors::from(&config.theme.palette).inactive))
@@ -402,7 +408,7 @@ fn superscript<'a>(config: &Config, p: &niri::WorkspaceIndicator, tone: SlotTone
 
 fn inline_label<'a>(
     config: &Config,
-    p: &niri::WorkspaceIndicator,
+    p: &niri_window_snapshot::WorkspaceIndicator,
     tone: SlotTone,
 ) -> Element<'a, WorkspacesMessage> {
     let name = bar_text(&config.theme.font, display_name(p)).color(tone.tint(

@@ -4,7 +4,7 @@ use iced::{Task, task::Handle};
 use niri_ipc::state::EventStreamState;
 use sottomano_sources::{
     blocking_background_work::blocking,
-    favicons::{self, RawFavicon},
+    desktop_windows_apps::firefox_favicon_lookup::{self, RawFavicon},
 };
 
 use crate::widgets::icon_handle::IconHandle;
@@ -57,7 +57,7 @@ impl Favicons {
         &mut self,
         niri_state: &EventStreamState,
     ) -> Task<HashMap<String, RawFavicon>> {
-        let titles = favicons::firefox_keys(niri_state);
+        let titles = firefox_favicon_lookup::firefox_keys(niri_state);
         if titles == self.titles {
             return Task::none();
         }
@@ -86,8 +86,10 @@ impl Favicons {
         if unresolved.is_empty() {
             return Task::none();
         }
-        let (task, handle) =
-            Task::future(blocking("favicons", move || favicons::resolve(unresolved))).abortable();
+        let (task, handle) = Task::future(blocking("favicons", move || {
+            firefox_favicon_lookup::resolve(unresolved)
+        }))
+        .abortable();
         self.lookup = Lookup::Running {
             _aborts_on_drop: handle.abort_on_drop(),
             profile_changed_meanwhile: false,

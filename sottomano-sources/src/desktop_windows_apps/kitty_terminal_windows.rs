@@ -1,6 +1,6 @@
-mod kitty_remote;
+mod kitty_remote_control;
 pub mod kitty_window_label;
-mod shell_title;
+mod shell_prompt_title;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -101,10 +101,10 @@ impl Pairing {
             .retain(|niri_window, _| open.contains(niri_window));
         let mut processes = WindowProcesses::default();
         for process in kitty_processes(niri.state.windows.windows.values()) {
-            let Some(socket) = kitty_remote::socket_of(process) else {
+            let Some(socket) = kitty_remote_control::socket_of(process) else {
                 continue;
             };
-            let agent_windows = match kitty_remote::list(&socket, &self.home) {
+            let agent_windows = match kitty_remote_control::list(&socket, &self.home) {
                 Ok(agent_windows) => agent_windows,
                 Err(e) => {
                     tracing::debug!("kitty {process} unreachable: {e}");
@@ -160,12 +160,13 @@ impl Pairing {
         niri: &mut NiriWindows<R>,
     ) -> io::Result<()> {
         let marker = probe_marker();
-        if let Err(e) = kitty_remote::hold_title(socket, agent_window, &marker) {
+        if let Err(e) = kitty_remote_control::hold_title(socket, agent_window, &marker) {
             tracing::debug!("kitty {} refused a title: {e}", key.process);
             return Ok(());
         }
         let titled = self.await_marker(key.process, &marker, niri);
-        if let Err(e) = kitty_remote::yield_title(socket, agent_window, &agent_window.title) {
+        if let Err(e) = kitty_remote_control::yield_title(socket, agent_window, &agent_window.title)
+        {
             tracing::warn!("kitty {} kept the probe title: {e}", key.process);
         }
         if let Some(niri_window) = titled? {

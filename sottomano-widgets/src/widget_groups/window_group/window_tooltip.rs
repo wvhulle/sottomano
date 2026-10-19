@@ -2,10 +2,10 @@ use std::time::{Duration, SystemTime};
 
 use niri_ipc::state::EventStreamState;
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_sources::desktop_windows_apps::{
     nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
-    nix_store::StorePackage,
-    process::{self, Inspection, Launch},
+    nix_store_provenance::StorePackage,
+    process_tree_inspection::{self, Inspection, Launch},
 };
 
 use crate::{
@@ -37,8 +37,8 @@ pub fn pick_body(niri_state: &EventStreamState, window: u64) -> Option<TooltipBo
     )]))
 }
 
-impl From<process::Error> for Section {
-    fn from(error: process::Error) -> Self {
+impl From<process_tree_inspection::Error> for Section {
+    fn from(error: process_tree_inspection::Error) -> Self {
         Section::error(error)
     }
 }
@@ -165,7 +165,7 @@ fn upstream_entry(upstream: &Upstream) -> Option<KeyValue> {
 fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     let focused = window.focus_timestamp?;
     let stamp = Duration::new(focused.secs, focused.nanos);
-    process::monotonic()?.checked_sub(stamp)
+    process_tree_inspection::monotonic()?.checked_sub(stamp)
 }
 
 fn versioned(key: &'static str, package: &StorePackage) -> KeyValue {

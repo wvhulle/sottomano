@@ -10,9 +10,11 @@ use serde::Deserialize;
 
 use crate::{
     DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
-    nix_store::{Provenance, StorePackage, below_derivation},
+    desktop_windows_apps::{
+        nix_store_provenance::{Provenance, StorePackage, below_derivation},
+        process_tree_inspection::{Watched, launch},
+    },
     polled_delivery_after_setup,
-    process::{Watched, launch},
     stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
 };

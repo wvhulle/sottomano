@@ -1,5 +1,6 @@
 use crate::{
-    login_session_presence::logind_manager, niri, system_protocol_clients::shell_command_output,
+    desktop_windows_apps::niri_window_snapshot, login_session_presence::logind_manager,
+    system_protocol_clients::shell_command_output,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -126,7 +127,7 @@ impl SessionAction {
             SessionAction::Lock => logind_manager::lock(),
             SessionAction::LockAllSessions => logind_manager::lock_all_sessions(),
             SessionAction::ScreenOff => {
-                niri::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
+                niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
             }
             SessionAction::Sleep => logind_manager::sleep(),
             SessionAction::Suspend => logind_manager::suspend(),
@@ -139,9 +140,11 @@ impl SessionAction {
             SessionAction::Halt => logind_manager::halt(),
             SessionAction::PowerOff => logind_manager::power_off(),
             SessionAction::CancelScheduledShutdown => logind_manager::cancel_scheduled_shutdown(),
-            SessionAction::LogOut => niri::send_action_or_warn(&niri_ipc::Action::Quit {
-                skip_confirmation: true,
-            }),
+            SessionAction::LogOut => {
+                niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::Quit {
+                    skip_confirmation: true,
+                });
+            }
             SessionAction::TerminateSession => logind_manager::terminate_session(),
             SessionAction::RestartShell => {
                 if !shell_command_output::blocking::run(

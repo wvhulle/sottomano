@@ -23,8 +23,8 @@ use tokio::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, app_icon::DesktopEntries,
-    non_empty_text::non_empty,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries, non_empty_text::non_empty,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -148,7 +148,7 @@ fn best_pixmap(pixmaps: &[IconPixmap]) -> Option<RgbaImage> {
     for pixel in bytes.as_chunks_mut::<4>().0 {
         pixel.rotate_left(1);
     }
-    RgbaImage::from_raw(width, height, bytes).map(super::icon_trim::trim_rgba)
+    RgbaImage::from_raw(width, height, bytes).map(super::icon_whitespace_trim::trim_rgba)
 }
 
 const UNIDENTIFIED_APP_ICON: &str = "application-x-executable";
@@ -177,7 +177,7 @@ fn resolve_visual(
                 .or_else(|| entries.theme_icon(name))
         })
         .or_else(|| entries.theme_icon(UNIDENTIFIED_APP_ICON))
-        .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
+        .map(|path| IconSource::Themed(super::icon_whitespace_trim::trimmed(&path)))
 }
 
 fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
@@ -186,14 +186,14 @@ fn menu_icon(item: &MenuItem, entries: &DesktopEntries) -> Option<IconSource> {
         .as_deref()
         .and_then(|data| image::load_from_memory(data).ok())
     {
-        return Some(IconSource::Pixmap(Arc::new(super::icon_trim::trim_rgba(
-            decoded.into_rgba8(),
-        ))));
+        return Some(IconSource::Pixmap(Arc::new(
+            super::icon_whitespace_trim::trim_rgba(decoded.into_rgba8()),
+        )));
     }
     let name = item.icon_name.as_deref().filter(|n| !n.is_empty())?;
     entries
         .theme_icon(name)
-        .map(|path| IconSource::Themed(super::icon_trim::trimmed(&path)))
+        .map(|path| IconSource::Themed(super::icon_whitespace_trim::trimmed(&path)))
 }
 
 fn adapt_menu_item(item: &MenuItem, entries: &DesktopEntries) -> Option<MenuNode> {

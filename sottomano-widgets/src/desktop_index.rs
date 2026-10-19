@@ -6,8 +6,8 @@ use std::{
 
 use iced::{Task, task::Handle};
 use sottomano_sources::{
-    app_icon::{self, DesktopEntries},
     blocking_background_work::blocking,
+    desktop_windows_apps::desktop_entry_app_icons::{self, DesktopEntries},
 };
 
 #[derive(Debug, Clone, Default)]
@@ -75,8 +75,8 @@ impl DesktopIndex {
             return Task::none();
         }
         let (task, handle) = Task::future(blocking("app icons", move || ResolvedIcons {
-            app: app_icon::resolve_app_icons(&entries, app),
-            theme: app_icon::resolve_theme_icons(&entries, theme),
+            app: desktop_entry_app_icons::resolve_app_icons(&entries, app),
+            theme: desktop_entry_app_icons::resolve_theme_icons(&entries, theme),
         }))
         .abortable();
         self.resolve = Some(handle.abort_on_drop());

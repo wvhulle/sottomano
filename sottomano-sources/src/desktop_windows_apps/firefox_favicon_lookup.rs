@@ -9,8 +9,10 @@ use niri_ipc::state::EventStreamState;
 use rusqlite::{Connection, OpenFlags};
 
 use crate::{
+    desktop_windows_apps::window_title_labels::{
+        WindowLabel, browser_page_title::strip_unread_badge,
+    },
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
-    window_label::{WindowLabel, browser_page::strip_unread_badge},
 };
 
 const PLACES_DB: &str = "places.sqlite";

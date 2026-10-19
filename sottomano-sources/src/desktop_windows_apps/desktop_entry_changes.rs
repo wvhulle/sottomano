@@ -4,8 +4,8 @@ use freedesktop_desktop_entry::default_paths;
 use futures::{Stream, StreamExt};
 
 use crate::{
-    app_icon::DesktopEntries,
     blocking_background_work::blocking,
+    desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
     system_protocol_clients::inotify_directory_changes::{WatchTarget, changes},
 };
 

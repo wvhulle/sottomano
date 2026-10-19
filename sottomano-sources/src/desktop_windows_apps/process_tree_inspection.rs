@@ -18,8 +18,9 @@ use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, nix_store::Provenance,
-    non_empty_text::non_empty, polled_delivery_stream,
+    DeliveryCadence, Panicked, ReadingSource, SourceDelivery,
+    desktop_windows_apps::nix_store_provenance::Provenance, non_empty_text::non_empty,
+    polled_delivery_stream,
 };
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);

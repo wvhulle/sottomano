@@ -13,7 +13,7 @@ use iced_exwlshell::{
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use sottomano_config::{Config, ConfigFile, SecretPaths};
-use sottomano_sources::niri_config::NiriConfigFile;
+use sottomano_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
 use sottomano_state::niri_rules::NiriRulesFile;
 use sottomano_widgets::widgets::text::FontFaces;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};

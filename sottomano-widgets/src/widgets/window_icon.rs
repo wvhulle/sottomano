@@ -1,7 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use iced::Element;
-use sottomano_sources::{niri, window_label::IconCandidate};
+use sottomano_sources::desktop_windows_apps::{
+    niri_window_snapshot, window_title_labels::IconCandidate,
+};
 
 use crate::{
     desktop_index::DesktopIndex,
@@ -15,7 +17,7 @@ pub struct WindowAssets<'a> {
 }
 
 impl WindowAssets<'_> {
-    pub fn path_for(&self, win: &niri::WinEntry) -> Option<PathBuf> {
+    pub fn path_for(&self, win: &niri_window_snapshot::WinEntry) -> Option<PathBuf> {
         win.icon_candidates()
             .into_iter()
             .find_map(|candidate| match candidate {
