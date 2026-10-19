@@ -1,5 +1,5 @@
 use super::focus_units::Presence;
-use crate::{idle_notify::IdleEdge, logind::SleepEdge};
+use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScreenEdge {

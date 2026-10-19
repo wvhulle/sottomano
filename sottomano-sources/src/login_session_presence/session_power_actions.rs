@@ -1,4 +1,6 @@
-use crate::{logind, niri, system_protocol_clients::shell_command_output};
+use crate::{
+    login_session_presence::logind_manager, niri, system_protocol_clients::shell_command_output,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SessionAction {
@@ -121,26 +123,26 @@ impl SessionAction {
 
     pub fn perform(self) {
         match self {
-            SessionAction::Lock => logind::lock(),
-            SessionAction::LockAllSessions => logind::lock_all_sessions(),
+            SessionAction::Lock => logind_manager::lock(),
+            SessionAction::LockAllSessions => logind_manager::lock_all_sessions(),
             SessionAction::ScreenOff => {
                 niri::send_action_or_warn(&niri_ipc::Action::PowerOffMonitors {});
             }
-            SessionAction::Sleep => logind::sleep(),
-            SessionAction::Suspend => logind::suspend(),
-            SessionAction::Hibernate => logind::hibernate(),
-            SessionAction::HybridSleep => logind::hybrid_sleep(),
-            SessionAction::SuspendThenHibernate => logind::suspend_then_hibernate(),
-            SessionAction::Reboot => logind::reboot(),
-            SessionAction::RebootToFirmwareSetup => logind::reboot_to_firmware_setup(),
-            SessionAction::RebootToBootLoaderMenu => logind::reboot_to_boot_loader_menu(),
-            SessionAction::Halt => logind::halt(),
-            SessionAction::PowerOff => logind::power_off(),
-            SessionAction::CancelScheduledShutdown => logind::cancel_scheduled_shutdown(),
+            SessionAction::Sleep => logind_manager::sleep(),
+            SessionAction::Suspend => logind_manager::suspend(),
+            SessionAction::Hibernate => logind_manager::hibernate(),
+            SessionAction::HybridSleep => logind_manager::hybrid_sleep(),
+            SessionAction::SuspendThenHibernate => logind_manager::suspend_then_hibernate(),
+            SessionAction::Reboot => logind_manager::reboot(),
+            SessionAction::RebootToFirmwareSetup => logind_manager::reboot_to_firmware_setup(),
+            SessionAction::RebootToBootLoaderMenu => logind_manager::reboot_to_boot_loader_menu(),
+            SessionAction::Halt => logind_manager::halt(),
+            SessionAction::PowerOff => logind_manager::power_off(),
+            SessionAction::CancelScheduledShutdown => logind_manager::cancel_scheduled_shutdown(),
             SessionAction::LogOut => niri::send_action_or_warn(&niri_ipc::Action::Quit {
                 skip_confirmation: true,
             }),
-            SessionAction::TerminateSession => logind::terminate_session(),
+            SessionAction::TerminateSession => logind_manager::terminate_session(),
             SessionAction::RestartShell => {
                 if !shell_command_output::blocking::run(
                     "systemctl",

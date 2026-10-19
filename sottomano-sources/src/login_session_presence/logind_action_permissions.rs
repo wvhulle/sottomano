@@ -1,8 +1,8 @@
 use std::env;
 
-use crate::{
-    logind::{ManagerProxyBlocking, manager},
-    session_action::SessionAction,
+use super::{
+    logind_manager::{ManagerProxyBlocking, manager},
+    session_power_actions::SessionAction,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 use humantime::format_duration;
 use iced::alignment::Horizontal;
-use sottomano_sources::logind::session_facts::{InhibitMode, PowerPolicy};
+use sottomano_sources::login_session_presence::logind_session_facts::{InhibitMode, PowerPolicy};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

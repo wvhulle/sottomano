@@ -1,7 +1,3 @@
-pub mod greetd_greeter;
-pub mod permissions;
-pub mod session_facts;
-
 use std::env;
 
 use futures::{Stream, StreamExt, future::ready};
@@ -34,7 +30,7 @@ pub struct InhibitorRow {
     default_service = "org.freedesktop.login1",
     default_path = "/org/freedesktop/login1"
 )]
-trait Manager {
+pub(super) trait Manager {
     fn suspend(&self, interactive: bool) -> zbus::Result<()>;
     fn hibernate(&self, interactive: bool) -> zbus::Result<()>;
     fn hybrid_sleep(&self, interactive: bool) -> zbus::Result<()>;
@@ -104,7 +100,7 @@ trait Manager {
     -> zbus::Result<()>;
 }
 
-fn manager() -> Option<ManagerProxyBlocking<'static>> {
+pub(super) fn manager() -> Option<ManagerProxyBlocking<'static>> {
     ManagerProxyBlocking::new(&blocking::Connection::system().ok()?).ok()
 }
 

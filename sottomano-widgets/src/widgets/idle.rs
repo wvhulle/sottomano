@@ -3,9 +3,9 @@ pub mod timer;
 use std::time::Duration;
 
 use iced::futures::{Stream, StreamExt, stream};
-use sottomano_sources::{
-    idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
-    session_action::SessionAction,
+use sottomano_sources::login_session_presence::{
+    session_power_actions::SessionAction,
+    wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
 };
 use tokio::task::spawn_blocking;
 

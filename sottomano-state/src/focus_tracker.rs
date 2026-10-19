@@ -5,13 +5,15 @@ use futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use sottomano_sources::{
     blocking_background_work::blocking,
-    focus_ledger::{
-        AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans, ScreenEdge,
-        SpanWrite, WakingWindow, WindowFocusChange,
-    },
-    idle_notify::{IdleEdge, idle_edges},
     kitty_windows::WindowProcesses,
-    logind::{self, SleepEdge},
+    login_session_presence::{
+        focus_time_ledger::{
+            AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans,
+            ScreenEdge, SpanWrite, WakingWindow, WindowFocusChange,
+        },
+        logind_manager::{self, SleepEdge},
+        wayland_idle_notify::{IdleEdge, idle_edges},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -65,7 +67,7 @@ impl FocusTracker {
     pub fn sleep_messages(
         buses: &DesktopBuses,
     ) -> impl Stream<Item = TrackerMessage> + Send + use<> {
-        logind::sleep_edges(buses).map(TrackerMessage::Sleep)
+        logind_manager::sleep_edges(buses).map(TrackerMessage::Sleep)
     }
 
     pub fn refocus(

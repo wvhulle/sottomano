@@ -7,7 +7,8 @@ use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery, focus_ledger::WakingWindow, logind,
+    SourceDelivery,
+    login_session_presence::{focus_time_ledger::WakingWindow, logind_manager},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::quiet_hours::{self, QuietHoursSchedule};
@@ -142,7 +143,7 @@ impl QuietScheduleGroup {
     }
 
     pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<QuietScheduleMessage> {
-        Subscription::run_with(buses.clone(), logind::resumes)
+        Subscription::run_with(buses.clone(), logind_manager::resumes)
             .map(|()| QuietScheduleMessage::EdgeDue)
     }
 

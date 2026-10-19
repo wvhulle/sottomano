@@ -1,6 +1,8 @@
 use chrono::{DateTime, SecondsFormat, TimeDelta, Utc};
 use sottomano_sources::{
-    focus_ledger::{FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet},
+    login_session_presence::focus_time_ledger::{
+        FocusSpan, FocusUnit, LoadedSpans, PresenceSpan, SpanWrite, StoredFacet,
+    },
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
@@ -199,7 +201,7 @@ mod tests {
     use std::path::PathBuf;
 
     use chrono::TimeDelta;
-    use sottomano_sources::focus_ledger::Presence;
+    use sottomano_sources::login_session_presence::focus_time_ledger::Presence;
 
     use super::*;
 
