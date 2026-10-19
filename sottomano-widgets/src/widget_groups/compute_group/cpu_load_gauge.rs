@@ -87,7 +87,7 @@ impl ChipletLiveState<'_> {
                         .chain(user)
                         .chain(kernel)
                         .chain(deep_idle)
-                        .chain(self.facts(group))
+                        .chain(self.cache_traffic_facts(group))
                         .collect()
                 },
             )

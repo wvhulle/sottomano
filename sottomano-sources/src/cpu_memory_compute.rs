@@ -6,6 +6,7 @@ pub mod cpu_power_draw;
 pub mod cpu_temperature;
 pub mod cpu_topology;
 pub mod hwmon_temperature_sensors;
+pub mod kernel_frequency_limit_causes;
 pub mod l3_cache_traffic;
 pub mod memory_module_temperatures;
 pub mod memory_usage;
@@ -14,7 +15,7 @@ pub mod temperature_thresholds;
 
 use std::path::Path;
 
-use self::cpu_clock_frequency::{CoreFreq, FrequencyLimit};
+use self::cpu_clock_frequency::{CoreFreq, FrequencyBand};
 use crate::system_protocol_clients::sysfs_attribute_reads::{
     list_dir, read_kilohertz, read_trimmed,
 };
@@ -31,7 +32,7 @@ pub(super) fn core_freqs() -> Vec<CoreFreq> {
                 core,
                 frequency: read_kilohertz(dir.join("cpufreq/cpuinfo_avg_freq"))
                     .or_else(|| read_kilohertz(dir.join("cpufreq/scaling_cur_freq")))?,
-                limit: core_frequency_limit(dir)?,
+                band: core_frequency_band(dir)?,
                 preference_rank: read_trimmed(dir.join("cpufreq/amd_pstate_prefcore_ranking"))
                     .and_then(|rank| rank.parse().ok()),
             })
@@ -41,10 +42,12 @@ pub(super) fn core_freqs() -> Vec<CoreFreq> {
     cores
 }
 
-fn core_frequency_limit(dir: &Path) -> Option<FrequencyLimit> {
-    let policy_max = read_kilohertz(dir.join("cpufreq/scaling_max_freq"))?;
-    let hardware_max = read_kilohertz(dir.join("cpufreq/cpuinfo_max_freq"))?;
-    Some(FrequencyLimit::from_ceilings(policy_max, hardware_max))
+fn core_frequency_band(dir: &Path) -> Option<FrequencyBand> {
+    Some(FrequencyBand {
+        floor: read_kilohertz(dir.join("cpufreq/scaling_min_freq"))?,
+        policy_ceiling: read_kilohertz(dir.join("cpufreq/scaling_max_freq"))?,
+        hardware_ceiling: read_kilohertz(dir.join("cpufreq/cpuinfo_max_freq"))?,
+    })
 }
 
 pub(super) fn cpu_core_index(name: &str) -> Option<u32> {

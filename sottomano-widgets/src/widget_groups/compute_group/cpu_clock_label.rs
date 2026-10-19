@@ -1,7 +1,6 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
-use sottomano_sources::cpu_memory_compute::cpu_clock_frequency::{
-    CoreFreq, CpuClock, FrequencyLimit,
+use sottomano_sources::cpu_memory_compute::{
+    cpu_clock_frequency::CpuClock, cpu_core_loads::CpuCoreLoads,
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -9,30 +8,20 @@ use uom::{
 };
 
 use super::{
-    chiplet_live_state::ChipletLiveState,
-    core_grid_sections::{CoreGridSection, PerCoreReading},
+    chiplet_clock_table::ChipletClockTable, chiplet_live_state::ChipletLiveState,
+    cpu_clock_limit_causes::causes_text,
 };
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{
-            ColumnHeading, KeyValue, Section, TableRecord, TableRow, ThreadCell, TooltipBody,
-        },
-        widget_state::WidgetState,
+        tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
 pub(super) fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
-}
-
-fn limit_level(limit: FrequencyLimit) -> Severity {
-    match limit {
-        FrequencyLimit::Unrestricted(_) => Severity::Normal,
-        FrequencyLimit::Capped(_) => Severity::Warning,
-    }
 }
 
 impl BarWidget for CpuClock {
@@ -44,14 +33,6 @@ impl BarWidget for CpuClock {
         Phosphor::WaveSine(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        if self.capped_cores() > 0 {
-            WidgetState::Warning
-        } else {
-            WidgetState::Idle
-        }
-    }
-
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         self.average().map(frequency_text)
     }
@@ -60,18 +41,16 @@ impl BarWidget for CpuClock {
         let frequency = |key, frequency: Option<Frequency>| {
             frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
         };
-        let capped = self.capped_cores();
-        let capped_summary = (capped > 0).then(|| {
-            KeyValue::new("capped", format!("{capped} of {} cores", self.cores.len()))
-                .level(Severity::Warning)
-        });
+        let shared_causes = self.shared_causes();
         TooltipBody::sections([Section::dictionary(
             [
                 frequency("min", self.lowest()),
                 frequency("avg", self.average()),
                 frequency("max", self.highest()),
+                frequency("floor", self.shared_floor()),
                 frequency("cap", self.shared_ceiling()),
-                capped_summary,
+                frequency("max hw", self.shared_hardware_ceiling()),
+                causes_text(&shared_causes).map(|text| KeyValue::new("limited by", text)),
             ]
             .into_iter()
             .flatten(),
@@ -81,57 +60,37 @@ impl BarWidget for CpuClock {
 }
 
 impl ChipletLiveState<'_> {
-    pub fn clock_sections(&self, clock: &CpuClock) -> Vec<Section> {
-        let grid = CoreGridSection {
-            topology: &clock.topology,
-            readings: &clock.cores,
-        }
-        .section(|group| self.title(group), |group, _| self.facts(group))
-        .titled((
-            "Chiplets".to_owned(),
-            "Each square is one physical core in core-number order, not die position, split into \
-             its hardware threads; bar height shows each thread's clock against the ceiling the \
-             governor allows."
-                .to_owned(),
-        ));
-        let capped: Vec<&CoreFreq> = clock
-            .cores
+    pub fn clock_sections(&self, clock: &CpuClock, loads: Option<&CpuCoreLoads>) -> Vec<Section> {
+        clock
+            .topology
+            .core_groups()
             .iter()
-            .filter(|core| core.limit.is_capped())
-            .collect();
-        let capped_section = (!capped.is_empty()).then(|| {
-            Section::column_table(
-                [ColumnHeading::new("Clock"), ColumnHeading::new("Cap")],
-                capped,
-            )
-            .titled("Capped below the hardware maximum")
-        });
-        [grid].into_iter().chain(capped_section).collect()
-    }
-}
-
-impl PerCoreReading for CoreFreq {
-    fn core_index(&self) -> u32 {
-        self.core
-    }
-
-    fn thread_cell(&self) -> ThreadCell {
-        ThreadCell {
-            fill: self.frequency / self.limit.ceiling(),
-            level: limit_level(self.limit),
-        }
-    }
-}
-
-impl TableRow<2> for &CoreFreq {
-    fn table_record(self) -> TableRecord<2> {
-        TableRecord::new(
-            format!("Core {}", self.core),
-            [
-                Some(frequency_text(self.frequency).into()),
-                Some(frequency_text(self.limit.ceiling()).into()),
-            ],
-        )
-        .level(limit_level(self.limit))
+            .enumerate()
+            .map(|(position, group)| {
+                let title = match self.temperature_text(group) {
+                    Some(temperature) => format!("{} · {temperature}", self.title(group)),
+                    None => self.title(group),
+                };
+                let table = ChipletClockTable {
+                    clock,
+                    loads,
+                    group,
+                }
+                .section();
+                if position == 0 {
+                    table.titled((
+                        title,
+                        "Cap appears only where a core's policy ceiling differs from the shared \
+                         cap above. Limit lists causes the kernel publishes for that core alone; \
+                         causes every CPU shares are listed once above. Firmware power and \
+                         current limits are not published on every CPU, so a busy core below its \
+                         cap with no listed cause is held back by something the kernel cannot see."
+                            .to_owned(),
+                    ))
+                } else {
+                    table.titled(title)
+                }
+            })
+            .collect()
     }
 }

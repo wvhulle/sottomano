@@ -1,13 +1,16 @@
 mod board_firmware_face;
+mod chiplet_clock_table;
 mod chiplet_live_state;
 mod core_grid_sections;
 mod cpu_clock_label;
+mod cpu_clock_limit_causes;
 mod cpu_load_gauge;
 mod cpu_temperature_label;
 mod memory_usage_gauge;
 mod x3d_cache_preference_toggle;
 
 use chiplet_live_state::ChipletLiveState;
+use cpu_clock_limit_causes::ClockLimitCauses;
 use iced::{Subscription, Task};
 use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use sottomano_sources::{
@@ -46,6 +49,7 @@ use crate::{
 pub enum ComputeTarget {
     Cpu,
     CpuClock,
+    ClockLimits,
     Memory,
     Temperature,
     CachePreference,
@@ -136,6 +140,9 @@ impl ComputeGroup {
                     clock,
                 ),
             ]),
+            Some(HoverTarget::Compute(ComputeTarget::CpuClock)) => self
+                .core_loads
+                .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config, clock),
             Some(HoverTarget::Compute(ComputeTarget::Temperature)) => {
                 self.core_temperatures.start_hover_fetch(
                     config.widget_groups.temperature_sensors.cpu.overrides(),
@@ -236,6 +243,11 @@ impl ComputeGroup {
                 self.cpu.group_item(ComputeTarget::Cpu),
                 self.memory.group_item(ComputeTarget::Memory),
                 self.clock.group_item(ComputeTarget::CpuClock),
+                self.clock
+                    .get()
+                    .map(|clock| ClockLimitCauses { clock })
+                    .filter(BarWidget::visible_in_bar)
+                    .map(|limits| GroupItem::reading(limits, ComputeTarget::ClockLimits)),
                 self.temperature.group_item(ComputeTarget::Temperature),
                 self.cache_preference.group_item(
                     ComputeTarget::CachePreference,
@@ -259,7 +271,9 @@ impl ComputeGroup {
     ) -> Task<ComputeMessage> {
         match target {
             ComputeTarget::Cpu => first_delivery::<CpuUsage>(()).map(ComputeMessage::Cpu),
-            ComputeTarget::CpuClock => first_delivery::<CpuClock>(()).map(ComputeMessage::Clock),
+            ComputeTarget::CpuClock | ComputeTarget::ClockLimits => {
+                first_delivery::<CpuClock>(()).map(ComputeMessage::Clock)
+            }
             ComputeTarget::Memory => first_delivery::<Memory>(()).map(ComputeMessage::Memory),
             ComputeTarget::Temperature => {
                 first_delivery::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature)
@@ -299,10 +313,18 @@ impl ComputeGroup {
                 clock,
             ),
             ComputeTarget::CpuClock => self.clock.tooltip_with_sections(
-                self.clock
-                    .sections_described_by(|clock| live.clock_sections(clock)),
+                self.clock.sections_described_by(|cpu_clock| {
+                    live.clock_sections(cpu_clock, self.core_loads.reading())
+                }),
                 clock,
             ),
+            ComputeTarget::ClockLimits => {
+                let limits = ClockLimitCauses {
+                    clock: self.clock.get()?,
+                };
+                self.clock
+                    .tooltip_with(limits.visible_in_bar().then(|| limits.tooltip(clock))?)
+            }
             ComputeTarget::Temperature => self.temperature.tooltip_with_sections(
                 self.core_temperatures
                     .sections_described_by(|temperatures| {
