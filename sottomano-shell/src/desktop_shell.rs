@@ -31,10 +31,10 @@ use sottomano_sources::{
     app_icon::{self, DesktopEntries},
     blocking_background_work::blocking,
     desktop_entries,
+    desktop_notifications::alert_sound_player::SoundTheme,
     launch_tracker::{Launch, LaunchTracker},
     niri,
     niri_config::{ConfiguredWorkspaces, NiriConfigFile},
-    sink::sound::SoundTheme,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
         shell_command_output::blocking::run,

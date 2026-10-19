@@ -4,8 +4,8 @@ use sottomano_config::{
     screen_edges::{HEdge, VEdge},
 };
 use sottomano_sources::{
+    desktop_notifications::notification_data::NotificationData,
     niri::{Placement, WindowOwner},
-    notifications::model::NotificationData,
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_state::NotificationSettings;

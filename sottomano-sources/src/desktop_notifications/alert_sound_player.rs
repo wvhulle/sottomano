@@ -2,7 +2,9 @@ use std::{path::PathBuf, process::Command};
 
 use sottomano_config::severity::Severity;
 
-use crate::{blocking_background_work::blocking, notifications::model::NotificationData};
+use crate::{
+    blocking_background_work::blocking, desktop_notifications::notification_data::NotificationData,
+};
 
 const PLAYER: &str = "pw-play";
 

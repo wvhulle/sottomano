@@ -18,9 +18,11 @@ use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::{
     app_icon::DesktopEntries,
+    desktop_notifications::{
+        alert_sound_player::SoundTheme,
+        notification_data::{NotificationData, Outbound},
+    },
     niri::Placement,
-    notifications::model::{NotificationData, Outbound},
-    sink::sound::SoundTheme,
 };
 use sottomano_state::ShellSettings;
 use toast_card::ToastCard;

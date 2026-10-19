@@ -17,7 +17,7 @@ use sottomano_sources::{
         cpu_tuning_platform_profile::CpuTuning,
         upower_battery_state::{Battery, ChargerSupply},
     },
-    notifications::model::ActionTint,
+    desktop_notifications::notification_data::ActionTint,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 

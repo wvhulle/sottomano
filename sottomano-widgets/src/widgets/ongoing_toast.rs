@@ -4,7 +4,9 @@ use chrono::{DateTime, Local, Locale, Utc};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     ai_usage_spend::usage_quota::{Pace, Quota},
-    notifications::model::{ActionTint, ExpireTimeout, NotifAction, NotificationData},
+    desktop_notifications::notification_data::{
+        ActionTint, ExpireTimeout, NotifAction, NotificationData,
+    },
 };
 use uom::si::f64::Ratio;
 

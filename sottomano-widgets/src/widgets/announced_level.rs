@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use sottomano_config::severity::Severity;
-use sottomano_sources::notifications::model::{ExpireTimeout, NotificationData};
+use sottomano_sources::desktop_notifications::notification_data::{
+    ExpireTimeout, NotificationData,
+};
 use uom::si::f64::Ratio;
 
 use crate::{hover_tooltips::HoverTarget, widgets::bar_widget::Glyph};

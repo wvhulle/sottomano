@@ -10,11 +10,12 @@ use iced::{
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_sources::{
-    desktop_entries, favicons, niri,
-    notifications::{
-        model::{Outbound, ServerEvent},
-        server,
+    desktop_entries,
+    desktop_notifications::{
+        freedesktop_notification_server,
+        notification_data::{Outbound, ServerEvent},
     },
+    favicons, niri,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
         inotify_config_file_changes,
@@ -188,7 +189,7 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
     use iced::futures::{StreamExt, stream};
     let (event_tx, event_rx) = mpsc::channel::<ServerEvent>(256);
     let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
-    server::serve(event_tx, outbound_rx).await?;
+    freedesktop_notification_server::serve(event_tx, outbound_rx).await?;
     let connected = NotificationMessage::Connected(outbound_tx);
     let served = ReceiverStream::new(event_rx).map(NotificationMessage::from);
     Ok(stream::iter([connected])

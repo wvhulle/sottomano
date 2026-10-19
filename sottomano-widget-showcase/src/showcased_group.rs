@@ -5,7 +5,8 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_sources::{
-    niri::Snapshot, niri_config::ConfiguredWorkspaces, notifications::model::NotificationData,
+    desktop_notifications::notification_data::NotificationData, niri::Snapshot,
+    niri_config::ConfiguredWorkspaces,
 };
 use sottomano_widgets::{
     desktop_index::DesktopIndex,

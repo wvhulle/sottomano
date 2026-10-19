@@ -8,9 +8,9 @@ use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::Config;
 use sottomano_sources::{
+    desktop_notifications::notification_data::ActionTint,
     kitty_windows::WindowProcesses,
     login_session_presence::focus_time_ledger::{ScreenEdge, WakingWindow},
-    notifications::model::ActionTint,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::focus_tracker::{FocusTracker, TrackerMessage};
