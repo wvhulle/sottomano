@@ -7,7 +7,7 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    gamma::{self, Gamma},
+    screen_brightness_color::gammarelay_color_temperature::{self, Gamma},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
 };
@@ -162,7 +162,7 @@ impl ColorTemperatureGroup {
                     Task::none()
                 }
                 Action::Commit(value) => ControlMessage::commit("gamma dim", value, move || {
-                    gamma::set_brightness(as_percent(value))
+                    gammarelay_color_temperature::set_brightness(as_percent(value))
                 })
                 .map(ColorTemperatureMessage::Dim),
                 Action::None | Action::Right | Action::Adjust(_) => Task::none(),
@@ -178,7 +178,7 @@ impl ColorTemperatureGroup {
                     .map(ColorTemperatureMessage::Auto)
                     .chain(
                         ControlMessage::commit("gamma temperature", value, move || {
-                            gamma::set_temperature(as_kelvin(value))
+                            gammarelay_color_temperature::set_temperature(as_kelvin(value))
                         })
                         .map(ColorTemperatureMessage::Warmth),
                     ),

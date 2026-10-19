@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties, zvariant::Type};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, clight,
+    DeliveryCadence, ReadingSource, SourceDelivery,
+    screen_brightness_color::clight_auto_brightness,
     stream_operators::{
         StreamOperators, connected_until_failure, read_once_then_per_burst, ticked,
     },
@@ -144,7 +145,7 @@ fn internal_names() -> HashSet<String> {
 #[must_use]
 pub fn set(serial: &str, percent: i64) -> bool {
     let frac = f64::from(i32::try_from(percent.clamp(0, 100)).unwrap_or(0)) / 100.0;
-    clight::pause_auto_calib();
+    clight_auto_brightness::pause_auto_calib();
     clightd_set(serial, frac)
 }
 

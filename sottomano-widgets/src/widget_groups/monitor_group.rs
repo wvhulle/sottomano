@@ -12,10 +12,12 @@ use output_details::ConnectedOutput;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    backlight::{self, Backlight},
     blocking_background_work::blocking,
-    clight::Clight,
     niri::OutputInfo,
+    screen_brightness_color::{
+        clight_auto_brightness::Clight,
+        clightd_backlight::{self, Backlight},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -158,15 +160,14 @@ impl MonitorGroup {
             Action::Commit(value) => {
                 let set_serial = serial.clone();
                 ControlMessage::commit("backlight set", value, move || {
-                    backlight::set(&set_serial, as_percent(value))
+                    clightd_backlight::set(&set_serial, as_percent(value))
                 })
                 .map(move |m| MonitorMessage::Backlight(serial.clone(), m))
             }
-            Action::None | Action::Right | Action::Adjust(_) if write_settled => {
-                Task::perform(blocking("backlight reread", backlight::poll_all), |list| {
-                    MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list)))
-                })
-            }
+            Action::None | Action::Right | Action::Adjust(_) if write_settled => Task::perform(
+                blocking("backlight reread", clightd_backlight::poll_all),
+                |list| MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list))),
+            ),
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }
     }

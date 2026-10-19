@@ -4,10 +4,11 @@ use futures::{Stream, StreamExt, stream};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, backlight, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
     cpu_memory_compute::cpu_core_loads,
     non_empty_text::non_empty,
     polled_delivery_stream,
+    screen_brightness_color::clightd_backlight,
     stream_operators::{StreamOperators, connected_until_failure},
     system_protocol_clients::{
         dbus_desktop_buses::{
@@ -129,7 +130,7 @@ impl Conditions {
     #[must_use]
     pub fn current() -> Self {
         Conditions::new(
-            backlight::internal_brightness_frac().unwrap_or(0.0),
+            clightd_backlight::internal_brightness_frac().unwrap_or(0.0),
             cpu_core_loads::cpu_busy_frac().unwrap_or(0.0),
         )
     }

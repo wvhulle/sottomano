@@ -7,7 +7,8 @@ use futures::Stream;
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, backlight, pushed_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    screen_brightness_color::clightd_backlight,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         dbus_desktop_buses,
@@ -127,7 +128,7 @@ pub fn flip() -> Result<(), Error> {
     let manual = currently_auto;
     let outcome = set_no_auto_calib(manual);
     if manual {
-        backlight::halt_ramp();
+        clightd_backlight::halt_ramp();
     } else {
         capture();
     }

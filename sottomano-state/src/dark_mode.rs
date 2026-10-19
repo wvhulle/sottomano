@@ -4,8 +4,8 @@ use chrono::TimeDelta;
 use futures::{Stream, StreamExt, stream};
 use sottomano_sources::{
     DeliveryCadence, ReadingSource, SourceDelivery,
+    screen_brightness_color::solar_switch_schedule::SunEventOffsets,
     sqlite_state_store::{Columns, StoreError, with_table},
-    sun_schedule::SunEventOffsets,
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (

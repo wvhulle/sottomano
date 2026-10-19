@@ -1,4 +1,4 @@
-use sottomano_sources::backlight::{Backlight, Kind};
+use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, Kind};
 
 use crate::{
     widget_groups::monitor_group::output_details::ConnectedOutput,

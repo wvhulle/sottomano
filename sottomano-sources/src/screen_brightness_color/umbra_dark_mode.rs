@@ -4,8 +4,8 @@ use futures::{Stream, stream};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    screen_brightness_color::solar_switch_schedule::ColorMode,
     stream_operators::{StreamOperators, read_once_then_per_burst},
-    sun_schedule::ColorMode,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output,

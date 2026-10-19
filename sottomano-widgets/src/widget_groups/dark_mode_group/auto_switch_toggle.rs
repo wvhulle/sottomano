@@ -1,7 +1,7 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use humantime::format_duration;
 use situo_client::Position;
-use sottomano_sources::sun_schedule::{
+use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
 use sottomano_state::dark_mode::DarkModeSchedule;

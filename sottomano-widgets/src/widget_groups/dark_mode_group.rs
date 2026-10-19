@@ -10,9 +10,11 @@ use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
     logind,
-    sun_schedule::ColorMode,
+    screen_brightness_color::{
+        solar_switch_schedule::ColorMode,
+        umbra_dark_mode::{Umbra, set_mode},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    umbra::{self, Umbra},
     weather::Location,
 };
 use sottomano_state::dark_mode::{self, DarkModeSchedule};
@@ -264,7 +266,7 @@ impl DarkModeGroup {
         self.mode_toggle.assume(Umbra {
             dark: mode == ColorMode::Dark,
         });
-        Task::future(blocking("umbra set", move || umbra::set_mode(mode))).discard()
+        Task::future(blocking("umbra set", move || set_mode(mode))).discard()
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
