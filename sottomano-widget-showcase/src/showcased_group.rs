@@ -218,7 +218,7 @@ impl ShowcasedGroup {
                 .map(Message::MemoryBoard)
                 .view(config, position, clock),
             ShowcasedGroup::Weather(group) => group
-                .group_content()
+                .group_content(config)
                 .map(Message::Weather)
                 .view(config, position, clock),
             ShowcasedGroup::ClaudeUsage(group) => group

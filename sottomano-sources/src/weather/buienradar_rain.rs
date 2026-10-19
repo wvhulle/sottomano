@@ -72,9 +72,9 @@ impl Downpour {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RainOutlook {
     Dry,
-    StartsIn(TimeDelta),
-    StopsIn(TimeDelta),
-    OutlastsForecast(TimeDelta),
+    StartsAt(DateTime<Local>),
+    StopsAt(DateTime<Local>),
+    OutlastsForecastUntil(DateTime<Local>),
 }
 
 impl RainOutlook {
@@ -85,16 +85,16 @@ impl RainOutlook {
         if now.is_wet() {
             Self::while_raining(now, later)
         } else {
-            Self::while_dry(now, later)
+            Self::while_dry(later)
         }
     }
 
-    fn while_dry(now: &Downpour, later: &[Downpour]) -> Self {
+    fn while_dry(later: &[Downpour]) -> Self {
         later
             .iter()
             .find(|downpour| downpour.is_wet())
             .map_or(RainOutlook::Dry, |first_wet| {
-                RainOutlook::StartsIn(first_wet.at - now.at)
+                RainOutlook::StartsAt(first_wet.at)
             })
     }
 
@@ -103,11 +103,8 @@ impl RainOutlook {
             .iter()
             .find(|downpour| !downpour.is_wet())
             .map_or_else(
-                || {
-                    let horizon = later.last().unwrap_or(now);
-                    RainOutlook::OutlastsForecast(horizon.at - now.at)
-                },
-                |first_dry| RainOutlook::StopsIn(first_dry.at - now.at),
+                || RainOutlook::OutlastsForecastUntil(later.last().unwrap_or(now).at),
+                |first_dry| RainOutlook::StopsAt(first_dry.at),
             )
     }
 }
@@ -222,26 +219,24 @@ mod tests {
     }
 
     #[test]
-    fn dry_spell_counts_down_to_the_first_rain() {
+    fn dry_spell_starts_at_the_first_rain() {
         let forecast = rain_forecast(
             september_27_at(11, 0),
             &["000|11:00", "000|11:05", "077|11:10", "000|11:15"],
         );
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::StartsIn(TimeDelta::minutes(10))
+            RainOutlook::StartsAt(september_27_at(11, 10))
         );
     }
 
     #[test]
-    fn ongoing_rain_counts_down_to_the_first_dry_moment() {
-        let forecast = rain_forecast(
-            september_27_at(23, 50),
-            &["077|23:50", "077|23:55", "000|00:00"],
-        );
+    fn ongoing_rain_stops_at_the_first_dry_moment() {
+        let now = september_27_at(23, 50);
+        let forecast = rain_forecast(now, &["077|23:50", "077|23:55", "000|00:00"]);
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::StopsIn(TimeDelta::minutes(10))
+            RainOutlook::StopsAt(now + TimeDelta::minutes(10))
         );
     }
 
@@ -250,7 +245,7 @@ mod tests {
         let forecast = rain_forecast(september_27_at(11, 0), &["077|11:00", "077|11:05"]);
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::OutlastsForecast(TimeDelta::minutes(5))
+            RainOutlook::OutlastsForecastUntil(september_27_at(11, 5))
         );
     }
 

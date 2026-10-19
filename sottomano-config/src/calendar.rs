@@ -1,6 +1,6 @@
 use std::env;
 
-use chrono::{Locale, NaiveTime, TimeDelta, Weekday};
+use chrono::{Locale, NaiveTime, TimeDelta};
 use chrono_tz::{Asia, Tz};
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 pub struct CalendarChoice {
     pub locale: Option<String>,
     pub other_time_zones: Vec<Tz>,
-    pub working_days: Vec<Weekday>,
     pub working_hours: WorkingHours,
 }
 
@@ -18,13 +17,6 @@ impl Default for CalendarChoice {
         Self {
             locale: None,
             other_time_zones: vec![Asia::Shanghai],
-            working_days: vec![
-                Weekday::Mon,
-                Weekday::Tue,
-                Weekday::Wed,
-                Weekday::Thu,
-                Weekday::Fri,
-            ],
             working_hours: WorkingHours::default(),
         }
     }
@@ -61,7 +53,6 @@ impl WorkingHours {
 pub struct Calendar {
     pub locale: Locale,
     pub other_time_zones: Vec<Tz>,
-    pub working_days: Vec<Weekday>,
     pub working_hours: WorkingHours,
 }
 

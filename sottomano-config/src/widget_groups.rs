@@ -1,4 +1,5 @@
 pub mod focus_time;
+pub mod rain_alerts;
 pub mod spend_budget;
 pub mod systemd_manager;
 pub mod temperature_sensors;
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::widget_groups::{
     focus_time::FocusTimeConfig,
+    rain_alerts::RainAlertsConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,
     temperature_sensors::TemperatureSensorsConfig,
@@ -26,6 +28,7 @@ pub struct WidgetGroupsConfig {
     pub copilot_usage: CopilotCliBudgetConfig,
     pub openrouter_credit: OpenRouterBudgetConfig,
     pub focus_time: FocusTimeConfig,
+    pub rain_alerts: RainAlertsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

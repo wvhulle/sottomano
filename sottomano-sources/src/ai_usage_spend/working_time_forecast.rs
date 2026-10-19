@@ -1,28 +1,42 @@
-use chrono::{DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, Weekday};
+use std::borrow::Cow;
+
+use chrono::{
+    DateTime, Datelike, Local, NaiveDate, NaiveTime, TimeDelta, TimeZone, Utc, WeekdaySet,
+};
 use rust_decimal::{Decimal, prelude::FromPrimitive};
 use sottomano_config::{Config, calendar::WorkingHours};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::ai_usage_spend::{spend_money::Money, usage_quota::Quota};
 
-const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
+const MIN_ELAPSED_DAYS: f64 = 0.1;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SpendPacing {
+    CalendarTime,
+    WorkingTime(WorkingTime),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct WorkingTime {
+    pub days: WeekdaySet,
+    pub hours: WorkingHours,
+}
+
+impl WorkingTime {
+    #[must_use]
+    pub fn new(config: &Config, days: WeekdaySet) -> Self {
+        Self {
+            days,
+            hours: config.calendar.working_hours.clone(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SpendBudget {
-    pub working_days: Vec<Weekday>,
-    pub working_hours: WorkingHours,
+    pub pacing: SpendPacing,
     pub monthly_limit_usd: u32,
-}
-
-impl SpendBudget {
-    #[must_use]
-    pub fn new(config: &Config, monthly_limit_usd: u32) -> Self {
-        Self {
-            working_days: config.calendar.working_days.clone(),
-            working_hours: config.calendar.working_hours.clone(),
-            monthly_limit_usd,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,24 +82,42 @@ impl CalendarSpan {
         local_midnight(self.since)
     }
 
-    fn elapsed_working_days(self, now: DateTime<Local>, budget: &SpendBudget) -> f64 {
+    fn calendar_days(self) -> f64 {
+        (self.until - self.since).as_seconds_f64() / TimeDelta::days(1).as_seconds_f64()
+    }
+
+    fn elapsed_calendar_days(self, now: DateTime<Local>) -> f64 {
+        let elapsed = now.naive_local() - self.since.and_time(NaiveTime::MIN);
+        (elapsed.as_seconds_f64() / TimeDelta::days(1).as_seconds_f64())
+            .clamp(0.0, self.calendar_days())
+    }
+
+    fn elapsed_working_days(self, now: DateTime<Local>, working_time: &WorkingTime) -> f64 {
         let today = now.date_naive();
         let whole_days_before_today =
-            count_working_days(self.since, today.min(self.until), &budget.working_days);
-        let today_is_working =
-            self.contains(today) && budget.working_days.contains(&today.weekday());
+            count_working_days(self.since, today.min(self.until), working_time.days);
+        let today_is_working = self.contains(today) && working_time.days.contains(today.weekday());
         let today_share = if today_is_working {
-            budget.working_hours.elapsed_share(now.time())
+            working_time.hours.elapsed_share(now.time())
         } else {
             0.0
         };
         f64::from(whole_days_before_today) + today_share
     }
 
-    fn elapsed_working_share(self, now: DateTime<Local>, budget: &SpendBudget) -> Option<f64> {
-        let elapsed = self.elapsed_working_days(now, budget);
-        let whole = count_working_days(self.since, self.until, &budget.working_days);
-        (elapsed >= MIN_ELAPSED_WORKING_DAYS && whole > 0).then(|| elapsed / f64::from(whole))
+    fn elapsed_share(self, now: DateTime<Local>, pacing: &SpendPacing) -> Option<f64> {
+        let (elapsed, whole) = match pacing {
+            SpendPacing::CalendarTime => (self.elapsed_calendar_days(now), self.calendar_days()),
+            SpendPacing::WorkingTime(working_time) => (
+                self.elapsed_working_days(now, working_time),
+                f64::from(count_working_days(
+                    self.since,
+                    self.until,
+                    working_time.days,
+                )),
+            ),
+        };
+        (elapsed >= MIN_ELAPSED_DAYS && whole > 0.0).then(|| elapsed / whole)
     }
 
     #[must_use]
@@ -95,7 +127,7 @@ impl CalendarSpan {
         now: DateTime<Local>,
         budget: &SpendBudget,
     ) -> Option<Money> {
-        let share = Decimal::from_f64(self.elapsed_working_share(now, budget)?)?;
+        let share = Decimal::from_f64(self.elapsed_share(now, &budget.pacing)?)?;
         let projected = cost.amount().checked_div(share)?;
         Some(Money::from_decimal(projected, cost.currency()))
     }
@@ -108,10 +140,22 @@ impl CalendarSpan {
         budget: &SpendBudget,
         now: DateTime<Local>,
     ) -> Option<Quota> {
-        let elapsed = self.elapsed_working_share(now, budget)?;
+        let used = Ratio::new::<ratio>(cost.to_f64_lossy() / f64::from(budget.monthly_limit_usd));
+        self.paced_quota(label, used, &budget.pacing, now)
+    }
+
+    #[must_use]
+    pub fn paced_quota(
+        self,
+        label: impl Into<Cow<'static, str>>,
+        used: Ratio,
+        pacing: &SpendPacing,
+        now: DateTime<Local>,
+    ) -> Option<Quota> {
+        let elapsed = self.elapsed_share(now, pacing)?;
         Some(Quota {
             label: label.into(),
-            used: Ratio::new::<ratio>(cost.to_f64_lossy() / f64::from(budget.monthly_limit_usd)),
+            used,
             elapsed: Ratio::new::<ratio>(elapsed),
             starts_at: local_midnight(self.since)?,
             resets_at: local_midnight(self.until)?,
@@ -130,11 +174,11 @@ fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
         .map(|midnight| midnight.with_timezone(&Utc))
 }
 
-fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: &[Weekday]) -> u32 {
+fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: WeekdaySet) -> u32 {
     since
         .iter_days()
         .take_while(|day| *day < until)
-        .filter(|day| working_days.contains(&day.weekday()))
+        .filter(|day| working_days.contains(day.weekday()))
         .map(|_| 1)
         .sum()
 }

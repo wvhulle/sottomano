@@ -291,10 +291,11 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
 
 #[cfg(test)]
 mod tests {
-    use chrono::Weekday;
+    use chrono::{Weekday, WeekdaySet};
     use sottomano_config::calendar::WorkingHours;
 
     use super::*;
+    use crate::ai_usage_spend::working_time_forecast::{SpendPacing, WorkingTime};
 
     const DAILY_REPORT: &str = r#"{"daily":[
         {"date":"2026-09-29","totalTokens":10,"totalCost":1.0,
@@ -308,13 +309,13 @@ mod tests {
             ]}
     ]}"#;
 
-    const MONDAY_TO_FRIDAY: [Weekday; 5] = [
+    const MONDAY_TO_FRIDAY: WeekdaySet = WeekdaySet::from_array([
         Weekday::Mon,
         Weekday::Tue,
         Weekday::Wed,
         Weekday::Thu,
         Weekday::Fri,
-    ];
+    ]);
 
     fn date(text: &str) -> NaiveDate {
         text.parse().unwrap()
@@ -353,12 +354,18 @@ mod tests {
         assert!(!report.recent(date("2026-10-02")).today.usage.active());
     }
 
-    fn weekday_budget() -> SpendBudget {
+    fn budget_working(days: WeekdaySet) -> SpendBudget {
         SpendBudget {
-            working_days: MONDAY_TO_FRIDAY.to_vec(),
-            working_hours: WorkingHours::default(),
+            pacing: SpendPacing::WorkingTime(WorkingTime {
+                days,
+                hours: WorkingHours::default(),
+            }),
             monthly_limit_usd: 100,
         }
+    }
+
+    fn weekday_budget() -> SpendBudget {
+        budget_working(MONDAY_TO_FRIDAY)
     }
 
     fn local(text: &str) -> DateTime<Local> {
@@ -392,6 +399,29 @@ mod tests {
             .unwrap()
             .to_f64_lossy();
         assert!((month - 4.0 * 22.0 / 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn calendar_pacing_counts_every_hour_of_every_day() {
+        let report: DailyReport = serde_json::from_str(DAILY_REPORT).unwrap();
+        let recent = report.recent(date("2026-10-01"));
+        let budget = SpendBudget {
+            pacing: SpendPacing::CalendarTime,
+            monthly_limit_usd: 100,
+        };
+        let thursday_noon = local("2026-10-01T12:00:00");
+        let week = recent
+            .week
+            .projected_cost(thursday_noon, &budget)
+            .unwrap()
+            .to_f64_lossy();
+        assert!((week - 7.0 * 7.0 / 3.5).abs() < 1e-9);
+        let month = recent
+            .month
+            .projected_cost(thursday_noon, &budget)
+            .unwrap()
+            .to_f64_lossy();
+        assert!((month - 4.0 * 31.0 / 0.5).abs() < 1e-9);
     }
 
     #[test]
@@ -432,10 +462,7 @@ mod tests {
                 .projected_cost(local("2026-10-01T09:30:00"), &budget)
                 .is_none()
         );
-        let no_working_days = SpendBudget {
-            working_days: Vec::new(),
-            ..weekday_budget()
-        };
+        let no_working_days = budget_working(WeekdaySet::EMPTY);
         assert!(
             thursday
                 .week

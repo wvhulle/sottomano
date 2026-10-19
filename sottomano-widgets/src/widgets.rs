@@ -49,6 +49,7 @@ pub mod transitioning_text;
 pub mod uniform_width_column;
 pub mod unit_switch;
 pub mod weather_icons;
+pub mod weekday_picker;
 pub mod widest_readout_text;
 pub mod widget_group;
 pub mod widget_state;
