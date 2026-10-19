@@ -17,12 +17,13 @@ use iced::{
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::{
-    app_icon::DesktopEntries,
     desktop_notifications::{
         alert_sound_player::SoundTheme,
         notification_data::{NotificationData, Outbound},
     },
-    niri::Placement,
+    desktop_windows_apps::{
+        desktop_entry_app_icons::DesktopEntries, niri_window_snapshot::Placement,
+    },
 };
 use sottomano_state::ShellSettings;
 use toast_card::ToastCard;

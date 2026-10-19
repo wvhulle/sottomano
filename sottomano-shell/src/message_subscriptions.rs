@@ -10,12 +10,11 @@ use iced::{
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_sources::{
-    desktop_entries,
     desktop_notifications::{
         freedesktop_notification_server,
         notification_data::{Outbound, ServerEvent},
     },
-    favicons, niri,
+    desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup, niri_window_snapshot},
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
         inotify_config_file_changes,
@@ -114,9 +113,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
             _ => None,
         }),
-        Subscription::run(desktop_entries::application_changes)
+        Subscription::run(desktop_entry_changes::application_changes)
             .map(|()| Message::ReloadDesktopEntries),
-        Subscription::run(favicons::profile_changes).map(|()| Message::FirefoxProfileChanged),
+        Subscription::run(firefox_favicon_lookup::profile_changes)
+            .map(|()| Message::FirefoxProfileChanged),
         niri_subscription(),
         notifications_subscription(),
         animation,
@@ -169,7 +169,7 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
 fn niri_subscription() -> Subscription<Message> {
     use iced::futures::StreamExt;
     Subscription::run(|| {
-        ReceiverStream::new(niri::spawn_event_thread())
+        ReceiverStream::new(niri_window_snapshot::spawn_event_thread())
             .ready_chunks(256)
             .map(Message::Niri)
     })

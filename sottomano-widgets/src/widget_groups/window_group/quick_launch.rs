@@ -5,7 +5,10 @@ use iced::{
     widget::{Row, hover, image, svg},
 };
 use sottomano_config::Config;
-use sottomano_sources::{app_icon::DesktopEntries, blocking_background_work::blocking, niri};
+use sottomano_sources::{
+    blocking_background_work::blocking,
+    desktop_windows_apps::{desktop_entry_app_icons::DesktopEntries, niri_window_snapshot},
+};
 
 use crate::{
     desktop_index::DesktopIndex,
@@ -73,7 +76,7 @@ impl QuickLaunch {
             .and_then(|entries| entries.exec_command(&app_id))
             .unwrap_or_else(|| vec![app_id]);
         Task::future(blocking("quicklaunch launch", move || {
-            niri::send_action_or_warn(&niri_ipc::Action::Spawn { command });
+            niri_window_snapshot::send_action_or_warn(&niri_ipc::Action::Spawn { command });
         }))
         .discard()
     }

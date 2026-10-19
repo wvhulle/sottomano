@@ -12,8 +12,10 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    kitty_windows::WindowProcesses,
-    window_label::{IconCandidate, WindowLabel},
+    desktop_windows_apps::{
+        kitty_terminal_windows::WindowProcesses,
+        window_title_labels::{IconCandidate, WindowLabel},
+    },
 };
 
 #[derive(Debug, Clone)]

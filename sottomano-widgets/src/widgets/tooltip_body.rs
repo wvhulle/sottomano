@@ -10,8 +10,12 @@ use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, login_session_presence::session_power_actions::SessionAction,
-    process::Process, tray::MenuNode, window_label::WindowLabel,
+    DeliveryCadence, ReadingSource,
+    desktop_windows_apps::{
+        process_tree_inspection::Process, status_notifier_tray::MenuNode,
+        window_title_labels::WindowLabel,
+    },
+    login_session_presence::session_power_actions::SessionAction,
 };
 use sottomano_state::idle::ScheduledAfterIdle;
 use uom::si::f64::Ratio;

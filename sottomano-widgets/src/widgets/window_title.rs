@@ -8,7 +8,7 @@ use iced::{
     },
 };
 use sottomano_config::Config;
-use sottomano_sources::window_label::WindowLabel;
+use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::widgets::{
     palette_colors::PaletteColors,

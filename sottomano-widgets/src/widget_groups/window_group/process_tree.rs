@@ -8,7 +8,7 @@ use iced::{
     widget::{Row, Space, container, mouse_area, table},
 };
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::process::Process;
+use sottomano_sources::desktop_windows_apps::process_tree_inspection::Process;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, ratio::percent},

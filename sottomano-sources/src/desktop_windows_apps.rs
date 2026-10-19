@@ -1,0 +1,17 @@
+pub mod app_launch_history;
+pub mod clipboard_copy;
+pub mod desktop_entry_app_icons;
+pub mod desktop_entry_changes;
+pub mod firefox_favicon_lookup;
+pub mod icon_whitespace_trim;
+pub mod kde_job_view_progress;
+pub mod kitty_terminal_windows;
+pub mod niri_kdl_config;
+pub mod niri_window_snapshot;
+pub mod nix_package_facts;
+pub mod nix_store_provenance;
+pub mod process_tree_inspection;
+pub mod project_directory_labels;
+pub mod status_notifier_tray;
+pub mod unity_launcher_badges;
+pub mod window_title_labels;

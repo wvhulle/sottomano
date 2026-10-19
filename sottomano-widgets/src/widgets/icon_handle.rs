@@ -5,7 +5,9 @@ use iced::{
     ContentFit, Element, Length,
     widget::{image, svg},
 };
-use sottomano_sources::{favicons::FaviconKind, tray::IconSource};
+use sottomano_sources::desktop_windows_apps::{
+    firefox_favicon_lookup::FaviconKind, status_notifier_tray::IconSource,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IconHandle {

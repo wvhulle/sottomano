@@ -9,7 +9,7 @@ use niri_ipc::state::EventStreamState;
 use sottomano_config::Config;
 use sottomano_sources::{
     desktop_notifications::notification_data::ActionTint,
-    kitty_windows::WindowProcesses,
+    desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
     login_session_presence::focus_time_ledger::{ScreenEdge, WakingWindow},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

@@ -10,8 +10,11 @@ use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
-    app_icon::DesktopEntries, kitty_windows::WindowProcesses,
-    media_playback_audio::pipewire_audio::WindowAudio, niri, process::Watched,
+    desktop_windows_apps::{
+        desktop_entry_app_icons::DesktopEntries, kitty_terminal_windows::WindowProcesses,
+        niri_window_snapshot, process_tree_inspection::Watched,
+    },
+    media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use window_list::{WindowList, WindowListMessage};
@@ -87,7 +90,7 @@ impl WindowGroup {
     #[must_use]
     pub fn pick_tooltip(
         niri_state: &EventStreamState,
-        snapshot: &ContinuousReading<niri::Snapshot>,
+        snapshot: &ContinuousReading<niri_window_snapshot::Snapshot>,
         window: u64,
     ) -> Option<Tooltip> {
         snapshot.tooltip_with(window_tooltip::pick_body(niri_state, window)?)
@@ -130,7 +133,7 @@ impl WindowGroup {
     #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
-        niri: &niri::Snapshot,
+        niri: &niri_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,

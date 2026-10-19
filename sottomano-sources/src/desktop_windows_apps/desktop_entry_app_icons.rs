@@ -3,8 +3,8 @@ use std::{collections::HashMap, path::PathBuf};
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
-use super::niri;
-use crate::window_label::IconCandidate;
+use super::niri_window_snapshot;
+use crate::desktop_windows_apps::window_title_labels::IconCandidate;
 
 #[derive(Debug)]
 pub struct DesktopEntries {
@@ -114,7 +114,7 @@ impl DesktopEntries {
 }
 
 #[must_use]
-pub fn app_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
+pub fn app_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String> {
     icon_keys(snapshot, |c| match c {
         IconCandidate::AppId(id) => Some(id),
         IconCandidate::Theme(_) => None,
@@ -122,7 +122,7 @@ pub fn app_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
 }
 
 #[must_use]
-pub fn theme_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
+pub fn theme_icon_keys(snapshot: &niri_window_snapshot::Snapshot) -> Vec<String> {
     icon_keys(snapshot, |c| match c {
         IconCandidate::Theme(name) => Some(name),
         IconCandidate::AppId(_) => None,
@@ -130,7 +130,7 @@ pub fn theme_icon_keys(snapshot: &niri::Snapshot) -> Vec<String> {
 }
 
 fn icon_keys(
-    snapshot: &niri::Snapshot,
+    snapshot: &niri_window_snapshot::Snapshot,
     pick: impl Fn(IconCandidate) -> Option<String>,
 ) -> Vec<String> {
     let mut keys: Vec<String> = snapshot
@@ -148,7 +148,7 @@ pub fn resolve_app_icons(entries: &DesktopEntries, ids: Vec<String>) -> HashMap<
         .filter_map(|id| {
             entries
                 .icon_for(&id)
-                .map(|path| (id, super::icon_trim::trimmed(&path)))
+                .map(|path| (id, super::icon_whitespace_trim::trimmed(&path)))
         })
         .collect()
 }
@@ -163,7 +163,7 @@ pub fn resolve_theme_icons(
         .filter_map(|name| {
             entries
                 .theme_icon(&name)
-                .map(|path| (name, super::icon_trim::trimmed(&path)))
+                .map(|path| (name, super::icon_whitespace_trim::trimmed(&path)))
         })
         .collect()
 }

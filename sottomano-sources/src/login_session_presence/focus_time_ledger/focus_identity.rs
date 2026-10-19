@@ -4,7 +4,9 @@ use niri_ipc::state::EventStreamState;
 use procfs::process::Process as Proc;
 
 use super::focus_units::FocusUnit;
-use crate::{kitty_windows::WindowProcesses, project_directory::repository_root};
+use crate::desktop_windows_apps::{
+    kitty_terminal_windows::WindowProcesses, project_directory_labels::repository_root,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FocusIdentity {

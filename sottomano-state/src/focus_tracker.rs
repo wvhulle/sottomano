@@ -5,7 +5,7 @@ use futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use sottomano_sources::{
     blocking_background_work::blocking,
-    kitty_windows::WindowProcesses,
+    desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
     login_session_presence::{
         focus_time_ledger::{
             AwayReasonEdge, FocusIdentity, FocusLedger, FocusSignal, Folded, LoadedSpans,

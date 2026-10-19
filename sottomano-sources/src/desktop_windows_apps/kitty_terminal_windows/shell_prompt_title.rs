@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::project_directory::home_abbreviated_path;
+use crate::desktop_windows_apps::project_directory_labels::home_abbreviated_path;
 
 const NUSHELL_COMMAND_SEPARATOR: &str = "> ";
 

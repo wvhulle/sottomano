@@ -12,8 +12,8 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
+    desktop_windows_apps::niri_window_snapshot::WindowOwner,
     media_playback_audio::mpris_players::{self, Command, Media, Progress, Status},
-    niri::WindowOwner,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
 use uom::si::f64::Ratio;

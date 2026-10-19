@@ -5,8 +5,9 @@ use futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-    process::binary_name, system_protocol_clients::sysfs_attribute_reads::Error,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    desktop_windows_apps::process_tree_inspection::binary_name, polled_delivery_stream,
+    system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const MEMINFO: &str = "/proc/meminfo";

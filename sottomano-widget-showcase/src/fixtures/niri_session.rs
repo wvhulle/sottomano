@@ -7,10 +7,12 @@ use niri_ipc::{
 };
 use sottomano_sources::{
     SourceDelivery,
-    kitty_windows::WindowProcesses,
-    niri::Snapshot,
-    nix_store::{Provenance, StorePackage},
-    process::{Inspection, Launch, Process},
+    desktop_windows_apps::{
+        kitty_terminal_windows::WindowProcesses,
+        niri_window_snapshot::Snapshot,
+        nix_store_provenance::{Provenance, StorePackage},
+        process_tree_inspection::{Inspection, Launch, Process},
+    },
 };
 use sottomano_widgets::{
     desktop_index::DesktopIndex,

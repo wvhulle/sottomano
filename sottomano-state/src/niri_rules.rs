@@ -6,7 +6,7 @@ use std::{
 
 use club_kdl::{KdlDeserialize, KdlSerialize};
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::niri_config::parse_niri_kdl;
+use sottomano_sources::desktop_windows_apps::niri_kdl_config::parse_niri_kdl;
 use tokio::fs;
 
 #[derive(Debug, Clone, Copy, PartialEq)]

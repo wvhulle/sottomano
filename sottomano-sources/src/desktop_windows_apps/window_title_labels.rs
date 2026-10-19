@@ -1,10 +1,10 @@
-pub mod browser_page;
-mod command_icons;
+pub mod browser_page_title;
+mod command_icon_names;
 
-use browser_page::{BrowserBrand, BrowserPage, firefox_favicon_key};
-use command_icons::command_icon;
+use browser_page_title::{BrowserBrand, BrowserPage, firefox_favicon_key};
+use command_icon_names::command_icon;
 
-use crate::kitty_windows::{
+use crate::desktop_windows_apps::kitty_terminal_windows::{
     KITTY_APP_ID,
     kitty_window_label::{KittyWindowLabel, WorkingLocation},
 };
@@ -84,7 +84,7 @@ impl WindowLabel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kitty_windows::kitty_window_label::ForegroundActivity;
+    use crate::desktop_windows_apps::kitty_terminal_windows::kitty_window_label::ForegroundActivity;
 
     fn kitty_running(command_line: &str) -> KittyWindowLabel {
         KittyWindowLabel {

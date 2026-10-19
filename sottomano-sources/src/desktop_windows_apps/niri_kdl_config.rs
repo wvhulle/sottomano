@@ -6,7 +6,7 @@ use std::{
 use kdl::{KdlDocument, KdlError};
 use tokio::fs;
 
-use crate::niri::WorkspaceIndicator;
+use crate::desktop_windows_apps::niri_window_snapshot::WorkspaceIndicator;
 
 pub fn parse_niri_kdl(text: &str) -> Result<KdlDocument, KdlError> {
     KdlDocument::parse(text).or_else(|_| KdlDocument::parse_v1(text))

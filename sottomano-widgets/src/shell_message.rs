@@ -4,12 +4,14 @@ use iced::window::Id;
 use iced_exwlshell::to_layer_message;
 use sottomano_config::{Config, LoadError};
 use sottomano_sources::{
-    app_icon::DesktopEntries,
     desktop_notifications::alert_sound_player::SoundTheme,
-    favicons::RawFavicon,
-    launch_tracker::Launch,
-    niri::{self, WindowOwner},
-    niri_config::ConfiguredWorkspaces,
+    desktop_windows_apps::{
+        app_launch_history::Launch,
+        desktop_entry_app_icons::DesktopEntries,
+        firefox_favicon_lookup::RawFavicon,
+        niri_kdl_config::ConfiguredWorkspaces,
+        niri_window_snapshot::{self, WindowOwner},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
 use sottomano_state::{ShellSettings, niri_rules::StoredRules};
@@ -114,12 +116,12 @@ pub enum Message {
     TooltipHideElapsed,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
-    OutputsResolved(HashMap<String, niri::OutputInfo>),
+    OutputsResolved(HashMap<String, niri_window_snapshot::OutputInfo>),
     Output(OutputChange),
     ReloadDesktopEntries,
     SidebarWidthChanged { window: Id, width: f32 },
     PointerDrag(DragMessage),
-    NiriActionFailed(niri::ActionFailure),
+    NiriActionFailed(niri_window_snapshot::ActionFailure),
     NiriConfigRead(Result<ConfiguredWorkspaces, String>),
     RestoreWorkspaceOrder { output: String },
     DesktopBus(Result<DesktopBusEvent, zbus::Error>),
