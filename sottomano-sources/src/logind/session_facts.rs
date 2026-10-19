@@ -10,7 +10,7 @@ use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hostname::at_micros,
+    host_machine_identity::hostname1_os_identity::at_micros,
     logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
     non_empty_text::non_empty,
     pushed_delivery_stream,

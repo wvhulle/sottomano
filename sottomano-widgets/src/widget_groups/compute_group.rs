@@ -12,7 +12,7 @@ use iced::{Subscription, Task};
 use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use sottomano_sources::{
     SourceDelivery,
-    hardware::{HostHardware, HostHardwareError},
+    host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
     sysfs_sensors::{
         cpu_clock::CpuClock,
         cpu_power::CpuPower,

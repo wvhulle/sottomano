@@ -14,7 +14,7 @@ use super::{
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-    hardware::DriveIdentity,
+    host_machine_identity::udev_hardware_identity::DriveIdentity,
     polled_delivery_stream,
     sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
     temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},

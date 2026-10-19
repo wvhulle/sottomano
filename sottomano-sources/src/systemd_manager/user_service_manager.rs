@@ -4,7 +4,7 @@ use zbus::proxy::CacheProperties;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hostname::at_micros,
+    host_machine_identity::hostname1_os_identity::at_micros,
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},

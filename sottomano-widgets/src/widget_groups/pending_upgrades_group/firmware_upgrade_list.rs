@@ -1,6 +1,9 @@
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::{fwupd::FirmwareUpgrade, notifications::model::ActionTint};
+use sottomano_sources::{
+    host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
+    notifications::model::ActionTint,
+};
 
 use crate::{
     widget_groups::{

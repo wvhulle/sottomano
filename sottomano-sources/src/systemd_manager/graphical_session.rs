@@ -6,7 +6,7 @@ use tokio::task::spawn_blocking;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hostname::at_micros,
+    host_machine_identity::hostname1_os_identity::at_micros,
     niri,
     non_empty_text::non_empty,
     pushed_delivery_stream,

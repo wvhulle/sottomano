@@ -11,7 +11,7 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    hostname::OperatingSystemIdentity,
+    host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
     logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{

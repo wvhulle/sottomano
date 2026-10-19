@@ -1,6 +1,6 @@
 use sottomano_sources::{
     gpu::GpuModel,
-    hardware::{
+    host_machine_identity::udev_hardware_identity::{
         Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
     },
 };

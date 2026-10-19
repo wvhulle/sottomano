@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::{
     DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
-    hostname::MachineInfo,
+    host_machine_identity::hostname1_os_identity::MachineInfo,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, shell_command_output},
 };
 

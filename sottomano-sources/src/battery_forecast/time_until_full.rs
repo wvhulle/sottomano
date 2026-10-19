@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use crate::{
         battery_forecast::charge_power_by_state_of_charge::learned_curve,
-        hardware::PowerSupplyIdentity,
+        host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
         sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
     };
 
