@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, future::ready, time::Duration};
+use std::{collections::HashSet, fs, future::ready, path::PathBuf, time::Duration};
 
 use futures::{Stream, StreamExt, stream::select};
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,10 @@ use crate::{
     stream_operators::{
         StreamOperators, connected_until_failure, read_once_then_per_burst, ticked,
     },
-    system_protocol_clients::dbus_desktop_buses::{DesktopBuses, name_owned},
+    system_protocol_clients::{
+        dbus_desktop_buses::{DesktopBuses, name_owned},
+        sysfs_attribute_reads::{list_dir, read_i64},
+    },
 };
 
 const CLIGHTD_SERVICE: &str = "org.clightd.clightd";
@@ -170,4 +173,18 @@ fn clightd_set(serial: &str, frac: f64) -> bool {
             serial,
         )
         .unwrap_or(false)
+}
+
+#[must_use]
+pub fn internal_brightness_frac() -> Option<f64> {
+    let panel = first_backlight()?;
+    let current = read_i64(panel.join("brightness"))?;
+    let max = read_i64(panel.join("max_brightness")).filter(|m| *m > 0)?;
+    Some((current as f64 / max as f64).clamp(0.0, 1.0))
+}
+
+fn first_backlight() -> Option<PathBuf> {
+    let mut panels = list_dir("/sys/class/backlight");
+    panels.sort();
+    panels.into_iter().next()
 }

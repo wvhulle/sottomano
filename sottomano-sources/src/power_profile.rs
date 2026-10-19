@@ -4,13 +4,16 @@ use futures::{Stream, StreamExt, stream};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    DeliveryCadence, ReadingSource, SourceDelivery, backlight, blocking_poll,
+    cpu_memory_compute::cpu_core_loads,
     non_empty_text::non_empty,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure},
-    sysfs_sensors,
-    system_protocol_clients::dbus_desktop_buses::{
-        self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
+    system_protocol_clients::{
+        dbus_desktop_buses::{
+            self, DbusPropertyLookup, DesktopBuses, Properties, name_owned, prop,
+        },
+        sysfs_attribute_reads,
     },
 };
 
@@ -126,14 +129,14 @@ impl Conditions {
     #[must_use]
     pub fn current() -> Self {
         Conditions::new(
-            sysfs_sensors::internal_brightness_frac().unwrap_or(0.0),
-            sysfs_sensors::cpu_usage::cpu_busy_frac().unwrap_or(0.0),
+            backlight::internal_brightness_frac().unwrap_or(0.0),
+            cpu_core_loads::cpu_busy_frac().unwrap_or(0.0),
         )
     }
 }
 
 impl ReadingSource for Conditions {
-    type Error = sysfs_sensors::Error;
+    type Error = sysfs_attribute_reads::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power-conditions";
@@ -148,7 +151,7 @@ impl ReadingSource for Conditions {
 }
 
 impl Conditions {
-    async fn poll(_buses: DesktopBuses) -> Result<Self, sysfs_sensors::Error> {
+    async fn poll(_buses: DesktopBuses) -> Result<Self, sysfs_attribute_reads::Error> {
         blocking_poll(|| Ok(Conditions::current())).await
     }
 }

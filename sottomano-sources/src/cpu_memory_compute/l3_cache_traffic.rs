@@ -5,10 +5,11 @@ use perf_event::{Builder, Counter, events::Dynamic};
 use tokio::task::spawn_blocking;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::{Error, cpu_topology::cpulist, read_trimmed};
+use super::cpu_topology::cpulist;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
     stream_operators::StreamOperators,
+    system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
 };
 
 const L3_PMU: &str = "amd_l3";

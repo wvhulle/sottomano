@@ -4,13 +4,13 @@ use futures::Stream;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
-    Error, cpu_core_index,
-    cpu_idle::{CoreDeepIdle, IdleSnapshot},
+    cpu_core_deep_idle::{CoreDeepIdle, IdleSnapshot},
+    cpu_core_index,
     cpu_topology::CpuTopology,
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
-    polled_delivery_stream,
+    polled_delivery_stream, system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const CPU_STAT: &str = "/proc/stat";

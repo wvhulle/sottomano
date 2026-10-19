@@ -10,7 +10,7 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    gpu::{
+    cpu_memory_compute::nvml_gpu_readings::{
         self, GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot,
         NvmlDevice, PciBusId,
     },
@@ -43,8 +43,8 @@ pub struct GpuTarget {
     reading: GpuReading,
 }
 
-impl From<gpu::Error> for Section {
-    fn from(error: gpu::Error) -> Self {
+impl From<nvml_gpu_readings::Error> for Section {
+    fn from(error: nvml_gpu_readings::Error) -> Self {
         Section::error(error)
     }
 }

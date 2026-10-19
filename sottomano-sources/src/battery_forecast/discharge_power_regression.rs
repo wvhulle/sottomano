@@ -5,7 +5,7 @@ use nalgebra::{Matrix1x3, Matrix3, Vector1, Vector3};
 use uom::si::{f64::Power, power::watt};
 
 #[cfg(test)]
-use crate::sysfs_sensors::battery::BATTERY_POLL_INTERVAL;
+use crate::battery_power_profiles::upower_battery_state::BATTERY_POLL_INTERVAL;
 use crate::{
     battery_forecast::random_walk_kalman_models::{LinearObservation, RandomWalk},
     power_profile::Conditions,

@@ -1,5 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::sysfs_sensors::cpu_clock::{CoreFreq, CpuClock, FrequencyLimit};
+use sottomano_sources::cpu_memory_compute::cpu_clock_frequency::{
+    CoreFreq, CpuClock, FrequencyLimit,
+};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Frequency, frequency::gigahertz},

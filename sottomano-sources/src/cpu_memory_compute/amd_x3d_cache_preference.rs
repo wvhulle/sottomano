@@ -2,10 +2,10 @@ use std::{fmt, fs, path::PathBuf, str::FromStr};
 
 use futures::{Stream, StreamExt, stream};
 
-use super::{Error, list_dir, read_trimmed};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
     stream_operators::StreamOperators,
+    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
 const X3D_VCACHE_DRIVER: &str = "/sys/bus/platform/drivers/amd_x3d_vcache";

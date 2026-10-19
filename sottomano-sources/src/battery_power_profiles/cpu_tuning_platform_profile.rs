@@ -2,12 +2,16 @@ use std::{future::ready, path::Path};
 
 use futures::Stream;
 
-use super::{CPU_FREQ, Error, read_field, read_trimmed};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-    power_profile::active_profile_changes, pushed_delivery_stream,
+    cpu_memory_compute::CPU_FREQ,
+    power_profile::active_profile_changes,
+    pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses,
+        sysfs_attribute_reads::{Error, read_field, read_trimmed},
+    },
 };
 
 const PLATFORM_PROFILE: &str = "/sys/firmware/acpi";

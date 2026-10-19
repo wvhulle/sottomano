@@ -1,9 +1,6 @@
-use sottomano_sources::{
-    sysfs_sensors::{
-        cpu_clock::CpuClock, cpu_topology::CoreGroup, l3_cache_traffic::L3CacheTraffic,
-        temperature::Temperature,
-    },
-    temperature_thresholds::celsius_text,
+use sottomano_sources::cpu_memory_compute::{
+    cpu_clock_frequency::CpuClock, cpu_temperature::Temperature, cpu_topology::CoreGroup,
+    l3_cache_traffic::L3CacheTraffic, temperature_thresholds::celsius_text,
 };
 use uom::si::f64::Frequency;
 

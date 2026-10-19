@@ -8,8 +8,8 @@ use crate::{
         discharge_power_regression::RegressionState,
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
+    battery_power_profiles::upower_battery_state::Battery,
     power_profile::{Conditions, Profile},
-    sysfs_sensors::battery::Battery,
 };
 
 struct Draining<'a> {
@@ -102,8 +102,10 @@ mod tests {
     use super::*;
     use crate::{
         battery_forecast::discharge_power_regression::trained,
+        battery_power_profiles::upower_battery_state::{
+            BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus,
+        },
         host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-        sysfs_sensors::battery::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
     };
 
     fn on_battery(energy_wh: f64) -> Battery {

@@ -1,4 +1,4 @@
-use sottomano_sources::sysfs_sensors::battery::Battery;
+use sottomano_sources::battery_power_profiles::upower_battery_state::Battery;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{energy::watt_hour, f64::Ratio, ratio::percent},

@@ -34,9 +34,8 @@ pub mod weather_group;
 pub mod window_group;
 pub mod workspaces_group;
 
-use sottomano_sources::{
-    sysfs_sensors,
-    system_protocol_clients::{dbus_desktop_buses, http_json_client, shell_command_output},
+use sottomano_sources::system_protocol_clients::{
+    dbus_desktop_buses, http_json_client, shell_command_output, sysfs_attribute_reads,
 };
 
 use crate::widgets::tooltip_body::{KeyValue, Section};
@@ -53,8 +52,8 @@ impl From<zbus::Error> for Section {
     }
 }
 
-impl From<sysfs_sensors::Error> for Section {
-    fn from(error: sysfs_sensors::Error) -> Self {
+impl From<sysfs_attribute_reads::Error> for Section {
+    fn from(error: sysfs_attribute_reads::Error) -> Self {
         Section::error(error)
     }
 }

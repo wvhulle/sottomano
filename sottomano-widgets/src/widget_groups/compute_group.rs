@@ -12,17 +12,17 @@ use iced::{Subscription, Task};
 use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use sottomano_sources::{
     SourceDelivery,
-    host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
-    sysfs_sensors::{
-        cpu_clock::CpuClock,
-        cpu_power::CpuPower,
-        cpu_usage::{CpuCoreLoads, CpuUsage},
+    cpu_memory_compute::{
+        amd_x3d_cache_preference::X3dCachePreference,
+        cpu_clock_frequency::CpuClock,
+        cpu_core_loads::{CpuCoreLoads, CpuUsage},
+        cpu_power_draw::CpuPower,
+        cpu_temperature::{CpuCoreTemperatures, Temperature},
         l3_cache_traffic::L3CacheTraffic,
-        memory::{Memory, MemoryProcesses},
         memory_module_temperatures::MemoryModuleTemperatures,
-        temperature::{CpuCoreTemperatures, Temperature},
-        x3d_vcache::X3dCachePreference,
+        memory_usage::{Memory, MemoryProcesses},
     },
+    host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use x3d_cache_preference_toggle::ChipletRoles;

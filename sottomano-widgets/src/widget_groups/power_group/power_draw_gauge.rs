@@ -1,4 +1,6 @@
-use sottomano_sources::sysfs_sensors::battery::{Battery, ChargeStatus, ChargerSupply};
+use sottomano_sources::battery_power_profiles::upower_battery_state::{
+    Battery, ChargeStatus, ChargerSupply,
+};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{
@@ -128,7 +130,7 @@ impl BarWidget for PowerDraw {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sysfs_sensors::battery::ChargerLimit;
+    use sottomano_sources::battery_power_profiles::upower_battery_state::ChargerLimit;
     use uom::si::f64::{ElectricCurrent, ElectricPotential};
 
     use super::*;

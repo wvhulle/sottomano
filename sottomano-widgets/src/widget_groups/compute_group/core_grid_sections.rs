@@ -1,4 +1,4 @@
-use sottomano_sources::sysfs_sensors::cpu_topology::{CoreGroup, CpuTopology};
+use sottomano_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
 use uom::si::information::mebibyte;
 
 use crate::widgets::tooltip_body::{

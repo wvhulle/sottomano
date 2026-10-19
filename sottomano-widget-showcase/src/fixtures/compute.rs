@@ -2,11 +2,11 @@ use bytesize::ByteSize;
 use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_sources::{
     SourceDelivery,
-    sysfs_sensors::{
-        cpu_power::{CpuPower, PowerZone},
-        cpu_usage::CpuUsage,
-        memory::{Memory, MemoryProcess, MemoryProcesses},
-        temperature::{TempReading, Temperature},
+    cpu_memory_compute::{
+        cpu_core_loads::CpuUsage,
+        cpu_power_draw::{CpuPower, PowerZone},
+        cpu_temperature::{TempReading, Temperature},
+        memory_usage::{Memory, MemoryProcess, MemoryProcesses},
     },
 };
 use sottomano_widgets::{

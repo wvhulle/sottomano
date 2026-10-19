@@ -164,7 +164,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sysfs_sensors::{Error, x3d_vcache::X3dCachePreference};
+    use sottomano_sources::{
+        cpu_memory_compute::amd_x3d_cache_preference::X3dCachePreference,
+        system_protocol_clients::sysfs_attribute_reads::Error,
+    };
 
     use super::*;
     use crate::widget_groups::compute_group::ComputeTarget;

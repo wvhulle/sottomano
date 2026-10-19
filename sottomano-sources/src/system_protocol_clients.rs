@@ -4,3 +4,4 @@ pub mod inotify_config_file_changes;
 pub mod inotify_directory_changes;
 pub mod inotify_file_presence;
 pub mod shell_command_output;
+pub mod sysfs_attribute_reads;
