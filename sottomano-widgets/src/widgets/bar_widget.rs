@@ -8,7 +8,6 @@ use crate::{
     clock::Clock,
     widgets::{
         announced_level::AnnouncedLevel,
-        ongoing_toast::OngoingBody,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
@@ -77,9 +76,8 @@ pub trait BarWidget {
         OngoingToastThreshold::NeverNotify
     }
 
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
         self.label(clock, locale)
-            .map_or(OngoingBody::None, OngoingBody::Text)
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -134,7 +132,7 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).ongoing_toast_threshold()
     }
 
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
         (**self).ongoing_toast_body(clock, locale)
     }
 

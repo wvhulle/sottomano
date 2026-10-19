@@ -1,7 +1,8 @@
 use std::{borrow::Cow, cmp::Reverse};
 
-use chrono::{DateTime, Local, Locale};
+use chrono::{DateTime, Locale, Utc};
 use iced::alignment::Horizontal;
+use quick_xml::escape::escape;
 use sottomano_config::Config;
 use sottomano_sources::{
     desktop_notifications::notification_data::ActionTint,
@@ -24,7 +25,9 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast, OngoingToastActionButton},
+        ongoing_toast::{
+            OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
+        },
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
@@ -84,8 +87,7 @@ pub(super) fn failed_units_item<'a>(
             ),
             severity: UNIT_FAILURE_PRIORITY.severity(),
             summary_text: Cow::Owned(format!("{} failed", unit.name)),
-            body: failure_summary(unit, config.calendar.locale)
-                .map_or(OngoingBody::None, OngoingBody::Text),
+            body: failure_summary(unit, clock.utc(), config.calendar.locale),
             progress: None,
             since: unit.at.unwrap_or(clock.wall),
             on_body_clicked: open_unit_log.clone(),
@@ -139,34 +141,39 @@ fn service_outcome_reason(outcome: &ServiceOutcome) -> String {
     }
 }
 
-fn failure_summary(unit: &FailedUnitInfo, locale: Locale) -> Option<String> {
-    let reason = unit.service_outcome.as_ref().map(service_outcome_reason);
-    let failed_at = unit
-        .at
-        .map(|at| LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(at), locale));
-    let outcome: Vec<String> = reason.into_iter().chain(failed_at).collect();
-    let outcome_line = (!outcome.is_empty()).then(|| outcome.join(" · "));
-    let lines: Vec<String> = outcome_line
-        .into_iter()
-        .chain(unit.crash.iter().flat_map(|crash| {
-            [
-                format!("<b>Signal</b> {}", crash.signal),
+fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) -> Option<String> {
+    let reason = unit
+        .service_outcome
+        .as_ref()
+        .map(|outcome| ("Reason", service_outcome_reason(outcome)));
+    let failed_at = unit.at.map(|at| {
+        (
+            "Failed at",
+            moment_text(DateTime::<Utc>::from(at), now, locale),
+        )
+    });
+    let crash = unit.crash.iter().flat_map(|crash| {
+        [
+            ("Signal", crash.signal.to_string()),
+            (
+                "Process",
                 format!(
-                    "<b>Process</b> {} · PID {}",
-                    crash.executable.display(),
+                    "{} · PID {}",
+                    escape(crash.executable.display().to_string()),
                     crash.pid
                 ),
-            ]
-            .into_iter()
-            .chain(
-                crash
-                    .stored_file
-                    .as_ref()
-                    .map(|file| format!("<b>Core</b> <tt>{}</tt>", file.display())),
+            ),
+        ]
+        .into_iter()
+        .chain(crash.stored_file.as_ref().map(|file| {
+            (
+                "Core",
+                format!("<tt>{}</tt>", escape(file.display().to_string())),
             )
         }))
-        .collect();
-    (!lines.is_empty()).then(|| lines.join("\n"))
+    });
+    let rows: Vec<(&str, String)> = reason.into_iter().chain(failed_at).chain(crash).collect();
+    (!rows.is_empty()).then(|| definition_list(rows))
 }
 
 impl BarWidget for FailedUnits {

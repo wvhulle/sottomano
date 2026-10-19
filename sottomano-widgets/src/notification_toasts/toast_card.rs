@@ -4,10 +4,12 @@ use std::{
 };
 
 use iced::{
-    Alignment, Border, Color, Element, Font, Length, Shadow, Theme, border,
+    Alignment, Border, Color, Element, Font, Length, Shadow, Theme,
+    alignment::{Horizontal, Vertical},
+    border,
     widget::{
-        Column, Row, Space, button, container, mouse_area, progress_bar, rich_text, text::Wrapping,
-        text_input,
+        Column, Row, Space, button, container, mouse_area, progress_bar, rich_text, table,
+        text::Wrapping, text_input,
     },
 };
 use reqwest::Url;
@@ -21,7 +23,11 @@ use sottomano_sources::{
 use sottomano_state::ShellSettings;
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::{Notification, body_markup, toast_lifecycle::ToastKind};
+use super::{
+    Notification,
+    body_markup::{self, BodyBlock, BodyRow},
+    toast_lifecycle::ToastKind,
+};
 use crate::{
     hover_tooltips::{ongoing_for, relative},
     toast_messages::{NotificationMessage, ReplyMessage},
@@ -41,6 +47,7 @@ const BORDER_WIDTH_PX: f32 = 1.5;
 const PROGRESS_GIRTH_PX: f32 = 6.0;
 const CODE_BLOCK_PADDING_PX: f32 = 6.0;
 const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
+const KEY_TINT_ALPHA: f32 = 0.7;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -246,40 +253,73 @@ impl ToastCard<'_> {
 }
 
 impl ToastCard<'_> {
-    fn body_paragraphs<'b>(&self, body: &str, text: Color) -> Column<'b, NotificationMessage> {
+    fn body_blocks<'b>(&self, body: &str, text: Color) -> Column<'b, NotificationMessage> {
         let font = &self.config.theme.font;
         let corner_radius = self.settings.overlays.corner_radius_px;
         Column::with_children(
-            body_markup::body_paragraphs(
-                body,
-                text,
-                font.small_text_size_px,
-                font,
-                Font::MONOSPACE,
-            )
-            .into_iter()
-            .map(|paragraph| {
-                let flowing = rich_text(paragraph.spans)
-                    .line_height(LINE_HEIGHT)
-                    .wrapping(Wrapping::WordOrGlyph)
-                    .width(Length::Fill);
-                if paragraph.preformatted {
-                    container(flowing)
-                        .padding(CODE_BLOCK_PADDING_PX)
-                        .width(Length::Fill)
-                        .style(move |_| {
-                            container::Style::default()
-                                .background(text.scale_alpha(CODE_BLOCK_TINT_ALPHA))
-                                .border(border::rounded(corner_radius))
-                        })
-                        .into()
-                } else {
-                    flowing.into()
-                }
-            }),
+            body_markup::body_blocks(body, text, font.small_text_size_px, font, Font::MONOSPACE)
+                .into_iter()
+                .map(|block| match block {
+                    BodyBlock::Paragraph {
+                        spans,
+                        preformatted,
+                    } => {
+                        let flowing = rich_text(spans)
+                            .line_height(LINE_HEIGHT)
+                            .wrapping(Wrapping::WordOrGlyph)
+                            .width(Length::Fill);
+                        if preformatted {
+                            container(flowing)
+                                .padding(CODE_BLOCK_PADDING_PX)
+                                .width(Length::Fill)
+                                .style(move |_| {
+                                    container::Style::default()
+                                        .background(text.scale_alpha(CODE_BLOCK_TINT_ALPHA))
+                                        .border(border::rounded(corner_radius))
+                                })
+                                .into()
+                        } else {
+                            flowing.into()
+                        }
+                    }
+                    BodyBlock::Rows(rows) => self.rows_table(rows, text),
+                }),
         )
         .spacing(self.config.layout.overlay.row_spacing)
         .width(Length::Fill)
+    }
+
+    fn rows_table<'b>(
+        &self,
+        rows: Vec<BodyRow<'static>>,
+        text: Color,
+    ) -> Element<'b, NotificationMessage> {
+        let key_tint = text.scale_alpha(KEY_TINT_ALPHA);
+        let key_column = table::column(Space::new(), move |row: BodyRow<'static>| {
+            let dimmed: Vec<_> = row
+                .key
+                .into_iter()
+                .map(|styled| styled.color(key_tint))
+                .collect();
+            rich_text(dimmed)
+                .line_height(LINE_HEIGHT)
+                .wrapping(Wrapping::None)
+        })
+        .align_x(Horizontal::Right)
+        .align_y(Vertical::Top);
+        let value_column = table::column(Space::new(), |row: BodyRow<'static>| {
+            rich_text(row.value)
+                .line_height(LINE_HEIGHT)
+                .wrapping(Wrapping::WordOrGlyph)
+                .width(Length::Fill)
+        })
+        .width(Length::Fill)
+        .align_y(Vertical::Top);
+        table::table([key_column, value_column], rows)
+            .separator(0.0)
+            .padding_x(ROW_SPACING / 2.0)
+            .padding_y(self.config.layout.overlay.row_spacing / 2.0)
+            .into()
     }
 
     fn column<'b>(&self, text: Color) -> Column<'b, NotificationMessage> {
@@ -294,7 +334,7 @@ impl ToastCard<'_> {
         let previewed = self.notif.icons.previewed_file().is_some();
         let has_actions = !button_actions.is_empty() || previewed;
         let now = self.now;
-        let body_text = self.notif.body_text(now, self.config.calendar.locale);
+        let body_text = &data.body;
         let has_body = body_text.is_some();
         let reltime = match &self.notif.kind {
             ToastKind::Event { at, .. } => relative(*at, now),
@@ -333,11 +373,11 @@ impl ToastCard<'_> {
         let mut column = Column::new()
             .spacing(self.config.layout.overlay.row_spacing)
             .push(title);
-        if let Some(body) = &body_text {
+        if let Some(body) = body_text {
             let body = Row::new()
                 .spacing(ROW_SPACING)
                 .align_y(Alignment::End)
-                .push(self.body_paragraphs(body, text));
+                .push(self.body_blocks(body, text));
             column = column.push(match reltime_span(!has_actions) {
                 Some(time) => body.push(time),
                 None => body,

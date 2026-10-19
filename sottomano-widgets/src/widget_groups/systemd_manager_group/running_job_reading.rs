@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Utc};
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::systemd_units_journal::{
@@ -18,7 +18,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
@@ -46,6 +46,7 @@ impl SystemdManagerGroup {}
 pub(super) fn slow_jobs_item<'a>(
     jobs: &'a SlowJobs,
     config: &'a Config,
+    clock: Clock,
 ) -> GroupItem<'a, SystemdManagerMessage> {
     let open_log = |args| SystemdManagerMessage::OpenLog(TerminalCommand::journal(config, args));
     let locale = config.calendar.locale;
@@ -66,11 +67,13 @@ pub(super) fn slow_jobs_item<'a>(
             key: OngoingKey::Reading(SystemdTarget::slow_job(jobs.scope, job.unit.clone()).into()),
             severity: Severity::Warning,
             summary_text: Cow::Owned(format!("{} {activity} slowly", job.unit)),
-            body: OngoingBody::Text(format!(
-                "since {} · {scope_name}",
-                LocalizedTimeFormat::TimeOfDay
-                    .format(&DateTime::<Local>::from(job.started_at), locale),
-            )),
+            body: Some(definition_list([
+                (
+                    "Since",
+                    moment_text(DateTime::<Utc>::from(job.started_at), clock.utc(), locale),
+                ),
+                ("Scope", scope_name.to_owned()),
+            ])),
             progress: None,
             since: job.started_at,
             on_body_clicked: open_log(jobs.scope.follow_units_log_args([job.unit.as_str()])),

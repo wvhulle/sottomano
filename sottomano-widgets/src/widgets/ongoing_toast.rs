@@ -1,6 +1,7 @@
 use std::{borrow::Cow, time::SystemTime};
 
 use chrono::{DateTime, Local, Locale, Utc};
+use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     ai_usage_spend::usage_quota::{Pace, Quota},
@@ -14,77 +15,70 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        amount_text::{duration_text, percent_text},
+        amount_text::{coarse_duration_text, percent_text},
         bar_widget::{BarWidget, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
         widget_state::WidgetState,
     },
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum OngoingBody {
-    None,
-    Text(String),
-    QuotaPace(Vec<Quota>),
-}
-
-impl OngoingBody {
-    #[must_use]
-    pub fn text(&self, now: DateTime<Utc>, locale: Locale) -> Option<String> {
-        match self {
-            Self::None => None,
-            Self::Text(text) => Some(text.clone()),
-            Self::QuotaPace(quotas) => Some(
-                quotas
-                    .iter()
-                    .map(|quota| quota_pace_line(quota, now, locale))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            ),
-        }
-    }
-}
-
-fn quota_pace_line(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
-    let label = &quota.label;
-    let used = percent_text(quota.used);
-    let elapsed = duration_text(now - quota.starts_at);
-    let window = duration_text(quota.resets_at - quota.starts_at);
-    let today = now.with_timezone(&Local).date_naive();
-    let local_reset = quota.resets_at.with_timezone(&Local);
-    let reset_at = if local_reset.date_naive() == today {
-        LocalizedTimeFormat::TimeOfDay.format(&local_reset, locale)
+#[must_use]
+pub fn moment_text(at: DateTime<Utc>, now: DateTime<Utc>, locale: Locale) -> String {
+    let local = at.with_timezone(&Local);
+    let time_of_day = LocalizedTimeFormat::TimeOfDay.format(&local, locale);
+    if local.date_naive() == now.with_timezone(&Local).date_naive() {
+        time_of_day
     } else {
         format!(
-            "{} {}",
-            LocalizedTimeFormat::Weekday.format(&local_reset, locale),
-            LocalizedTimeFormat::TimeOfDay.format(&local_reset, locale)
+            "{} {time_of_day}",
+            LocalizedTimeFormat::Weekday.format(&local, locale)
         )
-    };
-    match quota.pace() {
-        Some(Pace::RunsOut { at }) => {
-            let runs_out_at = at.with_timezone(&Local);
-            format!(
-                "{label}: {used} used after {elapsed} of {window}.\nRuns out around {}, resets at \
-                 {reset_at}.",
-                if runs_out_at.date_naive() == today {
-                    LocalizedTimeFormat::TimeOfDay.format(&runs_out_at, locale)
-                } else {
-                    format!(
-                        "{} {}",
-                        LocalizedTimeFormat::Weekday.format(&runs_out_at, locale),
-                        LocalizedTimeFormat::TimeOfDay.format(&runs_out_at, locale)
-                    )
-                }
-            )
-        }
-        Some(Pace::Lasts { at_reset }) => format!(
-            "{label}: {used} used after {elapsed} of {window}.\nReaches {} by the reset at \
-             {reset_at}.",
-            percent_text(at_reset)
-        ),
-        None => format!("{label}: {used} used, resets at {reset_at}."),
     }
+}
+
+pub fn definition_list<'a>(rows: impl IntoIterator<Item = (&'a str, String)>) -> String {
+    let rows = rows
+        .into_iter()
+        .map(|(key, value)| format!("<dt>{key}</dt><dd>{value}</dd>"))
+        .collect::<Vec<_>>()
+        .concat();
+    format!("<dl>{rows}</dl>")
+}
+
+fn quota_rows(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
+    let elapsed = coarse_duration_text(now - quota.starts_at);
+    let window = coarse_duration_text(quota.resets_at - quota.starts_at);
+    let pace_row = match quota.pace() {
+        Some(Pace::RunsOut { at }) => Some(("Runs out", moment_text(at, now, locale))),
+        Some(Pace::Lasts { at_reset }) => Some(("At reset", percent_text(at_reset))),
+        None => None,
+    };
+    definition_list(
+        [
+            ("Used", percent_text(quota.used)),
+            ("Elapsed", format!("{elapsed} of {window}")),
+        ]
+        .into_iter()
+        .chain(pace_row)
+        .chain([("Resets", moment_text(quota.resets_at, now, locale))]),
+    )
+}
+
+fn quota_pace_body(quotas: &[Quota], now: DateTime<Utc>, locale: Locale) -> String {
+    if let [single] = quotas {
+        return quota_rows(single, now, locale);
+    }
+    quotas
+        .iter()
+        .map(|quota| {
+            format!(
+                "<b>{}</b>{}",
+                escape(quota.label.as_ref()),
+                quota_rows(quota, now, locale)
+            )
+        })
+        .collect::<Vec<_>>()
+        .concat()
 }
 
 #[derive(Debug, Clone)]
@@ -119,7 +113,7 @@ pub struct OngoingToast<Message> {
     pub key: OngoingKey,
     pub severity: Severity,
     pub summary_text: Cow<'static, str>,
-    pub body: OngoingBody,
+    pub body: Option<String>,
     pub progress: Option<Ratio>,
     pub since: SystemTime,
     pub on_body_clicked: Message,
@@ -171,10 +165,12 @@ impl<Message> OngoingToast<Message> {
         hover_target: impl Into<HoverTarget>,
         widget: &dyn BarWidget,
         on_body_clicked: Message,
+        locale: Locale,
         clock: Clock,
     ) -> Option<Self> {
+        let now = clock.utc();
         let alerting: Vec<Quota> = widget
-            .quota_windows(clock.utc())
+            .quota_windows(now)
             .into_iter()
             .filter(|quota| quota.severity() >= Severity::Warning)
             .collect();
@@ -185,7 +181,7 @@ impl<Message> OngoingToast<Message> {
             severity: worst.severity(),
             summary_text: Cow::Owned(format!("{} runs out before reset", worst.label)),
             progress: Some(worst.used),
-            body: OngoingBody::QuotaPace(alerting),
+            body: Some(quota_pace_body(&alerting, now, locale)),
             since: clock.wall,
             on_body_clicked,
             action_buttons: Vec::new(),
@@ -218,7 +214,7 @@ impl<Message> OngoingToast<Message> {
 
     pub fn toast_notification_data(&self, toast_id: u32) -> NotificationData {
         NotificationData {
-            body: None,
+            body: self.body.clone(),
             progress: self.progress,
             actions: self
                 .action_buttons
@@ -240,6 +236,9 @@ impl<Message> OngoingToast<Message> {
 
 #[cfg(test)]
 mod tests {
+    use chrono::TimeDelta;
+    use uom::si::ratio::percent;
+
     use super::*;
     use crate::{
         widget_groups::power_group::PowerTarget,
@@ -325,53 +324,64 @@ mod tests {
         }
     }
 
-    #[test]
-    fn quota_pace_bodies_compare_by_data_but_render_against_the_clock() {
-        use chrono::TimeDelta;
-        use uom::si::ratio::percent;
-
+    fn quota(
+        label: &'static str,
+        used_percent: f64,
+        length: TimeDelta,
+        now: DateTime<Utc>,
+    ) -> Quota {
         let start: DateTime<Utc> = "2026-10-02T10:00:00Z".parse().unwrap();
-        let length = TimeDelta::hours(5);
-        let quota = Quota::within_window(
-            "Session",
-            Ratio::new::<percent>(60.0),
-            start + length,
-            length,
-            start + TimeDelta::hours(2),
-        );
-        let body = OngoingBody::QuotaPace(vec![quota.clone()]);
-        assert_eq!(body, OngoingBody::QuotaPace(vec![quota]));
-        let locale = Locale::default();
-        let earlier = body.text(start + TimeDelta::hours(2), locale).unwrap();
-        let later = body
-            .text(start + TimeDelta::hours(2) + TimeDelta::seconds(1), locale)
-            .unwrap();
-        assert_ne!(earlier, later);
-        assert!(earlier.contains("used after 2h of 5h"));
-        assert!(later.contains("used after 2h 1s of 5h"));
-        assert!(later.contains("Runs out around "));
-    }
-
-    #[test]
-    fn quota_pace_moments_on_later_days_name_their_weekday() {
-        use chrono::TimeDelta;
-        use uom::si::ratio::percent;
-
-        let start: DateTime<Utc> = "2026-10-02T10:00:00Z".parse().unwrap();
-        let length = TimeDelta::days(7);
-        let now = start + TimeDelta::hours(30);
-        let quota = Quota::within_window(
-            "Weekly",
-            Ratio::new::<percent>(25.0),
+        Quota::within_window(
+            label,
+            Ratio::new::<percent>(used_percent),
             start + length,
             length,
             now,
+        )
+    }
+
+    const START: &str = "2026-10-02T10:00:00Z";
+
+    #[test]
+    fn a_quota_that_runs_out_lists_its_pace_as_rows() {
+        let now: DateTime<Utc> = START.parse::<DateTime<Utc>>().unwrap() + TimeDelta::hours(2);
+        let body = quota_pace_body(
+            &[quota("Session", 60.0, TimeDelta::hours(5), now)],
+            now,
+            Locale::default(),
         );
+        assert!(body.starts_with("<dl><dt>Used</dt><dd>60%</dd>"));
+        assert!(body.contains("<dt>Elapsed</dt><dd>2h of 5h</dd>"));
+        assert!(body.contains("<dt>Runs out</dt>"));
+        assert!(body.contains("<dt>Resets</dt>"));
+        assert!(!body.contains("<b>"));
+    }
+
+    #[test]
+    fn several_alerting_quotas_carry_their_labels_as_headings() {
+        let now: DateTime<Utc> = START.parse::<DateTime<Utc>>().unwrap() + TimeDelta::hours(2);
+        let body = quota_pace_body(
+            &[
+                quota("Session", 60.0, TimeDelta::hours(5), now),
+                quota("Weekly & more", 95.0, TimeDelta::days(7), now),
+            ],
+            now,
+            Locale::default(),
+        );
+        assert!(body.contains("<b>Session</b><dl>"));
+        assert!(body.contains("<b>Weekly &amp; more</b><dl>"));
+    }
+
+    #[test]
+    fn moments_on_later_days_name_their_weekday() {
+        let now: DateTime<Utc> = START.parse::<DateTime<Utc>>().unwrap() + TimeDelta::hours(30);
         let locale = Locale::default();
-        let text = OngoingBody::QuotaPace(vec![quota.clone()])
-            .text(now, locale)
-            .unwrap();
-        assert!(text.contains(&LocalizedTimeFormat::Weekday.format(&quota.resets_at, locale)));
+        let resets_at = quota("Weekly", 25.0, TimeDelta::days(7), now).resets_at;
+        assert!(
+            moment_text(resets_at, now, locale)
+                .starts_with(&LocalizedTimeFormat::Weekday.format(&resets_at, locale))
+        );
+        assert!(!moment_text(now, now, locale).contains(' '));
     }
 
     #[test]

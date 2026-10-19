@@ -288,7 +288,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     {
         let quota_toast = self.kind.announcing_widget().and_then(|widget| {
             let target = self.kind.hover_target()?;
-            OngoingToast::from_quota_pace(target.clone(), widget, on_body_clicked.clone(), clock)
+            OngoingToast::from_quota_pace(
+                target.clone(),
+                widget,
+                on_body_clicked.clone(),
+                locale,
+                clock,
+            )
         });
         let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
             let target = self.kind.hover_target()?;

@@ -30,7 +30,7 @@ use crate::{
     toast_messages::NotificationMessage,
     widgets::{
         announced_level::LevelReading,
-        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingKey, OngoingToast},
         widget_group::GroupToastRequests,
     },
 };
@@ -257,7 +257,7 @@ impl NotificationLayer {
                 key: OngoingKey::ConfigFile,
                 severity: Severity::Critical,
                 summary_text: Cow::Owned(format!("Invalid configuration in {}", path.display())),
-                body: OngoingBody::Text(body),
+                body: Some(body),
                 progress: None,
                 since: context.clock.wall,
                 on_body_clicked: Message::OpenUrl(path.display().to_string()),

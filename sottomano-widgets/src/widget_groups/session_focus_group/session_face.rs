@@ -1,7 +1,8 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
+use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
+    Accounting, FocusRun, FocusUnit, Interval, ScreenRun, UnitTotal, WakingWindow,
 };
 
 use crate::{
@@ -11,7 +12,7 @@ use crate::{
         amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
-        ongoing_toast::OngoingBody,
+        ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -78,28 +79,25 @@ impl SessionFace<'_> {
             FocusUnit::App(_) => true,
             FocusUnit::Project(_) => false,
         });
-        let lines = [
-            Some(format!(
-                "At the screen since {}, {} without a break.",
-                LocalizedTimeFormat::TimeOfDay.format(&since, locale),
-                duration_text(now - since)
-            )),
-            most_used_project.map(|total| {
+        let unit_row = |key, total: &UnitTotal| {
+            (
+                key,
                 format!(
-                    "Project: {} ({})",
-                    total.unit.label(),
-                    duration_text(total.spent)
-                )
-            }),
-            most_used_app.map(|total| {
-                format!(
-                    "App: {} ({})",
-                    total.unit.label(),
-                    duration_text(total.spent)
-                )
-            }),
-        ];
-        Some(lines.into_iter().flatten().collect::<Vec<_>>().join("\n"))
+                    "{} · {}",
+                    escape(total.unit.label().as_ref()),
+                    coarse_duration_text(total.spent)
+                ),
+            )
+        };
+        Some(definition_list(
+            [
+                ("At screen since", moment_text(since, now, locale)),
+                ("Without a break", coarse_duration_text(now - since)),
+            ]
+            .into_iter()
+            .chain(most_used_project.map(|total| unit_row("Project", total)))
+            .chain(most_used_app.map(|total| unit_row("App", total))),
+        ))
     }
 
     fn thresholds(&self) -> Section {
@@ -228,9 +226,8 @@ impl BarWidget for SessionFace<'_> {
         }
     }
 
-    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> OngoingBody {
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
         self.screen_run_summary(clock.utc(), locale)
-            .map_or(OngoingBody::None, OngoingBody::Text)
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
@@ -331,6 +328,7 @@ mod tests {
             pledge: None,
         };
         let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();
-        assert_eq!(summary.lines().nth(1), Some("App: firefox (40m)"));
+        assert!(summary.contains("<dt>App</dt><dd>firefox · 40m</dd>"));
+        assert!(!summary.contains("kitty"));
     }
 }
