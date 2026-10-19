@@ -1,7 +1,7 @@
 use chrono::{DateTime, Locale, Utc};
 use iced::{Color, Element};
 use sottomano_config::severity::Severity;
-use sottomano_sources::ai::quota::Quota;
+use sottomano_sources::ai_usage_spend::usage_quota::Quota;
 use uom::si::f64::Ratio;
 
 use crate::widgets::{

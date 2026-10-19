@@ -1,6 +1,6 @@
+mod ccusage_monthly_usage;
 mod free_quota;
 mod metered_quota;
-mod monthly_usage;
 
 use std::{
     fmt::{Display, Formatter, Result as FmtResult},
@@ -13,11 +13,11 @@ use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 pub use self::{
-    free_quota::CopilotFree, metered_quota::CopilotMetered, monthly_usage::CopilotCcusage,
+    ccusage_monthly_usage::CopilotCcusage, free_quota::CopilotFree, metered_quota::CopilotMetered,
 };
 use crate::{
     ReadingSource, SourceDelivery,
-    ai::ccusage,
+    ai_usage_spend::ccusage_cli_reports,
     network_connectivity::network_manager_proxies,
     polled_delivery_stream,
     secret_file_reads::read_secret,
@@ -37,7 +37,7 @@ pub enum Error {
     Secret,
     Fetch(http_json_client::Error),
     NoQuota,
-    Ccusage(ccusage::Error),
+    Ccusage(ccusage_cli_reports::Error),
 }
 
 impl Display for Error {
@@ -57,8 +57,8 @@ impl From<http_json_client::Error> for Error {
     }
 }
 
-impl From<ccusage::Error> for Error {
-    fn from(error: ccusage::Error) -> Self {
+impl From<ccusage_cli_reports::Error> for Error {
+    fn from(error: ccusage_cli_reports::Error) -> Self {
         Error::Ccusage(error)
     }
 }

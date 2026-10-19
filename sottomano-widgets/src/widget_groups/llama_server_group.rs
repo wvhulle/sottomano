@@ -9,7 +9,7 @@ use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    llama_server::LlamaModelProps,
+    ai_usage_spend::llama_server_slots::LlamaModelProps,
     system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
     systemd_units_journal::SystemdUnitScope,
 };

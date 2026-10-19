@@ -3,7 +3,7 @@ use rust_decimal::{Decimal, prelude::FromPrimitive};
 use sottomano_config::{Config, calendar::WorkingHours};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::{ai::quota::Quota, money::Money};
+use crate::ai_usage_spend::{spend_money::Money, usage_quota::Quota};
 
 const MIN_ELAPSED_WORKING_DAYS: f64 = 0.1;
 

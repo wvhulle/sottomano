@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use sottomano_sources::{
-    ai::{copilot::CopilotCcusage, quota::Quota},
-    money::usd,
+use sottomano_sources::ai_usage_spend::{
+    copilot_usage::CopilotCcusage, spend_money::usd, usage_quota::Quota,
 };
 
 use crate::widgets::{

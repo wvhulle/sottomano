@@ -1,4 +1,6 @@
-use sottomano_sources::llama_server::{LlamaModel, LlamaModelProps, LlamaModelStatus};
+use sottomano_sources::ai_usage_spend::llama_server_slots::{
+    LlamaModel, LlamaModelProps, LlamaModelStatus,
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

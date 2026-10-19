@@ -9,12 +9,14 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     Error, LoginKind, login_polls,
-    oauth_api::{self, PlanReply},
+    oauth_usage_api::{self, PlanReply},
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::quota::Quota,
-    money::{Money, from_minor_units},
+    ai_usage_spend::{
+        spend_money::{Money, from_minor_units},
+        usage_quota::Quota,
+    },
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -148,7 +150,7 @@ impl ReadingSource for ClaudeUsageWindows {
 impl ClaudeUsageWindows {
     async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { plan, reply: usage } =
-            oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
+            oauth_usage_api::fetch::<Usage>(&key, oauth_usage_api::USAGE_URL).await?;
         Ok(ClaudeUsageWindows {
             plan,
             extra: usage.overage.as_ref().and_then(Overage::extra_usage),

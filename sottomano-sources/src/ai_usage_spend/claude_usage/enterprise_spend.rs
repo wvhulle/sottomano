@@ -9,13 +9,15 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     Error, ExtraStatus, LoginKind, login_polls,
-    oauth_api::{self, PlanReply},
+    oauth_usage_api::{self, PlanReply},
     title_case,
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::quota::Quota,
-    money::{Money, from_minor_units},
+    ai_usage_spend::{
+        spend_money::{Money, from_minor_units},
+        usage_quota::Quota,
+    },
 };
 
 #[derive(Deserialize)]
@@ -106,7 +108,7 @@ impl ReadingSource for ClaudeOrganization {
 impl ClaudeOrganization {
     async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { reply: profile, .. } =
-            oauth_api::fetch::<Profile>(&key, oauth_api::PROFILE_URL).await?;
+            oauth_usage_api::fetch::<Profile>(&key, oauth_usage_api::PROFILE_URL).await?;
         Ok(profile.organization.into())
     }
 }
@@ -126,7 +128,7 @@ impl ReadingSource for ClaudeEnterpriseSpend {
 impl ClaudeEnterpriseSpend {
     async fn poll(key: PathBuf) -> Result<Self, Error> {
         let PlanReply { reply: usage, .. } =
-            oauth_api::fetch::<Usage>(&key, oauth_api::USAGE_URL).await?;
+            oauth_usage_api::fetch::<Usage>(&key, oauth_usage_api::USAGE_URL).await?;
         ClaudeEnterpriseSpend::try_from(usage.spend)
     }
 }

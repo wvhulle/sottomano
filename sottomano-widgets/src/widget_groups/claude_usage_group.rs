@@ -9,8 +9,8 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    ai::{
-        claude::{
+    ai_usage_spend::{
+        claude_usage::{
             self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
             ClaudeOrganization, ClaudeUsageWindows,
         },
@@ -40,11 +40,13 @@ pub enum ClaudeUsageTarget {
     CcusageBlock,
 }
 
-impl From<claude::Error> for Section {
-    fn from(error: claude::Error) -> Self {
+impl From<claude_usage::Error> for Section {
+    fn from(error: claude_usage::Error) -> Self {
         match error {
-            claude::Error::RateLimited(cause) | claude::Error::Fetch(cause) => cause.into(),
-            claude::Error::Backoff { remaining, cause } => {
+            claude_usage::Error::RateLimited(cause) | claude_usage::Error::Fetch(cause) => {
+                cause.into()
+            }
+            claude_usage::Error::Backoff { remaining, cause } => {
                 Section::from(cause).with_entries([KeyValue::new(
                     "Retry in",
                     humantime::format_duration(remaining).to_string(),

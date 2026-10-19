@@ -6,9 +6,9 @@ use futures::Stream;
 use super::{Error, local_log_readings};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::{
-        ccusage::{self, Agent, BillingBlock, RecentUsage},
-        quota::Quota,
+    ai_usage_spend::{
+        ccusage_cli_reports::{self, Agent, BillingBlock, RecentUsage},
+        usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
     pushed_delivery_stream,
@@ -52,9 +52,9 @@ impl ReadingSource for ClaudeCcusagePeriods {
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         local_log_readings(logs, false, |logs| {
             pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
-                ccusage::transcript_changes(Agent::ClaudeCode),
+                ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 move || Self::read(logs.clone()),
-                |_| ccusage::next_local_midnight(),
+                |_| ccusage_cli_reports::next_local_midnight(),
             ))))
         })
     }
@@ -63,7 +63,7 @@ impl ReadingSource for ClaudeCcusagePeriods {
 impl ClaudeCcusagePeriods {
     async fn read(logs: ClaudeLocalLogs) -> Result<Self, Error> {
         Ok(ClaudeCcusagePeriods {
-            recent: ccusage::recent(Agent::ClaudeCode).await?,
+            recent: ccusage_cli_reports::recent(Agent::ClaudeCode).await?,
             budget: logs.budget,
         })
     }
@@ -84,14 +84,14 @@ impl ReadingSource for ClaudeCcusageBlock {
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         local_log_readings(logs, true, |_| {
             pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
-                ccusage::transcript_changes(Agent::ClaudeCode),
+                ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 Self::read,
                 |block| {
                     block
                         .as_ref()
                         .ok()
                         .and_then(|block| block.active.as_ref())
-                        .map(|active| ccusage::instant_of(active.ends_at))
+                        .map(|active| ccusage_cli_reports::instant_of(active.ends_at))
                 },
             ))))
         })
@@ -101,7 +101,7 @@ impl ReadingSource for ClaudeCcusageBlock {
 impl ClaudeCcusageBlock {
     async fn read() -> Result<Self, Error> {
         Ok(ClaudeCcusageBlock {
-            active: ccusage::active_blocks(Agent::ClaudeCode)
+            active: ccusage_cli_reports::active_blocks(Agent::ClaudeCode)
                 .await?
                 .into_iter()
                 .next(),

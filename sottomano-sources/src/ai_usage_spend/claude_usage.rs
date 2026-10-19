@@ -1,7 +1,7 @@
-mod backoff;
-mod ccusage_reports;
+mod ccusage_billing_blocks;
 mod enterprise_spend;
-mod oauth_api;
+mod oauth_retry_backoff;
+mod oauth_usage_api;
 mod usage_windows;
 
 use std::{
@@ -15,13 +15,13 @@ use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 pub use self::{
-    ccusage_reports::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
+    ccusage_billing_blocks::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
     enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
 use crate::{
     ReadingSource, SourceDelivery,
-    ai::ccusage,
+    ai_usage_spend::ccusage_cli_reports,
     polled_delivery_stream,
     stream_operators::StreamOperators,
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
@@ -40,7 +40,7 @@ pub enum Error {
         cause: http_json_client::Error,
     },
     Fetch(http_json_client::Error),
-    Ccusage(ccusage::Error),
+    Ccusage(ccusage_cli_reports::Error),
     UnknownCurrency(String),
 }
 
@@ -67,8 +67,8 @@ impl From<http_json_client::Error> for Error {
     }
 }
 
-impl From<ccusage::Error> for Error {
-    fn from(error: ccusage::Error) -> Self {
+impl From<ccusage_cli_reports::Error> for Error {
+    fn from(error: ccusage_cli_reports::Error) -> Self {
         Error::Ccusage(error)
     }
 }
@@ -156,7 +156,7 @@ where
     S: ReadingSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
     R: Stream<Item = SourceDelivery<S>> + Send,
 {
-    stream::once(ccusage::installed()).while_held(
+    stream::once(ccusage_cli_reports::installed()).while_held(
         move || {
             let login_matches = match logs.credentials.clone() {
                 Some(credentials) => logins(credentials)

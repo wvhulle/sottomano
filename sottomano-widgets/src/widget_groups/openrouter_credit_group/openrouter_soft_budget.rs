@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Utc};
-use sottomano_sources::ai::{
-    openrouter::{OpenRouterSpend, SpanSpend},
-    quota::Quota,
+use sottomano_sources::ai_usage_spend::{
+    openrouter_credits::{OpenRouterSpend, SpanSpend},
+    usage_quota::Quota,
 };
 
 use crate::widgets::{

@@ -1,4 +1,4 @@
-pub mod ai;
+pub mod ai_usage_spend;
 pub mod app_icon;
 pub mod battery_power_profiles;
 pub mod blocking_background_work;
@@ -12,10 +12,8 @@ pub mod job_view;
 pub mod kitty_windows;
 pub mod launch_tracker;
 pub mod launcher_entry;
-pub mod llama_server;
 pub mod login_session_presence;
 pub mod media_playback_audio;
-pub mod money;
 pub mod network_connectivity;
 pub mod niri;
 pub mod niri_config;

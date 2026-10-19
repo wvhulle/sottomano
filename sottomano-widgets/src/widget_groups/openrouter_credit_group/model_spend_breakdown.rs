@@ -1,6 +1,6 @@
-use sottomano_sources::{
-    ai::openrouter::{OpenRouterSpend, SpanSpend},
-    money::usd,
+use sottomano_sources::ai_usage_spend::{
+    openrouter_credits::{OpenRouterSpend, SpanSpend},
+    spend_money::usd,
 };
 
 use crate::widgets::{

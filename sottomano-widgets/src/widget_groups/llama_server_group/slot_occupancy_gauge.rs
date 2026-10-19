@@ -1,4 +1,4 @@
-use sottomano_sources::llama_server::LlamaSlot;
+use sottomano_sources::ai_usage_spend::llama_server_slots::LlamaSlot;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::widgets::{

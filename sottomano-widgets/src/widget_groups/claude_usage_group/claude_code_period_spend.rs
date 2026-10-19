@@ -1,5 +1,7 @@
 use chrono::{DateTime, Local, Utc};
-use sottomano_sources::ai::{ccusage::Period, claude::ClaudeCcusagePeriods, quota::Quota};
+use sottomano_sources::ai_usage_spend::{
+    ccusage_cli_reports::Period, claude_usage::ClaudeCcusagePeriods, usage_quota::Quota,
+};
 
 use crate::widgets::{
     amount_text::{spend_text, token_count},

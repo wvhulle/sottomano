@@ -6,9 +6,9 @@ use futures::{Stream, stream};
 use super::Error;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    ai::{
-        ccusage::{self, Agent, Period},
-        quota::Quota,
+    ai_usage_spend::{
+        ccusage_cli_reports::{self, Agent, Period},
+        usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
     pushed_delivery_stream,
@@ -43,13 +43,13 @@ impl ReadingSource for CopilotCcusage {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(ccusage::installed()).while_held(
+        stream::once(ccusage_cli_reports::installed()).while_held(
             move || {
                 let budget = budget.clone();
                 pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
-                    ccusage::transcript_changes(Agent::CopilotCli),
+                    ccusage_cli_reports::transcript_changes(Agent::CopilotCli),
                     move || Self::read(budget.clone()),
-                    |_| ccusage::next_local_midnight(),
+                    |_| ccusage_cli_reports::next_local_midnight(),
                 ))))
             },
             SourceDelivery::Absent,
@@ -59,7 +59,7 @@ impl ReadingSource for CopilotCcusage {
 
 impl CopilotCcusage {
     async fn read(budget: SpendBudget) -> Result<Self, Error> {
-        let recent = ccusage::recent(Agent::CopilotCli).await?;
+        let recent = ccusage_cli_reports::recent(Agent::CopilotCli).await?;
         Ok(CopilotCcusage {
             period: recent.month,
             budget,

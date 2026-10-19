@@ -13,11 +13,11 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 
 use crate::{
-    ai::{
-        quota::Quota,
+    ai_usage_spend::{
+        spend_money::{Money, usd},
+        usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    money::{Money, usd},
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output::{self, exists},

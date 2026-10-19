@@ -8,8 +8,8 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    ai::{
-        openrouter::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
+    ai_usage_spend::{
+        openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
         working_time_forecast::SpendBudget,
     },
 };
@@ -37,10 +37,10 @@ pub enum OpenRouterCreditTarget {
     ModelBreakdown,
 }
 
-impl From<openrouter::Error> for Section {
-    fn from(error: openrouter::Error) -> Self {
+impl From<openrouter_credits::Error> for Section {
+    fn from(error: openrouter_credits::Error) -> Self {
         match error {
-            openrouter::Error::Fetch(fetch) => fetch.into(),
+            openrouter_credits::Error::Fetch(fetch) => fetch.into(),
             other => Section::error(other),
         }
     }

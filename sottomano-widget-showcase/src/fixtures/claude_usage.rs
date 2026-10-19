@@ -3,8 +3,10 @@ use rust_decimal::Decimal;
 use rusty_money::iso;
 use sottomano_sources::{
     SourceDelivery,
-    ai::claude::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
-    money::Money,
+    ai_usage_spend::{
+        claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
+        spend_money::Money,
+    },
 };
 use sottomano_widgets::{
     shell_message::Message,

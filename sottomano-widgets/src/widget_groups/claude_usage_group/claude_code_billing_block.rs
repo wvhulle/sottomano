@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sottomano_sources::ai::claude::ClaudeCcusageBlock;
+use sottomano_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
 
 use crate::widgets::{
     amount_text::{countdown, spend_text},

@@ -3,7 +3,7 @@ use std::path::Path;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{Error, backoff, plan, read_credentials};
+use super::{Error, oauth_retry_backoff, plan, read_credentials};
 use crate::system_protocol_clients::http_json_client;
 
 pub const USAGE_URL: &str = "https://api.anthropic.com/api/oauth/usage";
@@ -21,7 +21,7 @@ pub async fn fetch<Reply: DeserializeOwned>(
     url: &str,
 ) -> Result<PlanReply<Reply>, Error> {
     let credentials = read_credentials(credentials_path)?;
-    if let Some(waiting) = backoff::still_waiting().await {
+    if let Some(waiting) = oauth_retry_backoff::still_waiting().await {
         return Err(waiting);
     }
     let oauth = credentials.oauth.as_ref().ok_or(Error::NoToken)?;
@@ -40,14 +40,14 @@ pub async fn fetch<Reply: DeserializeOwned>(
     .await?;
     let body = resp.body.take().unwrap_or(Value::Null);
     if resp.status == 429 {
-        return Err(backoff::schedule_retry(&resp, body).await);
+        return Err(oauth_retry_backoff::schedule_retry(&resp, body).await);
     }
     if resp.status != 200 {
         let failure = http_json_client::Error::status(resp.status, Some(body));
         tracing::warn!("claude usage: {failure}");
         return Err(failure.into());
     }
-    backoff::reset().await;
+    oauth_retry_backoff::reset().await;
 
     Ok(PlanReply {
         plan: plan(oauth),
