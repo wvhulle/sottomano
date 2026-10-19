@@ -4,7 +4,9 @@ use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     ai::quota::{Pace, Quota},
-    focus_ledger::{Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow},
+    login_session_presence::focus_time_ledger::{
+        Accounting, BudgetStatus, FocusUnit, UnitTotal, WakingWindow,
+    },
 };
 use uom::si::f64::Ratio;
 

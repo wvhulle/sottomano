@@ -11,7 +11,10 @@ use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     host_machine_identity::hostname1_os_identity::at_micros,
-    logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
+    login_session_presence::{
+        greetd_greeter_program::greeter_program,
+        logind_manager::{InhibitorRow, ManagerProxy, session_id},
+    },
     non_empty_text::non_empty,
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,

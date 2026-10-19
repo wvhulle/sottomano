@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
-use sottomano_sources::focus_ledger::{Accounting, FocusScope, FocusUnit, Interval, WakingWindow};
+use sottomano_sources::login_session_presence::focus_time_ledger::{
+    Accounting, FocusScope, FocusUnit, Interval, WakingWindow,
+};
 
 use crate::widgets::{
     amount_text::duration_text,

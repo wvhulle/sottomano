@@ -4,7 +4,7 @@ use chrono::Utc;
 use humantime::format_duration;
 use iced::Element;
 use sottomano_config::Config;
-use sottomano_sources::session_action::SessionAction;
+use sottomano_sources::login_session_presence::session_power_actions::SessionAction;
 
 use crate::{
     hover_tooltips::HoverTarget,

@@ -249,7 +249,7 @@ mod tests {
     use sottomano_config::severity::Severity;
 
     use super::*;
-    use crate::focus_ledger::test_steps::{
+    use crate::login_session_presence::focus_time_ledger::test_steps::{
         at, config, focused, focused_in, folded, kitty, step, whole_day,
     };
 

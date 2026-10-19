@@ -1,4 +1,6 @@
-use sottomano_sources::logind::session_facts::{SessionIdentity, SessionInfo};
+use sottomano_sources::login_session_presence::logind_session_facts::{
+    SessionIdentity, SessionInfo,
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

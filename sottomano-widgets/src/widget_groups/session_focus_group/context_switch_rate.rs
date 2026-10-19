@@ -1,6 +1,8 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::focus_ledger::{Accounting, Interval, WakingWindow};
+use sottomano_sources::login_session_presence::focus_time_ledger::{
+    Accounting, Interval, WakingWindow,
+};
 
 use crate::widgets::{
     amount_text::duration_text,

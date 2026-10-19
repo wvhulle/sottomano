@@ -1,6 +1,6 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use sottomano_config::severity::Severity;
-use sottomano_sources::focus_ledger::{
+use sottomano_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusRun, FocusUnit, Interval, ScreenRun, WakingWindow,
 };
 
@@ -244,9 +244,9 @@ mod tests {
     use std::time::Duration;
 
     use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
-    use sottomano_sources::{
-        focus_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
-        idle_notify::IdleEdge,
+    use sottomano_sources::login_session_presence::{
+        focus_time_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
+        wayland_idle_notify::IdleEdge,
     };
 
     use super::*;

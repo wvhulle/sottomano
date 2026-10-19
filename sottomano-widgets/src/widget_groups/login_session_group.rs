@@ -12,7 +12,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
-    logind::session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
+    login_session_presence::logind_session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{
         graphical_session::{GraphicalSession, GraphicalSessionTarget},

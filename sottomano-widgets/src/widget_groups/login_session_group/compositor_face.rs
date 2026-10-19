@@ -1,5 +1,6 @@
 use sottomano_sources::{
-    logind::session_facts::SessionIdentity, systemd_manager::graphical_session::GraphicalSession,
+    login_session_presence::logind_session_facts::SessionIdentity,
+    systemd_manager::graphical_session::GraphicalSession,
 };
 
 use crate::widgets::{

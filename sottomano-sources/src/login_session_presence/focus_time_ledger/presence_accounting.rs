@@ -127,16 +127,16 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::{
-        focus_ledger::{
+    use crate::login_session_presence::{
+        focus_time_ledger::{
             ScreenEdge,
             test_steps::{
                 at, config, focused, folded, idle_edge, kitty, no_window_focused,
                 screen_power_edge, sleep_edge, step, whole_day,
             },
         },
-        idle_notify::IdleEdge,
-        logind::SleepEdge,
+        logind_manager::SleepEdge,
+        wayland_idle_notify::IdleEdge,
     };
 
     #[test]

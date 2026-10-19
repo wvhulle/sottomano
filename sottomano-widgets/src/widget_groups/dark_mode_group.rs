@@ -9,7 +9,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     blocking_background_work::blocking,
-    logind,
+    login_session_presence::logind_manager,
     screen_brightness_color::{
         solar_switch_schedule::ColorMode,
         umbra_dark_mode::{Umbra, set_mode},
@@ -113,7 +113,8 @@ impl DarkModeGroup {
     }
 
     pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<DarkModeMessage> {
-        Subscription::run_with(buses.clone(), logind::resumes).map(|()| DarkModeMessage::SwitchDue)
+        Subscription::run_with(buses.clone(), logind_manager::resumes)
+            .map(|()| DarkModeMessage::SwitchDue)
     }
 
     pub fn refresh(target: DarkModeTarget) -> Task<DarkModeMessage> {

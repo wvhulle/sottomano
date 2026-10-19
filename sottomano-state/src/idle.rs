@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_sources::{
-    session_action::SessionAction,
+    login_session_presence::session_power_actions::SessionAction,
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 

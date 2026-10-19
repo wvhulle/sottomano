@@ -6,8 +6,9 @@ use iced::{
     task,
 };
 use sottomano_config::Config;
-use sottomano_sources::{
-    focus_ledger::ScreenEdge, idle_notify::IdleEdge, session_action::SessionAction,
+use sottomano_sources::login_session_presence::{
+    focus_time_ledger::ScreenEdge, session_power_actions::SessionAction,
+    wayland_idle_notify::IdleEdge,
 };
 use sottomano_state::idle::{self, Timeouts};
 

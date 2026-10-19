@@ -4,8 +4,10 @@ use iced::Task;
 use sottomano_config::Config;
 use sottomano_sources::{
     blocking_background_work::blocking,
-    logind::permissions::{self, Permissions},
-    session_action::SessionAction,
+    login_session_presence::{
+        logind_action_permissions::{self, Permissions},
+        session_power_actions::SessionAction,
+    },
 };
 use sottomano_state::idle::Timeouts;
 
@@ -79,7 +81,7 @@ pub enum Action {
 impl SessionMenu {
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
-            blocking("logind permissions", permissions::read),
+            blocking("logind permissions", logind_action_permissions::read),
             SessionMessage::PermissionsLoaded,
         )
     }
