@@ -8,8 +8,8 @@ use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
     battery_forecast::{Estimate, RegressionState, time_until_empty},
+    battery_power_profiles::upower_battery_state::Battery,
     power_profile::{self, Conditions, Profile, ProfileStatus},
-    sysfs_sensors::battery::Battery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::power;

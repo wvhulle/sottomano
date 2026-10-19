@@ -18,15 +18,16 @@ use uom::si::{
 };
 
 use super::{
-    CPU_FREQ, Error, cpu_core_index,
+    CPU_FREQ, cpu_core_index,
     cpu_topology::CpuTopology,
-    hwmon::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
-    list_dir, read_trimmed,
+    hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_after_setup,
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
+    polled_delivery_after_setup,
     stream_operators::StreamOperators,
-    temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
+    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
 
 const WARNING_MARGIN_CELSIUS: f64 = 20.0;

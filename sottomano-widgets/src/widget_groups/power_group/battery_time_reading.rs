@@ -4,7 +4,7 @@ use iced::Task;
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     battery_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
-    sysfs_sensors::battery::{Battery, IdleReason},
+    battery_power_profiles::upower_battery_state::{Battery, IdleReason},
 };
 use sottomano_state::charge_power_curve;
 use uom::si::{

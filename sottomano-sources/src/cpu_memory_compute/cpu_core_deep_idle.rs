@@ -6,7 +6,8 @@ use uom::si::{
     time::{microsecond, second},
 };
 
-use super::{CPU_FREQ, cpu_core_index, list_dir, read_i64};
+use super::{CPU_FREQ, cpu_core_index};
+use crate::system_protocol_clients::sysfs_attribute_reads::{list_dir, read_i64};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CoreDeepIdle {

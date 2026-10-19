@@ -4,10 +4,9 @@ use bytesize::ByteSize;
 use futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
-use super::Error;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
-    process::binary_name,
+    process::binary_name, system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const MEMINFO: &str = "/proc/meminfo";

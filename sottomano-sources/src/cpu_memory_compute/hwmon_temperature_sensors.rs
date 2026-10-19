@@ -6,7 +6,7 @@ use std::{
 use sottomano_config::widget_groups::temperature_sensors::{SensorChoice, SensorLabel};
 use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
 
-use super::{list_dir, read_i64, read_trimmed};
+use crate::system_protocol_clients::sysfs_attribute_reads::{list_dir, read_i64, read_trimmed};
 
 const HWMON: &str = "/sys/class/hwmon";
 const PLAUSIBLE_LIMIT_CELSIUS: RangeInclusive<f64> = 1.0..=150.0;

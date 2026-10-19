@@ -1,6 +1,6 @@
 use std::{
     future::{Future, ready},
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
     time::Duration,
 };
@@ -22,16 +22,15 @@ use uom::si::{
 };
 use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 
-use super::{
-    Error, POWER_SUPPLY, first_power_supply, list_dir, parse_field, read_field, read_i64,
-    read_trimmed,
-};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure, restarting},
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses,
+        sysfs_attribute_reads::{Error, list_dir, parse_field, read_field, read_i64, read_trimmed},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -340,6 +339,21 @@ fn power(dir: &Path) -> Result<Power, Error> {
         })
         .map(Power::abs)
         .ok_or_else(|| unreadable(dir, "power_now"))
+}
+
+const POWER_SUPPLY: &str = "/sys/class/power_supply";
+
+fn first_power_supply(prefix: &str) -> Option<PathBuf> {
+    let mut entries: Vec<PathBuf> = list_dir(POWER_SUPPLY)
+        .into_iter()
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.starts_with(prefix))
+        })
+        .collect();
+    entries.sort();
+    entries.into_iter().next()
 }
 
 #[cfg(test)]

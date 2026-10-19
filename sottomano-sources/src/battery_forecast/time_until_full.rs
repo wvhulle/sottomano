@@ -8,7 +8,7 @@ use crate::{
         charge_power_by_state_of_charge::{ChargeCurve, LearnedCurve},
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
-    sysfs_sensors::battery::Battery,
+    battery_power_profiles::upower_battery_state::Battery,
 };
 
 struct Charging<'a> {
@@ -64,8 +64,8 @@ mod tests {
     use super::*;
     use crate::{
         battery_forecast::charge_power_by_state_of_charge::learned_curve,
+        battery_power_profiles::upower_battery_state::{ChargeBehaviour, ChargeStatus},
         host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-        sysfs_sensors::battery::{ChargeBehaviour, ChargeStatus},
     };
 
     const CAPACITY_WH: f64 = 50.0;

@@ -9,7 +9,7 @@ use std::{
 use procfs::process::Process;
 
 use super::Error;
-use crate::sysfs_sensors::list_dir;
+use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 
 const MOUNTINFO: &str = "/proc/self/mountinfo";
 const SYS_CLASS_BLOCK: &str = "/sys/class/block";

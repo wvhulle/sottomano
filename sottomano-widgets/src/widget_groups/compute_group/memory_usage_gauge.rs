@@ -1,9 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
-    sysfs_sensors::{
-        memory::{Memory, MemoryProcesses},
-        memory_module_temperatures::MemoryModuleTemperatures,
-    },
+use sottomano_sources::cpu_memory_compute::{
+    memory_module_temperatures::MemoryModuleTemperatures,
+    memory_usage::{Memory, MemoryProcesses},
     temperature_thresholds::celsius_text,
 };
 use uom::si::f64::Ratio;

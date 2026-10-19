@@ -9,7 +9,7 @@ use uom::si::{
 };
 
 #[cfg(test)]
-use crate::sysfs_sensors::battery::BATTERY_POLL_INTERVAL;
+use crate::battery_power_profiles::upower_battery_state::BATTERY_POLL_INTERVAL;
 
 pub const CHARGE_BINS: usize = 20;
 const BIN_DRIFT_W2_PER_S: f64 = 2e-7;

@@ -14,10 +14,12 @@ use super::{
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
+    cpu_memory_compute::{
+        hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind},
+        temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
+    },
     host_machine_identity::udev_hardware_identity::DriveIdentity,
     polled_delivery_stream,
-    sysfs_sensors::hwmon::{ChosenSensors, HwmonChip, LimitKind},
-    temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
 };
 
 const COMPOSITE_LABEL: &str = "Composite";

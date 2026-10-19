@@ -1,7 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::sysfs_sensors::{
-    cpu_power::CpuPower,
-    cpu_usage::{CpuCoreLoads, CpuUsage, LoadSplit},
+use sottomano_sources::cpu_memory_compute::{
+    cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
+    cpu_power_draw::CpuPower,
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,

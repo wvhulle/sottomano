@@ -2,10 +2,8 @@ use std::time::{Duration, SystemTime};
 
 use chrono::{DateTime, Local, Locale};
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
-    sysfs_sensors::temperature::{
-        CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds,
-    },
+use sottomano_sources::cpu_memory_compute::{
+    cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
     temperature_thresholds::celsius_text,
 };
 use uom::si::{
@@ -176,8 +174,8 @@ impl ChipletLiveState<'_> {
 #[cfg(test)]
 mod tests {
     use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
-    use sottomano_sources::{
-        sysfs_sensors::temperature::TempReading, temperature_thresholds::celsius,
+    use sottomano_sources::cpu_memory_compute::{
+        cpu_temperature::TempReading, temperature_thresholds::celsius,
     };
 
     use super::*;

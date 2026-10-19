@@ -1,7 +1,9 @@
-use sottomano_sources::sysfs_sensors::{
-    Error,
-    cpu_topology::{CoreRole, CpuTopology},
-    x3d_vcache::X3dCachePreference,
+use sottomano_sources::{
+    cpu_memory_compute::{
+        amd_x3d_cache_preference::X3dCachePreference,
+        cpu_topology::{CoreRole, CpuTopology},
+    },
+    system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 use super::core_grid_sections::topology_facts;

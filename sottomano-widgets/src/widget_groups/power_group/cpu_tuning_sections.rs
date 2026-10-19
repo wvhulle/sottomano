@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::sysfs_sensors::cpu_tuning::CpuTuning;
+use sottomano_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuTuning;
 
 use crate::widgets::tooltip_body::{Cell, ColumnHeading, ReadingSections, Section, TableRecord};
 

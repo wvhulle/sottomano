@@ -1,4 +1,4 @@
-use sottomano_sources::gpu::GpuPowerDraw;
+use sottomano_sources::cpu_memory_compute::nvml_gpu_readings::GpuPowerDraw;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Power, power::watt},

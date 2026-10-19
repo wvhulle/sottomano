@@ -11,7 +11,8 @@ use uom::si::{
     information::{kibibyte, mebibyte},
 };
 
-use super::{CPU_FREQ, read_kilohertz, read_trimmed};
+use super::CPU_FREQ;
+use crate::system_protocol_clients::sysfs_attribute_reads::{read_kilohertz, read_trimmed};
 
 const INTEL_PERFORMANCE_PMU: &str = "/sys/devices/cpu_core/cpus";
 const INTEL_EFFICIENT_PMU: &str = "/sys/devices/cpu_atom/cpus";

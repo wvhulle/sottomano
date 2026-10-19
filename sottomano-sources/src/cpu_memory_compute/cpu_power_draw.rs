@@ -7,9 +7,9 @@ use std::{
 use futures::Stream;
 use uom::si::{f64::Power, power::watt};
 
-use super::{Error, list_dir, read_i64, read_trimmed};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_i64, read_trimmed},
 };
 
 const POWERCAP: &str = "/sys/class/powercap";

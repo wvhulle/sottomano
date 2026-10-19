@@ -10,7 +10,7 @@ use super::{
     Error,
     mount::{Compression, KernelDevice},
 };
-use crate::sysfs_sensors::list_dir;
+use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 
 const SYS_FS_BTRFS: &str = "/sys/fs/btrfs";
 const SECTOR_BYTES: u64 = 512;

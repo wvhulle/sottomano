@@ -1,4 +1,4 @@
-use sottomano_sources::gpu::{GpuClocks, GpuSnapshot};
+use sottomano_sources::cpu_memory_compute::nvml_gpu_readings::{GpuClocks, GpuSnapshot};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{
