@@ -12,10 +12,11 @@ use iced::{
     mouse::Cursor,
     widget::container,
 };
+use iced_exwlshell::BlurRegions;
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_state::{LayerAppearance, ShellLayout};
 
-use crate::widgets::palette_colors::PaletteColors;
+use crate::widgets::{palette_colors::PaletteColors, region_reporter::rounded_blur_rows};
 
 pub struct LayerFrameStyle<'a> {
     appearance: &'a LayerAppearance,
@@ -134,6 +135,7 @@ pub fn panel_frame<'a, Message>(
         content: content.into(),
         style: *style,
         outlined_sides: OutlinedSides::ALL,
+        blurred: false,
     }
 }
 
@@ -141,6 +143,7 @@ pub struct PanelFrame<'a, Message> {
     content: Element<'a, Message>,
     style: container::Style,
     outlined_sides: OutlinedSides,
+    blurred: bool,
 }
 
 impl<Message> PanelFrame<'_, Message> {
@@ -148,6 +151,24 @@ impl<Message> PanelFrame<'_, Message> {
     pub fn outlined_sides(mut self, sides: OutlinedSides) -> Self {
         self.outlined_sides = sides;
         self
+    }
+
+    #[must_use]
+    pub fn blurred(mut self, blurred: bool) -> Self {
+        self.blurred = blurred;
+        self
+    }
+
+    fn drawn_radius(&self) -> Radius {
+        self.outlined_sides
+            .square_unoutlined_corners(self.style.border.radius)
+    }
+
+    fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {
+        if !self.blurred {
+            return BlurRegions::default();
+        }
+        BlurRegions(rounded_blur_rows(bounds, self.drawn_radius()))
     }
 
     fn draw_fill(&self, renderer: &mut iced::Renderer, bounds: Rectangle, radius: Radius) {
@@ -218,9 +239,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let radius = self
-            .outlined_sides
-            .square_unoutlined_corners(self.style.border.radius);
+        let radius = self.drawn_radius();
         self.draw_fill(renderer, bounds, radius);
         self.draw_outline(renderer, bounds, radius);
         let framed_style = renderer::Style {
@@ -246,6 +265,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
+        let bounds = layout.bounds();
+        operation.custom(None, bounds, &mut self.blur_regions(bounds));
         self.content
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);
@@ -306,5 +327,39 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Rectangle,
+        border::{Border, Radius},
+        widget::{container, space},
+    };
+    use sottomano_config::screen_edges::Position;
+
+    use super::{OutlinedSides, panel_frame};
+
+    #[test]
+    fn a_top_panel_blurs_its_screen_edge_corners_square() {
+        let style = container::Style::default().border(Border {
+            radius: Radius::from(8.0),
+            ..Border::default()
+        });
+        let frame = panel_frame::<()>(space(), &style)
+            .outlined_sides(OutlinedSides::inward_of(Position::Top))
+            .blurred(true);
+        let pill = Rectangle {
+            x: 10.0,
+            y: 0.0,
+            width: 60.0,
+            height: 24.0,
+        };
+        let rows = frame.blur_regions(pill).0;
+        let top_row = rows.iter().find(|row| row.y == 0).expect("top row");
+        let bottom_row = rows.iter().find(|row| row.y == 23).expect("bottom row");
+        assert_eq!((top_row.x, top_row.width), (10, 60));
+        assert!(bottom_row.x > 10 && bottom_row.width < 60);
     }
 }

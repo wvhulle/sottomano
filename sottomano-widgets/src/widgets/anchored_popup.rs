@@ -9,6 +9,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
+    border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
     window,
@@ -475,7 +476,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         let roles = RegionRoles {
             takes_input: frame.settled,
             blurred: self.blurred,
-            corner_radius: self.radius,
+            corner_radius: Radius::from(self.radius),
         };
         let rects: Vec<Rectangle> = frame.rects().collect();
         roles.report(&rects, layout.bounds(), operation);

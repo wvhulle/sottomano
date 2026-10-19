@@ -8,6 +8,7 @@ use iced::{
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
+    border::Radius,
     mouse::Cursor,
     window,
 };
@@ -17,7 +18,7 @@ use iced_exwlshell::{BlurRegions, InputRects, reexport::BlurRegion};
 pub struct RegionRoles {
     pub takes_input: bool,
     pub blurred: bool,
-    pub corner_radius: f32,
+    pub corner_radius: Radius,
 }
 
 impl RegionRoles {
@@ -47,32 +48,57 @@ impl RegionRoles {
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-fn rounded_blur_rows(rect: Rectangle, radius: f32) -> Vec<BlurRegion> {
+fn corner_inset(radius: i32, step: i32) -> i32 {
+    if step >= radius {
+        return 0;
+    }
+    let from_edge = (radius - step) as f32 - 0.5;
+    let reach = (radius as f32)
+        .mul_add(radius as f32, -from_edge * from_edge)
+        .sqrt();
+    (radius as f32 - reach).ceil() as i32
+}
+
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegion> {
     let x = rect.x.ceil() as i32;
     let y = rect.y.ceil() as i32;
     let width = (rect.x + rect.width).floor() as i32 - x;
     let height = (rect.y + rect.height).floor() as i32 - y;
-    let radius = (radius.round() as i32).clamp(0, width.min(height) / 2);
-    let row = |top: i32, inset: i32| BlurRegion {
-        x: x + inset,
+    let fitted = |corner: f32| (corner.round() as i32).clamp(0, width.min(height) / 2);
+    let top_left = fitted(radius.top_left);
+    let top_right = fitted(radius.top_right);
+    let bottom_left = fitted(radius.bottom_left);
+    let bottom_right = fitted(radius.bottom_right);
+    let row = |top: i32, left: i32, right: i32| BlurRegion {
+        x: x + left,
         y: top,
-        width: width - 2 * inset,
+        width: width - left - right,
         height: 1,
     };
-    let corner_rows = (0..radius).flat_map(|step| {
-        let from_edge = (radius - step) as f32 - 0.5;
-        let reach = (radius as f32)
-            .mul_add(radius as f32, -from_edge * from_edge)
-            .sqrt();
-        let inset = (radius as f32 - reach).ceil() as i32;
-        [row(y + step, inset), row(y + height - 1 - step, inset)]
+    let top_rows = top_left.max(top_right);
+    let bottom_rows = bottom_left.max(bottom_right);
+    let top_corner_rows = (0..top_rows).map(|step| {
+        row(
+            y + step,
+            corner_inset(top_left, step),
+            corner_inset(top_right, step),
+        )
     });
-    corner_rows
+    let bottom_corner_rows = (0..bottom_rows).map(|step| {
+        row(
+            y + height - 1 - step,
+            corner_inset(bottom_left, step),
+            corner_inset(bottom_right, step),
+        )
+    });
+    top_corner_rows
+        .chain(bottom_corner_rows)
         .chain([BlurRegion {
             x,
-            y: y + radius,
+            y: y + top_rows,
             width,
-            height: height - 2 * radius,
+            height: height - top_rows - bottom_rows,
         }])
         .filter(|row| row.width > 0 && row.height > 0)
         .collect()
@@ -262,7 +288,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
 
 #[cfg(test)]
 mod tests {
-    use iced::Rectangle;
+    use iced::{Rectangle, border::Radius};
 
     use super::rounded_blur_rows;
 
@@ -277,7 +303,7 @@ mod tests {
 
     #[test]
     fn a_square_frame_blurs_as_one_rectangle() {
-        let region = rounded_blur_rows(widget_group_frame(), 0.0);
+        let region = rounded_blur_rows(widget_group_frame(), Radius::from(0.0));
         assert_eq!(region.len(), 1);
         assert_eq!(
             (region[0].x, region[0].width, region[0].height),
@@ -287,7 +313,7 @@ mod tests {
 
     #[test]
     fn rounded_corners_step_inwards_towards_the_edge() {
-        let region = rounded_blur_rows(widget_group_frame(), 8.0);
+        let region = rounded_blur_rows(widget_group_frame(), Radius::from(8.0));
         let top_row = region.iter().find(|row| row.y == 0).expect("top row");
         let middle = region.iter().find(|row| row.height > 1).expect("middle");
         assert!(top_row.x > 10 && top_row.width < 60);
@@ -296,7 +322,36 @@ mod tests {
 
     #[test]
     fn the_radius_never_exceeds_half_the_frame() {
-        let region = rounded_blur_rows(widget_group_frame(), 100.0);
+        let region = rounded_blur_rows(widget_group_frame(), Radius::from(100.0));
         assert!(region.iter().all(|row| row.width > 0 && row.height > 0));
+    }
+
+    #[test]
+    fn square_top_corners_blur_the_full_top_row() {
+        let bottom_only = Radius {
+            top_left: 0.0,
+            top_right: 0.0,
+            bottom_right: 8.0,
+            bottom_left: 8.0,
+        };
+        let region = rounded_blur_rows(widget_group_frame(), bottom_only);
+        let top_row = region.iter().find(|row| row.y == 0).expect("top row");
+        let bottom_row = region.iter().find(|row| row.y == 23).expect("bottom row");
+        assert_eq!((top_row.x, top_row.width), (10, 60));
+        assert!(bottom_row.x > 10 && bottom_row.width < 60);
+    }
+
+    #[test]
+    fn each_side_steps_in_by_its_own_corner() {
+        let left_only = Radius {
+            top_left: 8.0,
+            top_right: 0.0,
+            bottom_right: 0.0,
+            bottom_left: 8.0,
+        };
+        let region = rounded_blur_rows(widget_group_frame(), left_only);
+        let top_row = region.iter().find(|row| row.y == 0).expect("top row");
+        assert!(top_row.x > 10);
+        assert_eq!(top_row.x + top_row.width, 70);
     }
 }
