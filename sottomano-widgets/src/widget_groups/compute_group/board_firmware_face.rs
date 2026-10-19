@@ -1,4 +1,6 @@
-use sottomano_sources::{hostname::MachineInfo, non_empty_text::non_empty};
+use sottomano_sources::{
+    host_machine_identity::hostname1_os_identity::MachineInfo, non_empty_text::non_empty,
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

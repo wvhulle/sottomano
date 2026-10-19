@@ -3,7 +3,7 @@ use zbus::fdo::ManagedObjects;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hardware::Adapter,
+    host_machine_identity::udev_hardware_identity::Adapter,
     net_interfaces::{device_or_absent, interface, managed_objects_readings},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, prop},
 };

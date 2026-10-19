@@ -4,7 +4,7 @@ mod firmware_upgrade_list;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery, fwupd::FirmwareUpgrade,
+    SourceDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 

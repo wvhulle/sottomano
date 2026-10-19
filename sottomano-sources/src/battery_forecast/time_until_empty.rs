@@ -102,7 +102,7 @@ mod tests {
     use super::*;
     use crate::{
         battery_forecast::discharge_power_regression::trained,
-        hardware::PowerSupplyIdentity,
+        host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
         sysfs_sensors::battery::{BATTERY_POLL_INTERVAL, ChargeBehaviour, ChargeStatus},
     };
 

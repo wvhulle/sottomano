@@ -1,4 +1,6 @@
-use sottomano_sources::hostname::{Chassis, OperatingSystemIdentity};
+use sottomano_sources::host_machine_identity::hostname1_os_identity::{
+    Chassis, OperatingSystemIdentity,
+};
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

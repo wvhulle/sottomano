@@ -4,7 +4,7 @@ use zbus::Connection;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hardware::Adapter,
+    host_machine_identity::udev_hardware_identity::Adapter,
     net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

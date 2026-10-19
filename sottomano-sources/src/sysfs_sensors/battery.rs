@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-    hardware::PowerSupplyIdentity,
+    host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure, restarting},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,

@@ -10,7 +10,7 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    hardware::Adapter,
+    host_machine_identity::udev_hardware_identity::Adapter,
     net_interfaces::{ReadingError, device_or_absent, device_readings, nm, nm_readings},
     stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
