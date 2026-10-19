@@ -1,9 +1,9 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     cpu_memory_compute::temperature_thresholds::celsius_text,
-    disk::{
-        btrfs::DeviceErrors,
-        health::{DriveHealth, DriveTemperature, MissingSensor},
+    disk_storage::{
+        btrfs_filesystem_space::DeviceErrors,
+        drive_temperature_health::{DriveHealth, DriveTemperature, MissingSensor},
     },
 };
 

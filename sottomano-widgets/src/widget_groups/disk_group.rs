@@ -6,7 +6,10 @@ use iced::{Subscription, Task};
 use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
 use sottomano_sources::{
     SourceDelivery,
-    disk::{self, Disk, activity::DiskActivity, health::DriveHealth},
+    disk_storage::{
+        self, disk_io_activity::DiskActivity, drive_temperature_health::DriveHealth,
+        root_filesystem_usage::RootFilesystem,
+    },
 };
 
 use crate::{
@@ -29,8 +32,8 @@ pub enum DiskTarget {
     DriveHealth,
 }
 
-impl From<disk::Error> for Section {
-    fn from(error: disk::Error) -> Self {
+impl From<disk_storage::Error> for Section {
+    fn from(error: disk_storage::Error) -> Self {
         Section::error(error)
     }
 }
@@ -43,7 +46,7 @@ impl From<DiskTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct DiskGroup {
-    usage: ContinuousReading<Disk>,
+    usage: ContinuousReading<RootFilesystem>,
     activity: ContinuousReading<DiskActivity>,
     drive_health: ContinuousReading<DriveHealth>,
     expansion: GroupExpansion,
@@ -51,7 +54,7 @@ pub struct DiskGroup {
 
 #[derive(Debug, Clone)]
 pub enum DiskMessage {
-    Usage(SourceDelivery<Disk>),
+    Usage(SourceDelivery<RootFilesystem>),
     DiskActivity(SourceDelivery<DiskActivity>),
     DriveHealth(SourceDelivery<DriveHealth>),
     Expansion(ExpansionMessage),
@@ -64,7 +67,7 @@ impl DiskGroup {
 
     pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
         Subscription::batch([
-            source_subscription::<Disk>(()).map(DiskMessage::Usage),
+            source_subscription::<RootFilesystem>(()).map(DiskMessage::Usage),
             source_subscription::<DiskActivity>(()).map(DiskMessage::DiskActivity),
             source_subscription::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth),
         ])
@@ -72,7 +75,7 @@ impl DiskGroup {
 
     pub fn refresh(target: DiskTarget, drive_sensor: &SensorConfig) -> Task<DiskMessage> {
         match target {
-            DiskTarget::Usage => first_delivery::<Disk>(()).map(DiskMessage::Usage),
+            DiskTarget::Usage => first_delivery::<RootFilesystem>(()).map(DiskMessage::Usage),
             DiskTarget::Read | DiskTarget::Write => {
                 first_delivery::<DiskActivity>(()).map(DiskMessage::DiskActivity)
             }

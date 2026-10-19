@@ -6,7 +6,7 @@ pub mod blocking_background_work;
 pub mod coredumps;
 pub mod cpu_memory_compute;
 pub mod desktop_entries;
-pub mod disk;
+pub mod disk_storage;
 pub mod favicons;
 pub mod focus_ledger;
 pub mod host_machine_identity;

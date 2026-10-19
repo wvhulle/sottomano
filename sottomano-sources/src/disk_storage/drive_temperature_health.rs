@@ -9,8 +9,8 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use super::{
     Error,
-    btrfs::{BtrfsFilesystem, DeviceErrors},
-    mount::{KernelDevice, RootMount},
+    btrfs_filesystem_space::{BtrfsFilesystem, DeviceErrors},
+    root_mount_facts::{KernelDevice, RootMount},
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,

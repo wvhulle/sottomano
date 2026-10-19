@@ -1,6 +1,6 @@
 use bytesize::ByteSize;
 use sottomano_config::severity::Severity;
-use sottomano_sources::disk::{Disk, Filesystem};
+use sottomano_sources::disk_storage::root_filesystem_usage::{Filesystem, RootFilesystem};
 use uom::si::f64::Ratio;
 
 use crate::widgets::{
@@ -15,7 +15,7 @@ const FREE_WARN: ByteSize = ByteSize::gb(100);
 const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
 const UNALLOCATED_WARN: ByteSize = ByteSize::gib(1);
 
-impl BarWidget for Disk {
+impl BarWidget for RootFilesystem {
     fn name(&self) -> &'static str {
         "Disk usage"
     }

@@ -1,60 +1,19 @@
-use std::{
-    fmt::{Display, Formatter, Result as FmtResult},
-    mem::zeroed,
-    time::Duration,
-};
+use std::{mem::zeroed, time::Duration};
 
 use bytesize::ByteSize;
 use futures::Stream;
 
-use self::{
-    btrfs::{BtrfsFilesystem, BtrfsSpace},
-    mount::RootMount,
-};
 use super::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+    Error,
+    btrfs_filesystem_space::{BtrfsFilesystem, BtrfsSpace},
+    root_mount_facts::RootMount,
 };
-
-pub mod activity;
-pub mod btrfs;
-pub mod health;
-pub mod mount;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Error {
-    Statvfs(i32),
-    Unreadable(String),
-    Unparsable(String),
-    NotABlockDevice(String),
-    NoBtrfsFilesystemOn(String),
-    Panicked,
-}
-
-impl From<Panicked> for Error {
-    fn from(Panicked: Panicked) -> Self {
-        Error::Panicked
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Error::Statvfs(code) => write!(f, "statvfs on / failed (errno {code})"),
-            Error::Unreadable(path) => write!(f, "cannot read {path}"),
-            Error::Unparsable(path) => write!(f, "unexpected contents in {path}"),
-            Error::NotABlockDevice(source) => {
-                write!(f, "root is mounted from {source}, not a block device")
-            }
-            Error::NoBtrfsFilesystemOn(device) => {
-                write!(f, "no btrfs filesystem found on {device}")
-            }
-            Error::Panicked => write!(f, "disk read panicked"),
-        }
-    }
-}
+use crate::{
+    DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll, polled_delivery_stream,
+};
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Disk {
+pub struct RootFilesystem {
     pub total: ByteSize,
     pub free: ByteSize,
     pub filesystem: Filesystem,
@@ -66,7 +25,7 @@ pub enum Filesystem {
     Other { fs_type: String },
 }
 
-impl Disk {
+impl RootFilesystem {
     #[must_use]
     pub fn used_pct(&self) -> i64 {
         if self.total == ByteSize::default() {
@@ -77,7 +36,7 @@ impl Disk {
     }
 }
 
-impl ReadingSource for Disk {
+impl ReadingSource for RootFilesystem {
     type Error = Error;
     type StreamInputs = ();
 
@@ -91,13 +50,13 @@ impl ReadingSource for Disk {
     }
 }
 
-impl Disk {
+impl RootFilesystem {
     async fn poll(_key: ()) -> Result<Self, Error> {
         blocking_poll(read_root_disk).await
     }
 }
 
-fn read_root_disk() -> Result<Disk, Error> {
+fn read_root_disk() -> Result<RootFilesystem, Error> {
     read_root_statvfs(read_root_filesystem()?)
 }
 
@@ -112,14 +71,14 @@ fn read_root_filesystem() -> Result<Filesystem, Error> {
     Ok(Filesystem::Btrfs(filesystem.space(mount.compression())?))
 }
 
-fn read_root_statvfs(filesystem: Filesystem) -> Result<Disk, Error> {
+fn read_root_statvfs(filesystem: Filesystem) -> Result<RootFilesystem, Error> {
     let mut stat = unsafe { zeroed::<libc::statvfs>() };
     let rc = unsafe { libc::statvfs(c"/".as_ptr(), &raw mut stat) };
     if rc != 0 {
         return Err(Error::Statvfs(errno()));
     }
     let frsize = stat.f_frsize as u64;
-    Ok(Disk {
+    Ok(RootFilesystem {
         total: ByteSize::b(stat.f_blocks as u64 * frsize),
         free: ByteSize::b(stat.f_bavail as u64 * frsize),
         filesystem,
