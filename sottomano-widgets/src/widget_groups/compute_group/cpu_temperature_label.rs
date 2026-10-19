@@ -153,14 +153,13 @@ impl ChipletLiveState<'_> {
             }
             .section(
                 |group| self.title(group),
-                |group, members| {
+                |_, members| {
                     members
                         .iter()
                         .map(|reading| reading.temperature)
                         .reduce(ThermodynamicTemperature::max)
                         .map(|hottest| KeyValue::new("Hottest", celsius_text(hottest)))
                         .into_iter()
-                        .chain(self.facts(group))
                         .collect()
                 },
             )

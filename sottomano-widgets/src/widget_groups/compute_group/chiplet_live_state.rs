@@ -2,9 +2,7 @@ use sottomano_sources::cpu_memory_compute::{
     cpu_clock_frequency::CpuClock, cpu_temperature::Temperature, cpu_topology::CoreGroup,
     l3_cache_traffic::L3CacheTraffic, temperature_thresholds::celsius_text,
 };
-use uom::si::f64::Frequency;
 
-use super::cpu_clock_label::frequency_text;
 use crate::widgets::{gauge::percent_text, tooltip_body::KeyValue};
 
 pub struct ChipletLiveState<'a> {
@@ -20,14 +18,6 @@ impl ChipletLiveState<'_> {
         } else {
             group.title()
         }
-    }
-
-    pub fn facts(&self, group: &CoreGroup) -> Vec<KeyValue> {
-        [self.clock_fact(group), self.temperature_fact(group)]
-            .into_iter()
-            .flatten()
-            .chain(self.cache_traffic_facts(group))
-            .collect()
     }
 
     fn scheduler_prefers(&self, group: &CoreGroup) -> bool {
@@ -46,24 +36,7 @@ impl ChipletLiveState<'_> {
                 .is_some_and(|rank| ranks.iter().all(|other| *other <= rank))
     }
 
-    fn clock_fact(&self, group: &CoreGroup) -> Option<KeyValue> {
-        let frequencies: Vec<Frequency> = self
-            .clock?
-            .cores
-            .iter()
-            .filter(|core| group.contains(core.core))
-            .map(|core| core.frequency)
-            .collect();
-        let count = frequencies.len();
-        (count > 0).then(|| {
-            KeyValue::new(
-                "Clock",
-                frequency_text(frequencies.into_iter().sum::<Frequency>() / count as f64),
-            )
-        })
-    }
-
-    fn temperature_fact(&self, group: &CoreGroup) -> Option<KeyValue> {
+    pub fn temperature_text(&self, group: &CoreGroup) -> Option<String> {
         let readings = &self.temperature?.readings;
         let temperatures: Vec<String> = group
             .chiplets()
@@ -76,10 +49,10 @@ impl ChipletLiveState<'_> {
                     .map(|reading| celsius_text(reading.temperature))
             })
             .collect();
-        (!temperatures.is_empty()).then(|| KeyValue::new("Temp", temperatures.join(" · ")))
+        (!temperatures.is_empty()).then(|| temperatures.join(" · "))
     }
 
-    fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<KeyValue> {
+    pub fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<KeyValue> {
         self.cache_traffic
             .into_iter()
             .flat_map(|traffic| traffic.caches.iter())

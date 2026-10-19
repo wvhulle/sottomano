@@ -119,6 +119,7 @@ fn on_hover_readings(target: ComputeTarget, tick: u32) -> Vec<ComputeMessage> {
             })),
         )],
         ComputeTarget::CpuClock
+        | ComputeTarget::ClockLimits
         | ComputeTarget::Temperature
         | ComputeTarget::CachePreference
         | ComputeTarget::Board => Vec::new(),

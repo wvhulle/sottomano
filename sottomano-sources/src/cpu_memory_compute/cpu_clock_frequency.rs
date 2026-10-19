@@ -4,7 +4,13 @@ use futures::{Stream, stream};
 use tokio::task::spawn_blocking;
 use uom::si::f64::Frequency;
 
-use super::{CPU_FREQ, core_freqs, cpu_topology::CpuTopology};
+use super::{
+    CPU_FREQ, core_freqs,
+    cpu_topology::CpuTopology,
+    kernel_frequency_limit_causes::{
+        CoreLimitCauses, FrequencyLimitCause, ThrottleBaseline, core_limit_causes,
+    },
+};
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
     polled_delivery_after_setup, stream_operators::StreamOperators,
@@ -12,30 +18,16 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum FrequencyLimit {
-    Unrestricted(Frequency),
-    Capped(Frequency),
+pub struct FrequencyBand {
+    pub floor: Frequency,
+    pub policy_ceiling: Frequency,
+    pub hardware_ceiling: Frequency,
 }
 
-impl FrequencyLimit {
-    pub(super) fn from_ceilings(policy_max: Frequency, hardware_max: Frequency) -> Self {
-        if policy_max < hardware_max {
-            FrequencyLimit::Capped(policy_max)
-        } else {
-            FrequencyLimit::Unrestricted(policy_max)
-        }
-    }
-
-    #[must_use]
-    pub fn ceiling(self) -> Frequency {
-        match self {
-            FrequencyLimit::Unrestricted(ceiling) | FrequencyLimit::Capped(ceiling) => ceiling,
-        }
-    }
-
+impl FrequencyBand {
     #[must_use]
     pub fn is_capped(self) -> bool {
-        matches!(self, FrequencyLimit::Capped(_))
+        self.policy_ceiling < self.hardware_ceiling
     }
 }
 
@@ -43,14 +35,21 @@ impl FrequencyLimit {
 pub struct CoreFreq {
     pub core: u32,
     pub frequency: Frequency,
-    pub limit: FrequencyLimit,
+    pub band: FrequencyBand,
     pub preference_rank: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CpuClock {
     pub cores: Vec<CoreFreq>,
+    pub limit_causes: Vec<CoreLimitCauses>,
     pub topology: CpuTopology,
+}
+
+#[derive(Debug, Clone)]
+struct ClockProbe {
+    topology: CpuTopology,
+    throttle_baseline: ThrottleBaseline,
 }
 
 impl CpuClock {
@@ -65,11 +64,19 @@ impl CpuClock {
     }
 
     #[must_use]
-    pub fn capped_cores(&self) -> usize {
-        self.cores
+    pub fn limited_cores(&self) -> usize {
+        self.limit_causes
             .iter()
-            .filter(|core| core.limit.is_capped())
+            .filter(|core| !core.causes.is_empty())
             .count()
+    }
+
+    #[must_use]
+    pub fn thermally_limited(&self) -> bool {
+        self.limit_causes
+            .iter()
+            .flat_map(|core| &core.causes)
+            .any(|cause| cause.is_thermal())
     }
 
     pub fn lowest(&self) -> Option<Frequency> {
@@ -82,10 +89,37 @@ impl CpuClock {
 
     #[must_use]
     pub fn shared_ceiling(&self) -> Option<Frequency> {
-        let first = self.cores.first()?.limit.ceiling();
+        self.shared(|band| band.policy_ceiling)
+    }
+
+    #[must_use]
+    pub fn shared_floor(&self) -> Option<Frequency> {
+        self.shared(|band| band.floor)
+    }
+
+    #[must_use]
+    pub fn shared_hardware_ceiling(&self) -> Option<Frequency> {
+        self.shared(|band| band.hardware_ceiling)
+    }
+
+    #[must_use]
+    pub fn shared_causes(&self) -> Vec<FrequencyLimitCause> {
+        let Some((first, rest)) = self.limit_causes.split_first() else {
+            return Vec::new();
+        };
+        first
+            .causes
+            .iter()
+            .copied()
+            .filter(|cause| rest.iter().all(|core| core.causes.contains(cause)))
+            .collect()
+    }
+
+    fn shared(&self, edge: fn(FrequencyBand) -> Frequency) -> Option<Frequency> {
+        let first = edge(self.cores.first()?.band);
         self.cores
             .iter()
-            .all(|core| core.limit.ceiling() == first)
+            .all(|core| edge(core.band) == first)
             .then_some(first)
     }
 }
@@ -105,7 +139,15 @@ impl ReadingSource for CpuClock {
         };
         stream::once(exposed).while_held(
             move || {
-                polled_delivery_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
+                polled_delivery_after_setup(
+                    blocking_poll(|| {
+                        Ok(ClockProbe {
+                            topology: CpuTopology::detect(),
+                            throttle_baseline: ThrottleBaseline::default(),
+                        })
+                    }),
+                    Self::poll,
+                )
             },
             SourceDelivery::Absent,
         )
@@ -113,17 +155,21 @@ impl ReadingSource for CpuClock {
 }
 
 impl CpuClock {
-    async fn poll(topology: CpuTopology) -> Result<Self, Error> {
-        blocking_poll(move || read_cpu_clock(topology)).await
+    async fn poll(probe: ClockProbe) -> Result<Self, Error> {
+        blocking_poll(move || read_cpu_clock(probe)).await
     }
 }
 
-fn read_cpu_clock(topology: CpuTopology) -> Result<CpuClock, Error> {
+fn read_cpu_clock(probe: ClockProbe) -> Result<CpuClock, Error> {
     let cores = core_freqs();
     if cores.is_empty() {
         return Err(Error::Unreadable(CPU_FREQ.to_owned()));
     }
-    Ok(CpuClock { cores, topology })
+    Ok(CpuClock {
+        limit_causes: core_limit_causes(&cores, &probe.throttle_baseline),
+        cores,
+        topology: probe.topology,
+    })
 }
 
 #[cfg(test)]
@@ -132,22 +178,46 @@ mod tests {
 
     use super::*;
 
+    fn band(policy_ceiling: f64, hardware_ceiling: f64) -> FrequencyBand {
+        FrequencyBand {
+            floor: Frequency::new::<megahertz>(400.0),
+            policy_ceiling: Frequency::new::<megahertz>(policy_ceiling),
+            hardware_ceiling: Frequency::new::<megahertz>(hardware_ceiling),
+        }
+    }
+
     #[test]
     fn policy_below_hardware_max_is_capped() {
-        let policy_max = Frequency::new::<megahertz>(400.0);
-        let hardware_max = Frequency::new::<megahertz>(4800.0);
-        assert_eq!(
-            FrequencyLimit::from_ceilings(policy_max, hardware_max),
-            FrequencyLimit::Capped(policy_max)
-        );
+        assert!(band(400.0, 4800.0).is_capped());
     }
 
     #[test]
     fn policy_at_hardware_max_is_unrestricted() {
-        let hardware_max = Frequency::new::<megahertz>(3700.0);
+        assert!(!band(3700.0, 3700.0).is_capped());
+    }
+
+    #[test]
+    fn shared_causes_keep_only_causes_on_every_cpu() {
+        let clock = CpuClock {
+            cores: Vec::new(),
+            limit_causes: vec![
+                CoreLimitCauses {
+                    core: 0,
+                    causes: vec![
+                        FrequencyLimitCause::BoostDisabled,
+                        FrequencyLimitCause::PolicyCap,
+                    ],
+                },
+                CoreLimitCauses {
+                    core: 1,
+                    causes: vec![FrequencyLimitCause::BoostDisabled],
+                },
+            ],
+            topology: CpuTopology::default(),
+        };
         assert_eq!(
-            FrequencyLimit::from_ceilings(hardware_max, hardware_max),
-            FrequencyLimit::Unrestricted(hardware_max)
+            clock.shared_causes(),
+            vec![FrequencyLimitCause::BoostDisabled]
         );
     }
 }

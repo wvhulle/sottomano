@@ -76,7 +76,7 @@ struct CpuRange {
     last: u32,
 }
 
-fn cpu_ranges(cpus: impl Iterator<Item = u32>) -> String {
+pub(super) fn cpu_ranges(cpus: impl Iterator<Item = u32>) -> String {
     let mut sorted: Vec<u32> = cpus.collect();
     sorted.sort_unstable();
     let ranges = sorted
