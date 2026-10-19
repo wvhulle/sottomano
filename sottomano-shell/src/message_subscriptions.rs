@@ -14,23 +14,25 @@ use sottomano_sources::{
         notification_data::{Outbound, ServerEvent},
     },
     desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup, niri_window_snapshot},
+    host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
         inotify_config_file_changes,
     },
 };
 use sottomano_widgets::{
+    background_work::source_subscription,
     shell_message::{Message, OutputChange},
     toast_messages::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        window_group::WindowGroup,
+        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
+        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
 use tokio::sync::mpsc;
@@ -79,6 +81,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             }),
         ComputeGroup::subscription(&state.config.widget_groups.temperature_sensors.cpu)
             .map(Message::Compute),
+        MemoryBoardGroup::subscription().map(Message::MemoryBoard),
         state.gpu_group.subscription().map(Message::Gpu),
         DiskGroup::subscription(&state.config.widget_groups.temperature_sensors.drive)
             .map(Message::Disk),
@@ -141,7 +144,8 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
         QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
         SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
         WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
-        ComputeGroup::hardware_subscription(buses).map(Message::Compute),
+        source_subscription::<HostHardware>(buses.clone())
+            .map(|delivery| Message::HostHardware(Box::new(delivery))),
         state
             .copilot_usage_group
             .account_subscription(buses)

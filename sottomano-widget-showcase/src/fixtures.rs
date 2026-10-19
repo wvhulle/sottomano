@@ -3,6 +3,7 @@ pub mod claude_usage;
 pub mod compute;
 pub mod idle_lock;
 pub mod media;
+pub mod memory_board;
 pub mod niri_session;
 pub mod notification_toasts;
 pub mod wallpaper;

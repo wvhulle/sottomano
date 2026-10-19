@@ -4,6 +4,7 @@ use iced::window::Id;
 use iced_exwlshell::to_layer_message;
 use sottomano_config::{Config, LoadError};
 use sottomano_sources::{
+    SourceDelivery,
     desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries,
@@ -11,6 +12,7 @@ use sottomano_sources::{
         niri_kdl_config::ConfiguredWorkspaces, niri_output_facts,
         niri_window_placement::WindowOwner,
     },
+    host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
 use sottomano_state::{ShellSettings, niri_rules::StoredRules};
@@ -28,8 +30,9 @@ use crate::{
         idle_timeouts_group::IdleTimeoutsMessage, internet_group::InternetMessage,
         journal_events_group::JournalEventsMessage, llama_server_group::LlamaServerMessage,
         login_session_group::LoginSessionMessage, media_group::MediaMessage,
-        monitor_group::MonitorMessage, net_interfaces_group::NetInterfacesMessage,
-        niri_window_group::NiriWindowMessage, notification_group::NotificationGroupMessage,
+        memory_board_group::MemoryBoardMessage, monitor_group::MonitorMessage,
+        net_interfaces_group::NetInterfacesMessage, niri_window_group::NiriWindowMessage,
+        notification_group::NotificationGroupMessage,
         openrouter_credit_group::OpenRouterCreditMessage,
         overlay_settings_group::OverlaySettingsMessage, panel_settings_group::PanelSettingsMessage,
         pending_upgrades_group::PendingUpgradesMessage, power_group::PowerMessage,
@@ -63,6 +66,8 @@ pub enum Message {
     Wallpaper(WallpaperMessage),
     Power(PowerMessage),
     Compute(ComputeMessage),
+    MemoryBoard(MemoryBoardMessage),
+    HostHardware(Box<SourceDelivery<HostHardware>>),
     Gpu(GpuMessage),
     Disk(DiskMessage),
     PanelSettings(PanelSettingsMessage),

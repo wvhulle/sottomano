@@ -16,6 +16,7 @@ use sottomano_widgets::{
         disk_group::DiskGroup,
         internet_group::InternetGroup,
         login_session_group::LoginSessionGroup,
+        memory_board_group::MemoryBoardGroup,
         monitor_group::MonitorGroup,
         notification_group::NotificationGroup,
         power_group::PowerGroup,
@@ -177,6 +178,9 @@ impl DesktopShell {
     fn source_group_tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target, self.clock),
+            HoverTarget::MemoryBoard(target) => {
+                self.memory_board_group.tooltip_for(*target, self.clock)
+            }
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target, self.clock),
             HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target, self.clock),
             HoverTarget::Power(target) => self.power_group.tooltip_for(*target, self.clock),
@@ -269,7 +273,10 @@ impl DesktopShell {
                 self.weather_group.refresh(*target).map(Message::Weather)
             }
             HoverTarget::Compute(target) => {
-                ComputeGroup::refresh(*target, &sensors.cpu, buses).map(Message::Compute)
+                ComputeGroup::refresh(*target, &sensors.cpu).map(Message::Compute)
+            }
+            HoverTarget::MemoryBoard(target) => {
+                MemoryBoardGroup::refresh(*target, buses).map(Message::MemoryBoard)
             }
             HoverTarget::Gpu(target) => self.gpu_group.refresh(target).map(Message::Gpu),
             HoverTarget::Disk(target) => {
@@ -353,6 +360,9 @@ impl DesktopShell {
             self.compute_group
                 .hover(hovered, &self.config, self.clock)
                 .map(Message::Compute),
+            self.memory_board_group
+                .hover(hovered, &self.config, self.clock)
+                .map(Message::MemoryBoard),
             self.power_group
                 .hover(hovered, &self.config, buses, self.clock)
                 .map(Message::Power),

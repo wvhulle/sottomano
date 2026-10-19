@@ -39,7 +39,7 @@ on hover or click; most controls open in place rather than in a window.
 
 ### Compute
 
-CPU, memory and temperature, with live detail on hover. Nothing here that
+CPU load, clock and temperature, with live detail on hover. Nothing here that
 `top` would not tell you, but it is always in view.
 
 #### CPU
@@ -48,17 +48,22 @@ Pressing the CPU reading unfolds the whole group.
 
 <img src="recordings/compute_cpu.webp" width="720" alt="Expanding the compute group from the CPU reading">
 
-#### Memory
-
-The memory reading, hovered in the expanded group.
-
-<img src="recordings/compute_memory.webp" width="720" alt="Hovering memory in the expanded compute group">
-
 #### Temperature
 
 The hottest sensor, with the card saying which chip it is reading.
 
 <img src="recordings/compute_temperature.webp" width="720" alt="Hovering temperature in the expanded compute group">
+
+### Memory and board
+
+Memory use with the processes holding the most, and the board and firmware
+behind it.
+
+#### Memory
+
+Pressing the memory reading unfolds the group.
+
+<img src="recordings/memory_board_memory.webp" width="720" alt="Expanding the memory and board group from the memory reading">
 
 ### Weather
 

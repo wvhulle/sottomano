@@ -20,9 +20,10 @@ use crate::{
         disk_group::DiskTarget, gpu_group::GpuTarget, idle_timeouts_group::TimerKind,
         internet_group::InternetTarget, journal_events_group::JournalTarget,
         llama_server_group::LlamaServerTarget, login_session_group::LoginSessionTarget,
-        media_group::MediaTarget, monitor_group::MonitorTarget,
-        net_interfaces_group::NetInterfaceTarget, niri_window_group::NiriWindowTarget,
-        notification_group::NotificationTarget, openrouter_credit_group::OpenRouterCreditTarget,
+        media_group::MediaTarget, memory_board_group::MemoryBoardTarget,
+        monitor_group::MonitorTarget, net_interfaces_group::NetInterfaceTarget,
+        niri_window_group::NiriWindowTarget, notification_group::NotificationTarget,
+        openrouter_credit_group::OpenRouterCreditTarget,
         overlay_settings_group::OverlaySettingsTarget, panel_settings_group::PanelSettingsTarget,
         pending_upgrades_group::PendingUpgradesTarget, power_group::PowerTarget,
         quiet_schedule_group::QuietScheduleTarget, session_focus_group::SessionFocusTarget,
@@ -36,6 +37,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoverTarget {
     Compute(ComputeTarget),
+    MemoryBoard(MemoryBoardTarget),
     Gpu(GpuTarget),
     Disk(DiskTarget),
     Power(PowerTarget),

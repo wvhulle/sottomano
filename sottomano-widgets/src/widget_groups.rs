@@ -13,6 +13,7 @@ pub mod journal_events_group;
 pub mod llama_server_group;
 pub mod login_session_group;
 pub mod media_group;
+pub mod memory_board_group;
 pub mod monitor_group;
 pub mod net_interfaces_group;
 pub mod niri_window_group;

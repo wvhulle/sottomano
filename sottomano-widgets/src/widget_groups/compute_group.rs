@@ -1,4 +1,3 @@
-mod board_firmware_face;
 mod chiplet_clock_table;
 mod chiplet_live_state;
 mod core_grid_sections;
@@ -6,7 +5,6 @@ mod cpu_clock_label;
 mod cpu_clock_limit_causes;
 mod cpu_load_gauge;
 mod cpu_temperature_label;
-mod memory_usage_gauge;
 mod x3d_cache_preference_toggle;
 
 use chiplet_live_state::ChipletLiveState;
@@ -22,11 +20,8 @@ use sottomano_sources::{
         cpu_core_loads::{CpuCoreLoads, CpuUsage},
         cpu_power_draw::CpuPower,
         cpu_temperature::{CpuCoreTemperatures, Temperature},
-        memory_module_temperatures::MemoryModuleTemperatures,
-        memory_usage::{Memory, MemoryProcesses},
     },
     host_machine_identity::udev_hardware_identity::{HostHardware, HostHardwareError},
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use x3d_cache_preference_toggle::ChipletRoles;
 
@@ -50,10 +45,8 @@ pub enum ComputeTarget {
     Cpu,
     CpuClock,
     ClockLimits,
-    Memory,
     Temperature,
     CachePreference,
-    Board,
 }
 
 impl From<HostHardwareError> for Section {
@@ -71,7 +64,6 @@ impl From<ComputeTarget> for HoverTarget {
 #[derive(Default)]
 pub struct ComputeGroup {
     cpu: ContinuousReading<CpuUsage>,
-    memory: ContinuousReading<Memory>,
     clock: ContinuousReading<CpuClock>,
     temperature: ContinuousReading<Temperature>,
     hardware: ContinuousReading<HostHardware>,
@@ -80,8 +72,6 @@ pub struct ComputeGroup {
     core_temperatures: OnHoverReading<CpuCoreTemperatures>,
     cpu_power: OnHoverReading<CpuPower>,
     cache_traffic: OnHoverReading<L3CacheTraffic>,
-    memory_processes: OnHoverReading<MemoryProcesses>,
-    module_temperatures: OnHoverReading<MemoryModuleTemperatures>,
     expansion: GroupExpansion,
 }
 
@@ -89,7 +79,6 @@ pub struct ComputeGroup {
 pub enum ComputeMessage {
     Hardware(Box<SourceDelivery<HostHardware>>),
     Cpu(SourceDelivery<CpuUsage>),
-    Memory(SourceDelivery<Memory>),
     Clock(SourceDelivery<CpuClock>),
     Temperature(SourceDelivery<Temperature>),
     CachePreference(ToggleMessage<X3dCachePreference>),
@@ -97,8 +86,6 @@ pub enum ComputeMessage {
     CoreTemperaturesFetched(SourceDelivery<CpuCoreTemperatures>),
     CpuPowerFetched(SourceDelivery<CpuPower>),
     CacheTrafficFetched(SourceDelivery<L3CacheTraffic>),
-    MemoryProcessesFetched(SourceDelivery<MemoryProcesses>),
-    ModuleTemperaturesFetched(SourceDelivery<MemoryModuleTemperatures>),
     Expansion(ExpansionMessage),
 }
 
@@ -117,8 +104,6 @@ impl ComputeGroup {
         self.core_temperatures.stop();
         self.cpu_power.stop();
         self.cache_traffic.stop();
-        self.memory_processes.stop();
-        self.module_temperatures.stop();
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::Cpu)) => Task::batch([
                 self.core_loads.start_hover_fetch(
@@ -151,20 +136,6 @@ impl ComputeGroup {
                     clock,
                 )
             }
-            Some(HoverTarget::Compute(ComputeTarget::Memory)) => Task::batch([
-                self.memory_processes.start_hover_fetch(
-                    (),
-                    ComputeMessage::MemoryProcessesFetched,
-                    config,
-                    clock,
-                ),
-                self.module_temperatures.start_hover_fetch(
-                    (),
-                    ComputeMessage::ModuleTemperaturesFetched,
-                    config,
-                    clock,
-                ),
-            ]),
             _ => Task::none(),
         }
     }
@@ -180,17 +151,11 @@ impl ComputeGroup {
     pub fn subscription(sensor: &SensorConfig) -> Subscription<ComputeMessage> {
         Subscription::batch([
             source_subscription::<CpuUsage>(()).map(ComputeMessage::Cpu),
-            source_subscription::<Memory>(()).map(ComputeMessage::Memory),
             source_subscription::<CpuClock>(()).map(ComputeMessage::Clock),
             source_subscription::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature),
             ToggleControl::<X3dCachePreference>::subscription(())
                 .map(ComputeMessage::CachePreference),
         ])
-    }
-
-    pub fn hardware_subscription(buses: &DesktopBuses) -> Subscription<ComputeMessage> {
-        source_subscription::<HostHardware>(buses.clone())
-            .map(|delivery| ComputeMessage::Hardware(Box::new(delivery)))
     }
 
     pub fn update(&mut self, msg: ComputeMessage, clock: Clock) -> Task<ComputeMessage> {
@@ -216,14 +181,7 @@ impl ComputeGroup {
             ComputeMessage::CacheTrafficFetched(fetched) => {
                 self.cache_traffic.receive_delivery(fetched, clock);
             }
-            ComputeMessage::MemoryProcessesFetched(fetched) => {
-                self.memory_processes.receive_delivery(fetched, clock);
-            }
-            ComputeMessage::ModuleTemperaturesFetched(fetched) => {
-                self.module_temperatures.receive_delivery(fetched, clock);
-            }
             ComputeMessage::Cpu(reading) => self.cpu.receive_delivery(reading, clock),
-            ComputeMessage::Memory(reading) => self.memory.receive_delivery(reading, clock),
             ComputeMessage::Clock(reading) => self.clock.receive_delivery(reading, clock),
             ComputeMessage::Temperature(reading) => {
                 self.temperature.receive_delivery(reading, clock);
@@ -241,7 +199,6 @@ impl ComputeGroup {
             ComputeMessage::Expansion,
             [
                 self.cpu.group_item(ComputeTarget::Cpu),
-                self.memory.group_item(ComputeTarget::Memory),
                 self.clock.group_item(ComputeTarget::CpuClock),
                 self.clock
                     .get()
@@ -253,37 +210,23 @@ impl ComputeGroup {
                     ComputeTarget::CachePreference,
                     ComputeMessage::CachePreference,
                 ),
-                self.hardware
-                    .get()
-                    .map(|hardware| &hardware.machine)
-                    .filter(BarWidget::visible_in_bar)
-                    .map(|machine| GroupItem::reading(machine, ComputeTarget::Board)),
             ]
             .into_iter()
             .flatten(),
         )
     }
 
-    pub fn refresh(
-        target: ComputeTarget,
-        sensor: &SensorConfig,
-        buses: Option<&DesktopBuses>,
-    ) -> Task<ComputeMessage> {
+    pub fn refresh(target: ComputeTarget, sensor: &SensorConfig) -> Task<ComputeMessage> {
         match target {
             ComputeTarget::Cpu => first_delivery::<CpuUsage>(()).map(ComputeMessage::Cpu),
             ComputeTarget::CpuClock | ComputeTarget::ClockLimits => {
                 first_delivery::<CpuClock>(()).map(ComputeMessage::Clock)
             }
-            ComputeTarget::Memory => first_delivery::<Memory>(()).map(ComputeMessage::Memory),
             ComputeTarget::Temperature => {
                 first_delivery::<Temperature>(sensor.clone()).map(ComputeMessage::Temperature)
             }
             ComputeTarget::CachePreference => ToggleControl::<X3dCachePreference>::refresh(())
                 .map(ComputeMessage::CachePreference),
-            ComputeTarget::Board => buses.map_or_else(Task::none, |buses| {
-                first_delivery::<HostHardware>(buses.clone())
-                    .map(|delivery| ComputeMessage::Hardware(Box::new(delivery)))
-            }),
         }
     }
 
@@ -298,16 +241,6 @@ impl ComputeGroup {
                     self.cpu_power.sections(clock),
                     self.hardware
                         .sections_described_by(|hardware| vec![Section::from(&hardware.cpu)]),
-                ]
-                .concat(),
-                clock,
-            ),
-            ComputeTarget::Memory => self.memory.tooltip_with_sections(
-                [
-                    self.memory_processes.sections(clock),
-                    self.module_temperatures.sections(clock),
-                    self.hardware
-                        .sections_described_by(|hardware| vec![Section::from(&hardware.memory)]),
                 ]
                 .concat(),
                 clock,
@@ -340,11 +273,6 @@ impl ComputeGroup {
                     .sections()
                 }))
             }),
-            ComputeTarget::Board => {
-                let machine = &self.hardware.get()?.machine;
-                self.hardware
-                    .tooltip_with(machine.visible_in_bar().then(|| machine.tooltip(clock))?)
-            }
         }
     }
 }

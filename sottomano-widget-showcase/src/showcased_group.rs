@@ -19,6 +19,7 @@ use sottomano_widgets::{
         compute_group::ComputeGroup,
         idle_timeouts_group::IdleTimeoutsGroup,
         media_group::MediaGroup,
+        memory_board_group::MemoryBoardGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
@@ -30,7 +31,7 @@ use sottomano_widgets::{
     },
 };
 
-use crate::fixtures::{compute, niri_session};
+use crate::fixtures::{compute, memory_board, niri_session};
 
 pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
 
@@ -51,6 +52,7 @@ fn undragged() -> DragView {
 
 pub enum ShowcasedGroup {
     Compute(Box<ComputeGroup>),
+    MemoryBoard(Box<MemoryBoardGroup>),
     Weather(Box<WeatherGroup>),
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
@@ -189,6 +191,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
+            | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::Media(_)
@@ -209,6 +212,10 @@ impl ShowcasedGroup {
             ShowcasedGroup::Compute(group) => group
                 .group_content()
                 .map(Message::Compute)
+                .view(config, position, clock),
+            ShowcasedGroup::MemoryBoard(group) => group
+                .group_content()
+                .map(Message::MemoryBoard)
                 .view(config, position, clock),
             ShowcasedGroup::Weather(group) => group
                 .group_content()
@@ -248,6 +255,11 @@ impl ShowcasedGroup {
         match self {
             ShowcasedGroup::Compute(group) => {
                 if let Message::Compute(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
+            ShowcasedGroup::MemoryBoard(group) => {
+                if let Message::MemoryBoard(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
@@ -300,6 +312,16 @@ impl ShowcasedGroup {
                     });
                 }
             }
+            ShowcasedGroup::MemoryBoard(group) => {
+                let _ = group.hover(Some(target), config, clock);
+                if let HoverTarget::MemoryBoard(target) = target {
+                    memory_board::on_hover(*target)
+                        .into_iter()
+                        .for_each(|reading| {
+                            let _ = group.update(reading, clock);
+                        });
+                }
+            }
             ShowcasedGroup::ClaudeUsage(group) => {
                 let _ = group.hover(Some(target), config, clock);
             }
@@ -326,6 +348,12 @@ impl ShowcasedGroup {
         match self {
             ShowcasedGroup::Compute(group) => {
                 let HoverTarget::Compute(target) = target else {
+                    return None;
+                };
+                group.tooltip_for(*target, clock)
+            }
+            ShowcasedGroup::MemoryBoard(group) => {
+                let HoverTarget::MemoryBoard(target) = target else {
                     return None;
                 };
                 group.tooltip_for(*target, clock)
@@ -382,6 +410,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::Toasts(toasts) => Some(&toasts.niri),
             ShowcasedGroup::Compute(_)
+            | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::Media(_)
