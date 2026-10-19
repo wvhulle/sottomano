@@ -48,14 +48,14 @@ impl DesktopShell {
                     &frame_style,
                 )
                 .outlined_sides(outlined_sides)
+                .blurred(sidebar.blurred)
                 .into()
             });
         region_reporter(
             Column::with_children(framed_workspaces),
             RegionRoles {
                 takes_input: true,
-                blurred: sidebar.blurred,
-                corner_radius: sidebar.corner_radius_px,
+                ..RegionRoles::default()
             },
         )
         .on_width_change(move |width| Message::SidebarWidthChanged { window, width })

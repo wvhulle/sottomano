@@ -9,6 +9,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
+    border::Radius,
     mouse::Cursor,
     time::{Duration, Instant},
     window,
@@ -43,7 +44,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 card_roles: RegionRoles {
                     takes_input: true,
                     blurred: overlays.blurred,
-                    corner_radius: overlays.corner_radius_px,
+                    corner_radius: Radius::from(overlays.corner_radius_px),
                 },
                 ids: Vec::new(),
                 anchors: Vec::new(),

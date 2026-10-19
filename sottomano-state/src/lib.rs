@@ -57,7 +57,7 @@ impl Default for LayerAppearance {
         Self {
             opacity: 0.8,
             corner_radius_px: 8.0,
-            blurred: false,
+            blurred: true,
             shadow: ShadowStyle::default(),
             outline: OutlineStyle::default(),
         }

@@ -68,11 +68,11 @@ impl DesktopShell {
                 .height(Length::Fixed(self.config.layout.panel.height)),
             &band_style,
         )
-        .outlined_sides(outlined_sides);
+        .outlined_sides(outlined_sides)
+        .blurred(panels.blurred && groups_joined);
         let roles = RegionRoles {
             takes_input: true,
-            blurred: panels.blurred && groups_joined,
-            corner_radius: panels.corner_radius_px,
+            ..RegionRoles::default()
         };
         region_reporter(column![strip], roles).into()
     }
@@ -103,6 +103,7 @@ impl DesktopShell {
                 &frame_style,
             )
             .outlined_sides(outlined_sides)
+            .blurred(panels.blurred)
             .into()
         });
         let spacing = if groups_disconnected {
@@ -110,15 +111,10 @@ impl DesktopShell {
         } else {
             config.layout.panel.group_spacing
         };
-        let cluster = Row::with_children(framed)
+        Row::with_children(framed)
             .spacing(spacing)
             .height(Length::Fill)
-            .align_y(Alignment::Center);
-        let roles = RegionRoles {
-            takes_input: false,
-            blurred: panels.blurred && groups_disconnected,
-            corner_radius: panels.corner_radius_px,
-        };
-        region_reporter(cluster, roles).into()
+            .align_y(Alignment::Center)
+            .into()
     }
 }
