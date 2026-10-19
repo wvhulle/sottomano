@@ -8,15 +8,16 @@ use futures::{Stream, stream};
 use serde::Deserialize;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, command, command::blocking::run,
-    polled_delivery_stream, stream_operators::StreamOperators,
+    DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream,
+    stream_operators::StreamOperators,
+    system_protocol_clients::{shell_command_output, shell_command_output::blocking::run},
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    Command(command::Error),
+    Command(shell_command_output::Error),
     Malformed,
 }
 
@@ -29,8 +30,8 @@ impl Display for Error {
     }
 }
 
-impl From<command::Error> for Error {
-    fn from(error: command::Error) -> Self {
+impl From<shell_command_output::Error> for Error {
+    fn from(error: shell_command_output::Error) -> Self {
         Error::Command(error)
     }
 }
@@ -97,7 +98,7 @@ impl ReadingSource for Tailscale {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(command::exists("tailscale")).while_held(
+        stream::once(shell_command_output::exists("tailscale")).while_held(
             move || polled_delivery_stream(inputs, Self::poll),
             SourceDelivery::Absent,
         )
@@ -106,7 +107,7 @@ impl ReadingSource for Tailscale {
 
 impl Tailscale {
     async fn poll(_key: ()) -> Result<Self, Error> {
-        let raw = command::output("tailscale", &["status", "--json"]).await?;
+        let raw = shell_command_output::output("tailscale", &["status", "--json"]).await?;
         let status: Status = serde_json::from_str(&raw).map_err(|_| Error::Malformed)?;
         if status.backend_state != RUNNING_BACKEND_STATE {
             return Ok(Tailscale::Stopped);

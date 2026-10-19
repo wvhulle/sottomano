@@ -4,7 +4,7 @@ use chrono::TimeDelta;
 use futures::{Stream, StreamExt, stream};
 use sottomano_sources::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
     sun_schedule::SunEventOffsets,
 };
 

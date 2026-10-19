@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, mem::take};
 use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
     llama_server::{LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
 };
 

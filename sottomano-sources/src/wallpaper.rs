@@ -13,7 +13,11 @@ use inotify::{Event, EventMask, Inotify, WatchDescriptor, WatchMask, Watches};
 use serde::Deserialize;
 use uom::si::{angle::degree, f64::Angle};
 
-use crate::{ai::read_secret, command, http, stream_operators::restarting};
+use crate::{
+    secret_file_reads::read_secret,
+    stream_operators::restarting,
+    system_protocol_clients::{http_json_client, shell_command_output},
+};
 
 const EVENT_BUFFER_BYTES: usize = 1024;
 
@@ -55,7 +59,7 @@ pub struct WikipediaArticle {
 #[derive(Debug, Clone)]
 pub enum Error {
     Secret,
-    Fetch(http::Error),
+    Fetch(http_json_client::Error),
 }
 
 impl Display for Error {
@@ -67,8 +71,8 @@ impl Display for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Error {
+    fn from(error: http_json_client::Error) -> Self {
         Error::Fetch(error)
     }
 }
@@ -130,11 +134,13 @@ pub enum DisplayedWallpaper {
     NoImageFile,
 }
 
-pub fn displayed() -> impl Stream<Item = Result<DisplayedWallpaper, command::Error>> + Send {
+pub fn displayed()
+-> impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>> + Send {
     restarting("wallpaper watch", watch)
 }
 
-async fn watch() -> io::Result<impl Stream<Item = Result<DisplayedWallpaper, command::Error>>> {
+async fn watch()
+-> io::Result<impl Stream<Item = Result<DisplayedWallpaper, shell_command_output::Error>>> {
     let Some(base) = cache_base() else {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -246,7 +252,9 @@ impl CacheLayout {
     }
 }
 
-async fn wallpaper_path(lookup: WallpaperLookup) -> Result<DisplayedWallpaper, command::Error> {
+async fn wallpaper_path(
+    lookup: WallpaperLookup,
+) -> Result<DisplayedWallpaper, shell_command_output::Error> {
     match lookup {
         WallpaperLookup::Cached(path) => Ok(DisplayedWallpaper::ImageFile(path)),
         WallpaperLookup::QueryDaemon => displayed_wallpaper().await,
@@ -271,10 +279,10 @@ fn version_directories(root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-async fn displayed_wallpaper() -> Result<DisplayedWallpaper, command::Error> {
+async fn displayed_wallpaper() -> Result<DisplayedWallpaper, shell_command_output::Error> {
     let mut failure = None;
     for daemon in WALLPAPER_DAEMONS {
-        match command::output(daemon, &["query"]).await {
+        match shell_command_output::output(daemon, &["query"]).await {
             Ok(queried) => {
                 return Ok(
                     shown_image(&queried).map_or(DisplayedWallpaper::NoImageFile, |path| {
@@ -282,18 +290,20 @@ async fn displayed_wallpaper() -> Result<DisplayedWallpaper, command::Error> {
                     }),
                 );
             }
-            Err(command::Error::NotInstalled { .. }) => {}
+            Err(shell_command_output::Error::NotInstalled { .. }) => {}
             Err(error) => failure = Some(error),
         }
     }
-    Err(failure.unwrap_or_else(|| command::Error::NotInstalled {
-        program: WALLPAPER_DAEMONS.join(" or "),
-    }))
+    Err(
+        failure.unwrap_or_else(|| shell_command_output::Error::NotInstalled {
+            program: WALLPAPER_DAEMONS.join(" or "),
+        }),
+    )
 }
 
 pub async fn daemon_installed() -> bool {
     for daemon in WALLPAPER_DAEMONS {
-        if command::exists(daemon).await {
+        if shell_command_output::exists(daemon).await {
             return true;
         }
     }
@@ -366,7 +376,7 @@ pub fn photo_id(path: &str) -> Option<String> {
 async fn describe_photo(file_name: String, id: &str, secret: &str) -> Result<Wallpaper, Error> {
     let authorization = format!("Client-ID {secret}");
     let url = format!("{UNSPLASH_PHOTO_ENDPOINT}{id}");
-    let response: PhotoResponse = http::get_json(
+    let response: PhotoResponse = http_json_client::get_json(
         &url,
         &[
             ("Authorization", authorization.as_str()),
@@ -431,7 +441,7 @@ async fn nearby_search(
         .append_pair("format", "json")
         .finish();
     let url = format!("https://{language}.wikipedia.org/w/api.php?{query}");
-    Ok(http::get_json(&url, &[("User-Agent", USER_AGENT)], 10).await?)
+    Ok(http_json_client::get_json(&url, &[("User-Agent", USER_AGENT)], 10).await?)
 }
 
 fn best_article(found: SearchEnvelope, language: &str) -> Option<WikipediaArticle> {

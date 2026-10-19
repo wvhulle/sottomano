@@ -13,9 +13,9 @@ let
   modeToPalette = p: {
     surface = p.base00;
     surface_raised = p.base02;
-    bar_foreground = p.base05;
-    inactive = p.base04;
-    dim = p.base03;
+    bar_foreground = p.base06;
+    inactive = p.base05;
+    dim = p.base04;
     frame_outline = p.base03;
     urgent = p.base08;
     warning = p.base0A;

@@ -7,8 +7,8 @@ use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
     gamma::{self, Gamma},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{ScopedSystemdUnit, SystemdUnitScope, unit_activity::UnitChange},
 };
 use sun_follow_toggle::SUN_FOLLOW;

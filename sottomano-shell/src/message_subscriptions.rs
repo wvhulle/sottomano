@@ -10,11 +10,14 @@ use iced::{
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
 use sottomano_sources::{
-    bus::{DesktopBuses, desktop_bus_events},
-    config_file_changes, desktop_entries, favicons, niri,
+    desktop_entries, favicons, niri,
     notifications::{
         model::{Outbound, ServerEvent},
         server,
+    },
+    system_protocol_clients::{
+        dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
+        inotify_config_file_changes,
     },
 };
 use sottomano_widgets::{
@@ -68,8 +71,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
 
     Subscription::batch([
         outputs(state.wayland.as_ref()),
-        Subscription::run_with(state.config_file.clone(), config_file_changes::file_changes)
-            .map(|()| Message::ConfigFileChanged),
+        Subscription::run_with(
+            state.config_file.clone(),
+            inotify_config_file_changes::file_changes,
+        )
+        .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),

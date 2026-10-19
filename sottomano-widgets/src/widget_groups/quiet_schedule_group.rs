@@ -6,7 +6,10 @@ use chrono::{DateTime, Local, NaiveTime, TimeDelta, Timelike, Utc};
 use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
-use sottomano_sources::{SourceDelivery, bus::DesktopBuses, focus_ledger::WakingWindow, logind};
+use sottomano_sources::{
+    SourceDelivery, focus_ledger::WakingWindow, logind,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+};
 use sottomano_state::quiet_hours::{self, QuietHoursSchedule};
 use tokio::time::sleep;
 

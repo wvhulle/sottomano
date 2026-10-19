@@ -34,12 +34,15 @@ pub mod weather_group;
 pub mod window_group;
 pub mod workspaces_group;
 
-use sottomano_sources::{bus, command, http, sysfs_sensors};
+use sottomano_sources::{
+    sysfs_sensors,
+    system_protocol_clients::{dbus_desktop_buses, http_json_client, shell_command_output},
+};
 
 use crate::widgets::tooltip_body::{KeyValue, Section};
 
-impl From<bus::Error> for Section {
-    fn from(error: bus::Error) -> Self {
+impl From<dbus_desktop_buses::Error> for Section {
+    fn from(error: dbus_desktop_buses::Error) -> Self {
         Section::error(error)
     }
 }
@@ -56,16 +59,16 @@ impl From<sysfs_sensors::Error> for Section {
     }
 }
 
-impl From<command::Error> for Section {
-    fn from(error: command::Error) -> Self {
+impl From<shell_command_output::Error> for Section {
+    fn from(error: shell_command_output::Error) -> Self {
         Section::error(error)
     }
 }
 
-impl From<http::Error> for Section {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Section {
+    fn from(error: http_json_client::Error) -> Self {
         match error {
-            http::Error::Status { status, message } => Section::dictionary(
+            http_json_client::Error::Status { status, message } => Section::dictionary(
                 message
                     .map(|message| KeyValue::new("Error", message))
                     .into_iter()

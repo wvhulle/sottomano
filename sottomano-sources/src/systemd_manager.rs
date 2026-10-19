@@ -25,8 +25,8 @@ use zbus::{
 };
 
 use crate::{
-    bus::{Bus, DesktopBuses},
     journal::either_of,
+    system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
 };
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";

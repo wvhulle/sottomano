@@ -8,7 +8,7 @@ use sottomano_sources::{
         self, AudioConnectError, AudioEvent, AudioState, Commands, OutputKind, Peaks, Reading,
         Target, WindowAudio,
     },
-    background_work::blocking,
+    blocking_background_work::blocking,
 };
 
 use crate::{

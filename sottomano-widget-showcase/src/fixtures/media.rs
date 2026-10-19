@@ -2,8 +2,8 @@ use std::time::{Duration, Instant};
 
 use sottomano_sources::{
     SourceDelivery,
-    bus::OwnerProcess,
     mpris::{Capabilities, LoopMode, Media, Progress, SeekMode, Status},
+    system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use sottomano_widgets::{
     desktop_index::DesktopIndex,

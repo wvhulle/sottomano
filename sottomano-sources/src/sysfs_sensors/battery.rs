@@ -28,10 +28,10 @@ use super::{
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, blocking_poll,
-    bus::DesktopBuses,
     hardware::PowerSupplyIdentity,
     polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure, restarting},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -9,13 +9,13 @@ mod wifi_link_tooltip;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
     net_interfaces::{
         bluetooth::Bluetooth,
         ethernet::{Ethernet, EthernetDetails},
         mobile::Mobile,
         wifi::{Wifi, WifiDetails},
     },
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{

@@ -9,9 +9,9 @@ use zbus::{
 };
 
 use crate::{
-    bus::{DbusPropertyLookup, DesktopBuses},
-    empty_text::non_empty,
+    non_empty_text::non_empty,
     stream_operators::connected_until_failure,
+    system_protocol_clients::dbus_desktop_buses::{DbusPropertyLookup, DesktopBuses},
 };
 
 const INTERFACE: &str = "com.canonical.Unity.LauncherEntry";

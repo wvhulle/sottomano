@@ -1,5 +1,5 @@
 use iced::Task;
-use sottomano_sources::bus::DesktopBuses;
+use sottomano_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses;
 use sottomano_widgets::{
     hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
     layer_surfaces::PanelEdge,

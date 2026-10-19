@@ -1,6 +1,6 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::store::{flag, real};
+use sottomano_sources::sqlite_state_store::{flag, real};
 use sottomano_state::{
     LayerAppearance, ShellLayer,
     layer_appearance::{self, AppearanceSetting},

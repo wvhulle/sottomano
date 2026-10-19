@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{Task, task::Handle};
 use niri_ipc::state::EventStreamState;
 use sottomano_sources::{
-    background_work::blocking,
+    blocking_background_work::blocking,
     favicons::{self, RawFavicon},
 };
 

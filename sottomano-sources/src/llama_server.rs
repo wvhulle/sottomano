@@ -10,9 +10,8 @@ use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::DesktopBuses,
-    http,
     stream_operators::{StreamOperators, ticked},
+    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
     systemd_manager::{
         ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
         unit_activity::unit_running,
@@ -243,22 +242,25 @@ impl From<ListedSlot> for LlamaSlot {
     }
 }
 
-async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http::Error> {
+async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::Error> {
     let listed: ModelList =
-        http::get_json(&format!("{endpoint}/v1/models"), &[], FETCH_TIMEOUT_SECS).await?;
+        http_json_client::get_json(&format!("{endpoint}/v1/models"), &[], FETCH_TIMEOUT_SECS)
+            .await?;
     let models: Vec<LlamaModel> = listed.data.into_iter().map(LlamaModel::from).collect();
     let serving = models
         .iter()
         .filter(|model| model.status == LlamaModelStatus::Loaded)
         .find_map(|model| model.instance.as_ref());
     let slots = match serving {
-        Some(instance) => {
-            http::get_json::<Vec<ListedSlot>>(&instance.url("slots"), &[], FETCH_TIMEOUT_SECS)
-                .await?
-                .into_iter()
-                .map(LlamaSlot::from)
-                .collect()
-        }
+        Some(instance) => http_json_client::get_json::<Vec<ListedSlot>>(
+            &instance.url("slots"),
+            &[],
+            FETCH_TIMEOUT_SECS,
+        )
+        .await?
+        .into_iter()
+        .map(LlamaSlot::from)
+        .collect(),
         None => Vec::new(),
     };
     Ok(LlamaServer {
@@ -270,7 +272,7 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http::Error> {
 }
 
 impl ReadingSource for LlamaServer {
-    type Error = http::Error;
+    type Error = http_json_client::Error;
     type StreamInputs = LlamaServerOnBus;
 
     const NAME: &'static str = PROGRAM_NAME;
@@ -321,7 +323,7 @@ pub struct LlamaModelProps {
 }
 
 impl ReadingSource for LlamaModelProps {
-    type Error = http::Error;
+    type Error = http_json_client::Error;
     type StreamInputs = ModelInstance;
 
     const NAME: &'static str = "llama-server model";
@@ -330,7 +332,7 @@ impl ReadingSource for LlamaModelProps {
     fn delivery_stream(instance: ModelInstance) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         stream::once(async move {
             SourceDelivery::Reading(
-                http::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await,
+                http_json_client::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await,
             )
         })
     }

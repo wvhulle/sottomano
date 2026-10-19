@@ -6,12 +6,12 @@ use serde_json::Value as Json;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::DesktopBuses,
-    command,
-    command::blocking::run,
     net_interfaces::nm,
     polled_delivery_stream, pushed_delivery_stream,
     stream_operators::{StreamOperators, read_once_then_per_burst},
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses, shell_command_output, shell_command_output::blocking::run,
+    },
 };
 
 const CONNECTED_WINDOW: u64 = 180;
@@ -53,7 +53,7 @@ pub struct TunnelOnBus {
 }
 
 impl ReadingSource for TunnelAddress {
-    type Error = command::Error;
+    type Error = shell_command_output::Error;
     type StreamInputs = TunnelOnBus;
 
     const NAME: &'static str = "wireguard tunnel address";
@@ -66,7 +66,10 @@ impl ReadingSource for TunnelAddress {
 
 async fn address_changes(
     watched: TunnelOnBus,
-) -> Result<impl Stream<Item = Result<TunnelAddress, command::Error>> + Send, command::Error> {
+) -> Result<
+    impl Stream<Item = Result<TunnelAddress, shell_command_output::Error>> + Send,
+    shell_command_output::Error,
+> {
     let addressing = match nm::changes(&watched.buses.system, ADDRESSING_PROPERTIES).await {
         Ok(signals) => signals.left_stream(),
         Err(e) => {
@@ -99,14 +102,14 @@ pub struct Wireguard {
 }
 
 impl ReadingSource for Wireguard {
-    type Error = command::Error;
+    type Error = shell_command_output::Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "wireguard";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
     fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(command::exists("wg")).while_held(
+        stream::once(shell_command_output::exists("wg")).while_held(
             move || polled_delivery_stream(inputs, Self::poll),
             SourceDelivery::Absent,
         )
@@ -114,8 +117,8 @@ impl ReadingSource for Wireguard {
 }
 
 impl Wireguard {
-    async fn poll(_key: ()) -> Result<Self, command::Error> {
-        let interfaces = command::output("wg", &["show", "interfaces"]).await?;
+    async fn poll(_key: ()) -> Result<Self, shell_command_output::Error> {
+        let interfaces = shell_command_output::output("wg", &["show", "interfaces"]).await?;
         let mut tunnels = Vec::new();
         for iface in interfaces.split_whitespace() {
             tunnels.push(read_tunnel(iface).await?);
@@ -124,13 +127,15 @@ impl Wireguard {
     }
 }
 
-async fn read_tunnel(iface: &str) -> Result<Tunnel, command::Error> {
-    let dump = command::output("wg", &["show", iface, "dump"]).await?;
+async fn read_tunnel(iface: &str) -> Result<Tunnel, shell_command_output::Error> {
+    let dump = shell_command_output::output("wg", &["show", iface, "dump"]).await?;
     let mut lines = dump.lines();
-    let interface = lines.next().ok_or_else(|| command::Error::Failed {
-        program: "wg".to_owned(),
-        stderr: format!("empty dump for {iface}"),
-    })?;
+    let interface = lines
+        .next()
+        .ok_or_else(|| shell_command_output::Error::Failed {
+            program: "wg".to_owned(),
+            stderr: format!("empty dump for {iface}"),
+        })?;
     let port: Option<u32> = interface
         .split('\t')
         .nth(2)
@@ -167,7 +172,7 @@ fn peer(dump_line: &str, now: u64) -> Option<Peer> {
 }
 
 async fn interface_ip(iface: &str) -> Option<String> {
-    command::output("ip", &["-j", "-4", "addr", "show", iface])
+    shell_command_output::output("ip", &["-j", "-4", "addr", "show", iface])
         .await
         .ok()
         .and_then(|out| serde_json::from_str::<Json>(&out).ok())

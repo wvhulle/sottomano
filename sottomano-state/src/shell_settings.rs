@@ -1,4 +1,6 @@
-use sottomano_sources::store::{Columns, StoreError, flag, real, upsert_column, with_table};
+use sottomano_sources::sqlite_state_store::{
+    Columns, StoreError, flag, real, upsert_column, with_table,
+};
 
 use crate::{ShellLayer, ShellSettings, WorkspacesPlacement, layer_appearance};
 

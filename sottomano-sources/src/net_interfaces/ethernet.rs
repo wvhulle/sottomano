@@ -4,9 +4,9 @@ use zbus::Connection;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::DesktopBuses,
     hardware::Adapter,
     net_interfaces::{ReadingError, device_or_absent, nm, nm_readings},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 pub const NAME: &str = "ethernet";

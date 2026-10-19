@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    command,
+    system_protocol_clients::shell_command_output,
     umbra::{self, Umbra},
 };
 
@@ -33,7 +33,7 @@ impl ToggleableSource for Umbra {
         Umbra { dark: !self.dark }
     }
 
-    fn apply_toggle(&self) -> Result<(), command::Error> {
+    fn apply_toggle(&self) -> Result<(), shell_command_output::Error> {
         umbra::toggle_mode()
     }
 

@@ -7,7 +7,7 @@ use std::{
 use iced::{Task, task::Handle};
 use sottomano_sources::{
     app_icon::{self, DesktopEntries},
-    background_work::blocking,
+    blocking_background_work::blocking,
 };
 
 #[derive(Debug, Clone, Default)]

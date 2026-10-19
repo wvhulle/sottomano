@@ -2,7 +2,7 @@ use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::{background_work::blocking, niri};
+use sottomano_sources::{blocking_background_work::blocking, niri};
 use sottomano_state::niri_rules::StyledSurface;
 use sottomano_widgets::{
     layer_surfaces::{base_settings, input_regions},

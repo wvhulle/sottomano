@@ -12,7 +12,7 @@ use sottomano_sources::{
         copilot::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::SpendBudget,
     },
-    bus::DesktopBuses,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{

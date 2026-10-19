@@ -20,12 +20,12 @@ use uom::si::{
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::DesktopBuses,
     net_interfaces::{
         nm::{self, Connectivity},
         nm_readings,
     },
     stream_operators::{StreamOperators, ticked},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);

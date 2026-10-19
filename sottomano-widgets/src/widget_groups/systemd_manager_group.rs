@@ -11,8 +11,8 @@ use boot_timeline_reading::StartupUnits;
 use sottomano_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use sottomano_sources::{
     SourceDelivery,
-    bus::DesktopBuses,
     previous_shutdown::LastShutdown,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_manager::{
         SystemdOnBus, SystemdUnitScope,
         boot_timeline::{BootTimeline, BootTimelineWatch},

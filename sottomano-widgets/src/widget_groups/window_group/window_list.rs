@@ -11,13 +11,13 @@ use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgen
 use sottomano_sources::{
     SourceDelivery,
     audio::WindowAudio,
-    bus::DesktopBuses,
     job_view::{self, Jobs},
     kitty_windows::{self, WindowProcesses},
     launcher_entry::{self, LauncherEntries, LauncherEntry},
     niri,
     nix_package_facts::{NixPackageFacts, PackageWatch},
     process::{Inspection, Process, Watched},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{

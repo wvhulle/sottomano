@@ -17,13 +17,14 @@ pub use self::{
 };
 use crate::{
     ReadingSource, SourceDelivery,
-    ai::{ccusage, read_secret},
-    bus::DesktopBuses,
-    file_presence::path_present,
-    http,
+    ai::ccusage,
     net_interfaces::nm,
     polled_delivery_stream,
+    secret_file_reads::read_secret,
     stream_operators::StreamOperators,
+    system_protocol_clients::{
+        dbus_desktop_buses::DesktopBuses, http_json_client, inotify_file_presence::path_present,
+    },
 };
 
 const API_BASE: &str = "https://api.github.com";
@@ -34,7 +35,7 @@ const USER_POLL_INTERVAL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone)]
 pub enum Error {
     Secret,
-    Fetch(http::Error),
+    Fetch(http_json_client::Error),
     NoQuota,
     Ccusage(ccusage::Error),
 }
@@ -50,8 +51,8 @@ impl Display for Error {
     }
 }
 
-impl From<http::Error> for Error {
-    fn from(error: http::Error) -> Self {
+impl From<http_json_client::Error> for Error {
+    fn from(error: http_json_client::Error) -> Self {
         Error::Fetch(error)
     }
 }
@@ -149,7 +150,7 @@ where
 async fn user_info(key: &Path) -> Result<UserInfo, Error> {
     let token = read_secret(key).ok_or(Error::Secret)?;
     let auth = format!("token {token}");
-    Ok(http::get_json(
+    Ok(http_json_client::get_json(
         &format!("{API_BASE}{USER_ENDPOINT}"),
         &[
             ("Authorization", &auth),

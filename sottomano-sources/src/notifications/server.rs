@@ -24,7 +24,7 @@ use super::model::{
     ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
     ServerEvent,
 };
-use crate::{bus::OwnerProcess, empty_text::non_empty};
+use crate::{non_empty_text::non_empty, system_protocol_clients::dbus_desktop_buses::OwnerProcess};
 
 const PATH: &str = "/org/freedesktop/Notifications";
 const NAME: &str = "org.freedesktop.Notifications";

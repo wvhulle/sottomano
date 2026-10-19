@@ -17,9 +17,11 @@ use crate::{
         quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    command::{self, exists},
-    directory_changes::{WatchTarget, changes},
     money::{Money, usd},
+    system_protocol_clients::{
+        inotify_directory_changes::{WatchTarget, changes},
+        shell_command_output::{self, exists},
+    },
 };
 
 const PROGRAM: &str = "ccusage";
@@ -53,7 +55,7 @@ pub fn instant_of(moment: DateTime<Utc>) -> Instant {
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    Command(command::Error),
+    Command(shell_command_output::Error),
     Decode(Arc<serde_json::Error>),
 }
 
@@ -66,8 +68,8 @@ impl Display for Error {
     }
 }
 
-impl From<command::Error> for Error {
-    fn from(error: command::Error) -> Self {
+impl From<shell_command_output::Error> for Error {
+    fn from(error: shell_command_output::Error) -> Self {
         Error::Command(error)
     }
 }
@@ -266,14 +268,15 @@ pub async fn recent(agent: Agent) -> Result<RecentUsage, Error> {
 pub async fn active_blocks(agent: Agent) -> Result<Vec<BillingBlock>, Error> {
     let mut args = agent.report_args("blocks");
     args.extend(["--active", "--json"]);
-    let report: BlocksReport = serde_json::from_str(&command::output(PROGRAM, &args).await?)?;
+    let report: BlocksReport =
+        serde_json::from_str(&shell_command_output::output(PROGRAM, &args).await?)?;
     Ok(report.blocks.into_iter().map(BillingBlock::from).collect())
 }
 
 async fn report(agent: Agent, period: &'static str, since: &str) -> Result<String, Error> {
     let mut args = agent.report_args(period);
     args.extend(["--since", since, "--json"]);
-    Ok(command::output(PROGRAM, &args).await?)
+    Ok(shell_command_output::output(PROGRAM, &args).await?)
 }
 
 #[cfg(test)]

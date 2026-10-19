@@ -12,11 +12,11 @@ use output_details::ConnectedOutput;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    background_work::blocking,
     backlight::{self, Backlight},
-    bus::DesktopBuses,
+    blocking_background_work::blocking,
     clight::Clight,
     niri::OutputInfo,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{

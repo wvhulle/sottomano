@@ -4,7 +4,7 @@ use nalgebra::{Matrix3, Vector3};
 use sottomano_sources::{
     battery_forecast::RegressionState,
     power_profile::Profile,
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS battery_draw_model (

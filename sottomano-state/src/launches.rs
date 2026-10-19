@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use sottomano_sources::{
     launch_tracker::Launch,
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 const TTL_DAYS: i64 = 60;

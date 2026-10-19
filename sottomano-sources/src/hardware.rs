@@ -10,8 +10,9 @@ use futures::{Stream, StreamExt, stream};
 use serde_json::Value;
 
 use crate::{
-    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll, bus::DesktopBuses,
-    command, hostname::MachineInfo,
+    DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
+    hostname::MachineInfo,
+    system_protocol_clients::{dbus_desktop_buses::DesktopBuses, shell_command_output},
 };
 
 const UDEV_DATA: &str = "/run/udev/data";
@@ -378,7 +379,7 @@ pub struct CpuArchitecture {
 
 impl CpuArchitecture {
     fn current() -> Self {
-        command::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
+        shell_command_output::blocking::output(INXI_PROGRAM, &INXI_CPU_REPORT_ARGS)
             .ok()
             .and_then(|report| serde_json::from_str(&report).ok())
             .map(|report| Self::from_inxi_report(&report))

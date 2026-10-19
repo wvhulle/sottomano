@@ -4,8 +4,8 @@ use serde_json::Value;
 
 use super::Error;
 use crate::{
-    http,
-    store::rate_limit::{self, Backoff},
+    sqlite_state_store::write_rate_limit::{self, Backoff},
+    system_protocol_clients::http_json_client,
 };
 
 const SOURCE: &str = "claude-usage-oauth";
@@ -14,10 +14,10 @@ const BASE_DELAY: Duration = Duration::from_mins(5);
 const MAX_DELAY: Duration = Duration::from_mins(60);
 
 pub async fn still_waiting() -> Option<Error> {
-    let stored = rate_limit::load(SOURCE).await?;
+    let stored = write_rate_limit::load(SOURCE).await?;
     let Some(remaining) = stored.remaining() else {
         tracing::info!("claude usage: backoff expired, resuming polling");
-        rate_limit::clear(SOURCE).await;
+        write_rate_limit::clear(SOURCE).await;
         return None;
     };
     tracing::debug!(
@@ -26,16 +26,16 @@ pub async fn still_waiting() -> Option<Error> {
     );
     Some(Error::Backoff {
         remaining,
-        cause: http::Error::Status {
+        cause: http_json_client::Error::Status {
             status: stored.status,
             message: stored.message,
         },
     })
 }
 
-pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
-    let message = http::failure_message(Some(body));
-    let attempts = rate_limit::load(SOURCE)
+pub async fn schedule_retry(resp: &http_json_client::Response, body: Value) -> Error {
+    let message = http_json_client::failure_message(Some(body));
+    let attempts = write_rate_limit::load(SOURCE)
         .await
         .map_or(0, |stored| stored.attempts);
     let server_delay = retry_delay_from_headers(resp);
@@ -48,10 +48,10 @@ pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
         attempts + 1,
         humantime::format_duration(delay)
     );
-    rate_limit::save(
+    write_rate_limit::save(
         SOURCE,
         &Backoff {
-            retry_after_unix: rate_limit::now_unix()
+            retry_after_unix: write_rate_limit::now_unix()
                 + i64::try_from(delay.as_secs()).unwrap_or(i64::MAX),
             attempts: attempts.saturating_add(1),
             status: 429,
@@ -59,20 +59,20 @@ pub async fn schedule_retry(resp: &http::Response, body: Value) -> Error {
         },
     )
     .await;
-    Error::RateLimited(http::Error::Status {
+    Error::RateLimited(http_json_client::Error::Status {
         status: 429,
         message,
     })
 }
 
 pub async fn reset() {
-    rate_limit::clear(SOURCE).await;
+    write_rate_limit::clear(SOURCE).await;
 }
 
-fn retry_delay_from_headers(resp: &http::Response) -> Option<Duration> {
+fn retry_delay_from_headers(resp: &http_json_client::Response) -> Option<Duration> {
     let seconds = seconds_from_header(resp.header("retry-after")).or_else(|| {
         seconds_from_header(resp.header("anthropic-ratelimit-unified-reset"))
-            .map(|reset| reset - rate_limit::now_unix())
+            .map(|reset| reset - write_rate_limit::now_unix())
     })?;
     u64::try_from(seconds).ok().map(Duration::from_secs)
 }
@@ -106,7 +106,7 @@ mod tests {
 
     use super::*;
 
-    fn response(headers: &[(&str, &str)]) -> http::Response {
+    fn response(headers: &[(&str, &str)]) -> http_json_client::Response {
         let mut map = HeaderMap::new();
         for (name, value) in headers {
             map.insert(
@@ -114,7 +114,7 @@ mod tests {
                 HeaderValue::from_str(value).unwrap(),
             );
         }
-        http::Response {
+        http_json_client::Response {
             status: 429,
             headers: map,
             body: None,
@@ -127,7 +127,7 @@ mod tests {
             ("retry-after", "90"),
             (
                 "anthropic-ratelimit-unified-reset",
-                &(rate_limit::now_unix() + 3600).to_string(),
+                &(write_rate_limit::now_unix() + 3600).to_string(),
             ),
         ]);
         assert_eq!(
@@ -140,7 +140,7 @@ mod tests {
     fn reset_header_is_converted_to_a_relative_delay() {
         let resp = response(&[(
             "anthropic-ratelimit-unified-reset",
-            &(rate_limit::now_unix() + 120).to_string(),
+            &(write_rate_limit::now_unix() + 120).to_string(),
         )]);
         let delay = retry_delay_from_headers(&resp).unwrap();
         assert!(delay <= Duration::from_secs(120) && delay >= Duration::from_secs(118));

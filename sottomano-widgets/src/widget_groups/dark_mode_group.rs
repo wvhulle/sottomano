@@ -8,10 +8,10 @@ use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    background_work::blocking,
-    bus::DesktopBuses,
+    blocking_background_work::blocking,
     logind,
     sun_schedule::ColorMode,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     umbra::{self, Umbra},
     weather::Location,
 };

@@ -10,10 +10,10 @@ use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::DesktopBuses,
     hardware::Adapter,
     net_interfaces::{ReadingError, device_or_absent, device_readings, nm, nm_readings},
     stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 pub const NAME: &str = "wifi";

@@ -4,7 +4,7 @@ use image::RgbaImage;
 use sottomano_config::severity::Severity;
 use uom::si::f64::Ratio;
 
-use crate::bus::OwnerProcess;
+use crate::system_protocol_clients::dbus_desktop_buses::OwnerProcess;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExpireTimeout {

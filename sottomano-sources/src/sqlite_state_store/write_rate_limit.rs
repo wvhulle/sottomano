@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::store::{Columns, StoreError, connect, with_table};
+use crate::sqlite_state_store::{Columns, StoreError, connect, with_table};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS rate_limit_backoff (
     source TEXT PRIMARY KEY,

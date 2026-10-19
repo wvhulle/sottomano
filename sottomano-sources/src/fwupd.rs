@@ -5,8 +5,10 @@ use zbus::proxy;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{self, DesktopBuses, Properties, name_owned, prop, service_absent},
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
+    system_protocol_clients::dbus_desktop_buses::{
+        self, DesktopBuses, Properties, name_owned, prop, service_absent,
+    },
 };
 
 const UPDATABLE_DEVICE_FLAG: u64 = 1 << 1;
@@ -81,10 +83,10 @@ impl FirmwareUpgrade {
     }
 }
 
-pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, bus::Error>;
+pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>;
 
 impl ReadingSource for Vec<FirmwareUpgrade> {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "firmware upgrades";
@@ -105,7 +107,7 @@ fn signalled_upgrades(system: zbus::Connection) -> impl Stream<Item = PendingUpg
 
 async fn upgrades_on_daemon_changes(
     system: zbus::Connection,
-) -> Result<impl Stream<Item = PendingUpgrades> + Send, bus::Error> {
+) -> Result<impl Stream<Item = PendingUpgrades> + Send, dbus_desktop_buses::Error> {
     let fwupd = FwupdProxy::new(&system).await?;
     let changes = stream::select(
         stream::select(
@@ -125,9 +127,13 @@ async fn upgrades_on_daemon_changes(
 
 async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
     let fwupd = FwupdProxy::new(system).await?;
-    let devices = match fwupd.get_devices().await.map_err(bus::Error::from) {
+    let devices = match fwupd
+        .get_devices()
+        .await
+        .map_err(dbus_desktop_buses::Error::from)
+    {
         Ok(devices) => devices,
-        Err(bus::Error::Absent) => return Ok(Vec::new()),
+        Err(dbus_desktop_buses::Error::Absent) => return Ok(Vec::new()),
         Err(error) => return Err(error),
     };
     let mut upgrades = Vec::new();
@@ -138,7 +144,7 @@ async fn pending_upgrades(system: &zbus::Connection) -> PendingUpgrades {
         let releases = match fwupd.get_upgrades(&device_id).await {
             Ok(releases) => releases,
             Err(error) if no_upgrade(&error) || service_absent(&error) => continue,
-            Err(error) => return Err(bus::Error::Call(error.to_string())),
+            Err(error) => return Err(dbus_desktop_buses::Error::Call(error.to_string())),
         };
         upgrades.extend(
             releases

@@ -10,8 +10,8 @@ use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
-    app_icon::DesktopEntries, audio::WindowAudio, bus::DesktopBuses,
-    kitty_windows::WindowProcesses, niri, process::Watched,
+    app_icon::DesktopEntries, audio::WindowAudio, kitty_windows::WindowProcesses, niri,
+    process::Watched, system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use window_list::{WindowList, WindowListMessage};
 

@@ -10,12 +10,12 @@ use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{self, DesktopBuses},
-    empty_text::non_empty,
     hostname::at_micros,
     logind::{InhibitorRow, ManagerProxy, greetd_greeter::greeter_program, session_id},
+    non_empty_text::non_empty,
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
+    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
 #[proxy(
@@ -67,7 +67,7 @@ pub struct SessionIdentity {
 }
 
 impl ReadingSource for SessionIdentity {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session identity";
@@ -80,12 +80,15 @@ impl ReadingSource for SessionIdentity {
 
 async fn identity_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<SessionIdentity, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<SessionIdentity, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let session = own_session(&buses.system).await?;
     let identity = SessionIdentity {
-        user: non_empty(session.name().await?).ok_or(bus::Error::Absent)?,
+        user: non_empty(session.name().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
         uid: session.user().await?.0,
-        seat: non_empty(session.seat().await?.0).ok_or(bus::Error::Absent)?,
+        seat: non_empty(session.seat().await?.0).ok_or(dbus_desktop_buses::Error::Absent)?,
         virtual_terminal: NonZeroU32::new(session.vt_nr().await?),
         login_manager: session.service().await?,
         desktop: session.desktop().await.ok().and_then(non_empty),
@@ -103,7 +106,9 @@ async fn identity_changes(
     }))
 }
 
-async fn own_session(system: &zbus::Connection) -> Result<SessionProxy<'static>, bus::Error> {
+async fn own_session(
+    system: &zbus::Connection,
+) -> Result<SessionProxy<'static>, dbus_desktop_buses::Error> {
     let manager = ManagerProxy::new(system).await?;
     let path = manager.get_session(&session_id()).await?;
     let session_builder = SessionProxy::builder(system).path(path)?;
@@ -197,7 +202,7 @@ pub struct ScheduledShutdown {
 }
 
 impl ReadingSource for SessionInfo {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session";
@@ -210,7 +215,10 @@ impl ReadingSource for SessionInfo {
 
 async fn session_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<SessionInfo, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<SessionInfo, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let session = own_session(&buses.system).await?;
     let leader = session.leader().await?;
     let info = SessionInfo {
@@ -220,7 +228,7 @@ async fn session_changes(
         leader_name: process_name(leader),
         greeter: greeter_program(leader),
         state: session.state().await?,
-        since: at_micros(session.timestamp().await?).ok_or(bus::Error::Absent)?,
+        since: at_micros(session.timestamp().await?).ok_or(dbus_desktop_buses::Error::Absent)?,
         idle_since: None,
     };
     let changes = select_all([
@@ -249,7 +257,7 @@ async fn session_changes(
 }
 
 impl ReadingSource for PowerPolicy {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind power policy";
@@ -262,7 +270,10 @@ impl ReadingSource for PowerPolicy {
 
 async fn power_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<PowerPolicy, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<PowerPolicy, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let signalled = ManagerProxy::new(&buses.system).await?;
     let uncached = ManagerProxy::builder(&buses.system)
         .cache_properties(CacheProperties::No)
@@ -338,7 +349,7 @@ fn process_name(pid: u32) -> Option<String> {
 async fn read_power(
     manager: &ManagerProxy<'_>,
     configured: ConfiguredPowerPolicy,
-) -> Result<PowerPolicy, bus::Error> {
+) -> Result<PowerPolicy, dbus_desktop_buses::Error> {
     let (kind, usec) = manager.scheduled_shutdown().await?;
     Ok(PowerPolicy {
         power_key: configured.power_key,

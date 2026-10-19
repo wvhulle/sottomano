@@ -7,11 +7,13 @@ use futures::Stream;
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, backlight, bus,
-    bus::{DesktopBuses, Error, name_owned},
-    directory_changes::{WatchTarget, changes},
-    pushed_delivery_stream,
+    DeliveryCadence, ReadingSource, SourceDelivery, backlight, pushed_delivery_stream,
     stream_operators::{StreamOperators, read_once_then_per_burst},
+    system_protocol_clients::{
+        dbus_desktop_buses,
+        dbus_desktop_buses::{DesktopBuses, Error, name_owned},
+        inotify_directory_changes::{WatchTarget, changes},
+    },
 };
 
 const CLIGHT_SERVICE: &str = "org.clight.clight";
@@ -60,7 +62,7 @@ impl ReadingSource for Clight {
 async fn calibration_changes(
     buses: DesktopBuses,
 ) -> Result<impl Stream<Item = Result<Clight, Error>> + Send, Error> {
-    let conf = ConfBacklightProxy::builder(buses.on(bus::Bus::Session))
+    let conf = ConfBacklightProxy::builder(buses.on(dbus_desktop_buses::Bus::Session))
         .cache_properties(CacheProperties::No)
         .build()
         .await?;

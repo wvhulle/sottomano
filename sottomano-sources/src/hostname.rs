@@ -6,9 +6,9 @@ use zbus::proxy;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    bus::{self, DesktopBuses},
-    empty_text::non_empty,
+    non_empty_text::non_empty,
     pushed_delivery_stream,
+    system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
 #[proxy(
@@ -46,7 +46,7 @@ pub struct OperatingSystemIdentity {
 }
 
 impl ReadingSource for OperatingSystemIdentity {
-    type Error = bus::Error;
+    type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "hostnamed";
@@ -59,7 +59,10 @@ impl ReadingSource for OperatingSystemIdentity {
 
 async fn identity_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<OperatingSystemIdentity, bus::Error>> + Send, bus::Error> {
+) -> Result<
+    impl Stream<Item = Result<OperatingSystemIdentity, dbus_desktop_buses::Error>> + Send,
+    dbus_desktop_buses::Error,
+> {
     let hostname = HostnameProxy::new(&buses.system).await?;
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;

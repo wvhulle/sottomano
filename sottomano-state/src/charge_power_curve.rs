@@ -1,6 +1,6 @@
 use sottomano_sources::{
     battery_forecast::{CHARGE_BINS, ChargeCurve, PowerBin},
-    store::{Columns, StoreError, with_table},
+    sqlite_state_store::{Columns, StoreError, with_table},
 };
 
 pub const SCHEMA: [&str; 2] = [

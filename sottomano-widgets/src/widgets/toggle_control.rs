@@ -1,5 +1,5 @@
 use iced::{Subscription, Task};
-use sottomano_sources::{ReadingSource, SourceDelivery, background_work::blocking};
+use sottomano_sources::{ReadingSource, SourceDelivery, blocking_background_work::blocking};
 
 use crate::{
     background_work::{first_delivery, source_subscription},

@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use iced::Task;
 use sottomano_config::Config;
 use sottomano_sources::{
-    background_work::blocking,
+    blocking_background_work::blocking,
     logind::permissions::{self, Permissions},
     session_action::SessionAction,
 };

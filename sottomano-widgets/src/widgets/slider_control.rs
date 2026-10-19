@@ -7,7 +7,7 @@ use iced::{
     widget::{Row, button, container, mouse_area, text::Wrapping},
 };
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::background_work::blocking;
+use sottomano_sources::blocking_background_work::blocking;
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{

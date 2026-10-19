@@ -29,14 +29,16 @@ use sottomano_config::{
 };
 use sottomano_sources::{
     app_icon::{self, DesktopEntries},
-    background_work::blocking,
-    bus::{DesktopBusEvent, DesktopBuses},
-    command::blocking::run,
+    blocking_background_work::blocking,
     desktop_entries,
     launch_tracker::{Launch, LaunchTracker},
     niri,
     niri_config::{ConfiguredWorkspaces, NiriConfigFile},
     sink::sound::SoundTheme,
+    system_protocol_clients::{
+        dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
+        shell_command_output::blocking::run,
+    },
 };
 use sottomano_state::{
     ShellSettings, idle, launches,

@@ -43,8 +43,8 @@ use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    file_presence::path_present,
     stream_operators::{StreamOperators, connected_until_failure},
+    system_protocol_clients::inotify_file_presence::path_present,
 };
 
 mod meter;
