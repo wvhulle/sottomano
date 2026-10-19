@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Local, Locale};
+use chrono::{DateTime, Locale, Utc};
+use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::{
     cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
@@ -20,8 +21,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
-        localized_time::LocalizedTimeFormat,
-        ongoing_toast::OngoingBody,
+        ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
         widget_state::WidgetState,
@@ -81,32 +81,29 @@ impl BarWidget for Temperature {
         }
     }
 
-    fn ongoing_toast_body(&self, _clock: Clock, locale: Locale) -> OngoingBody {
+    fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
         let thresholds = self.thresholds();
-        let hottest = self.hottest_reading().map_or_else(
-            || format!("CPU at {}", celsius_text(self.hottest())),
-            |reading| {
-                format!(
-                    "{} {} at {}",
-                    reading.chip,
-                    reading.label,
-                    celsius_text(reading.temperature)
-                )
-            },
-        );
-        let since = self
-            .critical_since
-            .map(|since| {
-                format!(
-                    ", above {} since {}",
-                    celsius_text(thresholds.critical),
-                    LocalizedTimeFormat::TimeOfDay.format(&DateTime::<Local>::from(since), locale)
-                )
-            })
-            .unwrap_or_default();
-        OngoingBody::Text(format!(
-            "{hottest}{since}\nCritical threshold {}",
-            thresholds.basis.text(thresholds.critical)
+        let sensor = self.hottest_reading().map(|reading| {
+            (
+                "Sensor",
+                escape(format!("{} {}", reading.chip, reading.label)).into_owned(),
+            )
+        });
+        let above_since = self.critical_since.map(|since| {
+            (
+                "Above critical since",
+                moment_text(DateTime::<Utc>::from(since), clock.utc(), locale),
+            )
+        });
+        Some(definition_list(
+            sensor
+                .into_iter()
+                .chain([("Temperature", celsius_text(self.hottest()))])
+                .chain(above_since)
+                .chain([(
+                    "Critical threshold",
+                    thresholds.basis.text(thresholds.critical),
+                )]),
         ))
     }
 

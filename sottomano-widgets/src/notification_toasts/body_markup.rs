@@ -33,18 +33,74 @@ impl Emphasis {
     }
 }
 
-pub struct BodyParagraph<'a> {
-    pub spans: Vec<Span<'a>>,
-    pub preformatted: bool,
+#[derive(Clone)]
+pub struct BodyRow<'a> {
+    pub key: Vec<Span<'a>>,
+    pub value: Vec<Span<'a>>,
 }
 
-pub fn body_paragraphs<'a>(
+pub enum BodyBlock<'a> {
+    Paragraph {
+        spans: Vec<Span<'a>>,
+        preformatted: bool,
+    },
+    Rows(Vec<BodyRow<'a>>),
+}
+
+struct BlockBuilder<'a> {
+    blocks: Vec<BodyBlock<'a>>,
+}
+
+impl<'a> BlockBuilder<'a> {
+    fn open_rows(&mut self) {
+        self.blocks.push(BodyBlock::Rows(Vec::new()));
+    }
+
+    fn open_row(&mut self) {
+        if let Some(BodyBlock::Rows(rows)) = self.blocks.last_mut() {
+            rows.push(BodyRow {
+                key: Vec::new(),
+                value: Vec::new(),
+            });
+        }
+    }
+
+    fn push_span(&mut self, styled: Span<'a>, stack: &[String]) {
+        let inside = |tag: &str| stack.iter().any(|open| open == tag);
+        if inside("dl") {
+            if let Some(BodyBlock::Rows(rows)) = self.blocks.last_mut()
+                && let Some(row) = rows.last_mut()
+            {
+                if inside("dt") {
+                    row.key.push(styled);
+                } else if inside("dd") {
+                    row.value.push(styled);
+                }
+            }
+            return;
+        }
+        let preformatted = inside("pre");
+        match self.blocks.last_mut() {
+            Some(BodyBlock::Paragraph {
+                spans,
+                preformatted: open,
+            }) if *open == preformatted => spans.push(styled),
+            _ => self.blocks.push(BodyBlock::Paragraph {
+                spans: vec![styled],
+                preformatted,
+            }),
+        }
+    }
+
+}
+
+pub fn body_blocks<'a>(
     body: &str,
     color: Color,
     size: f32,
     font: &ResolvedFont,
     mono: Font,
-) -> Vec<BodyParagraph<'a>> {
+) -> Vec<BodyBlock<'a>> {
     let mut reader = Reader::from_str(body);
     let config = reader.config_mut();
     config.allow_dangling_amp = true;
@@ -52,35 +108,35 @@ pub fn body_paragraphs<'a>(
     config.check_end_names = false;
 
     let mut stack: Vec<String> = Vec::new();
-    let mut paragraphs: Vec<BodyParagraph> = Vec::new();
-    let mut push_text = |text: String, stack: &[String]| {
+    let mut builder = BlockBuilder { blocks: Vec::new() };
+    let styled = |text: String, stack: &[String]| {
         let emphasis = Emphasis::from_stack(stack, FontFaces::from(font).regular, mono);
-        let styled = span(text)
+        span(text)
             .font(emphasis.font)
             .size(size)
             .color(color)
-            .underline(emphasis.underline);
-        let preformatted = stack.iter().any(|tag| tag == "pre");
-        match paragraphs.last_mut() {
-            Some(last) if last.preformatted == preformatted => last.spans.push(styled),
-            _ => paragraphs.push(BodyParagraph {
-                spans: vec![styled],
-                preformatted,
-            }),
-        }
+            .underline(emphasis.underline)
     };
     loop {
         match reader.read_event() {
-            Ok(Event::Start(tag)) => stack.push(lowercase_name(&tag.local_name())),
+            Ok(Event::Start(tag)) => {
+                let name = lowercase_name(&tag.local_name());
+                match name.as_str() {
+                    "dl" => builder.open_rows(),
+                    "dt" => builder.open_row(),
+                    _ => {}
+                }
+                stack.push(name);
+            }
             Ok(Event::End(tag)) => {
                 let name = lowercase_name(&tag.local_name());
                 if let Some(pos) = stack.iter().rposition(|open| *open == name) {
                     stack.remove(pos);
                 }
             }
-            Ok(Event::Text(text)) => push_text((*text).to_owned(), &stack),
+            Ok(Event::Text(text)) => builder.push_span(styled((*text).to_owned(), &stack), &stack),
             Ok(Event::CData(text)) => {
-                push_text((*text).to_owned(), &stack);
+                builder.push_span(styled((*text).to_owned(), &stack), &stack);
             }
             Ok(Event::GeneralRef(reference)) => {
                 let name: &str = &reference;
@@ -90,38 +146,18 @@ pub fn body_paragraphs<'a>(
                         resolve_xml_entity(name).map_or_else(|| format!("&{name};"), str::to_owned)
                     }
                 };
-                push_text(resolved, &stack);
+                builder.push_span(styled(resolved, &stack), &stack);
             }
             Ok(Event::Eof) => break,
             Ok(_) => {}
             Err(_) => {
                 let unparsed_from = usize::try_from(reader.error_position()).unwrap_or(body.len());
-                push_text(body[unparsed_from..].to_owned(), &stack);
+                builder.push_span(styled(body[unparsed_from..].to_owned(), &stack), &stack);
                 break;
             }
         }
     }
-    for paragraph in &mut paragraphs {
-        if let Some(first) = paragraph.spans.first_mut()
-            && let Some(rest) = first
-                .text
-                .strip_prefix("\r\n")
-                .or(first.text.strip_prefix('\n'))
-        {
-            first.text = rest.to_owned().into();
-        }
-        if let Some(last) = paragraph.spans.last_mut()
-            && let Some(rest) = last
-                .text
-                .strip_suffix("\r\n")
-                .or(last.text.strip_suffix('\n'))
-        {
-            last.text = rest.to_owned().into();
-        }
-        paragraph.spans.retain(|styled| !styled.text.is_empty());
-    }
-    paragraphs.retain(|paragraph| !paragraph.spans.is_empty());
-    paragraphs
+    builder.blocks
 }
 
 fn lowercase_name(name: &LocalName) -> String {
@@ -136,7 +172,7 @@ mod tests {
 
     use super::*;
 
-    fn render(body: &str) -> String {
+    fn blocks(body: &str) -> Vec<BodyBlock<'static>> {
         let font = ResolvedFont {
             role: FontRole::Text,
             family: String::from("sans-serif"),
@@ -145,17 +181,60 @@ mod tests {
             icon_size_px: 14.0,
             data: Arc::from([].as_slice()),
         };
-        body_paragraphs(
+        body_blocks(
             body,
             Color::BLACK,
             font.text_size_px,
             &font,
             Font::MONOSPACE,
         )
-        .iter()
-        .flat_map(|paragraph| &paragraph.spans)
-        .map(|s| s.text.to_string())
-        .collect()
+    }
+
+    fn joined(spans: &[Span<'_>]) -> String {
+        spans.iter().map(|s| s.text.to_string()).collect()
+    }
+
+    fn render(body: &str) -> String {
+        blocks(body)
+            .iter()
+            .map(|block| match block {
+                BodyBlock::Paragraph { spans, .. } => joined(spans),
+                BodyBlock::Rows(rows) => rows
+                    .iter()
+                    .map(|row| format!("{}={}", joined(&row.key), joined(&row.value)))
+                    .collect::<Vec<_>>()
+                    .join(";"),
+            })
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    #[test]
+    fn definition_list_becomes_rows() {
+        assert_eq!(
+            render("<dl>\n<dt>Used</dt><dd>76%</dd>\n<dt>Resets</dt><dd>Friday 04:00</dd>\n</dl>"),
+            "Used=76%;Resets=Friday 04:00"
+        );
+    }
+
+    #[test]
+    fn paragraphs_around_a_definition_list_stay_separate() {
+        assert_eq!(
+            render("<b>Weekly</b><dl><dt>Used</dt><dd>76%</dd></dl>after"),
+            "Weekly|Used=76%|after"
+        );
+    }
+
+    #[test]
+    fn monospace_inside_a_row_value_keeps_its_family() {
+        let parsed = blocks("<dl><dt>Core</dt><dd><tt>/var/lib/core</tt></dd></dl>");
+        let Some(BodyBlock::Rows(rows)) = parsed.first() else {
+            panic!("expected rows");
+        };
+        assert_eq!(
+            rows[0].value[0].font.unwrap().family,
+            Font::MONOSPACE.family
+        );
     }
 
     #[test]

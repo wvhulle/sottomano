@@ -1,6 +1,5 @@
 use std::time::SystemTime;
 
-use chrono::Locale;
 use iced::{
     Animation,
     animation::Easing,
@@ -22,7 +21,7 @@ use crate::{
     widgets::{
         announced_level::LevelReading,
         bar_widget::Glyph,
-        ongoing_toast::{OngoingBody, OngoingKey, OngoingToast},
+        ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
 
@@ -74,7 +73,6 @@ pub enum ToastKind {
     },
     Ongoing {
         key: OngoingKey,
-        body: OngoingBody,
         since: SystemTime,
         action_messages: Vec<Message>,
     },
@@ -162,7 +160,6 @@ impl ToastContent {
             data: toast.toast_notification_data(toast_id),
             kind: ToastKind::Ongoing {
                 key: toast.key,
-                body: toast.body,
                 since: toast.since,
                 action_messages: toast
                     .action_buttons
@@ -246,24 +243,10 @@ impl Notification {
         }
     }
 
-    pub(super) fn ongoing_body(&self) -> Option<&OngoingBody> {
-        match &self.kind {
-            ToastKind::Ongoing { body, .. } => Some(body),
-            ToastKind::Event { .. } => None,
-        }
-    }
-
-    pub fn body_text(&self, now: SystemTime, locale: Locale) -> Option<String> {
-        match &self.kind {
-            ToastKind::Ongoing { body, .. } => body.text(now.into(), locale),
-            ToastKind::Event { .. } => self.data.body.clone(),
-        }
-    }
-
     pub(super) fn already_shows(&self, toast: &OngoingToast<Message>) -> bool {
         self.shows_ongoing(&toast.key)
             && self.data.severity >= toast.severity
-            && self.ongoing_body() == Some(&toast.body)
+            && self.data.body == toast.body
             && self.data.progress == toast.progress
     }
 

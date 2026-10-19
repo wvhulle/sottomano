@@ -252,14 +252,14 @@ impl SystemdManagerGroup {
                 }),
                 self.slow_system_jobs
                     .visible_reading()
-                    .map(|jobs| slow_jobs_item(jobs, config))
+                    .map(|jobs| slow_jobs_item(jobs, config, clock))
                     .or_else(|| {
                         self.slow_system_jobs
                             .group_item(SystemdTarget::SlowSystemJobs)
                     }),
                 self.slow_user_jobs
                     .visible_reading()
-                    .map(|jobs| slow_jobs_item(jobs, config))
+                    .map(|jobs| slow_jobs_item(jobs, config, clock))
                     .or_else(|| self.slow_user_jobs.group_item(SystemdTarget::SlowUserJobs)),
                 self.failed_system
                     .visible_reading()
