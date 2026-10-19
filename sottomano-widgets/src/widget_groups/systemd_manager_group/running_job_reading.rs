@@ -3,9 +3,9 @@ use std::borrow::Cow;
 use chrono::{DateTime, Local};
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::systemd_manager::{
+use sottomano_sources::systemd_units_journal::{
     SystemdUnitScope,
-    running_jobs::{SlowJob, SlowJobs},
+    slow_running_jobs::{SlowJob, SlowJobs},
 };
 
 use crate::{

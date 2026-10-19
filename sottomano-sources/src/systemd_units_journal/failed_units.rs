@@ -10,9 +10,8 @@ use super::{
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    coredumps::CoredumpEntry,
-    journal::JournalPriority,
     stream_operators::{connected_until_failure, read_once_then_per_burst},
+    systemd_units_journal::{journal_coredumps::CoredumpEntry, journal_follow::JournalPriority},
 };
 
 pub const UNIT_FAILURE_PRIORITY: JournalPriority = JournalPriority::Warning;

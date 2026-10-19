@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::service_errors::{ServiceErrors, UnitErrors};
+use sottomano_sources::systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors};
 
 use crate::{
     widget_groups::journal_events_group::MESSAGE_CAP,

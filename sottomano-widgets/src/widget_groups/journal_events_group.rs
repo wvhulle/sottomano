@@ -7,8 +7,12 @@ mod service_error_log;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery, coredumps::CoredumpEntry, journal::JournalFollowError,
-    kernel_errors::KernelOccurrence, oom_kills::OomKillEntry, service_errors::ServiceErrors,
+    SourceDelivery,
+    systemd_units_journal::{
+        journal_coredumps::CoredumpEntry, journal_follow::JournalFollowError,
+        journal_kernel_errors::KernelOccurrence, journal_oom_kills::OomKillEntry,
+        journal_service_errors::ServiceErrors,
+    },
 };
 
 use crate::{

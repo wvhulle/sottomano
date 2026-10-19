@@ -11,7 +11,7 @@ use crate::{
     non_empty_text::non_empty,
     pushed_delivery_stream,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
-    systemd_manager::{ManagerProxy, UnitProxy},
+    systemd_units_journal::{ManagerProxy, UnitProxy},
 };
 
 const GRAPHICAL_TARGET: &str = "graphical-session.target";

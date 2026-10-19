@@ -1,9 +1,15 @@
 pub mod boot_timeline;
 pub mod failed_units;
-pub mod graphical_session;
-pub mod running_jobs;
+pub mod graphical_session_target;
+pub mod journal_coredumps;
+pub mod journal_follow;
+pub mod journal_kernel_errors;
+pub mod journal_oom_kills;
+pub mod journal_previous_shutdown;
+pub mod journal_service_errors;
 pub mod service_commands;
-pub mod unit_activity;
+pub mod slow_running_jobs;
+pub mod unit_active_state;
 pub mod user_service_manager;
 
 use std::{
@@ -25,8 +31,8 @@ use zbus::{
 };
 
 use crate::{
-    journal::either_of,
     system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
+    systemd_units_journal::journal_follow::either_of,
 };
 
 const SYSTEMD_SERVICE: &str = "org.freedesktop.systemd1";

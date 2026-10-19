@@ -7,7 +7,7 @@ use systemd::journal::Journal;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    journal::{
+    systemd_units_journal::journal_follow::{
         JournalEvent, JournalFollowError, JournalPriority, JournalTransport, journal_windows,
     },
 };

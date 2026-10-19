@@ -13,7 +13,9 @@ use systemd::{id128::Id128, journal::OpenOptions};
 
 use crate::{
     DeliveryCadence, Panicked, ReadingSource, SourceDelivery, blocking_poll,
-    journal::{MessageId, OwningUnit, SubjectUnit, decode_record, either_of},
+    systemd_units_journal::journal_follow::{
+        MessageId, OwningUnit, SubjectUnit, decode_record, either_of,
+    },
 };
 
 const SLOWEST_STOP_COUNT: usize = 10;
@@ -346,7 +348,7 @@ fn read_last_shutdown(slow_stop: Duration) -> Result<LastShutdown, ShutdownReadE
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::journal::journal_record;
+    use crate::systemd_units_journal::journal_follow::journal_record;
 
     #[test]
     fn stops_pair_by_job_and_a_stop_that_never_ended_ranks_first() {

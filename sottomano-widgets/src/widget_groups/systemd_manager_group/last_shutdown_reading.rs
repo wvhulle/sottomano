@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::previous_shutdown::{
+use sottomano_sources::systemd_units_journal::journal_previous_shutdown::{
     JobResult, LastShutdown, ShutdownReadError, StopOutcome, UnitStop,
 };
 

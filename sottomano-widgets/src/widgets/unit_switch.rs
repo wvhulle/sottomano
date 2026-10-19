@@ -2,9 +2,9 @@ use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_manager::{
+    systemd_units_journal::{
         ScopedSystemdUnit, SystemdUnitOnBus,
-        unit_activity::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
+        unit_active_state::{UnitActiveState, UnitActivity, UnitChange, UnitControl},
     },
 };
 

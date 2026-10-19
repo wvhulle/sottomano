@@ -12,9 +12,9 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     stream_operators::{StreamOperators, ticked},
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
-    systemd_manager::{
+    systemd_units_journal::{
         ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
-        unit_activity::unit_running,
+        unit_active_state::unit_running,
     },
 };
 

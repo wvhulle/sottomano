@@ -14,8 +14,8 @@ use sottomano_sources::{
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
     login_session_presence::logind_session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    systemd_manager::{
-        graphical_session::{GraphicalSession, GraphicalSessionTarget},
+    systemd_units_journal::{
+        graphical_session_target::{GraphicalSession, GraphicalSessionTarget},
         user_service_manager::UserServiceManager,
     },
 };

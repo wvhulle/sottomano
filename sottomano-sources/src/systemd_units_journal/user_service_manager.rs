@@ -8,7 +8,7 @@ use crate::{
     pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
-    systemd_manager::{
+    systemd_units_journal::{
         ManagerProxy, UNIT_INTERFACE, manager_signal, signals_matching, systemd_signal,
     },
 };
