@@ -20,6 +20,7 @@ pub mod inline_slider;
 pub mod layer_appearance_controls;
 pub mod localized_time;
 pub mod marker_track;
+pub mod markup_body;
 pub mod most_used_model;
 pub mod on_hover_reading;
 pub mod ongoing_toast;
