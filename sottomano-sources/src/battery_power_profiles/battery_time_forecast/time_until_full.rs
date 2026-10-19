@@ -2,13 +2,13 @@ use std::time::Duration;
 
 use uom::si::f64::{Energy, Power};
 
-use crate::{
-    battery_forecast::{
+use crate::battery_power_profiles::{
+    battery_time_forecast::{
         Estimate,
         charge_power_by_state_of_charge::{ChargeCurve, LearnedCurve},
         time_stepped_simulation::{Scenario, estimate, time_to_move},
     },
-    battery_power_profiles::upower_battery_state::Battery,
+    upower_battery_state::Battery,
 };
 
 struct Charging<'a> {
@@ -63,8 +63,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        battery_forecast::charge_power_by_state_of_charge::learned_curve,
-        battery_power_profiles::upower_battery_state::{ChargeBehaviour, ChargeStatus},
+        battery_power_profiles::{
+            battery_time_forecast::charge_power_by_state_of_charge::learned_curve,
+            upower_battery_state::{ChargeBehaviour, ChargeStatus},
+        },
         host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
     };
 

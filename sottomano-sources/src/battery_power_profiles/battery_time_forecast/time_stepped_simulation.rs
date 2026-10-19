@@ -5,7 +5,7 @@ use uom::si::{
     time::second,
 };
 
-use crate::battery_forecast::Estimate;
+use crate::battery_power_profiles::battery_time_forecast::Estimate;
 
 const STEP: Duration = Duration::from_mins(1);
 const GIVE_UP_AFTER: Duration = Duration::from_hours(72);

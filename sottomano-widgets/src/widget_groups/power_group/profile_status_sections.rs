@@ -1,5 +1,7 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::power_profile::{ProfileHold, ProfileStatus};
+use sottomano_sources::battery_power_profiles::power_profiles_daemon::{
+    ProfileHold, ProfileStatus,
+};
 
 use crate::widgets::tooltip_body::{
     ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,

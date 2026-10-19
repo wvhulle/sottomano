@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use nalgebra::{Matrix3, Vector3};
 use sottomano_sources::{
-    battery_forecast::RegressionState,
-    power_profile::Profile,
+    battery_power_profiles::{
+        battery_time_forecast::RegressionState, power_profiles_daemon::Profile,
+    },
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
