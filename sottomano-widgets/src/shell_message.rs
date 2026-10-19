@@ -5,11 +5,11 @@ use iced_exwlshell::to_layer_message;
 use sottomano_config::{Config, LoadError};
 use sottomano_sources::{
     app_icon::DesktopEntries,
+    desktop_notifications::alert_sound_player::SoundTheme,
     favicons::RawFavicon,
     launch_tracker::Launch,
     niri::{self, WindowOwner},
     niri_config::ConfiguredWorkspaces,
-    sink::sound::SoundTheme,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
 use sottomano_state::{ShellSettings, niri_rules::StoredRules};

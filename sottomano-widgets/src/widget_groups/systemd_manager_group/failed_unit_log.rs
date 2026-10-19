@@ -4,7 +4,7 @@ use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_config::Config;
 use sottomano_sources::{
-    notifications::model::ActionTint,
+    desktop_notifications::notification_data::ActionTint,
     systemd_units_journal::{
         SystemdUnitScope,
         failed_units::{

@@ -20,7 +20,7 @@ use zbus::{
     zvariant::{OwnedValue, Value},
 };
 
-use super::model::{
+use super::notification_data::{
     ActionTint, ExpireTimeout, NotifAction, NotifImage, NotificationData, Outbound, ReplyPrompt,
     ServerEvent,
 };

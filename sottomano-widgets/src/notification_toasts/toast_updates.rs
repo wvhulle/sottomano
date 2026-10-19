@@ -9,9 +9,11 @@ use iced_exwlshell::reexport::ActivationTokenSink;
 use quick_xml::escape::escape;
 use sottomano_config::{Config, LoadError, severity::Severity};
 use sottomano_sources::{
+    desktop_notifications::{
+        alert_sound_player::{self, SoundTheme},
+        notification_data::{NotificationData, Outbound, close_reason},
+    },
     niri::{self, Placement},
-    notifications::model::{NotificationData, Outbound, close_reason},
-    sink::sound::{self, SoundTheme},
 };
 use sottomano_state::NotificationSettings;
 use tokio::{sync::mpsc, time::timeout};
@@ -381,7 +383,9 @@ impl NotificationLayer {
             shown.replace_content(toast, icons, countdown, place);
         } else {
             if notifications.sound && !data.suppress_sound {
-                tasks.push(Task::future(sound::play(data, &self.sound_theme)).discard());
+                tasks.push(
+                    Task::future(alert_sound_player::play(data, &self.sound_theme)).discard(),
+                );
             }
             self.live.retain(|n| n.data.id != id);
             let seq = self.next_seq;

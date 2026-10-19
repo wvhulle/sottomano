@@ -11,7 +11,9 @@ use sottomano_config::{
     notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
     severity::Severity,
 };
-use sottomano_sources::notifications::model::{ExpireTimeout, NotificationData, close_reason};
+use sottomano_sources::desktop_notifications::notification_data::{
+    ExpireTimeout, NotificationData, close_reason,
+};
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{

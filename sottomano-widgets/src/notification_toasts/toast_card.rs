@@ -14,7 +14,9 @@ use reqwest::Url;
 use sottomano_config::{Config, notification_toasts::ToastCardConfig, severity::Severity};
 use sottomano_sources::{
     app_icon::DesktopEntries,
-    notifications::model::{ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt},
+    desktop_notifications::notification_data::{
+        ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
+    },
 };
 use sottomano_state::ShellSettings;
 use uom::si::{f64::Ratio, ratio::ratio};

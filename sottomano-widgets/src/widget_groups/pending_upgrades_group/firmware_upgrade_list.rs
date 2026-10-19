@@ -1,8 +1,8 @@
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::{
+    desktop_notifications::notification_data::ActionTint,
     host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
-    notifications::model::ActionTint,
 };
 
 use crate::{
