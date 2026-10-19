@@ -58,7 +58,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
-        compute_group::ComputeGroup,
+        compute_group::{ComputeGroup, ComputeMessage},
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup,
@@ -69,6 +69,7 @@ use sottomano_widgets::{
         llama_server_group::LlamaServerGroup,
         login_session_group::LoginSessionGroup,
         media_group::{self, MediaGroup, MediaMessage},
+        memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
         monitor_group::MonitorGroup,
         net_interfaces_group::NetInterfacesGroup,
         niri_window_group::NiriWindowGroup,
@@ -111,6 +112,7 @@ pub struct DesktopShell {
     pub wallpaper_group: WallpaperGroup,
     pub power_group: PowerGroup,
     pub compute_group: ComputeGroup,
+    pub memory_board_group: MemoryBoardGroup,
     pub gpu_group: GpuGroup,
     pub disk_group: DiskGroup,
     pub niri_rules: NiriRulesFile,
@@ -176,6 +178,7 @@ impl DesktopShell {
             wallpaper_group: WallpaperGroup::new(&secrets),
             power_group: PowerGroup::default(),
             compute_group: ComputeGroup::default(),
+            memory_board_group: MemoryBoardGroup::default(),
             gpu_group: GpuGroup::default(),
             disk_group: DiskGroup::default(),
             niri_rules,
@@ -332,6 +335,18 @@ impl DesktopShell {
                 .compute_group
                 .update(msg, self.clock)
                 .map(Message::Compute),
+            Message::MemoryBoard(msg) => self
+                .memory_board_group
+                .update(msg, self.clock)
+                .map(Message::MemoryBoard),
+            Message::HostHardware(delivery) => Task::batch([
+                self.compute_group
+                    .update(ComputeMessage::Hardware(delivery.clone()), self.clock)
+                    .map(Message::Compute),
+                self.memory_board_group
+                    .update(MemoryBoardMessage::Hardware(delivery), self.clock)
+                    .map(Message::MemoryBoard),
+            ]),
             Message::Gpu(msg) => self.gpu_group.update(msg, self.clock).map(Message::Gpu),
             Message::Disk(msg) => self.disk_group.update(msg, self.clock).map(Message::Disk),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
@@ -784,6 +799,7 @@ impl DesktopShell {
         self.clock_group.collapse();
         self.weather_group.collapse();
         self.compute_group.collapse();
+        self.memory_board_group.collapse();
         self.gpu_group.collapse();
         self.disk_group.collapse();
         self.media_group.collapse();

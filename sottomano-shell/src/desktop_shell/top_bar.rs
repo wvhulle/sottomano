@@ -8,7 +8,7 @@ use sottomano_widgets::{
 use crate::desktop_shell::DesktopShell;
 
 pub(super) struct TopBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 10],
+    pub start: [GroupContent<'a, Message>; 11],
     pub center: [GroupContent<'a, Message>; 3],
     pub end: [GroupContent<'a, Message>; 14],
 }
@@ -41,6 +41,9 @@ impl DesktopShell {
                 self.weather_group.group_content().map(Message::Weather),
                 self.power_group.group_content(config).map(Message::Power),
                 self.compute_group.group_content().map(Message::Compute),
+                self.memory_board_group
+                    .group_content()
+                    .map(Message::MemoryBoard),
                 self.gpu_group.group_content().map(Message::Gpu),
                 self.disk_group.group_content().map(Message::Disk),
                 self.net_interfaces_group

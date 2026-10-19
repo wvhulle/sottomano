@@ -10,6 +10,7 @@ use sottomano_widgets::{
         compute_group::ComputeTarget,
         idle_timeouts_group::TimerKind,
         media_group::MediaTarget,
+        memory_board_group::MemoryBoardTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         window_group::WindowTarget,
@@ -18,8 +19,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        audio, claude_usage, compute, idle_lock, media, niri_session, notification_toasts,
-        unchanging, wallpaper, weather,
+        audio, claude_usage, compute, idle_lock, media, memory_board, niri_session,
+        notification_toasts, unchanging, wallpaper, weather,
     },
     showcased_group::ShowcasedGroup,
 };
@@ -48,13 +49,12 @@ pub const DEMOS: &[Demo] = &[
         script: &[Step::Press(HoverTarget::Compute(ComputeTarget::Cpu))],
     },
     Demo {
-        name: "compute_memory",
-        group: compute::group,
-        live: compute::live,
-        script: &[
-            Step::Press(HoverTarget::Compute(ComputeTarget::Cpu)),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::Memory)),
-        ],
+        name: "memory_board_memory",
+        group: memory_board::group,
+        live: memory_board::live,
+        script: &[Step::Press(HoverTarget::MemoryBoard(
+            MemoryBoardTarget::Memory,
+        ))],
     },
     Demo {
         name: "compute_temperature",

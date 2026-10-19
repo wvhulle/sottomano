@@ -1,4 +1,3 @@
-use bytesize::ByteSize;
 use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_sources::{
     SourceDelivery,
@@ -6,7 +5,6 @@ use sottomano_sources::{
         cpu_core_loads::CpuUsage,
         cpu_power_draw::{CpuPower, PowerZone},
         cpu_temperature::{TempReading, Temperature},
-        memory_usage::{Memory, MemoryProcess, MemoryProcesses},
     },
 };
 use sottomano_widgets::{
@@ -27,7 +25,6 @@ use crate::{
 };
 
 const CPU_BUSY_PERCENT: &[f64] = &[37.0, 52.0, 44.0, 61.0, 48.0];
-const MEMORY_USED_MEBIBYTES: &[u64] = &[21_500, 21_900, 22_300, 21_800];
 const TEMPERATURE_CELSIUS: &[f64] = &[58.0, 61.0, 63.0, 60.0];
 const PACKAGE_WATTS: &[f64] = &[48.0, 63.0, 55.0, 71.0];
 
@@ -46,7 +43,6 @@ pub fn live(clock: Clock) -> Vec<Message> {
     continuous_readings(tick)
         .into_iter()
         .chain(on_hover_readings(ComputeTarget::Cpu, tick))
-        .chain(on_hover_readings(ComputeTarget::Memory, tick))
         .map(Message::Compute)
         .collect()
 }
@@ -59,14 +55,10 @@ fn celsius(degrees: f64) -> ThermodynamicTemperature {
     ThermodynamicTemperature::new::<degree_celsius>(degrees)
 }
 
-fn continuous_readings(tick: u32) -> [ComputeMessage; 3] {
+fn continuous_readings(tick: u32) -> [ComputeMessage; 2] {
     [
         ComputeMessage::Cpu(SourceDelivery::Reading(Ok(CpuUsage {
             busy: Ratio::new::<percent>(cycled(CPU_BUSY_PERCENT, tick)),
-        }))),
-        ComputeMessage::Memory(SourceDelivery::Reading(Ok(Memory {
-            used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
-            total: ByteSize::gib(64),
         }))),
         ComputeMessage::Temperature(SourceDelivery::Reading(Ok(Temperature {
             readings: vec![TempReading {
@@ -101,27 +93,9 @@ fn on_hover_readings(target: ComputeTarget, tick: u32) -> Vec<ComputeMessage> {
                 }),
             ))]
         }
-        ComputeTarget::Memory => vec![ComputeMessage::MemoryProcessesFetched(
-            SourceDelivery::Reading(Ok(MemoryProcesses {
-                processes: [
-                    ("firefox", 5_800 + u64::from(tick % 4) * 120),
-                    ("rust-analyzer", 3_100 + u64::from(tick % 3) * 90),
-                    ("sottomano", 180),
-                ]
-                .into_iter()
-                .zip(1000..)
-                .map(|((name, mebibytes), pid)| MemoryProcess {
-                    pid,
-                    name: name.to_owned(),
-                    resident: ByteSize::mib(mebibytes),
-                })
-                .collect(),
-            })),
-        )],
         ComputeTarget::CpuClock
         | ComputeTarget::ClockLimits
         | ComputeTarget::Temperature
-        | ComputeTarget::CachePreference
-        | ComputeTarget::Board => Vec::new(),
+        | ComputeTarget::CachePreference => Vec::new(),
     }
 }
