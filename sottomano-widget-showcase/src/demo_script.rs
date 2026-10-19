@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sottomano_widgets::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_tooltips::HoverTarget,
     shell_message::Message,
     widget_groups::{
         audio_group::{AudioTarget, ControlKind},
@@ -87,7 +87,7 @@ pub const DEMOS: &[Demo] = &[
         group: claude_usage::group,
         live: claude_usage::live,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::ClaudeUsage)),
+            Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
         ],
     },
@@ -102,7 +102,7 @@ pub const DEMOS: &[Demo] = &[
         group: idle_lock::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::IdleTimeouts)),
+            Step::Press(HoverTarget::IdleTimeout(TimerKind::LockUser)),
             Step::Hover(HoverTarget::IdleTimeout(TimerKind::ScreenOff)),
         ],
     },
@@ -111,7 +111,7 @@ pub const DEMOS: &[Demo] = &[
         group: idle_lock::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::IdleTimeouts)),
+            Step::Press(HoverTarget::IdleTimeout(TimerKind::LockUser)),
             Step::Hover(HoverTarget::IdleTimeout(TimerKind::LockUser)),
         ],
     },
@@ -120,7 +120,7 @@ pub const DEMOS: &[Demo] = &[
         group: audio::group,
         live: audio::live,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::Audio)),
+            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
             Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
             Step::Drag {
                 target: HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink)),
@@ -133,7 +133,7 @@ pub const DEMOS: &[Demo] = &[
         group: audio::group,
         live: audio::live,
         script: &[
-            Step::Press(HoverTarget::GroupHandle(GroupHandle::Audio)),
+            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(
                 ControlKind::Source,
             ))),
