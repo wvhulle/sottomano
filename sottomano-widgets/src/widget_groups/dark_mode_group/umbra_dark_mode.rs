@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    screen_brightness_color::umbra_dark_mode::{self, Umbra},
+    screen_brightness_color::umbra_dark_mode::{self, DarkMode},
     system_protocol_clients::shell_command_output,
 };
 
@@ -10,7 +10,7 @@ use crate::widgets::{
     tooltip_body::TooltipBody,
 };
 
-impl BarWidget for Umbra {
+impl BarWidget for DarkMode {
     fn name(&self) -> &'static str {
         "Dark mode"
     }
@@ -28,9 +28,9 @@ impl BarWidget for Umbra {
     }
 }
 
-impl ToggleableSource for Umbra {
+impl ToggleableSource for DarkMode {
     fn toggled_value(&self) -> Self {
-        Umbra { dark: !self.dark }
+        DarkMode { dark: !self.dark }
     }
 
     fn apply_toggle(&self) -> Result<(), shell_command_output::Error> {

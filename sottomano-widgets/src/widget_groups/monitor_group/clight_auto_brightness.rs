@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    screen_brightness_color::clight_auto_brightness::{self, Clight},
+    screen_brightness_color::clight_auto_brightness::{self, AutoBrightness},
     system_protocol_clients::dbus_desktop_buses,
 };
 
@@ -11,7 +11,7 @@ use crate::widgets::{
     widget_state::WidgetState,
 };
 
-impl BarWidget for Clight {
+impl BarWidget for AutoBrightness {
     fn name(&self) -> &'static str {
         "Auto-brightness"
     }
@@ -33,9 +33,9 @@ impl BarWidget for Clight {
     }
 }
 
-impl ToggleableSource for Clight {
+impl ToggleableSource for AutoBrightness {
     fn toggled_value(&self) -> Self {
-        Clight { auto: !self.auto }
+        AutoBrightness { auto: !self.auto }
     }
 
     fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {

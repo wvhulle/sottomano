@@ -19,11 +19,11 @@ const PATH: &str = "/JobViewServer";
 const SERVER_NAME: &str = "org.kde.JobViewServer";
 const KUISERVER_NAME: &str = "org.kde.kuiserver";
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Jobs {
+pub struct JobProgress {
     by_app: HashMap<String, u8>,
 }
 
-impl Jobs {
+impl JobProgress {
     #[must_use]
     pub fn get(&self, app_id: &str) -> Option<u8> {
         self.by_app.get(app_id).copied()
@@ -80,7 +80,7 @@ fn mean(percents: &[u8]) -> u8 {
 
 struct Tracker {
     jobs: Mutex<HashMap<u64, Job>>,
-    states: watch::Sender<Jobs>,
+    states: watch::Sender<JobProgress>,
     next_id: AtomicU64,
 }
 
@@ -121,9 +121,9 @@ impl Tracker {
         });
     }
 
-    fn snapshot(&self) -> Jobs {
+    fn snapshot(&self) -> JobProgress {
         let jobs = self.jobs.lock().expect("job registry");
-        Jobs {
+        JobProgress {
             by_app: jobs
                 .values()
                 .filter(|job| !job.app.is_empty())
@@ -315,18 +315,18 @@ impl JobView {
 
 struct Served {
     _connection: Connection,
-    updates: watch::Receiver<Jobs>,
+    updates: watch::Receiver<JobProgress>,
 }
 
 impl Served {
-    async fn next_jobs(&mut self) -> Option<Jobs> {
+    async fn next_jobs(&mut self) -> Option<JobProgress> {
         self.updates.changed().await.ok()?;
         Some(self.updates.borrow_and_update().clone())
     }
 }
 
-pub async fn serve() -> zbus::Result<impl Stream<Item = Jobs>> {
-    let (states, updates) = watch::channel(Jobs::default());
+pub async fn serve() -> zbus::Result<impl Stream<Item = JobProgress>> {
+    let (states, updates) = watch::channel(JobProgress::default());
     let tracker = Arc::new(Tracker {
         jobs: Mutex::default(),
         states,

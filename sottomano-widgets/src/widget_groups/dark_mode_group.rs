@@ -12,7 +12,7 @@ use sottomano_sources::{
     login_session_presence::logind_manager,
     screen_brightness_color::{
         solar_switch_schedule::ColorMode,
-        umbra_dark_mode::{Umbra, set_mode},
+        umbra_dark_mode::{DarkMode, set_mode},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::Location,
@@ -58,7 +58,7 @@ impl From<DarkModeTarget> for HoverTarget {
 }
 
 pub struct DarkModeGroup {
-    mode_toggle: ToggleControl<Umbra>,
+    mode_toggle: ToggleControl<DarkMode>,
     auto_switch_toggle: AutoSwitchToggle,
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
@@ -76,7 +76,7 @@ pub enum DarkModeMessage {
     ScheduleLoaded(SourceDelivery<DarkModeSchedule>),
     LocationFix(SourceDelivery<Location>),
     SwitchDue,
-    ModeToggle(ToggleMessage<Umbra>),
+    ModeToggle(ToggleMessage<DarkMode>),
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
     Expansion(ExpansionMessage),
@@ -106,7 +106,7 @@ impl Default for DarkModeGroup {
 impl DarkModeGroup {
     pub fn subscription() -> Subscription<DarkModeMessage> {
         Subscription::batch([
-            ToggleControl::<Umbra>::subscription(()).map(DarkModeMessage::ModeToggle),
+            ToggleControl::<DarkMode>::subscription(()).map(DarkModeMessage::ModeToggle),
             source_subscription::<DarkModeSchedule>(()).map(DarkModeMessage::ScheduleLoaded),
             source_subscription::<Location>(()).map(DarkModeMessage::LocationFix),
         ])
@@ -120,7 +120,7 @@ impl DarkModeGroup {
     pub fn refresh(target: DarkModeTarget) -> Task<DarkModeMessage> {
         match target {
             DarkModeTarget::Mode => {
-                ToggleControl::<Umbra>::refresh(()).map(DarkModeMessage::ModeToggle)
+                ToggleControl::<DarkMode>::refresh(()).map(DarkModeMessage::ModeToggle)
             }
             DarkModeTarget::Schedule
             | DarkModeTarget::SunriseOffset
@@ -264,7 +264,7 @@ impl DarkModeGroup {
     }
 
     fn apply_color_mode(&mut self, mode: ColorMode) -> Task<DarkModeMessage> {
-        self.mode_toggle.assume(Umbra {
+        self.mode_toggle.assume(DarkMode {
             dark: mode == ColorMode::Dark,
         });
         Task::future(blocking("umbra set", move || set_mode(mode))).discard()

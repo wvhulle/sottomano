@@ -44,7 +44,7 @@ struct Smooth {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
+pub enum BacklightKind {
     Internal,
     External,
 }
@@ -52,7 +52,7 @@ pub enum Kind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Backlight {
     pub serial: String,
-    pub kind: Kind,
+    pub kind: BacklightKind,
     pub percent: i64,
 }
 
@@ -116,9 +116,9 @@ fn backlights(readings: Vec<BacklightReading>) -> Vec<Backlight> {
         .into_iter()
         .map(|reading| {
             let kind = if internal.contains(&reading.serial) {
-                Kind::Internal
+                BacklightKind::Internal
             } else {
-                Kind::External
+                BacklightKind::External
             };
             #[allow(clippy::cast_possible_truncation)]
             let percent = (reading.fraction * 100.0).round() as i64;

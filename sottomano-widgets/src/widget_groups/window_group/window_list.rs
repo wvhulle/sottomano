@@ -11,7 +11,7 @@ use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgen
 use sottomano_sources::{
     SourceDelivery,
     desktop_windows_apps::{
-        kde_job_view_progress::{self, Jobs},
+        kde_job_view_progress::{self, JobProgress},
         kitty_terminal_windows::{self, WindowProcesses},
         niri_window_snapshot,
         nix_package_facts::{NixPackageFacts, PackageWatch},
@@ -54,7 +54,7 @@ use crate::{
 #[derive(Default)]
 pub struct WindowList {
     launcher: LauncherEntries,
-    jobs: Jobs,
+    jobs: JobProgress,
     scroll: f32,
     metrics: Metrics,
     window_processes: WindowProcesses,
@@ -69,7 +69,7 @@ pub struct WindowList {
 pub enum WindowListMessage {
     ToggleAudio(i32),
     LauncherEntriesChanged(LauncherEntries),
-    JobsChanged(Jobs),
+    JobsChanged(JobProgress),
     Tooltip(TooltipMessage),
     ProcessTreeScanned(SourceDelivery<Process>),
     WindowProcessesPaired(WindowProcesses),

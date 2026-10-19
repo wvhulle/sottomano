@@ -1,7 +1,7 @@
 use sottomano_config::SecretPaths;
 use sottomano_sources::{
     SourceDelivery,
-    wallpaper::{Position, Wallpaper, WikipediaArticle},
+    wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
 };
 use sottomano_widgets::widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage};
 use uom::si::{angle::degree, f64::Angle};

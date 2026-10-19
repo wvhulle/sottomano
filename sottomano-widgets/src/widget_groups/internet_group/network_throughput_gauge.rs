@@ -1,6 +1,8 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::{
-    interface_throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
+    interface_throughput::{
+        InterfaceThroughput, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
+    },
     network_manager_proxies::Connectivity,
 };
 use uom::si::{
@@ -105,7 +107,7 @@ impl BarWidget for Throughput {
     }
 }
 
-impl BarWidget for Readings {
+impl BarWidget for InterfaceThroughput {
     fn name(&self) -> &'static str {
         self.total.name()
     }

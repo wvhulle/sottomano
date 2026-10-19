@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use sottomano_sources::media_playback_audio::pipewire_audio::{
-    AudioState, OutputKind, Peaks, Reading,
+    AudioState, ChannelLevels, OutputKind, Peaks,
 };
 use sottomano_widgets::{
     shell_message::Message,
@@ -16,12 +16,12 @@ const INPUT_PEAKS: &[f32] = &[0.2, 0.05, 0.3, 0.1];
 pub fn group() -> ShowcasedGroup {
     let mut group = AudioGroup::default();
     let _ = group.update(AudioMessage::State(AudioState {
-        sink: Some(Reading {
+        sink: Some(ChannelLevels {
             percent: 64,
             muted: false,
             device: Some("Built-in Audio Analog Stereo".to_owned()),
         }),
-        source: Some(Reading {
+        source: Some(ChannelLevels {
             percent: 38,
             muted: false,
             device: Some("Blue Yeti".to_owned()),

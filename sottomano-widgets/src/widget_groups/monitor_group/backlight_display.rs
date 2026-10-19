@@ -1,4 +1,4 @@
-use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, Kind};
+use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, BacklightKind};
 
 use crate::{
     widget_groups::monitor_group::output_details::ConnectedOutput,
@@ -10,8 +10,8 @@ use crate::{
 
 pub fn face(backlight: &Backlight) -> Phosphor {
     match backlight.kind {
-        Kind::Internal => Phosphor::Laptop(Weight::Regular),
-        Kind::External => Phosphor::Desktop(Weight::Regular),
+        BacklightKind::Internal => Phosphor::Laptop(Weight::Regular),
+        BacklightKind::External => Phosphor::Desktop(Weight::Regular),
     }
 }
 
@@ -21,8 +21,8 @@ pub fn tooltip(
     output: Option<&ConnectedOutput>,
 ) -> TooltipBody {
     let kind = match backlight.kind {
-        Kind::Internal => "Internal",
-        Kind::External => "External (DDC)",
+        BacklightKind::Internal => "Internal",
+        BacklightKind::External => "External (DDC)",
     };
     let display_entries = [
         KeyValue::new("Display", backlight.serial.as_str()),

@@ -34,12 +34,12 @@ trait GammaRelay {
 pub const TEMP_RANGE: RangeInclusive<u16> = 3000..=6500;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Gamma {
+pub struct ColorTemperature {
     pub brightness: i64,
     pub temperature: ThermodynamicTemperature,
 }
 
-impl ReadingSource for Gamma {
+impl ReadingSource for ColorTemperature {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
@@ -56,7 +56,7 @@ impl ReadingSource for Gamma {
 
 async fn relay_changes(
     buses: DesktopBuses,
-) -> Result<impl Stream<Item = Result<Gamma, Error>> + Send, Error> {
+) -> Result<impl Stream<Item = Result<ColorTemperature, Error>> + Send, Error> {
     let relay: GammaRelayProxy = buses.proxy(dbus_desktop_buses::Bus::Session).await?;
     let changes = stream::select(
         relay.receive_brightness_changed().await.map(drop),
@@ -64,16 +64,16 @@ async fn relay_changes(
     );
     Ok(changes.then(move |()| {
         let relay = relay.clone();
-        async move { Gamma::read(&relay).await }
+        async move { ColorTemperature::read(&relay).await }
     }))
 }
 
-impl Gamma {
+impl ColorTemperature {
     async fn read(relay: &GammaRelayProxy<'_>) -> Result<Self, Error> {
         let brightness = relay.brightness().await?;
         let temperature = relay.temperature().await?;
         #[allow(clippy::cast_possible_truncation)]
-        Ok(Gamma {
+        Ok(ColorTemperature {
             brightness: (brightness * 100.0).round() as i64,
             temperature: ThermodynamicTemperature::new::<thermodynamic_temperature::kelvin>(
                 f64::from(temperature),
