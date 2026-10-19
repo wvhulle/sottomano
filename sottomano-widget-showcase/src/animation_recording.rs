@@ -150,10 +150,12 @@ impl DemoRecorder {
             &mut self.layout_renderer,
         );
         let wanted = selector.description();
-        let mut finder = selector.find();
+        let mut finder = selector.find_all();
         interface.operate(&self.layout_renderer, &mut black_box(&mut finder));
-        if let Outcome::Some(Some(bounds)) = finder.finish() {
-            return bounds.center();
+        if let Outcome::Some(matches) = finder.finish()
+            && let Some(last_laid_out) = matches.last()
+        {
+            return last_laid_out.center();
         }
         let mut shown = AnyHoveredWidget.find_all();
         interface.operate(&self.layout_renderer, &mut black_box(&mut shown));
