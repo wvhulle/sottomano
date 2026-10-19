@@ -1,12 +1,154 @@
 use iced::{
-    Color, Font,
+    Color, Element, Font, Length,
+    alignment::{Horizontal, Vertical},
+    border,
     font::{Style as FontStyle, Weight},
-    widget::{span, text::Span},
+    widget::{
+        Column, Space, container, rich_text, span, table,
+        text::{Span, Wrapping},
+    },
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
 use sottomano_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::FontFaces;
+use crate::widgets::text::{FontFaces, LINE_HEIGHT};
+
+const CODE_BLOCK_PADDING_PX: f32 = 6.0;
+const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
+const KEY_TINT_ALPHA: f32 = 0.7;
+const COLUMN_GAP_PX: f32 = 8.0;
+
+pub struct MarkupBody<'a> {
+    markup: &'a str,
+    font: &'a ResolvedFont,
+    color: Color,
+    size: f32,
+    monospace: Font,
+    block_spacing: f32,
+    corner_radius: f32,
+}
+
+impl<'a> MarkupBody<'a> {
+    #[must_use]
+    pub fn new(markup: &'a str, font: &'a ResolvedFont, color: Color) -> Self {
+        Self {
+            markup,
+            font,
+            color,
+            size: font.text_size_px,
+            monospace: Font::MONOSPACE,
+            block_spacing: 0.0,
+            corner_radius: 0.0,
+        }
+    }
+
+    #[must_use]
+    pub fn size(self, size: f32) -> Self {
+        Self { size, ..self }
+    }
+
+    #[must_use]
+    pub fn monospace(self, monospace: Font) -> Self {
+        Self { monospace, ..self }
+    }
+
+    #[must_use]
+    pub fn block_spacing(self, block_spacing: f32) -> Self {
+        Self {
+            block_spacing,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn corner_radius(self, corner_radius: f32) -> Self {
+        Self {
+            corner_radius,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn view<Message: 'static>(self) -> Element<'static, Message> {
+        let blocks = parse_blocks(
+            self.markup,
+            self.color,
+            self.size,
+            self.font,
+            self.monospace,
+        );
+        Column::with_children(blocks.into_iter().map(|block| match block {
+            Block::Paragraph {
+                spans,
+                preformatted,
+            } => self.paragraph(spans, preformatted),
+            Block::Rows(rows) => self.rows_table(rows),
+        }))
+        .spacing(self.block_spacing)
+        .width(Length::Fill)
+        .into()
+    }
+
+    fn paragraph<Message: 'static>(
+        &self,
+        spans: Vec<Span<'static>>,
+        preformatted: bool,
+    ) -> Element<'static, Message> {
+        let flowing = rich_text(spans)
+            .line_height(LINE_HEIGHT)
+            .wrapping(Wrapping::WordOrGlyph)
+            .width(Length::Fill);
+        if !preformatted {
+            return flowing.into();
+        }
+        let tint = self.color.scale_alpha(CODE_BLOCK_TINT_ALPHA);
+        let corner_radius = self.corner_radius;
+        container(flowing)
+            .padding(CODE_BLOCK_PADDING_PX)
+            .width(Length::Fill)
+            .style(move |_| {
+                container::Style::default()
+                    .background(tint)
+                    .border(border::rounded(corner_radius))
+            })
+            .into()
+    }
+
+    fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
+        let key_tint = self.color.scale_alpha(KEY_TINT_ALPHA);
+        let key_column = table::column(Space::new(), move |row: Row<'static>| {
+            let dimmed: Vec<_> = row
+                .key
+                .into_iter()
+                .map(|styled| styled.color(key_tint))
+                .collect();
+            rich_text(dimmed)
+                .line_height(LINE_HEIGHT)
+                .wrapping(Wrapping::None)
+        })
+        .align_x(Horizontal::Right)
+        .align_y(Vertical::Top);
+        let value_column = table::column(Space::new(), |row: Row<'static>| {
+            rich_text(row.value)
+                .line_height(LINE_HEIGHT)
+                .wrapping(Wrapping::WordOrGlyph)
+                .width(Length::Fill)
+        })
+        .width(Length::Fill)
+        .align_y(Vertical::Top);
+        table::table([key_column, value_column], rows)
+            .separator(0.0)
+            .padding_x(COLUMN_GAP_PX / 2.0)
+            .padding_y(self.block_spacing / 2.0)
+            .into()
+    }
+}
+
+impl<Message: 'static> From<MarkupBody<'_>> for Element<'static, Message> {
+    fn from(body: MarkupBody<'_>) -> Self {
+        body.view()
+    }
+}
 
 #[derive(Clone, Copy)]
 struct Emphasis {
@@ -34,31 +176,31 @@ impl Emphasis {
 }
 
 #[derive(Clone)]
-pub struct BodyRow<'a> {
-    pub key: Vec<Span<'a>>,
-    pub value: Vec<Span<'a>>,
+struct Row<'a> {
+    key: Vec<Span<'a>>,
+    value: Vec<Span<'a>>,
 }
 
-pub enum BodyBlock<'a> {
+enum Block<'a> {
     Paragraph {
         spans: Vec<Span<'a>>,
         preformatted: bool,
     },
-    Rows(Vec<BodyRow<'a>>),
+    Rows(Vec<Row<'a>>),
 }
 
 struct BlockBuilder<'a> {
-    blocks: Vec<BodyBlock<'a>>,
+    blocks: Vec<Block<'a>>,
 }
 
 impl<'a> BlockBuilder<'a> {
     fn open_rows(&mut self) {
-        self.blocks.push(BodyBlock::Rows(Vec::new()));
+        self.blocks.push(Block::Rows(Vec::new()));
     }
 
     fn open_row(&mut self) {
-        if let Some(BodyBlock::Rows(rows)) = self.blocks.last_mut() {
-            rows.push(BodyRow {
+        if let Some(Block::Rows(rows)) = self.blocks.last_mut() {
+            rows.push(Row {
                 key: Vec::new(),
                 value: Vec::new(),
             });
@@ -68,7 +210,7 @@ impl<'a> BlockBuilder<'a> {
     fn push_span(&mut self, styled: Span<'a>, stack: &[String]) {
         let inside = |tag: &str| stack.iter().any(|open| open == tag);
         if inside("dl") {
-            if let Some(BodyBlock::Rows(rows)) = self.blocks.last_mut()
+            if let Some(Block::Rows(rows)) = self.blocks.last_mut()
                 && let Some(row) = rows.last_mut()
             {
                 if inside("dt") {
@@ -81,11 +223,11 @@ impl<'a> BlockBuilder<'a> {
         }
         let preformatted = inside("pre");
         match self.blocks.last_mut() {
-            Some(BodyBlock::Paragraph {
+            Some(Block::Paragraph {
                 spans,
                 preformatted: open,
             }) if *open == preformatted => spans.push(styled),
-            _ => self.blocks.push(BodyBlock::Paragraph {
+            _ => self.blocks.push(Block::Paragraph {
                 spans: vec![styled],
                 preformatted,
             }),
@@ -93,14 +235,14 @@ impl<'a> BlockBuilder<'a> {
     }
 }
 
-pub fn body_blocks<'a>(
-    body: &str,
+fn parse_blocks<'a>(
+    markup: &str,
     color: Color,
     size: f32,
     font: &ResolvedFont,
     mono: Font,
-) -> Vec<BodyBlock<'a>> {
-    let mut reader = Reader::from_str(body);
+) -> Vec<Block<'a>> {
+    let mut reader = Reader::from_str(markup);
     let config = reader.config_mut();
     config.allow_dangling_amp = true;
     config.allow_unmatched_ends = true;
@@ -150,8 +292,9 @@ pub fn body_blocks<'a>(
             Ok(Event::Eof) => break,
             Ok(_) => {}
             Err(_) => {
-                let unparsed_from = usize::try_from(reader.error_position()).unwrap_or(body.len());
-                builder.push_span(styled(body[unparsed_from..].to_owned(), &stack), &stack);
+                let unparsed_from =
+                    usize::try_from(reader.error_position()).unwrap_or(markup.len());
+                builder.push_span(styled(markup[unparsed_from..].to_owned(), &stack), &stack);
                 break;
             }
         }
@@ -171,7 +314,7 @@ mod tests {
 
     use super::*;
 
-    fn blocks(body: &str) -> Vec<BodyBlock<'static>> {
+    fn blocks(markup: &str) -> Vec<Block<'static>> {
         let font = ResolvedFont {
             role: FontRole::Text,
             family: String::from("sans-serif"),
@@ -180,8 +323,8 @@ mod tests {
             icon_size_px: 14.0,
             data: Arc::from([].as_slice()),
         };
-        body_blocks(
-            body,
+        parse_blocks(
+            markup,
             Color::BLACK,
             font.text_size_px,
             &font,
@@ -193,12 +336,12 @@ mod tests {
         spans.iter().map(|s| s.text.to_string()).collect()
     }
 
-    fn render(body: &str) -> String {
-        blocks(body)
+    fn render(markup: &str) -> String {
+        blocks(markup)
             .iter()
             .map(|block| match block {
-                BodyBlock::Paragraph { spans, .. } => joined(spans),
-                BodyBlock::Rows(rows) => rows
+                Block::Paragraph { spans, .. } => joined(spans),
+                Block::Rows(rows) => rows
                     .iter()
                     .map(|row| format!("{}={}", joined(&row.key), joined(&row.value)))
                     .collect::<Vec<_>>()
@@ -227,7 +370,7 @@ mod tests {
     #[test]
     fn monospace_inside_a_row_value_keeps_its_family() {
         let parsed = blocks("<dl><dt>Core</dt><dd><tt>/var/lib/core</tt></dd></dl>");
-        let Some(BodyBlock::Rows(rows)) = parsed.first() else {
+        let Some(Block::Rows(rows)) = parsed.first() else {
             panic!("expected rows");
         };
         assert_eq!(
