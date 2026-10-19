@@ -1,4 +1,4 @@
-use sottomano_sources::gamma::Gamma;
+use sottomano_sources::screen_brightness_color::gammarelay_color_temperature::Gamma;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, thermodynamic_temperature::kelvin},

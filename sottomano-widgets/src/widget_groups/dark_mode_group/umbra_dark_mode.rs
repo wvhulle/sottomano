@@ -1,6 +1,6 @@
 use sottomano_sources::{
+    screen_brightness_color::umbra_dark_mode::{self, Umbra},
     system_protocol_clients::shell_command_output,
-    umbra::{self, Umbra},
 };
 
 use crate::widgets::{
@@ -34,7 +34,7 @@ impl ToggleableSource for Umbra {
     }
 
     fn apply_toggle(&self) -> Result<(), shell_command_output::Error> {
-        umbra::toggle_mode()
+        umbra_dark_mode::toggle_mode()
     }
 
     fn press_action_text(&self) -> &'static str {

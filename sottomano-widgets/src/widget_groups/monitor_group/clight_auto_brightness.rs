@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    clight::{self, Clight},
+    screen_brightness_color::clight_auto_brightness::{self, Clight},
     system_protocol_clients::dbus_desktop_buses,
 };
 
@@ -39,7 +39,7 @@ impl ToggleableSource for Clight {
     }
 
     fn apply_toggle(&self) -> Result<(), dbus_desktop_buses::Error> {
-        clight::flip()
+        clight_auto_brightness::flip()
     }
 
     fn press_action_text(&self) -> &'static str {

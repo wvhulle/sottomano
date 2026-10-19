@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use sottomano_sources::{
-    backlight::{Backlight, Kind},
     niri::{OutputInfo, OutputMode},
+    screen_brightness_color::clightd_backlight::{Backlight, Kind},
 };
 
 use crate::widgets::tooltip_body::KeyValue;
