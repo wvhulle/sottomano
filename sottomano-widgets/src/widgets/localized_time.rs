@@ -5,6 +5,7 @@ use chrono::{DateTime, Local, Locale, TimeZone};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LocalizedTimeFormat {
     TimeOfDay,
+    HourOfDay,
     Date,
     DateAndTime,
     Weekday,
@@ -22,15 +23,48 @@ impl LocalizedTimeFormat {
     where
         Tz::Offset: Display,
     {
-        at.format_localized(self.specifier(), locale).to_string()
+        at.format_localized(self.specifier(at, locale), locale)
+            .to_string()
     }
 
-    fn specifier(self) -> &'static str {
+    fn specifier<Tz: TimeZone>(self, at: &DateTime<Tz>, locale: Locale) -> &'static str
+    where
+        Tz::Offset: Display,
+    {
         match self {
             LocalizedTimeFormat::TimeOfDay => "%X",
+            LocalizedTimeFormat::HourOfDay if uses_twelve_hour_clock(at, locale) => "%-I %p",
+            LocalizedTimeFormat::HourOfDay => "%H",
             LocalizedTimeFormat::Date => "%x",
             LocalizedTimeFormat::DateAndTime => "%x %X",
             LocalizedTimeFormat::Weekday => "%A",
         }
+    }
+}
+
+fn uses_twelve_hour_clock<Tz: TimeZone>(at: &DateTime<Tz>, locale: Locale) -> bool
+where
+    Tz::Offset: Display,
+{
+    !at.format_localized("%p", locale).to_string().is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Utc;
+
+    use super::*;
+
+    #[test]
+    fn hour_of_day_omits_minutes_and_seconds() {
+        let afternoon = "2026-10-19T14:00:00Z".parse::<DateTime<Utc>>().unwrap();
+        assert_eq!(
+            LocalizedTimeFormat::HourOfDay.format_in_own_zone(&afternoon, Locale::en_US),
+            "2 PM"
+        );
+        assert_eq!(
+            LocalizedTimeFormat::HourOfDay.format_in_own_zone(&afternoon, Locale::nl_BE),
+            "14"
+        );
     }
 }

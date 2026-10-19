@@ -1,5 +1,6 @@
 use iced::{Color, Element};
 use sottomano_sources::weather::open_meteo_temperature::{
+    Daylight::{self, Day, Night},
     Intensity,
     WeatherCondition::{
         self, Clear, Drizzle, Fog, FreezingDrizzle, FreezingRain, MainlyClear, Overcast,
@@ -20,53 +21,27 @@ macro_rules! weather_svg {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WeatherIcon {
-    DaySunny,
-    DaySunnyOvercast,
-    DayCloudy,
-    Cloudy,
-    Fog,
-    Sprinkle,
+    Sky(WeatherCondition, Daylight),
     Rain,
-    RainMix,
-    Sleet,
-    Showers,
-    Snow,
-    SnowflakeCold,
     Thunderstorm,
-    StormShowers,
-    Hail,
     Raindrop,
     Thermometer,
     Sunrise,
     Sunset,
-    NightClear,
     StrongWind,
 }
 
 impl WeatherIcon {
     const fn svg_data(self) -> &'static [u8] {
         match self {
+            WeatherIcon::Sky(condition, daylight) => sky_svg_data(condition, daylight),
+            WeatherIcon::Rain => weather_svg!("wi-rain"),
+            WeatherIcon::Thunderstorm => weather_svg!("wi-thunderstorm"),
             WeatherIcon::Raindrop => weather_svg!("wi-raindrop"),
             WeatherIcon::Thermometer => weather_svg!("wi-thermometer"),
             WeatherIcon::Sunrise => weather_svg!("wi-sunrise"),
             WeatherIcon::Sunset => weather_svg!("wi-sunset"),
-            WeatherIcon::NightClear => weather_svg!("wi-night-clear"),
             WeatherIcon::StrongWind => weather_svg!("wi-strong-wind"),
-            WeatherIcon::DaySunny => weather_svg!("wi-day-sunny"),
-            WeatherIcon::DaySunnyOvercast => weather_svg!("wi-day-sunny-overcast"),
-            WeatherIcon::DayCloudy => weather_svg!("wi-day-cloudy"),
-            WeatherIcon::Cloudy => weather_svg!("wi-cloudy"),
-            WeatherIcon::Fog => weather_svg!("wi-fog"),
-            WeatherIcon::Sprinkle => weather_svg!("wi-sprinkle"),
-            WeatherIcon::Rain => weather_svg!("wi-rain"),
-            WeatherIcon::RainMix => weather_svg!("wi-rain-mix"),
-            WeatherIcon::Sleet => weather_svg!("wi-sleet"),
-            WeatherIcon::Showers => weather_svg!("wi-showers"),
-            WeatherIcon::Snow => weather_svg!("wi-snow"),
-            WeatherIcon::SnowflakeCold => weather_svg!("wi-snowflake-cold"),
-            WeatherIcon::Thunderstorm => weather_svg!("wi-thunderstorm"),
-            WeatherIcon::StormShowers => weather_svg!("wi-storm-showers"),
-            WeatherIcon::Hail => weather_svg!("wi-hail"),
         }
     }
 
@@ -76,25 +51,36 @@ impl WeatherIcon {
     }
 }
 
-impl From<WeatherCondition> for WeatherIcon {
-    fn from(condition: WeatherCondition) -> Self {
-        match condition {
-            Clear => WeatherIcon::DaySunny,
-            MainlyClear => WeatherIcon::DaySunnyOvercast,
-            PartlyCloudy => WeatherIcon::DayCloudy,
-            Overcast => WeatherIcon::Cloudy,
-            Fog | RimeFog => WeatherIcon::Fog,
-            Drizzle(_) => WeatherIcon::Sprinkle,
-            FreezingDrizzle(_) => WeatherIcon::RainMix,
-            Rain(_) => WeatherIcon::Rain,
-            FreezingRain(_) => WeatherIcon::Sleet,
-            Snow(_) | SnowShowers(_) => WeatherIcon::Snow,
-            SnowGrains => WeatherIcon::SnowflakeCold,
-            RainShowers(_) => WeatherIcon::Showers,
-            Thunderstorm => WeatherIcon::Thunderstorm,
-            ThunderstormWithHail(Intensity::Heavy) => WeatherIcon::Hail,
-            ThunderstormWithHail(_) => WeatherIcon::StormShowers,
-        }
+const fn sky_svg_data(condition: WeatherCondition, daylight: Daylight) -> &'static [u8] {
+    match (condition, daylight) {
+        (Clear, Day) => weather_svg!("wi-day-sunny"),
+        (Clear, Night) => weather_svg!("wi-night-clear"),
+        (MainlyClear, Day) => weather_svg!("wi-day-sunny-overcast"),
+        (MainlyClear, Night) => weather_svg!("wi-night-alt-partly-cloudy"),
+        (PartlyCloudy, Day) => weather_svg!("wi-day-cloudy"),
+        (PartlyCloudy, Night) => weather_svg!("wi-night-alt-cloudy"),
+        (Overcast, Day) => weather_svg!("wi-day-cloudy-high"),
+        (Overcast, Night) => weather_svg!("wi-night-alt-cloudy-high"),
+        (Fog | RimeFog, Day) => weather_svg!("wi-day-fog"),
+        (Fog | RimeFog, Night) => weather_svg!("wi-night-fog"),
+        (Drizzle(_), Day) => weather_svg!("wi-day-sprinkle"),
+        (Drizzle(_), Night) => weather_svg!("wi-night-alt-sprinkle"),
+        (FreezingDrizzle(_), Day) => weather_svg!("wi-day-rain-mix"),
+        (FreezingDrizzle(_), Night) => weather_svg!("wi-night-alt-rain-mix"),
+        (Rain(_), Day) => weather_svg!("wi-day-rain"),
+        (Rain(_), Night) => weather_svg!("wi-night-alt-rain"),
+        (FreezingRain(_), Day) => weather_svg!("wi-day-sleet"),
+        (FreezingRain(_), Night) => weather_svg!("wi-night-alt-sleet"),
+        (Snow(_) | SnowShowers(_) | SnowGrains, Day) => weather_svg!("wi-day-snow"),
+        (Snow(_) | SnowShowers(_) | SnowGrains, Night) => weather_svg!("wi-night-alt-snow"),
+        (RainShowers(_), Day) => weather_svg!("wi-day-showers"),
+        (RainShowers(_), Night) => weather_svg!("wi-night-alt-showers"),
+        (Thunderstorm, Day) => weather_svg!("wi-day-thunderstorm"),
+        (Thunderstorm, Night) => weather_svg!("wi-night-alt-thunderstorm"),
+        (ThunderstormWithHail(Intensity::Heavy), Day) => weather_svg!("wi-day-hail"),
+        (ThunderstormWithHail(Intensity::Heavy), Night) => weather_svg!("wi-night-alt-hail"),
+        (ThunderstormWithHail(_), Day) => weather_svg!("wi-day-storm-showers"),
+        (ThunderstormWithHail(_), Night) => weather_svg!("wi-night-alt-storm-showers"),
     }
 }
 
@@ -110,30 +96,21 @@ mod tests {
 
     #[test]
     fn every_icon_embeds_a_parsable_svg() {
-        let icons = [
-            WeatherIcon::DaySunny,
-            WeatherIcon::DaySunnyOvercast,
-            WeatherIcon::DayCloudy,
-            WeatherIcon::Cloudy,
-            WeatherIcon::Fog,
-            WeatherIcon::Sprinkle,
+        let sky_icons = (0..100)
+            .filter_map(|code| WeatherCondition::try_from(code).ok())
+            .flat_map(|condition| {
+                [Day, Night].map(|daylight| WeatherIcon::Sky(condition, daylight))
+            });
+        let other_icons = [
             WeatherIcon::Rain,
-            WeatherIcon::RainMix,
-            WeatherIcon::Sleet,
-            WeatherIcon::Showers,
-            WeatherIcon::Snow,
-            WeatherIcon::SnowflakeCold,
             WeatherIcon::Thunderstorm,
-            WeatherIcon::StormShowers,
-            WeatherIcon::Hail,
             WeatherIcon::Raindrop,
             WeatherIcon::Thermometer,
             WeatherIcon::Sunrise,
             WeatherIcon::Sunset,
-            WeatherIcon::NightClear,
             WeatherIcon::StrongWind,
         ];
-        icons.into_iter().for_each(|icon| {
+        sky_icons.chain(other_icons).for_each(|icon| {
             usvg::Tree::from_data(icon.svg_data(), &usvg::Options::default())
                 .unwrap_or_else(|error| panic!("{icon:?}: {error}"));
         });

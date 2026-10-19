@@ -4,7 +4,7 @@ use sottomano_sources::{
     SourceDelivery,
     weather::{
         open_meteo_temperature::{
-            HourlyForecast, HourlyTemperature, Temperature, WeatherCondition,
+            Daylight, HourlyForecast, HourlyTemperature, Temperature, WeatherCondition,
         },
         situo_location_fix::Location,
     },
@@ -39,6 +39,7 @@ fn hourly(
     hours_from_now: i64,
     degrees: f64,
     condition: WeatherCondition,
+    daylight: Daylight,
     clock: Clock,
 ) -> HourlyTemperature {
     HourlyTemperature {
@@ -49,6 +50,7 @@ fn hourly(
             + TimeDelta::hours(hours_from_now),
         temp: celsius(degrees),
         condition: Some(condition),
+        daylight,
     }
 }
 
@@ -56,6 +58,7 @@ fn readings(clock: Clock) -> [WeatherMessage; 2] {
     [
         WeatherMessage::Temp(SourceDelivery::Reading(Ok(Temperature {
             condition: Some(WeatherCondition::PartlyCloudy),
+            daylight: Daylight::Day,
             temp: celsius(18.0),
             feels: celsius(17.0),
             temp_min: celsius(12.0),
@@ -63,13 +66,25 @@ fn readings(clock: Clock) -> [WeatherMessage; 2] {
             humidity: Ratio::new::<percent>(64.0),
             hourly: HourlyForecast {
                 earlier: vec![
-                    hourly(-2, 15.0, WeatherCondition::Overcast, clock),
-                    hourly(-1, 17.0, WeatherCondition::PartlyCloudy, clock),
+                    hourly(-2, 15.0, WeatherCondition::Overcast, Daylight::Day, clock),
+                    hourly(
+                        -1,
+                        17.0,
+                        WeatherCondition::PartlyCloudy,
+                        Daylight::Day,
+                        clock,
+                    ),
                 ],
                 later: vec![
-                    hourly(1, 19.0, WeatherCondition::MainlyClear, clock),
-                    hourly(2, 20.0, WeatherCondition::Clear, clock),
-                    hourly(3, 21.0, WeatherCondition::Clear, clock),
+                    hourly(1, 19.0, WeatherCondition::MainlyClear, Daylight::Day, clock),
+                    hourly(
+                        2,
+                        16.0,
+                        WeatherCondition::PartlyCloudy,
+                        Daylight::Night,
+                        clock,
+                    ),
+                    hourly(3, 14.0, WeatherCondition::Clear, Daylight::Night, clock),
                 ],
             },
         }))),

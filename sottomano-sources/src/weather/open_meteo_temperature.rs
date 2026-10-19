@@ -1,5 +1,5 @@
 use std::{
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::{Display, Formatter, Result as FmtResult},
     time::Duration,
 };
 
@@ -57,14 +57,14 @@ fn percent_value<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Ratio, D:
     Ok(Ratio::new::<percent>(f64::deserialize(deserializer)?))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Intensity {
     Light,
     Moderate,
     Heavy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WeatherCondition {
     Clear,
     MainlyClear,
@@ -84,9 +84,61 @@ pub enum WeatherCondition {
     ThunderstormWithHail(Intensity),
 }
 
+impl Display for Intensity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            Self::Light => "Light",
+            Self::Moderate => "Moderate",
+            Self::Heavy => "Heavy",
+        })
+    }
+}
+
 impl Display for WeatherCondition {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        Debug::fmt(self, f)
+        match self {
+            Self::Clear => f.write_str("Clear"),
+            Self::MainlyClear => f.write_str("Mainly clear"),
+            Self::PartlyCloudy => f.write_str("Partly cloudy"),
+            Self::Overcast => f.write_str("Overcast"),
+            Self::Fog => f.write_str("Fog"),
+            Self::RimeFog => f.write_str("Rime fog"),
+            Self::Drizzle(intensity) => write!(f, "{intensity} drizzle"),
+            Self::FreezingDrizzle(intensity) => write!(f, "{intensity} freezing drizzle"),
+            Self::Rain(intensity) => write!(f, "{intensity} rain"),
+            Self::FreezingRain(intensity) => write!(f, "{intensity} freezing rain"),
+            Self::Snow(intensity) => write!(f, "{intensity} snow"),
+            Self::SnowGrains => f.write_str("Snow grains"),
+            Self::RainShowers(intensity) => write!(f, "{intensity} rain showers"),
+            Self::SnowShowers(intensity) => write!(f, "{intensity} snow showers"),
+            Self::Thunderstorm => f.write_str("Thunderstorm"),
+            Self::ThunderstormWithHail(Intensity::Heavy) => {
+                f.write_str("Thunderstorm with heavy hail")
+            }
+            Self::ThunderstormWithHail(_) => f.write_str("Thunderstorm with hail"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(from = "u8")]
+pub enum Daylight {
+    Day,
+    Night,
+}
+
+impl Display for Daylight {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            Self::Day => "Day",
+            Self::Night => "Night",
+        })
+    }
+}
+
+impl From<u8> for Daylight {
+    fn from(is_day: u8) -> Self {
+        if is_day == 0 { Self::Night } else { Self::Day }
     }
 }
 
@@ -148,6 +200,7 @@ struct CurrentTemperature {
     #[serde(deserialize_with = "percent_value")]
     relative_humidity_2m: Ratio,
     weather_code: i64,
+    is_day: Daylight,
 }
 
 #[derive(Deserialize)]
@@ -165,6 +218,7 @@ struct HourlyTemperatures {
     #[serde(deserialize_with = "celsius_series")]
     temperature_2m: Vec<ThermodynamicTemperature>,
     weather_code: Vec<i64>,
+    is_day: Vec<Daylight>,
 }
 
 impl HourlyTemperatures {
@@ -174,10 +228,12 @@ impl HourlyTemperatures {
             .into_iter()
             .zip(self.temperature_2m)
             .zip(self.weather_code)
-            .map(|((time, temp), code)| HourlyTemperature {
+            .zip(self.is_day)
+            .map(|(((time, temp), code), daylight)| HourlyTemperature {
                 time,
                 temp,
                 condition: WeatherCondition::try_from(code).ok(),
+                daylight,
             })
             .partition(|entry| entry.time <= now);
         HourlyForecast { earlier, later }
@@ -191,6 +247,7 @@ fn today(values: &[ThermodynamicTemperature]) -> Result<ThermodynamicTemperature
 #[derive(Debug, Clone, PartialEq)]
 pub struct Temperature {
     pub condition: Option<WeatherCondition>,
+    pub daylight: Daylight,
     pub temp: ThermodynamicTemperature,
     pub feels: ThermodynamicTemperature,
     pub temp_min: ThermodynamicTemperature,
@@ -210,6 +267,7 @@ pub struct HourlyTemperature {
     pub time: DateTime<Utc>,
     pub temp: ThermodynamicTemperature,
     pub condition: Option<WeatherCondition>,
+    pub daylight: Daylight,
 }
 
 impl ReadingSource for Temperature {
@@ -230,12 +288,13 @@ impl ReadingSource for Temperature {
 impl Temperature {
     async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,is_day,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code,is_day&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
         here.latitude, here.longitude
     );
         let forecast: TemperatureForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Temperature {
             condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),
+            daylight: forecast.current.is_day,
             temp: forecast.current.temperature_2m,
             feels: forecast.current.apparent_temperature,
             temp_min: today(&forecast.daily.temperature_2m_min)?,
@@ -256,7 +315,8 @@ mod tests {
             r#"{
                 "time": [1790496000, 1790499600, 1790503200],
                 "temperature_2m": [13.2, 13.8, 15.6],
-                "weather_code": [1, 3, 0]
+                "weather_code": [1, 3, 0],
+                "is_day": [0, 1, 1]
             }"#,
         )
         .unwrap();
@@ -269,6 +329,21 @@ mod tests {
         );
         assert_eq!(forecast.later.len(), 1);
         assert_eq!(forecast.later[0].condition, Some(WeatherCondition::Clear));
+        assert_eq!(forecast.earlier[0].daylight, Daylight::Night);
+        assert_eq!(forecast.later[0].daylight, Daylight::Day);
+    }
+
+    #[test]
+    fn conditions_read_as_english() {
+        assert_eq!(WeatherCondition::PartlyCloudy.to_string(), "Partly cloudy");
+        assert_eq!(
+            WeatherCondition::RainShowers(Intensity::Moderate).to_string(),
+            "Moderate rain showers"
+        );
+        assert_eq!(
+            WeatherCondition::ThunderstormWithHail(Intensity::Heavy).to_string(),
+            "Thunderstorm with heavy hail"
+        );
     }
 
     #[test]
