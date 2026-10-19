@@ -136,28 +136,23 @@
         }
       );
 
+      showcaseFonts = {
+        nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.fontconfig ];
+        FONTCONFIG_FILE = pkgs.makeFontsConf {
+          fontDirectories = [
+            pkgs.ibm-plex
+            pkgs.nerd-fonts.lilex
+            pkgs.dejavu_fonts
+          ];
+          includes = [ ./nix/fonts.conf.d ];
+        };
+      };
+
       readmeRecordings = craneLib.mkCargoDerivation (
         showcaseArgs
+        // showcaseFonts
         // {
           cargoArtifacts = showcaseArtifacts;
-          nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.fontconfig ];
-          FONTCONFIG_FILE = pkgs.makeFontsConf {
-            fontDirectories = [
-              pkgs.ibm-plex
-              pkgs.nerd-fonts.lilex
-              pkgs.dejavu_fonts
-            ];
-            includes = [
-              "${pkgs.writeTextDir "conf.d/60-widget-showcase-families.conf" ''
-                <?xml version="1.0"?>
-                <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
-                <fontconfig>
-                  <alias><family>sans-serif</family><prefer><family>IBM Plex Sans</family></prefer></alias>
-                  <alias><family>monospace</family><prefer><family>Lilex Nerd Font Mono</family></prefer></alias>
-                </fontconfig>
-              ''}/conf.d"
-            ];
-          };
           LANG = "en_US.UTF-8";
           VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader ];
@@ -186,9 +181,11 @@
       checks.${system} = {
         tests = craneLib.cargoTest (
           workspaceArgs
+          // showcaseFonts
           // {
             cargoArtifacts = workspaceArtifacts;
             doInstallCargoArtifacts = false;
+            RUST_BACKTRACE = "1";
           }
         );
         clippy = craneLib.cargoClippy (
