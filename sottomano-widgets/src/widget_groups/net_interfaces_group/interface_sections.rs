@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::net_interfaces::nm::AddressBlock;
+use sottomano_sources::network_connectivity::network_manager_proxies::AddressBlock;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::InformationRate, information_rate::megabit_per_second},

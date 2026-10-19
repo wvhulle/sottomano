@@ -1,7 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
-    net_interfaces::nm::Connectivity,
-    throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
+use sottomano_sources::network_connectivity::{
+    interface_throughput::{NetworkTrafficDirection, Readings, SCALE_END_MB_PER_S, Throughput},
+    network_manager_proxies::Connectivity,
 };
 use uom::si::{
     f64::{InformationRate, Ratio},

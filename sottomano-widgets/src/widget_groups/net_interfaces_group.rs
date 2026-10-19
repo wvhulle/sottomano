@@ -9,11 +9,11 @@ mod wifi_link_tooltip;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    net_interfaces::{
-        bluetooth::Bluetooth,
-        ethernet::{Ethernet, EthernetDetails},
-        mobile::Mobile,
-        wifi::{Wifi, WifiDetails},
+    network_connectivity::{
+        bluez_bluetooth::Bluetooth,
+        ethernet_connection::{Ethernet, EthernetDetails},
+        modem_manager_mobile::Mobile,
+        wifi_connection::{Wifi, WifiDetails},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

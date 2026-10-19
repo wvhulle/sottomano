@@ -18,7 +18,7 @@ use zbus::{
 };
 
 use crate::{
-    net_interfaces::ReadingError, non_empty_text::non_empty,
+    network_connectivity::ReadingError, non_empty_text::non_empty,
     stream_operators::connected_until_failure,
 };
 

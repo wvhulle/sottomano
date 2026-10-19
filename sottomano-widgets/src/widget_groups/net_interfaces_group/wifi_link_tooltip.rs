@@ -1,4 +1,4 @@
-use sottomano_sources::net_interfaces::wifi::{Wifi, WifiDetails};
+use sottomano_sources::network_connectivity::wifi_connection::{Wifi, WifiDetails};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Ratio, frequency::megahertz},

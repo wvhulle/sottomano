@@ -6,7 +6,7 @@ use serde_json::Value as Json;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    net_interfaces::nm,
+    network_connectivity::network_manager_proxies,
     polled_delivery_stream, pushed_delivery_stream,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
@@ -70,7 +70,12 @@ async fn address_changes(
     impl Stream<Item = Result<TunnelAddress, shell_command_output::Error>> + Send,
     shell_command_output::Error,
 > {
-    let addressing = match nm::changes(&watched.buses.system, ADDRESSING_PROPERTIES).await {
+    let addressing = match network_manager_proxies::changes(
+        &watched.buses.system,
+        ADDRESSING_PROPERTIES,
+    )
+    .await
+    {
         Ok(signals) => signals.left_stream(),
         Err(e) => {
             tracing::debug!("wireguard: no NetworkManager to follow: {e}");
@@ -87,7 +92,10 @@ async fn address_changes(
     }))
 }
 
-const ADDRESSING_PROPERTIES: &[&str] = &[nm::DEVICE_PROPERTIES, nm::IP4_CONFIG_PROPERTIES];
+const ADDRESSING_PROPERTIES: &[&str] = &[
+    network_manager_proxies::DEVICE_PROPERTIES,
+    network_manager_proxies::IP4_CONFIG_PROPERTIES,
+];
 
 impl Tunnel {
     #[must_use]

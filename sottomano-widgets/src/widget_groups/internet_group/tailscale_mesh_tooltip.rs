@@ -1,4 +1,4 @@
-use sottomano_sources::tailscale::Tailscale;
+use sottomano_sources::network_connectivity::tailscale_status::Tailscale;
 
 use crate::widgets::{
     bar_widget::{BarWidget, Glyph},

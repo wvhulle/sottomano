@@ -10,7 +10,7 @@ use zbus::{
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
-    net_interfaces::{device_or_absent, interface, managed_objects_readings},
+    network_connectivity::{device_or_absent, interface, managed_objects_readings},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 

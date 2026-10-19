@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use sottomano_config::severity::Severity;
-use sottomano_sources::net_interfaces::bluetooth::Bluetooth;
+use sottomano_sources::network_connectivity::bluez_bluetooth::Bluetooth;
 use uom::si::f64::Ratio;
 
 use crate::{

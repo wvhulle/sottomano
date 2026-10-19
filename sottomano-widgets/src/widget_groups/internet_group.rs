@@ -7,10 +7,12 @@ mod wireguard_tunnel_tooltip;
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
+    network_connectivity::{
+        interface_throughput::Readings,
+        tailscale_status::{self, Tailscale, open_admin},
+        wireguard_tunnels::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-    tailscale::{self, Tailscale, open_admin},
-    throughput::Readings,
-    wireguard::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
 };
 
 use crate::{
@@ -38,8 +40,8 @@ pub enum InternetTarget {
     Wireguard(String),
 }
 
-impl From<tailscale::Error> for Section {
-    fn from(error: tailscale::Error) -> Self {
+impl From<tailscale_status::Error> for Section {
+    fn from(error: tailscale_status::Error) -> Self {
         Section::error(error)
     }
 }

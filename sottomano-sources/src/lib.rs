@@ -22,7 +22,7 @@ pub mod llama_server;
 pub mod logind;
 pub mod money;
 pub mod mpris;
-pub mod net_interfaces;
+pub mod network_connectivity;
 pub mod niri;
 pub mod niri_config;
 pub mod nix_package_facts;
@@ -42,13 +42,10 @@ pub mod sqlite_state_store;
 pub mod stream_operators;
 pub mod system_protocol_clients;
 pub mod systemd_manager;
-pub mod tailscale;
-pub mod throughput;
 pub mod tray;
 pub mod wallpaper;
 pub mod weather;
 pub mod window_label;
-pub mod wireguard;
 
 use std::{
     fmt::{Debug, Display, Formatter, Result as FmtResult},
