@@ -33,9 +33,7 @@ use crate::{
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -231,7 +229,9 @@ impl PowerGroup {
             &self.expansion,
             PowerMessage::Expansion,
             [
-                self.battery.group_item(PowerTarget::Battery),
+                self.battery
+                    .group_item(PowerTarget::Battery)
+                    .map(GroupItem::previewed_on_handle),
                 self.draw()
                     .map(|draw| GroupItem::reading(draw, PowerTarget::Draw)),
                 self.time.as_ref().map(|time| {
@@ -251,9 +251,5 @@ impl PowerGroup {
             glyph: Phosphor::Lightning(Weight::Regular).into(),
             handle: GroupHandle::Power,
         })
-        .preview(self.battery.get().map(|battery| PreviewedValue::Hoverable {
-            widget: battery,
-            target: PowerTarget::Battery.into(),
-        }))
     }
 }

@@ -138,30 +138,6 @@ impl<'a> HandleFace<'a> {
     }
 }
 
-#[derive(Clone)]
-pub enum PreviewedValue<'a> {
-    Plain(&'a dyn BarWidget),
-    Hoverable {
-        widget: &'a dyn BarWidget,
-        target: HoverTarget,
-    },
-}
-
-impl<'a> PreviewedValue<'a> {
-    fn widget(&self) -> &'a dyn BarWidget {
-        match self {
-            PreviewedValue::Plain(widget) | PreviewedValue::Hoverable { widget, .. } => *widget,
-        }
-    }
-
-    fn hover_target(&self) -> Option<HoverTarget> {
-        match self {
-            PreviewedValue::Plain(_) => None,
-            PreviewedValue::Hoverable { target, .. } => Some(target.clone()),
-        }
-    }
-}
-
 pub struct GroupToastRequests<M> {
     pub ongoing_toasts: Vec<OngoingToast<M>>,
     pub levels: Vec<LevelReading<M>>,
@@ -197,7 +173,6 @@ enum Handle<'a, M> {
         expansion: &'a GroupExpansion,
         on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
         face: HandleFace<'a>,
-        preview: Option<PreviewedValue<'a>>,
         scroll_does: Option<&'static str>,
     },
     Fixed,
@@ -210,13 +185,11 @@ impl<'a, M: 'a> Handle<'a, M> {
                 expansion,
                 on_expansion,
                 face,
-                preview,
                 scroll_does,
             } => Handle::Expandable {
                 expansion,
                 on_expansion: Rc::new(move |message| lift(on_expansion(message))),
                 face,
-                preview,
                 scroll_does,
             },
             Handle::Fixed => Handle::Fixed,
@@ -247,7 +220,6 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 expansion,
                 on_expansion: Rc::new(on_expansion),
                 face: HandleFace::FirstItem,
-                preview: None,
                 scroll_does: None,
             },
             items: items.into_iter().collect(),
@@ -265,17 +237,6 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     pub fn face(mut self, face: HandleFace<'a>) -> Self {
         if let Handle::Expandable { face: current, .. } = &mut self.handle {
             *current = face;
-        }
-        self
-    }
-
-    #[must_use]
-    pub fn preview(mut self, preview: Option<PreviewedValue<'a>>) -> Self {
-        if let Handle::Expandable {
-            preview: current, ..
-        } = &mut self.handle
-        {
-            *current = preview;
         }
         self
     }
@@ -350,7 +311,6 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             expansion,
             on_expansion,
             face,
-            preview,
             scroll_does,
         } = handle
         else {
@@ -363,18 +323,14 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             ));
         };
         let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
-        let handle_target = preview
-            .as_ref()
-            .and_then(PreviewedValue::hover_target)
-            .or(face.hover_target());
+        let face_target = face.hover_target();
         let face = face.into_face_item(config, &mut items, handle_hints, clock);
+        let handle_target = items
+            .iter()
+            .find_map(GroupItem::handle_preview)
+            .map(|preview| preview.target.clone())
+            .or(face_target);
         let draw_face = move || face.view(config, 1.0, clock);
-        let draw_content = move |reveal: f32| -> Element<'a, GroupEvent<M>> {
-            Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
-                .spacing(config.layout.panel.widget_spacing)
-                .align_y(Alignment::Center)
-                .into()
-        };
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
         let toggle = expansion_event(ExpansionMessage::Toggle);
         let on_enter = expansion_event(ExpansionMessage::CursorEntered);
@@ -389,12 +345,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
                     draw_face(),
-                    collapsing_previewed_value(
-                        config,
-                        preview.as_ref().map(PreviewedValue::widget),
-                        reveal,
-                        clock,
-                    ),
+                    collapsing_previewed_value(config, &items, reveal, clock),
                 ])
                 .align_y(Alignment::Center),
             )
@@ -422,9 +373,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             };
             let inner = Row::new()
                 .push(handle)
-                .extend(
-                    (reveal > 0.0).then(|| revealed_content(config, reveal, draw_content(reveal))),
-                )
+                .extend((reveal > 0.0).then(|| {
+                    revealed_content(config, reveal, items_row(config, &items, reveal, clock))
+                }))
                 .align_y(Alignment::Center);
             PagerSlot::new(inner.into(), edge_indicator.view(config, reveal))
                 .view(config, bar_position)
@@ -494,16 +445,35 @@ impl EdgeIndicator {
     }
 }
 
-fn collapsing_previewed_value<'a, Message: 'a>(
+fn items_row<'a, M: Clone + 'a>(
     config: &Config,
-    previewed_value: Option<&dyn BarWidget>,
+    items: &[GroupItem<'a, M>],
+    reveal: f32,
+    clock: Clock,
+) -> Element<'a, GroupEvent<M>> {
+    Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
+        .spacing(config.layout.panel.widget_spacing)
+        .align_y(Alignment::Center)
+        .into()
+}
+
+fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
+    config: &Config,
+    items: &[GroupItem<'a, M>],
     reveal: f32,
     clock: Clock,
 ) -> Element<'a, Message> {
     let hidden = 1.0 - reveal;
-    let Some(value) = previewed_value.filter(|_| hidden > 0.0).and_then(|widget| {
-        reading_value(config, widget, reading_color(config, widget, clock), clock)
-    }) else {
+    let previewed_widget = items
+        .iter()
+        .find_map(GroupItem::handle_preview)
+        .map(|preview| preview.widget);
+    let Some(value) = previewed_widget
+        .filter(|_| hidden > 0.0)
+        .and_then(|widget| {
+            reading_value(config, widget, reading_color(config, widget, clock), clock)
+        })
+    else {
         return Row::new().into();
     };
     reveal_x(

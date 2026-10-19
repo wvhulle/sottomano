@@ -55,7 +55,7 @@ impl BarWidget for ClaudeCcusagePeriods {
                     projected,
                     threshold,
                     Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
-                    Some(KeyValue::new("Models", period.usage.models.clone())),
+                    Some(KeyValue::new("Models", period.usage.models.to_string())),
                 ]
                 .into_iter()
                 .flatten(),

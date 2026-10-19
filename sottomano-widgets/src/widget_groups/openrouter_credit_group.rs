@@ -1,4 +1,3 @@
-mod model_spend_breakdown;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
 
@@ -18,16 +17,14 @@ use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::openrouter_credit_group::model_spend_breakdown::ModelSpendBreakdown,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -35,7 +32,8 @@ use crate::{
 pub enum OpenRouterCreditTarget {
     SoftBudget,
     StrictBudget,
-    ModelBreakdown,
+    MostUsedModel,
+    MostUsedModelSpend,
 }
 
 impl From<openrouter_credits::Error> for Section {
@@ -91,7 +89,9 @@ impl OpenRouterCreditGroup {
             return Task::none();
         };
         match target {
-            OpenRouterCreditTarget::SoftBudget | OpenRouterCreditTarget::ModelBreakdown => {
+            OpenRouterCreditTarget::SoftBudget
+            | OpenRouterCreditTarget::MostUsedModel
+            | OpenRouterCreditTarget::MostUsedModelSpend => {
                 first_delivery::<OpenRouterSpend>(account(key, config))
                     .map(OpenRouterCreditMessage::SoftBudget)
             }
@@ -130,11 +130,25 @@ impl OpenRouterCreditGroup {
         Task::none()
     }
 
-    fn model_breakdown(&self) -> Option<ModelSpendBreakdown<'_>> {
-        self.spend
-            .visible_reading()
-            .filter(|spend| !spend.month.models.is_empty())
-            .map(ModelSpendBreakdown)
+    fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
+        let spend = self.spend.visible_reading()?;
+        ModelSpendRanking::new(
+            "OpenRouter analytics, per local calendar span",
+            [
+                RankedSpan {
+                    heading: "Today",
+                    models: &spend.today.models,
+                },
+                RankedSpan {
+                    heading: "Week",
+                    models: &spend.week.models,
+                },
+                RankedSpan {
+                    heading: "Month",
+                    models: &spend.month.models,
+                },
+            ],
+        )
     }
 
     #[must_use]
@@ -142,9 +156,12 @@ impl OpenRouterCreditGroup {
         match target {
             OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(clock),
             OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(clock),
-            OpenRouterCreditTarget::ModelBreakdown => self
+            OpenRouterCreditTarget::MostUsedModel => self
                 .spend
-                .tooltip_with(self.model_breakdown()?.tooltip(clock)),
+                .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
+            OpenRouterCreditTarget::MostUsedModelSpend => self
+                .spend
+                .tooltip_with(MostUsedModelSpend(self.model_ranking()?).tooltip(clock)),
         }
     }
 
@@ -153,21 +170,31 @@ impl OpenRouterCreditGroup {
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
             [
-                self.spend.group_item(OpenRouterCreditTarget::SoftBudget),
+                self.spend
+                    .group_item(OpenRouterCreditTarget::SoftBudget)
+                    .map(GroupItem::previewed_on_handle),
                 self.strict_budget
                     .group_item(OpenRouterCreditTarget::StrictBudget),
-                self.model_breakdown().map(|breakdown| {
-                    GroupItem::reading(breakdown, OpenRouterCreditTarget::ModelBreakdown)
-                }),
             ]
             .into_iter()
-            .flatten(),
+            .flatten()
+            .chain(self.model_ranking().into_iter().flat_map(|ranking| {
+                [
+                    GroupItem::reading(
+                        MostUsedModel(ranking),
+                        OpenRouterCreditTarget::MostUsedModel,
+                    ),
+                    GroupItem::reading(
+                        MostUsedModelSpend(ranking),
+                        OpenRouterCreditTarget::MostUsedModelSpend,
+                    ),
+                ]
+            })),
         )
         .face(HandleFace::Icon {
             glyph: SimpleIcon::OpenRouter.into(),
             handle: GroupHandle::OpenRouterCredit,
         })
-        .preview(self.spend.display().map(PreviewedValue::Plain))
     }
 }
 

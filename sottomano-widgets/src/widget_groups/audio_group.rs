@@ -17,15 +17,12 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -304,6 +301,7 @@ impl AudioGroup {
                         config,
                         AudioMessage::Control.with(ControlKind::Sink),
                     )
+                    .previewed_on_handle()
                 }),
                 source.map(|_| {
                     GroupItem::slider(
@@ -324,7 +322,6 @@ impl AudioGroup {
             reading: &self.sink_control,
             handle: GroupHandle::Audio,
         })
-        .preview(sink.map(|_| PreviewedValue::Plain(&self.sink_control as &dyn BarWidget)))
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }
 

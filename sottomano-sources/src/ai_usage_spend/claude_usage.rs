@@ -1,4 +1,5 @@
 mod ccusage_billing_blocks;
+mod ccusage_model_ranking;
 mod enterprise_spend;
 mod oauth_retry_backoff;
 mod oauth_usage_api;
@@ -16,6 +17,7 @@ use serde::Deserialize;
 
 pub use self::{
     ccusage_billing_blocks::{ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeLocalLogs},
+    ccusage_model_ranking::ClaudeCcusageModels,
     enterprise_spend::{ClaudeEnterpriseSpend, ClaudeOrganization},
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };

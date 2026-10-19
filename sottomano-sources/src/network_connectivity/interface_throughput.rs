@@ -37,7 +37,6 @@ pub const SCALE_END_MB_PER_S: f64 = 125.0;
 pub enum NetworkTrafficDirection {
     Upload,
     Download,
-    Combined,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,7 +89,6 @@ impl Throughput {
 pub struct InterfaceThroughput {
     pub down: Throughput,
     pub up: Throughput,
-    pub total: Throughput,
 }
 
 impl ReadingSource for InterfaceThroughput {
@@ -215,10 +213,6 @@ impl Rates {
     fn raised_by(self, other: Self) -> Self {
         self.combine(other, InformationRate::max)
     }
-
-    fn both_directions(self) -> InformationRate {
-        self.rx + self.tx
-    }
 }
 
 impl Add for Rates {
@@ -272,18 +266,11 @@ fn readings(
             direction: NetworkTrafficDirection::Download,
         },
         up: Throughput {
-            interfaces: interfaces.clone(),
+            interfaces,
             rate: rates.tx,
             peak_rate: peak.tx,
             connectivity,
             direction: NetworkTrafficDirection::Upload,
-        },
-        total: Throughput {
-            interfaces,
-            rate: rates.both_directions(),
-            peak_rate: peak.both_directions(),
-            connectivity,
-            direction: NetworkTrafficDirection::Combined,
         },
     }
 }

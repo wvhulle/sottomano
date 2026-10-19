@@ -14,6 +14,7 @@ use sottomano_config::severity::Severity;
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     ai_usage_spend::{
+        model_spend_ranking::{ModelRanking, ModelSpend},
         spend_money::{Money, deserialize_usd, usd},
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
@@ -85,21 +86,15 @@ pub struct Credits {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ModelSpend {
-    pub model: String,
-    pub cost: Money,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct SpanSpend {
     pub span: CalendarSpan,
-    pub models: Vec<ModelSpend>,
+    pub models: ModelRanking,
 }
 
 impl SpanSpend {
     #[must_use]
     pub fn cost(&self) -> Money {
-        usd(self.models.iter().map(|model| *model.cost.amount()).sum())
+        self.models.total()
     }
 
     #[must_use]
@@ -107,16 +102,8 @@ impl SpanSpend {
         self.span.projected_cost(&self.cost(), now, budget)
     }
 
-    #[must_use]
-    pub fn model_cost(&self, model: &str) -> Option<Money> {
-        self.models
-            .iter()
-            .find(|spend| spend.model == model)
-            .map(|spend| spend.cost)
-    }
-
     fn within(span: CalendarSpan, hourly: &[Usage]) -> Self {
-        let mut models = hourly
+        let models = hourly
             .iter()
             .filter(|usage| span.contains(usage.local_day()))
             .filter_map(|usage| {
@@ -125,19 +112,7 @@ impl SpanSpend {
                     cost: usage.cost,
                 })
             })
-            .fold(Vec::<ModelSpend>::new(), |mut models, spend| {
-                match models
-                    .iter_mut()
-                    .find(|existing| existing.model == spend.model)
-                {
-                    Some(existing) => {
-                        existing.cost = usd(existing.cost.amount() + spend.cost.amount());
-                    }
-                    None => models.push(spend),
-                }
-                models
-            });
-        models.sort_by(|a, b| b.cost.amount().cmp(a.cost.amount()));
+            .collect();
         Self { span, models }
     }
 }

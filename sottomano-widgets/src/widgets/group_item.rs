@@ -107,11 +107,17 @@ impl<M> Press<M> {
     }
 }
 
+pub(super) struct HandlePreview<'p> {
+    pub widget: &'p dyn BarWidget,
+    pub target: &'p HoverTarget,
+}
+
 pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<Press<M>>,
     on_right_press: Option<Press<M>>,
     handle_hints: PressHints,
+    previewed_on_handle: bool,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
 }
@@ -123,6 +129,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             on_press: None,
             on_right_press: None,
             handle_hints: PressHints::default(),
+            previewed_on_handle: false,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
         }
@@ -209,6 +216,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
+    pub fn previewed_on_handle(self) -> Self {
+        self.previewed_on_handle_if(true)
+    }
+
+    #[must_use]
+    pub fn previewed_on_handle_if(self, previewed: bool) -> Self {
+        Self {
+            previewed_on_handle: previewed,
+            ..self
+        }
+    }
+
+    #[must_use]
     pub fn ongoing_toasts(self, ongoing_toasts: impl IntoIterator<Item = OngoingToast<M>>) -> Self {
         Self {
             ongoing_toasts: ongoing_toasts.into_iter().collect(),
@@ -233,6 +253,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             on_press: self.on_press.map(|press| press.map(lift)),
             on_right_press: self.on_right_press.map(|press| press.map(lift)),
             handle_hints: self.handle_hints,
+            previewed_on_handle: self.previewed_on_handle,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
                 .into_iter()
@@ -260,6 +281,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .or(self.handle_hints.right),
             ..self.handle_hints
         }
+    }
+
+    pub(super) fn handle_preview(&self) -> Option<HandlePreview<'_>> {
+        if !self.previewed_on_handle {
+            return None;
+        }
+        Some(HandlePreview {
+            widget: self.kind.announcing_widget()?,
+            target: self.kind.hover_target()?,
+        })
     }
 
     pub(super) fn level_reading(

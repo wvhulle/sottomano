@@ -61,7 +61,7 @@ impl BarWidget for CopilotCcusage {
             Section::dictionary([
                 KeyValue::new("Tokens", usage.tokens.to_string()),
                 KeyValue::new("Cost", usage.cost.to_string()),
-                KeyValue::new("Models", usage.models.clone()),
+                KeyValue::new("Models", usage.models.to_string()),
             ])
             .titled(
                 self.period

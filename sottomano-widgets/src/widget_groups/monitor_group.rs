@@ -26,16 +26,13 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -211,31 +208,26 @@ impl MonitorGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, MonitorMessage> {
-        let previewed_value = self
-            .sliders
-            .values()
-            .next()
-            .map(|slider| slider as &dyn BarWidget)
-            .or(self.clight.reading());
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
             GroupItem::slider(slider, config, move |m| {
                 MonitorMessage::Backlight(serial.clone(), m)
             })
+            .previewed_on_handle()
         });
         GroupContent::new(
             &self.expansion,
             MonitorMessage::Expansion,
             backlight_items.chain(
                 self.clight
-                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::AutoBrightness),
+                    .group_item(MonitorTarget::ClightAuto, MonitorMessage::AutoBrightness)
+                    .map(GroupItem::previewed_on_handle),
             ),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::Lightbulb(Weight::Regular).into(),
             handle: GroupHandle::Monitor,
         })
-        .preview(previewed_value.map(PreviewedValue::Plain))
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }
 }
