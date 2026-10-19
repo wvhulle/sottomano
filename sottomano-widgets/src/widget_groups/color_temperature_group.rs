@@ -19,16 +19,13 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -231,6 +228,7 @@ impl ColorTemperatureGroup {
             [
                 gamma_available.then(|| {
                     GroupItem::slider(&self.warmth, config, ColorTemperatureMessage::Warmth)
+                        .previewed_on_handle()
                 }),
                 gamma_available
                     .then(|| GroupItem::slider(&self.dim, config, ColorTemperatureMessage::Dim)),
@@ -247,7 +245,6 @@ impl ColorTemperatureGroup {
             glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
             handle: GroupHandle::ColorTemperature,
         })
-        .preview(gamma_available.then_some(PreviewedValue::Plain(&self.warmth as &dyn BarWidget)))
         .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }
 }

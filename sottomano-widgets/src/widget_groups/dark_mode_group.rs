@@ -37,9 +37,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::Tooltip,
         weather_icons::WeatherIcon,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -332,7 +330,8 @@ impl DarkModeGroup {
             DarkModeMessage::Expansion,
             [
                 self.mode_toggle
-                    .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle),
+                    .group_item(DarkModeTarget::Mode, DarkModeMessage::ModeToggle)
+                    .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
                         &self.auto_switch_toggle as &dyn BarWidget,
@@ -353,6 +352,5 @@ impl DarkModeGroup {
             glyph: Phosphor::MoonStars(Weight::Regular).into(),
             handle: GroupHandle::DarkMode,
         })
-        .preview(self.mode_toggle.reading().map(PreviewedValue::Plain))
     }
 }

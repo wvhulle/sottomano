@@ -91,7 +91,6 @@ impl<'a> BlockBuilder<'a> {
             }),
         }
     }
-
 }
 
 pub fn body_blocks<'a>(

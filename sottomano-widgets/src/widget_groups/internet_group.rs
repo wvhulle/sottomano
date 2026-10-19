@@ -26,9 +26,7 @@ use crate::{
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -36,7 +34,7 @@ use crate::{
 pub enum InternetTarget {
     Down,
     Up,
-    Total,
+    Throughput,
     Tailscale,
     Wireguard(String),
 }
@@ -93,7 +91,7 @@ impl InternetGroup {
 
     pub fn refresh(target: &InternetTarget, buses: &DesktopBuses) -> Task<InternetMessage> {
         match target {
-            InternetTarget::Down | InternetTarget::Up | InternetTarget::Total => {
+            InternetTarget::Down | InternetTarget::Up | InternetTarget::Throughput => {
                 first_delivery::<InterfaceThroughput>(buses.clone())
                     .map(InternetMessage::Throughput)
             }
@@ -178,10 +176,7 @@ impl InternetGroup {
             InternetTarget::Up => self
                 .throughput
                 .tooltip_with(self.throughput.get()?.up.tooltip(clock)),
-            InternetTarget::Total => match self.throughput.get() {
-                Some(readings) => self.throughput.tooltip_with(readings.total.tooltip(clock)),
-                None => self.throughput.tooltip(clock),
-            },
+            InternetTarget::Throughput => self.throughput.tooltip(clock),
             InternetTarget::Tailscale => self.tailscale.tooltip(clock),
         }
     }
@@ -196,7 +191,7 @@ impl InternetGroup {
             &self.expansion,
             InternetMessage::Expansion,
             self.throughput
-                .group_item(InternetTarget::Total)
+                .group_item(InternetTarget::Throughput)
                 .into_iter()
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
@@ -220,9 +215,5 @@ impl InternetGroup {
             glyph: Phosphor::ArrowsDownUp(Weight::Regular).into(),
             handle: GroupHandle::Internet,
         })
-        .preview(throughput.map(|readings| PreviewedValue::Hoverable {
-            widget: &readings.total,
-            target: InternetTarget::Total.into(),
-        }))
     }
 }

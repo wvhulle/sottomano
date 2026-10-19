@@ -50,7 +50,6 @@ impl BarWidget for Throughput {
         match self.direction {
             NetworkTrafficDirection::Upload => "Upload",
             NetworkTrafficDirection::Download => "Download",
-            NetworkTrafficDirection::Combined => "Network throughput",
         }
     }
 
@@ -58,7 +57,6 @@ impl BarWidget for Throughput {
         let direction_icon = match self.direction {
             NetworkTrafficDirection::Upload => Phosphor::UploadSimple(Weight::Regular),
             NetworkTrafficDirection::Download => Phosphor::DownloadSimple(Weight::Regular),
-            NetworkTrafficDirection::Combined => Phosphor::ArrowsDownUp(Weight::Regular),
         };
         direction_icon.with_weight(Weight::Regular).into()
     }
@@ -90,7 +88,6 @@ impl BarWidget for Throughput {
         let rate_label = match self.direction {
             NetworkTrafficDirection::Upload => "Up",
             NetworkTrafficDirection::Download => "Down",
-            NetworkTrafficDirection::Combined => "Total",
         };
         TooltipBody::dictionary(
             [
@@ -112,19 +109,22 @@ impl BarWidget for Throughput {
 
 impl BarWidget for InterfaceThroughput {
     fn name(&self) -> &'static str {
-        self.total.name()
+        "Network throughput"
     }
 
     fn icon(&self) -> Glyph {
-        self.total.icon()
+        Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 
     fn visible_in_bar(&self) -> bool {
         false
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        self.total.tooltip(clock)
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        TooltipBody::dictionary([
+            KeyValue::new("Down", per_second_text(self.down.rate)),
+            KeyValue::new("Up", per_second_text(self.up.rate)),
+        ])
     }
 }
 

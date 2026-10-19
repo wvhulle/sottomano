@@ -24,9 +24,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::Tooltip,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
 
@@ -259,12 +257,12 @@ impl IdleTimeoutsGroup {
                         })
                     },
                 )
+                .previewed_on_handle_if(kind == TimerKind::LockUser)
             }),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::Timer(Weight::Regular).into(),
             handle: GroupHandle::IdleTimeouts,
         })
-        .preview(Some(PreviewedValue::Plain(self.lock.reading())))
     }
 }

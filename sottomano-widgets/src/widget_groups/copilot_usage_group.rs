@@ -20,12 +20,13 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
+        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
+        group_item::GroupItem,
+        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -34,6 +35,8 @@ pub enum CopilotUsageTarget {
     Metered,
     Free,
     Cli,
+    MostUsedModel,
+    MostUsedModelSpend,
 }
 
 impl From<copilot_usage::Error> for Section {
@@ -104,7 +107,9 @@ impl CopilotUsageGroup {
             CopilotUsageTarget::Free => account.map_or_else(Task::none, |key| {
                 first_delivery::<CopilotFree>(key).map(CopilotUsageMessage::Free)
             }),
-            CopilotUsageTarget::Cli => {
+            CopilotUsageTarget::Cli
+            | CopilotUsageTarget::MostUsedModel
+            | CopilotUsageTarget::MostUsedModelSpend => {
                 first_delivery::<CopilotCcusage>(cli_budget(config)).map(CopilotUsageMessage::Cli)
             }
         }
@@ -146,7 +151,24 @@ impl CopilotUsageGroup {
             CopilotUsageTarget::Metered => self.metered.tooltip(clock),
             CopilotUsageTarget::Free => self.free.tooltip(clock),
             CopilotUsageTarget::Cli => self.cli.tooltip(clock),
+            CopilotUsageTarget::MostUsedModel => self
+                .cli
+                .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
+            CopilotUsageTarget::MostUsedModelSpend => self
+                .cli
+                .tooltip_with(MostUsedModelSpend(self.model_ranking()?).tooltip(clock)),
         }
+    }
+
+    fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 1>> {
+        let cli = self.cli.visible_reading()?;
+        ModelSpendRanking::new(
+            "ccusage, local Copilot CLI session data",
+            [RankedSpan {
+                heading: "Month",
+                models: &cli.period.usage.models,
+            }],
+        )
     }
 
     pub fn group_content(&self) -> GroupContent<'_, CopilotUsageMessage> {
@@ -154,18 +176,28 @@ impl CopilotUsageGroup {
             &self.expansion,
             CopilotUsageMessage::Expansion,
             [
-                self.metered.group_item(CopilotUsageTarget::Metered),
+                self.metered
+                    .group_item(CopilotUsageTarget::Metered)
+                    .map(GroupItem::previewed_on_handle),
                 self.free.group_item(CopilotUsageTarget::Free),
                 self.cli.group_item(CopilotUsageTarget::Cli),
             ]
             .into_iter()
-            .flatten(),
+            .flatten()
+            .chain(self.model_ranking().into_iter().flat_map(|ranking| {
+                [
+                    GroupItem::reading(MostUsedModel(ranking), CopilotUsageTarget::MostUsedModel),
+                    GroupItem::reading(
+                        MostUsedModelSpend(ranking),
+                        CopilotUsageTarget::MostUsedModelSpend,
+                    ),
+                ]
+            })),
         )
         .face(HandleFace::Icon {
             glyph: SimpleIcon::GithubCopilot.into(),
             handle: GroupHandle::CopilotUsage,
         })
-        .preview(self.metered.display().map(PreviewedValue::Plain))
     }
 }
 

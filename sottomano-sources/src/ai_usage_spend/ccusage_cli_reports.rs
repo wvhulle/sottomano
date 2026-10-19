@@ -1,5 +1,4 @@
 use std::{
-    collections::BTreeSet,
     env,
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
@@ -14,6 +13,7 @@ use serde::Deserialize;
 
 use crate::{
     ai_usage_spend::{
+        model_spend_ranking::{ModelRanking, ModelSpend},
         spend_money::{Money, usd},
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
@@ -112,7 +112,7 @@ impl Agent {
 pub struct Usage {
     pub tokens: u64,
     pub cost: Money,
-    pub models: String,
+    pub models: ModelRanking,
 }
 
 impl Usage {
@@ -217,7 +217,14 @@ struct DayTotals {
 struct Totals {
     total_tokens: u64,
     total_cost: Decimal,
-    models_used: Vec<String>,
+    model_breakdowns: Vec<ModelBreakdown>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelBreakdown {
+    model_name: String,
+    cost: Decimal,
 }
 
 impl DailyReport {
@@ -228,16 +235,19 @@ impl DailyReport {
             .filter(|day| span.contains(day.date))
             .map(|day| &day.totals)
             .collect();
-        let models: BTreeSet<&str> = days
-            .iter()
-            .flat_map(|totals| totals.models_used.iter().map(String::as_str))
-            .collect();
         Period {
             span,
             usage: Usage {
                 tokens: days.iter().map(|totals| totals.total_tokens).sum(),
                 cost: usd(days.iter().map(|totals| totals.total_cost).sum()),
-                models: models.into_iter().collect::<Vec<_>>().join(", "),
+                models: days
+                    .iter()
+                    .flat_map(|totals| &totals.model_breakdowns)
+                    .map(|breakdown| ModelSpend {
+                        model: breakdown.model_name.clone(),
+                        cost: usd(breakdown.cost),
+                    })
+                    .collect(),
             },
         }
     }
@@ -287,10 +297,15 @@ mod tests {
     use super::*;
 
     const DAILY_REPORT: &str = r#"{"daily":[
-        {"date":"2026-09-29","totalTokens":10,"totalCost":1.0,"modelsUsed":["claude-sonnet-5"]},
-        {"date":"2026-09-30","totalTokens":20,"totalCost":2.0,"modelsUsed":["claude-opus-5-5"]},
+        {"date":"2026-09-29","totalTokens":10,"totalCost":1.0,
+            "modelBreakdowns":[{"modelName":"claude-sonnet-5","cost":1.0}]},
+        {"date":"2026-09-30","totalTokens":20,"totalCost":2.0,
+            "modelBreakdowns":[{"modelName":"claude-opus-5-5","cost":2.0}]},
         {"date":"2026-10-01","totalTokens":40,"totalCost":4.0,
-            "modelsUsed":["claude-opus-5-5","claude-sonnet-5"]}
+            "modelBreakdowns":[
+                {"modelName":"claude-opus-5-5","cost":1.0},
+                {"modelName":"claude-sonnet-5","cost":3.0}
+            ]}
     ]}"#;
 
     const MONDAY_TO_FRIDAY: [Weekday; 5] = [
@@ -314,7 +329,19 @@ mod tests {
         assert_eq!(recent.week.span.until, date("2026-10-05"));
         assert_eq!(recent.week.usage.tokens, 70);
         assert_eq!(*recent.week.usage.cost.amount(), Decimal::from(7));
-        assert_eq!(recent.week.usage.models, "claude-opus-5-5, claude-sonnet-5");
+        assert_eq!(
+            recent.week.usage.models.to_string(),
+            "claude-sonnet-5, claude-opus-5-5"
+        );
+        assert_eq!(
+            recent
+                .today
+                .usage
+                .models
+                .top()
+                .map(|top| top.model.as_str()),
+            Some("claude-sonnet-5")
+        );
         assert_eq!(recent.month.span.since, date("2026-10-01"));
         assert_eq!(recent.month.span.until, date("2026-11-01"));
         assert_eq!(recent.month.usage.tokens, 40);

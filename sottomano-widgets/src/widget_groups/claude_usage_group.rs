@@ -11,8 +11,8 @@ use sottomano_sources::{
     SourceDelivery,
     ai_usage_spend::{
         claude_usage::{
-            self, ClaudeCcusageBlock, ClaudeCcusagePeriods, ClaudeEnterpriseSpend, ClaudeLocalLogs,
-            ClaudeOrganization, ClaudeUsageWindows,
+            self, ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods,
+            ClaudeEnterpriseSpend, ClaudeLocalLogs, ClaudeOrganization, ClaudeUsageWindows,
         },
         working_time_forecast::SpendBudget,
     },
@@ -23,13 +23,14 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
+        bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
+        group_item::GroupItem,
+        most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         on_hover_reading::OnHoverReading,
         simple_icons::SimpleIcon,
         tooltip_body::{KeyValue, Section, Tooltip},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -39,6 +40,8 @@ pub enum ClaudeUsageTarget {
     EnterpriseSpend,
     CcusagePeriods,
     CcusageBlock,
+    MostUsedModel,
+    MostUsedModelSpend,
 }
 
 impl From<claude_usage::Error> for Section {
@@ -69,6 +72,7 @@ pub struct ClaudeUsageGroup {
     enterprise_spend: ContinuousReading<ClaudeEnterpriseSpend>,
     ccusage_periods: ContinuousReading<ClaudeCcusagePeriods>,
     ccusage_block: ContinuousReading<ClaudeCcusageBlock>,
+    ccusage_models: ContinuousReading<ClaudeCcusageModels>,
     oauth_credentials: Option<PathBuf>,
     organization: OnHoverReading<ClaudeOrganization>,
     expansion: GroupExpansion,
@@ -81,6 +85,7 @@ pub enum ClaudeUsageMessage {
     OrganizationFetched(SourceDelivery<ClaudeOrganization>),
     CcusagePeriods(SourceDelivery<ClaudeCcusagePeriods>),
     CcusageBlock(SourceDelivery<ClaudeCcusageBlock>),
+    CcusageModels(SourceDelivery<ClaudeCcusageModels>),
     Expansion(ExpansionMessage),
 }
 
@@ -96,6 +101,7 @@ impl ClaudeUsageGroup {
             enterprise_spend: ContinuousReading::default(),
             ccusage_periods: ContinuousReading::default(),
             ccusage_block: ContinuousReading::default(),
+            ccusage_models: ContinuousReading::default(),
             oauth_credentials,
             organization: OnHoverReading::default(),
             expansion: GroupExpansion::default(),
@@ -145,6 +151,10 @@ impl ClaudeUsageGroup {
                 first_delivery::<ClaudeCcusagePeriods>(self.local_logs(config))
                     .map(ClaudeUsageMessage::CcusagePeriods)
             }
+            ClaudeUsageTarget::MostUsedModel | ClaudeUsageTarget::MostUsedModelSpend => {
+                first_delivery::<ClaudeCcusageModels>(self.oauth_credentials.clone())
+                    .map(ClaudeUsageMessage::CcusageModels)
+            }
             ClaudeUsageTarget::CcusageBlock => {
                 first_delivery::<ClaudeCcusageBlock>(self.local_logs(config))
                     .map(ClaudeUsageMessage::CcusageBlock)
@@ -168,6 +178,8 @@ impl ClaudeUsageGroup {
                     .map(ClaudeUsageMessage::CcusageBlock),
                 source_subscription::<ClaudeCcusagePeriods>(local_logs)
                     .map(ClaudeUsageMessage::CcusagePeriods),
+                source_subscription::<ClaudeCcusageModels>(self.oauth_credentials.clone())
+                    .map(ClaudeUsageMessage::CcusageModels),
             ]),
         )
     }
@@ -193,6 +205,10 @@ impl ClaudeUsageGroup {
             ClaudeUsageMessage::CcusageBlock(reading) => {
                 self.ccusage_block.receive_delivery(reading, clock);
             }
+            ClaudeUsageMessage::CcusageModels(reading) => {
+                self.ccusage_models
+                    .receive_keeping_last_reading(reading, clock);
+            }
             ClaudeUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
@@ -209,7 +225,41 @@ impl ClaudeUsageGroup {
                 .tooltip_with_sections(self.organization.sections(clock), clock),
             ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(clock),
             ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(clock),
+            ClaudeUsageTarget::MostUsedModel => self
+                .ccusage_models
+                .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
+            ClaudeUsageTarget::MostUsedModelSpend => self
+                .ccusage_models
+                .tooltip_with(MostUsedModelSpend(self.billed_model_ranking()?).tooltip(clock)),
         }
+    }
+
+    fn billed_model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
+        self.ccusage_models
+            .get()
+            .filter(|models| !models.covered_by_subscription)
+            .and(self.model_ranking())
+    }
+
+    fn model_ranking(&self) -> Option<ModelSpendRanking<'_, 3>> {
+        let models = self.ccusage_models.get()?;
+        ModelSpendRanking::new(
+            "ccusage, local Claude Code logs, API list prices",
+            [
+                RankedSpan {
+                    heading: "Today",
+                    models: &models.today,
+                },
+                RankedSpan {
+                    heading: "Week",
+                    models: &models.week,
+                },
+                RankedSpan {
+                    heading: "Month",
+                    models: &models.month,
+                },
+            ],
+        )
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ClaudeUsageMessage> {
@@ -218,7 +268,8 @@ impl ClaudeUsageGroup {
             ClaudeUsageMessage::Expansion,
             [
                 self.usage_windows
-                    .group_item(ClaudeUsageTarget::UsageWindows),
+                    .group_item(ClaudeUsageTarget::UsageWindows)
+                    .map(GroupItem::previewed_on_handle),
                 self.enterprise_spend
                     .group_item(ClaudeUsageTarget::EnterpriseSpend),
                 self.ccusage_periods
@@ -227,12 +278,20 @@ impl ClaudeUsageGroup {
                     .group_item(ClaudeUsageTarget::CcusageBlock),
             ]
             .into_iter()
-            .flatten(),
+            .flatten()
+            .chain(self.model_ranking().map(|ranking| {
+                GroupItem::reading(MostUsedModel(ranking), ClaudeUsageTarget::MostUsedModel)
+            }))
+            .chain(self.billed_model_ranking().map(|ranking| {
+                GroupItem::reading(
+                    MostUsedModelSpend(ranking),
+                    ClaudeUsageTarget::MostUsedModelSpend,
+                )
+            })),
         )
         .face(HandleFace::Icon {
             glyph: SimpleIcon::Claude.into(),
             handle: GroupHandle::ClaudeUsage,
         })
-        .preview(self.usage_windows.display().map(PreviewedValue::Plain))
     }
 }

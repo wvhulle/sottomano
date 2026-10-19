@@ -28,9 +28,7 @@ use crate::{
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
         widget_state::WidgetState,
     },
 };
@@ -165,14 +163,27 @@ impl NetInterfacesGroup {
     }
 
     pub fn group_content(&self, clock: Clock) -> GroupContent<'_, NetInterfacesMessage> {
+        let mobile_is_uplink = self
+            .mobile
+            .display()
+            .is_some_and(|mobile| shows_uplink_signal(mobile, clock));
+        let wifi_is_uplink = !mobile_is_uplink
+            && self
+                .wifi
+                .display()
+                .is_some_and(|wifi| shows_uplink_signal(wifi, clock));
         GroupContent::new(
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [
                 self.bluetooth.group_item(NetInterfaceTarget::Bluetooth),
                 self.ethernet.group_item(NetInterfaceTarget::Ethernet),
-                self.wifi.group_item(NetInterfaceTarget::Wifi),
-                self.mobile.group_item(NetInterfaceTarget::Mobile),
+                self.wifi
+                    .group_item(NetInterfaceTarget::Wifi)
+                    .map(|item| item.previewed_on_handle_if(wifi_is_uplink)),
+                self.mobile
+                    .group_item(NetInterfaceTarget::Mobile)
+                    .map(|item| item.previewed_on_handle_if(mobile_is_uplink)),
             ]
             .into_iter()
             .flatten(),
@@ -181,13 +192,9 @@ impl NetInterfacesGroup {
             glyph: Phosphor::Link(Weight::Regular).into(),
             handle: GroupHandle::NetInterfaces,
         })
-        .preview(self.preferred_uplink(clock).map(PreviewedValue::Plain))
     }
+}
 
-    fn preferred_uplink(&self, clock: Clock) -> Option<&dyn BarWidget> {
-        [self.mobile.display(), self.wifi.display()]
-            .into_iter()
-            .flatten()
-            .find(|widget| widget.state(clock) != WidgetState::Off && widget.gauge().is_some())
-    }
+fn shows_uplink_signal(widget: &dyn BarWidget, clock: Clock) -> bool {
+    widget.state(clock) != WidgetState::Off && widget.gauge().is_some()
 }

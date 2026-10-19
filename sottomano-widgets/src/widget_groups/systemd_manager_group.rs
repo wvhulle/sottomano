@@ -35,9 +35,7 @@ use crate::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
         widget_state::WidgetState,
     },
 };
@@ -246,7 +244,9 @@ impl SystemdManagerGroup {
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [
-                boot.map(|boot| GroupItem::reading(boot, SystemdTarget::BootPhases)),
+                boot.map(|boot| {
+                    GroupItem::reading(boot, SystemdTarget::BootPhases).previewed_on_handle()
+                }),
                 boot.map(|timeline| {
                     GroupItem::reading(StartupUnits { timeline }, SystemdTarget::StartupUnits)
                 }),
@@ -293,10 +293,6 @@ impl SystemdManagerGroup {
             reading: self,
             handle: GroupHandle::Systemd,
         })
-        .preview(boot.map(|boot| PreviewedValue::Hoverable {
-            widget: boot,
-            target: SystemdTarget::BootPhases.into(),
-        }))
     }
 
     fn current_health(&self) -> [Option<&dyn BarWidget>; 4] {

@@ -23,9 +23,7 @@ use crate::{
         toggle_control::SwitchPresses,
         tooltip_body::Tooltip,
         unit_switch::UnitSwitchFace,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupExpansion, HandleFace, PreviewedValue,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
 
@@ -166,11 +164,6 @@ impl LlamaServerGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, LlamaServerMessage> {
-        let resident = self
-            .user
-            .resident_models()
-            .chain(self.system.resident_models())
-            .next();
         GroupContent::new(
             &self.expansion,
             LlamaServerMessage::Expansion,
@@ -182,6 +175,5 @@ impl LlamaServerGroup {
             glyph: Phosphor::Robot(Weight::Regular).into(),
             handle: GroupHandle::LlamaServer,
         })
-        .preview(resident.map(|model| PreviewedValue::Plain(model)))
     }
 }

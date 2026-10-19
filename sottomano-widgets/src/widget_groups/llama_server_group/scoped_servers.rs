@@ -4,7 +4,7 @@ use iced::{Subscription, Task};
 use sottomano_sources::{
     SourceDelivery,
     ai_usage_spend::llama_server_slots::{
-        LlamaModel, LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
+        LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{SystemdOnBus, SystemdUnitScope, service_commands::ServiceCommands},
@@ -203,13 +203,6 @@ impl ScopedLlamaServers {
         }
     }
 
-    pub fn resident_models(&self) -> impl Iterator<Item = &LlamaModel> {
-        self.servers
-            .values()
-            .filter(|readings| readings.switch.running())
-            .filter_map(|readings| readings.server.get()?.resident_model())
-    }
-
     pub fn items<'a, M: 'a>(
         &'a self,
         lift: fn(ScopedServersMessage) -> M,
@@ -227,12 +220,9 @@ impl ScopedLlamaServers {
             let busy = running.filter(|server| server.busy_slots().next().is_some());
             [
                 running.map(|server| {
-                    GroupItem::reading(
-                        ServedModel {
-                            resident: server.resident_model(),
-                        },
-                        target(LlamaServerReading::Model),
-                    )
+                    let resident = server.resident_model();
+                    GroupItem::reading(ServedModel { resident }, target(LlamaServerReading::Model))
+                        .previewed_on_handle_if(resident.is_some())
                 }),
                 busy.and_then(|server| server.generation_rate).map(|rate| {
                     GroupItem::reading(
