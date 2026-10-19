@@ -29,6 +29,15 @@ a pull request when the recordings changed.
 
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;
   code that cannot be made self-evident that way is restructured, not annotated.
+- `sottomano-sources/src/` is grouped by domain. Each directory covers what one
+  widget domain reads and carries two or more keywords
+  (`cpu_memory_compute/`, `login_session_presence/`); each file is named after
+  its subject and the mechanism behind it (`journal_oom_kills`,
+  `gammarelay_color_temperature`, `upower_battery_state`).
+  `system_protocol_clients/` holds the D-Bus, HTTP, shell, inotify, sysfs and
+  journal access that names no daemon and implements no `ReadingSource`.
+  Consumers spell out the new module path rather than aliasing it back to a
+  short name.
 - Strict config/state separation: no field appears in both the TOML config
   (`sottomano-config/src/`) and runtime state (`sottomano-state/src/`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
