@@ -5,7 +5,7 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::wallpaper_group::{Lookup, WallpaperGroup, WallpaperMessage},
+    widget_groups::wallpaper_group::{WallpaperGroup, WallpaperMessage, wallpaper_lookup::Lookup},
 };
 use uom::si::{angle::degree, f64::Angle};
 

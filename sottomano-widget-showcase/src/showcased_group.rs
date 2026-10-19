@@ -22,7 +22,7 @@ use sottomano_widgets::{
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
-        workspaces_group::{self, workspace_tooltip},
+        workspaces_group::{inline_strip, sidebar_column, workspace_tooltip},
     },
     widgets::{
         continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
@@ -116,7 +116,7 @@ impl ShowcasedNiriSession {
         self.snapshot
             .get()
             .and_then(|snapshot| {
-                workspaces_group::vertical_view(
+                sidebar_column::vertical_view(
                     snapshot,
                     SHOWCASE_OUTPUT,
                     config,
@@ -138,7 +138,7 @@ impl ShowcasedNiriSession {
         let Some(snapshot) = self.snapshot.get() else {
             return Vec::new();
         };
-        let workspaces = workspaces_group::inline_view(
+        let workspaces = inline_strip::inline_view(
             snapshot,
             SHOWCASE_OUTPUT,
             config,

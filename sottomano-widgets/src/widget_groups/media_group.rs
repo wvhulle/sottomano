@@ -3,11 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::{
-    Alignment, Element, Subscription, Task,
-    time::every,
-    widget::{Row, button, image, rich_text, svg, text::Span},
-};
+use iced::{Subscription, Task, time::every, widget::Row};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
@@ -16,7 +12,6 @@ use sottomano_sources::{
     media_playback_audio::mpris_players::{self, Command, Media, Progress, Status},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
-use uom::si::f64::Ratio;
 
 use crate::{
     background_work::source_subscription,
@@ -25,17 +20,10 @@ use crate::{
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     shell_message::AppWindowFocus,
     widgets::{
-        bar_widget::Glyph,
         confirm_button::{ConfirmButton, Press},
         continuous_reading::ContinuousReading,
-        flat_button,
-        gauge::Gauge,
         group_item::GroupItem,
         icon_handle::IconHandle,
-        palette_colors::PaletteColors,
-        phosphor::{Phosphor, Weight},
-        source_reading::icon_value_gap,
-        text::{FontFaces, LINE_HEIGHT, colored_span},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
@@ -43,12 +31,16 @@ use crate::{
 
 mod seek_bar;
 mod session_controls;
+mod source_strip;
+mod track_face;
 mod track_tooltip;
 mod transport_controls;
 
 use self::{
     seek_bar::{SeekBar, SeekMessage},
     session_controls::{SessionControls, SessionMessages},
+    source_strip::sources_strip,
+    track_face::{track_face, track_label},
     track_tooltip::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
@@ -452,150 +444,4 @@ impl MediaGroup {
             },
         )
     }
-}
-
-fn sources_strip<'a>(
-    config: &Config,
-    index: &DesktopIndex,
-    players: &[&Media],
-    current: &Media,
-    reveal: f32,
-) -> Element<'a, GroupEvent<MediaMessage>> {
-    let side = config.theme.font.icon_size_px;
-    let icons: Vec<Element<'a, GroupEvent<MediaMessage>>> = players
-        .iter()
-        .map(|m| {
-            let selected = m.bus == current.bus;
-            let opacity = reveal * if selected { 1.0 } else { 0.4 };
-            let icon = source_icon(config, index, m, side, opacity).map(GroupEvent::Group);
-            hoverable(
-                button(icon)
-                    .padding(0)
-                    .style(flat_button(
-                        PaletteColors::from(&config.theme.palette).bar_foreground,
-                    ))
-                    .on_press(GroupEvent::Group(MediaMessage::Source(m.bus.clone())))
-                    .into(),
-                MediaTarget::Source(m.bus.clone()).into(),
-                PressHints {
-                    left: (!selected).then_some("control this player"),
-                    ..PressHints::default()
-                },
-                GroupEvent::Tooltip,
-            )
-        })
-        .collect();
-    Row::with_children(icons)
-        .spacing(config.layout.panel.widget_spacing)
-        .align_y(Alignment::Center)
-        .into()
-}
-
-fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaMessage> {
-    let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
-    let press_hints = PressHints {
-        left: raisable.then_some(RAISE_PLAYER_HINT),
-        ..PressHints::default()
-    };
-    let label = GroupItem::element(move |reveal| {
-        hoverable(
-            rich_text(label_spans(config, media, reveal))
-                .size(config.theme.font.text_size_px)
-                .line_height(LINE_HEIGHT)
-                .into(),
-            HoverTarget::Media(MediaTarget::Track),
-            press_hints,
-            GroupEvent::Tooltip,
-        )
-    });
-    if raisable {
-        label.on_press(RAISE_PLAYER_HINT, MediaMessage::Command(Command::Raise))
-    } else {
-        label
-    }
-}
-
-fn track_face<'a>(
-    config: &Config,
-    art: Option<&IconHandle>,
-    opacity: f32,
-    gauge_fraction: Option<Ratio>,
-) -> Element<'a, MediaMessage> {
-    let side = config.theme.font.icon_size_px;
-    let cover = track_cover(config, art, opacity, side);
-    let Some(fraction) = gauge_fraction else {
-        return cover;
-    };
-    let color = PaletteColors::from(&config.theme.palette)
-        .bar_foreground
-        .scale_alpha(opacity);
-    Row::with_children([cover, Gauge::new(fraction, color, side).into()])
-        .spacing(icon_value_gap(config))
-        .align_y(Alignment::Center)
-        .into()
-}
-
-fn track_cover<'a>(
-    config: &Config,
-    art: Option<&IconHandle>,
-    opacity: f32,
-    side: f32,
-) -> Element<'a, MediaMessage> {
-    if let Some(art) = art {
-        return art.view(side, opacity);
-    }
-    Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
-        side,
-        PaletteColors::from(&config.theme.palette)
-            .bar_foreground
-            .scale_alpha(opacity),
-    )
-}
-
-fn source_icon<'a>(
-    config: &Config,
-    index: &DesktopIndex,
-    media: &Media,
-    side: f32,
-    opacity: f32,
-) -> Element<'a, MediaMessage> {
-    let icon_path = media
-        .desktop_entry
-        .as_deref()
-        .and_then(|entry| index.app_icon(entry));
-    if let Some(path) = icon_path {
-        let is_svg = path
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("svg"));
-        return if is_svg {
-            svg(svg::Handle::from_path(path))
-                .width(side)
-                .height(side)
-                .opacity(opacity)
-                .into()
-        } else {
-            image(image::Handle::from_path(path))
-                .width(side)
-                .height(side)
-                .opacity(opacity)
-                .into()
-        };
-    }
-    Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
-        side,
-        PaletteColors::from(&config.theme.palette)
-            .bar_foreground
-            .scale_alpha(opacity),
-    )
-}
-
-fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
-    let title = media.title.as_ref().unwrap_or(&media.identity);
-    vec![colored_span(
-        title.clone(),
-        FontFaces::from(&config.theme.font).regular,
-        PaletteColors::from(&config.theme.palette)
-            .bar_foreground
-            .scale_alpha(reveal),
-    )]
 }
