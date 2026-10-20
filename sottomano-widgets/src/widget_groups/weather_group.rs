@@ -103,9 +103,11 @@ impl WeatherGroup {
         match msg {
             WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading, clock),
             WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading, clock),
-            WeatherMessage::Rain(reading) => self.rain.receive_delivery(reading, clock),
+            WeatherMessage::Rain(reading) => self.rain.receive_keeping_last_success(reading, clock),
             WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading, clock),
-            WeatherMessage::Location(reading) => self.location.receive_delivery(reading, clock),
+            WeatherMessage::Location(reading) => {
+                self.location.receive_keeping_last_success(reading, clock);
+            }
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -188,5 +190,50 @@ impl WeatherGroup {
                 .flatten(),
             ),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_sources::weather::buienradar_rain::{
+        Downpour, precipitation::millimeter_per_hour,
+    };
+    use uom::si::f64::Velocity;
+
+    use super::*;
+
+    fn delivered_rain(clock: Clock) -> SourceDelivery<Rain> {
+        SourceDelivery::Reading(Ok(Rain::from_forecast(vec![Downpour {
+            intensity: Velocity::new::<millimeter_per_hour>(3.0),
+            at: clock.local(),
+        }])
+        .unwrap()))
+    }
+
+    fn failed_rain(error: weather::Error) -> SourceDelivery<Rain> {
+        SourceDelivery::Reading(Err(error))
+    }
+
+    #[test]
+    fn a_failed_rain_fetch_keeps_the_last_forecast() {
+        let clock = Clock::real();
+        let mut group = WeatherGroup::default();
+        let _ = group.update(WeatherMessage::Rain(delivered_rain(clock)), clock);
+        let _ = group.update(
+            WeatherMessage::Rain(failed_rain(weather::Error::Malformed)),
+            clock,
+        );
+        assert!(group.rain.get().is_some());
+    }
+
+    #[test]
+    fn a_rain_failure_without_an_earlier_forecast_shows_as_failed() {
+        let clock = Clock::real();
+        let mut group = WeatherGroup::default();
+        let _ = group.update(
+            WeatherMessage::Rain(failed_rain(weather::Error::OutsideRainRadar)),
+            clock,
+        );
+        assert!(group.rain.failure().is_some());
     }
 }

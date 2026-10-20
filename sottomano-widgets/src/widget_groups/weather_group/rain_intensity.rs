@@ -1,7 +1,7 @@
 use chrono::{DateTime, Local, Locale, TimeDelta};
 use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
 use sottomano_sources::weather::buienradar_rain::{
-    Rain, RainOutlook, precipitation::millimeter_per_hour,
+    Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour,
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
@@ -36,32 +36,66 @@ fn minutes_until(at: DateTime<Local>, clock: Clock) -> i64 {
     (at - clock.local()).num_minutes().max(0)
 }
 
+const RADAR_FRAME_LENGTH: TimeDelta = TimeDelta::minutes(5);
+
 pub struct RainForecast<'a> {
     pub rain: &'a Rain,
     pub alerts: &'a RainAlertsConfig,
 }
 
+struct RainSpell<'a> {
+    outlook: RainOutlook,
+    starts_at: DateTime<Local>,
+    peak: &'a Downpour,
+}
+
 impl RainForecast<'_> {
-    fn alerting_intensity(&self, now: DateTime<Local>) -> Option<Velocity> {
-        match self.rain.outlook {
-            RainOutlook::Dry => None,
-            RainOutlook::StartsAt(at) => TimeDelta::from_std(self.alerts.lead_time)
-                .is_ok_and(|lead_time| at - now <= lead_time)
-                .then_some(self.rain.peak.intensity),
+    fn remaining_frames(&self, now: DateTime<Local>) -> &[Downpour] {
+        let elapsed = self
+            .rain
+            .forecast
+            .iter()
+            .take_while(|frame| frame.at + RADAR_FRAME_LENGTH <= now)
+            .count();
+        &self.rain.forecast[elapsed..]
+    }
+
+    fn spell_above_minimum(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
+        let minimum =
+            Velocity::new::<millimeter_per_hour>(self.alerts.minimum_millimeters_per_hour);
+        let remaining = self.remaining_frames(now);
+        let outlook = RainOutlook::of_rain_above(remaining, minimum);
+        let starts_at = match outlook {
+            RainOutlook::Dry => return None,
+            RainOutlook::StartsAt(at) => at,
             RainOutlook::StopsAt(_) | RainOutlook::OutlastsForecastUntil(_) => {
-                Some(self.rain.intensity.max(self.rain.peak.intensity))
+                remaining.first()?.at
             }
-        }
+        };
+        let peak = remaining
+            .iter()
+            .skip_while(|frame| frame.at < starts_at)
+            .take_while(|frame| frame.exceeds(minimum))
+            .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))?;
+        Some(RainSpell {
+            outlook,
+            starts_at,
+            peak,
+        })
+    }
+
+    fn alerting_spell(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
+        let lead_time = TimeDelta::from_std(self.alerts.lead_time).ok()?;
+        self.spell_above_minimum(now)
+            .filter(|spell| spell.starts_at - now <= lead_time)
     }
 
     fn severity(&self, now: DateTime<Local>) -> Severity {
         let heavy = Velocity::new::<millimeter_per_hour>(self.alerts.heavy_millimeters_per_hour);
-        let minimum =
-            Velocity::new::<millimeter_per_hour>(self.alerts.minimum_millimeters_per_hour);
-        match self.alerting_intensity(now) {
-            Some(intensity) if intensity >= heavy => Severity::Critical,
-            Some(intensity) if intensity >= minimum => Severity::Warning,
-            _ => Severity::Normal,
+        match self.alerting_spell(now) {
+            Some(spell) if spell.peak.intensity >= heavy => Severity::Critical,
+            Some(_) => Severity::Warning,
+            None => Severity::Normal,
         }
     }
 }
@@ -95,17 +129,23 @@ impl BarWidget for RainForecast<'_> {
     }
 
     fn ongoing_toast_body(&self, clock: Clock, locale: Locale) -> Option<String> {
+        let now = clock.local();
+        let spell = self.spell_above_minimum(now)?;
         let moment = |at: DateTime<Local>| moment_text(at.to_utc(), clock.utc(), locale);
-        let turn = match self.rain.outlook {
+        let turn = match spell.outlook {
             RainOutlook::Dry => None,
             RainOutlook::StartsAt(at) => Some(("Starts", moment(at))),
             RainOutlook::StopsAt(at) => Some(("Stops", moment(at))),
             RainOutlook::OutlastsForecastUntil(at) => Some(("Lasts past", moment(at))),
         };
+        let current_intensity = self
+            .remaining_frames(now)
+            .first()
+            .map_or_else(Velocity::default, |frame| frame.intensity);
         Some(definition_list(turn.into_iter().chain([
-            ("Now", current_intensity_text(self.rain.intensity)),
-            ("Peak", intensity_text(self.rain.peak.intensity)),
-            ("Peak at", moment(self.rain.peak.at)),
+            ("Now", current_intensity_text(current_intensity)),
+            ("Peak", intensity_text(spell.peak.intensity)),
+            ("Peak at", moment(spell.peak.at)),
         ])))
     }
 
@@ -172,7 +212,6 @@ impl BarWidget for Rain {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::weather::buienradar_rain::Downpour;
     use uom::si::{
         f64::{Length, Time},
         length::millimeter,
@@ -192,20 +231,17 @@ mod tests {
         assert!((from_unit - from_parts).abs() < Velocity::new::<millimeter_per_hour>(1e-9));
     }
 
-    fn rain_at(
-        clock: Clock,
-        now_mm_per_hour: f64,
-        peak_mm_per_hour: f64,
-        outlook: RainOutlook,
-    ) -> Rain {
-        Rain {
-            intensity: Velocity::new::<millimeter_per_hour>(now_mm_per_hour),
-            peak: Downpour {
-                intensity: Velocity::new::<millimeter_per_hour>(peak_mm_per_hour),
-                at: clock.local() + TimeDelta::minutes(20),
-            },
-            outlook,
-        }
+    fn radar_frames(clock: Clock, millimeters_per_hour: &[f64]) -> Rain {
+        Rain::from_forecast(
+            (0..)
+                .zip(millimeters_per_hour)
+                .map(|(frame, intensity)| Downpour {
+                    intensity: Velocity::new::<millimeter_per_hour>(*intensity),
+                    at: clock.local() + RADAR_FRAME_LENGTH * frame,
+                })
+                .collect(),
+        )
+        .unwrap()
     }
 
     fn severity_of(rain: &Rain, clock: Clock) -> Severity {
@@ -216,15 +252,11 @@ mod tests {
         .severity(clock.local())
     }
 
-    fn starting_in(clock: Clock, minutes: i64) -> RainOutlook {
-        RainOutlook::StartsAt(clock.local() + TimeDelta::minutes(minutes))
-    }
-
     #[test]
     fn a_dry_forecast_never_alerts() {
         let clock = Clock::real();
         assert_eq!(
-            severity_of(&rain_at(clock, 0.0, 0.0, RainOutlook::Dry), clock),
+            severity_of(&radar_frames(clock, &[0.0, 0.0]), clock),
             Severity::Normal
         );
     }
@@ -232,7 +264,7 @@ mod tests {
     #[test]
     fn rain_beyond_the_lead_time_waits_until_it_comes_closer() {
         let clock = Clock::real();
-        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 40));
+        let rain = radar_frames(clock, &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 3.0]);
         assert_eq!(severity_of(&rain, clock), Severity::Normal);
         assert_eq!(
             severity_of(&rain, clock.advanced(Duration::from_mins(30))),
@@ -243,28 +275,64 @@ mod tests {
     #[test]
     fn heavy_rain_within_the_lead_time_is_critical() {
         let clock = Clock::real();
-        let rain = rain_at(clock, 0.0, 12.0, starting_in(clock, 10));
+        let rain = radar_frames(clock, &[0.0, 0.0, 12.0]);
         assert_eq!(severity_of(&rain, clock), Severity::Critical);
     }
 
     #[test]
     fn drizzle_below_the_minimum_stays_quiet() {
         let clock = Clock::real();
-        let stops = RainOutlook::StopsAt(clock.local() + TimeDelta::minutes(15));
         assert_eq!(
-            severity_of(&rain_at(clock, 0.2, 0.3, stops), clock),
+            severity_of(&radar_frames(clock, &[0.2, 0.3, 0.2, 0.0]), clock),
             Severity::Normal
         );
         assert_eq!(
-            severity_of(&rain_at(clock, 2.0, 2.0, stops), clock),
+            severity_of(&radar_frames(clock, &[2.0, 2.0, 0.0]), clock),
             Severity::Warning
+        );
+    }
+
+    #[test]
+    fn drizzle_now_does_not_bring_a_far_shower_forward() {
+        let clock = Clock::real();
+        let mut frames = vec![0.2; 20];
+        frames.push(12.0);
+        assert_eq!(
+            severity_of(&radar_frames(clock, &frames), clock),
+            Severity::Normal
+        );
+    }
+
+    #[test]
+    fn the_toast_describes_the_shower_rather_than_the_drizzle_before_it() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.2, 0.2, 3.0, 1.0, 0.0, 9.0]);
+        let body = RainForecast {
+            rain: &rain,
+            alerts: &RainAlertsConfig::default(),
+        }
+        .ongoing_toast_body(clock, Locale::default())
+        .unwrap();
+        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert!(body.contains("<dt>Starts</dt>"));
+        assert!(body.contains("<dt>Peak</dt><dd>3.0 mm/h</dd>"));
+    }
+
+    #[test]
+    fn a_forecast_kept_through_failed_fetches_ages_out() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[3.0, 3.0, 3.0]);
+        assert_eq!(severity_of(&rain, clock), Severity::Warning);
+        assert_eq!(
+            severity_of(&rain, clock.advanced(Duration::from_mins(15))),
+            Severity::Normal
         );
     }
 
     #[test]
     fn the_label_counts_down_with_the_clock() {
         let clock = Clock::real();
-        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 10));
+        let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
         let later = clock.advanced(Duration::from_mins(4));
         assert_eq!(
             rain.label(later, Locale::default()),
@@ -275,7 +343,7 @@ mod tests {
     #[test]
     fn the_toast_body_stays_the_same_as_the_clock_advances() {
         let clock = Clock::real();
-        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 10));
+        let rain = radar_frames(clock, &[0.0, 0.0, 3.0]);
         let forecast = RainForecast {
             rain: &rain,
             alerts: &RainAlertsConfig::default(),
@@ -294,7 +362,7 @@ mod tests {
     #[test]
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
-        let rain = rain_at(clock, 0.0, 3.0, starting_in(clock, 5));
+        let rain = radar_frames(clock, &[0.0, 3.0]);
         let toast = OngoingToast::from_widget_state(
             HoverTarget::Weather(WeatherTarget::Rain),
             &RainForecast {
