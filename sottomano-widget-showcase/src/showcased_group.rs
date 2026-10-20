@@ -8,6 +8,7 @@ use sottomano_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
 };
+use sottomano_state::niri_rules::NiriLayout;
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
@@ -177,9 +178,12 @@ impl ShowcasedNiriSession {
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip(clock))
             }
-            HoverTarget::Workspace(workspace) => {
-                workspace_tooltip::tooltip(&self.snapshot, &self.desktop_entries, *workspace)
-            }
+            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
+                &self.snapshot,
+                &self.desktop_entries,
+                NiriLayout::default(),
+                *workspace,
+            ),
             _ => None,
         }
     }

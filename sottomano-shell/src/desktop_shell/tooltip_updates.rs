@@ -167,9 +167,12 @@ impl DesktopShell {
                     self.clock,
                 ))
             }
-            HoverTarget::Workspace(workspace) => {
-                workspace_tooltip::tooltip(&self.niri_snapshot, &self.desktop_entries, *workspace)
-            }
+            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
+                &self.niri_snapshot,
+                &self.desktop_entries,
+                self.niri_rules.styling().layout,
+                *workspace,
+            ),
             HoverTarget::WorkspaceOrder => Some(Tooltip::empty()),
             source_target => self.source_group_tooltip_for(source_target),
         }

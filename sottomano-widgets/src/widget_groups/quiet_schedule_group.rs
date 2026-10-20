@@ -81,8 +81,9 @@ pub enum QuietScheduleMessage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuietChange {
-    None,
-    Began { screen_off: Option<Duration> },
+    Unchanged,
+    ScreenOffAfter(Duration),
+    ScreenOffFollowsIdleTimer,
     Ended,
 }
 
@@ -224,22 +225,34 @@ impl QuietScheduleGroup {
     }
 
     pub fn update(&mut self, msg: QuietScheduleMessage, clock: Clock) -> QuietUpdate {
-        let before = self.phase;
+        let phase_before = self.phase;
+        let screen_off_before = self.schedule().screen_off;
         let handled = self.handle(msg, clock);
         let now = clock.local();
         self.phase = self.phase_at(now);
-        let change = if before == self.phase {
-            QuietChange::None
-        } else if self.phase.is_quiet() {
-            QuietChange::Began {
-                screen_off: self.schedule().screen_off,
-            }
-        } else {
-            QuietChange::Ended
-        };
+        let change = self.quiet_change_since(phase_before, screen_off_before);
         QuietUpdate {
             task: Task::batch([handled, self.rearm_edge(now)]),
             change,
+        }
+    }
+
+    fn quiet_change_since(
+        &self,
+        phase_before: Phase,
+        screen_off_before: Option<Duration>,
+    ) -> QuietChange {
+        let screen_off = self.schedule().screen_off;
+        let quiet_began = !phase_before.is_quiet() && self.phase.is_quiet();
+        let retimed_while_quiet = self.phase.is_quiet() && screen_off != screen_off_before;
+        if phase_before.is_quiet() && !self.phase.is_quiet() {
+            QuietChange::Ended
+        } else if !quiet_began && !retimed_while_quiet {
+            QuietChange::Unchanged
+        } else if let Some(timeout) = screen_off {
+            QuietChange::ScreenOffAfter(timeout)
+        } else {
+            QuietChange::ScreenOffFollowsIdleTimer
         }
     }
 
@@ -530,5 +543,63 @@ impl QuietScheduleGroup {
         } else {
             Phosphor::ClockUser(Weight::Regular)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sottomano_state::quiet_hours::QuietHoursSchedule;
+
+    use super::{QuietChange, QuietScheduleGroup};
+    use crate::{clock::Clock, widget_groups::quiet_schedule_group::quiet_window::Phase};
+
+    fn group_in_phase(phase: Phase, screen_off: Option<Duration>) -> QuietScheduleGroup {
+        let mut group = QuietScheduleGroup::default();
+        group.saved.load(
+            QuietHoursSchedule {
+                screen_off,
+                ..QuietHoursSchedule::default()
+            },
+            Clock::real(),
+        );
+        group.phase = phase;
+        group
+    }
+
+    #[test]
+    fn retiming_screen_off_while_quiet_overrides_the_idle_timer() {
+        let group = group_in_phase(Phase::Active, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(Phase::Active, Some(Duration::from_mins(10)));
+        assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
+    }
+
+    #[test]
+    fn retiming_screen_off_outside_quiet_hours_changes_nothing() {
+        let group = group_in_phase(Phase::Inactive, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(Phase::Inactive, Some(Duration::from_mins(10)));
+        assert_eq!(change, QuietChange::Unchanged);
+    }
+
+    #[test]
+    fn entering_quiet_hours_without_screen_off_follows_the_idle_timer() {
+        let group = group_in_phase(Phase::Active, None);
+        let change = group.quiet_change_since(Phase::Inactive, None);
+        assert_eq!(change, QuietChange::ScreenOffFollowsIdleTimer);
+    }
+
+    #[test]
+    fn entering_quiet_hours_applies_the_screen_off_timeout() {
+        let group = group_in_phase(Phase::Active, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(Phase::Inactive, Some(Duration::from_mins(1)));
+        assert_eq!(change, QuietChange::ScreenOffAfter(Duration::from_mins(1)));
+    }
+
+    #[test]
+    fn leaving_quiet_hours_ends_the_override() {
+        let group = group_in_phase(Phase::Inactive, Some(Duration::from_mins(1)));
+        let change = group.quiet_change_since(Phase::Active, Some(Duration::from_mins(1)));
+        assert_eq!(change, QuietChange::Ended);
     }
 }

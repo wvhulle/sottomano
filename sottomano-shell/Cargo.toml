@@ -2,6 +2,7 @@
 name = "sottomano-shell"
 edition.workspace = true
 version.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "sottomano"

@@ -4,6 +4,7 @@ use iced::Size;
 use sottomano_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::IconCandidate,
 };
+use sottomano_state::niri_rules::NiriLayout;
 
 use crate::{
     desktop_index::DesktopIndex,
@@ -17,6 +18,7 @@ use crate::{
 pub fn tooltip(
     snapshot: &ContinuousReading<niri_window_snapshot::Snapshot>,
     icons: &DesktopIndex,
+    niri_layout: NiriLayout,
     workspace: u64,
 ) -> Option<Tooltip> {
     let windows = snapshot.get()?.windows_on_workspace(workspace);
@@ -34,6 +36,7 @@ pub fn tooltip(
             .filter(|window| window.layout.is_floating)
             .map(&tile)
             .collect(),
+        niri_layout,
     })))
 }
 
