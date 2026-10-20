@@ -128,7 +128,8 @@ const fn alerting_severity_of(state: WidgetState) -> Severity {
         | WidgetState::Off
         | WidgetState::Idle
         | WidgetState::Pending
-        | WidgetState::On => Severity::Normal,
+        | WidgetState::On
+        | WidgetState::Live => Severity::Normal,
     }
 }
 

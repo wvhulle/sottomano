@@ -86,6 +86,7 @@ use sottomano_widgets::{
         sidebar_settings_group::SidebarSettingsGroup,
         systemd_manager_group::SystemdManagerGroup,
         tray_group::{self, TrayGroup, TrayMessage},
+        voice_dictation_group::VoiceDictationGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
@@ -133,6 +134,7 @@ pub struct DesktopShell {
     pub monitor_group: MonitorGroup,
     pub color_temperature_group: ColorTemperatureGroup,
     pub dark_mode_group: DarkModeGroup,
+    pub voice_dictation_group: VoiceDictationGroup,
     pub idle_timeouts_group: IdleTimeoutsGroup,
     pub media_group: MediaGroup,
     pub gamepad_group: GamepadGroup,
@@ -202,6 +204,7 @@ impl DesktopShell {
                 config.launched_programs.color_temperature_service.clone(),
             ),
             dark_mode_group: DarkModeGroup::new(clock),
+            voice_dictation_group: VoiceDictationGroup::new(),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
             gamepad_group: GamepadGroup::default(),
@@ -398,6 +401,10 @@ impl DesktopShell {
                 .dark_mode_group
                 .update(msg, self.clock)
                 .map(Message::DarkMode),
+            Message::VoiceDictation(msg) => self
+                .voice_dictation_group
+                .update(msg, self.clock)
+                .map(Message::VoiceDictation),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
@@ -807,6 +814,7 @@ impl DesktopShell {
         self.monitor_group.collapse();
         self.color_temperature_group.collapse();
         self.dark_mode_group.collapse();
+        self.voice_dictation_group.collapse();
         self.power_group.collapse();
         self.idle_timeouts_group.collapse();
         self.audio_group.collapse();

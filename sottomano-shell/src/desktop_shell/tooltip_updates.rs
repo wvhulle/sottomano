@@ -20,6 +20,7 @@ use sottomano_widgets::{
         monitor_group::MonitorGroup,
         notification_group::NotificationGroup,
         power_group::PowerGroup,
+        voice_dictation_group::VoiceDictationGroup,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
@@ -213,6 +214,9 @@ impl DesktopShell {
                 .color_temperature_group
                 .tooltip_for(*target, self.clock),
             HoverTarget::DarkMode(target) => self.dark_mode_group.tooltip_for(*target, self.clock),
+            HoverTarget::VoiceDictation(target) => {
+                self.voice_dictation_group.tooltip_for(*target, self.clock)
+            }
             HoverTarget::IdleTimeout(kind) => {
                 Some(self.idle_timeouts_group.tooltip_for(*kind, self.clock))
             }
@@ -295,6 +299,9 @@ impl DesktopShell {
             }
             HoverTarget::Clock(target) => ClockGroup::refresh(target).map(Message::Clock),
             HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),
+            HoverTarget::VoiceDictation(target) => {
+                VoiceDictationGroup::refresh(*target).map(Message::VoiceDictation)
+            }
             HoverTarget::ClaudeUsage(target) => self
                 .claude_usage_group
                 .refresh(*target, &self.config, working_days)
