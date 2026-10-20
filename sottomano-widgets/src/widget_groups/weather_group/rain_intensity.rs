@@ -11,6 +11,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
@@ -118,7 +119,10 @@ impl BarWidget for RainForecast<'_> {
     }
 
     fn state(&self, clock: Clock) -> WidgetState {
-        self.severity(clock.local()).into()
+        match self.severity(clock.local()) {
+            Severity::Normal => self.rain.state(clock),
+            alerting => alerting.into(),
+        }
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
@@ -152,10 +156,6 @@ impl BarWidget for RainForecast<'_> {
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         self.rain.tooltip(clock)
     }
-
-    fn visible_in_bar(&self) -> bool {
-        self.rain.visible_in_bar()
-    }
 }
 
 impl BarWidget for Rain {
@@ -165,7 +165,9 @@ impl BarWidget for Rain {
 
     fn icon(&self) -> Glyph {
         let peak = self.peak.intensity;
-        if peak < Velocity::new::<millimeter_per_hour>(0.5) {
+        if self.outlook == RainOutlook::Dry {
+            Phosphor::DropSlash(Weight::Regular).into()
+        } else if peak < Velocity::new::<millimeter_per_hour>(0.5) {
             WeatherIcon::Raindrop.into()
         } else if peak < Velocity::new::<millimeter_per_hour>(7.5) {
             WeatherIcon::Rain.into()
@@ -189,22 +191,30 @@ impl BarWidget for Rain {
         }
     }
 
+    fn state(&self, _clock: Clock) -> WidgetState {
+        if self.outlook == RainOutlook::Dry {
+            WidgetState::Off
+        } else {
+            WidgetState::Idle
+        }
+    }
+
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        let time_of_day = |at: DateTime<Local>| Cell::Time {
+            at: at.to_utc(),
+            format: LocalizedTimeFormat::TimeOfDay,
+        };
+        if let (RainOutlook::Dry, Some(last_frame)) = (self.outlook, self.forecast.last()) {
+            return TooltipBody::dictionary([
+                KeyValue::new("Rain", "none expected"),
+                KeyValue::new("Dry until at least", time_of_day(last_frame.at)),
+            ]);
+        }
         TooltipBody::dictionary([
             KeyValue::new("Rain", current_intensity_text(self.intensity)),
             KeyValue::new("Peak", intensity_text(self.peak.intensity)),
-            KeyValue::new(
-                "Peak at",
-                Cell::Time {
-                    at: self.peak.at.to_utc(),
-                    format: LocalizedTimeFormat::TimeOfDay,
-                },
-            ),
+            KeyValue::new("Peak at", time_of_day(self.peak.at)),
         ])
-    }
-
-    fn visible_in_bar(&self) -> bool {
-        self.outlook != RainOutlook::Dry
     }
 }
 
@@ -258,6 +268,30 @@ mod tests {
         assert_eq!(
             severity_of(&radar_frames(clock, &[0.0, 0.0]), clock),
             Severity::Normal
+        );
+    }
+
+    #[test]
+    fn a_dry_forecast_stays_in_the_bar_as_inactive() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[0.0, 0.0]);
+        let forecast = RainForecast {
+            rain: &rain,
+            alerts: &RainAlertsConfig::default(),
+        };
+        assert!(forecast.visible_in_bar());
+        assert_eq!(forecast.state(clock), WidgetState::Off);
+        assert_eq!(
+            forecast.icon(),
+            Glyph::from(Phosphor::DropSlash(Weight::Regular))
+        );
+        assert_eq!(
+            RainForecast {
+                rain: &radar_frames(clock, &[0.0, 0.2]),
+                alerts: &RainAlertsConfig::default(),
+            }
+            .state(clock),
+            WidgetState::Idle
         );
     }
 
