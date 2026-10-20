@@ -17,6 +17,7 @@ freedesktop-desktop-entry = "0.8.3"
 freedesktop-icons = "0.4.0"
 freedesktop-sound = "0.1.0"
 futures.workspace = true
+gilrs = "0.11.2"
 humantime.workspace = true
 icu_locale_core = "2.3.0"
 image.workspace = true
@@ -50,5 +51,8 @@ turso.workspace = true
 uom.workspace = true
 usvg.workspace = true
 wayrs-client = { version = "1.3.1", features = ["tokio"] }
-wayrs-protocols = { version = "0.14.11", features = ["ext-idle-notify-v1"] }
+wayrs-protocols = { version = "0.14.11", features = [
+  "ext-idle-notify-v1",
+  "wlr-virtual-pointer-unstable-v1",
+] }
 zbus.workspace = true

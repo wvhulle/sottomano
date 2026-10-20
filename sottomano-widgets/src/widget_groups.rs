@@ -6,6 +6,7 @@ pub mod compute_group;
 pub mod copilot_usage_group;
 pub mod dark_mode_group;
 pub mod disk_group;
+pub mod gamepad_group;
 pub mod gpu_group;
 pub mod idle_timeouts_group;
 pub mod internet_group;
