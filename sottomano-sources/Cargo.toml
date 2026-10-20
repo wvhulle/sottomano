@@ -12,12 +12,12 @@ sottomano-config = { path = "../sottomano-config" }
 adskalman = "0.18.0"
 bytesize.workspace = true
 chrono.workspace = true
+evdev = { version = "0.13.2", features = ["stream-trait"] }
 form_urlencoded.workspace = true
 freedesktop-desktop-entry = "0.8.3"
 freedesktop-icons = "0.4.0"
 freedesktop-sound = "0.1.0"
 futures.workspace = true
-gilrs = "0.11.2"
 humantime.workspace = true
 icu_locale_core = "2.3.0"
 image.workspace = true

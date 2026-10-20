@@ -1,9 +1,9 @@
 use chrono::Locale;
-use iced::alignment::Horizontal;
-use sottomano_config::widget_groups::gamepad_bindings::{
-    ButtonBinding, GamepadBindingsConfig, GamepadStick, StickDirection, StickRole,
+use sottomano_config::{
+    severity::Severity,
+    widget_groups::gamepad_bindings::{ButtonRole, GamepadBindingsConfig, StickDirection},
 };
-use sottomano_sources::gamepad_controller_input::gilrs_gamepad_events::{
+use sottomano_sources::gamepad_controller_input::evdev_gamepad_devices::{
     ConnectedGamepad, GamepadPower,
 };
 
@@ -13,7 +13,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -24,11 +24,28 @@ pub struct ConnectedControllerReading<'a> {
     pub gamepad: &'a ConnectedGamepad,
     pub bindings: &'a GamepadBindingsConfig,
     pub owner: ControllerOwner,
+    pub player_number: Option<usize>,
 }
 
 impl ConnectedControllerReading<'_> {
     fn family(&self) -> ControllerFamily {
         ControllerFamily::of_vendor(self.gamepad.vendor_id)
+    }
+
+    fn battery_percent(&self) -> Option<u8> {
+        match self.gamepad.power {
+            GamepadPower::Discharging(percent) | GamepadPower::Charging(percent) => Some(percent),
+            GamepadPower::NoBattery | GamepadPower::Full => None,
+        }
+    }
+
+    fn battery_description(&self) -> String {
+        match self.gamepad.power {
+            GamepadPower::NoBattery => "none reported".to_owned(),
+            GamepadPower::Discharging(percent) => format!("{percent}%"),
+            GamepadPower::Charging(percent) => format!("{percent}%, charging"),
+            GamepadPower::Full => "full".to_owned(),
+        }
     }
 
     fn owner_description(&self) -> &'static str {
@@ -48,76 +65,99 @@ impl ConnectedControllerReading<'_> {
             .join(" + ")
     }
 
-    fn battery_description(&self) -> String {
-        match self.gamepad.power {
-            GamepadPower::Unknown => "unknown".to_owned(),
-            GamepadPower::Wired => "wired".to_owned(),
-            GamepadPower::Discharging(percent) => format!("{percent}%"),
-            GamepadPower::Charging(percent) => format!("{percent}%, charging"),
-            GamepadPower::Charged => "charged".to_owned(),
-        }
+    fn overview_section(&self) -> Section {
+        Section::dictionary([
+            KeyValue::new("Controller", self.gamepad.name.as_str()),
+            KeyValue::new("Button names", self.family().button_layout_name()),
+            KeyValue::new("Battery", self.battery_description()),
+            KeyValue::new("Buttons go to", self.owner_description()),
+            KeyValue::new("Hand over", self.handover_chord_description()),
+        ])
     }
 
-    fn binding_records(&self) -> impl Iterator<Item = TableRecord<2>> {
+    fn navigation_section(&self) -> Option<Section> {
+        let navigation = &self.bindings.navigation;
+        let stick = navigation.stick?;
+        let entries: Vec<KeyValue> = StickDirection::ALL
+            .into_iter()
+            .filter_map(|direction| {
+                let action = navigation.action(direction)?;
+                Some(KeyValue::new(direction.name(), action.press_hint()))
+            })
+            .collect();
+        Some(Section::dictionary(entries).titled(("Navigation", stick.name())))
+    }
+
+    fn pointer_section(&self) -> Option<Section> {
+        let pointer = &self.bindings.pointer;
         let family = self.family();
-        let hint = |binding: &Option<ButtonBinding>| {
-            binding
-                .as_ref()
-                .map(|binding| Cell::from(binding.press_hint()))
-        };
-        let buttons = self.bindings.buttons.iter().map(move |(button, bound)| {
-            TableRecord::new(
-                family.button_label(*button),
-                [hint(&bound.press), hint(&bound.release)],
+        let tilt = pointer.stick.map(|stick| {
+            KeyValue::new(
+                format!("Tilt {}", stick.name().to_lowercase()),
+                format!("move, up to {} px/s", pointer.pixels_per_second),
             )
         });
-        self.stick_records().into_iter().chain(buttons)
+        let buttons = pointer.claimed_buttons().map(|claimed| {
+            KeyValue::new(
+                claimed.pointer_button.name(),
+                family.described_button(claimed.button),
+            )
+        });
+        let entries: Vec<KeyValue> = tilt.into_iter().chain(buttons).collect();
+        (!entries.is_empty()).then(|| Section::dictionary(entries).titled("Pointer"))
     }
 
-    fn stick_records(&self) -> Vec<TableRecord<2>> {
-        [GamepadStick::Left, GamepadStick::Right]
-            .into_iter()
-            .flat_map(|stick| {
-                let bound = self.bindings.sticks.of(stick);
-                let pointer = (bound.role == StickRole::Pointer).then(|| {
-                    TableRecord::new(
-                        stick_label(stick),
-                        [Some(Cell::from("move the pointer")), None],
-                    )
-                });
-                let flicks = [
-                    StickDirection::Up,
-                    StickDirection::Down,
-                    StickDirection::Left,
-                    StickDirection::Right,
-                ]
-                .into_iter()
-                .filter_map(move |direction| {
-                    let binding = bound.flick_binding(direction)?;
-                    Some(TableRecord::new(
-                        format!("{} {}", stick_label(stick), direction_label(direction)),
-                        [Some(Cell::from(binding.press_hint())), None],
-                    ))
-                });
-                pointer.into_iter().chain(flicks)
+    fn claimed_section(
+        &self,
+        title: &'static str,
+        describe: impl Fn(ButtonRole<'_>) -> Option<String>,
+    ) -> Option<Section> {
+        let family = self.family();
+        let entries: Vec<KeyValue> = self
+            .bindings
+            .claimed_buttons()
+            .filter_map(|claimed| {
+                Some(KeyValue::new(
+                    family.described_button(claimed.button),
+                    describe(claimed.role)?,
+                ))
             })
-            .collect()
+            .collect();
+        (!entries.is_empty()).then(|| Section::dictionary(entries).titled(title))
     }
-}
 
-const fn stick_label(stick: GamepadStick) -> &'static str {
-    match stick {
-        GamepadStick::Left => "Left stick",
-        GamepadStick::Right => "Right stick",
+    fn push_to_talk_section(&self) -> Option<Section> {
+        let push_to_talk = &self.bindings.push_to_talk;
+        let button = push_to_talk.button?;
+        Some(
+            Section::dictionary([
+                KeyValue::new("Hold", self.family().described_button(button)),
+                KeyValue::new("Starts", push_to_talk.start.join(" ")),
+                KeyValue::new("Stops", push_to_talk.stop.join(" ")),
+            ])
+            .titled("Dictation"),
+        )
     }
-}
 
-const fn direction_label(direction: StickDirection) -> &'static str {
-    match direction {
-        StickDirection::Up => "up",
-        StickDirection::Down => "down",
-        StickDirection::Left => "left",
-        StickDirection::Right => "right",
+    fn conflicts_section(&self) -> Option<Section> {
+        let family = self.family();
+        let doubled_buttons = self
+            .bindings
+            .conflicting_buttons()
+            .into_iter()
+            .map(|button| {
+                KeyValue::new(
+                    family.described_button(button),
+                    "bound in two sections; the first one listed here wins",
+                )
+                .level(Severity::Warning)
+            });
+        let shared_stick = self.bindings.sticks_conflict().then(|| {
+            KeyValue::new("Sticks", "navigation and pointer share one stick")
+                .level(Severity::Warning)
+        });
+        let entries: Vec<KeyValue> = doubled_buttons.chain(shared_stick).collect();
+        (!entries.is_empty()).then(|| Section::dictionary(entries).titled("Conflicts"))
     }
 }
 
@@ -131,11 +171,11 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.gamepad.power {
-            GamepadPower::Discharging(percent) | GamepadPower::Charging(percent) => {
-                Some(format!("{percent}%"))
-            }
-            GamepadPower::Unknown | GamepadPower::Wired | GamepadPower::Charged => None,
+        let battery = self.battery_percent().map(|percent| format!("{percent}%"));
+        match (self.player_number, battery) {
+            (Some(number), Some(battery)) => Some(format!("{number} · {battery}")),
+            (Some(number), None) => Some(number.to_string()),
+            (None, battery) => battery,
         }
     }
 
@@ -150,22 +190,28 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([
-            Section::dictionary([
-                KeyValue::new("Controller", self.gamepad.name.as_str()),
-                KeyValue::new("Button names", self.family().button_layout_name()),
-                KeyValue::new("Battery", self.battery_description()),
-                KeyValue::new("Buttons go to", self.owner_description()),
-                KeyValue::new("Hand over", self.handover_chord_description()),
-            ]),
-            Section::column_table(
-                [
-                    ColumnHeading::new("Press").align_x(Horizontal::Left),
-                    ColumnHeading::new("Release").align_x(Horizontal::Left),
-                ],
-                self.binding_records(),
-            )
-            .titled("Buttons"),
-        ])
+        let purposes = [
+            self.navigation_section(),
+            self.pointer_section(),
+            self.claimed_section("Typed keys", |role| match role {
+                ButtonRole::TypedKey(key) => Some(key.to_owned()),
+                _ => None,
+            }),
+            self.claimed_section("Window actions", |role| match role {
+                ButtonRole::Compositor(action) => Some(action.press_hint().to_owned()),
+                _ => None,
+            }),
+            self.claimed_section("Commands", |role| match role {
+                ButtonRole::Command(command) => Some(command.join(" ")),
+                _ => None,
+            }),
+            self.push_to_talk_section(),
+            self.conflicts_section(),
+        ];
+        TooltipBody::sections(
+            [self.overview_section()]
+                .into_iter()
+                .chain(purposes.into_iter().flatten()),
+        )
     }
 }

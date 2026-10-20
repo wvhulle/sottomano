@@ -1,47 +1,12 @@
-use std::{
-    fmt, io,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Instant,
-};
+use std::{fmt, io, time::Instant};
 
 use sottomano_config::widget_groups::gamepad_bindings::PointerButton;
-use wayrs_client::{Connection, IoMode, global::BindError, protocol::wl_pointer::ButtonState};
+use wayrs_client::{Connection, global::BindError, protocol::wl_pointer::ButtonState};
 use wayrs_protocols::wlr_virtual_pointer_unstable_v1::{
     ZwlrVirtualPointerManagerV1, ZwlrVirtualPointerV1,
 };
 
-use super::stick_motion_tracking::PointerDisplacement;
-
-#[derive(Debug, Clone)]
-pub struct PointerGate(Arc<AtomicBool>);
-
-impl Default for PointerGate {
-    fn default() -> Self {
-        Self(Arc::new(AtomicBool::new(true)))
-    }
-}
-
-impl PartialEq for PointerGate {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
-
-impl Eq for PointerGate {}
-
-impl PointerGate {
-    pub fn allow(&self, allowed: bool) {
-        self.0.store(allowed, Ordering::Relaxed);
-    }
-
-    #[must_use]
-    pub fn is_allowed(&self) -> bool {
-        self.0.load(Ordering::Relaxed)
-    }
-}
+use super::gamepad_input_machine::PointerEffect;
 
 #[derive(Debug)]
 pub enum VirtualPointerError {
@@ -67,9 +32,11 @@ pub struct VirtualPointer {
 }
 
 impl VirtualPointer {
-    pub fn connect() -> Result<Self, VirtualPointerError> {
+    pub async fn connect() -> Result<Self, VirtualPointerError> {
         let mut conn = Connection::<()>::connect().map_err(VirtualPointerError::Connect)?;
-        conn.blocking_roundtrip().map_err(VirtualPointerError::Io)?;
+        conn.async_roundtrip()
+            .await
+            .map_err(VirtualPointerError::Io)?;
         let manager: ZwlrVirtualPointerManagerV1 = conn
             .bind_singleton(1..=2)
             .map_err(VirtualPointerError::Unsupported)?;
@@ -81,33 +48,28 @@ impl VirtualPointer {
         })
     }
 
-    fn timestamp(&self) -> u32 {
-        self.created.elapsed().as_millis() as u32
-    }
-
-    pub fn move_by(&mut self, displacement: PointerDisplacement) -> io::Result<()> {
-        let time = self.timestamp();
-        self.pointer.motion(
-            &mut self.conn,
-            time,
-            displacement.dx.into(),
-            displacement.dy.into(),
-        );
+    pub async fn apply(&mut self, effect: PointerEffect) -> io::Result<()> {
+        let time = self.created.elapsed().as_millis() as u32;
+        match effect {
+            PointerEffect::Move(displacement) => self.pointer.motion(
+                &mut self.conn,
+                time,
+                displacement.dx.into(),
+                displacement.dy.into(),
+            ),
+            PointerEffect::Button { button, pressed } => self.pointer.button(
+                &mut self.conn,
+                time,
+                evdev_button_code(button),
+                if pressed {
+                    ButtonState::Pressed
+                } else {
+                    ButtonState::Released
+                },
+            ),
+        }
         self.pointer.frame(&mut self.conn);
-        self.conn.flush(IoMode::Blocking)
-    }
-
-    pub fn set_button(&mut self, button: PointerButton, pressed: bool) -> io::Result<()> {
-        let time = self.timestamp();
-        let state = if pressed {
-            ButtonState::Pressed
-        } else {
-            ButtonState::Released
-        };
-        self.pointer
-            .button(&mut self.conn, time, evdev_button_code(button), state);
-        self.pointer.frame(&mut self.conn);
-        self.conn.flush(IoMode::Blocking)
+        self.conn.async_flush().await
     }
 }
 

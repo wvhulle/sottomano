@@ -1,15 +1,16 @@
 mod connected_controller_reading;
 pub mod controller_button_labels;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use iced::Subscription;
 use sottomano_config::widget_groups::gamepad_bindings::{
-    ButtonBinding, CompositorAction, GamepadBindingsConfig, GamepadButton,
+    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
 use sottomano_sources::gamepad_controller_input::{
-    gilrs_gamepad_events::{ButtonEdge, ConnectedGamepad, GamepadInput, gamepad_inputs},
-    wlr_virtual_pointer_motion::PointerGate,
+    evdev_gamepad_devices::{ButtonEdge, ConnectedGamepad},
+    gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
+    gamepad_input_stream::gamepad_inputs,
 };
 
 use self::connected_controller_reading::ConnectedControllerReading;
@@ -54,8 +55,8 @@ impl ControllerOwner {
     #[must_use]
     pub const fn toggle_press_hint(self) -> &'static str {
         match self {
-            ControllerOwner::Shell => "hand the controller to Steam and games",
-            ControllerOwner::HandedOver => "take the controller back",
+            ControllerOwner::Shell => "hand this controller to Steam and games",
+            ControllerOwner::HandedOver => "take this controller back",
         }
     }
 }
@@ -63,7 +64,7 @@ impl ControllerOwner {
 #[derive(Debug, Clone)]
 pub enum GamepadMessage {
     Input(GamepadInput),
-    ToggleOwner,
+    ToggleOwner { slot: usize },
     Expansion(ExpansionMessage),
 }
 
@@ -73,12 +74,16 @@ pub enum Action {
     Compositor(niri_ipc::Action),
 }
 
+#[derive(Debug, Clone, Default)]
+struct ControllerSession {
+    held: BTreeSet<GamepadButton>,
+    owner: ControllerOwner,
+}
+
 #[derive(Default)]
 pub struct GamepadGroup {
     controllers: Vec<ConnectedGamepad>,
-    held: BTreeSet<GamepadButton>,
-    owner: ControllerOwner,
-    pointer_gate: Option<PointerGate>,
+    sessions: BTreeMap<usize, ControllerSession>,
     expansion: GroupExpansion,
 }
 
@@ -87,21 +92,50 @@ impl GamepadGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(bindings: &GamepadBindingsConfig) -> Subscription<GamepadMessage> {
-        Subscription::run_with(bindings.pointer_steering(), |steering| {
-            gamepad_inputs(steering.clone())
+    fn owner(&self, slot: usize) -> ControllerOwner {
+        self.sessions
+            .get(&slot)
+            .map_or(ControllerOwner::Shell, |session| session.owner)
+    }
+
+    #[must_use]
+    pub fn stream_settings(
+        &self,
+        bindings: &GamepadBindingsConfig,
+        focused_app_id: Option<&str>,
+    ) -> GamepadStreamSettings {
+        GamepadStreamSettings {
+            steering: bindings.pointer_steering(),
+            gate: PointerGate {
+                silenced_by_focus: !bindings.acts_while_focused(focused_app_id),
+                handed_over_slots: self
+                    .sessions
+                    .iter()
+                    .filter(|(_, session)| session.owner == ControllerOwner::HandedOver)
+                    .map(|(&slot, _)| slot)
+                    .collect(),
+            },
+        }
+    }
+
+    pub fn subscription(
+        &self,
+        bindings: &GamepadBindingsConfig,
+        focused_app_id: Option<&str>,
+    ) -> Subscription<GamepadMessage> {
+        Subscription::run_with(self.stream_settings(bindings, focused_app_id), |settings| {
+            gamepad_inputs(settings.clone())
         })
         .map(GamepadMessage::Input)
     }
 
-    fn acts(&self, bindings: &GamepadBindingsConfig, focused_app_id: Option<&str>) -> bool {
-        self.owner == ControllerOwner::Shell && bindings.acts_while_focused(focused_app_id)
-    }
-
-    pub fn follow_focus(&self, bindings: &GamepadBindingsConfig, focused_app_id: Option<&str>) {
-        if let Some(gate) = &self.pointer_gate {
-            gate.allow(self.acts(bindings, focused_app_id));
-        }
+    fn acts(
+        &self,
+        slot: usize,
+        bindings: &GamepadBindingsConfig,
+        focused_app_id: Option<&str>,
+    ) -> bool {
+        self.owner(slot) == ControllerOwner::Shell && bindings.acts_while_focused(focused_app_id)
     }
 
     pub fn update(
@@ -110,70 +144,86 @@ impl GamepadGroup {
         bindings: &GamepadBindingsConfig,
         focused_app_id: Option<&str>,
     ) -> Action {
-        let action = match message {
-            GamepadMessage::Input(GamepadInput::PointerGate(gate)) => {
-                self.pointer_gate = Some(gate);
-                Action::Idle
-            }
+        match message {
             GamepadMessage::Input(GamepadInput::Roster(controllers)) => {
+                self.sessions
+                    .retain(|slot, _| controllers.iter().any(|gamepad| gamepad.slot == *slot));
                 self.controllers = controllers;
-                self.held.clear();
                 Action::Idle
             }
-            GamepadMessage::Input(GamepadInput::Button { button, edge, .. }) => {
-                self.receive_button(button, edge, bindings, focused_app_id)
+            GamepadMessage::Input(GamepadInput::Button { slot, button, edge }) => {
+                self.receive_button(slot, button, edge, bindings, focused_app_id)
             }
             GamepadMessage::Input(GamepadInput::StickFlick {
-                stick, direction, ..
-            }) => match bindings.sticks.of(stick).flick_binding(direction) {
-                Some(binding) if self.acts(bindings, focused_app_id) => binding_action(binding),
-                _ => Action::Idle,
-            },
-            GamepadMessage::ToggleOwner => {
-                self.owner = self.owner.toggled();
+                slot,
+                stick,
+                direction,
+            }) => bindings
+                .navigation
+                .flick_action(stick, direction)
+                .filter(|_| self.acts(slot, bindings, focused_app_id))
+                .map_or(Action::Idle, |action| {
+                    Action::Compositor(niri_request(action))
+                }),
+            GamepadMessage::ToggleOwner { slot } => {
+                let session = self.sessions.entry(slot).or_default();
+                session.owner = session.owner.toggled();
                 Action::Idle
             }
             GamepadMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
                 Action::Idle
             }
-        };
-        self.follow_focus(bindings, focused_app_id);
-        action
+        }
     }
 
     fn receive_button(
         &mut self,
+        slot: usize,
         button: GamepadButton,
         edge: ButtonEdge,
         bindings: &GamepadBindingsConfig,
         focused_app_id: Option<&str>,
     ) -> Action {
-        let bound = bindings.buttons.get(&button);
-        let binding = match edge {
+        let session = self.sessions.entry(slot).or_default();
+        match edge {
             ButtonEdge::Pressed => {
-                self.held.insert(button);
-                if bindings.completes_handover_chord(button, |held| self.held.contains(&held)) {
-                    self.owner = self.owner.toggled();
+                session.held.insert(button);
+                if bindings.completes_handover_chord(button, |held| session.held.contains(&held)) {
+                    session.owner = session.owner.toggled();
                     return Action::Idle;
                 }
-                bound.and_then(|bound| bound.press.as_ref())
             }
             ButtonEdge::Released => {
-                self.held.remove(&button);
-                bound.and_then(|bound| bound.release.as_ref())
+                session.held.remove(&button);
             }
-        };
-        if !self.acts(bindings, focused_app_id) {
+        }
+        let releasing_push_to_talk = edge == ButtonEdge::Released
+            && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
+        if !releasing_push_to_talk && !self.acts(slot, bindings, focused_app_id) {
             return Action::Idle;
         }
-        binding.map_or(Action::Idle, binding_action)
+        bindings
+            .role_of(button)
+            .and_then(|role| role_request(role, edge, bindings))
+            .map_or(Action::Idle, Action::Compositor)
     }
 
     fn controller(&self, slot: usize) -> Option<&ConnectedGamepad> {
         self.controllers
             .iter()
             .find(|controller| controller.slot == slot)
+    }
+
+    fn player_number(&self, slot: usize) -> Option<usize> {
+        (self.controllers.len() > 1)
+            .then(|| {
+                self.controllers
+                    .iter()
+                    .position(|controller| controller.slot == slot)
+            })
+            .flatten()
+            .map(|index| index + 1)
     }
 
     fn reading<'a>(
@@ -184,7 +234,8 @@ impl GamepadGroup {
         ConnectedControllerReading {
             gamepad,
             bindings,
-            owner: self.owner,
+            owner: self.owner(gamepad.slot),
+            player_number: self.player_number(gamepad.slot),
         }
     }
 
@@ -212,19 +263,43 @@ impl GamepadGroup {
                     self.reading(gamepad, bindings),
                     GamepadTarget::Controller { slot: gamepad.slot },
                 )
-                .on_press(self.owner.toggle_press_hint(), GamepadMessage::ToggleOwner)
+                .on_press(
+                    self.owner(gamepad.slot).toggle_press_hint(),
+                    GamepadMessage::ToggleOwner { slot: gamepad.slot },
+                )
             }),
         )
     }
 }
 
-fn binding_action(binding: &ButtonBinding) -> Action {
-    match binding {
-        ButtonBinding::Compositor(action) => Action::Compositor(niri_request(*action)),
-        ButtonBinding::Command(command) => Action::Compositor(niri_ipc::Action::Spawn {
-            command: command.clone(),
-        }),
-        ButtonBinding::PointerButton(_) => Action::Idle,
+fn spawned(command: impl IntoIterator<Item = impl Into<String>>) -> niri_ipc::Action {
+    niri_ipc::Action::Spawn {
+        command: command.into_iter().map(Into::into).collect(),
+    }
+}
+
+fn role_request(
+    role: ButtonRole<'_>,
+    edge: ButtonEdge,
+    bindings: &GamepadBindingsConfig,
+) -> Option<niri_ipc::Action> {
+    match (role, edge) {
+        (ButtonRole::PushToTalk, ButtonEdge::Pressed) => {
+            Some(spawned(bindings.push_to_talk.start.iter().cloned()))
+        }
+        (ButtonRole::PushToTalk, ButtonEdge::Released) => {
+            Some(spawned(bindings.push_to_talk.stop.iter().cloned()))
+        }
+        (ButtonRole::TypedKey(key), ButtonEdge::Pressed) => Some(spawned(["wtype", "-k", key])),
+        (ButtonRole::Compositor(action), ButtonEdge::Pressed) => Some(niri_request(action)),
+        (ButtonRole::Command(command), ButtonEdge::Pressed) => {
+            Some(spawned(command.iter().cloned()))
+        }
+        (ButtonRole::PointerButton(_), _)
+        | (
+            ButtonRole::TypedKey(_) | ButtonRole::Compositor(_) | ButtonRole::Command(_),
+            ButtonEdge::Released,
+        ) => None,
     }
 }
 
@@ -258,17 +333,24 @@ mod tests {
 
     use super::*;
 
-    fn button(button: GamepadButton, edge: ButtonEdge) -> GamepadMessage {
-        GamepadMessage::Input(GamepadInput::Button {
-            slot: 0,
-            button,
-            edge,
-        })
+    const DUALSENSE: usize = 31;
+    const SECOND_PAD: usize = 32;
+
+    fn button(slot: usize, button: GamepadButton, edge: ButtonEdge) -> GamepadMessage {
+        GamepadMessage::Input(GamepadInput::Button { slot, button, edge })
     }
 
-    fn press(group: &mut GamepadGroup, pressed: GamepadButton) -> Action {
+    fn press(group: &mut GamepadGroup, slot: usize, pressed: GamepadButton) -> Action {
         group.update(
-            button(pressed, ButtonEdge::Pressed),
+            button(slot, pressed, ButtonEdge::Pressed),
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        )
+    }
+
+    fn release(group: &mut GamepadGroup, slot: usize, released: GamepadButton) -> Action {
+        group.update(
+            button(slot, released, ButtonEdge::Released),
             &GamepadBindingsConfig::default(),
             Some("kitty"),
         )
@@ -283,7 +365,11 @@ mod tests {
 
     #[test]
     fn dpad_left_types_the_left_arrow_key_by_default() {
-        let action = press(&mut GamepadGroup::default(), GamepadButton::DpadLeft);
+        let action = press(
+            &mut GamepadGroup::default(),
+            DUALSENSE,
+            GamepadButton::DpadLeft,
+        );
         assert_eq!(spawned_command(action), ["wtype", "-k", "Left"]);
     }
 
@@ -291,7 +377,7 @@ mod tests {
     fn flicking_the_left_stick_right_focuses_the_next_column() {
         let action = GamepadGroup::default().update(
             GamepadMessage::Input(GamepadInput::StickFlick {
-                slot: 0,
+                slot: DUALSENSE,
                 stick: GamepadStick::Left,
                 direction: StickDirection::Right,
             }),
@@ -305,24 +391,9 @@ mod tests {
     }
 
     #[test]
-    fn focusing_a_game_closes_the_pointer_gate() {
-        let mut group = GamepadGroup::default();
-        let gate = PointerGate::default();
-        let config = GamepadBindingsConfig::default();
-        group.update(
-            GamepadMessage::Input(GamepadInput::PointerGate(gate.clone())),
-            &config,
-            Some("kitty"),
-        );
-        assert!(gate.is_allowed());
-        group.follow_focus(&config, Some("steam_app_1091500"));
-        assert!(!gate.is_allowed());
-    }
-
-    #[test]
     fn a_focused_game_keeps_its_controller_input() {
         let action = GamepadGroup::default().update(
-            button(GamepadButton::DpadLeft, ButtonEdge::Pressed),
+            button(DUALSENSE, GamepadButton::DpadLeft, ButtonEdge::Pressed),
             &GamepadBindingsConfig::default(),
             Some("steam_app_1091500"),
         );
@@ -330,45 +401,44 @@ mod tests {
     }
 
     #[test]
-    fn releasing_the_left_trigger_stops_dictation() {
-        let action = GamepadGroup::default().update(
-            button(GamepadButton::LeftTrigger, ButtonEdge::Released),
-            &GamepadBindingsConfig::default(),
-            None,
-        );
-        assert_eq!(spawned_command(action), ["voxtype", "record", "stop"]);
+    fn holding_the_left_trigger_dictates_until_released() {
+        let mut group = GamepadGroup::default();
+        let started = press(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
+        assert_eq!(spawned_command(started), ["voxtype", "record", "start"]);
+        let stopped = release(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
+        assert_eq!(spawned_command(stopped), ["voxtype", "record", "stop"]);
     }
 
     #[test]
-    fn the_handover_chord_silences_bindings_until_pressed_again() {
+    fn the_handover_chord_hands_over_only_the_controller_that_pressed_it() {
         let mut group = GamepadGroup::default();
-        let chord = |group: &mut GamepadGroup| {
-            press(group, GamepadButton::Select);
-            let action = press(group, GamepadButton::Start);
-            let config = GamepadBindingsConfig::default();
-            group.update(
-                button(GamepadButton::Start, ButtonEdge::Released),
-                &config,
-                None,
-            );
-            group.update(
-                button(GamepadButton::Select, ButtonEdge::Released),
-                &config,
-                None,
-            );
-            action
-        };
-        assert!(matches!(chord(&mut group), Action::Idle));
-        assert_eq!(group.owner, ControllerOwner::HandedOver);
+        press(&mut group, DUALSENSE, GamepadButton::Back);
         assert!(matches!(
-            press(&mut group, GamepadButton::DpadLeft),
+            press(&mut group, DUALSENSE, GamepadButton::Start),
             Action::Idle
         ));
-        chord(&mut group);
-        assert_eq!(group.owner, ControllerOwner::Shell);
+        assert_eq!(group.owner(DUALSENSE), ControllerOwner::HandedOver);
         assert!(matches!(
-            press(&mut group, GamepadButton::DpadLeft),
-            Action::Compositor(_)
+            press(&mut group, DUALSENSE, GamepadButton::North),
+            Action::Idle
         ));
+        assert!(matches!(
+            press(&mut group, SECOND_PAD, GamepadButton::North),
+            Action::Compositor(niri_ipc::Action::MaximizeColumn {})
+        ));
+        assert_eq!(
+            group
+                .stream_settings(&GamepadBindingsConfig::default(), Some("kitty"))
+                .gate
+                .handed_over_slots,
+            BTreeSet::from([DUALSENSE])
+        );
+    }
+
+    #[test]
+    fn focusing_a_game_silences_the_pointer_through_the_stream_settings() {
+        let settings = GamepadGroup::default()
+            .stream_settings(&GamepadBindingsConfig::default(), Some("steam_app_1091500"));
+        assert!(settings.gate.silenced_by_focus);
     }
 }

@@ -12,11 +12,22 @@ pub enum ControllerFamily {
 
 impl ControllerFamily {
     #[must_use]
-    pub const fn of_vendor(vendor_id: Option<u16>) -> Self {
+    pub const fn of_vendor(vendor_id: u16) -> Self {
         match vendor_id {
-            Some(SONY_USB_VENDOR) => ControllerFamily::PlayStation,
-            Some(NINTENDO_USB_VENDOR) => ControllerFamily::Nintendo,
+            SONY_USB_VENDOR => ControllerFamily::PlayStation,
+            NINTENDO_USB_VENDOR => ControllerFamily::Nintendo,
             _ => ControllerFamily::Xbox,
+        }
+    }
+
+    #[must_use]
+    pub fn described_button(self, button: GamepadButton) -> String {
+        let label = self.button_label(button);
+        let position = button.position_name();
+        if label == position {
+            label.to_owned()
+        } else {
+            format!("{label} · {position}")
         }
     }
 
@@ -32,10 +43,13 @@ impl ControllerFamily {
     #[must_use]
     pub const fn button_label(self, button: GamepadButton) -> &'static str {
         match (self, button) {
-            (_, GamepadButton::DpadUp) => "D-pad up",
-            (_, GamepadButton::DpadDown) => "D-pad down",
-            (_, GamepadButton::DpadLeft) => "D-pad left",
-            (_, GamepadButton::DpadRight) => "D-pad right",
+            (
+                _,
+                GamepadButton::DpadUp
+                | GamepadButton::DpadDown
+                | GamepadButton::DpadLeft
+                | GamepadButton::DpadRight,
+            ) => button.position_name(),
             (ControllerFamily::PlayStation, button) => playstation_label(button),
             (ControllerFamily::Nintendo, button) => nintendo_label(button),
             (ControllerFamily::Xbox, button) => xbox_label(button),
@@ -49,13 +63,13 @@ const fn playstation_label(button: GamepadButton) -> &'static str {
         GamepadButton::East => "Circle",
         GamepadButton::North => "Triangle",
         GamepadButton::West => "Square",
-        GamepadButton::LeftBumper => "L1",
-        GamepadButton::RightBumper => "R1",
+        GamepadButton::LeftShoulder => "L1",
+        GamepadButton::RightShoulder => "R1",
         GamepadButton::LeftTrigger => "L2",
         GamepadButton::RightTrigger => "R2",
-        GamepadButton::Select => "Create",
+        GamepadButton::Back => "Create",
         GamepadButton::Start => "Options",
-        GamepadButton::Mode => "PS",
+        GamepadButton::Guide => "PS",
         GamepadButton::LeftStick => "L3",
         GamepadButton::RightStick => "R3",
         GamepadButton::DpadUp
@@ -71,15 +85,15 @@ const fn nintendo_label(button: GamepadButton) -> &'static str {
         GamepadButton::East => "A",
         GamepadButton::North => "X",
         GamepadButton::West => "Y",
-        GamepadButton::LeftBumper => "L",
-        GamepadButton::RightBumper => "R",
+        GamepadButton::LeftShoulder => "L",
+        GamepadButton::RightShoulder => "R",
         GamepadButton::LeftTrigger => "ZL",
         GamepadButton::RightTrigger => "ZR",
-        GamepadButton::Select => "Minus",
+        GamepadButton::Back => "Minus",
         GamepadButton::Start => "Plus",
-        GamepadButton::Mode => "Home",
-        GamepadButton::LeftStick => "Left stick press",
-        GamepadButton::RightStick => "Right stick press",
+        GamepadButton::Guide => "Home",
+        GamepadButton::LeftStick => "Left stick",
+        GamepadButton::RightStick => "Right stick",
         GamepadButton::DpadUp
         | GamepadButton::DpadDown
         | GamepadButton::DpadLeft
@@ -93,15 +107,15 @@ const fn xbox_label(button: GamepadButton) -> &'static str {
         GamepadButton::East => "B",
         GamepadButton::North => "Y",
         GamepadButton::West => "X",
-        GamepadButton::LeftBumper => "LB",
-        GamepadButton::RightBumper => "RB",
+        GamepadButton::LeftShoulder => "LB",
+        GamepadButton::RightShoulder => "RB",
         GamepadButton::LeftTrigger => "LT",
         GamepadButton::RightTrigger => "RT",
-        GamepadButton::Select => "View",
+        GamepadButton::Back => "View",
         GamepadButton::Start => "Menu",
-        GamepadButton::Mode => "Guide",
-        GamepadButton::LeftStick => "LS press",
-        GamepadButton::RightStick => "RS press",
+        GamepadButton::Guide => "Xbox",
+        GamepadButton::LeftStick => "LS",
+        GamepadButton::RightStick => "RS",
         GamepadButton::DpadUp
         | GamepadButton::DpadDown
         | GamepadButton::DpadLeft
@@ -116,8 +130,21 @@ mod tests {
     #[test]
     fn the_south_face_button_is_named_after_each_family() {
         let south = |vendor| ControllerFamily::of_vendor(vendor).button_label(GamepadButton::South);
-        assert_eq!(south(Some(SONY_USB_VENDOR)), "Cross");
-        assert_eq!(south(Some(NINTENDO_USB_VENDOR)), "B");
-        assert_eq!(south(None), "A");
+        assert_eq!(south(SONY_USB_VENDOR), "Cross");
+        assert_eq!(south(NINTENDO_USB_VENDOR), "B");
+        assert_eq!(south(0x045e), "A");
+    }
+
+    #[test]
+    fn buttons_are_described_by_label_and_position() {
+        let playstation = ControllerFamily::PlayStation;
+        assert_eq!(
+            playstation.described_button(GamepadButton::RightTrigger),
+            "R2 · right trigger"
+        );
+        assert_eq!(
+            playstation.described_button(GamepadButton::DpadUp),
+            "D-pad up"
+        );
     }
 }

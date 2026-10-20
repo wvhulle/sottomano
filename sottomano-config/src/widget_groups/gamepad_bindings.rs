@@ -1,27 +1,65 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GamepadButton {
+    #[serde(alias = "cross", alias = "a")]
     South,
+    #[serde(alias = "circle", alias = "b")]
     East,
+    #[serde(alias = "triangle", alias = "y")]
     North,
+    #[serde(alias = "square", alias = "x")]
     West,
     DpadUp,
     DpadDown,
     DpadLeft,
     DpadRight,
-    LeftBumper,
-    RightBumper,
+    #[serde(alias = "l1", alias = "lb")]
+    LeftShoulder,
+    #[serde(alias = "r1", alias = "rb")]
+    RightShoulder,
+    #[serde(alias = "l2", alias = "lt")]
     LeftTrigger,
+    #[serde(alias = "r2", alias = "rt")]
     RightTrigger,
-    Select,
+    #[serde(alias = "create", alias = "view")]
+    Back,
+    #[serde(alias = "options", alias = "menu")]
     Start,
-    Mode,
+    #[serde(alias = "ps", alias = "xbox")]
+    Guide,
+    #[serde(alias = "l3", alias = "ls")]
     LeftStick,
+    #[serde(alias = "r3", alias = "rs")]
     RightStick,
+}
+
+impl GamepadButton {
+    #[must_use]
+    pub const fn position_name(self) -> &'static str {
+        match self {
+            GamepadButton::South => "south face button",
+            GamepadButton::East => "east face button",
+            GamepadButton::North => "north face button",
+            GamepadButton::West => "west face button",
+            GamepadButton::DpadUp => "D-pad up",
+            GamepadButton::DpadDown => "D-pad down",
+            GamepadButton::DpadLeft => "D-pad left",
+            GamepadButton::DpadRight => "D-pad right",
+            GamepadButton::LeftShoulder => "left shoulder",
+            GamepadButton::RightShoulder => "right shoulder",
+            GamepadButton::LeftTrigger => "left trigger",
+            GamepadButton::RightTrigger => "right trigger",
+            GamepadButton::Back => "back",
+            GamepadButton::Start => "start",
+            GamepadButton::Guide => "guide",
+            GamepadButton::LeftStick => "left stick press",
+            GamepadButton::RightStick => "right stick press",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -77,64 +115,30 @@ pub enum PointerButton {
 
 impl PointerButton {
     #[must_use]
-    pub const fn press_hint(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
-            PointerButton::Left => "hold the left mouse button",
-            PointerButton::Right => "hold the right mouse button",
-            PointerButton::Middle => "hold the middle mouse button",
+            PointerButton::Left => "Left mouse button",
+            PointerButton::Right => "Right mouse button",
+            PointerButton::Middle => "Middle mouse button",
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum ButtonBinding {
-    Compositor(CompositorAction),
-    Command(Vec<String>),
-    PointerButton(PointerButton),
-}
-
-impl ButtonBinding {
-    #[must_use]
-    pub fn press_hint(&self) -> String {
-        match self {
-            ButtonBinding::Compositor(action) => action.press_hint().to_owned(),
-            ButtonBinding::Command(command) => format!("run {}", command.join(" ")),
-            ButtonBinding::PointerButton(button) => button.press_hint().to_owned(),
-        }
-    }
-
-    fn command(program_and_args: &[&str]) -> Self {
-        ButtonBinding::Command(
-            program_and_args
-                .iter()
-                .map(|&part| part.to_owned())
-                .collect(),
-        )
-    }
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct PressReleaseBindings {
-    pub press: Option<ButtonBinding>,
-    pub release: Option<ButtonBinding>,
-}
-
-impl PressReleaseBindings {
-    fn on_press(binding: ButtonBinding) -> Self {
-        Self {
-            press: Some(binding),
-            release: None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum GamepadStick {
     Left,
     Right,
+}
+
+impl GamepadStick {
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            GamepadStick::Left => "Left stick",
+            GamepadStick::Right => "Right stick",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
@@ -146,111 +150,129 @@ pub enum StickDirection {
     Right,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum StickRole {
-    #[default]
-    Ignore,
-    Flicks,
-    Pointer,
-}
+impl StickDirection {
+    pub const ALL: [StickDirection; 4] = [
+        StickDirection::Up,
+        StickDirection::Down,
+        StickDirection::Left,
+        StickDirection::Right,
+    ];
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct StickBindings {
-    pub role: StickRole,
-    pub up: Option<ButtonBinding>,
-    pub down: Option<ButtonBinding>,
-    pub left: Option<ButtonBinding>,
-    pub right: Option<ButtonBinding>,
-    pub pointer_pixels_per_second: u32,
-}
-
-impl Default for StickBindings {
-    fn default() -> Self {
-        Self {
-            role: StickRole::Ignore,
-            up: None,
-            down: None,
-            left: None,
-            right: None,
-            pointer_pixels_per_second: 1600,
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            StickDirection::Up => "Up",
+            StickDirection::Down => "Down",
+            StickDirection::Left => "Left",
+            StickDirection::Right => "Right",
         }
     }
 }
 
-impl StickBindings {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct StickNavigationConfig {
+    pub stick: Option<GamepadStick>,
+    pub up: Option<CompositorAction>,
+    pub down: Option<CompositorAction>,
+    pub left: Option<CompositorAction>,
+    pub right: Option<CompositorAction>,
+}
+
+impl StickNavigationConfig {
     #[must_use]
-    pub fn flick_binding(&self, direction: StickDirection) -> Option<&ButtonBinding> {
-        if self.role != StickRole::Flicks {
-            return None;
-        }
+    pub const fn action(&self, direction: StickDirection) -> Option<CompositorAction> {
         match direction {
-            StickDirection::Up => self.up.as_ref(),
-            StickDirection::Down => self.down.as_ref(),
-            StickDirection::Left => self.left.as_ref(),
-            StickDirection::Right => self.right.as_ref(),
+            StickDirection::Up => self.up,
+            StickDirection::Down => self.down,
+            StickDirection::Left => self.left,
+            StickDirection::Right => self.right,
         }
     }
 
-    fn flicking(
-        up: CompositorAction,
-        down: CompositorAction,
-        left: CompositorAction,
-        right: CompositorAction,
-    ) -> Self {
+    #[must_use]
+    pub fn flick_action(
+        &self,
+        stick: GamepadStick,
+        direction: StickDirection,
+    ) -> Option<CompositorAction> {
+        (self.stick == Some(stick))
+            .then(|| self.action(direction))
+            .flatten()
+    }
+}
+
+impl Default for StickNavigationConfig {
+    fn default() -> Self {
         Self {
-            role: StickRole::Flicks,
-            up: Some(ButtonBinding::Compositor(up)),
-            down: Some(ButtonBinding::Compositor(down)),
-            left: Some(ButtonBinding::Compositor(left)),
-            right: Some(ButtonBinding::Compositor(right)),
-            ..Self::default()
+            stick: Some(GamepadStick::Left),
+            up: Some(CompositorAction::FocusWorkspaceUp),
+            down: Some(CompositorAction::FocusWorkspaceDown),
+            left: Some(CompositorAction::FocusColumnLeft),
+            right: Some(CompositorAction::FocusColumnRight),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct GamepadSticksConfig {
-    pub left: StickBindings,
-    pub right: StickBindings,
+pub struct PointerSteeringConfig {
+    pub stick: Option<GamepadStick>,
+    pub pixels_per_second: u32,
+    pub left_button: Option<GamepadButton>,
+    pub right_button: Option<GamepadButton>,
+    pub middle_button: Option<GamepadButton>,
 }
 
-impl GamepadSticksConfig {
-    #[must_use]
-    pub fn of(&self, stick: GamepadStick) -> &StickBindings {
-        match stick {
-            GamepadStick::Left => &self.left,
-            GamepadStick::Right => &self.right,
-        }
-    }
-
-    #[must_use]
-    pub fn pointer_stick(&self) -> Option<PointerStickSettings> {
-        [GamepadStick::Left, GamepadStick::Right]
-            .into_iter()
-            .find(|&stick| self.of(stick).role == StickRole::Pointer)
-            .map(|stick| PointerStickSettings {
-                stick,
-                pixels_per_second: self.of(stick).pointer_pixels_per_second,
+impl PointerSteeringConfig {
+    pub fn claimed_buttons(&self) -> impl Iterator<Item = ClaimedPointerButton> {
+        [
+            (PointerButton::Left, self.left_button),
+            (PointerButton::Right, self.right_button),
+            (PointerButton::Middle, self.middle_button),
+        ]
+        .into_iter()
+        .filter_map(|(pointer_button, button)| {
+            Some(ClaimedPointerButton {
+                button: button?,
+                pointer_button,
             })
+        })
     }
 }
 
-impl Default for GamepadSticksConfig {
+impl Default for PointerSteeringConfig {
     fn default() -> Self {
         Self {
-            left: StickBindings::flicking(
-                CompositorAction::FocusWorkspaceUp,
-                CompositorAction::FocusWorkspaceDown,
-                CompositorAction::FocusColumnLeft,
-                CompositorAction::FocusColumnRight,
-            ),
-            right: StickBindings {
-                role: StickRole::Pointer,
-                ..StickBindings::default()
-            },
+            stick: Some(GamepadStick::Right),
+            pixels_per_second: 1600,
+            left_button: Some(GamepadButton::RightTrigger),
+            right_button: None,
+            middle_button: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClaimedPointerButton {
+    pub button: GamepadButton,
+    pub pointer_button: PointerButton,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PushToTalkConfig {
+    pub button: Option<GamepadButton>,
+    pub start: Vec<String>,
+    pub stop: Vec<String>,
+}
+
+impl Default for PushToTalkConfig {
+    fn default() -> Self {
+        Self {
+            button: Some(GamepadButton::LeftTrigger),
+            start: ["voxtype", "record", "start"].map(String::from).to_vec(),
+            stop: ["voxtype", "record", "stop"].map(String::from).to_vec(),
         }
     }
 }
@@ -274,26 +296,105 @@ impl PointerSteeringSettings {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ButtonRole<'a> {
+    PushToTalk,
+    PointerButton(PointerButton),
+    Compositor(CompositorAction),
+    TypedKey(&'a str),
+    Command(&'a [String]),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClaimedButton<'a> {
+    pub button: GamepadButton,
+    pub role: ButtonRole<'a>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct GamepadBindingsConfig {
     pub passive_app_id_prefixes: Vec<String>,
     pub handover_chord: Vec<GamepadButton>,
-    pub buttons: BTreeMap<GamepadButton, PressReleaseBindings>,
-    pub sticks: GamepadSticksConfig,
+    pub navigation: StickNavigationConfig,
+    pub pointer: PointerSteeringConfig,
+    pub typed_keys: BTreeMap<GamepadButton, String>,
+    pub compositor_actions: BTreeMap<GamepadButton, CompositorAction>,
+    pub commands: BTreeMap<GamepadButton, Vec<String>>,
+    pub push_to_talk: PushToTalkConfig,
 }
 
 impl GamepadBindingsConfig {
+    pub fn claimed_buttons(&self) -> impl Iterator<Item = ClaimedButton<'_>> {
+        let push_to_talk = self.push_to_talk.button.map(|button| ClaimedButton {
+            button,
+            role: ButtonRole::PushToTalk,
+        });
+        let pointer = self.pointer.claimed_buttons().map(|claimed| ClaimedButton {
+            button: claimed.button,
+            role: ButtonRole::PointerButton(claimed.pointer_button),
+        });
+        let compositor = self
+            .compositor_actions
+            .iter()
+            .map(|(&button, &action)| ClaimedButton {
+                button,
+                role: ButtonRole::Compositor(action),
+            });
+        let typed_keys = self.typed_keys.iter().map(|(&button, key)| ClaimedButton {
+            button,
+            role: ButtonRole::TypedKey(key),
+        });
+        let commands = self
+            .commands
+            .iter()
+            .map(|(&button, command)| ClaimedButton {
+                button,
+                role: ButtonRole::Command(command),
+            });
+        push_to_talk
+            .into_iter()
+            .chain(pointer)
+            .chain(compositor)
+            .chain(typed_keys)
+            .chain(commands)
+    }
+
+    #[must_use]
+    pub fn role_of(&self, button: GamepadButton) -> Option<ButtonRole<'_>> {
+        self.claimed_buttons()
+            .find(|claimed| claimed.button == button)
+            .map(|claimed| claimed.role)
+    }
+
+    #[must_use]
+    pub fn conflicting_buttons(&self) -> BTreeSet<GamepadButton> {
+        let mut seen = BTreeSet::new();
+        self.claimed_buttons()
+            .filter(|claimed| !seen.insert(claimed.button))
+            .map(|claimed| claimed.button)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn sticks_conflict(&self) -> bool {
+        self.navigation.stick.is_some() && self.navigation.stick == self.pointer.stick
+    }
+
     #[must_use]
     pub fn pointer_steering(&self) -> PointerSteeringSettings {
         PointerSteeringSettings {
-            stick: self.sticks.pointer_stick(),
+            stick: self.pointer.stick.map(|stick| PointerStickSettings {
+                stick,
+                pixels_per_second: self.pointer.pixels_per_second,
+            }),
             buttons: self
-                .buttons
-                .iter()
-                .filter_map(|(&button, bound)| match bound.press {
-                    Some(ButtonBinding::PointerButton(pointer_button)) => {
-                        Some((button, pointer_button))
+                .claimed_buttons()
+                .filter_map(|claimed| match claimed.role {
+                    ButtonRole::PointerButton(pointer_button)
+                        if self.role_of(claimed.button) == Some(claimed.role) =>
+                    {
+                        Some((claimed.button, pointer_button))
                     }
                     _ => None,
                 })
@@ -324,50 +425,33 @@ impl GamepadBindingsConfig {
 
 impl Default for GamepadBindingsConfig {
     fn default() -> Self {
-        let compositor = |action| PressReleaseBindings::on_press(ButtonBinding::Compositor(action));
-        let typed_key =
-            |key| PressReleaseBindings::on_press(ButtonBinding::command(&["wtype", "-k", key]));
         Self {
             passive_app_id_prefixes: ["steam", "gamescope"].map(String::from).to_vec(),
-            handover_chord: vec![GamepadButton::Select, GamepadButton::Start],
-            sticks: GamepadSticksConfig::default(),
-            buttons: BTreeMap::from([
-                (GamepadButton::DpadLeft, typed_key("Left")),
-                (GamepadButton::DpadRight, typed_key("Right")),
-                (GamepadButton::DpadUp, typed_key("Up")),
-                (GamepadButton::DpadDown, typed_key("Down")),
-                (GamepadButton::South, typed_key("Return")),
-                (GamepadButton::East, typed_key("Escape")),
-                (
-                    GamepadButton::RightTrigger,
-                    PressReleaseBindings::on_press(ButtonBinding::PointerButton(
-                        PointerButton::Left,
-                    )),
-                ),
-                (
-                    GamepadButton::LeftBumper,
-                    compositor(CompositorAction::MoveColumnLeft),
-                ),
-                (
-                    GamepadButton::RightBumper,
-                    compositor(CompositorAction::MoveColumnRight),
-                ),
-                (
-                    GamepadButton::Mode,
-                    compositor(CompositorAction::ToggleOverview),
-                ),
-                (
-                    GamepadButton::North,
-                    compositor(CompositorAction::MaximizeColumn),
-                ),
-                (
-                    GamepadButton::LeftTrigger,
-                    PressReleaseBindings {
-                        press: Some(ButtonBinding::command(&["voxtype", "record", "start"])),
-                        release: Some(ButtonBinding::command(&["voxtype", "record", "stop"])),
-                    },
-                ),
+            handover_chord: vec![GamepadButton::Back, GamepadButton::Start],
+            navigation: StickNavigationConfig::default(),
+            pointer: PointerSteeringConfig::default(),
+            typed_keys: BTreeMap::from([
+                (GamepadButton::DpadLeft, "Left".to_owned()),
+                (GamepadButton::DpadRight, "Right".to_owned()),
+                (GamepadButton::DpadUp, "Up".to_owned()),
+                (GamepadButton::DpadDown, "Down".to_owned()),
+                (GamepadButton::South, "Return".to_owned()),
+                (GamepadButton::East, "Escape".to_owned()),
             ]),
+            compositor_actions: BTreeMap::from([
+                (
+                    GamepadButton::LeftShoulder,
+                    CompositorAction::MoveColumnLeft,
+                ),
+                (
+                    GamepadButton::RightShoulder,
+                    CompositorAction::MoveColumnRight,
+                ),
+                (GamepadButton::North, CompositorAction::MaximizeColumn),
+                (GamepadButton::Guide, CompositorAction::ToggleOverview),
+            ]),
+            commands: BTreeMap::new(),
+            push_to_talk: PushToTalkConfig::default(),
         }
     }
 }
@@ -387,19 +471,92 @@ mod tests {
     }
 
     #[test]
-    fn buttons_bind_compositor_actions_and_commands() {
+    fn playstation_and_xbox_names_select_the_same_buttons() {
         let config: GamepadBindingsConfig = toml::from_str(
-            "[buttons.west]\npress = { compositor = \"close_window\" \
-             }\n[buttons.right_stick]\npress = { command = [\"notify-send\", \"hi\"] }\n",
+            "handover_chord = [\"create\", \"menu\"]\n[typed_keys]\ncross = \"Return\"\nb = \
+             \"Escape\"\n[compositor_actions]\nl1 = \"move_column_left\"\nps = \
+             \"toggle_overview\"\n",
         )
         .unwrap();
         assert_eq!(
-            config.buttons[&GamepadButton::West].press,
-            Some(ButtonBinding::Compositor(CompositorAction::CloseWindow))
+            config.handover_chord,
+            [GamepadButton::Back, GamepadButton::Start]
         );
         assert_eq!(
-            config.buttons[&GamepadButton::RightStick].press,
-            Some(ButtonBinding::command(&["notify-send", "hi"]))
+            config.role_of(GamepadButton::South),
+            Some(ButtonRole::TypedKey("Return"))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::East),
+            Some(ButtonRole::TypedKey("Escape"))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::LeftShoulder),
+            Some(ButtonRole::Compositor(CompositorAction::MoveColumnLeft))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::Guide),
+            Some(ButtonRole::Compositor(CompositorAction::ToggleOverview))
+        );
+    }
+
+    #[test]
+    fn each_section_claims_buttons_for_its_purpose() {
+        let config: GamepadBindingsConfig = toml::from_str(
+            "[compositor_actions]\nwest = \"close_window\"\n[commands]\nright_stick = \
+             [\"notify-send\", \"hi\"]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            config.role_of(GamepadButton::West),
+            Some(ButtonRole::Compositor(CompositorAction::CloseWindow))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::RightStick),
+            Some(ButtonRole::Command(&[
+                "notify-send".to_owned(),
+                "hi".to_owned()
+            ]))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::DpadLeft),
+            Some(ButtonRole::TypedKey("Left"))
+        );
+    }
+
+    #[test]
+    fn the_defaults_claim_every_button_at_most_once() {
+        let config = GamepadBindingsConfig::default();
+        assert!(config.conflicting_buttons().is_empty());
+        assert!(!config.sticks_conflict());
+    }
+
+    #[test]
+    fn a_button_in_two_sections_is_reported_and_the_first_purpose_wins() {
+        let mut config = GamepadBindingsConfig::default();
+        config
+            .compositor_actions
+            .insert(GamepadButton::LeftTrigger, CompositorAction::CloseWindow);
+        assert_eq!(
+            config.conflicting_buttons(),
+            BTreeSet::from([GamepadButton::LeftTrigger])
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::LeftTrigger),
+            Some(ButtonRole::PushToTalk)
+        );
+    }
+
+    #[test]
+    fn the_right_trigger_holds_the_left_mouse_button() {
+        let steering = GamepadBindingsConfig::default().pointer_steering();
+        assert_eq!(
+            steering.buttons.get(&GamepadButton::RightTrigger),
+            Some(&PointerButton::Left)
+        );
+        assert_eq!(
+            steering.stick.map(|stick| stick.stick),
+            Some(GamepadStick::Right)
         );
     }
 
@@ -416,7 +573,7 @@ mod tests {
     fn the_handover_chord_completes_only_when_every_button_is_held() {
         let config = GamepadBindingsConfig::default();
         let start_and_select_held =
-            |button| matches!(button, GamepadButton::Select | GamepadButton::Start);
+            |button| matches!(button, GamepadButton::Back | GamepadButton::Start);
         assert!(config.completes_handover_chord(GamepadButton::Start, start_and_select_held));
         assert!(
             !config.completes_handover_chord(GamepadButton::Start, |button| {
@@ -424,31 +581,5 @@ mod tests {
             })
         );
         assert!(!config.completes_handover_chord(GamepadButton::South, start_and_select_held));
-    }
-
-    #[test]
-    fn the_right_trigger_holds_the_left_mouse_button() {
-        let steering = GamepadBindingsConfig::default().pointer_steering();
-        assert_eq!(
-            steering.buttons.get(&GamepadButton::RightTrigger),
-            Some(&PointerButton::Left)
-        );
-        assert!(steering.needs_virtual_pointer());
-    }
-
-    #[test]
-    fn the_left_stick_flicks_between_windows_and_the_right_stick_steers_the_pointer() {
-        let sticks = GamepadSticksConfig::default();
-        assert_eq!(
-            sticks.left.flick_binding(StickDirection::Right),
-            Some(&ButtonBinding::Compositor(
-                CompositorAction::FocusColumnRight
-            ))
-        );
-        assert_eq!(sticks.right.flick_binding(StickDirection::Right), None);
-        assert_eq!(
-            sticks.pointer_stick().map(|pointer| pointer.stick),
-            Some(GamepadStick::Right)
-        );
     }
 }
