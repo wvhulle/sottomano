@@ -16,6 +16,7 @@ const EVENT_BUFFER_BYTES: usize = 4096;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WatchTarget {
     EntriesOf(PathBuf),
+    NamesIn(PathBuf),
     File(PathBuf),
     OneLevelTree(PathBuf),
 }
@@ -23,17 +24,28 @@ pub enum WatchTarget {
 impl WatchTarget {
     fn directory(&self) -> PathBuf {
         match self {
-            WatchTarget::EntriesOf(directory) | WatchTarget::OneLevelTree(directory) => {
-                directory.clone()
-            }
+            WatchTarget::EntriesOf(directory)
+            | WatchTarget::NamesIn(directory)
+            | WatchTarget::OneLevelTree(directory) => directory.clone(),
             WatchTarget::File(file) => file.parent().unwrap_or(Path::new("/")).to_path_buf(),
         }
     }
 
     fn entry_name(&self) -> Option<OsString> {
         match self {
-            WatchTarget::EntriesOf(_) | WatchTarget::OneLevelTree(_) => None,
+            WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) | WatchTarget::OneLevelTree(_) => {
+                None
+            }
             WatchTarget::File(file) => file.file_name().map(OsString::from),
+        }
+    }
+
+    fn watched_events(&self) -> WatchMask {
+        match self {
+            WatchTarget::NamesIn(_) => relinking_events(),
+            WatchTarget::EntriesOf(_) | WatchTarget::File(_) | WatchTarget::OneLevelTree(_) => {
+                entry_events()
+            }
         }
     }
 
@@ -46,7 +58,9 @@ impl WatchTarget {
                 .map(|entry| entry.path())
                 .filter(|path| path.is_dir())
                 .collect(),
-            WatchTarget::EntriesOf(_) | WatchTarget::File(_) => Vec::new(),
+            WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) | WatchTarget::File(_) => {
+                Vec::new()
+            }
         }
     }
 }
@@ -96,7 +110,7 @@ fn watch(targets: &[WatchTarget]) -> io::Result<impl Stream<Item = ()> + Send + 
     for target in targets {
         let directory = target.directory();
         symlink_steps(&directory, &mut symlinks);
-        if let Ok(descriptor) = watches.add(&directory, entry_events()) {
+        if let Ok(descriptor) = watches.add(&directory, target.watched_events()) {
             accepted.push(Accepted {
                 descriptor,
                 name: target.entry_name(),

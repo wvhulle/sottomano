@@ -866,10 +866,6 @@ impl DesktopShell {
             let _ = self.niri.apply(event);
         }
         self.derive_niri_snapshot();
-        self.gamepad_group.follow_focus(
-            &self.config.widget_groups.gamepad,
-            focused_app_id(&self.niri),
-        );
         tasks.push(self.refocus_session());
         if focus_change {
             self.collapse_groups();
@@ -994,7 +990,7 @@ impl DesktopShell {
     }
 }
 
-fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
+pub(crate) fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
     niri.windows
         .windows
         .values()
