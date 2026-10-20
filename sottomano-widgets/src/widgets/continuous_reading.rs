@@ -155,6 +155,16 @@ impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
     pub fn receive_delivery(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
         *self = take(self).accepted(delivery, clock);
     }
+
+    pub fn receive_keeping_last_success(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
+        let failure_after_success = matches!(self, ContinuousReading::Read { .. })
+            && matches!(delivery, SourceDelivery::Reading(Err(_)));
+        if failure_after_success {
+            self.receive_keeping_last_reading(delivery, clock);
+        } else {
+            self.receive_delivery(delivery, clock);
+        }
+    }
 }
 
 impl<S: ReadingSource> ContinuousReading<S> {

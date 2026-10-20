@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Local, NaiveTime, TimeDelta};
+use chrono::{DateTime, Local, NaiveDateTime};
 use futures::Stream;
+use serde::Deserialize;
 use situo_client::Position;
 use uom::si::f64::Velocity;
 
@@ -10,8 +11,6 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream,
     system_protocol_clients::http_json_client,
 };
-
-const BUIENRADAR_TIME_FORMAT: &str = "%H:%M";
 
 pub mod precipitation {
     use uom::{
@@ -55,6 +54,7 @@ pub struct Rain {
     pub intensity: Velocity,
     pub peak: Downpour,
     pub outlook: RainOutlook,
+    pub forecast: Vec<Downpour>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -64,8 +64,9 @@ pub struct Downpour {
 }
 
 impl Downpour {
-    fn is_wet(&self) -> bool {
-        self.intensity > Velocity::default()
+    #[must_use]
+    pub fn exceeds(&self, threshold: Velocity) -> bool {
+        self.intensity > threshold
     }
 }
 
@@ -79,29 +80,34 @@ pub enum RainOutlook {
 
 impl RainOutlook {
     fn of(forecast: &[Downpour]) -> Self {
+        Self::of_rain_above(forecast, Velocity::default())
+    }
+
+    #[must_use]
+    pub fn of_rain_above(forecast: &[Downpour], threshold: Velocity) -> Self {
         let Some((now, later)) = forecast.split_first() else {
             return RainOutlook::Dry;
         };
-        if now.is_wet() {
-            Self::while_raining(now, later)
+        if now.exceeds(threshold) {
+            Self::while_raining(now, later, threshold)
         } else {
-            Self::while_dry(later)
+            Self::while_dry(later, threshold)
         }
     }
 
-    fn while_dry(later: &[Downpour]) -> Self {
+    fn while_dry(later: &[Downpour], threshold: Velocity) -> Self {
         later
             .iter()
-            .find(|downpour| downpour.is_wet())
+            .find(|downpour| downpour.exceeds(threshold))
             .map_or(RainOutlook::Dry, |first_wet| {
                 RainOutlook::StartsAt(first_wet.at)
             })
     }
 
-    fn while_raining(now: &Downpour, later: &[Downpour]) -> Self {
+    fn while_raining(now: &Downpour, later: &[Downpour], threshold: Velocity) -> Self {
         later
             .iter()
-            .find(|downpour| !downpour.is_wet())
+            .find(|downpour| !downpour.exceeds(threshold))
             .map_or_else(
                 || RainOutlook::OutlastsForecastUntil(later.last().unwrap_or(now).at),
                 |first_dry| RainOutlook::StopsAt(first_dry.at),
@@ -109,30 +115,24 @@ impl RainOutlook {
     }
 }
 
-fn nearest_occurrence(clock: NaiveTime, now: DateTime<Local>) -> Option<DateTime<Local>> {
-    [-1, 0, 1]
-        .into_iter()
-        .filter_map(|days| now.date_naive().checked_add_signed(TimeDelta::days(days)))
-        .filter_map(|date| date.and_time(clock).and_local_timezone(Local).earliest())
-        .min_by_key(|candidate| (*candidate - now).abs())
+#[derive(Deserialize)]
+struct RadarNowcast {
+    forecasts: Vec<RadarSlot>,
 }
 
-fn buienradar_intensity(value: f64) -> Velocity {
-    let millimeters_per_hour = if value > 0.0 {
-        10f64.powf((value - 109.0) / 32.0)
-    } else {
-        0.0
-    };
-    Velocity::new::<precipitation::millimeter_per_hour>(millimeters_per_hour)
+#[derive(Deserialize)]
+struct RadarSlot {
+    utcdatetime: NaiveDateTime,
+    precipitation: f64,
 }
 
-fn downpour(line: &str, now: DateTime<Local>) -> Option<Downpour> {
-    let (intensity, clock) = line.split_once('|')?;
-    let clock = NaiveTime::parse_from_str(clock.trim(), BUIENRADAR_TIME_FORMAT).ok()?;
-    Some(Downpour {
-        intensity: buienradar_intensity(intensity.trim().parse().ok()?),
-        at: nearest_occurrence(clock, now)?,
-    })
+impl From<RadarSlot> for Downpour {
+    fn from(slot: RadarSlot) -> Self {
+        Downpour {
+            intensity: Velocity::new::<precipitation::millimeter_per_hour>(slot.precipitation),
+            at: slot.utcdatetime.and_utc().with_timezone(&Local),
+        }
+    }
 }
 
 impl ReadingSource for Rain {
@@ -152,106 +152,136 @@ impl ReadingSource for Rain {
 impl Rain {
     async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
-            "https://gpsgadget.buienradar.nl/data/raintext?lat={}&lon={}",
+            "https://graphdata.buienradar.nl/2.0/forecast/geo/Rain3Hour?lat={}&lon={}",
             here.latitude, here.longitude
         );
-        let body = http_json_client::get_text(&url, 5)
-            .await
-            .map_err(|error| match error {
-                http_json_client::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
-                other => Error::from(other),
-            })?;
-        let now = Local::now();
-        let forecast: Vec<Downpour> = body
-            .lines()
-            .filter_map(|line| downpour(line, now))
-            .collect();
+        let nowcast: RadarNowcast =
+            http_json_client::get_json(&url, &[], 5)
+                .await
+                .map_err(|error| match error {
+                    http_json_client::Error::Status { status: 404, .. } => Error::OutsideRainRadar,
+                    other => Error::from(other),
+                })?;
+        Self::from_forecast(nowcast.forecasts.into_iter().map(Downpour::from).collect())
+            .ok_or(Error::Malformed)
+    }
+
+    #[must_use]
+    pub fn from_forecast(forecast: Vec<Downpour>) -> Option<Self> {
         let peak = forecast
             .iter()
             .max_by(|earlier, later| earlier.intensity.value.total_cmp(&later.intensity.value))
-            .cloned()
-            .ok_or(Error::Malformed)?;
-        Ok(Rain {
-            intensity: forecast
-                .first()
-                .map_or_else(Velocity::default, |now| now.intensity),
+            .cloned()?;
+        Some(Rain {
+            intensity: forecast.first()?.intensity,
             peak,
             outlook: RainOutlook::of(&forecast),
+            forecast,
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
+    use chrono::{TimeDelta, TimeZone, Utc};
+    use serde_json::json;
 
     use super::*;
 
-    fn september_27_at(hour: u32, minute: u32) -> DateTime<Local> {
-        Local
-            .with_ymd_and_hms(2026, 9, 27, hour, minute, 0)
-            .single()
+    fn september_27_utc(hour: u32, minute: u32) -> DateTime<Local> {
+        Utc.with_ymd_and_hms(2026, 9, 27, hour, minute, 0)
             .unwrap()
+            .with_timezone(&Local)
     }
 
-    #[test]
-    fn rain_lines_decode_into_downpours() {
-        let now = september_27_at(9, 5);
-        assert_eq!(
-            downpour("087|09:10", now).map(|rain| rain.at),
-            Some(september_27_at(9, 10))
-        );
-        assert!(downpour("087|9h10", now).is_none());
-    }
-
-    #[test]
-    fn clock_times_past_midnight_belong_to_the_next_day() {
-        let now = september_27_at(23, 55);
-        let after_midnight = downpour("000|00:05", now).unwrap().at;
-        assert_eq!(after_midnight - now, TimeDelta::minutes(10));
-    }
-
-    fn rain_forecast(now: DateTime<Local>, lines: &[&str]) -> Vec<Downpour> {
-        lines
+    fn decoded_forecast(slots: &[(&str, f64)]) -> Vec<Downpour> {
+        let forecasts: Vec<_> = slots
             .iter()
-            .filter_map(|line| downpour(line, now))
-            .collect()
+            .map(|(utc, millimeters)| {
+                json!({
+                    "datetime": "ignored",
+                    "utcdatetime": utc,
+                    "precipitation": millimeters,
+                    "value": 0,
+                })
+            })
+            .collect();
+        let nowcast: RadarNowcast = serde_json::from_value(json!({
+            "lastRefreshUtc": "2026-09-27T10:58:00",
+            "forecasts": forecasts,
+        }))
+        .unwrap();
+        nowcast.forecasts.into_iter().map(Downpour::from).collect()
+    }
+
+    #[test]
+    fn radar_slots_decode_in_utc_and_millimeters_per_hour() {
+        let forecast = decoded_forecast(&[("2026-09-27T23:55:00", 0.4)]);
+        assert_eq!(forecast[0].at, september_27_utc(23, 55));
+        assert_eq!(
+            forecast[0].intensity,
+            Velocity::new::<precipitation::millimeter_per_hour>(0.4)
+        );
+    }
+
+    #[test]
+    fn rain_reads_now_from_the_first_slot_and_peak_from_all() {
+        let rain = Rain::from_forecast(decoded_forecast(&[
+            ("2026-09-27T11:00:00", 0.2),
+            ("2026-09-27T11:05:00", 3.0),
+            ("2026-09-27T11:10:00", 1.0),
+        ]))
+        .unwrap();
+        assert_eq!(rain.intensity, rain.forecast[0].intensity);
+        assert_eq!(rain.peak.at, september_27_utc(11, 5));
+    }
+
+    #[test]
+    fn an_empty_forecast_has_no_rain_reading() {
+        assert!(Rain::from_forecast(Vec::new()).is_none());
     }
 
     #[test]
     fn dry_spell_starts_at_the_first_rain() {
-        let forecast = rain_forecast(
-            september_27_at(11, 0),
-            &["000|11:00", "000|11:05", "077|11:10", "000|11:15"],
-        );
+        let forecast = decoded_forecast(&[
+            ("2026-09-27T11:00:00", 0.0),
+            ("2026-09-27T11:05:00", 0.0),
+            ("2026-09-27T11:10:00", 1.2),
+            ("2026-09-27T11:15:00", 0.0),
+        ]);
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::StartsAt(september_27_at(11, 10))
+            RainOutlook::StartsAt(september_27_utc(11, 10))
         );
     }
 
     #[test]
     fn ongoing_rain_stops_at_the_first_dry_moment() {
-        let now = september_27_at(23, 50);
-        let forecast = rain_forecast(now, &["077|23:50", "077|23:55", "000|00:00"]);
+        let forecast = decoded_forecast(&[
+            ("2026-09-27T23:50:00", 1.2),
+            ("2026-09-27T23:55:00", 1.2),
+            ("2026-09-28T00:00:00", 0.0),
+        ]);
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::StopsAt(now + TimeDelta::minutes(10))
+            RainOutlook::StopsAt(september_27_utc(23, 50) + TimeDelta::minutes(10))
         );
     }
 
     #[test]
     fn rain_through_the_whole_forecast_outlasts_it() {
-        let forecast = rain_forecast(september_27_at(11, 0), &["077|11:00", "077|11:05"]);
+        let forecast =
+            decoded_forecast(&[("2026-09-27T11:00:00", 1.2), ("2026-09-27T11:05:00", 1.2)]);
         assert_eq!(
             RainOutlook::of(&forecast),
-            RainOutlook::OutlastsForecastUntil(september_27_at(11, 5))
+            RainOutlook::OutlastsForecastUntil(september_27_utc(11, 5))
         );
     }
 
     #[test]
     fn no_rain_in_the_forecast_is_dry() {
-        let forecast = rain_forecast(september_27_at(11, 0), &["000|11:00", "000|11:05"]);
+        let forecast =
+            decoded_forecast(&[("2026-09-27T11:00:00", 0.0), ("2026-09-27T11:05:00", 0.0)]);
         assert_eq!(RainOutlook::of(&forecast), RainOutlook::Dry);
     }
 }
