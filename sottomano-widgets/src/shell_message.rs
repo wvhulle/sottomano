@@ -39,8 +39,8 @@ use crate::{
         quiet_schedule_group::QuietScheduleMessage, session_focus_group::SessionFocusMessage,
         session_menu::SessionMessage, sidebar_settings_group::SidebarSettingsMessage,
         systemd_manager_group::SystemdManagerMessage, tray_group::TrayMessage,
-        wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
-        window_group::WindowGroupMessage,
+        voice_dictation_group::VoiceDictationMessage, wallpaper_group::WallpaperMessage,
+        weather_group::WeatherMessage, window_group::WindowGroupMessage,
     },
     widgets::widget_group::GroupEvent,
 };
@@ -87,6 +87,7 @@ pub enum Message {
     Monitor(MonitorMessage),
     ColorTemperature(ColorTemperatureMessage),
     DarkMode(DarkModeMessage),
+    VoiceDictation(VoiceDictationMessage),
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),

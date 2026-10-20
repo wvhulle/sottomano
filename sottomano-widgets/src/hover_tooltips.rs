@@ -28,8 +28,8 @@ use crate::{
         pending_upgrades_group::PendingUpgradesTarget, power_group::PowerTarget,
         quiet_schedule_group::QuietScheduleTarget, session_focus_group::SessionFocusTarget,
         session_menu::SessionTarget, sidebar_settings_group::SidebarSettingsTarget,
-        systemd_manager_group::SystemdTarget, wallpaper_group::WallpaperTarget,
-        weather_group::WeatherTarget, window_group::WindowTarget,
+        systemd_manager_group::SystemdTarget, voice_dictation_group::VoiceDictationTarget,
+        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -53,6 +53,7 @@ pub enum HoverTarget {
     Monitor(MonitorTarget),
     ColorTemperature(ColorTemperatureTarget),
     DarkMode(DarkModeTarget),
+    VoiceDictation(VoiceDictationTarget),
     IdleTimeout(TimerKind),
     Internet(InternetTarget),
     Weather(WeatherTarget),
@@ -100,6 +101,7 @@ pub enum GroupHandle {
     SidebarSettings,
     Systemd,
     Tray,
+    VoiceDictation,
 }
 
 impl PressHints {

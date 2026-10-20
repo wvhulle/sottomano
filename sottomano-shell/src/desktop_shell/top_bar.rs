@@ -10,7 +10,7 @@ use crate::desktop_shell::DesktopShell;
 pub(super) struct TopBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 11],
     pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 15],
+    pub end: [GroupContent<'a, Message>; 16],
 }
 
 impl DesktopShell {
@@ -107,6 +107,9 @@ impl DesktopShell {
                     .group_content(&config.widget_groups.gamepad)
                     .map(Message::Gamepad),
                 self.audio_group.group_content(config).map(Message::Audio),
+                self.voice_dictation_group
+                    .group_content()
+                    .map(Message::VoiceDictation),
                 self.session_focus_group
                     .group_content(
                         config,

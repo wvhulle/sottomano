@@ -12,6 +12,7 @@ pub enum WidgetState {
     Pending,
     Warning,
     On,
+    Live,
     Critical,
 }
 
@@ -33,7 +34,7 @@ impl WidgetState {
             WidgetState::Idle => Weight::Regular,
             WidgetState::Pending => Weight::Duotone,
             WidgetState::Warning => Weight::Bold,
-            WidgetState::On | WidgetState::Critical => Weight::Fill,
+            WidgetState::On | WidgetState::Live | WidgetState::Critical => Weight::Fill,
         }
     }
 
@@ -43,6 +44,7 @@ impl WidgetState {
             WidgetState::Failed | WidgetState::Critical => palette.urgent,
             WidgetState::Off => palette.inactive,
             WidgetState::Idle | WidgetState::On => palette.bar_foreground,
+            WidgetState::Live => palette.focus,
             WidgetState::Pending | WidgetState::Warning => palette.warning,
         }
     }
@@ -52,9 +54,11 @@ impl WidgetState {
         match self {
             WidgetState::Failed | WidgetState::Critical => Severity::Critical,
             WidgetState::Warning => Severity::Warning,
-            WidgetState::Off | WidgetState::Idle | WidgetState::Pending | WidgetState::On => {
-                Severity::Normal
-            }
+            WidgetState::Off
+            | WidgetState::Idle
+            | WidgetState::Pending
+            | WidgetState::On
+            | WidgetState::Live => Severity::Normal,
         }
     }
 }
@@ -83,6 +87,7 @@ mod tests {
         assert_eq!(WidgetState::Critical.color(&palette), palette.urgent);
         assert_eq!(WidgetState::Warning.color(&palette), palette.warning);
         assert_eq!(WidgetState::Off.color(&palette), palette.inactive);
+        assert_eq!(WidgetState::Live.color(&palette), palette.focus);
     }
 
     #[test]

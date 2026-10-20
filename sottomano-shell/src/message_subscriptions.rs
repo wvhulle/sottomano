@@ -149,6 +149,10 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
         MonitorGroup::subscription(buses).map(Message::Monitor),
         state.media_group.subscription(buses).map(Message::Media),
         DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
+        state
+            .voice_dictation_group
+            .subscription(buses)
+            .map(Message::VoiceDictation),
         QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
         SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
         WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
