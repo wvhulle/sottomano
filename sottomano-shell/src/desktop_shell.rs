@@ -62,6 +62,7 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup,
+        gamepad_group::{self, GamepadGroup, GamepadMessage},
         gpu_group::GpuGroup,
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
         internet_group::InternetGroup,
@@ -134,6 +135,7 @@ pub struct DesktopShell {
     pub dark_mode_group: DarkModeGroup,
     pub idle_timeouts_group: IdleTimeoutsGroup,
     pub media_group: MediaGroup,
+    pub gamepad_group: GamepadGroup,
     pub audio_group: AudioGroup,
     pub claude_usage_group: ClaudeUsageGroup,
     pub copilot_usage_group: CopilotUsageGroup,
@@ -202,6 +204,7 @@ impl DesktopShell {
             dark_mode_group: DarkModeGroup::new(clock),
             idle_timeouts_group: IdleTimeoutsGroup::default(),
             media_group: MediaGroup::default(),
+            gamepad_group: GamepadGroup::default(),
             audio_group: AudioGroup::default(),
             claude_usage_group: ClaudeUsageGroup::new(secrets.claude_code_oauth),
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
@@ -329,6 +332,7 @@ impl DesktopShell {
                 .wallpaper_group
                 .update(msg, self.clock)
                 .map(Message::Wallpaper),
+            Message::Gamepad(msg) => self.update_gamepad(msg),
             Message::Notification(msg) => self.update_notification(msg),
             Message::Power(msg) => self.power_group.update(msg, self.clock).map(Message::Power),
             Message::Compute(msg) => self
@@ -611,6 +615,17 @@ impl DesktopShell {
         }
     }
 
+    fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
+        match self.gamepad_group.update(
+            msg,
+            &self.config.widget_groups.gamepad,
+            focused_app_id(&self.niri),
+        ) {
+            gamepad_group::Action::Idle => Task::none(),
+            gamepad_group::Action::Compositor(action) => niri_action(action),
+        }
+    }
+
     fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
         let players_changed = matches!(msg, MediaMessage::Reading(_));
         let task = match self.media_group.update(msg, self.clock) {
@@ -796,6 +811,7 @@ impl DesktopShell {
         self.idle_timeouts_group.collapse();
         self.audio_group.collapse();
         self.wallpaper_group.collapse();
+        self.gamepad_group.collapse();
         self.clock_group.collapse();
         self.weather_group.collapse();
         self.compute_group.collapse();
@@ -850,6 +866,10 @@ impl DesktopShell {
             let _ = self.niri.apply(event);
         }
         self.derive_niri_snapshot();
+        self.gamepad_group.follow_focus(
+            &self.config.widget_groups.gamepad,
+            focused_app_id(&self.niri),
+        );
         tasks.push(self.refocus_session());
         if focus_change {
             self.collapse_groups();
@@ -972,4 +992,12 @@ impl DesktopShell {
             text_color: PaletteColors::from(&self.config.theme.palette).bar_foreground,
         }
     }
+}
+
+fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
+    niri.windows
+        .windows
+        .values()
+        .find(|window| window.is_focused)
+        .and_then(|window| window.app_id.as_deref())
 }

@@ -5,6 +5,7 @@ pub mod cpu_memory_compute;
 pub mod desktop_notifications;
 pub mod desktop_windows_apps;
 pub mod disk_storage;
+pub mod gamepad_controller_input;
 pub mod host_machine_identity;
 pub mod login_session_presence;
 pub mod media_playback_audio;

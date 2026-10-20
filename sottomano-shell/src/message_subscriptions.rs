@@ -27,12 +27,13 @@ use sottomano_widgets::{
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        disk_group::DiskGroup, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
-        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup, window_group::WindowGroup,
+        disk_group::DiskGroup, gamepad_group::GamepadGroup,
+        journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
+        memory_board_group::MemoryBoardGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
+        window_group::WindowGroup,
     },
 };
 use tokio::sync::mpsc;
@@ -92,6 +93,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         QuietScheduleGroup::subscription().map(Message::QuietSchedule),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
+        GamepadGroup::subscription(&state.config.widget_groups.gamepad).map(Message::Gamepad),
         state
             .claude_usage_group
             .subscription(&state.config, working_days)

@@ -1,4 +1,5 @@
 pub mod focus_time;
+pub mod gamepad_bindings;
 pub mod rain_alerts;
 pub mod spend_budget;
 pub mod systemd_manager;
@@ -9,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::widget_groups::{
     focus_time::FocusTimeConfig,
+    gamepad_bindings::GamepadBindingsConfig,
     rain_alerts::RainAlertsConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,
@@ -29,6 +31,7 @@ pub struct WidgetGroupsConfig {
     pub openrouter_credit: OpenRouterBudgetConfig,
     pub focus_time: FocusTimeConfig,
     pub rain_alerts: RainAlertsConfig,
+    pub gamepad: GamepadBindingsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

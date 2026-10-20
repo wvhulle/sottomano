@@ -223,6 +223,11 @@ impl DesktopShell {
                 self.media_group
                     .tooltip_for(target, &self.desktop_entries, self.clock)
             }
+            HoverTarget::Gamepad(target) => self.gamepad_group.tooltip_for(
+                *target,
+                &self.config.widget_groups.gamepad,
+                self.clock,
+            ),
             HoverTarget::ClaudeUsage(target) => {
                 self.claude_usage_group.tooltip_for(*target, self.clock)
             }
@@ -329,6 +334,7 @@ impl DesktopShell {
             | HoverTarget::IdleTimeout(_)
             | HoverTarget::Wallpaper(_)
             | HoverTarget::Media(_)
+            | HoverTarget::Gamepad(_)
             | HoverTarget::LlamaServer(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::QuickLaunch(_)
