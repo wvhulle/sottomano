@@ -6423,7 +6423,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-config"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -6436,7 +6436,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-shell"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "chrono",
  "clap",
@@ -6460,7 +6460,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-sources"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "adskalman",
  "bytesize",
@@ -6510,7 +6510,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-state"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "chrono",
  "club-kdl",
@@ -6527,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-widget-showcase"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytesize",
  "chrono",
@@ -6551,7 +6551,7 @@ dependencies = [
 
 [[package]]
 name = "sottomano-widgets"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytesize",
  "chrono",

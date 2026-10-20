@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use iced::{
     Element, Rectangle, Task,
-    border::Radius,
     time::{Duration, Instant},
     widget::{container, mouse_area},
     window::Id,
@@ -268,7 +267,6 @@ impl TooltipHost {
         if !self.hosts(surface) {
             return None;
         }
-        let corner_radius = Radius::from(shell_settings.overlays.corner_radius_px);
         let Some(placement) = self
             .transition
             .placement()
@@ -287,7 +285,7 @@ impl TooltipHost {
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             renderings.push(Rendering::outgoing(
-                TooltipContent::new(&previous.content, config, corner_radius, assets, clock).view(),
+                TooltipContent::new(&previous.content, config, assets, clock).view(),
             ));
         }
         if let Some(current) = self.transition.current() {
@@ -295,7 +293,6 @@ impl TooltipHost {
                 TooltipContent::new(
                     &content(&current.target).with_press_hints(current.press_hints),
                     config,
-                    corner_radius,
                     assets,
                     clock,
                 )

@@ -49,7 +49,7 @@
 
       commonArgs = {
         inherit src;
-        version = "0.1.0";
+        version = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
         strictDeps = true;
         nativeBuildInputs = [
           pkgs.pkg-config
@@ -133,6 +133,7 @@
           '';
           meta.mainProgram = "sottomano";
           meta.platforms = pkgs.lib.platforms.linux;
+          meta.license = pkgs.lib.licenses.gpl3Plus;
         }
       );
 

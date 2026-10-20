@@ -17,7 +17,7 @@ use sottomano_sources::{
     },
     login_session_presence::session_power_actions::SessionAction,
 };
-use sottomano_state::idle::ScheduledAfterIdle;
+use sottomano_state::{idle::ScheduledAfterIdle, niri_rules::NiriLayout};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -411,6 +411,7 @@ pub struct PreviewTile {
 pub struct WorkspacePreview {
     pub columns: Vec<Vec<PreviewTile>>,
     pub floating: Vec<PreviewTile>,
+    pub niri_layout: NiriLayout,
 }
 
 #[derive(Debug, Clone, PartialEq)]

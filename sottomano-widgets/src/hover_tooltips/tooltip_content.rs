@@ -9,7 +9,6 @@ use humantime::format_duration;
 use iced::{
     Color, Element, Length, Padding,
     alignment::{Horizontal, Vertical},
-    border::Radius,
     mouse::Interaction,
     widget::{
         Column, Container, Space, Text, container, row,
@@ -71,7 +70,6 @@ const FOOTER_PADDING: Padding = Padding {
 pub struct TooltipContent<'a> {
     tooltip: &'a Tooltip,
     config: &'a Config,
-    corner_radius: Radius,
     assets: WindowAssets<'a>,
     clock: Clock,
     presence: TextPresence,
@@ -82,14 +80,12 @@ impl<'a> TooltipContent<'a> {
     pub fn new(
         tooltip: &'a Tooltip,
         config: &'a Config,
-        corner_radius: Radius,
         assets: WindowAssets<'a>,
         clock: Clock,
     ) -> Self {
         Self {
             tooltip,
             config,
-            corner_radius,
             assets,
             clock,
             presence: TextPresence::Shown,
@@ -252,10 +248,9 @@ impl<'a> TooltipContent<'a> {
 
     fn whole(&self, body: &WholeBody) -> Element<'static, Message> {
         match body {
-            WholeBody::Workspace(preview) => self.inset(
-                WorkspaceSchematic::new(preview, self.config, self.corner_radius, self.assets)
-                    .view(),
-            ),
+            WholeBody::Workspace(preview) => {
+                self.inset(WorkspaceSchematic::new(preview, self.config, self.assets).view())
+            }
             WholeBody::Text { title, body } => self.inset(self.text(title, body.as_deref())),
             WholeBody::TrayMenu(menu) => self.tray_menu(menu),
             WholeBody::SessionMenu(menu) => self.session_menu(menu),

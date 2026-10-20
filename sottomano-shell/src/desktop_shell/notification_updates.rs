@@ -79,10 +79,14 @@ impl DesktopShell {
 
     fn apply_quiet_change(&mut self, change: QuietChange) -> Task<Message> {
         match change {
-            QuietChange::None => Task::none(),
-            QuietChange::Began { screen_off } => self
+            QuietChange::Unchanged => Task::none(),
+            QuietChange::ScreenOffAfter(timeout) => self
                 .idle_timeouts_group
-                .override_screen_off(screen_off)
+                .override_screen_off(Some(timeout))
+                .map(Message::IdleTimeouts),
+            QuietChange::ScreenOffFollowsIdleTimer => self
+                .idle_timeouts_group
+                .override_screen_off(None)
                 .map(Message::IdleTimeouts),
             QuietChange::Ended => {
                 let released = self.notifications.release_held(&ToastContext::new(

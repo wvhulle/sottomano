@@ -18,7 +18,6 @@ use crate::{
     },
 };
 
-const TILE_GAP_PX: f32 = 3.0;
 const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
 const TILE_BORDER_PX: f32 = 2.0;
@@ -33,7 +32,6 @@ const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
 pub struct WorkspaceSchematic<'a> {
     preview: &'a WorkspacePreview,
     config: &'a Config,
-    corner_radius: Radius,
     favicons: &'a Favicons,
 }
 
@@ -42,13 +40,11 @@ impl<'a> WorkspaceSchematic<'a> {
     pub fn new(
         preview: &'a WorkspacePreview,
         config: &'a Config,
-        corner_radius: Radius,
         assets: WindowAssets<'a>,
     ) -> Self {
         Self {
             preview,
             config,
-            corner_radius,
             favicons: assets.favicons,
         }
     }
@@ -62,22 +58,26 @@ impl<'a> WorkspaceSchematic<'a> {
                     .iter()
                     .map(|column| self.column(column)),
             )
-            .spacing(TILE_GAP_PX)
+            .spacing(self.tile_gap())
             .into(),
         ];
         if !self.preview.floating.is_empty() {
             rows.push(
                 RowWidget::with_children(self.preview.floating.iter().map(|tile| self.tile(tile)))
-                    .spacing(TILE_GAP_PX)
+                    .spacing(self.tile_gap())
                     .into(),
             );
         }
-        Column::with_children(rows).spacing(TILE_GAP_PX).into()
+        Column::with_children(rows).spacing(self.tile_gap()).into()
+    }
+
+    fn tile_gap(&self) -> f32 {
+        self.preview.niri_layout.gaps_px * self.config.widget_groups.workspaces.preview_scale
     }
 
     fn column(&self, tiles: &[PreviewTile]) -> Element<'static, Message> {
         Column::with_children(tiles.iter().map(|tile| self.tile(tile)))
-            .spacing(TILE_GAP_PX)
+            .spacing(self.tile_gap())
             .into()
     }
 
@@ -113,7 +113,7 @@ impl<'a> WorkspaceSchematic<'a> {
             a: TILE_HOVER_FILL_ALPHA,
             ..PaletteColors::from(&self.config.theme.palette).dim
         };
-        let radius = self.corner_radius;
+        let radius = Radius::from(self.preview.niri_layout.window_corner_radius_px);
         let shadow = self.lift(tile);
         let text_color = PaletteColors::from(&self.config.theme.palette).bar_foreground;
 

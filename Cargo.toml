@@ -12,7 +12,8 @@ default-members = ["sottomano-shell"]
 
 [workspace.package]
 edition = "2024"
-version = "0.1.0"
+version = "0.0.1"
+license = "GPL-3.0-or-later"
 
 [workspace.lints.clippy]
 absolute_paths = "warn"

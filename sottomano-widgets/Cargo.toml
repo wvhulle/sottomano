@@ -2,6 +2,7 @@
 name = "sottomano-widgets"
 edition.workspace = true
 version.workspace = true
+license.workspace = true
 build = "build/main.rs"
 
 [lints]
