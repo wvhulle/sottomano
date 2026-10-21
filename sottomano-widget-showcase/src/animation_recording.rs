@@ -375,52 +375,49 @@ impl FrameSize {
     }
 }
 
-struct CroppedFrame {
-    rgba: Vec<u8>,
-    captured_at: Instant,
-}
-
-struct CroppedRecording {
-    frames: Vec<CroppedFrame>,
+struct ContentCrop {
+    shown: RowSpan,
+    row_bytes: usize,
+    background_row: Vec<u8>,
     size: FrameSize,
 }
 
-fn cropped_to_content(
-    frames: &[CapturedFrame],
-    canvas: FrameSize,
-    background: [u8; 4],
-    margin: u16,
-) -> CroppedRecording {
-    let whole = RowSpan::whole(canvas.height);
-    let shown = frames
-        .iter()
-        .filter_map(|frame| frame.content.as_ref().map(|content| content.span))
-        .reduce(RowSpan::union)
-        .map_or(whole, |span| span.widened(margin, whole));
-    let row_bytes = usize::from(canvas.width) * 4;
-    let background_row = background.repeat(usize::from(canvas.width));
-    CroppedRecording {
-        frames: frames
+impl ContentCrop {
+    fn around_content(
+        frames: &[CapturedFrame],
+        canvas: FrameSize,
+        background: [u8; 4],
+        margin: u16,
+    ) -> Self {
+        let whole = RowSpan::whole(canvas.height);
+        let shown = frames
             .iter()
-            .map(|frame| CroppedFrame {
-                rgba: (shown.top..=shown.bottom)
-                    .flat_map(|y| {
-                        frame
-                            .content
-                            .as_ref()
-                            .and_then(|content| content.row(y, row_bytes))
-                            .unwrap_or(&background_row)
-                            .iter()
-                            .copied()
-                    })
-                    .collect(),
-                captured_at: frame.captured_at,
+            .filter_map(|frame| frame.content.as_ref().map(|content| content.span))
+            .reduce(RowSpan::union)
+            .map_or(whole, |span| span.widened(margin, whole));
+        ContentCrop {
+            shown,
+            row_bytes: usize::from(canvas.width) * 4,
+            background_row: background.repeat(usize::from(canvas.width)),
+            size: FrameSize {
+                width: canvas.width,
+                height: shown.height(),
+            },
+        }
+    }
+
+    fn crop(&self, frame: &CapturedFrame) -> Vec<u8> {
+        (self.shown.top..=self.shown.bottom)
+            .flat_map(|y| {
+                frame
+                    .content
+                    .as_ref()
+                    .and_then(|content| content.row(y, self.row_bytes))
+                    .unwrap_or(&self.background_row)
+                    .iter()
+                    .copied()
             })
-            .collect(),
-        size: FrameSize {
-            width: canvas.width,
-            height: shown.height(),
-        },
+            .collect()
     }
 }
 
@@ -431,7 +428,7 @@ fn register_font(config: &Config) {
         .load_font(Cow::Owned(config.theme.font.data.to_vec()));
 }
 
-fn encode_animation(frames: &[CroppedFrame], size: FrameSize, animation: &Path) {
+fn encode_animation(frames: &[CapturedFrame], crop: &ContentCrop, animation: &Path) {
     let Some(first) = frames.first() else {
         return;
     };
@@ -449,15 +446,20 @@ fn encode_animation(frames: &[CroppedFrame], size: FrameSize, animation: &Path) 
         }),
         ..EncoderOptions::default()
     };
-    let encoder =
-        Encoder::new_with_options((u32::from(size.width), u32::from(size.height)), options)
-            .expect("cropped recordings are never empty");
+    let encoder = Encoder::new_with_options(
+        (u32::from(crop.size.width), u32::from(crop.size.height)),
+        options,
+    )
+    .expect("cropped recordings are never empty");
     let webp_bytes = frames
-        .chunk_by(|earlier, later| earlier.rgba == later.rgba)
+        .chunk_by(|earlier, later| earlier.content == later.content)
         .map(|repeats| &repeats[0])
         .fold(encoder, |mut encoder, frame| {
             encoder
-                .add_frame(&frame.rgba, milliseconds_since_first(frame.captured_at))
+                .add_frame(
+                    &crop.crop(frame),
+                    milliseconds_since_first(frame.captured_at),
+                )
                 .expect("frames match the recording size");
             encoder
         })
@@ -482,15 +484,16 @@ pub fn record(demo: &'static Demo, start: Clock) -> RecordedAnimation {
         .collect();
     let closing = recorder.rest();
     let frames: Vec<CapturedFrame> = opening.into_iter().chain(scripted).chain(closing).collect();
-    let cropped = cropped_to_content(
+    let crop = ContentCrop::around_content(
         &frames,
         FrameSize::of_canvas(),
         recorder.background,
         margin_pixels,
     );
+    drop(recorder);
     let animation = Path::new(WORKSPACE_ROOT)
         .join(RECORDINGS_DIRECTORY)
         .join(format!("{}.{RECORDING_EXTENSION}", demo.name));
-    encode_animation(&cropped.frames, cropped.size, &animation);
+    encode_animation(&frames, &crop, &animation);
     RecordedAnimation { name: demo.name }
 }
