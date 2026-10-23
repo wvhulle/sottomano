@@ -1,1 +1,1 @@
-pub mod voxtype_daemon_state;
+pub mod notulist_dbus_dictation;

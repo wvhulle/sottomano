@@ -293,16 +293,12 @@ pub struct ClaimedPointerButton {
 #[serde(default, deny_unknown_fields)]
 pub struct PushToTalkConfig {
     pub button: Option<GamepadButton>,
-    pub start: Vec<String>,
-    pub stop: Vec<String>,
 }
 
 impl Default for PushToTalkConfig {
     fn default() -> Self {
         Self {
             button: Some(GamepadButton::LeftTrigger),
-            start: ["voxtype", "record", "start"].map(String::from).to_vec(),
-            stop: ["voxtype", "record", "stop"].map(String::from).to_vec(),
         }
     }
 }

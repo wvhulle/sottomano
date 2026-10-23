@@ -5,6 +5,7 @@ mod diagram_anchor_mapping;
 use std::collections::{BTreeMap, BTreeSet};
 
 use iced::Subscription;
+use notulist_client::DictationCommand;
 use sottomano_config::widget_groups::gamepad_bindings::{
     ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
@@ -73,6 +74,7 @@ pub enum GamepadMessage {
 pub enum Action {
     Idle,
     Compositor(niri_ipc::Action),
+    Dictation(DictationCommand),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -206,8 +208,8 @@ impl GamepadGroup {
         }
         bindings
             .role_of(button)
-            .and_then(|role| role_request(role, edge, bindings))
-            .map_or(Action::Idle, Action::Compositor)
+            .and_then(|role| role_request(role, edge))
+            .unwrap_or(Action::Idle)
     }
 
     fn controller(&self, slot: usize) -> Option<&ConnectedGamepad> {
@@ -279,22 +281,22 @@ fn spawned(command: impl IntoIterator<Item = impl Into<String>>) -> niri_ipc::Ac
     }
 }
 
-fn role_request(
-    role: ButtonRole<'_>,
-    edge: ButtonEdge,
-    bindings: &GamepadBindingsConfig,
-) -> Option<niri_ipc::Action> {
+fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
     match (role, edge) {
         (ButtonRole::PushToTalk, ButtonEdge::Pressed) => {
-            Some(spawned(bindings.push_to_talk.start.iter().cloned()))
+            Some(Action::Dictation(DictationCommand::Start))
         }
         (ButtonRole::PushToTalk, ButtonEdge::Released) => {
-            Some(spawned(bindings.push_to_talk.stop.iter().cloned()))
+            Some(Action::Dictation(DictationCommand::Stop))
         }
-        (ButtonRole::TypedKey(key), ButtonEdge::Pressed) => Some(spawned(["wtype", "-k", key])),
-        (ButtonRole::Compositor(action), ButtonEdge::Pressed) => Some(niri_request(action)),
+        (ButtonRole::TypedKey(key), ButtonEdge::Pressed) => {
+            Some(Action::Compositor(spawned(["wtype", "-k", key])))
+        }
+        (ButtonRole::Compositor(action), ButtonEdge::Pressed) => {
+            Some(Action::Compositor(niri_request(action)))
+        }
         (ButtonRole::Command(command), ButtonEdge::Pressed) => {
-            Some(spawned(command.iter().cloned()))
+            Some(Action::Compositor(spawned(command.iter().cloned())))
         }
         (ButtonRole::PointerButton(_), _)
         | (
@@ -405,9 +407,12 @@ mod tests {
     fn holding_the_left_trigger_dictates_until_released() {
         let mut group = GamepadGroup::default();
         let started = press(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
-        assert_eq!(spawned_command(started), ["voxtype", "record", "start"]);
+        assert!(matches!(
+            started,
+            Action::Dictation(DictationCommand::Start)
+        ));
         let stopped = release(&mut group, DUALSENSE, GamepadButton::LeftTrigger);
-        assert_eq!(spawned_command(stopped), ["voxtype", "record", "stop"]);
+        assert!(matches!(stopped, Action::Dictation(DictationCommand::Stop)));
     }
 
     #[test]
