@@ -31,6 +31,7 @@ perf-event2 = "0.7.4"
 pin-project-lite = "0.2.17"
 pipewire = "0.10.1"
 procfs = { version = "0.18.0", default-features = false }
+notulist-client.workspace = true
 reqwest.workspace = true
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rust_decimal.workspace = true

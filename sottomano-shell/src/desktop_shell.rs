@@ -41,6 +41,7 @@ use sottomano_sources::{
         dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
         shell_command_output::blocking::run,
     },
+    voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
 use sottomano_state::{
     ShellSettings, idle, launches,
@@ -633,6 +634,9 @@ impl DesktopShell {
         ) {
             gamepad_group::Action::Idle => Task::none(),
             gamepad_group::Action::Compositor(action) => niri_action(action),
+            gamepad_group::Action::Dictation(command) => {
+                Task::future(send_logged_dictation_command(command)).discard()
+            }
         }
     }
 

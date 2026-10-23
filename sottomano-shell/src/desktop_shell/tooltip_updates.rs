@@ -302,9 +302,9 @@ impl DesktopShell {
             }
             HoverTarget::Clock(target) => ClockGroup::refresh(target).map(Message::Clock),
             HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),
-            HoverTarget::VoiceDictation(target) => {
-                VoiceDictationGroup::refresh(*target).map(Message::VoiceDictation)
-            }
+            HoverTarget::VoiceDictation(target) => on_buses(&|buses| {
+                VoiceDictationGroup::refresh(*target, buses).map(Message::VoiceDictation)
+            }),
             HoverTarget::ClaudeUsage(target) => self
                 .claude_usage_group
                 .refresh(*target, &self.config, working_days)
