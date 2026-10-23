@@ -1,5 +1,7 @@
 use notulist_client::{DictationPhase, DictationShortcutBinding};
-use sottomano_sources::voice_dictation_input::notulist_dbus_dictation::NotulistDictation;
+use sottomano_sources::voice_dictation_input::{
+    notulist_dbus_dictation::NotulistDictation, notulist_dbus_shortcuts::NotulistShortcuts,
+};
 
 use crate::{
     clock::Clock,
@@ -7,7 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         unit_switch::UnitSwitchFace,
         widget_state::WidgetState,
     },
@@ -78,40 +80,24 @@ impl BarWidget for NotulistDictation {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let phase_row = KeyValue::new("Dictation", phase_text(self.phase));
-        let shortcut_rows = self.shortcuts.iter().map(|shortcut| {
-            KeyValue::new(
-                shortcut.description.clone(),
-                shortcut_trigger_text(shortcut),
-            )
-        });
-        TooltipBody::dictionary(std::iter::once(phase_row).chain(shortcut_rows))
+        TooltipBody::dictionary([KeyValue::new("Dictation", phase_text(self.phase))])
     }
 }
 
-fn shortcut_trigger_text(shortcut: &DictationShortcutBinding) -> String {
-    if shortcut.bound_trigger.is_empty() {
-        readable_xdg_trigger(&shortcut.preferred_trigger)
+#[must_use]
+pub fn shortcut_sections(shortcuts: &NotulistShortcuts) -> Vec<Section> {
+    let shortcut_rows = shortcuts
+        .bindings
+        .iter()
+        .map(|binding| KeyValue::new(binding.description.as_str(), shortcut_trigger(binding)));
+    vec![Section::dictionary(shortcut_rows).titled("Shortcuts")]
+}
+
+fn shortcut_trigger(binding: &DictationShortcutBinding) -> String {
+    if binding.bound_trigger.is_empty() {
+        format!("preferred: {}", binding.preferred_trigger)
     } else {
-        shortcut.bound_trigger.clone()
-    }
-}
-
-fn readable_xdg_trigger(trigger: &str) -> String {
-    trigger
-        .split('+')
-        .map(readable_xdg_trigger_part)
-        .collect::<Vec<_>>()
-        .join("+")
-}
-
-fn readable_xdg_trigger_part(part: &str) -> String {
-    match part {
-        "LOGO" => "Super".to_owned(),
-        "SHIFT" => "Shift".to_owned(),
-        "CTRL" => "Ctrl".to_owned(),
-        "ALT" => "Alt".to_owned(),
-        key => key.to_uppercase(),
+        binding.bound_trigger.clone()
     }
 }
 
@@ -119,7 +105,7 @@ fn readable_xdg_trigger_part(part: &str) -> String {
 mod tests {
     use super::*;
 
-    fn shortcut(preferred_trigger: &str, bound_trigger: &str) -> DictationShortcutBinding {
+    fn binding(preferred_trigger: &str, bound_trigger: &str) -> DictationShortcutBinding {
         DictationShortcutBinding {
             shortcut_id: "dictate-while-held".to_owned(),
             description: "Dictate while held".to_owned(),
@@ -129,18 +115,15 @@ mod tests {
     }
 
     #[test]
-    fn unbound_shortcut_shows_its_preferred_trigger_readably() {
-        assert_eq!(
-            shortcut_trigger_text(&shortcut("LOGO+SHIFT+v", "")),
-            "Super+Shift+V"
-        );
+    fn desktop_bound_trigger_shows_as_is() {
+        assert_eq!(shortcut_trigger(&binding("LOGO+v", "Meta+V")), "Meta+V");
     }
 
     #[test]
-    fn bound_shortcut_shows_the_desktop_trigger() {
+    fn unbound_trigger_is_labelled_as_only_preferred() {
         assert_eq!(
-            shortcut_trigger_text(&shortcut("LOGO+v", "Meta+V")),
-            "Meta+V"
+            shortcut_trigger(&binding("LOGO+v", "")),
+            "preferred: LOGO+v"
         );
     }
 }

@@ -46,21 +46,26 @@ pub fn definition_list<'a>(rows: impl IntoIterator<Item = (&'a str, String)>) ->
 }
 
 fn quota_rows(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
-    let elapsed = coarse_duration_text(now - quota.starts_at);
-    let window = coarse_duration_text(quota.resets_at - quota.starts_at);
-    let pace_row = match quota.pace() {
-        Some(Pace::RunsOut { at }) => Some(("Runs out", moment_text(at, now, locale))),
-        Some(Pace::Lasts { at_reset }) => Some(("At reset", percent_text(at_reset))),
-        None => None,
-    };
+    let pace_row = quota.pace().map(|pace| match pace {
+        Pace::RunsOut { at } => ("Projected budget used up", moment_text(at, now, locale)),
+        Pace::Lasts { at_reset } => ("Projected use at reset", percent_text(at_reset)),
+        Pace::Exceeded => ("Budget used up", "already".to_owned()),
+    });
     definition_list(
         [
-            ("Used", percent_text(quota.used)),
-            ("Elapsed", format!("{elapsed} of {window}")),
+            ("Budget used", percent_text(quota.used)),
+            (
+                "Time since period start",
+                coarse_duration_text(now - quota.starts_at),
+            ),
+            (
+                "Period length",
+                coarse_duration_text(quota.resets_at - quota.starts_at),
+            ),
         ]
         .into_iter()
         .chain(pace_row)
-        .chain([("Resets", moment_text(quota.resets_at, now, locale))]),
+        .chain([("Period resets", moment_text(quota.resets_at, now, locale))]),
     )
 }
 
@@ -176,11 +181,16 @@ impl<Message> OngoingToast<Message> {
             .filter(|quota| quota.severity() >= Severity::Warning)
             .collect();
         let worst = alerting.iter().max_by_key(|quota| quota.severity())?;
+        let outlook = if worst.pace() == Some(Pace::Exceeded) {
+            "exceeded"
+        } else {
+            "runs out before reset"
+        };
         Some(Self {
             widget_name: widget.name(),
             key: OngoingKey::Reading(hover_target.into()),
             severity: worst.severity(),
-            summary_text: Cow::Owned(format!("{} runs out before reset", worst.label)),
+            summary_text: Cow::Owned(format!("{} {outlook}", worst.label)),
             progress: Some(worst.used),
             body: Some(quota_pace_body(&alerting, now, locale)),
             since: clock.wall,
@@ -351,11 +361,23 @@ mod tests {
             now,
             Locale::default(),
         );
-        assert!(body.starts_with("<dl><dt>Used</dt><dd>60%</dd>"));
-        assert!(body.contains("<dt>Elapsed</dt><dd>2h of 5h</dd>"));
-        assert!(body.contains("<dt>Runs out</dt>"));
-        assert!(body.contains("<dt>Resets</dt>"));
+        assert!(body.starts_with("<dl><dt>Budget used</dt><dd>60%</dd>"));
+        assert!(body.contains("<dt>Time since period start</dt><dd>2h</dd>"));
+        assert!(body.contains("<dt>Period length</dt><dd>5h</dd>"));
+        assert!(body.contains("<dt>Projected budget used up</dt>"));
+        assert!(body.contains("<dt>Period resets</dt>"));
         assert!(!body.contains("<b>"));
+    }
+
+    #[test]
+    fn an_exceeded_quota_says_its_budget_is_used_up() {
+        let now: DateTime<Utc> = START.parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(6);
+        let body = quota_pace_body(
+            &[quota("Monthly", 120.0, TimeDelta::days(31), now)],
+            now,
+            Locale::default(),
+        );
+        assert!(body.contains("<dt>Budget used up</dt><dd>already</dd>"));
     }
 
     #[test]

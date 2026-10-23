@@ -8,6 +8,7 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 const SYMBOL_FIRST: &[Position] = &[Position::Sign, Position::Symbol, Position::Amount];
 const SYMBOL_LAST: &[Position] = &[Position::Sign, Position::Amount, Position::Symbol];
+const SECONDS_PER_DAY: u64 = 86_400;
 
 #[must_use]
 pub fn two_decimals(value: f64) -> String {
@@ -79,7 +80,14 @@ pub fn coarse_duration_text(span: TimeDelta) -> String {
     } else {
         seconds - seconds % 60
     };
-    humantime::format_duration(Duration::from_secs(shown)).to_string()
+    let days = shown / SECONDS_PER_DAY;
+    let within_day = humantime::format_duration(Duration::from_secs(shown % SECONDS_PER_DAY));
+    let day_unit = if days == 1 { "day" } else { "days" };
+    match (days, shown % SECONDS_PER_DAY) {
+        (0, _) => within_day.to_string(),
+        (_, 0) => format!("{days}{day_unit}"),
+        _ => format!("{days}{day_unit} {within_day}"),
+    }
 }
 
 #[cfg(test)]
@@ -95,6 +103,16 @@ mod tests {
         assert_eq!(
             coarse_duration_text(TimeDelta::seconds(4 * 3600 + 28 * 60 + 9)),
             "4h 28m"
+        );
+    }
+
+    #[test]
+    fn coarse_durations_count_whole_days_instead_of_months() {
+        assert_eq!(coarse_duration_text(TimeDelta::hours(745)), "31days 1h");
+        assert_eq!(coarse_duration_text(TimeDelta::days(1)), "1day");
+        assert_eq!(
+            coarse_duration_text(TimeDelta::minutes(23 * 1440 + 9 * 60 + 18)),
+            "23days 9h 18m"
         );
     }
 

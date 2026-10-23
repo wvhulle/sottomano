@@ -40,7 +40,7 @@ impl From<openrouter_credits::Error> for Section {
     fn from(error: openrouter_credits::Error) -> Self {
         match error {
             openrouter_credits::Error::Fetch(fetch) => fetch.into(),
-            other => Section::error(other),
+            secret @ openrouter_credits::Error::Secret => Section::error(secret),
         }
     }
 }

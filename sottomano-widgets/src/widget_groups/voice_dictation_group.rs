@@ -6,8 +6,9 @@ use sottomano_sources::{
     SourceDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
-    voice_dictation_input::notulist_dbus_dictation::{
-        NotulistDictation, send_logged_dictation_command,
+    voice_dictation_input::{
+        notulist_dbus_dictation::{NotulistDictation, send_logged_dictation_command},
+        notulist_dbus_shortcuts::NotulistShortcuts,
     },
 };
 
@@ -16,7 +17,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::voice_dictation_group::notulist_dictation_reading::{
-        INPUT_METHOD_DAEMON, RECOGNIZER_DAEMON,
+        INPUT_METHOD_DAEMON, RECOGNIZER_DAEMON, shortcut_sections,
     },
     widgets::{
         continuous_reading::ContinuousReading,
@@ -45,6 +46,7 @@ impl From<VoiceDictationTarget> for HoverTarget {
 
 pub struct VoiceDictationGroup {
     dictation: ContinuousReading<NotulistDictation>,
+    shortcuts: ContinuousReading<NotulistShortcuts>,
     recognizer_daemon: UnitSwitch,
     input_method_daemon: UnitSwitch,
     expansion: GroupExpansion,
@@ -53,6 +55,7 @@ pub struct VoiceDictationGroup {
 #[derive(Debug, Clone)]
 pub enum VoiceDictationMessage {
     Dictation(SourceDelivery<NotulistDictation>),
+    Shortcuts(SourceDelivery<NotulistShortcuts>),
     ToggleRecording,
     RecognizerDaemon(UnitSwitchMessage),
     InputMethodDaemon(UnitSwitchMessage),
@@ -74,6 +77,7 @@ impl VoiceDictationGroup {
         };
         Self {
             dictation: ContinuousReading::default(),
+            shortcuts: ContinuousReading::default(),
             recognizer_daemon: UnitSwitch::new(user_unit(RECOGNIZER_UNIT), RECOGNIZER_DAEMON),
             input_method_daemon: UnitSwitch::new(user_unit(INPUT_METHOD_UNIT), INPUT_METHOD_DAEMON),
             expansion: GroupExpansion::default(),
@@ -84,6 +88,8 @@ impl VoiceDictationGroup {
         Subscription::batch([
             source_subscription::<NotulistDictation>(buses.clone())
                 .map(VoiceDictationMessage::Dictation),
+            source_subscription::<NotulistShortcuts>(buses.clone())
+                .map(VoiceDictationMessage::Shortcuts),
             self.recognizer_daemon
                 .subscription(buses)
                 .map(VoiceDictationMessage::RecognizerDaemon),
@@ -121,6 +127,10 @@ impl VoiceDictationGroup {
                 self.dictation.receive_keeping_last_reading(delivery, clock);
                 Task::none()
             }
+            VoiceDictationMessage::Shortcuts(delivery) => {
+                self.shortcuts.receive_keeping_last_reading(delivery, clock);
+                Task::none()
+            }
             VoiceDictationMessage::ToggleRecording => {
                 Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
             }
@@ -142,7 +152,10 @@ impl VoiceDictationGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            VoiceDictationTarget::Dictation => self.dictation.tooltip(clock),
+            VoiceDictationTarget::Dictation => self.dictation.tooltip_with_sections(
+                self.shortcuts.sections_described_by(shortcut_sections),
+                clock,
+            ),
             VoiceDictationTarget::RecognizerDaemon => self.recognizer_daemon.tooltip(true, clock),
             VoiceDictationTarget::InputMethodDaemon => {
                 self.input_method_daemon.tooltip(true, clock)

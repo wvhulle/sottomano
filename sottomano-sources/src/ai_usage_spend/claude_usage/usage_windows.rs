@@ -100,6 +100,13 @@ impl ClaudeUsageWindows {
             .as_ref()?
             .quota("Claude weekly Sonnet limit", WEEKLY_LENGTH, now)
     }
+
+    fn subscription_exhausted(&self) -> bool {
+        [&self.session, &self.weekly]
+            .into_iter()
+            .chain(&self.sonnet)
+            .any(|window| window.utilization >= Ratio::new::<percent>(100.0))
+    }
 }
 
 impl WindowUsage {
@@ -121,6 +128,7 @@ impl ClaudeUsageWindows {
             .extra
             .as_ref()
             .filter(|extra| extra.status == ExtraStatus::Enabled && extra.monthly_limit.is_some())
+            .filter(|_| self.subscription_exhausted())
             .and_then(|extra| extra.used_share)
             .and_then(|used| Quota::within_calendar_month("Claude extra usage", used, now));
         [
@@ -267,5 +275,38 @@ mod tests {
         );
         let used_percent = extra.used_share.map(|used| used.get::<percent>());
         assert!(used_percent.is_some_and(|used| (used - 67.2).abs() < 1e-9));
+    }
+
+    fn windows_with_weekly_use(weekly_percent: f64) -> ClaudeUsageWindows {
+        let window = |used_percent: f64, resets_at: &str| WindowUsage {
+            utilization: Ratio::new::<percent>(used_percent),
+            resets_at: resets_at.parse().ok(),
+        };
+        ClaudeUsageWindows {
+            plan: None,
+            session: window(40.0, "2026-10-24T12:00:00Z"),
+            weekly: window(weekly_percent, "2026-10-30T02:00:00Z"),
+            sonnet: None,
+            extra: Some(ExtraUsage {
+                status: ExtraStatus::Enabled,
+                spent: None,
+                monthly_limit: Some(Money::from_decimal(Decimal::from(30), iso::EUR)),
+                used_share: Some(Ratio::new::<percent>(98.0)),
+            }),
+        }
+    }
+
+    fn has_extra_quota(windows: &ClaudeUsageWindows) -> bool {
+        let now: DateTime<Utc> = "2026-10-24T08:30:00Z".parse().unwrap();
+        windows
+            .quotas(now)
+            .iter()
+            .any(|quota| quota.label == "Claude extra usage")
+    }
+
+    #[test]
+    fn extra_usage_only_counts_once_a_subscription_window_is_used_up() {
+        assert!(!has_extra_quota(&windows_with_weekly_use(27.0)));
+        assert!(has_extra_quota(&windows_with_weekly_use(100.0)));
     }
 }
