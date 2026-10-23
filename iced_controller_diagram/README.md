@@ -5,14 +5,22 @@ buttons and sticks with your own elements, joined to them by leader lines.
 
 ```rust
 use iced::widget::text;
-use iced_controller_diagram::{DiagramButton, DiagramStick, FaceStyle, controller_diagram};
+use iced_controller_diagram::{
+    ControllerArtwork, DiagramButton, DiagramStick, FaceStyle, controller_diagram,
+};
 
-let diagram = controller_diagram(FaceStyle::PlayStation)
+let artwork = ControllerArtwork::decoded();
+
+let diagram = controller_diagram(artwork.clone(), FaceStyle::PlayStation)
     .scale(0.5)
     .callout(DiagramStick::Left, text("navigate"))
     .callout(DiagramButton::South, text("confirm"))
     .callout(DiagramButton::RightTrigger, text("click"));
 ```
+
+Create the `ControllerArtwork` once and keep it in your application state, then
+pass a clone to the diagram in `view`. It holds the decoded images; cloning is
+cheap and keeps their identity, so iced reuses the same textures every frame.
 
 Labels are placed in a column on each side of the controller, in the vertical
 order of their buttons, and never overlap. Buttons are named by position, as in
@@ -21,12 +29,6 @@ overlay shows the symbols of the chosen `FaceStyle`.
 
 Run the gallery with
 `cargo run -p iced_controller_diagram --example controller_diagram_gallery`.
-
-## Requirements
-
-The controller artwork is PNG. Enable PNG decoding in your application: iced's
-`image` feature, or `image-without-codecs` together with the `image` crate's
-`png` feature.
 
 ## Artwork and license
 

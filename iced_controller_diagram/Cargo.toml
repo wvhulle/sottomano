@@ -16,6 +16,7 @@ workspace = true
 
 [dependencies]
 iced_widget = { version = "0.14.0", features = ["canvas", "image"] }
+png = "0.18.1"
 
 [dev-dependencies]
-iced = { version = "0.14.0", features = ["image"] }
+iced = { version = "0.14.0", features = ["image-without-codecs"] }

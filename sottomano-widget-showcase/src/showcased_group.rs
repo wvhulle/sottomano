@@ -2,6 +2,7 @@ use iced::{
     Element, Length, Padding, border,
     widget::{Column, container, stack, text},
 };
+use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{
     Config, screen_edges::Position, widget_groups::gamepad_bindings::GamepadBindingsConfig,
@@ -121,6 +122,7 @@ pub struct ShowcasedNiriSession {
     pub snapshot: ContinuousReading<Snapshot>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
+    pub controller_artwork: ControllerArtwork,
 }
 
 impl ShowcasedNiriSession {
@@ -167,6 +169,7 @@ impl ShowcasedNiriSession {
                 WindowAssets {
                     entries: &self.desktop_entries,
                     favicons: &self.favicons,
+                    controller_artwork: &self.controller_artwork,
                 },
                 None,
                 SHOWCASE_OUTPUT,

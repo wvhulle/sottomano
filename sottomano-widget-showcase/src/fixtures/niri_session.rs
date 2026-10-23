@@ -1,6 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use bytesize::ByteSize;
+use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::{
     Event, Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
@@ -57,6 +58,7 @@ fn session(clock: Clock) -> ShowcasedNiriSession {
         snapshot,
         desktop_entries: DesktopIndex::default(),
         favicons: Favicons::default(),
+        controller_artwork: ControllerArtwork::decoded(),
     }
 }
 

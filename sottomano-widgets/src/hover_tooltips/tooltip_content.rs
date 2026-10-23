@@ -470,7 +470,7 @@ impl<'a> TooltipContent<'a> {
             .callouts
             .iter()
             .fold(
-                controller_diagram(diagram.face)
+                controller_diagram(self.assets.controller_artwork.clone(), diagram.face)
                     .scale(CONTROLLER_DIAGRAM_SCALE)
                     .row_height(row_height)
                     .style(move |_| leader_style),

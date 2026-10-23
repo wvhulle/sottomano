@@ -1,6 +1,7 @@
-use std::sync::LazyLock;
+use std::io::Cursor;
 
 use iced_widget::core::{Point, Size, image::Handle};
+use png::{Decoder, Transformations};
 
 use crate::{
     diagram_anchor::{DiagramAnchor, DiagramButton, DiagramStick},
@@ -11,34 +12,67 @@ pub(crate) const BODY_SIZE: Size = Size::new(512.0, 317.0);
 pub(crate) const FACE_OFFSET: Point = Point::new(363.0, 118.0);
 pub(crate) const FACE_SIZE: Size = Size::new(103.0, 80.0);
 
-static BODY: LazyLock<Handle> =
-    LazyLock::new(|| Handle::from_bytes(include_bytes!("../assets/gamepad_front.png").as_slice()));
-static FACE_SONY: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_bytes(include_bytes!("../assets/gamepad_face_sony.png").as_slice())
-});
-static FACE_ABXY: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_bytes(include_bytes!("../assets/gamepad_face_abxy.png").as_slice())
-});
-static FACE_BAYX: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_bytes(include_bytes!("../assets/gamepad_face_bayx.png").as_slice())
-});
-static FACE_AXBY: LazyLock<Handle> = LazyLock::new(|| {
-    Handle::from_bytes(include_bytes!("../assets/gamepad_face_axby.png").as_slice())
-});
+const BODY_PNG: &[u8] = include_bytes!("../assets/gamepad_front.png");
+const FACE_SONY_PNG: &[u8] = include_bytes!("../assets/gamepad_face_sony.png");
+const FACE_ABXY_PNG: &[u8] = include_bytes!("../assets/gamepad_face_abxy.png");
+const FACE_BAYX_PNG: &[u8] = include_bytes!("../assets/gamepad_face_bayx.png");
+const FACE_AXBY_PNG: &[u8] = include_bytes!("../assets/gamepad_face_axby.png");
 
-pub(crate) fn body_image() -> Handle {
-    BODY.clone()
+fn decoded_rgba(png_bytes: &[u8]) -> Handle {
+    let mut decoder = Decoder::new(Cursor::new(png_bytes));
+    decoder.set_transformations(
+        Transformations::EXPAND | Transformations::STRIP_16 | Transformations::ALPHA,
+    );
+    let mut reader = decoder
+        .read_info()
+        .expect("bundled controller artwork is a valid PNG");
+    let mut pixels = vec![
+        0;
+        reader
+            .output_buffer_size()
+            .expect("bundled controller artwork fits in memory")
+    ];
+    let frame = reader
+        .next_frame(&mut pixels)
+        .expect("bundled controller artwork decodes");
+    pixels.truncate(frame.buffer_size());
+    Handle::from_rgba(frame.width, frame.height, pixels)
 }
 
-pub(crate) fn face_image(face: FaceStyle) -> Option<Handle> {
-    let face = match face {
-        FaceStyle::PlayStation => &FACE_SONY,
-        FaceStyle::XboxLetters => &FACE_ABXY,
-        FaceStyle::NintendoLetters => &FACE_BAYX,
-        FaceStyle::SwappedLetters => &FACE_AXBY,
-        FaceStyle::Unlabeled => return None,
-    };
-    Some(LazyLock::force(face).clone())
+#[derive(Debug, Clone)]
+pub struct ControllerArtwork {
+    body: Handle,
+    sony: Handle,
+    abxy: Handle,
+    bayx: Handle,
+    axby: Handle,
+}
+
+impl ControllerArtwork {
+    #[must_use]
+    pub fn decoded() -> Self {
+        Self {
+            body: decoded_rgba(BODY_PNG),
+            sony: decoded_rgba(FACE_SONY_PNG),
+            abxy: decoded_rgba(FACE_ABXY_PNG),
+            bayx: decoded_rgba(FACE_BAYX_PNG),
+            axby: decoded_rgba(FACE_AXBY_PNG),
+        }
+    }
+
+    pub(crate) fn body(&self) -> &Handle {
+        &self.body
+    }
+
+    pub(crate) fn face(&self, face: FaceStyle) -> Option<&Handle> {
+        match face {
+            FaceStyle::PlayStation => Some(&self.sony),
+            FaceStyle::XboxLetters => Some(&self.abxy),
+            FaceStyle::NintendoLetters => Some(&self.bayx),
+            FaceStyle::SwappedLetters => Some(&self.axby),
+            FaceStyle::Unlabeled => None,
+        }
+    }
 }
 
 pub(crate) const fn anchor_point(anchor: DiagramAnchor) -> Point {
@@ -72,6 +106,20 @@ pub(crate) const fn anchor_point(anchor: DiagramAnchor) -> Point {
 mod tests {
     use super::*;
 
+    fn pixel_size(handle: &Handle) -> Size<u32> {
+        let Handle::Rgba {
+            width,
+            height,
+            pixels,
+            ..
+        } = handle
+        else {
+            panic!("artwork should be decoded to RGBA");
+        };
+        assert_eq!(pixels.len(), (width * height * 4) as usize);
+        Size::new(*width, *height)
+    }
+
     #[test]
     fn every_anchor_lies_on_the_body_image() {
         let anchors = DiagramButton::ALL
@@ -86,5 +134,21 @@ mod tests {
                 "{anchor:?} at {point:?} is off the image"
             );
         }
+    }
+
+    #[test]
+    fn decoded_artwork_matches_the_layout_sizes() {
+        let artwork = ControllerArtwork::decoded();
+        assert_eq!(pixel_size(artwork.body()), Size::new(512, 317));
+        for face in [
+            FaceStyle::PlayStation,
+            FaceStyle::XboxLetters,
+            FaceStyle::NintendoLetters,
+            FaceStyle::SwappedLetters,
+        ] {
+            let handle = artwork.face(face).expect("labelled faces have an overlay");
+            assert_eq!(pixel_size(handle), Size::new(103, 80));
+        }
+        assert!(artwork.face(FaceStyle::Unlabeled).is_none());
     }
 }

@@ -10,3 +10,4 @@ pub use controller_diagram::{ControllerDiagram, controller_diagram};
 pub use diagram_anchor::{DiagramAnchor, DiagramButton, DiagramStick};
 pub use diagram_style::Style;
 pub use face_style::FaceStyle;
+pub use sdl_gamepad_artwork::ControllerArtwork;
