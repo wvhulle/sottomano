@@ -32,7 +32,6 @@ const ANALYTICS_HOUR_FORMAT: &str = "%Y-%m-%d %H:%M:%S";
 #[derive(Debug, Clone)]
 pub enum Error {
     Secret,
-    LocalMidnight,
     Fetch(http_json_client::Error),
 }
 
@@ -40,7 +39,6 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Secret => write!(f, "management key unreadable"),
-            Error::LocalMidnight => write!(f, "local midnight does not exist today"),
             Error::Fetch(error) => write!(f, "{error}"),
         }
     }
@@ -150,16 +148,12 @@ impl OpenRouterSpend {
 
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.month
-            .span
-            .budget_quota(
-                "OpenRouter monthly budget",
-                &self.month.cost(),
-                &self.budget,
-                now.with_timezone(&Local),
-            )
-            .into_iter()
-            .collect()
+        vec![self.month.span.budget_quota(
+            "OpenRouter monthly budget",
+            &self.month.cost(),
+            &self.budget,
+            now.with_timezone(&Local),
+        )]
     }
 }
 
@@ -291,7 +285,7 @@ impl OpenRouterStrictBudget {
 }
 
 async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Usage>, Error> {
-    let start = first_day.starts_at().ok_or(Error::LocalMidnight)?;
+    let start = first_day.starts_at();
     let payload = json!({
         "metrics": ["total_usage"],
         "dimensions": ["model"],

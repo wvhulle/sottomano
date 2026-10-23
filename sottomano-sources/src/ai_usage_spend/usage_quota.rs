@@ -24,6 +24,7 @@ pub struct Quota {
 pub enum Pace {
     Lasts { at_reset: Ratio },
     RunsOut { at: DateTime<Utc> },
+    Exceeded,
 }
 
 impl Quota {
@@ -87,6 +88,9 @@ impl Quota {
 
     #[must_use]
     pub fn pace(&self) -> Option<Pace> {
+        if self.used >= Ratio::new::<percent>(FULL_PERCENT) {
+            return Some(Pace::Exceeded);
+        }
         let at_reset = self.projected_at_reset()?;
         if at_reset <= Ratio::new::<percent>(FULL_PERCENT) {
             return Some(Pace::Lasts { at_reset });
@@ -105,6 +109,7 @@ impl Quota {
     pub fn severity(&self) -> Severity {
         match self.pace() {
             None | Some(Pace::Lasts { .. }) => Severity::Normal,
+            Some(Pace::Exceeded) => Severity::Critical,
             Some(Pace::RunsOut { .. })
                 if self.used > Ratio::new::<percent>(CRITICAL_USED_PERCENT) =>
             {
@@ -165,6 +170,13 @@ mod tests {
             session(92.0, TimeDelta::hours(3)).severity(),
             Severity::Critical
         );
+    }
+
+    #[test]
+    fn exceeding_the_quota_is_critical_however_early() {
+        let quota = session(120.0, TimeDelta::minutes(6));
+        assert_eq!(quota.pace(), Some(Pace::Exceeded));
+        assert_eq!(quota.severity(), Severity::Critical);
     }
 
     #[test]

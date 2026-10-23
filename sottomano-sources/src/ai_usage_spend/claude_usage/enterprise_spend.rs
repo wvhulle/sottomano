@@ -150,7 +150,7 @@ impl ClaudeEnterpriseSpend {
         let now = now.with_timezone(&Local);
         self.limit
             .as_ref()
-            .and_then(|_| {
+            .map(|_| {
                 CalendarSpan::month_containing(now.date_naive()).paced_quota(
                     "Claude monthly spend limit",
                     self.used_share,

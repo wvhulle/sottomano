@@ -140,7 +140,7 @@ impl Period {
         label: &'static str,
         budget: &SpendBudget,
         now: DateTime<Local>,
-    ) -> Option<Quota> {
+    ) -> Quota {
         self.span.budget_quota(label, &self.usage.cost, budget, now)
     }
 }
@@ -291,7 +291,7 @@ async fn report(agent: Agent, period: &'static str, since: &str) -> Result<Strin
 
 #[cfg(test)]
 mod tests {
-    use chrono::{Weekday, WeekdaySet};
+    use chrono::{TimeDelta, Weekday, WeekdaySet};
     use sottomano_config::calendar::WorkingHours;
 
     use super::*;
@@ -421,7 +421,10 @@ mod tests {
             .projected_cost(thursday_noon, &budget)
             .unwrap()
             .to_f64_lossy();
-        assert!((month - 4.0 * 31.0 / 0.5).abs() < 1e-9);
+        let october_days = (local("2026-11-01T00:00:00") - local("2026-10-01T00:00:00"))
+            .as_seconds_f64()
+            / TimeDelta::days(1).as_seconds_f64();
+        assert!((month - 4.0 * october_days / 0.5).abs() < 1e-9);
     }
 
     #[test]

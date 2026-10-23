@@ -39,6 +39,12 @@ pub struct SpendBudget {
     pub monthly_limit_usd: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PeriodProgress {
+    elapsed_days: f64,
+    whole_days: f64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CalendarSpan {
     pub since: NaiveDate,
@@ -78,18 +84,17 @@ impl CalendarSpan {
     }
 
     #[must_use]
-    pub fn starts_at(self) -> Option<DateTime<Utc>> {
+    pub fn starts_at(self) -> DateTime<Utc> {
         local_midnight(self.since)
     }
 
-    fn calendar_days(self) -> f64 {
-        (self.until - self.since).as_seconds_f64() / TimeDelta::days(1).as_seconds_f64()
-    }
-
-    fn elapsed_calendar_days(self, now: DateTime<Local>) -> f64 {
-        let elapsed = now.naive_local() - self.since.and_time(NaiveTime::MIN);
-        (elapsed.as_seconds_f64() / TimeDelta::days(1).as_seconds_f64())
-            .clamp(0.0, self.calendar_days())
+    fn calendar_progress(self, now: DateTime<Local>) -> PeriodProgress {
+        let starts_at = local_midnight(self.since);
+        let whole = days_between(starts_at, local_midnight(self.until));
+        PeriodProgress {
+            elapsed_days: days_between(starts_at, now.with_timezone(&Utc)).clamp(0.0, whole),
+            whole_days: whole,
+        }
     }
 
     fn elapsed_working_days(self, now: DateTime<Local>, working_time: &WorkingTime) -> f64 {
@@ -105,19 +110,18 @@ impl CalendarSpan {
         f64::from(whole_days_before_today) + today_share
     }
 
-    fn elapsed_share(self, now: DateTime<Local>, pacing: &SpendPacing) -> Option<f64> {
-        let (elapsed, whole) = match pacing {
-            SpendPacing::CalendarTime => (self.elapsed_calendar_days(now), self.calendar_days()),
-            SpendPacing::WorkingTime(working_time) => (
-                self.elapsed_working_days(now, working_time),
-                f64::from(count_working_days(
+    fn progress(self, now: DateTime<Local>, pacing: &SpendPacing) -> PeriodProgress {
+        match pacing {
+            SpendPacing::CalendarTime => self.calendar_progress(now),
+            SpendPacing::WorkingTime(working_time) => PeriodProgress {
+                elapsed_days: self.elapsed_working_days(now, working_time),
+                whole_days: f64::from(count_working_days(
                     self.since,
                     self.until,
                     working_time.days,
                 )),
-            ),
-        };
-        (elapsed >= MIN_ELAPSED_DAYS && whole > 0.0).then(|| elapsed / whole)
+            },
+        }
     }
 
     #[must_use]
@@ -127,7 +131,9 @@ impl CalendarSpan {
         now: DateTime<Local>,
         budget: &SpendBudget,
     ) -> Option<Money> {
-        let share = Decimal::from_f64(self.elapsed_share(now, &budget.pacing)?)?;
+        let progress = self.progress(now, &budget.pacing);
+        let share = Decimal::from_f64(progress.elapsed_share())
+            .filter(|_| progress.elapsed_days >= MIN_ELAPSED_DAYS)?;
         let projected = cost.amount().checked_div(share)?;
         Some(Money::from_decimal(projected, cost.currency()))
     }
@@ -139,7 +145,7 @@ impl CalendarSpan {
         cost: &Money,
         budget: &SpendBudget,
         now: DateTime<Local>,
-    ) -> Option<Quota> {
+    ) -> Quota {
         let used = Ratio::new::<ratio>(cost.to_f64_lossy() / f64::from(budget.monthly_limit_usd));
         self.paced_quota(label, used, &budget.pacing, now)
     }
@@ -151,15 +157,24 @@ impl CalendarSpan {
         used: Ratio,
         pacing: &SpendPacing,
         now: DateTime<Local>,
-    ) -> Option<Quota> {
-        let elapsed = self.elapsed_share(now, pacing)?;
-        Some(Quota {
+    ) -> Quota {
+        Quota {
             label: label.into(),
             used,
-            elapsed: Ratio::new::<ratio>(elapsed),
-            starts_at: local_midnight(self.since)?,
-            resets_at: local_midnight(self.until)?,
-        })
+            elapsed: Ratio::new::<ratio>(self.progress(now, pacing).elapsed_share()),
+            starts_at: local_midnight(self.since),
+            resets_at: local_midnight(self.until),
+        }
+    }
+}
+
+impl PeriodProgress {
+    fn elapsed_share(self) -> f64 {
+        if self.whole_days > 0.0 {
+            self.elapsed_days / self.whole_days
+        } else {
+            1.0
+        }
     }
 }
 
@@ -167,11 +182,19 @@ fn month_start(day: NaiveDate) -> NaiveDate {
     day - TimeDelta::days(i64::from(day.day0()))
 }
 
-fn local_midnight(day: NaiveDate) -> Option<DateTime<Utc>> {
-    Local
-        .from_local_datetime(&day.and_time(NaiveTime::MIN))
-        .earliest()
-        .map(|midnight| midnight.with_timezone(&Utc))
+fn local_midnight(day: NaiveDate) -> DateTime<Utc> {
+    let midnight = day.and_time(NaiveTime::MIN);
+    Local.from_local_datetime(&midnight).earliest().map_or_else(
+        || {
+            let offset = Local.offset_from_utc_datetime(&midnight).local_minus_utc();
+            midnight.and_utc() - TimeDelta::seconds(i64::from(offset))
+        },
+        |local| local.with_timezone(&Utc),
+    )
+}
+
+fn days_between(from: DateTime<Utc>, to: DateTime<Utc>) -> f64 {
+    (to - from).as_seconds_f64() / TimeDelta::days(1).as_seconds_f64()
 }
 
 fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: WeekdaySet) -> u32 {
@@ -185,10 +208,51 @@ fn count_working_days(since: NaiveDate, until: NaiveDate, working_days: WeekdayS
 
 #[cfg(test)]
 mod tests {
+    use sottomano_config::severity::Severity;
+
     use super::*;
+    use crate::ai_usage_spend::spend_money::usd;
 
     fn date(text: &str) -> NaiveDate {
         text.parse().unwrap()
+    }
+
+    const CALENDAR_BUDGET: SpendBudget = SpendBudget {
+        pacing: SpendPacing::CalendarTime,
+        monthly_limit_usd: 20,
+    };
+
+    fn local_moment(text: &str) -> DateTime<Local> {
+        Local
+            .from_local_datetime(&text.parse().unwrap())
+            .earliest()
+            .unwrap()
+    }
+
+    #[test]
+    fn spending_past_the_budget_on_the_first_morning_is_critical() {
+        let now = local_moment("2026-10-01T01:00:00");
+        let quota = CalendarSpan::month_containing(now.date_naive()).budget_quota(
+            "Monthly",
+            &usd(Decimal::from(25)),
+            &CALENDAR_BUDGET,
+            now,
+        );
+        assert_eq!(quota.severity(), Severity::Critical);
+    }
+
+    #[test]
+    fn calendar_elapsed_share_spans_the_real_window_across_daylight_saving() {
+        let now = local_moment("2026-10-24T09:18:00");
+        let quota = CalendarSpan::month_containing(now.date_naive()).budget_quota(
+            "Monthly",
+            &usd(Decimal::from(10)),
+            &CALENDAR_BUDGET,
+            now,
+        );
+        let window = (quota.resets_at - quota.starts_at).as_seconds_f64();
+        let elapsed = (now.with_timezone(&Utc) - quota.starts_at).as_seconds_f64();
+        assert!((quota.elapsed.get::<ratio>() * window - elapsed).abs() < 1.0);
     }
 
     #[test]

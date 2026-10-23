@@ -88,6 +88,7 @@ fn window_section(
     let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
         Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
         Pace::RunsOut { at } => KeyValue::new("Runs Out In", countdown(at, now)),
+        Pace::Exceeded => KeyValue::new("Used Up", "already"),
     });
     let resets = window
         .resets_at

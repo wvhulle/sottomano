@@ -84,6 +84,7 @@ fn runs_out_cell(quota: &Quota) -> Option<Cell> {
             format: LocalizedTimeFormat::TimeOfDay,
         }),
         Pace::Lasts { .. } => Some(Cell::from("lasts")),
+        Pace::Exceeded => Some(Cell::from("exceeded")),
     }
 }
 

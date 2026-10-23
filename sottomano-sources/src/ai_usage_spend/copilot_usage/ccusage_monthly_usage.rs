@@ -24,14 +24,11 @@ pub struct CopilotCcusage {
 impl CopilotCcusage {
     #[must_use]
     pub fn quotas(&self, now: DateTime<Utc>) -> Vec<Quota> {
-        self.period
-            .budget_quota(
-                "Copilot CLI monthly budget",
-                &self.budget,
-                now.with_timezone(&Local),
-            )
-            .into_iter()
-            .collect()
+        vec![self.period.budget_quota(
+            "Copilot CLI monthly budget",
+            &self.budget,
+            now.with_timezone(&Local),
+        )]
     }
 }
 
