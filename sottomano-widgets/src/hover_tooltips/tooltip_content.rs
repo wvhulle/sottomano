@@ -17,6 +17,7 @@ use iced::{
         text::Wrapping,
     },
 };
+use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
 use sottomano_config::{Config, theme::font::ResolvedFont};
 use sottomano_state::idle::ScheduledAfterIdle;
 
@@ -37,11 +38,11 @@ use crate::{
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
-        text::{FontFaces, bar_text, column_heading},
+        text::{FontFaces, LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
-            Cell, ChipletCells, ColumnHeading, Freshness, KeyValue, Readiness, RecordCells,
-            Section, SectionBody, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
-            TrayMenuBody, WholeBody,
+            Cell, ChipletCells, ColumnHeading, ControllerCallouts, Freshness, KeyValue, Readiness,
+            RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry, Tooltip,
+            TooltipBody, TrayMenuBody, WholeBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -58,6 +59,7 @@ const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const DIM_ALPHA: f32 = 0.7;
+const CONTROLLER_DIAGRAM_SCALE: f32 = 0.5;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
@@ -420,6 +422,7 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
             SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
             SectionBody::CoreGrid(chiplets) => self.core_grid(chiplets),
+            SectionBody::ControllerDiagram(diagram) => self.controller_diagram(diagram),
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
@@ -453,6 +456,33 @@ impl<'a> TooltipContent<'a> {
         .align_y(Vertical::Top);
 
         self.keyed_table(entries, KeyValue::key, once(value_column))
+    }
+
+    fn controller_diagram(&self, diagram: &ControllerCallouts) -> Element<'static, Message> {
+        let palette = PaletteColors::from(&self.config.theme.palette);
+        let font = &self.config.theme.font;
+        let leader_style = DiagramStyle {
+            line: self.dim(),
+            anchor: palette.info,
+        };
+        let row_height = LINE_HEIGHT.to_absolute(font.text_size_px.into()).0.ceil();
+        diagram
+            .callouts
+            .iter()
+            .fold(
+                controller_diagram(diagram.face)
+                    .scale(CONTROLLER_DIAGRAM_SCALE)
+                    .row_height(row_height)
+                    .style(move |_| leader_style),
+                |drawn, callout| {
+                    drawn.callout(
+                        callout.anchor,
+                        bar_text(font, callout.label.clone())
+                            .color(WidgetState::from(callout.level).color(&palette)),
+                    )
+                },
+            )
+            .into()
     }
 
     fn core_grid(&self, chiplets: &[ChipletCells]) -> Element<'static, Message> {

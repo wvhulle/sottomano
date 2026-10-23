@@ -121,6 +121,17 @@ The lock timer, which sits next to the screen-off timer so the two can be read t
 
 <img src="recordings/idle_lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
 
+### Game controller
+
+A connected game controller steers windows, the pointer and dictation. It hands
+itself to Steam and games while they are focused, or on a button chord.
+
+#### Bindings
+
+The card draws the controller with every bound button labelled in place.
+
+<img src="recordings/gamepad_controller.webp" width="720" alt="Hovering the game controller to see its bindings drawn on the controller">
+
 ### Audio
 
 Volume and microphone level as sliders that open in place, with a live level

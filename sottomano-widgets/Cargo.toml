@@ -18,6 +18,7 @@ chrono-tz.workspace = true
 form_urlencoded.workspace = true
 humantime.workspace = true
 iced.workspace = true
+iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true
 image.workspace = true
 niri-ipc.workspace = true

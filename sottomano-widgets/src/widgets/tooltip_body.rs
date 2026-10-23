@@ -8,6 +8,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
+use iced_controller_diagram::{DiagramAnchor, FaceStyle};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     DeliveryCadence, ReadingSource,
@@ -209,6 +210,20 @@ pub enum SectionBody {
         folding: Folding,
     },
     CoreGrid(Vec<ChipletCells>),
+    ControllerDiagram(ControllerCallouts),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ControllerCallouts {
+    pub face: FaceStyle,
+    pub callouts: Vec<DiagramCallout>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DiagramCallout {
+    pub anchor: DiagramAnchor,
+    pub label: String,
+    pub level: Severity,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -250,6 +265,7 @@ impl SectionBody {
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
             SectionBody::Tree { .. } => false,
             SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
+            SectionBody::ControllerDiagram(diagram) => diagram.callouts.is_empty(),
         }
     }
 }
@@ -359,6 +375,16 @@ impl Section {
 
     pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
         Self::untitled(SectionBody::CoreGrid(chiplets.into_iter().collect()))
+    }
+
+    pub fn controller_diagram(
+        face: FaceStyle,
+        callouts: impl IntoIterator<Item = DiagramCallout>,
+    ) -> Self {
+        Self::untitled(SectionBody::ControllerDiagram(ControllerCallouts {
+            face,
+            callouts: callouts.into_iter().collect(),
+        }))
     }
 
     #[must_use]

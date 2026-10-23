@@ -1,5 +1,6 @@
 mod connected_controller_reading;
 pub mod controller_button_labels;
+mod diagram_anchor_mapping;
 
 use std::collections::{BTreeMap, BTreeSet};
 

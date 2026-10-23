@@ -3,7 +3,9 @@ use iced::{
     widget::{Column, container, stack, text},
 };
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_config::{
+    Config, screen_edges::Position, widget_groups::gamepad_bindings::GamepadBindingsConfig,
+};
 use sottomano_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
@@ -18,6 +20,7 @@ use sottomano_widgets::{
         audio_group::AudioGroup,
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
+        gamepad_group::GamepadGroup,
         idle_timeouts_group::IdleTimeoutsGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
@@ -60,9 +63,15 @@ pub enum ShowcasedGroup {
     IdleTimeouts(Box<IdleTimeoutsGroup>),
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
+    Gamepad(Box<ShowcasedGamepad>),
     BottomBar(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
     Toasts(Box<ShowcasedToasts>),
+}
+
+pub struct ShowcasedGamepad {
+    pub group: GamepadGroup,
+    pub bindings: GamepadBindingsConfig,
 }
 
 pub struct ShowcasedToasts {
@@ -202,6 +211,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
+            | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
         }
     }
@@ -245,6 +255,11 @@ impl ShowcasedGroup {
             ShowcasedGroup::Audio(group) => group
                 .group_content(config)
                 .map(Message::Audio)
+                .view(config, position, clock),
+            ShowcasedGroup::Gamepad(gamepad) => gamepad
+                .group
+                .group_content(&gamepad.bindings)
+                .map(Message::Gamepad)
                 .view(config, position, clock),
             ShowcasedGroup::BottomBar(session) => return session.bottom_bar_groups(config, clock),
             ShowcasedGroup::WorkspaceSidebar(session) => {
@@ -297,6 +312,11 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
+            ShowcasedGroup::Gamepad(gamepad) => {
+                if let Message::Gamepad(message) = message {
+                    let _ = gamepad.group.update(message, &gamepad.bindings, None);
+                }
+            }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let Message::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
@@ -344,6 +364,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
+            | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Toasts(_) => {}
         }
     }
@@ -405,6 +426,12 @@ impl ShowcasedGroup {
                 };
                 group.tooltip_for(*kind, clock)
             }
+            ShowcasedGroup::Gamepad(gamepad) => {
+                let HoverTarget::Gamepad(target) = target else {
+                    return None;
+                };
+                gamepad.group.tooltip_for(*target, &gamepad.bindings, clock)
+            }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.tooltip_for(target, clock)
             }
@@ -425,7 +452,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
-            | ShowcasedGroup::Audio(_) => None,
+            | ShowcasedGroup::Audio(_)
+            | ShowcasedGroup::Gamepad(_) => None,
         }
     }
 
