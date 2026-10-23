@@ -3,6 +3,7 @@ use sottomano_config::Config;
 
 mod geolocation_fix;
 mod pollen_count_gauge;
+mod precipitation_model_schedule;
 mod rain_intensity;
 mod temperature_forecast;
 mod wind_speed;
@@ -13,6 +14,7 @@ use sottomano_sources::{
         self,
         buienradar_rain::Rain,
         open_meteo_pollen::{Allergen, Pollen},
+        open_meteo_precipitation_model::PrecipitationModel,
         open_meteo_temperature::Temperature,
         open_meteo_wind::Wind,
         situo_location_fix::Location,
@@ -23,7 +25,9 @@ use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::weather_group::rain_intensity::RainForecast,
+    widget_groups::weather_group::{
+        precipitation_model_schedule::precipitation_model_sections, rain_intensity::RainForecast,
+    },
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -63,6 +67,7 @@ pub struct WeatherGroup {
     temp: ContinuousReading<Temperature>,
     wind: ContinuousReading<Wind>,
     rain: ContinuousReading<Rain>,
+    precipitation_model: ContinuousReading<PrecipitationModel>,
     pollen: ContinuousReading<Pollen>,
     location: ContinuousReading<Location>,
     expansion: GroupExpansion,
@@ -73,6 +78,7 @@ pub enum WeatherMessage {
     Temp(SourceDelivery<Temperature>),
     Wind(SourceDelivery<Wind>),
     Rain(SourceDelivery<Rain>),
+    PrecipitationModel(SourceDelivery<PrecipitationModel>),
     Pollen(SourceDelivery<Pollen>),
     Location(SourceDelivery<Location>),
     Expansion(ExpansionMessage),
@@ -92,6 +98,7 @@ impl WeatherGroup {
             location,
             source_subscription::<Temperature>(here).map(WeatherMessage::Temp),
             source_subscription::<Rain>(here).map(WeatherMessage::Rain),
+            source_subscription::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
             self.expansion
                 .while_expanded(source_subscription::<Wind>(here).map(WeatherMessage::Wind)),
             self.expansion
@@ -104,6 +111,9 @@ impl WeatherGroup {
             WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading, clock),
             WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading, clock),
             WeatherMessage::Rain(reading) => self.rain.receive_keeping_last_success(reading, clock),
+            WeatherMessage::PrecipitationModel(reading) => self
+                .precipitation_model
+                .receive_keeping_last_reading(reading, clock),
             WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading, clock),
             WeatherMessage::Location(reading) => {
                 self.location.receive_keeping_last_success(reading, clock);
@@ -124,7 +134,10 @@ impl WeatherGroup {
                 first_delivery::<Temperature>(here).map(WeatherMessage::Temp)
             }
             WeatherTarget::Wind => first_delivery::<Wind>(here).map(WeatherMessage::Wind),
-            WeatherTarget::Rain => first_delivery::<Rain>(here).map(WeatherMessage::Rain),
+            WeatherTarget::Rain => Task::batch([
+                first_delivery::<Rain>(here).map(WeatherMessage::Rain),
+                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
+            ]),
             WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
                 first_delivery::<Pollen>(here).map(WeatherMessage::Pollen)
             }
@@ -142,16 +155,23 @@ impl WeatherGroup {
         match target {
             WeatherTarget::Temperature => self.temp.tooltip(clock),
             WeatherTarget::Wind => self.wind.tooltip(clock),
-            WeatherTarget::Rain => match self.rain.visible_reading() {
-                Some(rain) => self.rain.tooltip_with(
-                    RainForecast {
-                        rain,
-                        alerts: &config.widget_groups.rain_alerts,
-                    }
-                    .tooltip(clock),
-                ),
-                None => self.rain.tooltip(clock),
-            },
+            WeatherTarget::Rain => {
+                let radar = match self.rain.visible_reading() {
+                    Some(rain) => self.rain.tooltip_with(
+                        RainForecast {
+                            rain,
+                            alerts: &config.widget_groups.rain_alerts,
+                        }
+                        .tooltip(clock),
+                    ),
+                    None => self.rain.tooltip(clock),
+                };
+                Some(
+                    radar?.with_sections(self.precipitation_model.sections_described_by(|model| {
+                        precipitation_model_sections(model, clock.utc())
+                    })),
+                )
+            }
             WeatherTarget::Pollen => self.pollen.tooltip(clock),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
