@@ -1,11 +1,13 @@
-use std::iter;
+use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
+    iter,
+};
 
 use chrono::{DateTime, Local, Locale, TimeDelta};
 use iced::alignment::Horizontal;
 use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
-use sottomano_sources::weather::{
-    buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
-    open_meteo_temperature::Intensity,
+use sottomano_sources::weather::buienradar_rain::{
+    Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour,
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
@@ -24,7 +26,7 @@ use crate::{
     },
 };
 
-fn intensity_text(intensity: Velocity) -> String {
+pub(super) fn intensity_text(intensity: Velocity) -> String {
     format!(
         "{:.1}",
         intensity.into_format_args(millimeter_per_hour, Abbreviation)
@@ -43,7 +45,37 @@ fn minutes_until(at: DateTime<Local>, clock: Clock) -> i64 {
     (at - clock.local()).num_minutes().max(0)
 }
 
-const AMS_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 2.5;
+const MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 0.5;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RadarRainStrength {
+    Dry,
+    Light,
+    Moderate,
+    Heavy,
+}
+
+impl RadarRainStrength {
+    fn glyph(self) -> Glyph {
+        match self {
+            RadarRainStrength::Dry => Phosphor::DropSlash(Weight::Regular).into(),
+            RadarRainStrength::Light => WeatherIcon::Sprinkle.into(),
+            RadarRainStrength::Moderate => WeatherIcon::Rain.into(),
+            RadarRainStrength::Heavy => WeatherIcon::Raindrops.into(),
+        }
+    }
+}
+
+impl Display for RadarRainStrength {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(match self {
+            RadarRainStrength::Dry => "Dry",
+            RadarRainStrength::Light => "Light",
+            RadarRainStrength::Moderate => "Moderate",
+            RadarRainStrength::Heavy => "Heavy",
+        })
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 struct RainIntensityScale {
@@ -51,25 +83,19 @@ struct RainIntensityScale {
 }
 
 impl RainIntensityScale {
-    fn strength(self, intensity: Velocity) -> Option<Intensity> {
+    fn strength(self, intensity: Velocity) -> RadarRainStrength {
         if intensity <= Velocity::default() {
-            None
+            RadarRainStrength::Dry
         } else if intensity
-            < Velocity::new::<millimeter_per_hour>(AMS_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR)
+            < Velocity::new::<millimeter_per_hour>(
+                MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR,
+            )
         {
-            Some(Intensity::Light)
+            RadarRainStrength::Light
         } else if intensity < self.heavy_from {
-            Some(Intensity::Moderate)
+            RadarRainStrength::Moderate
         } else {
-            Some(Intensity::Heavy)
-        }
-    }
-
-    fn glyph(self, intensity: Velocity) -> Glyph {
-        match self.strength(intensity) {
-            None | Some(Intensity::Light) => WeatherIcon::Sprinkle.into(),
-            Some(Intensity::Moderate) => WeatherIcon::Rain.into(),
-            Some(Intensity::Heavy) => WeatherIcon::Raindrops.into(),
+            RadarRainStrength::Heavy
         }
     }
 }
@@ -114,23 +140,19 @@ impl TableRow<3> for ScheduledRadarFrame<'_> {
     fn table_record(self) -> TableRecord<3> {
         let intensity = self.frame.intensity;
         let strength = self.scale.strength(intensity);
+        let amount = match strength {
+            RadarRainStrength::Dry => "–".to_owned(),
+            _ => intensity_text(intensity),
+        };
         TableRecord::new(
             Cell::Time {
                 at: self.frame.at.to_utc(),
                 format: LocalizedTimeFormat::HourAndMinute,
             },
             [
-                Some(
-                    strength
-                        .map_or_else(|| "–".to_owned(), |_| intensity_text(intensity))
-                        .into(),
-                ),
-                strength.map(|_| Cell::Glyph(self.scale.glyph(intensity))),
-                Some(
-                    strength
-                        .map_or_else(|| "Dry".to_owned(), |strength| strength.to_string())
-                        .into(),
-                ),
+                Some(amount.into()),
+                Some(Cell::Glyph(strength.glyph())),
+                Some(strength.to_string().into()),
             ],
         )
     }
@@ -206,11 +228,9 @@ impl BarWidget for RainForecast<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        if self.rain.outlook == RainOutlook::Dry {
-            Phosphor::DropSlash(Weight::Regular).into()
-        } else {
-            self.intensity_scale().glyph(self.rain.peak.intensity)
-        }
+        self.intensity_scale()
+            .strength(self.rain.peak.intensity)
+            .glyph()
     }
 
     fn fallback_icon() -> Glyph {
@@ -258,10 +278,11 @@ impl BarWidget for RainForecast<'_> {
         };
         let rain = self.rain;
         if let (RainOutlook::Dry, Some(last_frame)) = (rain.outlook, rain.forecast.last()) {
-            return TooltipBody::dictionary([
+            return TooltipBody::sections([Section::dictionary([
                 KeyValue::new("Rain", "none expected"),
                 KeyValue::new("Dry until at least", time_of_day(last_frame.at)),
-            ]);
+            ])
+            .titled("Buienradar radar")]);
         }
         let turn_entry =
             outlook_turn(rain.outlook).map(|turn| KeyValue::new(turn.label, time_of_day(turn.at)));
@@ -271,14 +292,14 @@ impl BarWidget for RainForecast<'_> {
                 iter::once(KeyValue::new("Now", current_intensity_text(rain.intensity)))
                     .chain(turn_entry),
             )
-            .titled("Rain"),
+            .titled("Buienradar radar"),
             Section::column_table(
                 SCHEDULE_HEADINGS,
                 self.remaining_frames(clock.local())
                     .iter()
                     .map(|frame| ScheduledRadarFrame { frame, scale }),
             )
-            .titled("Schedule"),
+            .titled("Radar schedule"),
         ])
     }
 }
@@ -545,14 +566,14 @@ mod tests {
         let row = |frame| RecordCells::from(ScheduledRadarFrame { frame, scale }.table_record());
         let wet = row(&rain.forecast[0]);
         assert_eq!(wet.cell(0), Some(&Cell::from("2.0 mm/h")));
-        assert_eq!(wet.cell(2), Some(&Cell::from("Light")));
+        assert_eq!(wet.cell(2), Some(&Cell::from("Moderate")));
         let dry = row(&rain.forecast[1]);
-        assert_eq!(dry.cell(1), None);
+        assert_eq!(dry.cell(0), Some(&Cell::from("–")));
         assert_eq!(dry.cell(2), Some(&Cell::from("Dry")));
     }
 
     #[test]
-    fn rain_strength_follows_ams_and_the_configured_heavy_threshold() {
+    fn rain_strength_follows_the_met_office_and_the_configured_heavy_threshold() {
         let alerts = RainAlertsConfig {
             heavy_millimeters_per_hour: 10.0,
             ..RainAlertsConfig::default()
@@ -565,11 +586,11 @@ mod tests {
         .intensity_scale();
         let strength =
             |millimeters| scale.strength(Velocity::new::<millimeter_per_hour>(millimeters));
-        assert_eq!(strength(0.0), None);
-        assert_eq!(strength(2.4), Some(Intensity::Light));
-        assert_eq!(strength(2.5), Some(Intensity::Moderate));
-        assert_eq!(strength(9.9), Some(Intensity::Moderate));
-        assert_eq!(strength(10.0), Some(Intensity::Heavy));
+        assert_eq!(strength(0.0), RadarRainStrength::Dry);
+        assert_eq!(strength(0.4), RadarRainStrength::Light);
+        assert_eq!(strength(0.5), RadarRainStrength::Moderate);
+        assert_eq!(strength(9.9), RadarRainStrength::Moderate);
+        assert_eq!(strength(10.0), RadarRainStrength::Heavy);
     }
 
     #[test]

@@ -16,7 +16,7 @@ impl Default for RainAlertsConfig {
         Self {
             lead_time: Duration::from_mins(15),
             minimum_millimeters_per_hour: 0.5,
-            heavy_millimeters_per_hour: 7.5,
+            heavy_millimeters_per_hour: 4.0,
         }
     }
 }
@@ -29,7 +29,7 @@ mod tests {
     fn omitted_keys_keep_their_defaults() {
         let config: RainAlertsConfig = toml::from_str("lead_time = \"30m\"\n").unwrap();
         assert_eq!(config.lead_time, Duration::from_mins(30));
-        assert!((config.heavy_millimeters_per_hour - 7.5).abs() < f64::EPSILON);
+        assert!((config.heavy_millimeters_per_hour - 4.0).abs() < f64::EPSILON);
     }
 
     #[test]

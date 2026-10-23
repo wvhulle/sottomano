@@ -1,5 +1,6 @@
 pub mod buienradar_rain;
 pub mod open_meteo_pollen;
+pub mod open_meteo_precipitation_model;
 pub mod open_meteo_temperature;
 pub mod open_meteo_wind;
 pub mod situo_location_fix;

@@ -23,11 +23,13 @@ fn unix_instant<E: DeserializeError>(seconds: i64) -> Result<DateTime<Utc>, E> {
     DateTime::from_timestamp(seconds, 0).ok_or_else(|| E::custom("timestamp out of range"))
 }
 
-fn open_meteo_time<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>, D::Error> {
+pub(super) fn open_meteo_time<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<DateTime<Utc>, D::Error> {
     unix_instant(i64::deserialize(deserializer)?)
 }
 
-fn open_meteo_times<'de, D: Deserializer<'de>>(
+pub(super) fn open_meteo_times<'de, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Vec<DateTime<Utc>>, D::Error> {
     Vec::<i64>::deserialize(deserializer)?
@@ -64,7 +66,8 @@ pub enum Intensity {
     Heavy,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[serde(try_from = "i64")]
 pub enum WeatherCondition {
     Clear,
     MainlyClear,
