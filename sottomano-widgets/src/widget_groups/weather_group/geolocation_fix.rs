@@ -36,7 +36,9 @@ impl MapService {
         } = position;
         match self {
             Self::GoogleMaps => {
-                format!("https://www.google.com/maps/search/?api=1&query={latitude:.6},{longitude:.6}")
+                format!(
+                    "https://www.google.com/maps/search/?api=1&query={latitude:.6},{longitude:.6}"
+                )
             }
             Self::OpenStreetMap => format!(
                 "https://www.openstreetmap.org/?mlat={latitude:.6}&mlon={longitude:.6}#map={OPENSTREETMAP_ZOOM}/{latitude:.6}/{longitude:.6}"

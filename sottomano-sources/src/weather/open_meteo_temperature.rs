@@ -291,9 +291,9 @@ impl ReadingSource for Temperature {
 impl Temperature {
     async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,is_day,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code,is_day&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
-        here.latitude, here.longitude
-    );
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,is_day,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code,is_day&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
+            here.latitude, here.longitude
+        );
         let forecast: TemperatureForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Temperature {
             condition: WeatherCondition::try_from(forecast.current.weather_code).ok(),

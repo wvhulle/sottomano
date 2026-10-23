@@ -1,7 +1,7 @@
-use futures::{Stream, StreamExt};
+use futures::{Stream, StreamExt, future::ready, stream};
 use notulist_client::{
-    DICTATION_BUS_NAME, DictationCommand, DictationPhase, followed_dictation_phases,
-    send_dictation_command,
+    DICTATION_BUS_NAME, DictationCommand, DictationPhase, DictationShortcutBinding,
+    followed_dictation_phases, followed_shortcut_bindings, send_dictation_command,
 };
 
 use crate::{
@@ -13,6 +13,31 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NotulistDictation {
     pub phase: DictationPhase,
+    pub shortcuts: Vec<DictationShortcutBinding>,
+}
+
+enum DictationUpdate {
+    Phase(DictationPhase),
+    Shortcuts(Vec<DictationShortcutBinding>),
+}
+
+#[derive(Default)]
+struct DictationFold {
+    phase: Option<DictationPhase>,
+    shortcuts: Vec<DictationShortcutBinding>,
+}
+
+impl DictationFold {
+    fn apply(&mut self, update: DictationUpdate) -> Option<NotulistDictation> {
+        match update {
+            DictationUpdate::Phase(phase) => self.phase = Some(phase),
+            DictationUpdate::Shortcuts(shortcuts) => self.shortcuts = shortcuts,
+        }
+        Some(NotulistDictation {
+            phase: self.phase?,
+            shortcuts: self.shortcuts.clone(),
+        })
+    }
 }
 
 impl ReadingSource for NotulistDictation {
@@ -25,18 +50,28 @@ impl ReadingSource for NotulistDictation {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let session = buses.session;
         name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || pushed_delivery_stream(dictation_phases(session.clone())),
+            move || pushed_delivery_stream(dictation_readings(session.clone())),
             SourceDelivery::Absent,
         )
     }
 }
 
-async fn dictation_phases(
+async fn dictation_readings(
     session: zbus::Connection,
 ) -> Result<impl Stream<Item = Result<NotulistDictation, Error>> + Send, Error> {
-    Ok(followed_dictation_phases(&session)
+    let phases = followed_dictation_phases(&session)
         .await?
-        .map(|phase| Ok(NotulistDictation { phase: phase? })))
+        .map(|phase| phase.map(DictationUpdate::Phase));
+    let shortcuts = followed_shortcut_bindings(&session)
+        .await?
+        .map(|shortcuts| shortcuts.map(DictationUpdate::Shortcuts));
+    let mut fold = DictationFold::default();
+    Ok(stream::select(phases, shortcuts).filter_map(move |update| {
+        ready(match update {
+            Ok(update) => fold.apply(update).map(Ok),
+            Err(error) => Some(Err(error.into())),
+        })
+    }))
 }
 
 pub async fn send_logged_dictation_command(command: DictationCommand) {
