@@ -3,7 +3,7 @@ use sottomano_config::Config;
 
 mod geolocation_fix;
 mod pollen_count_gauge;
-mod precipitation_model_schedule;
+mod precipitation_type_forecast;
 mod rain_intensity;
 mod temperature_forecast;
 mod wind_speed;
@@ -25,9 +25,7 @@ use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::weather_group::{
-        precipitation_model_schedule::precipitation_model_sections, rain_intensity::RainForecast,
-    },
+    widget_groups::weather_group::rain_intensity::RainForecast,
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
@@ -42,6 +40,7 @@ pub enum WeatherTarget {
     Temperature,
     Wind,
     Rain,
+    PrecipitationType,
     Pollen,
     Allergen(Allergen),
     Location,
@@ -113,7 +112,7 @@ impl WeatherGroup {
             WeatherMessage::Rain(reading) => self.rain.receive_keeping_last_success(reading, clock),
             WeatherMessage::PrecipitationModel(reading) => self
                 .precipitation_model
-                .receive_keeping_last_reading(reading, clock),
+                .receive_keeping_last_success(reading, clock),
             WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading, clock),
             WeatherMessage::Location(reading) => {
                 self.location.receive_keeping_last_success(reading, clock);
@@ -134,10 +133,10 @@ impl WeatherGroup {
                 first_delivery::<Temperature>(here).map(WeatherMessage::Temp)
             }
             WeatherTarget::Wind => first_delivery::<Wind>(here).map(WeatherMessage::Wind),
-            WeatherTarget::Rain => Task::batch([
-                first_delivery::<Rain>(here).map(WeatherMessage::Rain),
-                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
-            ]),
+            WeatherTarget::Rain => first_delivery::<Rain>(here).map(WeatherMessage::Rain),
+            WeatherTarget::PrecipitationType => {
+                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel)
+            }
             WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
                 first_delivery::<Pollen>(here).map(WeatherMessage::Pollen)
             }
@@ -155,23 +154,17 @@ impl WeatherGroup {
         match target {
             WeatherTarget::Temperature => self.temp.tooltip(clock),
             WeatherTarget::Wind => self.wind.tooltip(clock),
-            WeatherTarget::Rain => {
-                let radar = match self.rain.visible_reading() {
-                    Some(rain) => self.rain.tooltip_with(
-                        RainForecast {
-                            rain,
-                            alerts: &config.widget_groups.rain_alerts,
-                        }
-                        .tooltip(clock),
-                    ),
-                    None => self.rain.tooltip(clock),
-                };
-                Some(
-                    radar?.with_sections(self.precipitation_model.sections_described_by(|model| {
-                        precipitation_model_sections(model, clock.utc())
-                    })),
-                )
-            }
+            WeatherTarget::Rain => match self.rain.visible_reading() {
+                Some(rain) => self.rain.tooltip_with(
+                    RainForecast {
+                        rain,
+                        alerts: &config.widget_groups.rain_alerts,
+                    }
+                    .tooltip(clock),
+                ),
+                None => self.rain.tooltip(clock),
+            },
+            WeatherTarget::PrecipitationType => self.precipitation_model.tooltip(clock),
             WeatherTarget::Pollen => self.pollen.tooltip(clock),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
@@ -209,6 +202,8 @@ impl WeatherGroup {
                 self.temp.group_item(WeatherTarget::Temperature),
                 self.wind.group_item(WeatherTarget::Wind),
                 self.rain_item(config),
+                self.precipitation_model
+                    .group_item(WeatherTarget::PrecipitationType),
             ]
             .into_iter()
             .flatten()

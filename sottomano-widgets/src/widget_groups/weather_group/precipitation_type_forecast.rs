@@ -1,14 +1,18 @@
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Locale, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_sources::weather::open_meteo_precipitation_model::{
     ModelQuarterHour, PrecipitationModel,
 };
 
 use crate::{
+    clock::Clock,
     widget_groups::weather_group::rain_intensity::intensity_text,
     widgets::{
+        bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow},
+        tooltip_body::{
+            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
+        },
         weather_icons::WeatherIcon,
     },
 };
@@ -39,30 +43,47 @@ impl TableRow<3> for &ModelQuarterHour {
     }
 }
 
-pub fn precipitation_model_sections(
+fn quarters_not_yet_over(
     model: &PrecipitationModel,
     now: DateTime<Utc>,
-) -> Vec<Section> {
-    let current = &model.current;
-    vec![
-        Section::dictionary([KeyValue::new(
-            "Now",
-            format!(
-                "{} · {}",
-                intensity_text(current.intensity),
-                current.condition
-            ),
-        )])
-        .titled("Open-Meteo model"),
-        Section::column_table(
-            MODEL_SCHEDULE_HEADINGS,
-            model
-                .quarters
-                .iter()
-                .filter(|quarter| quarter.starts_at + MODEL_QUARTER_HOUR > now),
-        )
-        .titled("Model schedule"),
-    ]
+) -> impl Iterator<Item = &ModelQuarterHour> {
+    model
+        .quarters
+        .iter()
+        .filter(move |quarter| quarter.starts_at + MODEL_QUARTER_HOUR > now)
+}
+
+impl BarWidget for PrecipitationModel {
+    fn name(&self) -> &'static str {
+        "Precipitation type"
+    }
+
+    fn icon(&self) -> Glyph {
+        WeatherIcon::Sky(self.current.condition, self.current.daylight).into()
+    }
+
+    fn fallback_icon() -> Glyph {
+        WeatherIcon::Sprinkle.into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some(self.current.condition.to_string())
+    }
+
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        TooltipBody::sections([
+            Section::dictionary([
+                KeyValue::new("Now", self.current.condition.to_string()),
+                KeyValue::new("Rain", intensity_text(self.current.intensity)),
+            ])
+            .titled("Open-Meteo model"),
+            Section::column_table(
+                MODEL_SCHEDULE_HEADINGS,
+                quarters_not_yet_over(self, clock.utc()),
+            )
+            .titled("Schedule"),
+        ])
+    }
 }
 
 #[cfg(test)]
@@ -74,10 +95,7 @@ mod tests {
     use uom::si::f64::Velocity;
 
     use super::*;
-    use crate::{
-        clock::Clock,
-        widgets::tooltip_body::{RecordCells, SectionBody},
-    };
+    use crate::widgets::tooltip_body::RecordCells;
 
     fn quarter(starts_at: DateTime<Utc>, condition: WeatherCondition) -> ModelQuarterHour {
         ModelQuarterHour {
@@ -111,10 +129,20 @@ mod tests {
                 quarter(now, WeatherCondition::Rain(Intensity::Moderate)),
             ],
         };
-        let sections = precipitation_model_sections(&model, now);
-        let SectionBody::ColumnTable { records, .. } = sections[1].body() else {
-            panic!("model schedule is a column table");
+        let remaining: Vec<_> = quarters_not_yet_over(&model, now).collect();
+        assert_eq!(remaining, [&model.quarters[1]]);
+    }
+
+    #[test]
+    fn the_bar_label_names_the_current_type() {
+        let clock = Clock::real();
+        let model = PrecipitationModel {
+            current: quarter(clock.utc(), WeatherCondition::Drizzle(Intensity::Light)),
+            quarters: Vec::new(),
         };
-        assert_eq!(records.len(), 1);
+        assert_eq!(
+            model.label(clock, Locale::default()),
+            Some("Light drizzle".to_owned())
+        );
     }
 }
