@@ -221,7 +221,10 @@ impl DesktopShell {
                 Some(self.idle_timeouts_group.tooltip_for(*kind, self.clock))
             }
             HoverTarget::Internet(target) => self.internet_group.tooltip_for(target, self.clock),
-            HoverTarget::Weather(target) => self.weather_group.tooltip_for(*target, self.clock),
+            HoverTarget::Weather(target) => {
+                self.weather_group
+                    .tooltip_for(*target, &self.config, self.clock)
+            }
             HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target, self.clock),
             HoverTarget::Media(target) => {
                 self.media_group

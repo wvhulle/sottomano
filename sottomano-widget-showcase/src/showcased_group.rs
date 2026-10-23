@@ -348,7 +348,12 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn tooltip_for(&self, target: &HoverTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: &HoverTarget,
+        config: &Config,
+        clock: Clock,
+    ) -> Option<Tooltip> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 let HoverTarget::Compute(target) = target else {
@@ -366,7 +371,7 @@ impl ShowcasedGroup {
                 let HoverTarget::Weather(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.tooltip_for(*target, config, clock)
             }
             ShowcasedGroup::ClaudeUsage(group) => {
                 let HoverTarget::ClaudeUsage(target) = target else {

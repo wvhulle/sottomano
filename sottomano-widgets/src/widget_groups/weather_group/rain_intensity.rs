@@ -1,7 +1,11 @@
+use std::iter;
+
 use chrono::{DateTime, Local, Locale, TimeDelta};
+use iced::alignment::Horizontal;
 use sottomano_config::{severity::Severity, widget_groups::rain_alerts::RainAlertsConfig};
-use sottomano_sources::weather::buienradar_rain::{
-    Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour,
+use sottomano_sources::weather::{
+    buienradar_rain::{Downpour, Rain, RainOutlook, precipitation::millimeter_per_hour},
+    open_meteo_temperature::Intensity,
 };
 use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
@@ -12,7 +16,9 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::{
+            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
+        },
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -37,7 +43,98 @@ fn minutes_until(at: DateTime<Local>, clock: Clock) -> i64 {
     (at - clock.local()).num_minutes().max(0)
 }
 
+const AMS_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 2.5;
+
+#[derive(Debug, Clone, Copy)]
+struct RainIntensityScale {
+    heavy_from: Velocity,
+}
+
+impl RainIntensityScale {
+    fn strength(self, intensity: Velocity) -> Option<Intensity> {
+        if intensity <= Velocity::default() {
+            None
+        } else if intensity
+            < Velocity::new::<millimeter_per_hour>(AMS_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR)
+        {
+            Some(Intensity::Light)
+        } else if intensity < self.heavy_from {
+            Some(Intensity::Moderate)
+        } else {
+            Some(Intensity::Heavy)
+        }
+    }
+
+    fn glyph(self, intensity: Velocity) -> Glyph {
+        match self.strength(intensity) {
+            None | Some(Intensity::Light) => WeatherIcon::Sprinkle.into(),
+            Some(Intensity::Moderate) => WeatherIcon::Rain.into(),
+            Some(Intensity::Heavy) => WeatherIcon::Raindrops.into(),
+        }
+    }
+}
+
+struct OutlookTurn {
+    label: &'static str,
+    at: DateTime<Local>,
+}
+
+fn outlook_turn(outlook: RainOutlook) -> Option<OutlookTurn> {
+    let (label, at) = match outlook {
+        RainOutlook::Dry => return None,
+        RainOutlook::StartsAt(at) => ("Starts", at),
+        RainOutlook::StopsAt(at) => ("Stops", at),
+        RainOutlook::OutlastsForecastUntil(at) => ("Lasts past", at),
+    };
+    Some(OutlookTurn { label, at })
+}
+
 const RADAR_FRAME_LENGTH: TimeDelta = TimeDelta::minutes(5);
+
+fn frames_not_yet_over(forecast: &[Downpour], now: DateTime<Local>) -> &[Downpour] {
+    let elapsed = forecast
+        .iter()
+        .take_while(|frame| frame.at + RADAR_FRAME_LENGTH <= now)
+        .count();
+    &forecast[elapsed..]
+}
+
+const SCHEDULE_HEADINGS: [ColumnHeading; 3] = [
+    ColumnHeading::new("Rain"),
+    ColumnHeading::new(""),
+    ColumnHeading::new("Intensity").align_x(Horizontal::Left),
+];
+
+struct ScheduledRadarFrame<'a> {
+    frame: &'a Downpour,
+    scale: RainIntensityScale,
+}
+
+impl TableRow<3> for ScheduledRadarFrame<'_> {
+    fn table_record(self) -> TableRecord<3> {
+        let intensity = self.frame.intensity;
+        let strength = self.scale.strength(intensity);
+        TableRecord::new(
+            Cell::Time {
+                at: self.frame.at.to_utc(),
+                format: LocalizedTimeFormat::HourAndMinute,
+            },
+            [
+                Some(
+                    strength
+                        .map_or_else(|| "–".to_owned(), |_| intensity_text(intensity))
+                        .into(),
+                ),
+                strength.map(|_| Cell::Glyph(self.scale.glyph(intensity))),
+                Some(
+                    strength
+                        .map_or_else(|| "Dry".to_owned(), |strength| strength.to_string())
+                        .into(),
+                ),
+            ],
+        )
+    }
+}
 
 pub struct RainForecast<'a> {
     pub rain: &'a Rain,
@@ -52,13 +149,15 @@ struct RainSpell<'a> {
 
 impl RainForecast<'_> {
     fn remaining_frames(&self, now: DateTime<Local>) -> &[Downpour] {
-        let elapsed = self
-            .rain
-            .forecast
-            .iter()
-            .take_while(|frame| frame.at + RADAR_FRAME_LENGTH <= now)
-            .count();
-        &self.rain.forecast[elapsed..]
+        frames_not_yet_over(&self.rain.forecast, now)
+    }
+
+    fn intensity_scale(&self) -> RainIntensityScale {
+        RainIntensityScale {
+            heavy_from: Velocity::new::<millimeter_per_hour>(
+                self.alerts.heavy_millimeters_per_hour,
+            ),
+        }
     }
 
     fn spell_above_minimum(&self, now: DateTime<Local>) -> Option<RainSpell<'_>> {
@@ -107,7 +206,11 @@ impl BarWidget for RainForecast<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        self.rain.icon()
+        if self.rain.outlook == RainOutlook::Dry {
+            Phosphor::DropSlash(Weight::Regular).into()
+        } else {
+            self.intensity_scale().glyph(self.rain.peak.intensity)
+        }
     }
 
     fn fallback_icon() -> Glyph {
@@ -136,12 +239,7 @@ impl BarWidget for RainForecast<'_> {
         let now = clock.local();
         let spell = self.spell_above_minimum(now)?;
         let moment = |at: DateTime<Local>| moment_text(at.to_utc(), clock.utc(), locale);
-        let turn = match spell.outlook {
-            RainOutlook::Dry => None,
-            RainOutlook::StartsAt(at) => Some(("Starts", moment(at))),
-            RainOutlook::StopsAt(at) => Some(("Stops", moment(at))),
-            RainOutlook::OutlastsForecastUntil(at) => Some(("Lasts past", moment(at))),
-        };
+        let turn = outlook_turn(spell.outlook).map(|turn| (turn.label, moment(turn.at)));
         let current_intensity = self
             .remaining_frames(now)
             .first()
@@ -154,7 +252,34 @@ impl BarWidget for RainForecast<'_> {
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
-        self.rain.tooltip(clock)
+        let time_of_day = |at: DateTime<Local>| Cell::Time {
+            at: at.to_utc(),
+            format: LocalizedTimeFormat::HourAndMinute,
+        };
+        let rain = self.rain;
+        if let (RainOutlook::Dry, Some(last_frame)) = (rain.outlook, rain.forecast.last()) {
+            return TooltipBody::dictionary([
+                KeyValue::new("Rain", "none expected"),
+                KeyValue::new("Dry until at least", time_of_day(last_frame.at)),
+            ]);
+        }
+        let turn_entry =
+            outlook_turn(rain.outlook).map(|turn| KeyValue::new(turn.label, time_of_day(turn.at)));
+        let scale = self.intensity_scale();
+        TooltipBody::sections([
+            Section::dictionary(
+                iter::once(KeyValue::new("Now", current_intensity_text(rain.intensity)))
+                    .chain(turn_entry),
+            )
+            .titled("Rain"),
+            Section::column_table(
+                SCHEDULE_HEADINGS,
+                self.remaining_frames(clock.local())
+                    .iter()
+                    .map(|frame| ScheduledRadarFrame { frame, scale }),
+            )
+            .titled("Schedule"),
+        ])
     }
 }
 
@@ -164,16 +289,11 @@ impl BarWidget for Rain {
     }
 
     fn icon(&self) -> Glyph {
-        let peak = self.peak.intensity;
-        if self.outlook == RainOutlook::Dry {
-            Phosphor::DropSlash(Weight::Regular).into()
-        } else if peak < Velocity::new::<millimeter_per_hour>(0.5) {
-            WeatherIcon::Raindrop.into()
-        } else if peak < Velocity::new::<millimeter_per_hour>(7.5) {
-            WeatherIcon::Rain.into()
-        } else {
-            WeatherIcon::Thunderstorm.into()
+        RainForecast {
+            rain: self,
+            alerts: &RainAlertsConfig::default(),
         }
+        .icon()
     }
 
     fn fallback_icon() -> Glyph {
@@ -199,22 +319,12 @@ impl BarWidget for Rain {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let time_of_day = |at: DateTime<Local>| Cell::Time {
-            at: at.to_utc(),
-            format: LocalizedTimeFormat::TimeOfDay,
-        };
-        if let (RainOutlook::Dry, Some(last_frame)) = (self.outlook, self.forecast.last()) {
-            return TooltipBody::dictionary([
-                KeyValue::new("Rain", "none expected"),
-                KeyValue::new("Dry until at least", time_of_day(last_frame.at)),
-            ]);
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        RainForecast {
+            rain: self,
+            alerts: &RainAlertsConfig::default(),
         }
-        TooltipBody::dictionary([
-            KeyValue::new("Rain", current_intensity_text(self.intensity)),
-            KeyValue::new("Peak", intensity_text(self.peak.intensity)),
-            KeyValue::new("Peak at", time_of_day(self.peak.at)),
-        ])
+        .tooltip(clock)
     }
 }
 
@@ -230,8 +340,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        hover_tooltips::HoverTarget, widget_groups::weather_group::WeatherTarget,
-        widgets::ongoing_toast::OngoingToast,
+        hover_tooltips::HoverTarget,
+        widget_groups::weather_group::WeatherTarget,
+        widgets::{ongoing_toast::OngoingToast, tooltip_body::RecordCells},
     };
 
     #[test]
@@ -408,6 +519,57 @@ mod tests {
             clock,
         );
         assert_eq!(toast.map(|toast| toast.severity), Some(Severity::Warning));
+    }
+
+    #[test]
+    fn the_schedule_drops_frames_already_over() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[1.0, 2.0, 3.0, 0.0]);
+        let schedule = frames_not_yet_over(
+            &rain.forecast,
+            clock.advanced(Duration::from_mins(7)).local(),
+        );
+        assert_eq!(schedule.len(), 3);
+        assert_eq!(schedule[0], rain.forecast[1]);
+    }
+
+    #[test]
+    fn schedule_rows_read_intensity_or_dry() {
+        let clock = Clock::real();
+        let rain = radar_frames(clock, &[2.0, 0.0]);
+        let scale = RainForecast {
+            rain: &rain,
+            alerts: &RainAlertsConfig::default(),
+        }
+        .intensity_scale();
+        let row = |frame| RecordCells::from(ScheduledRadarFrame { frame, scale }.table_record());
+        let wet = row(&rain.forecast[0]);
+        assert_eq!(wet.cell(0), Some(&Cell::from("2.0 mm/h")));
+        assert_eq!(wet.cell(2), Some(&Cell::from("Light")));
+        let dry = row(&rain.forecast[1]);
+        assert_eq!(dry.cell(1), None);
+        assert_eq!(dry.cell(2), Some(&Cell::from("Dry")));
+    }
+
+    #[test]
+    fn rain_strength_follows_ams_and_the_configured_heavy_threshold() {
+        let alerts = RainAlertsConfig {
+            heavy_millimeters_per_hour: 10.0,
+            ..RainAlertsConfig::default()
+        };
+        let rain = radar_frames(Clock::real(), &[0.0]);
+        let scale = RainForecast {
+            rain: &rain,
+            alerts: &alerts,
+        }
+        .intensity_scale();
+        let strength =
+            |millimeters| scale.strength(Velocity::new::<millimeter_per_hour>(millimeters));
+        assert_eq!(strength(0.0), None);
+        assert_eq!(strength(2.4), Some(Intensity::Light));
+        assert_eq!(strength(2.5), Some(Intensity::Moderate));
+        assert_eq!(strength(9.9), Some(Intensity::Moderate));
+        assert_eq!(strength(10.0), Some(Intensity::Heavy));
     }
 
     #[test]

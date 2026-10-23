@@ -133,11 +133,25 @@ impl WeatherGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: WeatherTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: WeatherTarget,
+        config: &Config,
+        clock: Clock,
+    ) -> Option<Tooltip> {
         match target {
             WeatherTarget::Temperature => self.temp.tooltip(clock),
             WeatherTarget::Wind => self.wind.tooltip(clock),
-            WeatherTarget::Rain => self.rain.tooltip(clock),
+            WeatherTarget::Rain => match self.rain.visible_reading() {
+                Some(rain) => self.rain.tooltip_with(
+                    RainForecast {
+                        rain,
+                        alerts: &config.widget_groups.rain_alerts,
+                    }
+                    .tooltip(clock),
+                ),
+                None => self.rain.tooltip(clock),
+            },
             WeatherTarget::Pollen => self.pollen.tooltip(clock),
             WeatherTarget::Allergen(allergen) => self
                 .pollen

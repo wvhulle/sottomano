@@ -6,6 +6,7 @@ use chrono::{DateTime, Local, Locale, TimeZone};
 pub enum LocalizedTimeFormat {
     TimeOfDay,
     HourOfDay,
+    HourAndMinute,
     Date,
     DateAndTime,
     Weekday,
@@ -35,6 +36,8 @@ impl LocalizedTimeFormat {
             LocalizedTimeFormat::TimeOfDay => "%X",
             LocalizedTimeFormat::HourOfDay if uses_twelve_hour_clock(at, locale) => "%-I %p",
             LocalizedTimeFormat::HourOfDay => "%H",
+            LocalizedTimeFormat::HourAndMinute if uses_twelve_hour_clock(at, locale) => "%-I:%M %p",
+            LocalizedTimeFormat::HourAndMinute => "%H:%M",
             LocalizedTimeFormat::Date => "%x",
             LocalizedTimeFormat::DateAndTime => "%x %X",
             LocalizedTimeFormat::Weekday => "%A",
@@ -65,6 +68,19 @@ mod tests {
         assert_eq!(
             LocalizedTimeFormat::HourOfDay.format_in_own_zone(&afternoon, Locale::nl_BE),
             "14"
+        );
+    }
+
+    #[test]
+    fn hour_and_minute_omits_seconds() {
+        let afternoon = "2026-10-19T14:45:30Z".parse::<DateTime<Utc>>().unwrap();
+        assert_eq!(
+            LocalizedTimeFormat::HourAndMinute.format_in_own_zone(&afternoon, Locale::en_US),
+            "2:45 PM"
+        );
+        assert_eq!(
+            LocalizedTimeFormat::HourAndMinute.format_in_own_zone(&afternoon, Locale::nl_BE),
+            "14:45"
         );
     }
 }
