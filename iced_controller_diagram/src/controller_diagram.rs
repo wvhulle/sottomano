@@ -1,17 +1,19 @@
 use iced_widget::{
     Renderer, canvas, column, container,
-    core::{Alignment, Element, Length, Point, Theme},
-    image, pin, row, space, stack,
+    core::{Alignment, Element, Length, Theme},
+    pin, row, space, stack, svg,
 };
 
 use crate::{
     callout_layout::{CalloutLayout, CalloutSide, DiagramMetrics, callout_layout},
+    controller_model::ControllerModel,
     diagram_anchor::DiagramAnchor,
     diagram_style::{Style, StyleFn, default},
-    face_style::FaceStyle,
     leader_lines::LeaderLines,
-    sdl_gamepad_artwork::{ControllerArtwork, FACE_OFFSET, FACE_SIZE},
+    vscview_controller_artwork::{ControllerArtwork, body_size},
 };
+
+const DEFAULT_BODY_WIDTH: f32 = 280.0;
 
 struct Callout<'a, Message> {
     anchor: DiagramAnchor,
@@ -20,7 +22,7 @@ struct Callout<'a, Message> {
 
 pub struct ControllerDiagram<'a, Message> {
     artwork: ControllerArtwork,
-    face: FaceStyle,
+    model: ControllerModel,
     metrics: DiagramMetrics,
     callouts: Vec<Callout<'a, Message>>,
     style: StyleFn<'a>,
@@ -29,19 +31,19 @@ pub struct ControllerDiagram<'a, Message> {
 #[must_use]
 pub fn controller_diagram<'a, Message: 'a>(
     artwork: ControllerArtwork,
-    face: FaceStyle,
+    model: ControllerModel,
 ) -> ControllerDiagram<'a, Message> {
-    ControllerDiagram::new(artwork, face)
+    ControllerDiagram::new(artwork, model)
 }
 
 impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     #[must_use]
-    pub fn new(artwork: ControllerArtwork, face: FaceStyle) -> Self {
+    pub fn new(artwork: ControllerArtwork, model: ControllerModel) -> Self {
         Self {
             artwork,
-            face,
+            model,
             metrics: DiagramMetrics {
-                scale: 0.5,
+                scale: DEFAULT_BODY_WIDTH / body_size(model).width,
                 row_height: 18.0,
                 row_gap: 2.0,
                 gutter: 28.0,
@@ -53,8 +55,8 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     }
 
     #[must_use]
-    pub fn scale(mut self, scale: f32) -> Self {
-        self.metrics.scale = scale;
+    pub fn body_width(mut self, body_width: f32) -> Self {
+        self.metrics.scale = body_width / body_size(self.model).width;
         self
     }
 
@@ -116,24 +118,13 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
         .into()
     }
 
-    fn artwork(&self, layout: &CalloutLayout) -> Vec<Element<'a, Message, Theme, Renderer>> {
-        let scale = self.metrics.scale;
+    fn artwork(&self, layout: &CalloutLayout) -> Element<'a, Message, Theme, Renderer> {
         let body = layout.body;
-        let body_art = pin(image(self.artwork.body().clone())
+        pin(svg(self.artwork.front_view(self.model).clone())
             .width(body.width)
             .height(body.height))
-        .position(body.position());
-        let face_art = self.artwork.face(self.face).map(|face| {
-            pin(image(face.clone())
-                .width(FACE_SIZE.width * scale)
-                .height(FACE_SIZE.height * scale))
-            .position(Point::new(
-                body.x + FACE_OFFSET.x * scale,
-                body.y + FACE_OFFSET.y * scale,
-            ))
-            .into()
-        });
-        [body_art.into()].into_iter().chain(face_art).collect()
+        .position(body.position())
+        .into()
     }
 }
 
@@ -146,14 +137,20 @@ impl<'a, Message: 'a> From<ControllerDiagram<'a, Message>>
             .iter()
             .map(|callout| callout.anchor)
             .collect();
-        let layout = callout_layout(&anchors, diagram.metrics);
+        let layout = callout_layout(diagram.model, &anchors, diagram.metrics);
         let artwork = diagram.artwork(&layout);
         let metrics = diagram.metrics;
         let (mut left, mut right): (Vec<_>, Vec<_>) = diagram
             .callouts
             .into_iter()
             .zip(&layout.tops)
-            .map(|(callout, &top)| (CalloutSide::of(callout.anchor), top, callout.label))
+            .map(|(callout, &top)| {
+                (
+                    CalloutSide::of(diagram.model, callout.anchor),
+                    top,
+                    callout.label,
+                )
+            })
             .partition(|(side, _, _)| *side == CalloutSide::Left);
         let by_top = |a: &(CalloutSide, f32, _), b: &(CalloutSide, f32, _)| a.1.total_cmp(&b.1);
         left.sort_by(by_top);
@@ -169,7 +166,7 @@ impl<'a, Message: 'a> From<ControllerDiagram<'a, Message>>
         })
         .width(layout.art_size.width)
         .height(layout.art_size.height);
-        let art = stack(artwork.into_iter().chain([lines.into()]))
+        let art = stack([artwork, lines.into()])
             .width(layout.art_size.width)
             .height(layout.art_size.height);
         row![

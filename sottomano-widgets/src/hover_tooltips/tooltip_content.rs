@@ -59,7 +59,7 @@ const SECTION_SEPARATION_PX: f32 = 18.0;
 const DIVIDER_THICKNESS_PX: f32 = 1.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const DIM_ALPHA: f32 = 0.7;
-const CONTROLLER_DIAGRAM_SCALE: f32 = 0.5;
+const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
@@ -470,8 +470,8 @@ impl<'a> TooltipContent<'a> {
             .callouts
             .iter()
             .fold(
-                controller_diagram(self.assets.controller_artwork.clone(), diagram.face)
-                    .scale(CONTROLLER_DIAGRAM_SCALE)
+                controller_diagram(self.assets.controller_artwork.clone(), diagram.model)
+                    .body_width(CONTROLLER_DIAGRAM_WIDTH_PX)
                     .row_height(row_height)
                     .style(move |_| leader_style),
                 |drawn, callout| {

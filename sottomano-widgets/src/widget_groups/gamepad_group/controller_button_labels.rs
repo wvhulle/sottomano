@@ -1,4 +1,4 @@
-use iced_controller_diagram::FaceStyle;
+use iced_controller_diagram::ControllerModel;
 use sottomano_config::widget_groups::gamepad_bindings::GamepadButton;
 
 const SONY_USB_VENDOR: u16 = 0x054c;
@@ -33,11 +33,11 @@ impl ControllerFamily {
     }
 
     #[must_use]
-    pub const fn face_style(self) -> FaceStyle {
+    pub const fn controller_model(self) -> ControllerModel {
         match self {
-            ControllerFamily::PlayStation => FaceStyle::PlayStation,
-            ControllerFamily::Nintendo => FaceStyle::NintendoLetters,
-            ControllerFamily::Xbox => FaceStyle::XboxLetters,
+            ControllerFamily::PlayStation => ControllerModel::DualSense,
+            ControllerFamily::Nintendo => ControllerModel::SwitchPro,
+            ControllerFamily::Xbox => ControllerModel::XboxSeries,
         }
     }
 

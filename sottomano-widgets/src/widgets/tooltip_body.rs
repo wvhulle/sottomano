@@ -8,7 +8,7 @@ use std::{
 
 use chrono::{DateTime, Utc};
 use iced::{Size, alignment::Horizontal};
-use iced_controller_diagram::{DiagramAnchor, FaceStyle};
+use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     DeliveryCadence, ReadingSource,
@@ -215,7 +215,7 @@ pub enum SectionBody {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControllerCallouts {
-    pub face: FaceStyle,
+    pub model: ControllerModel,
     pub callouts: Vec<DiagramCallout>,
 }
 
@@ -378,11 +378,11 @@ impl Section {
     }
 
     pub fn controller_diagram(
-        face: FaceStyle,
+        model: ControllerModel,
         callouts: impl IntoIterator<Item = DiagramCallout>,
     ) -> Self {
         Self::untitled(SectionBody::ControllerDiagram(ControllerCallouts {
-            face,
+            model,
             callouts: callouts.into_iter().collect(),
         }))
     }

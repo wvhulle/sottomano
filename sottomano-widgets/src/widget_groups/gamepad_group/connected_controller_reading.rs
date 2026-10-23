@@ -233,7 +233,7 @@ impl BarWidget for ConnectedControllerReading<'_> {
         TooltipBody::sections([
             self.overview_section(),
             Section::controller_diagram(
-                self.family().face_style(),
+                self.family().controller_model(),
                 self.stick_callouts().chain(self.button_callouts()),
             ),
         ])
