@@ -3,49 +3,47 @@ use iced::{
     widget::{button, column, container, row, text},
 };
 use iced_controller_diagram::{
-    ControllerArtwork, DiagramButton, DiagramStick, FaceStyle, controller_diagram,
+    ControllerArtwork, ControllerModel, DiagramButton, DiagramStick, controller_diagram,
 };
 
-const FACES: [(&str, FaceStyle); 5] = [
-    ("PlayStation", FaceStyle::PlayStation),
-    ("Xbox", FaceStyle::XboxLetters),
-    ("Nintendo", FaceStyle::NintendoLetters),
-    ("Swapped letters", FaceStyle::SwappedLetters),
-    ("Unlabeled", FaceStyle::Unlabeled),
+const MODELS: [(&str, ControllerModel); 3] = [
+    ("DualSense", ControllerModel::DualSense),
+    ("Xbox Series", ControllerModel::XboxSeries),
+    ("Switch Pro", ControllerModel::SwitchPro),
 ];
 
 #[derive(Debug, Clone, Copy)]
 enum GalleryMessage {
-    FaceChosen(FaceStyle),
+    ModelChosen(ControllerModel),
 }
 
 struct DiagramGallery {
     artwork: ControllerArtwork,
-    face: FaceStyle,
+    model: ControllerModel,
 }
 
 impl DiagramGallery {
     fn new() -> Self {
         Self {
             artwork: ControllerArtwork::decoded(),
-            face: FaceStyle::default(),
+            model: ControllerModel::default(),
         }
     }
 
     fn update(&mut self, message: GalleryMessage) {
-        let GalleryMessage::FaceChosen(face) = message;
-        self.face = face;
+        let GalleryMessage::ModelChosen(model) = message;
+        self.model = model;
     }
 
     fn view(&self) -> Element<'_, GalleryMessage> {
-        let face_choices = row(FACES.map(|(name, face)| {
+        let model_choices = row(MODELS.map(|(name, model)| {
             button(text(name))
-                .on_press(GalleryMessage::FaceChosen(face))
+                .on_press(GalleryMessage::ModelChosen(model))
                 .into()
         }))
         .spacing(8);
-        let diagram = controller_diagram(self.artwork.clone(), self.face)
-            .scale(0.6)
+        let diagram = controller_diagram(self.artwork.clone(), self.model)
+            .body_width(420.0)
             .callout(DiagramButton::LeftTrigger, text("dictate"))
             .callout(DiagramButton::RightTrigger, text("click"))
             .callout(DiagramButton::LeftShoulder, text("column ←"))
@@ -59,10 +57,13 @@ impl DiagramGallery {
             .callout(DiagramButton::South, text("Return"))
             .callout(DiagramButton::East, text("Escape"))
             .callout(DiagramButton::North, text("maximize"))
+            .callout(DiagramButton::West, text("close"))
             .callout(DiagramButton::Guide, text("overview"))
             .callout(DiagramButton::Back, text("hand over"))
-            .callout(DiagramButton::Start, text("hand over"));
-        container(column![face_choices, diagram].spacing(24))
+            .callout(DiagramButton::Start, text("hand over"))
+            .callout(DiagramButton::LeftStick, text("left click"))
+            .callout(DiagramButton::RightStick, text("right click"));
+        container(column![model_choices, diagram].spacing(24))
             .padding(24)
             .width(Length::Fill)
             .height(Length::Fill)
