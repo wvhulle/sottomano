@@ -1,4 +1,4 @@
-use notulist_client::DictationPhase;
+use notulist_client::{DictationPhase, DictationShortcutBinding};
 use sottomano_sources::voice_dictation_input::notulist_dbus_dictation::NotulistDictation;
 
 use crate::{
@@ -78,6 +78,69 @@ impl BarWidget for NotulistDictation {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("Dictation", phase_text(self.phase))])
+        let phase_row = KeyValue::new("Dictation", phase_text(self.phase));
+        let shortcut_rows = self.shortcuts.iter().map(|shortcut| {
+            KeyValue::new(
+                shortcut.description.clone(),
+                shortcut_trigger_text(shortcut),
+            )
+        });
+        TooltipBody::dictionary(std::iter::once(phase_row).chain(shortcut_rows))
+    }
+}
+
+fn shortcut_trigger_text(shortcut: &DictationShortcutBinding) -> String {
+    if shortcut.bound_trigger.is_empty() {
+        readable_xdg_trigger(&shortcut.preferred_trigger)
+    } else {
+        shortcut.bound_trigger.clone()
+    }
+}
+
+fn readable_xdg_trigger(trigger: &str) -> String {
+    trigger
+        .split('+')
+        .map(readable_xdg_trigger_part)
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
+fn readable_xdg_trigger_part(part: &str) -> String {
+    match part {
+        "LOGO" => "Super".to_owned(),
+        "SHIFT" => "Shift".to_owned(),
+        "CTRL" => "Ctrl".to_owned(),
+        "ALT" => "Alt".to_owned(),
+        key => key.to_uppercase(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn shortcut(preferred_trigger: &str, bound_trigger: &str) -> DictationShortcutBinding {
+        DictationShortcutBinding {
+            shortcut_id: "dictate-while-held".to_owned(),
+            description: "Dictate while held".to_owned(),
+            preferred_trigger: preferred_trigger.to_owned(),
+            bound_trigger: bound_trigger.to_owned(),
+        }
+    }
+
+    #[test]
+    fn unbound_shortcut_shows_its_preferred_trigger_readably() {
+        assert_eq!(
+            shortcut_trigger_text(&shortcut("LOGO+SHIFT+v", "")),
+            "Super+Shift+V"
+        );
+    }
+
+    #[test]
+    fn bound_shortcut_shows_the_desktop_trigger() {
+        assert_eq!(
+            shortcut_trigger_text(&shortcut("LOGO+v", "Meta+V")),
+            "Meta+V"
+        );
     }
 }

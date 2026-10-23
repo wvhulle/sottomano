@@ -141,9 +141,9 @@ impl ReadingSource for Pollen {
 impl Pollen {
     async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
-        "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
-        here.latitude, here.longitude
-    );
+            "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
+            here.latitude, here.longitude
+        );
         let air: AirQuality = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Pollen::of(&air.current))
     }

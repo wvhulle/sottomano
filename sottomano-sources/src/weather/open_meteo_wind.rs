@@ -72,9 +72,9 @@ impl ReadingSource for Wind {
 impl Wind {
     async fn poll(here: Position) -> Result<Self, Error> {
         let url = format!(
-        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
-        here.latitude, here.longitude
-    );
+            "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
+            here.latitude, here.longitude
+        );
         let forecast: WindForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(forecast.current)
     }
