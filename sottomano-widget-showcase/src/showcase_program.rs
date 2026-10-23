@@ -243,7 +243,7 @@ impl ShowcaseState {
     fn shown_tooltip(&self) -> Option<Tooltip> {
         self.tooltip
             .target()
-            .and_then(|target| self.group.tooltip_for(target, self.clock))
+            .and_then(|target| self.group.tooltip_for(target, &self.config, self.clock))
     }
 
     fn panel_edge(&self) -> PanelEdge {
@@ -301,7 +301,7 @@ impl ShowcaseState {
             },
             |target| {
                 self.group
-                    .tooltip_for(target, self.clock)
+                    .tooltip_for(target, &self.config, self.clock)
                     .unwrap_or_else(Tooltip::empty)
             },
             self.clock,

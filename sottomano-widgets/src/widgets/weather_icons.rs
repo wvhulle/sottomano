@@ -22,8 +22,9 @@ macro_rules! weather_svg {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WeatherIcon {
     Sky(WeatherCondition, Daylight),
+    Sprinkle,
     Rain,
-    Thunderstorm,
+    Raindrops,
     Raindrop,
     Thermometer,
     Sunrise,
@@ -35,8 +36,9 @@ impl WeatherIcon {
     const fn svg_data(self) -> &'static [u8] {
         match self {
             WeatherIcon::Sky(condition, daylight) => sky_svg_data(condition, daylight),
+            WeatherIcon::Sprinkle => weather_svg!("wi-sprinkle"),
             WeatherIcon::Rain => weather_svg!("wi-rain"),
-            WeatherIcon::Thunderstorm => weather_svg!("wi-thunderstorm"),
+            WeatherIcon::Raindrops => weather_svg!("wi-raindrops"),
             WeatherIcon::Raindrop => weather_svg!("wi-raindrop"),
             WeatherIcon::Thermometer => weather_svg!("wi-thermometer"),
             WeatherIcon::Sunrise => weather_svg!("wi-sunrise"),
@@ -102,8 +104,9 @@ mod tests {
                 [Day, Night].map(|daylight| WeatherIcon::Sky(condition, daylight))
             });
         let other_icons = [
+            WeatherIcon::Sprinkle,
             WeatherIcon::Rain,
-            WeatherIcon::Thunderstorm,
+            WeatherIcon::Raindrops,
             WeatherIcon::Raindrop,
             WeatherIcon::Thermometer,
             WeatherIcon::Sunrise,
