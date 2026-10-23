@@ -1,6 +1,7 @@
 pub mod audio;
 pub mod claude_usage;
 pub mod compute;
+pub mod gamepad;
 pub mod idle_lock;
 pub mod media;
 pub mod memory_board;

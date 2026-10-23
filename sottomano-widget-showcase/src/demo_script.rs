@@ -8,6 +8,7 @@ use sottomano_widgets::{
         audio_group::{AudioTarget, ControlKind},
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
+        gamepad_group::GamepadTarget,
         idle_timeouts_group::TimerKind,
         media_group::MediaTarget,
         memory_board_group::MemoryBoardTarget,
@@ -19,7 +20,7 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        audio, claude_usage, compute, idle_lock, media, memory_board, niri_session,
+        audio, claude_usage, compute, gamepad, idle_lock, media, memory_board, niri_session,
         notification_toasts, unchanging, wallpaper, weather,
     },
     showcased_group::ShowcasedGroup,
@@ -114,6 +115,16 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::IdleTimeout(TimerKind::LockUser)),
             Step::Hover(HoverTarget::IdleTimeout(TimerKind::LockUser)),
         ],
+    },
+    Demo {
+        name: "gamepad_controller",
+        group: gamepad::group,
+        live: unchanging,
+        script: &[Step::Hover(HoverTarget::Gamepad(
+            GamepadTarget::Controller {
+                slot: gamepad::DUALSENSE_SLOT,
+            },
+        ))],
     },
     Demo {
         name: "audio_volume",

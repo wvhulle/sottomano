@@ -1,0 +1,21 @@
+[package]
+name = "iced_controller_diagram"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT AND Zlib"
+description = "An iced widget that draws a game controller with labelled callouts for its buttons and sticks"
+repository = "https://github.com/wvhulle/sottomano"
+readme = "README.md"
+keywords = ["iced", "gamepad", "controller", "widget", "gui"]
+categories = ["gui"]
+include = ["src/", "assets/", "examples/", "README.md", "LICENSE", "LICENSE-SDL"]
+
+[lints]
+workspace = true
+
+[dependencies]
+iced_widget = { version = "0.14.0", features = ["canvas", "image"] }
+
+[dev-dependencies]
+iced = { version = "0.14.0", features = ["image"] }

@@ -1,3 +1,4 @@
+use iced_controller_diagram::FaceStyle;
 use sottomano_config::widget_groups::gamepad_bindings::GamepadButton;
 
 const SONY_USB_VENDOR: u16 = 0x054c;
@@ -28,6 +29,15 @@ impl ControllerFamily {
             label.to_owned()
         } else {
             format!("{label} · {position}")
+        }
+    }
+
+    #[must_use]
+    pub const fn face_style(self) -> FaceStyle {
+        match self {
+            ControllerFamily::PlayStation => FaceStyle::PlayStation,
+            ControllerFamily::Nintendo => FaceStyle::NintendoLetters,
+            ControllerFamily::Xbox => FaceStyle::XboxLetters,
         }
     }
 

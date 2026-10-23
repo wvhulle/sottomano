@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+  "iced_controller_diagram",
   "sottomano-config",
   "sottomano-sources",
   "sottomano-state",
@@ -39,6 +40,7 @@ clap ={ version = "4.6.7", features = ["derive"] }
 form_urlencoded = "1.2.2"
 futures = "0.3.34"
 humantime = "2.4.0"
+iced_controller_diagram = { path = "iced_controller_diagram", version = "0.1.0" }
 iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",

@@ -103,6 +103,27 @@ impl CompositorAction {
             CompositorAction::CloseWindow => "close the window",
         }
     }
+
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            CompositorAction::FocusColumnLeft => "column ←",
+            CompositorAction::FocusColumnRight => "column →",
+            CompositorAction::FocusWindowUp => "window ↑",
+            CompositorAction::FocusWindowDown => "window ↓",
+            CompositorAction::FocusWorkspaceUp => "workspace ↑",
+            CompositorAction::FocusWorkspaceDown => "workspace ↓",
+            CompositorAction::FocusWindowPrevious => "previous window",
+            CompositorAction::MoveColumnLeft => "move column ←",
+            CompositorAction::MoveColumnRight => "move column →",
+            CompositorAction::MoveWindowToWorkspaceUp => "move to workspace ↑",
+            CompositorAction::MoveWindowToWorkspaceDown => "move to workspace ↓",
+            CompositorAction::ToggleOverview => "overview",
+            CompositorAction::MaximizeColumn => "maximize",
+            CompositorAction::CenterColumn => "center",
+            CompositorAction::CloseWindow => "close window",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
@@ -120,6 +141,15 @@ impl PointerButton {
             PointerButton::Left => "Left mouse button",
             PointerButton::Right => "Right mouse button",
             PointerButton::Middle => "Middle mouse button",
+        }
+    }
+
+    #[must_use]
+    pub const fn short_label(self) -> &'static str {
+        match self {
+            PointerButton::Left => "click",
+            PointerButton::Right => "right click",
+            PointerButton::Middle => "middle click",
         }
     }
 }
