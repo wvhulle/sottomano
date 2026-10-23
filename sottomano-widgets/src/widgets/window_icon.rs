@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use iced::Element;
+use iced_controller_diagram::ControllerArtwork;
 use sottomano_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::IconCandidate,
 };
@@ -14,6 +15,7 @@ use crate::{
 pub struct WindowAssets<'a> {
     pub entries: &'a DesktopIndex,
     pub favicons: &'a Favicons,
+    pub controller_artwork: &'a ControllerArtwork,
 }
 
 impl WindowAssets<'_> {

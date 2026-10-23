@@ -21,6 +21,7 @@ use iced::{
     widget::{Space, container},
     window::Id,
 };
+use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::{EventStreamState, EventStreamStatePart};
 use sottomano_config::{
     Config, ConfigFile, LoadError, SecretPaths, panel_bar::PanelBarConfig, screen_edges::Position,
@@ -158,6 +159,7 @@ pub struct DesktopShell {
     pub notifications: NotificationLayer,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
+    pub controller_artwork: ControllerArtwork,
     pub pointer_drag: ShellDrag,
     pub spring_load: Option<Handle>,
     pub niri_config: NiriConfigFile,
@@ -228,6 +230,7 @@ impl DesktopShell {
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
+            controller_artwork: ControllerArtwork::decoded(),
             pointer_drag: ShellDrag::Idle,
             spring_load: None,
             niri_config,
@@ -954,6 +957,7 @@ impl DesktopShell {
         WindowAssets {
             entries: &self.desktop_entries,
             favicons: &self.favicons,
+            controller_artwork: &self.controller_artwork,
         }
     }
 

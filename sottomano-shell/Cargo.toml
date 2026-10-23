@@ -19,6 +19,7 @@ sottomano-widgets = { path = "../sottomano-widgets" }
 chrono.workspace = true
 clap.workspace = true
 iced.workspace = true
+iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true
 iced_wayland_subscriber = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 wayland-client = "0.31.15"

@@ -10,7 +10,7 @@ use crate::{
     diagram_style::{Style, StyleFn, default},
     face_style::FaceStyle,
     leader_lines::LeaderLines,
-    sdl_gamepad_artwork::{FACE_OFFSET, FACE_SIZE, body_image, face_image},
+    sdl_gamepad_artwork::{ControllerArtwork, FACE_OFFSET, FACE_SIZE},
 };
 
 struct Callout<'a, Message> {
@@ -19,6 +19,7 @@ struct Callout<'a, Message> {
 }
 
 pub struct ControllerDiagram<'a, Message> {
+    artwork: ControllerArtwork,
     face: FaceStyle,
     metrics: DiagramMetrics,
     callouts: Vec<Callout<'a, Message>>,
@@ -26,14 +27,18 @@ pub struct ControllerDiagram<'a, Message> {
 }
 
 #[must_use]
-pub fn controller_diagram<'a, Message: 'a>(face: FaceStyle) -> ControllerDiagram<'a, Message> {
-    ControllerDiagram::new(face)
+pub fn controller_diagram<'a, Message: 'a>(
+    artwork: ControllerArtwork,
+    face: FaceStyle,
+) -> ControllerDiagram<'a, Message> {
+    ControllerDiagram::new(artwork, face)
 }
 
 impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     #[must_use]
-    pub fn new(face: FaceStyle) -> Self {
+    pub fn new(artwork: ControllerArtwork, face: FaceStyle) -> Self {
         Self {
+            artwork,
             face,
             metrics: DiagramMetrics {
                 scale: 0.5,
@@ -114,10 +119,12 @@ impl<'a, Message: 'a> ControllerDiagram<'a, Message> {
     fn artwork(&self, layout: &CalloutLayout) -> Vec<Element<'a, Message, Theme, Renderer>> {
         let scale = self.metrics.scale;
         let body = layout.body;
-        let body_art = pin(image(body_image()).width(body.width).height(body.height))
-            .position(body.position());
-        let face_art = face_image(self.face).map(|face| {
-            pin(image(face)
+        let body_art = pin(image(self.artwork.body().clone())
+            .width(body.width)
+            .height(body.height))
+        .position(body.position());
+        let face_art = self.artwork.face(self.face).map(|face| {
+            pin(image(face.clone())
                 .width(FACE_SIZE.width * scale)
                 .height(FACE_SIZE.height * scale))
             .position(Point::new(

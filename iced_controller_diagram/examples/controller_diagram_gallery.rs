@@ -2,7 +2,9 @@ use iced::{
     Element, Length,
     widget::{button, column, container, row, text},
 };
-use iced_controller_diagram::{DiagramButton, DiagramStick, FaceStyle, controller_diagram};
+use iced_controller_diagram::{
+    ControllerArtwork, DiagramButton, DiagramStick, FaceStyle, controller_diagram,
+};
 
 const FACES: [(&str, FaceStyle); 5] = [
     ("PlayStation", FaceStyle::PlayStation),
@@ -17,12 +19,19 @@ enum GalleryMessage {
     FaceChosen(FaceStyle),
 }
 
-#[derive(Default)]
 struct DiagramGallery {
+    artwork: ControllerArtwork,
     face: FaceStyle,
 }
 
 impl DiagramGallery {
+    fn new() -> Self {
+        Self {
+            artwork: ControllerArtwork::decoded(),
+            face: FaceStyle::default(),
+        }
+    }
+
     fn update(&mut self, message: GalleryMessage) {
         let GalleryMessage::FaceChosen(face) = message;
         self.face = face;
@@ -35,7 +44,7 @@ impl DiagramGallery {
                 .into()
         }))
         .spacing(8);
-        let diagram = controller_diagram(self.face)
+        let diagram = controller_diagram(self.artwork.clone(), self.face)
             .scale(0.6)
             .callout(DiagramButton::LeftTrigger, text("dictate"))
             .callout(DiagramButton::RightTrigger, text("click"))
@@ -63,7 +72,7 @@ impl DiagramGallery {
 
 fn main() -> iced::Result {
     iced::application(
-        DiagramGallery::default,
+        DiagramGallery::new,
         DiagramGallery::update,
         DiagramGallery::view,
     )

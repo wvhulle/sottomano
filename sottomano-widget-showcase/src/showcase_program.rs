@@ -9,6 +9,7 @@ use iced::{
     widget::{Column, Row, container, stack},
     window,
 };
+use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, screen_edges::Position};
@@ -113,6 +114,7 @@ pub struct ShowcaseState {
     shell_settings: ShellSettings,
     desktop_entries: DesktopIndex,
     favicons: Favicons,
+    controller_artwork: ControllerArtwork,
     theme: Theme,
     group: ShowcasedGroup,
     tooltip: TooltipHost,
@@ -141,6 +143,7 @@ impl ShowcaseState {
             shell_settings,
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
+            controller_artwork: ControllerArtwork::decoded(),
             theme: Theme::from(&PaletteColors::from(&config.theme.palette)),
             group,
             tooltip,
@@ -298,6 +301,7 @@ impl ShowcaseState {
             WindowAssets {
                 entries: &self.desktop_entries,
                 favicons: &self.favicons,
+                controller_artwork: &self.controller_artwork,
             },
             |target| {
                 self.group

@@ -449,7 +449,10 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
             connector.base_span(2.0 * self.outline.width)
         });
         self.draw_outline(renderer, box_bounds, notch_join);
-        renderer.with_layer(box_bounds, |renderer| {
+        let Some(clipped_viewport) = box_bounds.intersection(viewport) else {
+            return;
+        };
+        renderer.with_layer(clipped_viewport, |renderer| {
             self.views(tree, layout).for_each(|rendering| {
                 rendering.widget.as_widget().draw(
                     rendering.state,
@@ -458,7 +461,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
                     style,
                     rendering.layout,
                     cursor,
-                    viewport,
+                    &clipped_viewport,
                 );
             });
         });
