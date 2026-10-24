@@ -11,10 +11,10 @@ use iced::{
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
     widget::{
-        Column, Container, Space, Text, container, row,
+        Column, Container, Space, Text, container, rich_text, row,
         rule::{self, FillMode},
-        table,
-        text::Wrapping,
+        span, table,
+        text::{Span, Wrapping},
     },
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
@@ -592,9 +592,8 @@ impl CellView {
         let row = key.clone();
         match key {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) | Cell::Link { label: text, .. } => {
-                self.copyable_text(text, color, &row)
-            }
+            Cell::Text(text) => self.copyable_text(text, color, &row),
+            Cell::Link { label, url } => self.openable_link(label, url, color, &row),
             Cell::Path(path) => self.path(&path, color, &row),
             Cell::Hint(text) => self.text(text, self.hint, &row),
             Cell::Time { at, format } => {
@@ -647,13 +646,31 @@ impl CellView {
             Cell::Time { at, format } => {
                 self.copyable_text(format.format(&at, self.locale), color, row)
             }
-            Cell::Link { label, url } => self.openable_link(label, url, row),
+            Cell::Link { label, url } => self.openable_link(label, url, color, row),
             Cell::Hint(text) => self.text(text, self.hint, row),
         }
     }
 
-    fn openable_link(&self, label: String, url: String, row: &Cell) -> Element<'static, Message> {
-        let value = self.text(label, self.link, row);
+    fn openable_link(
+        &self,
+        label: String,
+        url: String,
+        color: Color,
+        row: &Cell,
+    ) -> Element<'static, Message> {
+        let underlined_label: Span<'static> = span(label.clone())
+            .font(FontFaces::from(&self.font).regular)
+            .color(color)
+            .underline(true);
+        let underlined = container(
+            rich_text([underlined_label])
+                .size(self.font.text_size_px)
+                .line_height(LINE_HEIGHT)
+                .wrapping(self.wrapping),
+        )
+        .max_width(self.max_width);
+        let value = TransitioningText::new(underlined, label, self.transition, &self.font, color)
+            .identified_by(row);
         pressable_text(
             value,
             url,

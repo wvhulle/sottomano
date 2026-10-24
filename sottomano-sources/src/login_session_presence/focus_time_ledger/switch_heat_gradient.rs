@@ -36,7 +36,11 @@ impl Accounting<'_> {
             (switches.clamp(from, until) - from) as f32 / (until - from) as f32
         };
         if switches < warning {
-            blended_in_oklab(palette.surface, palette.warning, progress_between(1, warning))
+            blended_in_oklab(
+                palette.surface,
+                palette.warning,
+                progress_between(1, warning),
+            )
         } else {
             blended_in_oklab(
                 palette.warning,
