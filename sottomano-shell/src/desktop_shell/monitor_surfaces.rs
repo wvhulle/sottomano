@@ -38,6 +38,7 @@ impl EdgeStripLayer for Position {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SurfaceRole {
     Panel,
+    NotificationToasts,
     Reservation(Position),
 }
 
@@ -54,6 +55,16 @@ fn panel_settings(output: &str) -> NewLayerShellSettings {
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         layer: Layer::Top,
         ..base_settings(Some(output), StyledSurface::Panel.namespace())
+    }
+}
+
+fn notification_toasts_settings(output: &str) -> NewLayerShellSettings {
+    NewLayerShellSettings {
+        size: LayerSize::FILL,
+        exclusive_zone: Some(-1),
+        anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+        layer: Layer::Overlay,
+        ..base_settings(Some(output), StyledSurface::NotificationToasts.namespace())
     }
 }
 
@@ -151,6 +162,13 @@ impl DesktopShell {
             .map(|(&id, surface)| (id, surface.output.as_str()))
     }
 
+    pub fn notification_toast_surfaces(&self) -> impl Iterator<Item = (Id, &str)> {
+        self.surfaces
+            .iter()
+            .filter(|(_, surface)| surface.role == SurfaceRole::NotificationToasts)
+            .map(|(&id, surface)| (id, surface.output.as_str()))
+    }
+
     #[must_use]
     pub fn bar_clearance(&self, output: &str) -> Padding {
         Padding::ZERO
@@ -185,7 +203,7 @@ impl DesktopShell {
                             zone_size: self.reserved_zone(&surface.output, position),
                         }))
                     }
-                    SurfaceRole::Panel => None,
+                    SurfaceRole::Panel | SurfaceRole::NotificationToasts => None,
                 })
                 .collect::<Vec<_>>(),
         )
@@ -225,6 +243,24 @@ impl DesktopShell {
         Task::batch(opens)
     }
 
+    fn open_notification_toasts_surface(&mut self, output: &str) -> Task<Message> {
+        let id = Id::unique();
+        self.surfaces.insert(
+            id,
+            Surface {
+                output: output.to_string(),
+                role: SurfaceRole::NotificationToasts,
+            },
+        );
+        Task::batch([
+            Task::done(Message::NewLayerShell {
+                settings: notification_toasts_settings(output),
+                id,
+            }),
+            Task::done(input_regions(id, Vec::new())),
+        ])
+    }
+
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.layout.panel.height as u32;
         let settings = backdrop_settings(output, position, height);
@@ -259,7 +295,10 @@ impl DesktopShell {
         {
             return Task::none();
         }
-        let mut opens = vec![self.open_panel_and_reservations(output)];
+        let mut opens = vec![
+            self.open_panel_and_reservations(output),
+            self.open_notification_toasts_surface(output),
+        ];
         opens.push(self.tooltip.open_surface(output));
         opens.extend(
             Position::BARS

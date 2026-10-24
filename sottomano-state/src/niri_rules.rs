@@ -34,13 +34,15 @@ pub struct NiriStyling {
 pub enum StyledSurface {
     Panel,
     Tooltip,
+    NotificationToasts,
     Backdrop(Position),
 }
 
 impl StyledSurface {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 5] = [
         Self::Panel,
         Self::Tooltip,
+        Self::NotificationToasts,
         Self::Backdrop(Position::Top),
         Self::Backdrop(Position::Bottom),
     ];
@@ -50,6 +52,7 @@ impl StyledSurface {
         match self {
             Self::Panel => "sottomano-panel",
             Self::Tooltip => "sottomano-tooltip",
+            Self::NotificationToasts => "sottomano-notification-toasts",
             Self::Backdrop(Position::Top) => "sottomano-backdrop-top",
             Self::Backdrop(Position::Bottom) => "sottomano-backdrop-bottom",
             Self::Backdrop(Position::Left) => "sottomano-backdrop-left",
@@ -64,7 +67,7 @@ impl StyledSurface {
                 background_effects: Vec::new(),
                 shadows: vec![BackdropShadow::from(position)],
             },
-            Self::Panel | Self::Tooltip => LayerRule {
+            Self::Panel | Self::Tooltip | Self::NotificationToasts => LayerRule {
                 matches,
                 background_effects: vec![BackgroundEffect {
                     blur: true,

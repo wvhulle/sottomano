@@ -50,9 +50,9 @@ impl NotificationLayer {
         &mut self,
         message: NotificationMessage,
         context: &ToastContext,
-        panel_on: &dyn Fn(&str) -> Option<Id>,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
-        let handled = self.handle(message, context, panel_on);
+        let handled = self.handle(message, context, toast_surface_on);
         Task::batch([handled, self.release_orphaned_keyboard()])
     }
 
@@ -60,7 +60,7 @@ impl NotificationLayer {
         &mut self,
         message: NotificationMessage,
         context: &ToastContext,
-        panel_on: &dyn Fn(&str) -> Option<Id>,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
         match message {
             NotificationMessage::Connected(handle) => {
@@ -72,7 +72,7 @@ impl NotificationLayer {
                 context,
             ),
             NotificationMessage::BodyClicked(id) => {
-                self.activate_action(id, DEFAULT_ACTION, context, panel_on)
+                self.activate_action(id, DEFAULT_ACTION, context, toast_surface_on)
             }
             NotificationMessage::HoverChanged { id, hovered } => {
                 if hovered {
@@ -93,7 +93,7 @@ impl NotificationLayer {
                 )
             }
             NotificationMessage::ActionClicked { id, key } => {
-                self.activate_action(id, &key, context, panel_on)
+                self.activate_action(id, &key, context, toast_surface_on)
             }
             NotificationMessage::DefaultActivated { id, token } => {
                 self.invoke_default(id, token, context)
@@ -109,7 +109,7 @@ impl NotificationLayer {
             ]),
             NotificationMessage::ExpiryDue => self.expire(context),
             NotificationMessage::Reply { id, message } => {
-                self.update_reply(id, message, panel_on, context)
+                self.update_reply(id, message, toast_surface_on, context)
             }
             NotificationMessage::OpenFile(id) => self.open_previewed_file(id, context),
             NotificationMessage::CopyFilePath(id) => self.copy_previewed_file_path(id),
@@ -525,7 +525,7 @@ impl NotificationLayer {
         id: u32,
         key: &str,
         context: &ToastContext,
-        panel_on: &dyn Fn(&str) -> Option<Id>,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
         let placement = &context.placement;
         if let Some(shell_message) = self.shell_message_for(id, key) {
@@ -541,7 +541,7 @@ impl NotificationLayer {
             ]);
         }
         if key == DEFAULT_ACTION && self.declares_default_action(id) {
-            return self.hand_default_action_back_to_sender(id, panel_on);
+            return self.hand_default_action_back_to_sender(id, toast_surface_on);
         }
 
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
@@ -575,13 +575,13 @@ impl NotificationLayer {
     fn hand_default_action_back_to_sender(
         &self,
         id: u32,
-        panel_on: &dyn Fn(&str) -> Option<Id>,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
     ) -> Task<Message> {
         let toast_surface = self
             .showing()
             .find(|n| n.data.id == id)
             .and_then(|n| n.place.output.as_deref())
-            .and_then(panel_on);
+            .and_then(toast_surface_on);
         let Some(toast_surface) = toast_surface else {
             return Task::done(Message::Notification(
                 NotificationMessage::DefaultActivated { id, token: None },

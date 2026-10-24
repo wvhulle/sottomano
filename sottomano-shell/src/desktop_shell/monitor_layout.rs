@@ -31,17 +31,7 @@ impl DesktopShell {
         ))
         .align_left(Length::Fill)
         .center_y(Length::Fill);
-        let notification_toasts = Element::from(self.notifications.anchored_toasts(
-            output,
-            &self.config,
-            &self.theme,
-            &self.shell_settings,
-            self.bar_clearance(output),
-            self.clock,
-        ))
-        .map(Message::Notification);
         stack![
-            notification_toasts,
             column![
                 on_edge(Position::Top, self.top_bar()),
                 workspace_sidebar,
