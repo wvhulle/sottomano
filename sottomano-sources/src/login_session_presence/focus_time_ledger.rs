@@ -5,6 +5,7 @@ mod presence_accounting;
 mod presence_timeline;
 mod recorded_spans;
 mod settled_unit_totals;
+mod switch_heat_gradient;
 #[cfg(test)]
 mod test_steps;
 mod time_intervals;

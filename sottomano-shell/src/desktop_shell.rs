@@ -259,6 +259,7 @@ impl DesktopShell {
             }),
             Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
             Task::perform(shell.niri_rules.read(), Message::NiriRulesLoaded),
+            NiriWindowGroup::load(),
             Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),
@@ -279,7 +280,20 @@ impl DesktopShell {
         self.clock = Clock::real();
         let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
+        let heat_may_change = matches!(
+            message,
+            Message::Niri(_)
+                | Message::SessionFocus(_)
+                | Message::NiriWindow(_)
+                | Message::NiriRulesLoaded(_)
+                | Message::Clock(_)
+        );
         let dispatched = self.dispatch_message(message);
+        let reheated = if heat_may_change {
+            self.reheat_niri_windows()
+        } else {
+            Task::none()
+        };
         let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
             Task::none()
         } else {
@@ -299,10 +313,23 @@ impl DesktopShell {
         );
         Task::batch([
             dispatched,
+            reheated,
             hover_readings,
             widget_toasts,
             self.redraw_content(tooltip_seq),
         ])
+    }
+
+    fn reheat_niri_windows(&mut self) -> Task<Message> {
+        let heated_windows = if self.niri_window_group.shows_switch_heat() {
+            self.session_focus_group
+                .heated_windows(&self.niri, &self.config, self.clock)
+        } else {
+            Vec::new()
+        };
+        self.niri_rules
+            .reheat(heated_windows)
+            .map_or_else(Task::none, |written| Task::future(written).discard())
     }
 
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {

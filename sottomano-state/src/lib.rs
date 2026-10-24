@@ -9,6 +9,7 @@ pub mod niri_rules;
 pub mod power;
 pub mod quiet_hours;
 pub mod shell_settings;
+pub mod switch_heat_borders;
 pub mod working_days;
 
 use core::f32::consts::FRAC_1_SQRT_2;

@@ -6696,6 +6696,7 @@ dependencies = [
  "bytesize",
  "chrono",
  "chrono-tz",
+ "color",
  "evdev",
  "fast-dav-rs",
  "form_urlencoded",
