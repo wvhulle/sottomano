@@ -48,15 +48,15 @@ impl CpuPower {
     }
 }
 
-struct EnergyCounter {
-    zone: PathBuf,
-    name: String,
+pub(super) struct EnergyCounter {
+    pub(super) zone: PathBuf,
+    pub(super) name: String,
     microjoules: i64,
     wraps_at: i64,
 }
 
 impl EnergyCounter {
-    fn read_all() -> Vec<Self> {
+    pub(super) fn read_all() -> Vec<Self> {
         list_dir(POWERCAP)
             .into_iter()
             .filter(|zone| {
@@ -68,7 +68,7 @@ impl EnergyCounter {
             .collect()
     }
 
-    fn read(zone: &Path) -> Option<Self> {
+    pub(super) fn read(zone: &Path) -> Option<Self> {
         Some(EnergyCounter {
             zone: zone.to_path_buf(),
             name: read_trimmed(zone.join("name"))?,
@@ -77,7 +77,7 @@ impl EnergyCounter {
         })
     }
 
-    fn draw_since(&self, earlier: &EnergyCounter, gap: Duration) -> Power {
+    pub(super) fn draw_since(&self, earlier: &EnergyCounter, gap: Duration) -> Power {
         let spent = (self.microjoules - earlier.microjoules).rem_euclid(self.wraps_at + 1);
         Power::new::<watt>(spent as f64 / 1_000_000.0 / gap.as_secs_f64())
     }

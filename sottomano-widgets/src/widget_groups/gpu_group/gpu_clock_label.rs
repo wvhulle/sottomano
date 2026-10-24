@@ -1,0 +1,88 @@
+use chrono::Locale;
+use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{GpuClocks, GpuThrottleReason};
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{f64::Frequency, frequency::megahertz},
+};
+
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        gauge::percent_text,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+    },
+};
+
+fn megahertz_text(frequency: Frequency) -> String {
+    format!("{:.0}", frequency.into_format_args(megahertz, Abbreviation))
+}
+
+pub struct GpuClockLabel {
+    pub current: Frequency,
+}
+
+impl BarWidget for GpuClockLabel {
+    fn name(&self) -> &'static str {
+        "GPU clock"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::WaveSine(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some(megahertz_text(self.current))
+    }
+
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        TooltipBody::dictionary([KeyValue::new(
+            "Graphics clock",
+            megahertz_text(self.current),
+        )])
+    }
+}
+
+impl ReadingSections for GpuClocks {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
+        let throttle_reasons = (!self.throttle_reasons.is_empty()).then(|| {
+            Section::dictionary(
+                self.throttle_reasons
+                    .iter()
+                    .map(|reason| KeyValue::new(throttle_reason_text(*reason), "active")),
+            )
+            .titled("Throttled by")
+        });
+        [Section::dictionary(
+            [
+                self.graphics_clock_ceiling
+                    .map(|ceiling| KeyValue::new("Ceiling", megahertz_text(ceiling))),
+                self.memory_clock
+                    .map(|memory| KeyValue::new("Memory clock", megahertz_text(memory))),
+                self.performance_state
+                    .map(|state| KeyValue::new("Performance state", format!("P{state}"))),
+                self.fan
+                    .map(|speed| KeyValue::new("Fan", percent_text(speed))),
+            ]
+            .into_iter()
+            .flatten(),
+        )]
+        .into_iter()
+        .chain(throttle_reasons)
+        .collect()
+    }
+}
+
+fn throttle_reason_text(reason: GpuThrottleReason) -> &'static str {
+    match reason {
+        GpuThrottleReason::SustainedPowerLimit => "Sustained power limit (PL1)",
+        GpuThrottleReason::BurstPowerLimit => "Burst power limit (PL2)",
+        GpuThrottleReason::PeakPowerLimit => "Peak current limit (PL4)",
+        GpuThrottleReason::ProcessorHot => "Processor hot (PROCHOT)",
+        GpuThrottleReason::RunningAverageThermalLimit => "Running average thermal limit",
+        GpuThrottleReason::Thermal => "Thermal limit",
+        GpuThrottleReason::VoltageRegulatorCurrent => "Voltage regulator current",
+        GpuThrottleReason::VoltageRegulatorThermal => "Voltage regulator thermal alert",
+    }
+}

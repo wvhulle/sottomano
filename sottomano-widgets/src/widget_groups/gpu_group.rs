@@ -1,18 +1,20 @@
+mod gpu_clock_label;
 mod gpu_load_gauge;
+mod gpu_memory_gauge;
 mod gpu_power_label;
 mod gpu_temperature_label;
-mod vram_usage_gauge;
 
 use std::collections::BTreeMap;
 
+use gpu_clock_label::GpuClockLabel;
 use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    cpu_memory_compute::nvml_gpu_readings::{
-        self, GpuClocks, GpuDiscovery, GpuModel, GpuPowerDraw, GpuProcesses, GpuSnapshot,
-        NvmlDevice, PciBusId,
+    cpu_memory_compute::pci_gpu_readings::{
+        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
+        GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
 
@@ -33,6 +35,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GpuReading {
     Load,
+    Clock,
     Memory,
     Temperature,
     Power,
@@ -44,8 +47,8 @@ pub struct GpuTarget {
     reading: GpuReading,
 }
 
-impl From<nvml_gpu_readings::Error> for Section {
-    fn from(error: nvml_gpu_readings::Error) -> Self {
+impl From<pci_gpu_readings::Error> for Section {
+    fn from(error: pci_gpu_readings::Error) -> Self {
         Section::error(error)
     }
 }
@@ -58,14 +61,30 @@ impl From<GpuTarget> for HoverTarget {
 
 struct GpuDevice {
     model: Option<GpuModel>,
-    nvml: Option<NvmlDevice>,
+    handle: Option<GpuHandle>,
     snapshot: ContinuousReading<GpuSnapshot>,
+    runtime_power: Option<GpuRuntimePower>,
+    expansion: GroupExpansion,
 }
 
 impl GpuDevice {
+    fn is_awake(&self) -> bool {
+        self.runtime_power == Some(GpuRuntimePower::Awake)
+    }
+
+    fn clock_label(&self) -> Option<GpuClockLabel> {
+        Some(GpuClockLabel {
+            current: self.snapshot.get()?.graphics_clock?,
+        })
+    }
+
+    fn memory(&self) -> Option<GpuMemory> {
+        Some(self.snapshot.get()?.memory)
+    }
+
     fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
         Some(GpuTemperatureLabel {
-            current: self.snapshot.get()?.temperature,
+            current: self.snapshot.get()?.temperature?,
             limits: self
                 .model
                 .as_ref()
@@ -76,7 +95,7 @@ impl GpuDevice {
 
     fn power_label(&self) -> Option<GpuPowerDraw> {
         Some(GpuPowerDraw {
-            draw: self.snapshot.get()?.power_draw,
+            draw: self.snapshot.get()?.power_draw?,
             limit: self.model.as_ref().and_then(|model| model.power_limit),
         })
     }
@@ -89,34 +108,46 @@ pub struct GpuGroup {
     hovered_bus: Option<PciBusId>,
     clocks: OnHoverReading<GpuClocks>,
     processes: OnHoverReading<GpuProcesses>,
-    expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum GpuMessage {
     Discovered(SourceDelivery<GpuDiscovery>),
+    RuntimePower(PciBusId, SourceDelivery<GpuRuntimePower>),
     Snapshot(PciBusId, SourceDelivery<GpuSnapshot>),
     ClocksFetched(SourceDelivery<GpuClocks>),
     ProcessesFetched(SourceDelivery<GpuProcesses>),
-    Expansion(ExpansionMessage),
+    Expansion(PciBusId, ExpansionMessage),
 }
 
 impl GpuGroup {
     pub fn collapse(&mut self) {
-        self.expansion.collapse();
+        for device in self.devices.values_mut() {
+            device.expansion.collapse();
+        }
     }
 
     pub fn subscription(&self) -> Subscription<GpuMessage> {
-        let snapshots = self.devices.iter().filter_map(|(bus, device)| {
-            Some(
-                source_subscription::<GpuSnapshot>(device.nvml.clone()?)
-                    .with(bus.clone())
-                    .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
-            )
+        let runtime_powers = self.devices.keys().map(|bus| {
+            source_subscription::<GpuRuntimePower>(bus.clone())
+                .with(bus.clone())
+                .map(|(bus, reading)| GpuMessage::RuntimePower(bus, reading))
         });
+        let snapshots = self
+            .devices
+            .iter()
+            .filter(|(_, device)| device.is_awake())
+            .filter_map(|(bus, device)| {
+                Some(
+                    source_subscription::<GpuSnapshot>(device.handle.clone()?)
+                        .with(bus.clone())
+                        .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
+                )
+            });
         Subscription::batch(
             [source_subscription::<GpuDiscovery>(()).map(GpuMessage::Discovered)]
                 .into_iter()
+                .chain(runtime_powers)
                 .chain(snapshots),
         )
     }
@@ -134,19 +165,26 @@ impl GpuGroup {
             return Task::none();
         };
         self.hovered_bus = Some(target.bus.clone());
-        let Some(nvml) = self
+        let Some(handle) = self
             .devices
             .get(&target.bus)
-            .and_then(|device| device.nvml.clone())
+            .and_then(|device| device.handle.clone())
         else {
             return Task::none();
         };
-        Task::batch([
-            self.clocks
-                .start_hover_fetch(nvml.clone(), GpuMessage::ClocksFetched, config, clock),
-            self.processes
-                .start_hover_fetch(nvml, GpuMessage::ProcessesFetched, config, clock),
-        ])
+        match target.reading {
+            GpuReading::Clock => {
+                self.clocks
+                    .start_hover_fetch(handle, GpuMessage::ClocksFetched, config, clock)
+            }
+            GpuReading::Memory => self.processes.start_hover_fetch(
+                handle,
+                GpuMessage::ProcessesFetched,
+                config,
+                clock,
+            ),
+            GpuReading::Load | GpuReading::Temperature | GpuReading::Power => Task::none(),
+        }
     }
 
     fn hovered_sections(
@@ -173,7 +211,7 @@ impl GpuGroup {
                     .iter()
                     .map(|gpu| {
                         let mut snapshot = ContinuousReading::default();
-                        if let Err(failure) = &discovery.nvml {
+                        if let Err(failure) = &gpu.handle {
                             snapshot.receive_delivery(
                                 SourceDelivery::Reading(Err(failure.clone())),
                                 clock,
@@ -181,17 +219,21 @@ impl GpuGroup {
                         }
                         let device = GpuDevice {
                             model: gpu.model.clone(),
-                            nvml: discovery
-                                .nvml
-                                .as_ref()
-                                .ok()
-                                .map(|nvml| NvmlDevice::new(gpu.bus.clone(), nvml)),
+                            handle: gpu.handle.clone().ok(),
                             snapshot,
+                            runtime_power: None,
+                            expansion: GroupExpansion::default(),
                         };
                         (gpu.bus.clone(), device)
                     })
                     .collect();
             }
+            GpuMessage::RuntimePower(bus, SourceDelivery::Reading(Ok(power))) => {
+                if let Some(device) = self.devices.get_mut(&bus) {
+                    device.runtime_power = Some(power);
+                }
+            }
+            GpuMessage::RuntimePower(..) => {}
             GpuMessage::Snapshot(bus, reading) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
                     device.snapshot.receive_delivery(reading, clock);
@@ -201,51 +243,60 @@ impl GpuGroup {
             GpuMessage::ProcessesFetched(fetched) => {
                 self.processes.receive_delivery(fetched, clock);
             }
-            GpuMessage::Expansion(m) => {
-                self.expansion.update(m);
+            GpuMessage::Expansion(bus, m) => {
+                if let Some(device) = self.devices.get_mut(&bus) {
+                    device.expansion.update(m);
+                }
             }
         }
         Task::none()
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, GpuMessage> {
-        GroupContent::new(
-            &self.expansion,
-            GpuMessage::Expansion,
-            self.devices.iter().flat_map(|(bus, device)| {
+    pub fn group_contents(&self) -> impl Iterator<Item = GroupContent<'_, GpuMessage>> {
+        self.devices
+            .iter()
+            .filter(|(_, device)| device.is_awake())
+            .map(|(bus, device)| {
+                let expanded_bus = bus.clone();
                 let target = |reading| GpuTarget {
                     bus: bus.clone(),
                     reading,
                 };
-                let snapshot = device.snapshot.get();
-                [
+                let items = [
                     device.snapshot.group_item(target(GpuReading::Load)),
-                    snapshot.map(|snapshot| {
-                        GroupItem::reading(snapshot.vram, target(GpuReading::Memory))
-                    }),
+                    device
+                        .clock_label()
+                        .map(|label| GroupItem::reading(label, target(GpuReading::Clock))),
+                    device
+                        .memory()
+                        .map(|memory| GroupItem::reading(memory, target(GpuReading::Memory))),
                     device
                         .temperature_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Temperature))),
                     device
                         .power_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
-                ]
-                .into_iter()
-                .flatten()
-            }),
-        )
+                ];
+                GroupContent::new(
+                    &device.expansion,
+                    move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
+                    items.into_iter().flatten(),
+                )
+            })
     }
 
     pub fn refresh(&self, target: &GpuTarget) -> Task<GpuMessage> {
-        let Some(nvml) = self
-            .devices
-            .get(&target.bus)
-            .and_then(|device| device.nvml.clone())
-        else {
+        let Some(device) = self.devices.get(&target.bus) else {
+            return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
+        };
+        if !device.is_awake() {
+            return Task::none();
+        }
+        let Some(handle) = device.handle.clone() else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
         let bus = target.bus.clone();
-        first_delivery::<GpuSnapshot>(nvml)
+        first_delivery::<GpuSnapshot>(handle)
             .map(move |reading| GpuMessage::Snapshot(bus.clone(), reading))
     }
 
@@ -255,18 +306,20 @@ impl GpuGroup {
         let snapshot = &device.snapshot;
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
-                [
-                    self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
-                    self.discovery.sections_described_by(|_| {
-                        device.model.iter().map(Section::from).collect()
-                    }),
-                ]
-                .concat(),
+                self.discovery
+                    .sections_described_by(|_| device.model.iter().map(Section::from).collect()),
                 clock,
+            ),
+            GpuReading::Clock => Some(
+                snapshot
+                    .tooltip_with(device.clock_label()?.tooltip(clock))?
+                    .with_sections(
+                        self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
+                    ),
             ),
             GpuReading::Memory => Some(
                 snapshot
-                    .tooltip_with(TooltipBody::sections(snapshot.get()?.vram.sections(clock)))?
+                    .tooltip_with(TooltipBody::sections(device.memory()?.sections(clock)))?
                     .with_sections(
                         self.hovered_sections(&target.bus, |group| group.processes.sections(clock)),
                     ),

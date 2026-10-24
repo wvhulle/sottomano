@@ -212,7 +212,7 @@ pub struct GroupContent<'a, M> {
 impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     pub fn new(
         expansion: &'a GroupExpansion,
-        on_expansion: fn(ExpansionMessage) -> M,
+        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> Self {
         Self {

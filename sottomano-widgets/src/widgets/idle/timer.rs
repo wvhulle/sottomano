@@ -32,6 +32,7 @@ pub struct IdleTimer {
 }
 
 impl IdleTimer {
+    #[must_use]
     pub fn new(name: &'static str, icon: Phosphor, action: IdleAction) -> Self {
         let target = HoverTarget::IdleTimeout(action);
         Self {
@@ -139,8 +140,8 @@ impl IdleTimer {
                     when,
                     KeyValue::new("Via", self.action.session_action().mechanism()),
                 ]
-                    .into_iter()
-                    .chain(overridden),
+                .into_iter()
+                .chain(overridden),
             ),
             Freshness::Live,
         )
