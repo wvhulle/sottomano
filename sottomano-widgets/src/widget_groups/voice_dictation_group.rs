@@ -8,6 +8,8 @@ use sottomano_sources::{
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     voice_dictation_input::{
         notulist_dbus_dictation::{NotulistDictation, send_logged_dictation_command},
+        notulist_dbus_engine::NotulistEngine,
+        notulist_dbus_pipeline_activity::NotulistPipeline,
         notulist_dbus_shortcuts::NotulistShortcuts,
     },
 };
@@ -17,7 +19,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::voice_dictation_group::notulist_dictation_reading::{
-        INPUT_METHOD_DAEMON, RECOGNIZER_DAEMON, shortcut_sections,
+        INPUT_METHOD_DAEMON, RECOGNIZER_DAEMON, engine_sections, pipeline_sections,
+        shortcut_sections,
     },
     widgets::{
         continuous_reading::ContinuousReading,
@@ -47,6 +50,8 @@ impl From<VoiceDictationTarget> for HoverTarget {
 pub struct VoiceDictationGroup {
     dictation: ContinuousReading<NotulistDictation>,
     shortcuts: ContinuousReading<NotulistShortcuts>,
+    engine: ContinuousReading<NotulistEngine>,
+    pipeline: ContinuousReading<NotulistPipeline>,
     recognizer_daemon: UnitSwitch,
     input_method_daemon: UnitSwitch,
     expansion: GroupExpansion,
@@ -56,6 +61,8 @@ pub struct VoiceDictationGroup {
 pub enum VoiceDictationMessage {
     Dictation(SourceDelivery<NotulistDictation>),
     Shortcuts(SourceDelivery<NotulistShortcuts>),
+    Engine(SourceDelivery<NotulistEngine>),
+    Pipeline(SourceDelivery<NotulistPipeline>),
     ToggleRecording,
     RecognizerDaemon(UnitSwitchMessage),
     InputMethodDaemon(UnitSwitchMessage),
@@ -78,6 +85,8 @@ impl VoiceDictationGroup {
         Self {
             dictation: ContinuousReading::default(),
             shortcuts: ContinuousReading::default(),
+            engine: ContinuousReading::default(),
+            pipeline: ContinuousReading::default(),
             recognizer_daemon: UnitSwitch::new(user_unit(RECOGNIZER_UNIT), RECOGNIZER_DAEMON),
             input_method_daemon: UnitSwitch::new(user_unit(INPUT_METHOD_UNIT), INPUT_METHOD_DAEMON),
             expansion: GroupExpansion::default(),
@@ -90,6 +99,9 @@ impl VoiceDictationGroup {
                 .map(VoiceDictationMessage::Dictation),
             source_subscription::<NotulistShortcuts>(buses.clone())
                 .map(VoiceDictationMessage::Shortcuts),
+            source_subscription::<NotulistEngine>(buses.clone()).map(VoiceDictationMessage::Engine),
+            source_subscription::<NotulistPipeline>(buses.clone())
+                .map(VoiceDictationMessage::Pipeline),
             self.recognizer_daemon
                 .subscription(buses)
                 .map(VoiceDictationMessage::RecognizerDaemon),
@@ -131,6 +143,14 @@ impl VoiceDictationGroup {
                 self.shortcuts.receive_keeping_last_reading(delivery, clock);
                 Task::none()
             }
+            VoiceDictationMessage::Engine(delivery) => {
+                self.engine.receive_keeping_last_reading(delivery, clock);
+                Task::none()
+            }
+            VoiceDictationMessage::Pipeline(delivery) => {
+                self.pipeline.receive_keeping_last_reading(delivery, clock);
+                Task::none()
+            }
             VoiceDictationMessage::ToggleRecording => {
                 Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
             }
@@ -153,10 +173,17 @@ impl VoiceDictationGroup {
     pub fn tooltip_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             VoiceDictationTarget::Dictation => self.dictation.tooltip_with_sections(
-                self.shortcuts.sections_described_by(shortcut_sections),
+                self.pipeline
+                    .sections_described_by(pipeline_sections)
+                    .into_iter()
+                    .chain(self.shortcuts.sections_described_by(shortcut_sections)),
                 clock,
             ),
-            VoiceDictationTarget::RecognizerDaemon => self.recognizer_daemon.tooltip(true, clock),
+            VoiceDictationTarget::RecognizerDaemon => {
+                self.recognizer_daemon.tooltip(true, clock).map(|tooltip| {
+                    tooltip.with_sections(self.engine.sections_described_by(engine_sections))
+                })
+            }
             VoiceDictationTarget::InputMethodDaemon => {
                 self.input_method_daemon.tooltip(true, clock)
             }
@@ -179,7 +206,6 @@ impl VoiceDictationGroup {
                             ),
                             VoiceDictationMessage::ToggleRecording,
                         )
-                        .previewed_on_handle()
                     }),
                 self.recognizer_daemon.group_item(
                     true,
@@ -199,15 +225,12 @@ impl VoiceDictationGroup {
     }
 
     fn handle_face(&self) -> HandleFace<'_> {
-        let glyph = Phosphor::Microphone(Weight::Regular).into();
-        let handle = GroupHandle::VoiceDictation;
         match self.dictation.display() {
-            Some(reading) => HandleFace::IconColoredBy {
-                glyph,
-                reading,
-                handle,
+            Some(_) => HandleFace::FirstItem,
+            None => HandleFace::Icon {
+                glyph: Phosphor::Microphone(Weight::Regular).into(),
+                handle: GroupHandle::VoiceDictation,
             },
-            None => HandleFace::Icon { glyph, handle },
         }
     }
 }
