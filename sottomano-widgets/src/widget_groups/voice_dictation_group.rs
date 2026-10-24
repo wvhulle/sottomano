@@ -206,6 +206,7 @@ impl VoiceDictationGroup {
                             ),
                             VoiceDictationMessage::ToggleRecording,
                         )
+                        .previewed_on_handle()
                     }),
                 self.recognizer_daemon.group_item(
                     true,
@@ -225,12 +226,15 @@ impl VoiceDictationGroup {
     }
 
     fn handle_face(&self) -> HandleFace<'_> {
+        let glyph = Phosphor::UserSound(Weight::Regular).into();
+        let handle = GroupHandle::VoiceDictation;
         match self.dictation.display() {
-            Some(_) => HandleFace::FirstItem,
-            None => HandleFace::Icon {
-                glyph: Phosphor::Microphone(Weight::Regular).into(),
-                handle: GroupHandle::VoiceDictation,
+            Some(reading) => HandleFace::IconColoredBy {
+                glyph,
+                reading,
+                handle,
             },
+            None => HandleFace::Icon { glyph, handle },
         }
     }
 }
