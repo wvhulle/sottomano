@@ -198,7 +198,10 @@ mod tests {
         assert_eq!(shown.state(Clock::real()), WidgetState::Failed);
         assert!(
             control
-                .group_item::<()>(HoverTarget::Compute(ComputeTarget::CachePreference), |_| ())
+                .group_item::<()>(
+                    HoverTarget::Compute(ComputeTarget::X3dCachePreference),
+                    |_| ()
+                )
                 .is_some()
         );
         let hover_card = format!(

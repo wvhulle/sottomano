@@ -47,7 +47,7 @@ pub const DEMOS: &[Demo] = &[
         name: "compute_cpu",
         group: compute::group,
         live: compute::live,
-        script: &[Step::Press(HoverTarget::Compute(ComputeTarget::Cpu))],
+        script: &[Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad))],
     },
     Demo {
         name: "memory_board_memory",
@@ -62,8 +62,8 @@ pub const DEMOS: &[Demo] = &[
         group: compute::group,
         live: compute::live,
         script: &[
-            Step::Press(HoverTarget::Compute(ComputeTarget::Cpu)),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::Temperature)),
+            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
         ],
     },
     Demo {

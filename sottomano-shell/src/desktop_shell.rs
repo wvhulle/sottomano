@@ -370,7 +370,7 @@ impl DesktopShell {
                 .map(Message::MemoryBoard),
             Message::HostHardware(delivery) => Task::batch([
                 self.compute_group
-                    .update(ComputeMessage::Hardware(delivery.clone()), self.clock)
+                    .update(ComputeMessage::HostHardware(delivery.clone()), self.clock)
                     .map(Message::Compute),
                 self.memory_board_group
                     .update(MemoryBoardMessage::Hardware(delivery), self.clock)
