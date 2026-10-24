@@ -9,8 +9,8 @@ use sottomano_widgets::{
 use crate::desktop_shell::DesktopShell;
 
 pub(super) struct BottomBarGroups<'a> {
-    pub start: [GroupContent<'a, Message>; 4],
-    pub end: [GroupContent<'a, Message>; 1],
+    pub start: [GroupContent<'a, Message>; 9],
+    pub end: [GroupContent<'a, Message>; 9],
 }
 
 impl DesktopShell {
@@ -31,29 +31,77 @@ impl DesktopShell {
     }
 
     pub(super) fn bottom_bar_groups(&self) -> BottomBarGroups<'_> {
+        BottomBarGroups {
+            start: self.bottom_bar_start_groups(),
+            end: self.bottom_bar_end_groups(),
+        }
+    }
+
+    fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 9] {
         let config = &self.config;
         let shell_settings = &self.shell_settings;
-        BottomBarGroups {
-            start: [
-                self.panel_settings_group
-                    .group_content(config, &shell_settings.layout, &shell_settings.panels)
-                    .map(Message::PanelSettings),
-                self.sidebar_settings_group
-                    .group_content(config, &shell_settings.layout, &shell_settings.sidebar)
-                    .map(Message::SidebarSettings),
-                self.overlay_settings_group
-                    .group_content(
-                        config,
-                        shell_settings.notifications,
-                        &shell_settings.overlays,
-                    )
-                    .map(Message::OverlaySettings),
-                self.niri_window_group
-                    .group_content(config, self.niri_rules.styling())
-                    .map(Message::NiriWindow),
-            ],
-            end: [self.tray_group.group_content(config).map(Message::Tray)],
-        }
+        [
+            self.panel_settings_group
+                .group_content(config, &shell_settings.layout, &shell_settings.panels)
+                .map(Message::PanelSettings),
+            self.sidebar_settings_group
+                .group_content(config, &shell_settings.layout, &shell_settings.sidebar)
+                .map(Message::SidebarSettings),
+            self.overlay_settings_group
+                .group_content(
+                    config,
+                    shell_settings.notifications,
+                    &shell_settings.overlays,
+                )
+                .map(Message::OverlaySettings),
+            self.niri_window_group
+                .group_content(config, self.niri_rules.styling())
+                .map(Message::NiriWindow),
+            self.monitor_group
+                .group_content(config)
+                .map(Message::Monitor),
+            self.dark_mode_group
+                .group_content(config)
+                .map(Message::DarkMode),
+            self.color_temperature_group
+                .group_content(config)
+                .map(Message::ColorTemperature),
+            self.wallpaper_group.group_content().map(Message::Wallpaper),
+            self.idle_timeouts_group
+                .group_content(config)
+                .map(Message::IdleTimeouts),
+        ]
+    }
+
+    fn bottom_bar_end_groups(&self) -> [GroupContent<'_, Message>; 9] {
+        let config = &self.config;
+        [
+            self.llama_server_group
+                .group_content()
+                .map(Message::LlamaServer),
+            self.claude_usage_group
+                .group_content()
+                .map(Message::ClaudeUsage),
+            self.copilot_usage_group
+                .group_content()
+                .map(Message::CopilotUsage),
+            self.openrouter_credit_group
+                .group_content()
+                .map(Message::OpenRouterCredit),
+            self.systemd_manager_group
+                .group_content(config, self.clock)
+                .map(Message::SystemdManager),
+            self.journal_events_group
+                .group_content(config)
+                .map(Message::JournalEvents),
+            self.pending_upgrades_group
+                .group_content(config)
+                .map(Message::PendingUpgrades),
+            self.login_session_group
+                .group_content()
+                .map(Message::LoginSession),
+            self.tray_group.group_content(config).map(Message::Tray),
+        ]
     }
 
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
