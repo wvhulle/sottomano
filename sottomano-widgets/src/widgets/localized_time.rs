@@ -9,8 +9,10 @@ pub enum LocalizedTimeFormat {
     HourAndMinute,
     Date,
     DateAndTime,
-    DateAndMinute,
+    WeekdayDate,
+    WeekdayDateAndMinute,
     Weekday,
+    AbbreviatedWeekday,
 }
 
 impl LocalizedTimeFormat {
@@ -41,11 +43,13 @@ impl LocalizedTimeFormat {
             LocalizedTimeFormat::HourAndMinute => "%H:%M",
             LocalizedTimeFormat::Date => "%x",
             LocalizedTimeFormat::DateAndTime => "%x %X",
-            LocalizedTimeFormat::DateAndMinute if uses_twelve_hour_clock(at, locale) => {
-                "%x %-I:%M %p"
+            LocalizedTimeFormat::WeekdayDate => "%a %x",
+            LocalizedTimeFormat::WeekdayDateAndMinute if uses_twelve_hour_clock(at, locale) => {
+                "%a %x %-I:%M %p"
             }
-            LocalizedTimeFormat::DateAndMinute => "%x %H:%M",
+            LocalizedTimeFormat::WeekdayDateAndMinute => "%a %x %H:%M",
             LocalizedTimeFormat::Weekday => "%A",
+            LocalizedTimeFormat::AbbreviatedWeekday => "%a",
         }
     }
 }
@@ -86,6 +90,19 @@ mod tests {
         assert_eq!(
             LocalizedTimeFormat::HourAndMinute.format_in_own_zone(&afternoon, Locale::nl_BE),
             "14:45"
+        );
+    }
+
+    #[test]
+    fn weekday_dates_lead_with_the_abbreviated_weekday() {
+        let afternoon = "2026-10-26T13:00:30Z".parse::<DateTime<Utc>>().unwrap();
+        assert_eq!(
+            LocalizedTimeFormat::WeekdayDateAndMinute.format_in_own_zone(&afternoon, Locale::en_US),
+            "Mon 10/26/2026 1:00 PM"
+        );
+        assert_eq!(
+            LocalizedTimeFormat::WeekdayDate.format_in_own_zone(&afternoon, Locale::en_US),
+            "Mon 10/26/2026"
         );
     }
 }
