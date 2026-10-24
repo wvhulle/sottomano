@@ -226,6 +226,7 @@ impl DesktopShell {
                     .tooltip_for(*target, &self.config, self.clock)
             }
             HoverTarget::Wallpaper(target) => self.wallpaper_group.tooltip_for(*target, self.clock),
+            HoverTarget::Caldav(target) => self.caldav_group.tooltip_for(*target, self.clock),
             HoverTarget::Media(target) => {
                 self.media_group
                     .tooltip_for(target, &self.desktop_entries, self.clock)
@@ -343,6 +344,7 @@ impl DesktopShell {
             | HoverTarget::Audio(_)
             | HoverTarget::IdleTimeout(_)
             | HoverTarget::Wallpaper(_)
+            | HoverTarget::Caldav(_)
             | HoverTarget::Media(_)
             | HoverTarget::Gamepad(_)
             | HoverTarget::LlamaServer(_)

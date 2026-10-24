@@ -6,14 +6,16 @@ pub enum SecretFile {
     ClaudeCodeOauth,
     GhAuthToken,
     UnsplashAccessKey,
+    CaldavPassword,
 }
 
 impl SecretFile {
-    pub const ALL: [SecretFile; 4] = [
+    pub const ALL: [SecretFile; 5] = [
         SecretFile::OpenrouterManagement,
         SecretFile::ClaudeCodeOauth,
         SecretFile::GhAuthToken,
         SecretFile::UnsplashAccessKey,
+        SecretFile::CaldavPassword,
     ];
 
     #[must_use]
@@ -23,6 +25,7 @@ impl SecretFile {
             SecretFile::ClaudeCodeOauth => "claude-code-oauth",
             SecretFile::GhAuthToken => "gh-auth-token",
             SecretFile::UnsplashAccessKey => "unsplash-access-key",
+            SecretFile::CaldavPassword => "caldav-password",
         }
     }
 
@@ -44,6 +47,10 @@ impl SecretFile {
                 "Unsplash access key (the app's Client-ID, never the secret key). Fetches \
                  wallpapers."
             }
+            SecretFile::CaldavPassword => {
+                "CalDAV password, plain text; prefer an app password (Nextcloud: Personal settings \
+                 → Security). Shows tasks and upcoming events of widget_groups.caldav."
+            }
         }
     }
 
@@ -64,6 +71,7 @@ pub struct SecretPaths {
     pub claude_code_oauth: Option<PathBuf>,
     pub gh_auth_token: Option<PathBuf>,
     pub unsplash_access_key: Option<PathBuf>,
+    pub caldav_password: Option<PathBuf>,
 }
 
 impl SecretPaths {
@@ -74,6 +82,7 @@ impl SecretPaths {
             claude_code_oauth: SecretFile::ClaudeCodeOauth.present_in(config_home),
             gh_auth_token: SecretFile::GhAuthToken.present_in(config_home),
             unsplash_access_key: SecretFile::UnsplashAccessKey.present_in(config_home),
+            caldav_password: SecretFile::CaldavPassword.present_in(config_home),
         }
     }
 
@@ -84,6 +93,7 @@ impl SecretPaths {
             SecretFile::ClaudeCodeOauth => self.claude_code_oauth.is_some(),
             SecretFile::GhAuthToken => self.gh_auth_token.is_some(),
             SecretFile::UnsplashAccessKey => self.unsplash_access_key.is_some(),
+            SecretFile::CaldavPassword => self.caldav_password.is_some(),
         }
     }
 }

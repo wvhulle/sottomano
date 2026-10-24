@@ -15,7 +15,8 @@ pub use crate::hover_tooltips::{
 };
 use crate::{
     widget_groups::{
-        audio_group::AudioTarget, claude_usage_group::ClaudeUsageTarget, clock_group::ClockTarget,
+        audio_group::AudioTarget, caldav_group::CaldavTarget,
+        claude_usage_group::ClaudeUsageTarget, clock_group::ClockTarget,
         color_temperature_group::ColorTemperatureTarget, compute_group::ComputeTarget,
         copilot_usage_group::CopilotUsageTarget, dark_mode_group::DarkModeTarget,
         disk_group::DiskTarget, gamepad_group::GamepadTarget, gpu_group::GpuTarget,
@@ -59,6 +60,7 @@ pub enum HoverTarget {
     Internet(InternetTarget),
     Weather(WeatherTarget),
     Wallpaper(WallpaperTarget),
+    Caldav(CaldavTarget),
     Media(MediaTarget),
     Gamepad(GamepadTarget),
     QuickLaunch(String),
@@ -82,6 +84,7 @@ pub enum HoverTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupHandle {
     Audio,
+    Caldav,
     ClaudeUsage,
     ColorTemperature,
     CopilotUsage,

@@ -174,6 +174,25 @@ pub trait StreamOperators: Stream + Sized {
         .filter_map(ready)
     }
 
+    fn repeats_as_unchanged<S>(self) -> impl Stream<Item = SourceDelivery<S>> + Send
+    where
+        Self: Stream<Item = SourceDelivery<S>> + Send,
+        S: ReadingSource + PartialEq,
+    {
+        self.scan(
+            None,
+            |previous: &mut Option<SourceDelivery<S>>, delivery| {
+                let repeated = previous.as_ref() == Some(&delivery);
+                *previous = Some(delivery.clone());
+                ready(Some(if repeated {
+                    SourceDelivery::Unchanged
+                } else {
+                    delivery
+                }))
+            },
+        )
+    }
+
     fn switch_map<F, R>(self, switch: F) -> SwitchMap<Self, F, R>
     where
         F: FnMut(Self::Item) -> R,

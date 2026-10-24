@@ -10,7 +10,7 @@ use crate::desktop_shell::DesktopShell;
 pub(super) struct TopBarGroups<'a> {
     pub start: Vec<GroupContent<'a, Message>>,
     pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 16],
+    pub end: [GroupContent<'a, Message>; 17],
 }
 
 impl DesktopShell {
@@ -82,56 +82,64 @@ impl DesktopShell {
                     .group_content(config)
                     .map(Message::QuietSchedule),
             ],
-            end: [
-                self.claude_usage_group
-                    .group_content()
-                    .map(Message::ClaudeUsage),
-                self.copilot_usage_group
-                    .group_content()
-                    .map(Message::CopilotUsage),
-                self.openrouter_credit_group
-                    .group_content()
-                    .map(Message::OpenRouterCredit),
-                self.llama_server_group
-                    .group_content()
-                    .map(Message::LlamaServer),
-                self.monitor_group
-                    .group_content(config)
-                    .map(Message::Monitor),
-                self.dark_mode_group
-                    .group_content(config)
-                    .map(Message::DarkMode),
-                self.color_temperature_group
-                    .group_content(config)
-                    .map(Message::ColorTemperature),
-                self.idle_timeouts_group
-                    .group_content(config)
-                    .map(Message::IdleTimeouts),
-                self.wallpaper_group.group_content().map(Message::Wallpaper),
-                self.media_group
-                    .group_content(config, &self.desktop_entries, self.clock)
-                    .map(Message::Media),
-                self.gamepad_group
-                    .group_content(&config.widget_groups.gamepad)
-                    .map(Message::Gamepad),
-                self.audio_group.group_content(config).map(Message::Audio),
-                self.voice_dictation_group
-                    .group_content()
-                    .map(Message::VoiceDictation),
-                self.session_focus_group
-                    .group_content(
-                        config,
-                        self.quiet_schedule_group.waking_window(),
-                        self.clock,
-                    )
-                    .map(Message::SessionFocus),
-                self.login_session_group
-                    .group_content()
-                    .map(Message::LoginSession),
-                self.session_menu
-                    .group_content(config)
-                    .map(Message::Session),
-            ],
+            end: self.top_bar_end_groups(),
         }
+    }
+
+    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 17] {
+        let config = &self.config;
+        [
+            self.caldav_group
+                .group_content(&config.widget_groups.caldav)
+                .map(Message::Caldav),
+            self.claude_usage_group
+                .group_content()
+                .map(Message::ClaudeUsage),
+            self.copilot_usage_group
+                .group_content()
+                .map(Message::CopilotUsage),
+            self.openrouter_credit_group
+                .group_content()
+                .map(Message::OpenRouterCredit),
+            self.llama_server_group
+                .group_content()
+                .map(Message::LlamaServer),
+            self.monitor_group
+                .group_content(config)
+                .map(Message::Monitor),
+            self.dark_mode_group
+                .group_content(config)
+                .map(Message::DarkMode),
+            self.color_temperature_group
+                .group_content(config)
+                .map(Message::ColorTemperature),
+            self.idle_timeouts_group
+                .group_content(config)
+                .map(Message::IdleTimeouts),
+            self.wallpaper_group.group_content().map(Message::Wallpaper),
+            self.media_group
+                .group_content(config, &self.desktop_entries, self.clock)
+                .map(Message::Media),
+            self.gamepad_group
+                .group_content(&config.widget_groups.gamepad)
+                .map(Message::Gamepad),
+            self.audio_group.group_content(config).map(Message::Audio),
+            self.voice_dictation_group
+                .group_content()
+                .map(Message::VoiceDictation),
+            self.session_focus_group
+                .group_content(
+                    config,
+                    self.quiet_schedule_group.waking_window(),
+                    self.clock,
+                )
+                .map(Message::SessionFocus),
+            self.login_session_group
+                .group_content()
+                .map(Message::LoginSession),
+            self.session_menu
+                .group_content(config)
+                .map(Message::Session),
+        ]
     }
 }
