@@ -16,9 +16,10 @@ use uom::si::{
 
 use super::{
     cpu_power_draw::EnergyCounter,
+    memory_usage::read_meminfo,
     pci_gpu_readings::{
         DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuProcess, GpuProcesses,
-        GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, PciBusId,
+        GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, PciBusId, SharedGpuMemory,
     },
 };
 use crate::{
@@ -33,6 +34,7 @@ const XE_PCI_DRIVER: &str = "/sys/bus/pci/drivers/xe";
 const KERNEL_RELEASE: &str = "/proc/sys/kernel/osrelease";
 const PROC: &str = "/proc";
 const UNCORE_RAPL_ZONE: &str = "uncore";
+const TTM_PAGES_LIMIT: &str = "/sys/module/ttm/parameters/pages_limit";
 const SAMPLE_GAP: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -40,6 +42,7 @@ pub struct IntelDrmCard {
     pub bus: PciBusId,
     device: PathBuf,
     uncore_energy_zone: Option<PathBuf>,
+    swap_out_threshold: Option<ByteSize>,
 }
 
 impl IntelDrmCard {
@@ -77,6 +80,7 @@ fn discovered_xe_gpu(driver_entry: &Path) -> Option<DiscoveredGpu> {
     let card = IntelDrmCard {
         bus: bus.clone(),
         uncore_energy_zone: sits_on_root_bus(&device).then(uncore_energy_zone).flatten(),
+        swap_out_threshold: ttm_swap_out_threshold(),
         device,
     };
     Some(DiscoveredGpu {
@@ -92,6 +96,11 @@ fn sits_on_root_bus(device: &Path) -> bool {
         .and_then(Path::file_name)
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.starts_with("pci"))
+}
+
+fn ttm_swap_out_threshold() -> Option<ByteSize> {
+    let pages = u64::try_from(read_i64(TTM_PAGES_LIMIT)?).ok()?;
+    Some(ByteSize::b(pages * procfs::page_size()))
 }
 
 fn uncore_energy_zone() -> Option<PathBuf> {
@@ -126,12 +135,7 @@ pub(super) async fn read_snapshot(card: IntelDrmCard) -> Result<GpuSnapshot, Err
         Ok(GpuSnapshot {
             load: Ratio::new::<ratio>((1.0 - idle_share).clamp(0.0, 1.0)),
             graphics_clock: megahertz_field(&card.render_frequency().join("act_freq")).ok(),
-            memory: GpuMemory::SharedWithSystem {
-                resident: drm_client_processes(&card.bus)
-                    .iter()
-                    .filter_map(|process| process.resident_memory)
-                    .sum(),
-            },
+            memory: GpuMemory::SharedWithSystem(shared_gpu_memory(&card)),
             temperature: None,
             power_draw: energy_after
                 .zip(energy_before)
@@ -191,27 +195,72 @@ pub(super) async fn read_processes(card: IntelDrmCard) -> Result<GpuProcesses, E
     .await
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct DrmClientMemory {
+    resident: ByteSize,
+    shared: ByteSize,
+    active: ByteSize,
+    purgeable: ByteSize,
+}
+
+impl DrmClientMemory {
+    fn private(self) -> ByteSize {
+        ByteSize::b(self.resident.as_u64().saturating_sub(self.shared.as_u64()))
+    }
+
+    fn combined_with(self, other: Self) -> Self {
+        DrmClientMemory {
+            resident: self.resident + other.resident,
+            shared: self.shared + other.shared,
+            active: self.active + other.active,
+            purgeable: self.purgeable + other.purgeable,
+        }
+    }
+}
+
 struct DrmClient {
     pid: u32,
     client_id: u64,
-    resident: ByteSize,
+    memory: DrmClientMemory,
 }
 
-fn drm_client_processes(bus: &PciBusId) -> Vec<GpuProcess> {
+fn drm_clients(bus: &PciBusId) -> Vec<DrmClient> {
     let mut seen_clients = HashSet::new();
-    let mut resident_by_pid: BTreeMap<u32, ByteSize> = BTreeMap::new();
     list_dir(PROC)
         .iter()
         .filter_map(|process| Some((process, process.file_name()?.to_str()?.parse().ok()?)))
         .flat_map(|(process, pid)| drm_clients_of_process(process, pid, bus))
         .filter(|client| seen_clients.insert(client.client_id))
-        .for_each(|client| *resident_by_pid.entry(client.pid).or_default() += client.resident);
-    let mut processes: Vec<GpuProcess> = resident_by_pid
+        .collect()
+}
+
+fn shared_gpu_memory(card: &IntelDrmCard) -> SharedGpuMemory {
+    let total = drm_clients(&card.bus)
+        .iter()
+        .fold(DrmClientMemory::default(), |total, client| {
+            total.combined_with(client.memory)
+        });
+    SharedGpuMemory {
+        private: total.private(),
+        shared: total.shared,
+        active: total.active,
+        purgeable: total.purgeable,
+        system: read_meminfo().ok(),
+        swap_out_threshold: card.swap_out_threshold,
+    }
+}
+
+fn drm_client_processes(bus: &PciBusId) -> Vec<GpuProcess> {
+    let mut private_by_pid: BTreeMap<u32, ByteSize> = BTreeMap::new();
+    for client in drm_clients(bus) {
+        *private_by_pid.entry(client.pid).or_default() += client.memory.private();
+    }
+    let mut processes: Vec<GpuProcess> = private_by_pid
         .into_iter()
-        .map(|(pid, resident)| GpuProcess {
+        .map(|(pid, private)| GpuProcess {
             pid,
             name: read_trimmed(Path::new(PROC).join(pid.to_string()).join("comm")),
-            resident_memory: Some(resident),
+            resident_memory: Some(private),
         })
         .collect();
     processes.sort_by_key(|process| Reverse(process.resident_memory));
@@ -236,14 +285,22 @@ fn drm_client_from_fdinfo(fdinfo: &str, pid: u32, bus: &PciBusId) -> Option<DrmC
         .map(|(key, value)| (key.trim(), value.trim()))
         .collect();
     (fields.get("drm-pdev") == Some(&bus.0.as_str())).then_some(())?;
+    let summed_over_regions = |prefix: &str| -> ByteSize {
+        fields
+            .iter()
+            .filter(|(key, _)| key.starts_with(prefix))
+            .filter_map(|(_, value)| fdinfo_memory_amount(value))
+            .sum()
+    };
     Some(DrmClient {
         pid,
         client_id: fields.get("drm-client-id")?.parse().ok()?,
-        resident: fields
-            .iter()
-            .filter(|(key, _)| key.starts_with("drm-resident-"))
-            .filter_map(|(_, value)| fdinfo_memory_amount(value))
-            .sum(),
+        memory: DrmClientMemory {
+            resident: summed_over_regions("drm-resident-"),
+            shared: summed_over_regions("drm-shared-"),
+            active: summed_over_regions("drm-active-"),
+            purgeable: summed_over_regions("drm-purgeable-"),
+        },
     })
 }
 
@@ -263,29 +320,50 @@ fn fdinfo_memory_amount(value: &str) -> Option<ByteSize> {
 mod tests {
     use bytesize::ByteSize;
 
-    use super::{PciBusId, drm_client_from_fdinfo, fdinfo_memory_amount};
+    use super::{DrmClientMemory, PciBusId, drm_client_from_fdinfo, fdinfo_memory_amount};
 
-    const XE_FDINFO_LINES: [&str; 11] = [
+    const XE_FDINFO_LINES: [&str; 14] = [
         "pos:\t0",
         "flags:\t02100002",
         "drm-driver:\txe",
         "drm-client-id:\t46",
         "drm-pdev:\t0000:00:02.0",
         "drm-total-system:\t0",
-        "drm-resident-system:\t0",
+        "drm-resident-system:\t4 MiB",
+        "drm-purgeable-system:\t1 MiB",
+        "drm-total-gtt:\t179640 KiB",
         "drm-shared-gtt:\t92 MiB",
+        "drm-active-gtt:\t92 MiB",
         "drm-resident-gtt:\t179640 KiB",
         "drm-resident-stolen:\t0",
         "drm-cycles-rcs:\t8667354162",
     ];
 
     #[test]
-    fn sums_resident_regions_of_matching_device() {
+    fn sums_each_memory_kind_over_regions_of_matching_device() {
         let fdinfo = XE_FDINFO_LINES.join("\n");
         let client =
             drm_client_from_fdinfo(&fdinfo, 7, &PciBusId("0000:00:02.0".to_owned())).unwrap();
         assert_eq!(client.client_id, 46);
-        assert_eq!(client.resident, ByteSize::kib(179_640));
+        assert_eq!(
+            client.memory,
+            DrmClientMemory {
+                resident: ByteSize::kib(179_640 + 4 * 1024),
+                shared: ByteSize::mib(92),
+                active: ByteSize::mib(92),
+                purgeable: ByteSize::mib(1),
+            }
+        );
+    }
+
+    #[test]
+    fn private_memory_excludes_shared_buffers() {
+        let memory = DrmClientMemory {
+            resident: ByteSize::mib(100),
+            shared: ByteSize::mib(30),
+            ..DrmClientMemory::default()
+        };
+        assert_eq!(memory.private(), ByteSize::mib(70));
     }
 
     #[test]
