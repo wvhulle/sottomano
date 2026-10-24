@@ -77,7 +77,7 @@ use sottomano_widgets::{
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
         monitor_group::MonitorGroup,
         net_interfaces_group::NetInterfacesGroup,
-        niri_window_group::NiriWindowGroup,
+        niri_window_group::{NiriWindowGroup, ReheatDue},
         notification_group::NotificationGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
         overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
@@ -280,20 +280,17 @@ impl DesktopShell {
         self.clock = Clock::real();
         let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
-        let heat_may_change = matches!(
-            message,
-            Message::Niri(_)
-                | Message::SessionFocus(_)
-                | Message::NiriWindow(_)
-                | Message::NiriRulesLoaded(_)
-                | Message::Clock(_)
-        );
+        let reheat_due = ReheatDue::after(&message);
         let dispatched = self.dispatch_message(message);
-        let reheated = if heat_may_change {
-            self.reheat_niri_windows()
-        } else {
-            Task::none()
-        };
+        let reheated = self.niri_window_group.reheat(
+            reheat_due,
+            &mut self.niri_rules,
+            &self.config,
+            || {
+                self.session_focus_group
+                    .heated_windows(&self.niri, &self.config, self.clock)
+            },
+        );
         let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
             Task::none()
         } else {
@@ -318,18 +315,6 @@ impl DesktopShell {
             widget_toasts,
             self.redraw_content(tooltip_seq),
         ])
-    }
-
-    fn reheat_niri_windows(&mut self) -> Task<Message> {
-        let heated_windows = if self.niri_window_group.shows_switch_heat() {
-            self.session_focus_group
-                .heated_windows(&self.niri, &self.config, self.clock)
-        } else {
-            Vec::new()
-        };
-        self.niri_rules
-            .reheat(heated_windows)
-            .map_or_else(Task::none, |written| Task::future(written).discard())
     }
 
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {

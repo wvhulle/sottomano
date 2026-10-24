@@ -196,13 +196,13 @@ impl SessionFocusGroup {
         windows
             .into_iter()
             .filter_map(|window| {
-                let title = window.title.clone().filter(|title| !title.is_empty())?;
+                let title = window.title.as_deref()?;
                 let color = accounting.switch_heat_color(window.id, &config.theme.palette, now)?;
-                Some(HeatedWindow {
-                    app_id: window.app_id.clone(),
+                HeatedWindow::titled(
+                    window.app_id.clone(),
                     title,
-                    active_color: format!("{:x}", color.to_rgba8()),
-                })
+                    format!("{:x}", color.to_rgba8()),
+                )
             })
             .collect()
     }

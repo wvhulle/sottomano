@@ -1,14 +1,15 @@
+mod switch_heat_borders;
+
 use iced::Task;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_state::{
-    niri_rules::{NiriLayout, NiriRulesFile, NiriStyling},
-    switch_heat_borders,
-};
+use sottomano_state::niri_rules::{HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling};
 
+pub use self::switch_heat_borders::ReheatDue;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
+    widget_groups::niri_window_group::switch_heat_borders::SwitchHeatBorders,
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
@@ -27,18 +28,6 @@ fn xray_toggle(styling: NiriStyling) -> IconToggle {
         SwitchPresses {
             turning_on: "blur only the wallpaper, hiding windows behind the shell",
             turning_off: "blur the windows behind the shell too",
-        },
-    )
-}
-
-fn switch_heat_toggle(shown: bool) -> IconToggle {
-    IconToggle::new(
-        "Switch heat",
-        Phosphor::Fire(Weight::Regular),
-        shown,
-        SwitchPresses {
-            turning_on: "tint the focused window's border warmer the more often you return to it",
-            turning_off: "keep niri's own border color on every window",
         },
     )
 }
@@ -71,7 +60,7 @@ pub struct NiriWindowGroup {
     expansion: GroupExpansion,
     corner_radius: SliderControl,
     gaps: SliderControl,
-    switch_heat_shown: bool,
+    switch_heat: SwitchHeatBorders,
 }
 
 impl Default for NiriWindowGroup {
@@ -94,21 +83,25 @@ impl Default for NiriWindowGroup {
             )
             .icon_only()
             .readout(|value| format!("{} px", value.round())),
-            switch_heat_shown: false,
+            switch_heat: SwitchHeatBorders::default(),
         }
     }
 }
 
 impl NiriWindowGroup {
     pub fn load() -> Task<Message> {
-        Task::perform(switch_heat_borders::load_shown(), |shown| {
-            Message::NiriWindow(NiriWindowMessage::SwitchHeatLoaded(shown))
-        })
+        SwitchHeatBorders::load()
     }
 
-    #[must_use]
-    pub fn shows_switch_heat(&self) -> bool {
-        self.switch_heat_shown
+    pub fn reheat(
+        &self,
+        due: ReheatDue,
+        rules: &mut NiriRulesFile,
+        config: &Config,
+        heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
+    ) -> Task<Message> {
+        self.switch_heat
+            .reheat(due, rules, &config.theme.palette, heated_windows)
     }
 
     pub fn adopt(&mut self, windows: NiriLayout) {
@@ -130,9 +123,7 @@ impl NiriWindowGroup {
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
             NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(clock),
-            NiriWindowTarget::SwitchHeat => {
-                switch_heat_toggle(self.switch_heat_shown).switch_tooltip(clock)
-            }
+            NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_tooltip(clock),
         };
         control.with_sections(rules.unreadable().map(|unreadable| {
             Section::dictionary([KeyValue::new(
@@ -193,12 +184,9 @@ impl NiriWindowGroup {
             NiriWindowMessage::ToggleXray => {
                 Task::future(rules.restyle(move |styling| styling.xray = !styling.xray)).discard()
             }
-            NiriWindowMessage::ToggleSwitchHeat => {
-                self.switch_heat_shown = !self.switch_heat_shown;
-                Task::future(switch_heat_borders::save_shown(self.switch_heat_shown)).discard()
-            }
+            NiriWindowMessage::ToggleSwitchHeat => self.switch_heat.flip(),
             NiriWindowMessage::SwitchHeatLoaded(shown) => {
-                self.switch_heat_shown = shown;
+                self.switch_heat.adopt_loaded(shown);
                 Task::none()
             }
         }
@@ -221,7 +209,7 @@ impl NiriWindowGroup {
                     NiriWindowMessage::ToggleXray,
                 ),
                 GroupItem::toggle(
-                    switch_heat_toggle(self.switch_heat_shown),
+                    self.switch_heat.toggle(),
                     NiriWindowTarget::SwitchHeat,
                     NiriWindowMessage::ToggleSwitchHeat,
                 ),

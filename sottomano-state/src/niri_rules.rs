@@ -173,7 +173,7 @@ struct BackgroundEffect {
 #[kdl(name = "shadow")]
 struct BackdropShadow {
     #[kdl(child)]
-    on: ShadowOn,
+    on: SwitchedOn,
     #[kdl(child, unwrap_arg)]
     softness: i64,
     #[kdl(child, unwrap_arg)]
@@ -192,7 +192,7 @@ impl From<Position> for BackdropShadow {
             Position::Left => 0,
         };
         Self {
-            on: ShadowOn {},
+            on: SwitchedOn {},
             softness: 27,
             spread: 25,
             color: "#00000060".to_owned(),
@@ -203,7 +203,7 @@ impl From<Position> for BackdropShadow {
 
 #[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
 #[kdl(name = "on")]
-struct ShadowOn {}
+struct SwitchedOn {}
 
 #[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
 #[kdl(name = "offset")]
@@ -231,7 +231,18 @@ struct WindowRule {
     #[kdl(child(name = "clip-to-geometry"), unwrap_arg)]
     clip_to_geometry: Option<bool>,
     #[kdl(child)]
-    border: Option<HeatedBorder>,
+    focus_ring: Option<FocusRing>,
+    #[kdl(child)]
+    border: Option<UniformBorder>,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "focus-ring")]
+struct FocusRing {
+    #[kdl(child)]
+    on: SwitchedOn,
+    #[kdl(child(name = "active-color"), unwrap_arg)]
+    active_color: String,
 }
 
 #[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
@@ -245,53 +256,123 @@ struct WindowMatch {
 
 #[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
 #[kdl(name = "border")]
-struct HeatedBorder {
+struct UniformBorder {
     #[kdl(child(name = "active-color"), unwrap_arg)]
     active_color: String,
+    #[kdl(child(name = "inactive-color"), unwrap_arg)]
+    inactive_color: String,
+}
+
+impl UniformBorder {
+    fn colored(color: &str) -> Self {
+        Self {
+            active_color: color.to_owned(),
+            inactive_color: color.to_owned(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeatedWindow {
-    pub app_id: Option<String>,
-    pub title: String,
-    pub active_color: String,
+    app_id: Option<String>,
+    title_without_status_prefix: String,
+    border_color: String,
+}
+
+impl HeatedWindow {
+    #[must_use]
+    pub fn titled(app_id: Option<String>, title: &str, border_color: String) -> Option<Self> {
+        let title_without_status_prefix = title.trim_start_matches(|c: char| !c.is_alphanumeric());
+        (!title_without_status_prefix.is_empty()).then(|| Self {
+            app_id,
+            title_without_status_prefix: title_without_status_prefix.to_owned(),
+            border_color,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum SwitchHeat {
+    #[default]
+    Hidden,
+    Shown {
+        focus_ring_color: String,
+        neutral_border_color: String,
+        windows: Vec<HeatedWindow>,
+    },
+}
+
+impl SwitchHeat {
+    fn focus_ring(&self) -> Option<FocusRing> {
+        match self {
+            Self::Hidden => None,
+            Self::Shown {
+                focus_ring_color, ..
+            } => Some(FocusRing {
+                on: SwitchedOn {},
+                active_color: focus_ring_color.clone(),
+            }),
+        }
+    }
+
+    fn neutral_border(&self) -> Option<UniformBorder> {
+        match self {
+            Self::Hidden => None,
+            Self::Shown {
+                neutral_border_color,
+                ..
+            } => Some(UniformBorder::colored(neutral_border_color)),
+        }
+    }
+
+    fn heated_windows(&self) -> &[HeatedWindow] {
+        match self {
+            Self::Hidden => &[],
+            Self::Shown { windows, .. } => windows,
+        }
+    }
 }
 
 impl From<&HeatedWindow> for WindowRule {
     fn from(heated: &HeatedWindow) -> Self {
         Self {
             matches: Some(WindowMatch {
-                app_id: heated.app_id.as_deref().map(exact_regex),
-                title: exact_regex(&heated.title),
+                app_id: heated
+                    .app_id
+                    .as_deref()
+                    .map(|app_id| format!("^{}$", escaped_for_regex(app_id))),
+                title: format!(
+                    "^\\W*{}$",
+                    escaped_for_regex(&heated.title_without_status_prefix)
+                ),
             }),
             geometry_corner_radius: None,
             clip_to_geometry: None,
-            border: Some(HeatedBorder {
-                active_color: heated.active_color.clone(),
-            }),
+            focus_ring: None,
+            border: Some(UniformBorder::colored(&heated.border_color)),
         }
     }
 }
 
-fn exact_regex(literal: &str) -> String {
-    let escaped: String = literal
+fn escaped_for_regex(literal: &str) -> String {
+    literal
         .chars()
         .filter(|c| !c.is_control())
         .flat_map(|c| {
             let metacharacter = "\\.+*?()|[]{}^$#&-~".contains(c);
             metacharacter.then_some('\\').into_iter().chain([c])
         })
-        .collect();
-    format!("^{escaped}$")
+        .collect()
 }
 
 impl SottomanoRules {
-    fn styled(styling: NiriStyling, heated_windows: &[HeatedWindow]) -> Self {
-        let geometry_rule = WindowRule {
+    fn styled(styling: NiriStyling, switch_heat: &SwitchHeat) -> Self {
+        let every_window_rule = WindowRule {
             matches: None,
             geometry_corner_radius: Some(styling.layout.window_corner_radius_px),
             clip_to_geometry: Some(true),
-            border: None,
+            focus_ring: switch_heat.focus_ring(),
+            border: switch_heat.neutral_border(),
         };
         Self {
             layer_rules: StyledSurface::ALL
@@ -301,9 +382,9 @@ impl SottomanoRules {
             layout: LayoutSection {
                 gaps: styling.layout.gaps_px,
             },
-            window_rules: [geometry_rule]
+            window_rules: [every_window_rule]
                 .into_iter()
-                .chain(heated_windows.iter().map(WindowRule::from))
+                .chain(switch_heat.heated_windows().iter().map(WindowRule::from))
                 .collect(),
         }
     }
@@ -359,7 +440,7 @@ pub struct NiriRulesFile {
     path: PathBuf,
     written: Written,
     styling: NiriStyling,
-    heated_windows: Vec<HeatedWindow>,
+    switch_heat: SwitchHeat,
 }
 
 impl NiriRulesFile {
@@ -369,18 +450,18 @@ impl NiriRulesFile {
             path: config_home.join("sottomano").join("niri.kdl"),
             written: Written::Unread,
             styling: NiriStyling::default(),
-            heated_windows: Vec::new(),
+            switch_heat: SwitchHeat::default(),
         }
     }
 
     pub fn reheat(
         &mut self,
-        heated_windows: Vec<HeatedWindow>,
+        switch_heat: SwitchHeat,
     ) -> Option<impl Future<Output = bool> + Send + use<>> {
-        if heated_windows == self.heated_windows {
+        if switch_heat == self.switch_heat {
             return None;
         }
-        self.heated_windows = heated_windows;
+        self.switch_heat = switch_heat;
         Some(self.write().persisted())
     }
 
@@ -441,7 +522,7 @@ impl NiriRulesFile {
         if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
             return RulesWrite::Withheld;
         }
-        let rules = match SottomanoRules::styled(self.styling, &self.heated_windows).to_kdl_v1() {
+        let rules = match SottomanoRules::styled(self.styling, &self.switch_heat).to_kdl_v1() {
             Ok(rules) => rules,
             Err(e) => {
                 tracing::warn!("niri rules: rendering failed: {e}");
@@ -495,15 +576,21 @@ mod tests {
 
     use super::{
         BackgroundEffect, HeatedWindow, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling,
-        SottomanoRules, StoredRules, StyledSurface,
+        SottomanoRules, StoredRules, StyledSurface, SwitchHeat,
     };
 
-    fn heated_terminal() -> HeatedWindow {
-        HeatedWindow {
-            app_id: Some("kitty".to_owned()),
-            title: "nvim (main) \"notes\".md".to_owned(),
-            active_color: "#ffb454ff".to_owned(),
+    fn heated_terminal_titled(title: &str) -> SwitchHeat {
+        SwitchHeat::Shown {
+            focus_ring_color: "#95e6cb".to_owned(),
+            neutral_border_color: "#0b0e14".to_owned(),
+            windows: HeatedWindow::titled(Some("kitty".to_owned()), title, "#ffb454".to_owned())
+                .into_iter()
+                .collect(),
         }
+    }
+
+    fn heated_terminal() -> SwitchHeat {
+        heated_terminal_titled("nvim (main) \"notes\".md")
     }
 
     fn styled() -> NiriStyling {
@@ -519,7 +606,9 @@ mod tests {
     #[test]
     fn a_rendered_look_reads_back_unchanged() {
         let written = styled();
-        let text = SottomanoRules::styled(written, &[]).to_kdl_v1().unwrap();
+        let text = SottomanoRules::styled(written, &SwitchHeat::Hidden)
+            .to_kdl_v1()
+            .unwrap();
         let read = NiriStyling::from(text.parse::<SottomanoRules>().unwrap());
         assert_eq!(read, written);
     }
@@ -527,7 +616,7 @@ mod tests {
     #[test]
     fn heated_windows_leave_the_look_unchanged_on_reading_back() {
         let written = styled();
-        let text = SottomanoRules::styled(written, &[heated_terminal()])
+        let text = SottomanoRules::styled(written, &heated_terminal())
             .to_kdl_v1()
             .unwrap();
         let read = NiriStyling::from(text.parse::<SottomanoRules>().unwrap());
@@ -536,17 +625,44 @@ mod tests {
 
     #[test]
     fn a_heated_window_is_matched_by_its_escaped_title() {
-        let rules = SottomanoRules::styled(styled(), &[heated_terminal()]);
+        let rules = SottomanoRules::styled(styled(), &heated_terminal());
         let heated_match = rules.window_rules[1].matches.as_ref().unwrap();
         assert_eq!(heated_match.app_id.as_deref(), Some("^kitty$"));
-        assert_eq!(heated_match.title, "^nvim \\(main\\) \"notes\"\\.md$");
+        assert_eq!(heated_match.title, "^\\W*nvim \\(main\\) \"notes\"\\.md$");
+    }
+
+    #[test]
+    fn a_spinning_status_prefix_keeps_the_same_rule() {
+        assert_eq!(
+            heated_terminal_titled("✳ enable-flash-attention"),
+            heated_terminal_titled("◐ enable-flash-attention")
+        );
+    }
+
+    #[test]
+    fn every_window_gets_the_neutral_border_while_heat_is_shown() {
+        let shown = SottomanoRules::styled(styled(), &heated_terminal());
+        let neutral = shown.window_rules[0].border.as_ref().unwrap();
+        assert_eq!(neutral.active_color, "#0b0e14");
+        assert_eq!(neutral.inactive_color, "#0b0e14");
+        let hidden = SottomanoRules::styled(styled(), &SwitchHeat::Hidden);
+        assert!(hidden.window_rules[0].border.is_none());
+    }
+
+    #[test]
+    fn the_focus_ring_marks_focus_only_while_heat_is_shown() {
+        let shown = SottomanoRules::styled(styled(), &heated_terminal());
+        let hidden = SottomanoRules::styled(styled(), &SwitchHeat::Hidden);
+        assert!(shown.window_rules[0].focus_ring.is_some());
+        assert!(hidden.window_rules[0].focus_ring.is_none());
+        assert_eq!(hidden.window_rules.len(), 1);
     }
 
     #[test]
     fn an_unchanged_heat_is_not_rewritten() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        assert!(rules.reheat(vec![heated_terminal()]).is_some());
-        assert!(rules.reheat(vec![heated_terminal()]).is_none());
+        assert!(rules.reheat(heated_terminal()).is_some());
+        assert!(rules.reheat(heated_terminal()).is_none());
     }
 
     #[test]
@@ -559,7 +675,7 @@ mod tests {
     #[test]
     fn the_panel_leaves_shadows_and_corners_to_sottomano() {
         let panel = NamespaceMatch::from(StyledSurface::Panel);
-        let rules = SottomanoRules::styled(styled(), &[]);
+        let rules = SottomanoRules::styled(styled(), &SwitchHeat::Hidden);
         let panel_rule = rules
             .layer_rules
             .iter()

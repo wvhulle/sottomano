@@ -36,7 +36,7 @@ impl Accounting<'_> {
             (switches.clamp(from, until) - from) as f32 / (until - from) as f32
         };
         if switches < warning {
-            blended_in_oklab(palette.focus, palette.warning, progress_between(1, warning))
+            blended_in_oklab(palette.surface, palette.warning, progress_between(1, warning))
         } else {
             blended_in_oklab(
                 palette.warning,
@@ -61,6 +61,7 @@ fn blended_in_oklab(
 mod tests {
     use std::time::Duration;
 
+    use color::{AlphaColor, Oklab, Srgb};
     use sottomano_config::{theme::palette::Palette, widget_groups::focus_time::FocusTimeConfig};
 
     use super::super::{
@@ -81,6 +82,20 @@ mod tests {
             .ledger
     }
 
+    fn two_hour_span_config() -> FocusTimeConfig {
+        FocusTimeConfig {
+            switch_heat_span: Duration::from_hours(2),
+            ..config()
+        }
+    }
+
+    fn heat_after_returning(times: u32, config: &FocusTimeConfig) -> AlphaColor<Srgb> {
+        returned_to_kitty(i64::from(times))
+            .accounted(config)
+            .switch_heat_color(1, &Palette::default(), at(i64::from(times) * 2))
+            .unwrap()
+    }
+
     #[test]
     fn a_window_focused_once_keeps_the_compositor_border() {
         let config = config();
@@ -95,43 +110,37 @@ mod tests {
 
     #[test]
     fn the_warning_count_shows_the_warning_color() {
-        let config = config();
-        let palette = Palette::default();
-        let ledger = returned_to_kitty(i64::from(config.switch_heat_warning));
-        let color = ledger
-            .accounted(&config)
-            .switch_heat_color(1, &palette, at(16))
-            .unwrap();
-        assert_eq!(color.to_rgba8(), palette.warning.to_rgba8());
+        let config = two_hour_span_config();
+        let color = heat_after_returning(config.switch_heat_warning, &config);
+        assert_eq!(color.to_rgba8(), Palette::default().warning.to_rgba8());
     }
 
     #[test]
     fn counts_past_critical_stay_at_the_urgent_color() {
-        let config = FocusTimeConfig {
-            switch_heat_span: Duration::from_hours(2),
-            ..config()
-        };
-        let palette = Palette::default();
-        let ledger = returned_to_kitty(i64::from(config.switch_heat_critical) + 3);
-        let color = ledger
-            .accounted(&config)
-            .switch_heat_color(1, &palette, at(46))
-            .unwrap();
-        assert_eq!(color.to_rgba8(), palette.urgent.to_rgba8());
+        let config = two_hour_span_config();
+        let color = heat_after_returning(config.switch_heat_critical + 3, &config);
+        assert_eq!(color.to_rgba8(), Palette::default().urgent.to_rgba8());
     }
 
     #[test]
     fn counts_between_thresholds_blend_both_colors() {
-        let config = config();
+        let config = two_hour_span_config();
         let palette = Palette::default();
-        let ledger = returned_to_kitty(14);
-        let color = ledger
-            .accounted(&config)
-            .switch_heat_color(1, &palette, at(28))
-            .unwrap()
-            .to_rgba8();
+        let midway = u32::midpoint(config.switch_heat_warning, config.switch_heat_critical);
+        let color = heat_after_returning(midway, &config).to_rgba8();
         assert_ne!(color, palette.warning.to_rgba8());
         assert_ne!(color, palette.urgent.to_rgba8());
+    }
+
+    #[test]
+    fn a_typically_visited_window_stays_closer_to_neutral_than_to_warning() {
+        let config = two_hour_span_config();
+        let palette = Palette::default();
+        let lightness = |color: AlphaColor<Srgb>| color.convert::<Oklab>().components[0];
+        let typical = lightness(heat_after_returning(6, &config));
+        let neutral = lightness(palette.surface);
+        let warning = lightness(palette.warning);
+        assert!(typical - neutral < warning - typical);
     }
 
     #[test]
