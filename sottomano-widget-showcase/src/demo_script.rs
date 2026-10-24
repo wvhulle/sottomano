@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
     clock::Clock,
     hover_tooltips::HoverTarget,
@@ -9,7 +10,6 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        idle_timeouts_group::TimerKind,
         media_group::MediaTarget,
         memory_board_group::MemoryBoardTarget,
         wallpaper_group::WallpaperTarget,
@@ -103,8 +103,8 @@ pub const DEMOS: &[Demo] = &[
         group: idle_lock::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::IdleTimeout(TimerKind::LockUser)),
-            Step::Hover(HoverTarget::IdleTimeout(TimerKind::ScreenOff)),
+            Step::Press(HoverTarget::IdleTimeout(IdleAction::Lock)),
+            Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
         ],
     },
     Demo {
@@ -112,8 +112,8 @@ pub const DEMOS: &[Demo] = &[
         group: idle_lock::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::IdleTimeout(TimerKind::LockUser)),
-            Step::Hover(HoverTarget::IdleTimeout(TimerKind::LockUser)),
+            Step::Press(HoverTarget::IdleTimeout(IdleAction::Lock)),
+            Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
         ],
     },
     Demo {

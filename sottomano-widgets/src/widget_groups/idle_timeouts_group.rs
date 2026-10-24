@@ -7,14 +7,14 @@ use iced::{
 };
 use sottomano_config::Config;
 use sottomano_sources::login_session_presence::{
-    focus_time_ledger::ScreenEdge, session_power_actions::SessionAction,
+    focus_time_ledger::ScreenEdge, idle_session_actions::IdleAction,
     wayland_idle_notify::IdleEdge,
 };
 use sottomano_state::idle::{self, Timeouts};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_tooltips::GroupHandle,
     widgets::{
         group_item::GroupItem,
         idle::{
@@ -28,33 +28,10 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TimerKind {
-    LockUser,
-    ScreenOff,
-    Standby,
-    PowerDown,
-}
-
-impl From<TimerKind> for HoverTarget {
-    fn from(kind: TimerKind) -> Self {
-        HoverTarget::IdleTimeout(kind)
-    }
-}
-
-impl TimerKind {
-    const ALL: [TimerKind; 4] = [
-        Self::LockUser,
-        Self::ScreenOff,
-        Self::Standby,
-        Self::PowerDown,
-    ];
-}
-
 pub struct IdleTimeoutsGroup {
     lock: IdleTimer,
     screen_off: IdleTimer,
-    standby: IdleTimer,
+    sleep: IdleTimer,
     power_down: IdleTimer,
     quiet_screen_off: Option<Duration>,
     idle_watcher: Option<task::Handle>,
@@ -65,7 +42,7 @@ pub struct IdleTimeoutsGroup {
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
     Expansion(ExpansionMessage),
-    Timer(TimerKind, ControlMessage),
+    Timer(IdleAction, ControlMessage),
     ScreenPowerChangedByIdleAction(ScreenEdge),
 }
 
@@ -75,26 +52,22 @@ impl Default for IdleTimeoutsGroup {
             lock: IdleTimer::new(
                 "Lock timeout",
                 Phosphor::Lock(Weight::Regular),
-                TimerKind::LockUser,
-                SessionAction::Lock,
+                IdleAction::Lock,
             ),
             screen_off: IdleTimer::new(
                 "Screen-off timeout",
                 Phosphor::Monitor(Weight::Regular),
-                TimerKind::ScreenOff,
-                SessionAction::ScreenOff,
+                IdleAction::ScreenOff,
             ),
-            standby: IdleTimer::new(
+            sleep: IdleTimer::new(
                 "Standby timeout",
                 Phosphor::Bed(Weight::Regular),
-                TimerKind::Standby,
-                SessionAction::Suspend,
+                IdleAction::Sleep,
             ),
             power_down: IdleTimer::new(
                 "Power-down timeout",
                 Phosphor::Power(Weight::Regular),
-                TimerKind::PowerDown,
-                SessionAction::PowerOff,
+                IdleAction::PowerOff,
             ),
             quiet_screen_off: None,
             idle_watcher: None,
@@ -104,22 +77,26 @@ impl Default for IdleTimeoutsGroup {
 }
 
 impl IdleTimeoutsGroup {
-    fn timer_mut(&mut self, kind: TimerKind) -> &mut IdleTimer {
+    fn timer_mut(&mut self, kind: IdleAction) -> &mut IdleTimer {
         match kind {
-            TimerKind::LockUser => &mut self.lock,
-            TimerKind::ScreenOff => &mut self.screen_off,
-            TimerKind::Standby => &mut self.standby,
-            TimerKind::PowerDown => &mut self.power_down,
+            IdleAction::Lock => &mut self.lock,
+            IdleAction::ScreenOff => &mut self.screen_off,
+            IdleAction::Sleep => &mut self.sleep,
+            IdleAction::PowerOff => &mut self.power_down,
         }
     }
 
-    fn entries(&self) -> [(TimerKind, &IdleTimer); 4] {
-        [
-            (TimerKind::LockUser, &self.lock),
-            (TimerKind::ScreenOff, &self.screen_off),
-            (TimerKind::Standby, &self.standby),
-            (TimerKind::PowerDown, &self.power_down),
-        ]
+    fn timer(&self, kind: IdleAction) -> &IdleTimer {
+        match kind {
+            IdleAction::Lock => &self.lock,
+            IdleAction::ScreenOff => &self.screen_off,
+            IdleAction::Sleep => &self.sleep,
+            IdleAction::PowerOff => &self.power_down,
+        }
+    }
+
+    fn entries(&self) -> [(IdleAction, &IdleTimer); 4] {
+        IdleAction::ALL.map(|kind| (kind, self.timer(kind)))
     }
 
     pub fn collapse(&mut self) {
@@ -129,13 +106,13 @@ impl IdleTimeoutsGroup {
     }
 
     fn close_all(&mut self) {
-        for kind in TimerKind::ALL {
+        for kind in IdleAction::ALL {
             self.timer_mut(kind).close();
         }
     }
 
-    fn close_others(&mut self, kept: TimerKind) {
-        for kind in TimerKind::ALL {
+    fn close_others(&mut self, kept: IdleAction) {
+        for kind in IdleAction::ALL {
             if kind != kept {
                 self.timer_mut(kind).close();
             }
@@ -147,7 +124,7 @@ impl IdleTimeoutsGroup {
             IdleTimeoutsMessage::Loaded(timeouts) => {
                 self.lock.set_timeout(timeouts.lock_user);
                 self.screen_off.set_timeout(timeouts.screen_off);
-                self.standby.set_timeout(timeouts.standby);
+                self.sleep.set_timeout(timeouts.sleep);
                 self.power_down.set_timeout(timeouts.power_down);
                 self.rearm()
             }
@@ -179,20 +156,15 @@ impl IdleTimeoutsGroup {
         Timeouts {
             lock_user: self.lock.timeout(),
             screen_off: self.screen_off.timeout(),
-            standby: self.standby.timeout(),
+            sleep: self.sleep.timeout(),
             power_down: self.power_down.timeout(),
         }
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, kind: TimerKind, clock: Clock) -> Tooltip {
-        let timer = match kind {
-            TimerKind::LockUser => &self.lock,
-            TimerKind::ScreenOff => &self.screen_off,
-            TimerKind::Standby => &self.standby,
-            TimerKind::PowerDown => &self.power_down,
-        };
-        if kind == TimerKind::ScreenOff
+    pub fn tooltip_for(&self, kind: IdleAction, clock: Clock) -> Tooltip {
+        let timer = self.timer(kind);
+        if kind == IdleAction::ScreenOff
             && let Some(override_timeout) = self.quiet_screen_off
         {
             timer.tooltip_overridden_by("Quiet hours", override_timeout, clock)
@@ -209,7 +181,7 @@ impl IdleTimeoutsGroup {
     fn rearm(&mut self) -> Task<IdleTimeoutsMessage> {
         let screen_power_edges =
             performed_idle_action_edges(self.triggers()).filter_map(|tagged| {
-                ready((tagged.tag == SessionAction::ScreenOff).then_some(
+                ready((tagged.tag == IdleAction::ScreenOff).then_some(
                     IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(match tagged.edge {
                         IdleEdge::Idled => ScreenEdge::Off,
                         IdleEdge::Resumed => ScreenEdge::On,
@@ -225,12 +197,12 @@ impl IdleTimeoutsGroup {
         self.entries()
             .into_iter()
             .filter_map(|(kind, timer)| {
-                if kind == TimerKind::ScreenOff
+                if kind == IdleAction::ScreenOff
                     && let Some(after) = self.quiet_screen_off
                 {
                     Some(ActionTrigger {
                         after,
-                        tag: SessionAction::ScreenOff,
+                        tag: IdleAction::ScreenOff,
                     })
                 } else {
                     timer.trigger()
@@ -257,7 +229,7 @@ impl IdleTimeoutsGroup {
                         })
                     },
                 )
-                .previewed_on_handle_if(kind == TimerKind::LockUser)
+                .previewed_on_handle_if(kind == IdleAction::Lock)
             }),
         )
         .face(HandleFace::Icon {

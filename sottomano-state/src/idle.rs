@@ -1,7 +1,9 @@
 use std::time::Duration;
 
 use sottomano_sources::{
-    login_session_presence::session_power_actions::SessionAction,
+    login_session_presence::{
+        idle_session_actions::IdleAction, session_power_actions::SessionAction,
+    },
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
@@ -17,7 +19,7 @@ pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
 pub struct Timeouts {
     pub lock_user: Option<Duration>,
     pub screen_off: Option<Duration>,
-    pub standby: Option<Duration>,
+    pub sleep: Option<Duration>,
     pub power_down: Option<Duration>,
 }
 
@@ -29,15 +31,22 @@ pub enum ScheduledAfterIdle {
 }
 
 impl Timeouts {
+    #[must_use]
+    pub fn timeout_for(self, action: IdleAction) -> Option<Duration> {
+        match action {
+            IdleAction::Lock => self.lock_user,
+            IdleAction::ScreenOff => self.screen_off,
+            IdleAction::Sleep => self.sleep,
+            IdleAction::PowerOff => self.power_down,
+        }
+    }
+
+    #[must_use]
     pub fn scheduled(self, action: SessionAction) -> ScheduledAfterIdle {
-        let timeout = match action {
-            SessionAction::Lock => self.lock_user,
-            SessionAction::ScreenOff => self.screen_off,
-            SessionAction::Suspend => self.standby,
-            SessionAction::PowerOff => self.power_down,
-            _ => return ScheduledAfterIdle::Never,
-        };
-        timeout.map_or(ScheduledAfterIdle::Disabled, ScheduledAfterIdle::After)
+        IdleAction::performing(action).map_or(ScheduledAfterIdle::Never, |idle| {
+            self.timeout_for(idle)
+                .map_or(ScheduledAfterIdle::Disabled, ScheduledAfterIdle::After)
+        })
     }
 }
 
@@ -71,7 +80,7 @@ async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError>
     Ok(Timeouts {
         lock_user: columns.duration(&row, "lock_user"),
         screen_off: columns.duration(&row, "screen_off"),
-        standby: columns.duration(&row, "standby"),
+        sleep: columns.duration(&row, "standby"),
         power_down: columns.duration(&row, "power_down"),
     })
 }
@@ -88,7 +97,7 @@ async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<
         (
             seconds(timeouts.lock_user),
             seconds(timeouts.screen_off),
-            seconds(timeouts.standby),
+            seconds(timeouts.sleep),
             seconds(timeouts.power_down),
         ),
     )
@@ -100,7 +109,9 @@ async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<
 mod tests {
     use std::time::Duration;
 
-    use super::{CREATE_TABLE, Timeouts, read_timeouts, write_timeouts};
+    use sottomano_sources::login_session_presence::session_power_actions::SessionAction;
+
+    use super::{CREATE_TABLE, ScheduledAfterIdle, Timeouts, read_timeouts, write_timeouts};
 
     async fn connection() -> turso::Connection {
         let database = turso::Builder::new_local(":memory:").build().await.unwrap();
@@ -115,11 +126,28 @@ mod tests {
         let timeouts = Timeouts {
             lock_user: Some(Duration::from_secs(60)),
             screen_off: None,
-            standby: Some(Duration::from_secs(600)),
+            sleep: Some(Duration::from_secs(600)),
             power_down: Some(Duration::from_secs(3600)),
         };
         write_timeouts(&conn, timeouts).await.unwrap();
 
         assert_eq!(read_timeouts(&conn).await.unwrap(), timeouts);
+    }
+
+    #[test]
+    fn the_sleep_timeout_schedules_logind_sleep_and_never_a_plain_suspend() {
+        let timeouts = Timeouts {
+            sleep: Some(Duration::from_secs(600)),
+            ..Timeouts::default()
+        };
+
+        assert_eq!(
+            timeouts.scheduled(SessionAction::Sleep),
+            ScheduledAfterIdle::After(Duration::from_secs(600))
+        );
+        assert_eq!(
+            timeouts.scheduled(SessionAction::Suspend),
+            ScheduledAfterIdle::Never
+        );
     }
 }

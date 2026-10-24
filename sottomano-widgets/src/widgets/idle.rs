@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_sources::login_session_presence::{
-    session_power_actions::SessionAction,
+    idle_session_actions::IdleAction,
     wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
 };
 use tokio::task::spawn_blocking;
@@ -42,16 +42,16 @@ pub fn timeout_at(position: f32) -> Option<Duration> {
     LADDER.get(position.round().max(0.0) as usize).copied()
 }
 
-pub type ActionTrigger = IdleTrigger<SessionAction>;
+pub type ActionTrigger = IdleTrigger<IdleAction>;
 
-pub type IdleActionEdge = TaggedEdge<SessionAction>;
+pub type IdleActionEdge = TaggedEdge<IdleAction>;
 
 enum IdleActionConnection {
     Reconnecting {
         attempts_left: usize,
     },
     Connected {
-        notifier: Box<IdleNotifier<SessionAction>>,
+        notifier: Box<IdleNotifier<IdleAction>>,
         attempts_left: usize,
     },
 }
@@ -114,7 +114,7 @@ fn perform_idled_actions(edges: &[IdleActionEdge]) {
         .iter()
         .filter(|tagged| tagged.edge == IdleEdge::Idled)
         .for_each(|tagged| {
-            let action = tagged.tag;
+            let action = tagged.tag.session_action();
             spawn_blocking(move || action.perform());
         });
 }
