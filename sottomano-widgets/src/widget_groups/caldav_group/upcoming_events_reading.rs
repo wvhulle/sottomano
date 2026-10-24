@@ -1,8 +1,10 @@
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_sources::caldav_tasks_events::{
-    caldav_agenda::{AgendaMoment, CaldavAgenda, ChangeDelivery},
+    agenda_moment_zones::AgendaMoment,
+    caldav_agenda::{CaldavAgenda, ChangeDelivery},
     caldav_event_query::UpcomingEvent,
+    nextcloud_web_links::NextcloudWebRoot,
 };
 
 use crate::{
@@ -11,33 +13,55 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{
+            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
+        },
         widget_state::WidgetState,
     },
 };
 
-const LISTED_EVENTS: usize = 12;
+const LISTED_EVENTS: usize = 10;
 const LABEL_CHARACTERS: usize = 28;
 
-impl TableRow<3> for &UpcomingEvent {
+struct EventRow<'a> {
+    event: &'a UpcomingEvent,
+    nextcloud: Option<&'a NextcloudWebRoot>,
+}
+
+impl TableRow<3> for EventRow<'_> {
     fn table_record(self) -> TableRecord<3> {
         TableRecord::new(
-            self.summary.as_str(),
+            linked_title(
+                &self.event.summary,
+                self.nextcloud
+                    .map(|nextcloud| nextcloud.event_details(self.event)),
+            ),
             [
-                Some(moment_cell(self.start)),
-                Some(Cell::Hint(self.calendar.clone())),
-                self.location.clone().map(Cell::from),
+                Some(moment_cell(self.event.start)),
+                Some(Cell::Hint(self.event.calendar.clone())),
+                self.event.location.clone().map(Cell::from),
             ],
         )
+    }
+}
+
+pub(super) fn linked_title(title: &str, details_url: Option<String>) -> Cell {
+    match details_url {
+        Some(url) => Cell::Link {
+            label: title.to_owned(),
+            url,
+        },
+        None => title.into(),
     }
 }
 
 pub(super) fn moment_cell(moment: AgendaMoment) -> Cell {
     Cell::Time {
         at: moment.starts_at().to_utc(),
-        format: match moment {
-            AgendaMoment::AllDay(_) => LocalizedTimeFormat::Date,
-            AgendaMoment::Timed(_) => LocalizedTimeFormat::DateAndTime,
+        format: if moment.is_all_day() {
+            LocalizedTimeFormat::Date
+        } else {
+            LocalizedTimeFormat::DateAndMinute
         },
     }
 }
@@ -55,20 +79,37 @@ pub(super) fn change_delivery_caption(agenda: &CaldavAgenda) -> String {
     )
 }
 
+pub(super) fn nextcloud_footer(app_label: &str, app_url: Option<String>, hidden: usize) -> Section {
+    Section::dictionary(
+        [
+            (hidden > 0).then(|| KeyValue::new("Not shown", format!("{hidden} more"))),
+            app_url.map(|url| {
+                KeyValue::new(
+                    "Nextcloud",
+                    Cell::Link {
+                        label: app_label.to_owned(),
+                        url,
+                    },
+                )
+            }),
+        ]
+        .into_iter()
+        .flatten(),
+    )
+}
+
 fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> String {
-    let today = now.date_naive();
-    match start {
-        _ if start.starts_at() <= now => "now".to_owned(),
-        AgendaMoment::AllDay(day) if day == today => "today".to_owned(),
-        AgendaMoment::AllDay(_) => LocalizedTimeFormat::Weekday.format(&start.starts_at(), locale),
-        AgendaMoment::Timed(at) if at.date_naive() == today => {
-            LocalizedTimeFormat::HourAndMinute.format(&at, locale)
-        }
-        AgendaMoment::Timed(at) => format!(
-            "{} {}",
-            LocalizedTimeFormat::Weekday.format(&at, locale),
-            LocalizedTimeFormat::HourAndMinute.format(&at, locale)
-        ),
+    let begins = start.starts_at();
+    if begins <= now {
+        return "now".to_owned();
+    }
+    let weekday = LocalizedTimeFormat::Weekday.format(&begins, locale);
+    let hour_and_minute = LocalizedTimeFormat::HourAndMinute.format(&begins, locale);
+    match (start.is_all_day(), start.day_in(&Local) == now.date_naive()) {
+        (true, true) => "today".to_owned(),
+        (true, false) => weekday,
+        (false, true) => hour_and_minute,
+        (false, false) => format!("{weekday} {hour_and_minute}"),
     }
 }
 
@@ -102,19 +143,34 @@ impl BarWidget for CaldavAgenda {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let upcoming = self
+        let upcoming: Vec<&UpcomingEvent> = self
             .events
             .iter()
             .filter(|event| !event.has_ended(now))
-            .take(LISTED_EVENTS);
-        TooltipBody::sections([Section::column_table(
-            [
-                ColumnHeading::new("Starts"),
-                ColumnHeading::new("Calendar").align_x(Horizontal::Left),
-                ColumnHeading::new("Location").align_x(Horizontal::Left),
-            ],
-            upcoming,
-        )
-        .titled(("Upcoming events", change_delivery_caption(self)))])
+            .collect();
+        let hidden = upcoming.len().saturating_sub(LISTED_EVENTS);
+        let rows = upcoming
+            .into_iter()
+            .take(LISTED_EVENTS)
+            .map(|event| EventRow {
+                event,
+                nextcloud: self.nextcloud.as_ref(),
+            });
+        TooltipBody::sections([
+            Section::column_table(
+                [
+                    ColumnHeading::new("Starts"),
+                    ColumnHeading::new("Calendar").align_x(Horizontal::Left),
+                    ColumnHeading::new("Location").align_x(Horizontal::Left),
+                ],
+                rows,
+            )
+            .titled(("Upcoming events", change_delivery_caption(self))),
+            nextcloud_footer(
+                "open Calendar",
+                self.nextcloud.as_ref().map(NextcloudWebRoot::calendar_app),
+                hidden,
+            ),
+        ])
     }
 }

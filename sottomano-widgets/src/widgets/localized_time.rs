@@ -9,6 +9,7 @@ pub enum LocalizedTimeFormat {
     HourAndMinute,
     Date,
     DateAndTime,
+    DateAndMinute,
     Weekday,
 }
 
@@ -40,6 +41,10 @@ impl LocalizedTimeFormat {
             LocalizedTimeFormat::HourAndMinute => "%H:%M",
             LocalizedTimeFormat::Date => "%x",
             LocalizedTimeFormat::DateAndTime => "%x %X",
+            LocalizedTimeFormat::DateAndMinute if uses_twelve_hour_clock(at, locale) => {
+                "%x %-I:%M %p"
+            }
+            LocalizedTimeFormat::DateAndMinute => "%x %H:%M",
             LocalizedTimeFormat::Weekday => "%A",
         }
     }

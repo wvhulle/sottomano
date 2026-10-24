@@ -10,10 +10,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Local, NaiveDate, NaiveTime, TimeZone};
+use chrono::{DateTime, Local};
 use fast_dav_rs::CalendarObject;
 use futures::{Stream, StreamExt};
-use icalendar::{Calendar, CalendarDateTime, DatePerhapsTime};
+use icalendar::Calendar;
 use tokio::sync::Mutex;
 
 use crate::{
@@ -25,6 +25,7 @@ use crate::{
         caldav_event_query::{EventWindow, UpcomingEvent, query_upcoming_events},
         caldav_task_query::{OpenTask, query_open_tasks},
         nextcloud_notify_push::{PushLogin, activity_pings},
+        nextcloud_web_links::NextcloudWebRoot,
     },
     secret_file_reads::read_secret,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
@@ -66,72 +67,20 @@ impl From<fast_dav_rs::Error> for Error {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AgendaMoment {
-    AllDay(NaiveDate),
-    Timed(DateTime<Local>),
+pub(super) struct CalendarResource {
+    pub href: String,
+    pub calendar: Calendar,
 }
 
-impl AgendaMoment {
-    #[must_use]
-    pub fn of(moment: DatePerhapsTime) -> Option<Self> {
-        match moment {
-            DatePerhapsTime::Date(day) => Some(AgendaMoment::AllDay(day)),
-            DatePerhapsTime::DateTime(date_time) => date_time
-                .try_into_utc()
-                .map(|utc| utc.with_timezone(&Local))
-                .or_else(|| local_wall_clock(&date_time))
-                .map(AgendaMoment::Timed),
-        }
-    }
-
-    #[must_use]
-    pub fn starts_at(self) -> DateTime<Local> {
-        match self {
-            AgendaMoment::AllDay(day) => {
-                let midnight = day.and_time(NaiveTime::MIN);
-                Local
-                    .from_local_datetime(&midnight)
-                    .earliest()
-                    .unwrap_or_else(|| Local.from_utc_datetime(&midnight))
-            }
-            AgendaMoment::Timed(moment) => moment,
-        }
-    }
-
-    #[must_use]
-    pub fn local_day(self) -> NaiveDate {
-        match self {
-            AgendaMoment::AllDay(day) => day,
-            AgendaMoment::Timed(moment) => moment.date_naive(),
-        }
-    }
-
-    #[must_use]
-    pub fn ends_before(self, now: DateTime<Local>) -> bool {
-        match self {
-            AgendaMoment::AllDay(day) => day < now.date_naive(),
-            AgendaMoment::Timed(moment) => moment < now,
-        }
-    }
-}
-
-fn local_wall_clock(date_time: &CalendarDateTime) -> Option<DateTime<Local>> {
-    match date_time {
-        CalendarDateTime::Floating(wall_clock)
-        | CalendarDateTime::WithTimezone {
-            date_time: wall_clock,
-            ..
-        } => Local.from_local_datetime(wall_clock).earliest(),
-        CalendarDateTime::Utc(utc) => Some(utc.with_timezone(&Local)),
-    }
-}
-
-pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<Calendar> {
+pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<CalendarResource> {
     objects
         .into_iter()
-        .filter_map(|object| object.calendar_data)
-        .filter_map(|ics| Calendar::from_str(&ics).ok())
+        .filter_map(|object| {
+            Some(CalendarResource {
+                calendar: Calendar::from_str(object.calendar_data.as_deref()?).ok()?,
+                href: object.href,
+            })
+        })
         .collect()
 }
 
@@ -155,6 +104,7 @@ pub struct CaldavAgenda {
     pub tasks: Vec<OpenTask>,
     pub calendar_count: usize,
     pub change_delivery: ChangeDelivery,
+    pub nextcloud: Option<NextcloudWebRoot>,
 }
 
 impl CaldavAgenda {
@@ -330,7 +280,7 @@ impl AgendaPoller {
             .flat_map(|calendar| calendar.tasks.iter())
             .cloned()
             .collect();
-        tasks.sort_by(OpenTask::more_urgent_first);
+        tasks.sort_by(OpenTask::earliest_due_first);
         CaldavAgenda {
             events,
             tasks,
@@ -340,6 +290,9 @@ impl AgendaPoller {
             } else {
                 ChangeDelivery::ChangeTokenPolling
             },
+            nextcloud: self.fetched.keys().find_map(|calendar_href| {
+                NextcloudWebRoot::detected(&self.account.server_url, calendar_href)
+            }),
         }
     }
 }
