@@ -1,5 +1,5 @@
 [workspace]
-resolver = "3"
+default-members = ["sottomano-shell"]
 members = [
   "iced_controller_diagram",
   "sottomano-config",
@@ -9,23 +9,23 @@ members = [
   "sottomano-shell",
   "sottomano-widget-showcase",
 ]
-default-members = ["sottomano-shell"]
+resolver = "3"
 
 [workspace.package]
 edition = "2024"
-version = "0.0.1"
 license = "GPL-3.0-or-later"
+version = "0.0.1"
 
 [workspace.lints.clippy]
 absolute_paths = "warn"
-pedantic = { priority = -1, level = "warn" }
 cast_possible_truncation = "allow"
 cast_precision_loss = "allow"
 cast_sign_loss = "allow"
-needless_for_each = "allow"
+implicit_hasher = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-implicit_hasher = "allow"
+needless_for_each = "allow"
+pedantic = { priority = -1, level = "warn" }
 
 [workspace.dependencies]
 bytesize = "2.7.0"
@@ -36,12 +36,10 @@ chrono = { version = "0.4.45", default-features = false, features = [
   "unstable-locales",
 ] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
-clap ={ version = "4.6.7", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 form_urlencoded = "1.2.2"
 futures = "0.3.34"
 humantime = "2.4.0"
-iced_controller_diagram = { path = "iced_controller_diagram", version = "0.1.0" }
-iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 iced = { version = "0.14.0", default-features = false, features = [
   "wgpu",
   "tiny-skia",
@@ -57,6 +55,8 @@ iced = { version = "0.14.0", default-features = false, features = [
   "svg",
   "canvas",
 ] }
+iced_controller_diagram = { path = "iced_controller_diagram", version = "0.1.0" }
+iced_exwlshell = { git = "https://github.com/wvhulle/exwlshelleventloop.git", branch = "master" }
 image = { version = "0.25.10", default-features = false, features = [
   "png",
   "jpeg",
@@ -67,10 +67,10 @@ image = { version = "0.25.10", default-features = false, features = [
 kdl = { version = "6.7.1", default-features = false, features = ["v1"] }
 nalgebra = "0.35"
 niri-ipc = "26.4.0"
+notulist-client = { git = "https://codeberg.org/wvhulle/notulist", branch = "main" }
 reqwest = { version = "0.13.5", default-features = false, features = [
   "rustls",
 ] }
-notulist-client = { git = "https://codeberg.org/wvhulle/notulist", branch = "main" }
 rust_decimal = { version = "1.43.0", features = ["serde-float"] }
 rusty-money = "0.5.1"
 serde = { version = "1.0.229", features = ["derive"] }
@@ -121,6 +121,7 @@ iced_tiny_skia = { git = "https://github.com/wvhulle/iced.git", branch = "skip-l
 iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_winit = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
+
 
 [profile.dev.package."*"]
 opt-level = 2
