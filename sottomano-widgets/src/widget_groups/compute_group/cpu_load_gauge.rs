@@ -1,12 +1,9 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::{
+    cpu_busy_processes::CpuBusyProcesses,
     cpu_core_loads::{CpuCoreLoads, CpuUsage, LoadSplit},
-    cpu_power_draw::CpuPower,
 };
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{f64::Ratio, power::watt, ratio::percent},
-};
+use uom::si::{f64::Ratio, ratio::percent};
 
 use super::{
     chiplet_live_state::ChipletLiveState,
@@ -92,7 +89,7 @@ impl ChipletLiveState<'_> {
                 },
             )
             .titled((
-                "Chiplets".to_owned(),
+                "CPU load per chiplet".to_owned(),
                 "Each square is one physical core in core-number order, not die position, split \
                  into its hardware threads; bar height shows how busy each thread was over the \
                  last sample."
@@ -133,20 +130,22 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("CPU", percent_text(self.busy))])
+        TooltipBody::dictionary([KeyValue::new("CPU load", percent_text(self.busy))])
     }
 }
 
-impl ReadingSections for CpuPower {
+impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
-            Section::dictionary(self.zones.iter().map(|zone| {
-                KeyValue::new(
-                    zone.name.clone(),
-                    format!("{:.1}", zone.draw.into_format_args(watt, Abbreviation)),
-                )
+            Section::dictionary(self.processes.iter().map(|process| {
+                KeyValue::new(process.name.clone(), percent_text(process.busy))
+                    .level(busy_level(process.busy))
             }))
-            .titled("Power"),
+            .titled((
+                "CPU load per process".to_owned(),
+                "Share of all CPU threads each process kept busy over the last half second."
+                    .to_owned(),
+            )),
         ]
     }
 }

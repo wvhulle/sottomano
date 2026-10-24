@@ -2,6 +2,7 @@ mod acpi_processor_cooling;
 pub mod amd_l3_pmu_cache_traffic;
 pub mod amd_x3d_cache_preference;
 mod arm_cpuinfo_core_parts;
+pub mod cpu_busy_processes;
 pub mod cpu_clock_frequency;
 pub mod cpu_core_deep_idle;
 pub mod cpu_core_loads;

@@ -56,7 +56,7 @@ impl From<&CpuModel> for Section {
                 .join(" + ");
             KeyValue::new(cache.position.to_string(), sizes)
         });
-        Section::dictionary(identity.chain(counts).chain(caches)).titled("Processor")
+        Section::dictionary(identity.chain(counts).chain(caches)).titled("CPU model")
     }
 }
 

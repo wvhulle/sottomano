@@ -163,12 +163,12 @@ impl CpuSamples {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct CpuCapacity {
+pub(crate) struct CpuCapacity {
     ticks_per_second: u64,
 }
 
 impl CpuCapacity {
-    fn current() -> Self {
+    pub(crate) fn current() -> Self {
         let cores = KernelStats::current().map_or(1, |stats| stats.cpu_time.len().max(1));
         Self {
             ticks_per_second: ticks_per_second() * cores as u64,
@@ -176,7 +176,7 @@ impl CpuCapacity {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    fn busy_fraction(self, busy_ticks: u64, over: Duration) -> Ratio {
+    pub(crate) fn busy_fraction(self, busy_ticks: u64, over: Duration) -> Ratio {
         let available = self.ticks_per_second as f64 * over.as_secs_f64();
         let fraction = if available > 0.0 {
             busy_ticks as f64 / available

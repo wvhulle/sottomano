@@ -2,6 +2,7 @@ use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
 use sottomano_sources::{
     SourceDelivery,
     cpu_memory_compute::{
+        cpu_busy_processes::{CpuBusyProcess, CpuBusyProcesses},
         cpu_core_loads::CpuUsage,
         cpu_power_draw::{CpuPower, PowerZone},
         cpu_temperature::{TempReading, Temperature},
@@ -42,7 +43,7 @@ pub fn live(clock: Clock) -> Vec<Message> {
     let tick = sample(clock);
     continuous_readings(tick)
         .into_iter()
-        .chain(on_hover_readings(ComputeTarget::Cpu, tick))
+        .chain(on_hover_readings(ComputeTarget::CpuLoad, tick))
         .map(Message::Compute)
         .collect()
 }
@@ -55,12 +56,13 @@ fn celsius(degrees: f64) -> ThermodynamicTemperature {
     ThermodynamicTemperature::new::<degree_celsius>(degrees)
 }
 
-fn continuous_readings(tick: u32) -> [ComputeMessage; 2] {
+fn continuous_readings(tick: u32) -> [ComputeMessage; 3] {
+    let package = cycled(PACKAGE_WATTS, tick);
     [
-        ComputeMessage::Cpu(SourceDelivery::Reading(Ok(CpuUsage {
+        ComputeMessage::CpuLoad(SourceDelivery::Reading(Ok(CpuUsage {
             busy: Ratio::new::<percent>(cycled(CPU_BUSY_PERCENT, tick)),
         }))),
-        ComputeMessage::Temperature(SourceDelivery::Reading(Ok(Temperature {
+        ComputeMessage::CpuTemperature(SourceDelivery::Reading(Ok(Temperature {
             readings: vec![TempReading {
                 chip: "k10temp".to_owned(),
                 label: "Tctl".to_owned(),
@@ -71,31 +73,44 @@ fn continuous_readings(tick: u32) -> [ComputeMessage; 2] {
             overrides: ThresholdOverrides::default(),
             critical_since: None,
         }))),
+        ComputeMessage::CpuPowerDraw(SourceDelivery::Reading(Ok(CpuPower {
+            zones: vec![
+                PowerZone {
+                    name: "package".to_owned(),
+                    draw: Power::new::<watt>(package),
+                },
+                PowerZone {
+                    name: "core".to_owned(),
+                    draw: Power::new::<watt>(package * 0.65),
+                },
+            ],
+        }))),
     ]
 }
 
 fn on_hover_readings(target: ComputeTarget, tick: u32) -> Vec<ComputeMessage> {
     match target {
-        ComputeTarget::Cpu => {
-            let package = cycled(PACKAGE_WATTS, tick);
-            vec![ComputeMessage::CpuPowerFetched(SourceDelivery::Reading(
-                Ok(CpuPower {
-                    zones: vec![
-                        PowerZone {
-                            name: "package".to_owned(),
-                            draw: Power::new::<watt>(package),
-                        },
-                        PowerZone {
-                            name: "core".to_owned(),
-                            draw: Power::new::<watt>(package * 0.65),
-                        },
-                    ],
-                }),
-            ))]
+        ComputeTarget::CpuLoad => {
+            let busy = cycled(CPU_BUSY_PERCENT, tick);
+            vec![ComputeMessage::CpuBusyProcessesFetched(
+                SourceDelivery::Reading(Ok(CpuBusyProcesses {
+                    processes: [("cargo", 0.5), ("rust-analyzer", 0.3), ("firefox", 0.15)]
+                        .into_iter()
+                        .zip(1000..)
+                        .map(|((name, share), pid)| CpuBusyProcess {
+                            pid,
+                            name: name.to_owned(),
+                            busy: Ratio::new::<percent>(busy * share),
+                        })
+                        .collect(),
+                })),
+            )]
         }
         ComputeTarget::CpuClock
-        | ComputeTarget::ClockLimits
-        | ComputeTarget::Temperature
-        | ComputeTarget::CachePreference => Vec::new(),
+        | ComputeTarget::CpuClockLimits
+        | ComputeTarget::CpuTemperature
+        | ComputeTarget::CpuPowerDraw
+        | ComputeTarget::CpuModel
+        | ComputeTarget::X3dCachePreference => Vec::new(),
     }
 }
