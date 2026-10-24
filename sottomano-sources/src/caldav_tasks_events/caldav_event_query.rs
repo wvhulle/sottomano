@@ -1,9 +1,10 @@
-use chrono::{DateTime, Days, Local, NaiveDate, Utc};
+use chrono::{DateTime, Days, Local, NaiveDate};
 use fast_dav_rs::{CalendarQueryOptions, TimeRange};
-use icalendar::{Calendar, Component, EventLike};
+use icalendar::{Component, EventLike};
 
 use crate::caldav_tasks_events::{
-    caldav_agenda::{AgendaMoment, Error, parsed_calendar_data},
+    agenda_moment_zones::AgendaMoment,
+    caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
 };
 
@@ -13,6 +14,8 @@ const CALDAV_UTC_FORMAT: &str = "%Y%m%dT%H%M%SZ";
 pub struct UpcomingEvent {
     pub summary: String,
     pub calendar: String,
+    pub object_href: String,
+    pub recurrence_id: AgendaMoment,
     pub start: AgendaMoment,
     pub end: Option<AgendaMoment>,
     pub location: Option<String>,
@@ -25,7 +28,7 @@ impl UpcomingEvent {
             Some(AgendaMoment::AllDay(last_day_exclusive)) => {
                 last_day_exclusive <= now.date_naive()
             }
-            Some(AgendaMoment::Timed(end)) => end <= now,
+            Some(end) => end.starts_at() <= now,
             None => self.start.ends_before(now),
         }
     }
@@ -49,8 +52,8 @@ impl EventWindow {
             .checked_add_days(Days::new(u64::from(self.days)))?;
         let [start, end] = [self.first_day, last_day_exclusive].map(|day| {
             AgendaMoment::AllDay(day)
-                .starts_at()
-                .with_timezone(&Utc)
+                .starts_in(&Local)
+                .to_utc()
                 .format(CALDAV_UTC_FORMAT)
                 .to_string()
         });
@@ -86,11 +89,17 @@ pub async fn query_upcoming_events(
     ))
 }
 
-fn upcoming_events(calendars: &[Calendar], calendar_name: &str) -> Vec<UpcomingEvent> {
-    calendars
+fn upcoming_events(resources: &[CalendarResource], calendar_name: &str) -> Vec<UpcomingEvent> {
+    resources
         .iter()
-        .flat_map(Calendar::events)
-        .filter_map(|event| {
+        .flat_map(|resource| {
+            resource
+                .calendar
+                .events()
+                .map(move |event| (resource, event))
+        })
+        .filter_map(|(resource, event)| {
+            let start = AgendaMoment::of(event.get_start()?);
             Some(UpcomingEvent {
                 summary: event
                     .get_summary()
@@ -98,8 +107,10 @@ fn upcoming_events(calendars: &[Calendar], calendar_name: &str) -> Vec<UpcomingE
                     .trim()
                     .to_owned(),
                 calendar: calendar_name.to_owned(),
-                start: AgendaMoment::of(event.get_start()?)?,
-                end: event.get_end().and_then(AgendaMoment::of),
+                object_href: resource.href.clone(),
+                recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::of),
+                start,
+                end: event.get_end().map(AgendaMoment::of),
                 location: event
                     .get_location()
                     .map(str::trim)
@@ -114,12 +125,17 @@ fn upcoming_events(calendars: &[Calendar], calendar_name: &str) -> Vec<UpcomingE
 mod tests {
     use std::str::FromStr;
 
-    use chrono::{TimeDelta, TimeZone};
+    use chrono::{TimeDelta, TimeZone, Utc};
+    use icalendar::Calendar;
 
     use super::*;
 
     fn parsed(ics: &str) -> Vec<UpcomingEvent> {
-        upcoming_events(&[Calendar::from_str(ics).unwrap()], "Personal")
+        let resource = CalendarResource {
+            href: "/remote.php/dav/calendars/wvhulle/personal/fixture.ics".to_owned(),
+            calendar: Calendar::from_str(ics).unwrap(),
+        };
+        upcoming_events(&[resource], "Personal")
     }
 
     #[test]
@@ -129,10 +145,15 @@ mod tests {
         assert_eq!(events[0].summary, "Standup");
         assert_eq!(events[0].location.as_deref(), Some("Room 4"));
         let second_start = Utc.with_ymd_and_hms(2026, 11, 2, 9, 0, 0).unwrap();
-        assert_eq!(
-            events[1].start,
-            AgendaMoment::Timed(second_start.with_timezone(&Local))
-        );
+        assert_eq!(events[1].start.starts_in(&Utc), second_start);
+        assert_eq!(events[1].recurrence_id, events[1].start);
+        assert!(events[1].object_href.ends_with("/fixture.ics"));
+    }
+
+    #[test]
+    fn a_single_event_is_referenced_by_its_start() {
+        let holiday = &parsed(include_str!("caldav_fixtures/all_day_holiday.ics"))[0];
+        assert_eq!(holiday.recurrence_id, holiday.start);
     }
 
     #[test]

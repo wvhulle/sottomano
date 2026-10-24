@@ -9,8 +9,8 @@ use crate::desktop_shell::DesktopShell;
 
 pub(super) struct TopBarGroups<'a> {
     pub start: Vec<GroupContent<'a, Message>>,
-    pub center: [GroupContent<'a, Message>; 3],
-    pub end: [GroupContent<'a, Message>; 17],
+    pub center: [GroupContent<'a, Message>; 4],
+    pub end: [GroupContent<'a, Message>; 16],
 }
 
 impl DesktopShell {
@@ -81,17 +81,17 @@ impl DesktopShell {
                 self.quiet_schedule_group
                     .group_content(config)
                     .map(Message::QuietSchedule),
+                self.caldav_group
+                    .group_content(&config.widget_groups.caldav)
+                    .map(Message::Caldav),
             ],
             end: self.top_bar_end_groups(),
         }
     }
 
-    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 17] {
+    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 16] {
         let config = &self.config;
         [
-            self.caldav_group
-                .group_content(&config.widget_groups.caldav)
-                .map(Message::Caldav),
             self.claude_usage_group
                 .group_content()
                 .map(Message::ClaudeUsage),
