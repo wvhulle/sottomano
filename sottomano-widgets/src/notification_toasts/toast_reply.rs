@@ -11,7 +11,7 @@ use crate::{shell_message::Message, toast_messages::ReplyMessage};
 pub enum ReplyFocus {
     Typing {
         id: u32,
-        panel: Id,
+        toast_surface: Id,
     },
     #[default]
     Idle,
@@ -22,11 +22,11 @@ impl NotificationLayer {
         &mut self,
         id: u32,
         message: ReplyMessage,
-        panel_on: &dyn Fn(&str) -> Option<Id>,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
         context: &ToastContext,
     ) -> Task<Message> {
         match message {
-            ReplyMessage::PointerEntered => self.claim_keyboard(id, panel_on),
+            ReplyMessage::PointerEntered => self.claim_keyboard(id, toast_surface_on),
             ReplyMessage::PointerLeft if self.draft_of(id).is_empty() => self.release_keyboard(),
             ReplyMessage::PointerLeft => Task::none(),
             ReplyMessage::Edited(text) => {
@@ -56,30 +56,34 @@ impl NotificationLayer {
             .map_or("", |n| n.reply_draft.as_str())
     }
 
-    fn claim_keyboard(&mut self, id: u32, panel_on: &dyn Fn(&str) -> Option<Id>) -> Task<Message> {
+    fn claim_keyboard(
+        &mut self,
+        id: u32,
+        toast_surface_on: &dyn Fn(&str) -> Option<Id>,
+    ) -> Task<Message> {
         if matches!(self.reply_focus, ReplyFocus::Typing { id: typing, .. } if typing == id) {
             return Task::none();
         }
-        let panel = self
+        let toast_surface = self
             .showing()
             .find(|n| n.data.id == id)
             .and_then(|n| n.place.output.as_deref())
-            .and_then(panel_on);
-        let Some(panel) = panel else {
+            .and_then(toast_surface_on);
+        let Some(toast_surface) = toast_surface else {
             return Task::none();
         };
         let released = self.release_keyboard();
-        self.reply_focus = ReplyFocus::Typing { id, panel };
+        self.reply_focus = ReplyFocus::Typing { id, toast_surface };
         Task::batch([
             released,
-            keyboard_interactivity(panel, KeyboardInteractivity::OnDemand),
+            keyboard_interactivity(toast_surface, KeyboardInteractivity::OnDemand),
         ])
     }
 
     fn release_keyboard(&mut self) -> Task<Message> {
         match mem::take(&mut self.reply_focus) {
-            ReplyFocus::Typing { panel, .. } => {
-                keyboard_interactivity(panel, KeyboardInteractivity::None)
+            ReplyFocus::Typing { toast_surface, .. } => {
+                keyboard_interactivity(toast_surface, KeyboardInteractivity::None)
             }
             ReplyFocus::Idle => Task::none(),
         }
@@ -116,9 +120,12 @@ impl NotificationLayer {
     }
 }
 
-fn keyboard_interactivity(panel: Id, interactivity: KeyboardInteractivity) -> Task<Message> {
+fn keyboard_interactivity(
+    toast_surface: Id,
+    interactivity: KeyboardInteractivity,
+) -> Task<Message> {
     Task::done(Message::KeyboardInteractivityChange {
-        id: panel,
+        id: toast_surface,
         keyboard_interactivity: interactivity,
     })
 }

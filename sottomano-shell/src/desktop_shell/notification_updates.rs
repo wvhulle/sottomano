@@ -34,8 +34,8 @@ impl DesktopShell {
     }
 
     pub fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {
-        let panels: HashMap<String, Id> = self
-            .panels()
+        let toast_surfaces: HashMap<String, Id> = self
+            .notification_toast_surfaces()
             .map(|(id, output)| (output.to_owned(), id))
             .collect();
         self.notifications.update(
@@ -48,7 +48,7 @@ impl DesktopShell {
                 self.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
-            &|output| panels.get(output).copied(),
+            &|output| toast_surfaces.get(output).copied(),
         )
     }
 

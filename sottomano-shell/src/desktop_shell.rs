@@ -1,6 +1,7 @@
 pub mod bottom_bar;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
+pub mod notification_toast_layer;
 pub mod notification_updates;
 pub mod panel_bar;
 pub mod pointer_drag;
@@ -304,7 +305,8 @@ impl DesktopShell {
     fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {
         Task::batch(
             self.panels()
-                .map(|(panel, _)| panel)
+                .chain(self.notification_toast_surfaces())
+                .map(|(surface, _)| surface)
                 .chain(self.tooltip.surfaces_to_redraw(tooltip_seq_before_update))
                 .map(|surface| Task::done(Message::RedrawWindow(surface))),
         )
@@ -988,6 +990,10 @@ impl DesktopShell {
                 output,
                 role: SurfaceRole::Panel,
             }) => self.monitor_layout(window, output),
+            Some(Surface {
+                output,
+                role: SurfaceRole::NotificationToasts,
+            }) => self.notification_toast_layer(output),
             _ => blank().into(),
         }
     }
