@@ -282,15 +282,12 @@ impl DesktopShell {
         let hovered_before = self.tooltip.target().cloned();
         let reheat_due = ReheatDue::after(&message);
         let dispatched = self.dispatch_message(message);
-        let reheated = self.niri_window_group.reheat(
-            reheat_due,
-            &mut self.niri_rules,
-            &self.config,
-            || {
-                self.session_focus_group
-                    .heated_windows(&self.niri, &self.config, self.clock)
-            },
-        );
+        let reheated =
+            self.niri_window_group
+                .reheat(reheat_due, &mut self.niri_rules, &self.config, || {
+                    self.session_focus_group
+                        .heated_windows(&self.niri, &self.config, self.clock)
+                });
         let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
             Task::none()
         } else {
