@@ -118,6 +118,20 @@ in
           that order) are both present, and hides otherwise.
         '';
       };
+
+      "caldav-password" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding the CalDAV password of the account in
+          `settings.widget_groups.caldav` as plain text. Prefer an app password
+          where the server offers one (Nextcloud: Personal settings → Security →
+          Devices & sessions). The calendar group discovers the calendars through
+          `/.well-known/caldav` and shows open tasks and upcoming events.
+          Symlinked into ~/.config/sottomano/. When unset, or when `server_url`
+          or `user` is empty, the group is hidden.
+        '';
+      };
     };
 
     umbra.enable = lib.mkOption {
@@ -183,6 +197,10 @@ in
 
       "sottomano/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
+      };
+
+      "sottomano/caldav-password" = lib.mkIf (cfg.secretFiles."caldav-password" != null) {
+        source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."caldav-password";
       };
     };
 

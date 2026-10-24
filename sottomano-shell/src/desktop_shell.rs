@@ -58,6 +58,7 @@ use sottomano_widgets::{
     shell_message::{AppWindowFocus, Message},
     widget_groups::{
         audio_group::AudioGroup,
+        caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
@@ -115,6 +116,7 @@ pub struct DesktopShell {
     pub shell_settings: ShellSettings,
     pub weather_group: WeatherGroup,
     pub wallpaper_group: WallpaperGroup,
+    pub caldav_group: CaldavGroup,
     pub power_group: PowerGroup,
     pub compute_group: ComputeGroup,
     pub memory_board_group: MemoryBoardGroup,
@@ -184,6 +186,7 @@ impl DesktopShell {
         let shell = Self {
             weather_group: WeatherGroup::default(),
             wallpaper_group: WallpaperGroup::new(&secrets),
+            caldav_group: CaldavGroup::new(&secrets),
             power_group: PowerGroup::default(),
             compute_group: ComputeGroup::default(),
             memory_board_group: MemoryBoardGroup::default(),
@@ -341,6 +344,10 @@ impl DesktopShell {
                 .wallpaper_group
                 .update(msg, self.clock)
                 .map(Message::Wallpaper),
+            Message::Caldav(msg) => self
+                .caldav_group
+                .update(msg, self.clock)
+                .map(Message::Caldav),
             Message::Gamepad(msg) => self.update_gamepad(msg),
             Message::Notification(msg) => self.update_notification(msg),
             Message::Power(msg) => self.power_group.update(msg, self.clock).map(Message::Power),
@@ -828,6 +835,7 @@ impl DesktopShell {
         self.idle_timeouts_group.collapse();
         self.audio_group.collapse();
         self.wallpaper_group.collapse();
+        self.caldav_group.collapse();
         self.gamepad_group.collapse();
         self.clock_group.collapse();
         self.weather_group.collapse();

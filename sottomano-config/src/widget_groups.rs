@@ -1,3 +1,4 @@
+pub mod caldav_account;
 pub mod focus_time;
 pub mod gamepad_bindings;
 pub mod rain_alerts;
@@ -9,6 +10,7 @@ pub mod tray;
 use serde::{Deserialize, Serialize};
 
 use crate::widget_groups::{
+    caldav_account::CaldavAccountConfig,
     focus_time::FocusTimeConfig,
     gamepad_bindings::GamepadBindingsConfig,
     rain_alerts::RainAlertsConfig,
@@ -32,6 +34,7 @@ pub struct WidgetGroupsConfig {
     pub focus_time: FocusTimeConfig,
     pub rain_alerts: RainAlertsConfig,
     pub gamepad: GamepadBindingsConfig,
+    pub caldav: CaldavAccountConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

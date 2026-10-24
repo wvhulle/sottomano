@@ -1,4 +1,5 @@
 pub mod audio_group;
+pub mod caldav_group;
 pub mod claude_usage_group;
 pub mod clock_group;
 pub mod color_temperature_group;

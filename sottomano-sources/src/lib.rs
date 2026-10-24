@@ -1,6 +1,7 @@
 pub mod ai_usage_spend;
 pub mod battery_power_profiles;
 pub mod blocking_background_work;
+pub mod caldav_tasks_events;
 pub mod cpu_memory_compute;
 pub mod desktop_notifications;
 pub mod desktop_windows_apps;
@@ -72,18 +73,7 @@ where
     };
     ticked(every, move || poll(inputs.clone()))
         .map(SourceDelivery::Reading)
-        .scan(
-            None,
-            |previous: &mut Option<SourceDelivery<S>>, delivery| {
-                let repeated = previous.as_ref() == Some(&delivery);
-                *previous = Some(delivery.clone());
-                ready(Some(if repeated {
-                    SourceDelivery::Unchanged
-                } else {
-                    delivery
-                }))
-            },
-        )
+        .repeats_as_unchanged()
         .right_stream()
 }
 

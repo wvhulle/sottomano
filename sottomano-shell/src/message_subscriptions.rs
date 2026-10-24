@@ -73,6 +73,10 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
+        state
+            .caldav_group
+            .subscription(&state.config.widget_groups.caldav)
+            .map(Message::Caldav),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
             .desktop_buses
