@@ -47,7 +47,7 @@ impl Memory {
     }
 }
 
-fn read_meminfo() -> Result<Memory, Error> {
+pub(super) fn read_meminfo() -> Result<Memory, Error> {
     let info = fs::read_to_string(MEMINFO).map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
     let total = meminfo_size(&info, "MemTotal")?;
     let available = meminfo_size(&info, "MemAvailable")?;

@@ -13,6 +13,7 @@ use uom::si::{
 
 use super::{
     intel_drm_gpu_readings::{self, IntelDrmCard},
+    memory_usage::Memory,
     nvml_gpu_readings::{self, NvmlDevice},
 };
 use crate::{
@@ -173,10 +174,20 @@ pub struct GpuPowerDraw {
     pub limit: Option<Power>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GpuMemory {
     Dedicated(VramUsage),
-    SharedWithSystem { resident: ByteSize },
+    SharedWithSystem(SharedGpuMemory),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SharedGpuMemory {
+    pub private: ByteSize,
+    pub shared: ByteSize,
+    pub active: ByteSize,
+    pub purgeable: ByteSize,
+    pub system: Option<Memory>,
+    pub swap_out_threshold: Option<ByteSize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

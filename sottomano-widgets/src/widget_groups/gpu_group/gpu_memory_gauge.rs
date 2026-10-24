@@ -1,5 +1,8 @@
+use bytesize::ByteSize;
 use chrono::Locale;
-use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{GpuMemory, GpuProcesses};
+use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{
+    GpuMemory, GpuProcesses, SharedGpuMemory,
+};
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -34,8 +37,8 @@ impl BarWidget for GpuMemory {
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
         match self {
             GpuMemory::Dedicated(_) => None,
-            GpuMemory::SharedWithSystem { resident } => {
-                Some(resident.display().iec_short().to_string())
+            GpuMemory::SharedWithSystem(shared) => {
+                Some(shared.private.display().iec_short().to_string())
             }
         }
     }
@@ -53,12 +56,43 @@ impl ReadingSections for GpuMemory {
                 KeyValue::new("Used", vram.used.display().iec().to_string()),
                 KeyValue::new("Total", vram.total.display().iec().to_string()),
             ])],
-            GpuMemory::SharedWithSystem { resident } => vec![Section::dictionary([
-                KeyValue::new("Resident", resident.display().iec().to_string()),
-                KeyValue::new("Location", "system memory"),
-            ])],
+            GpuMemory::SharedWithSystem(shared) => shared_memory_sections(shared),
         }
     }
+}
+
+fn size_text(size: ByteSize) -> String {
+    size.display().iec().to_string()
+}
+
+fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
+    let buffers = Section::dictionary([
+        KeyValue::new("Private", size_text(shared.private)),
+        KeyValue::new(
+            "Shared between processes",
+            format!("≤ {}", size_text(shared.shared)),
+        ),
+        KeyValue::new("In use by GPU now", size_text(shared.active)),
+        KeyValue::new("Reclaimable", size_text(shared.purgeable)),
+    ])
+    .titled("GPU buffers");
+    let system = Section::dictionary(
+        [
+            shared.system.as_ref().map(|system| {
+                KeyValue::new(
+                    "Used",
+                    format!("{} of {}", size_text(system.used), size_text(system.total)),
+                )
+            }),
+            shared
+                .swap_out_threshold
+                .map(|threshold| KeyValue::new("Swaps GPU buffers out past", size_text(threshold))),
+        ]
+        .into_iter()
+        .flatten(),
+    )
+    .titled("System memory");
+    vec![buffers, system]
 }
 
 impl ReadingSections for GpuProcesses {

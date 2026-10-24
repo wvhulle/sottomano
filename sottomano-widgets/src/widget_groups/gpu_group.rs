@@ -79,7 +79,7 @@ impl GpuDevice {
     }
 
     fn memory(&self) -> Option<GpuMemory> {
-        Some(self.snapshot.get()?.memory)
+        Some(self.snapshot.get()?.memory.clone())
     }
 
     fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
