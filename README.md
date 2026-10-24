@@ -34,8 +34,9 @@ more, which look and behave the same way.
 
 ## Top panel
 
-The panel I look at most. Each group sits folded to a few glyphs and expands
-on hover or click; most controls open in place rather than in a window.
+The panel I look at most: the machine on the left, the day in the middle, sound
+and input on the right. Each group sits folded to a few glyphs and expands on
+hover or click; most controls open in place rather than in a window.
 
 ### Compute
 
@@ -82,17 +83,6 @@ The card is honest about how rough the fix is and which source produced it.
 
 <img src="recordings/weather_location.webp" width="720" alt="Hovering the location in the weather group">
 
-### AI usage
-
-Subscription windows, their projected use at reset, and extra spend. Useful if
-you pay for an AI subscription and want to notice before it runs out.
-
-#### Usage windows
-
-Each window shows how much is used and where it is heading by the time it resets.
-
-<img src="recordings/ai_usage_windows.webp" width="720" alt="Expanding the AI usage group and hovering the Claude usage windows">
-
 ### Media
 
 The playing track with its progress and where to find it, read from any
@@ -103,34 +93,6 @@ player that speaks MPRIS.
 Hovering the track names the player and the album, with the progress underneath.
 
 <img src="recordings/media_track.webp" width="720" alt="Hovering the playing track">
-
-### Idle timeouts
-
-Idle timeouts as sliders, each saying when it fires and how. Dragging a slider
-changes the timeout; there is no separate settings page.
-
-#### Screen off
-
-The screen-off timer, with the card saying what happens when it fires.
-
-<img src="recordings/idle_screen_off.webp" width="720" alt="Expanding the idle timeouts and hovering the screen-off timer">
-
-#### Lock
-
-The lock timer, which sits next to the screen-off timer so the two can be read together.
-
-<img src="recordings/idle_lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
-
-### Game controller
-
-A connected game controller steers windows, the pointer and dictation. It hands
-itself to Steam and games while they are focused, or on a button chord.
-
-#### Bindings
-
-The card draws the controller with every bound button labelled in place.
-
-<img src="recordings/gamepad_controller.webp" width="720" alt="Hovering the game controller to see its bindings drawn on the controller">
 
 ### Audio
 
@@ -149,26 +111,21 @@ The microphone reading in the expanded group, with its meter moving while you sp
 
 <img src="recordings/audio_microphone.webp" width="720" alt="Expanding the audio group and hovering the microphone">
 
-### Wallpaper
+### Game controller
 
-The place in the current wallpaper and its Wikipedia summary. A small
-indulgence: it only works when the wallpaper carries a location.
+A connected game controller steers windows, the pointer and dictation. It hands
+itself to Steam and games while they are focused, or on a button chord.
 
-#### Place
+#### Bindings
 
-Expanding the group from the place name the lookup found.
+The card draws the controller with every bound button labelled in place.
 
-<img src="recordings/wallpaper_place.webp" width="720" alt="Expanding the wallpaper group from the place lookup">
-
-#### Article
-
-The Wikipedia summary for that place, shown on hover.
-
-<img src="recordings/wallpaper_article.webp" width="720" alt="Hovering the Wikipedia article in the wallpaper group">
+<img src="recordings/gamepad_controller.webp" width="720" alt="Hovering the game controller to see its bindings drawn on the controller">
 
 ## Bottom panel
 
-Where the windows live. It is meant for finding things, not for decoration.
+Where the windows live, with the desktop's settings on the left and the
+software running in the background on the right.
 
 ### Workspaces
 
@@ -196,6 +153,51 @@ Hovering a window shows its title, application and workspace.
 The process tree behind a window, read from the window's PID.
 
 <img src="recordings/bottom_process_inspector.webp" width="720" alt="Hovering the process inspector of a window">
+
+### Wallpaper
+
+The place in the current wallpaper and its Wikipedia summary. A small
+indulgence: it only works when the wallpaper carries a location.
+
+#### Place
+
+Expanding the group from the place name the lookup found.
+
+<img src="recordings/wallpaper_place.webp" width="720" alt="Expanding the wallpaper group from the place lookup">
+
+#### Article
+
+The Wikipedia summary for that place, shown on hover.
+
+<img src="recordings/wallpaper_article.webp" width="720" alt="Hovering the Wikipedia article in the wallpaper group">
+
+### Idle timeouts
+
+Idle timeouts as sliders, each saying when it fires and how. Dragging a slider
+changes the timeout; there is no separate settings page.
+
+#### Screen off
+
+The screen-off timer, with the card saying what happens when it fires.
+
+<img src="recordings/idle_screen_off.webp" width="720" alt="Expanding the idle timeouts and hovering the screen-off timer">
+
+#### Lock
+
+The lock timer, which sits next to the screen-off timer so the two can be read together.
+
+<img src="recordings/idle_lock.webp" width="720" alt="Expanding the idle timeouts and hovering the lock timer">
+
+### AI usage
+
+Subscription windows, their projected use at reset, and extra spend. Useful if
+you pay for an AI subscription and want to notice before it runs out.
+
+#### Usage windows
+
+Each window shows how much is used and where it is heading by the time it resets.
+
+<img src="recordings/ai_usage_windows.webp" width="720" alt="Expanding the AI usage group and hovering the Claude usage windows">
 
 ## Workspace sidebar
 

@@ -9,8 +9,8 @@ use crate::desktop_shell::DesktopShell;
 
 pub(super) struct TopBarGroups<'a> {
     pub start: Vec<GroupContent<'a, Message>>,
-    pub center: [GroupContent<'a, Message>; 4],
-    pub end: [GroupContent<'a, Message>; 16],
+    pub center: [GroupContent<'a, Message>; 6],
+    pub end: [GroupContent<'a, Message>; 5],
 }
 
 impl DesktopShell {
@@ -38,9 +38,6 @@ impl DesktopShell {
         let config = &self.config;
         TopBarGroups {
             start: [
-                self.weather_group
-                    .group_content(config)
-                    .map(Message::Weather),
                 self.power_group.group_content(config).map(Message::Power),
                 self.compute_group.group_content().map(Message::Compute),
                 self.memory_board_group
@@ -58,75 +55,33 @@ impl DesktopShell {
                 self.net_interfaces_group
                     .group_content(self.clock)
                     .map(Message::NetInterfaces),
-                self.systemd_manager_group
-                    .group_content(config, self.clock)
-                    .map(Message::SystemdManager),
-                self.journal_events_group
-                    .group_content(config)
-                    .map(Message::JournalEvents),
-                self.pending_upgrades_group
-                    .group_content(config)
-                    .map(Message::PendingUpgrades),
                 self.internet_group.group_content().map(Message::Internet),
             ])
             .collect(),
-            center: [
-                self.clock_group.group_content().map(Message::Clock),
-                self.notification_group
-                    .group_content(
-                        self.shell_settings.notifications,
-                        self.notification_status(),
-                    )
-                    .map(Message::NotificationGroup),
-                self.quiet_schedule_group
-                    .group_content(config)
-                    .map(Message::QuietSchedule),
-                self.caldav_group
-                    .group_content(&config.widget_groups.caldav)
-                    .map(Message::Caldav),
-            ],
+            center: self.top_bar_center_groups(),
             end: self.top_bar_end_groups(),
         }
     }
 
-    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 16] {
+    fn top_bar_center_groups(&self) -> [GroupContent<'_, Message>; 6] {
         let config = &self.config;
         [
-            self.claude_usage_group
-                .group_content()
-                .map(Message::ClaudeUsage),
-            self.copilot_usage_group
-                .group_content()
-                .map(Message::CopilotUsage),
-            self.openrouter_credit_group
-                .group_content()
-                .map(Message::OpenRouterCredit),
-            self.llama_server_group
-                .group_content()
-                .map(Message::LlamaServer),
-            self.monitor_group
+            self.clock_group.group_content().map(Message::Clock),
+            self.weather_group
                 .group_content(config)
-                .map(Message::Monitor),
-            self.dark_mode_group
+                .map(Message::Weather),
+            self.caldav_group
+                .group_content(&config.widget_groups.caldav)
+                .map(Message::Caldav),
+            self.notification_group
+                .group_content(
+                    self.shell_settings.notifications,
+                    self.notification_status(),
+                )
+                .map(Message::NotificationGroup),
+            self.quiet_schedule_group
                 .group_content(config)
-                .map(Message::DarkMode),
-            self.color_temperature_group
-                .group_content(config)
-                .map(Message::ColorTemperature),
-            self.idle_timeouts_group
-                .group_content(config)
-                .map(Message::IdleTimeouts),
-            self.wallpaper_group.group_content().map(Message::Wallpaper),
-            self.media_group
-                .group_content(config, &self.desktop_entries, self.clock)
-                .map(Message::Media),
-            self.gamepad_group
-                .group_content(&config.widget_groups.gamepad)
-                .map(Message::Gamepad),
-            self.audio_group.group_content(config).map(Message::Audio),
-            self.voice_dictation_group
-                .group_content()
-                .map(Message::VoiceDictation),
+                .map(Message::QuietSchedule),
             self.session_focus_group
                 .group_content(
                     config,
@@ -134,9 +89,22 @@ impl DesktopShell {
                     self.clock,
                 )
                 .map(Message::SessionFocus),
-            self.login_session_group
+        ]
+    }
+
+    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 5] {
+        let config = &self.config;
+        [
+            self.media_group
+                .group_content(config, &self.desktop_entries, self.clock)
+                .map(Message::Media),
+            self.audio_group.group_content(config).map(Message::Audio),
+            self.voice_dictation_group
                 .group_content()
-                .map(Message::LoginSession),
+                .map(Message::VoiceDictation),
+            self.gamepad_group
+                .group_content(&config.widget_groups.gamepad)
+                .map(Message::Gamepad),
             self.session_menu
                 .group_content(config)
                 .map(Message::Session),

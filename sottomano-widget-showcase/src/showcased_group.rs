@@ -204,15 +204,15 @@ impl ShowcasedNiriSession {
 impl ShowcasedGroup {
     pub fn position(&self) -> Position {
         match self {
-            ShowcasedGroup::BottomBar(_) => Position::Bottom,
+            ShowcasedGroup::BottomBar(_)
+            | ShowcasedGroup::ClaudeUsage(_)
+            | ShowcasedGroup::IdleTimeouts(_)
+            | ShowcasedGroup::Wallpaper(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
-            | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::Media(_)
-            | ShowcasedGroup::IdleTimeouts(_)
-            | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
