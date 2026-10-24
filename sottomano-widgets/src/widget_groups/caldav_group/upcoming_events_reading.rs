@@ -59,9 +59,9 @@ pub(super) fn moment_cell(moment: AgendaMoment) -> Cell {
     Cell::Time {
         at: moment.starts_at().to_utc(),
         format: if moment.is_all_day() {
-            LocalizedTimeFormat::Date
+            LocalizedTimeFormat::WeekdayDate
         } else {
-            LocalizedTimeFormat::DateAndMinute
+            LocalizedTimeFormat::WeekdayDateAndMinute
         },
     }
 }
@@ -103,14 +103,14 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
     if begins <= now {
         return "now".to_owned();
     }
-    let weekday = LocalizedTimeFormat::Weekday.format(&begins, locale);
-    let hour_and_minute = LocalizedTimeFormat::HourAndMinute.format(&begins, locale);
-    match (start.is_all_day(), start.day_in(&Local) == now.date_naive()) {
-        (true, true) => "today".to_owned(),
-        (true, false) => weekday,
-        (false, true) => hour_and_minute,
-        (false, false) => format!("{weekday} {hour_and_minute}"),
+    let weekday = LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale);
+    if start.is_all_day() {
+        return weekday;
     }
+    format!(
+        "{weekday} {}",
+        LocalizedTimeFormat::HourAndMinute.format(&begins, locale)
+    )
 }
 
 impl BarWidget for CaldavAgenda {

@@ -28,8 +28,8 @@ in
     cpuPowerReading.enable =
       lib.mkEnableOption ''
         reading CPU package and core power: a udev rule makes the RAPL
-        `energy_uj` counters world-readable so the CPU tooltip can show live
-        watts. RAPL readability is the PLATYPUS power side channel, which lets
+        `energy_uj` counters world-readable so the CPU power draw widget can
+        show live watts. RAPL readability is the PLATYPUS power side channel, which lets
         a local process infer data from fine-grained energy readings; turn
         this off on machines shared with untrusted users
       ''
