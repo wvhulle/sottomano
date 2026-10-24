@@ -3,7 +3,7 @@ use std::time::Duration;
 use humantime::format_duration;
 use iced::Element;
 use sottomano_config::Config;
-use sottomano_sources::login_session_presence::session_power_actions::SessionAction;
+use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 use crate::{
     clock::Clock,
@@ -28,17 +28,12 @@ pub struct IdleTimer {
     target: HoverTarget,
     timeout: Option<Duration>,
     control: SliderControl,
-    action: SessionAction,
+    action: IdleAction,
 }
 
 impl IdleTimer {
-    pub fn new(
-        name: &'static str,
-        icon: Phosphor,
-        target: impl Into<HoverTarget>,
-        action: SessionAction,
-    ) -> Self {
-        let target = target.into();
+    pub fn new(name: &'static str, icon: Phosphor, action: IdleAction) -> Self {
+        let target = HoverTarget::IdleTimeout(action);
         Self {
             control: SliderControl::new(name, 0.0..=MAX_POSITION, target.clone(), icon)
                 .readout(|value| {
@@ -128,7 +123,7 @@ impl IdleTimer {
         let when = match timeout {
             None => KeyValue::new("State", "disabled"),
             Some(timeout) => KeyValue::new(
-                format!("{} at", self.action.verb()),
+                format!("{} at", self.action.session_action().verb()),
                 Cell::Time {
                     at: clock.utc() + chrono::Duration::from_std(timeout).unwrap_or_default(),
                     format: LocalizedTimeFormat::TimeOfDay,
@@ -140,7 +135,10 @@ impl IdleTimer {
         });
         Tooltip::sourced(
             TooltipBody::dictionary(
-                [when, KeyValue::new("Via", self.action.mechanism())]
+                [
+                    when,
+                    KeyValue::new("Via", self.action.session_action().mechanism()),
+                ]
                     .into_iter()
                     .chain(overridden),
             ),

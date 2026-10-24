@@ -6,6 +6,7 @@ pub mod tooltip_transition;
 
 use iced::{Rectangle, window::Id};
 use sottomano_config::screen_edges::Position;
+use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 pub use crate::hover_tooltips::{
     hover_area::{hoverable, on_surface, pressable_card},
@@ -18,7 +19,7 @@ use crate::{
         color_temperature_group::ColorTemperatureTarget, compute_group::ComputeTarget,
         copilot_usage_group::CopilotUsageTarget, dark_mode_group::DarkModeTarget,
         disk_group::DiskTarget, gamepad_group::GamepadTarget, gpu_group::GpuTarget,
-        idle_timeouts_group::TimerKind, internet_group::InternetTarget,
+        internet_group::InternetTarget,
         journal_events_group::JournalTarget, llama_server_group::LlamaServerTarget,
         login_session_group::LoginSessionTarget, media_group::MediaTarget,
         memory_board_group::MemoryBoardTarget, monitor_group::MonitorTarget,
@@ -54,7 +55,7 @@ pub enum HoverTarget {
     ColorTemperature(ColorTemperatureTarget),
     DarkMode(DarkModeTarget),
     VoiceDictation(VoiceDictationTarget),
-    IdleTimeout(TimerKind),
+    IdleTimeout(IdleAction),
     Internet(InternetTarget),
     Weather(WeatherTarget),
     Wallpaper(WallpaperTarget),

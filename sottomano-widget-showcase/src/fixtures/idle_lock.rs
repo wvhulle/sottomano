@@ -13,7 +13,7 @@ pub fn group(_clock: Clock) -> ShowcasedGroup {
     let _ = group.update(IdleTimeoutsMessage::Loaded(Timeouts {
         lock_user: Some(Duration::from_mins(15)),
         screen_off: Some(Duration::from_mins(20)),
-        standby: Some(Duration::from_hours(1)),
+        sleep: Some(Duration::from_hours(1)),
         power_down: None,
     }));
     ShowcasedGroup::IdleTimeouts(Box::new(group))
