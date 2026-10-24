@@ -1,6 +1,9 @@
 use iced::Task;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling};
+use sottomano_state::{
+    niri_rules::{NiriLayout, NiriRulesFile, NiriStyling},
+    switch_heat_borders,
+};
 
 use crate::{
     clock::Clock,
@@ -28,11 +31,24 @@ fn xray_toggle(styling: NiriStyling) -> IconToggle {
     )
 }
 
+fn switch_heat_toggle(shown: bool) -> IconToggle {
+    IconToggle::new(
+        "Switch heat",
+        Phosphor::Fire(Weight::Regular),
+        shown,
+        SwitchPresses {
+            turning_on: "tint the focused window's border warmer the more often you return to it",
+            turning_off: "keep niri's own border color on every window",
+        },
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NiriWindowTarget {
     CornerRadius,
     Gaps,
     Xray,
+    SwitchHeat,
 }
 
 impl From<NiriWindowTarget> for HoverTarget {
@@ -47,12 +63,15 @@ pub enum NiriWindowMessage {
     CornerRadius(ControlMessage),
     Gaps(ControlMessage),
     ToggleXray,
+    ToggleSwitchHeat,
+    SwitchHeatLoaded(bool),
 }
 
 pub struct NiriWindowGroup {
     expansion: GroupExpansion,
     corner_radius: SliderControl,
     gaps: SliderControl,
+    switch_heat_shown: bool,
 }
 
 impl Default for NiriWindowGroup {
@@ -75,11 +94,23 @@ impl Default for NiriWindowGroup {
             )
             .icon_only()
             .readout(|value| format!("{} px", value.round())),
+            switch_heat_shown: false,
         }
     }
 }
 
 impl NiriWindowGroup {
+    pub fn load() -> Task<Message> {
+        Task::perform(switch_heat_borders::load_shown(), |shown| {
+            Message::NiriWindow(NiriWindowMessage::SwitchHeatLoaded(shown))
+        })
+    }
+
+    #[must_use]
+    pub fn shows_switch_heat(&self) -> bool {
+        self.switch_heat_shown
+    }
+
     pub fn adopt(&mut self, windows: NiriLayout) {
         self.corner_radius
             .update(ControlMessage::Reading(windows.window_corner_radius_px));
@@ -99,6 +130,9 @@ impl NiriWindowGroup {
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
             NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(clock),
+            NiriWindowTarget::SwitchHeat => {
+                switch_heat_toggle(self.switch_heat_shown).switch_tooltip(clock)
+            }
         };
         control.with_sections(rules.unreadable().map(|unreadable| {
             Section::dictionary([KeyValue::new(
@@ -159,6 +193,14 @@ impl NiriWindowGroup {
             NiriWindowMessage::ToggleXray => {
                 Task::future(rules.restyle(move |styling| styling.xray = !styling.xray)).discard()
             }
+            NiriWindowMessage::ToggleSwitchHeat => {
+                self.switch_heat_shown = !self.switch_heat_shown;
+                Task::future(switch_heat_borders::save_shown(self.switch_heat_shown)).discard()
+            }
+            NiriWindowMessage::SwitchHeatLoaded(shown) => {
+                self.switch_heat_shown = shown;
+                Task::none()
+            }
         }
     }
 
@@ -177,6 +219,11 @@ impl NiriWindowGroup {
                     xray_toggle(styling),
                     NiriWindowTarget::Xray,
                     NiriWindowMessage::ToggleXray,
+                ),
+                GroupItem::toggle(
+                    switch_heat_toggle(self.switch_heat_shown),
+                    NiriWindowTarget::SwitchHeat,
+                    NiriWindowMessage::ToggleSwitchHeat,
                 ),
             ],
         )

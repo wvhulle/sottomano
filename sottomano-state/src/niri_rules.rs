@@ -113,8 +113,8 @@ struct SottomanoRules {
     layer_rules: Vec<LayerRule>,
     #[kdl(child)]
     layout: LayoutSection,
-    #[kdl(child)]
-    window_rule: WindowRule,
+    #[kdl(children)]
+    window_rules: Vec<WindowRule>,
 }
 
 impl FromStr for SottomanoRules {
@@ -224,14 +224,75 @@ struct LayoutSection {
 #[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
 #[kdl(name = "window-rule")]
 struct WindowRule {
+    #[kdl(child)]
+    matches: Option<WindowMatch>,
     #[kdl(child(name = "geometry-corner-radius"), unwrap_arg)]
-    geometry_corner_radius: f32,
+    geometry_corner_radius: Option<f32>,
     #[kdl(child(name = "clip-to-geometry"), unwrap_arg)]
-    clip_to_geometry: bool,
+    clip_to_geometry: Option<bool>,
+    #[kdl(child)]
+    border: Option<HeatedBorder>,
 }
 
-impl From<NiriStyling> for SottomanoRules {
-    fn from(styling: NiriStyling) -> Self {
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "match")]
+struct WindowMatch {
+    #[kdl(property(rename = "app-id"))]
+    app_id: Option<String>,
+    #[kdl(property)]
+    title: String,
+}
+
+#[derive(Debug, PartialEq, KdlDeserialize, KdlSerialize)]
+#[kdl(name = "border")]
+struct HeatedBorder {
+    #[kdl(child(name = "active-color"), unwrap_arg)]
+    active_color: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeatedWindow {
+    pub app_id: Option<String>,
+    pub title: String,
+    pub active_color: String,
+}
+
+impl From<&HeatedWindow> for WindowRule {
+    fn from(heated: &HeatedWindow) -> Self {
+        Self {
+            matches: Some(WindowMatch {
+                app_id: heated.app_id.as_deref().map(exact_regex),
+                title: exact_regex(&heated.title),
+            }),
+            geometry_corner_radius: None,
+            clip_to_geometry: None,
+            border: Some(HeatedBorder {
+                active_color: heated.active_color.clone(),
+            }),
+        }
+    }
+}
+
+fn exact_regex(literal: &str) -> String {
+    let escaped: String = literal
+        .chars()
+        .filter(|c| !c.is_control())
+        .flat_map(|c| {
+            let metacharacter = "\\.+*?()|[]{}^$#&-~".contains(c);
+            metacharacter.then_some('\\').into_iter().chain([c])
+        })
+        .collect();
+    format!("^{escaped}$")
+}
+
+impl SottomanoRules {
+    fn styled(styling: NiriStyling, heated_windows: &[HeatedWindow]) -> Self {
+        let geometry_rule = WindowRule {
+            matches: None,
+            geometry_corner_radius: Some(styling.layout.window_corner_radius_px),
+            clip_to_geometry: Some(true),
+            border: None,
+        };
         Self {
             layer_rules: StyledSurface::ALL
                 .into_iter()
@@ -240,10 +301,10 @@ impl From<NiriStyling> for SottomanoRules {
             layout: LayoutSection {
                 gaps: styling.layout.gaps_px,
             },
-            window_rule: WindowRule {
-                geometry_corner_radius: styling.layout.window_corner_radius_px,
-                clip_to_geometry: true,
-            },
+            window_rules: [geometry_rule]
+                .into_iter()
+                .chain(heated_windows.iter().map(WindowRule::from))
+                .collect(),
         }
     }
 }
@@ -251,6 +312,7 @@ impl From<NiriStyling> for SottomanoRules {
 impl From<SottomanoRules> for NiriStyling {
     fn from(rules: SottomanoRules) -> Self {
         let panel = NamespaceMatch::from(StyledSurface::Panel);
+        let defaults = NiriLayout::default();
         Self {
             xray: rules
                 .layer_rules
@@ -259,7 +321,12 @@ impl From<SottomanoRules> for NiriStyling {
                 .flat_map(|rule| rule.background_effects)
                 .any(|effect| effect.xray),
             layout: NiriLayout {
-                window_corner_radius_px: rules.window_rule.geometry_corner_radius,
+                window_corner_radius_px: rules
+                    .window_rules
+                    .iter()
+                    .filter(|rule| rule.matches.is_none())
+                    .find_map(|rule| rule.geometry_corner_radius)
+                    .unwrap_or(defaults.window_corner_radius_px),
                 gaps_px: rules.layout.gaps,
             },
         }
@@ -292,6 +359,7 @@ pub struct NiriRulesFile {
     path: PathBuf,
     written: Written,
     styling: NiriStyling,
+    heated_windows: Vec<HeatedWindow>,
 }
 
 impl NiriRulesFile {
@@ -301,7 +369,19 @@ impl NiriRulesFile {
             path: config_home.join("sottomano").join("niri.kdl"),
             written: Written::Unread,
             styling: NiriStyling::default(),
+            heated_windows: Vec::new(),
         }
+    }
+
+    pub fn reheat(
+        &mut self,
+        heated_windows: Vec<HeatedWindow>,
+    ) -> Option<impl Future<Output = bool> + Send + use<>> {
+        if heated_windows == self.heated_windows {
+            return None;
+        }
+        self.heated_windows = heated_windows;
+        Some(self.write().persisted())
     }
 
     #[must_use]
@@ -361,7 +441,7 @@ impl NiriRulesFile {
         if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
             return RulesWrite::Withheld;
         }
-        let rules = match SottomanoRules::from(self.styling).to_kdl_v1() {
+        let rules = match SottomanoRules::styled(self.styling, &self.heated_windows).to_kdl_v1() {
             Ok(rules) => rules,
             Err(e) => {
                 tracing::warn!("niri rules: rendering failed: {e}");
@@ -414,9 +494,17 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        BackgroundEffect, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling, SottomanoRules,
-        StoredRules, StyledSurface,
+        BackgroundEffect, HeatedWindow, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling,
+        SottomanoRules, StoredRules, StyledSurface,
     };
+
+    fn heated_terminal() -> HeatedWindow {
+        HeatedWindow {
+            app_id: Some("kitty".to_owned()),
+            title: "nvim (main) \"notes\".md".to_owned(),
+            active_color: "#ffb454ff".to_owned(),
+        }
+    }
 
     fn styled() -> NiriStyling {
         NiriStyling {
@@ -431,9 +519,34 @@ mod tests {
     #[test]
     fn a_rendered_look_reads_back_unchanged() {
         let written = styled();
-        let text = SottomanoRules::from(written).to_kdl_v1().unwrap();
+        let text = SottomanoRules::styled(written, &[]).to_kdl_v1().unwrap();
         let read = NiriStyling::from(text.parse::<SottomanoRules>().unwrap());
         assert_eq!(read, written);
+    }
+
+    #[test]
+    fn heated_windows_leave_the_look_unchanged_on_reading_back() {
+        let written = styled();
+        let text = SottomanoRules::styled(written, &[heated_terminal()])
+            .to_kdl_v1()
+            .unwrap();
+        let read = NiriStyling::from(text.parse::<SottomanoRules>().unwrap());
+        assert_eq!(read, written);
+    }
+
+    #[test]
+    fn a_heated_window_is_matched_by_its_escaped_title() {
+        let rules = SottomanoRules::styled(styled(), &[heated_terminal()]);
+        let heated_match = rules.window_rules[1].matches.as_ref().unwrap();
+        assert_eq!(heated_match.app_id.as_deref(), Some("^kitty$"));
+        assert_eq!(heated_match.title, "^nvim \\(main\\) \"notes\"\\.md$");
+    }
+
+    #[test]
+    fn an_unchanged_heat_is_not_rewritten() {
+        let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
+        assert!(rules.reheat(vec![heated_terminal()]).is_some());
+        assert!(rules.reheat(vec![heated_terminal()]).is_none());
     }
 
     #[test]
@@ -446,7 +559,7 @@ mod tests {
     #[test]
     fn the_panel_leaves_shadows_and_corners_to_sottomano() {
         let panel = NamespaceMatch::from(StyledSurface::Panel);
-        let rules = SottomanoRules::from(styled());
+        let rules = SottomanoRules::styled(styled(), &[]);
         let panel_rule = rules
             .layer_rules
             .iter()

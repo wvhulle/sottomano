@@ -13,7 +13,10 @@ use sottomano_sources::{
     login_session_presence::focus_time_ledger::{ScreenEdge, WakingWindow},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_state::focus_tracker::{FocusTracker, TrackerMessage};
+use sottomano_state::{
+    focus_tracker::{FocusTracker, TrackerMessage},
+    niri_rules::HeatedWindow,
+};
 
 use crate::{
     clock::Clock,
@@ -174,6 +177,34 @@ impl SessionFocusGroup {
                 .accounted(&config.widget_groups.focus_time),
             waking,
         }
+    }
+
+    #[must_use]
+    pub fn heated_windows(
+        &self,
+        niri: &EventStreamState,
+        config: &Config,
+        clock: Clock,
+    ) -> Vec<HeatedWindow> {
+        let accounting = self
+            .tracker
+            .ledger()
+            .accounted(&config.widget_groups.focus_time);
+        let now = clock.utc();
+        let mut windows: Vec<_> = niri.windows.windows.values().collect();
+        windows.sort_by_key(|window| window.id);
+        windows
+            .into_iter()
+            .filter_map(|window| {
+                let title = window.title.clone().filter(|title| !title.is_empty())?;
+                let color = accounting.switch_heat_color(window.id, &config.theme.palette, now)?;
+                Some(HeatedWindow {
+                    app_id: window.app_id.clone(),
+                    title,
+                    active_color: format!("{:x}", color.to_rgba8()),
+                })
+            })
+            .collect()
     }
 
     #[must_use]
