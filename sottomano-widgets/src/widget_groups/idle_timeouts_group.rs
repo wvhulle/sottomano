@@ -7,8 +7,7 @@ use iced::{
 };
 use sottomano_config::Config;
 use sottomano_sources::login_session_presence::{
-    focus_time_ledger::ScreenEdge, idle_session_actions::IdleAction,
-    wayland_idle_notify::IdleEdge,
+    focus_time_ledger::ScreenEdge, idle_session_actions::IdleAction, wayland_idle_notify::IdleEdge,
 };
 use sottomano_state::idle::{self, Timeouts};
 

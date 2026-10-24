@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    cpu_memory_compute::nvml_gpu_readings::GpuModel,
+    cpu_memory_compute::pci_gpu_readings::GpuModel,
     host_machine_identity::udev_hardware_identity::{
         Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
     },

@@ -9,6 +9,7 @@ pub mod cpu_power_draw;
 pub mod cpu_temperature;
 pub mod cpu_topology;
 pub mod hwmon_temperature_sensors;
+pub mod intel_drm_gpu_readings;
 mod intel_hybrid_core_designs;
 mod intel_pstate_no_turbo;
 mod intel_thermal_throttle_counters;
@@ -16,6 +17,7 @@ pub mod kernel_frequency_limit_causes;
 pub mod memory_module_temperatures;
 pub mod memory_usage;
 pub mod nvml_gpu_readings;
+pub mod pci_gpu_readings;
 pub mod temperature_thresholds;
 
 use std::path::{Path, PathBuf};
