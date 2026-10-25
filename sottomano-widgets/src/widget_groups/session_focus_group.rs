@@ -154,13 +154,12 @@ impl SessionFocusGroup {
         }
     }
 
-    fn break_log<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> BreakLog<'a> {
+    fn break_log<'a>(&'a self, config: &'a Config) -> BreakLog<'a> {
         BreakLog {
             accounting: self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
         }
     }
 
@@ -267,7 +266,7 @@ impl SessionFocusGroup {
                 tint: ActionTint::Proceed,
                 on_button_pressed: SessionFocusMessage::BreakPledged,
             }]);
-        let breaks = GroupItem::reading(self.break_log(config, waking), SessionFocusTarget::Breaks);
+        let breaks = GroupItem::reading(self.break_log(config), SessionFocusTarget::Breaks);
         let focus_run = GroupItem::reading(
             self.focus_run_reading(config, waking),
             SessionFocusTarget::FocusRun,
@@ -297,7 +296,7 @@ impl SessionFocusGroup {
     ) -> Tooltip {
         let body = match target {
             SessionFocusTarget::Session => self.session_face(config).tooltip(clock),
-            SessionFocusTarget::Breaks => self.break_log(config, waking).tooltip(clock),
+            SessionFocusTarget::Breaks => self.break_log(config).tooltip(clock),
             SessionFocusTarget::FocusRun => self.focus_run_reading(config, waking).tooltip(clock),
             SessionFocusTarget::DailyTotals => self
                 .daily_totals_gauge(config, waking, clock)

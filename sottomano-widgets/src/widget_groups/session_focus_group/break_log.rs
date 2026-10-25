@@ -1,7 +1,7 @@
-use chrono::{DateTime, Locale, Utc};
+use chrono::{DateTime, Local, Locale, TimeDelta, Utc};
 use iced::alignment::Horizontal;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, TakenBreak, WakingWindow,
+    Accounting, Interval, TakenBreak,
 };
 
 use crate::{
@@ -16,6 +16,8 @@ use crate::{
 
 const LISTED_BREAKS_LIMIT: usize = 12;
 
+const LISTED_BREAKS_PERIOD: TimeDelta = TimeDelta::days(1);
+
 const BREAK_TABLE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::new("Ended"),
     ColumnHeading::new("Lasted"),
@@ -24,29 +26,35 @@ const BREAK_TABLE_HEADINGS: [ColumnHeading; 3] = [
 
 pub struct BreakLog<'a> {
     pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
 }
 
-struct TodaysBreaks {
+struct RecentBreaks {
     taken_breaks: Vec<TakenBreak>,
     now: DateTime<Utc>,
 }
 
-impl TodaysBreaks {
+impl RecentBreaks {
+    fn moment_cell(&self, at: DateTime<Utc>) -> Cell {
+        let same_local_day =
+            at.with_timezone(&Local).date_naive() == self.now.with_timezone(&Local).date_naive();
+        Cell::Time {
+            at,
+            format: if same_local_day {
+                LocalizedTimeFormat::HourAndMinute
+            } else {
+                LocalizedTimeFormat::AbbreviatedWeekdayAndMinute
+            },
+        }
+    }
+
     fn break_record(&self, taken: &TakenBreak) -> TableRecord<3> {
         let ended = if taken.interval.until >= self.now {
             Cell::Hint("ongoing".to_owned())
         } else {
-            Cell::Time {
-                at: taken.interval.until,
-                format: LocalizedTimeFormat::HourAndMinute,
-            }
+            self.moment_cell(taken.interval.until)
         };
         TableRecord::new(
-            Cell::Time {
-                at: taken.interval.from,
-                format: LocalizedTimeFormat::HourAndMinute,
-            },
+            self.moment_cell(taken.interval.from),
             [
                 Some(ended),
                 Some(Cell::duration(taken.interval.length())),
@@ -79,40 +87,21 @@ impl TodaysBreaks {
                     .iter()
                     .map(|taken| self.break_record(taken)),
             )
-            .titled(("Breaks today".to_owned(), self.table_caption()))
+            .titled(("Breaks in the last 24 hours".to_owned(), self.table_caption()))
         })
-    }
-
-    fn breaks_summary(&self) -> Section {
-        let longest_break = self
-            .taken_breaks
-            .iter()
-            .map(|taken| taken.interval.length())
-            .max();
-        Section::dictionary(
-            [
-                Some(KeyValue::new(
-                    "Breaks taken",
-                    self.taken_breaks.len().to_string(),
-                )),
-                longest_break.map(|length| KeyValue::new("Longest break", Cell::duration(length))),
-            ]
-            .into_iter()
-            .flatten(),
-        )
-        .titled((
-            "Today (waking hours)".to_owned(),
-            "Waking hours run from the end of your quiet schedule to its start.".to_owned(),
-        ))
     }
 }
 
 impl BreakLog<'_> {
-    fn todays_breaks(&self, now: DateTime<Utc>) -> TodaysBreaks {
-        TodaysBreaks {
-            taken_breaks: self
-                .accounting
-                .taken_breaks_within(self.waking.around(now), now),
+    fn recent_breaks(&self, now: DateTime<Utc>) -> RecentBreaks {
+        RecentBreaks {
+            taken_breaks: self.accounting.taken_breaks_within(
+                Interval {
+                    from: now - LISTED_BREAKS_PERIOD,
+                    until: now,
+                },
+                now,
+            ),
             now,
         }
     }
@@ -137,15 +126,10 @@ impl BreakLog<'_> {
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> Vec<Section> {
-        let todays_breaks = self.todays_breaks(now);
-        [
-            Some(self.break_rules()),
-            todays_breaks.breaks_table(),
-            Some(todays_breaks.breaks_summary()),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
+        [Some(self.break_rules()), self.recent_breaks(now).breaks_table()]
+            .into_iter()
+            .flatten()
+            .collect()
     }
 }
 
@@ -160,7 +144,7 @@ impl BarWidget for BreakLog<'_> {
 
     fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
         Some(
-            self.todays_breaks(clock.utc())
+            self.recent_breaks(clock.utc())
                 .taken_breaks
                 .len()
                 .to_string(),
