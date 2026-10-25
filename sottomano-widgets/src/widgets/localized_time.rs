@@ -13,6 +13,7 @@ pub enum LocalizedTimeFormat {
     WeekdayDateAndMinute,
     Weekday,
     AbbreviatedWeekday,
+    AbbreviatedWeekdayAndMinute,
 }
 
 impl LocalizedTimeFormat {
@@ -50,6 +51,12 @@ impl LocalizedTimeFormat {
             LocalizedTimeFormat::WeekdayDateAndMinute => "%a %x %H:%M",
             LocalizedTimeFormat::Weekday => "%A",
             LocalizedTimeFormat::AbbreviatedWeekday => "%a",
+            LocalizedTimeFormat::AbbreviatedWeekdayAndMinute
+                if uses_twelve_hour_clock(at, locale) =>
+            {
+                "%a %-I:%M %p"
+            }
+            LocalizedTimeFormat::AbbreviatedWeekdayAndMinute => "%a %H:%M",
         }
     }
 }

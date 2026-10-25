@@ -104,12 +104,7 @@ impl Accounting<'_> {
     pub fn taken_breaks_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<TakenBreak> {
         self.taken_breaks(now)
             .into_iter()
-            .filter_map(|taken| {
-                taken.interval.intersect(window).map(|interval| TakenBreak {
-                    interval,
-                    cause: taken.cause,
-                })
-            })
+            .filter(|taken| (window.from..window.until).contains(&taken.interval.from))
             .collect()
     }
 
@@ -363,22 +358,24 @@ mod tests {
     }
 
     #[test]
-    fn breaks_are_clipped_to_the_window() {
+    fn only_breaks_starting_in_the_window_count() {
         let config = config();
         let ledger = folded([
             step(focused("kitty", None), 0),
             step(idle_edge(IdleEdge::Idled), 10),
             step(idle_edge(IdleEdge::Resumed), 30),
+            step(idle_edge(IdleEdge::Idled), 50),
+            step(idle_edge(IdleEdge::Resumed), 70),
         ]);
         let window = Interval {
             from: at(20),
             until: at(60),
         };
         assert_eq!(
-            ledger.accounted(&config).breaks_within(window, at(40)),
+            ledger.accounted(&config).breaks_within(window, at(80)),
             vec![Interval {
-                from: at(20),
-                until: at(30)
+                from: at(50),
+                until: at(70)
             }]
         );
     }
