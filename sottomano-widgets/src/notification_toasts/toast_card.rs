@@ -25,7 +25,7 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         icon_handle::IconHandle,
-        localized_durations::{duration_text, relative_moment_text},
+        localized_durations::relative_moment_text,
         markup_body::MarkupBody,
         palette_colors::PaletteColors,
         panel_frame::LayerFrameStyle,
@@ -266,16 +266,15 @@ impl ToastCard<'_> {
         let now = self.now;
         let body_text = &data.body;
         let has_body = body_text.is_some();
-        let locale = self.config.calendar.locale;
-        let now_utc = DateTime::<Utc>::from(now);
-        let reltime = match &self.notif.kind {
-            ToastKind::Event { at, .. } => {
-                relative_moment_text(DateTime::from(*at), now_utc, locale)
-            }
-            ToastKind::Ongoing { since, .. } => {
-                duration_text(now_utc - DateTime::<Utc>::from(*since), locale)
-            }
+        let started = match &self.notif.kind {
+            ToastKind::Event { at, .. } => *at,
+            ToastKind::Ongoing { since, .. } => *since,
         };
+        let reltime = relative_moment_text(
+            DateTime::<Utc>::from(started),
+            DateTime::from(now),
+            self.config.calendar.locale,
+        );
         let reltime_span = |visible: bool| {
             visible.then(|| {
                 bar_text(font, reltime.clone())
