@@ -24,8 +24,8 @@ Or run the packaged binary without cloning:
 nix run git+https://codeberg.org/wvhulle/sottomano
 ```
 
-`sottomano --help` lists the options that describe the setup without starting
-the shell, such as `--print-default-config` and `--list-secrets`.
+`sottomano --help` lists the subcommands that describe the setup without
+starting the shell, such as `default-config` and `secrets`.
 
 ## NixOS
 

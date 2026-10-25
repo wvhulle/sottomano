@@ -1,6 +1,6 @@
 use std::{error::Error, path::Path};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use sottomano_config::{SecretPaths, default_config_toml, secrets::SecretFile};
 
 #[derive(Debug, Parser)]
@@ -9,35 +9,30 @@ use sottomano_config::{SecretPaths, default_config_toml, secrets::SecretFile};
     version,
     about = "Desktop shell for the niri compositor: two panels with hoverable readings.",
     long_about = "Desktop shell for the niri compositor: two panels with hoverable readings. \
-                  Without options it starts the shell; the options below describe its setup \
+                  Without a subcommand it starts the shell; the subcommands describe its setup \
                   instead."
 )]
 pub struct CommandLine {
-    #[arg(
-        long,
-        help = "Print every configuration key with its default value as TOML, then exit."
-    )]
-    pub print_default_config: bool,
-
-    #[arg(
-        long,
-        help = "List the secret files the shell reads, what each is for and whether it is \
-                present, then exit."
-    )]
-    pub list_secrets: bool,
+    #[command(subcommand)]
+    pub setup_command: Option<SetupCommand>,
 }
 
-impl CommandLine {
-    pub fn describes_setup(&self) -> bool {
-        self.print_default_config || self.list_secrets
-    }
+#[derive(Debug, Subcommand)]
+pub enum SetupCommand {
+    #[command(about = "Print every configuration key with its default value as TOML.")]
+    DefaultConfig,
+    #[command(
+        about = "List the secret files the shell reads, what each is for and whether it is \
+                 present."
+    )]
+    Secrets,
+}
 
-    pub fn print_setup(&self, config_home: &Path) -> Result<(), Box<dyn Error>> {
-        if self.print_default_config {
-            print!("{}", default_config_toml()?);
-        }
-        if self.list_secrets {
-            print_secrets(config_home);
+impl SetupCommand {
+    pub fn print(&self, config_home: &Path) -> Result<(), Box<dyn Error>> {
+        match self {
+            SetupCommand::DefaultConfig => print!("{}", default_config_toml()?),
+            SetupCommand::Secrets => print_secrets(config_home),
         }
         Ok(())
     }

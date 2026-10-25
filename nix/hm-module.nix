@@ -59,7 +59,7 @@ in
       description = ''
         Contents of ~/.config/sottomano.toml, written verbatim. The running bar
         watches the file and applies changes in place. `sottomano
-        --print-default-config` prints every key with its default value.
+        default-config` prints every key with its default value.
       '';
     };
 

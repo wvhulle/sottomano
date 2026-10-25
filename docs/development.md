@@ -80,6 +80,8 @@ flowchart TB
   warns on clippy pedantic plus `absolute_paths`.
 - `treefmt` formats Rust (rustfmt, nightly for the options in
   `.rustfmt.toml`) and Nix (nixfmt), as configured in `treefmt.toml`.
+- `cargo xtask update-config-docs` regenerates the full default config in
+  `docs/configuration.md`; with `--check` it only reports whether it is stale.
 
 Version control is jj, not the `git` CLI.
 
@@ -93,7 +95,9 @@ format) on pull requests and on `main`. It also checks pull request commits
 against Conventional Commits
 (locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
 checks pass on `main`, the `readme-recordings` pipeline re-renders the tour and
-opens a pull request when the recordings changed.
+opens a pull request when the recordings changed. The `config-docs` pipeline
+does the same for the full default config in `docs/configuration.md` when the
+config crate changes.
 
 ```mermaid
 flowchart LR
@@ -115,16 +119,28 @@ flowchart LR
     push_recordings_branch --> open_recordings_pull_request
   end
 
+  subgraph config_docs_pipeline [".woodpecker/config-docs.yaml"]
+    update_config_docs["update-config-docs<br>cargo xtask update-config-docs"]
+    push_config_docs_branch["push-config-docs-branch<br>force-push to Codeberg"]
+    open_config_docs_pull_request["open-config-docs-pr<br>open, update or close"]
+    update_config_docs --> push_config_docs_branch
+    push_config_docs_branch --> open_config_docs_pull_request
+  end
+
   main_branch[("main")]
 
   pull_request_event --> cargo_checks_pr & format_check & conventional_commits
   main_push_event --> cargo_checks & format_check
   checks_pipeline -->|"depends_on: checks"| recordings_pipeline
+  checks_pipeline -->|"depends_on: checks"| config_docs_pipeline
   open_recordings_pull_request -->|readme-recordings PR| main_branch
+  open_config_docs_pull_request -->|config-docs PR| main_branch
 ```
 
 The `readme-recordings` pipeline skips pushes that only touch `recordings/**`
-and its own commits.
+and its own commits. The `config-docs` pipeline only runs when
+`sottomano-config/`, `xtask/` or `docs/configuration.md` change, and skips its
+own commits.
 
 ## Tour recordings
 
