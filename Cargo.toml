@@ -123,6 +123,5 @@ iced_wgpu = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-al
 iced_widget = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 iced_winit = { git = "https://github.com/wvhulle/iced.git", branch = "skip-low-alpha-surface-formats" }
 
-
 [profile.dev.package."*"]
 opt-level = 2
