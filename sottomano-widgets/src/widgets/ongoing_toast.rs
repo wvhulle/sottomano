@@ -139,6 +139,30 @@ const fn alerting_severity_of(state: WidgetState) -> Severity {
     }
 }
 
+pub fn widget_state_alert_severity(widget: &dyn BarWidget, clock: Clock) -> Option<Severity> {
+    let OngoingToastThreshold::NotifyFromSeverity {
+        minimum_severity, ..
+    } = widget.ongoing_toast_threshold()
+    else {
+        return None;
+    };
+    let severity = alerting_severity_of(widget.state(clock));
+    (severity > Severity::Normal && severity >= minimum_severity).then_some(severity)
+}
+
+fn alerting_quota_severity(quota: &Quota) -> Option<Severity> {
+    let severity = quota.severity();
+    (severity >= Severity::Warning).then_some(severity)
+}
+
+pub fn quota_pace_alert_severity(widget: &dyn BarWidget, clock: Clock) -> Option<Severity> {
+    widget
+        .quota_windows(clock.utc())
+        .iter()
+        .filter_map(alerting_quota_severity)
+        .max()
+}
+
 impl<Message> OngoingToast<Message> {
     pub fn from_widget_state(
         hover_target: HoverTarget,
@@ -147,15 +171,13 @@ impl<Message> OngoingToast<Message> {
         locale: Locale,
         clock: Clock,
     ) -> Option<Self> {
-        let OngoingToastThreshold::NotifyFromSeverity {
-            minimum_severity,
-            summary_text,
-        } = widget.ongoing_toast_threshold()
+        let severity = widget_state_alert_severity(widget, clock)?;
+        let OngoingToastThreshold::NotifyFromSeverity { summary_text, .. } =
+            widget.ongoing_toast_threshold()
         else {
             return None;
         };
-        let severity = alerting_severity_of(widget.state(clock));
-        (severity > Severity::Normal && severity >= minimum_severity).then(|| Self {
+        Some(Self {
             widget_name: widget.name(),
             key: OngoingKey::Reading(hover_target),
             severity,
@@ -179,7 +201,7 @@ impl<Message> OngoingToast<Message> {
         let alerting: Vec<Quota> = widget
             .quota_windows(now)
             .into_iter()
-            .filter(|quota| quota.severity() >= Severity::Warning)
+            .filter(|quota| alerting_quota_severity(quota).is_some())
             .collect();
         let worst = alerting.iter().max_by_key(|quota| quota.severity())?;
         let outlook = if worst.pace() == Some(Pace::Exceeded) {

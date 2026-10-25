@@ -302,9 +302,14 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         let highest_alert_severity = self
-            .ongoing_toasts(config.calendar.locale, clock)
-            .map(|toast| toast.severity)
-            .max()
+            .handle
+            .expand_message()
+            .and_then(|_| {
+                self.items
+                    .iter()
+                    .filter_map(|item| item.ongoing_alert_severity(clock))
+                    .max()
+            })
             .unwrap_or_default();
         let GroupContent { handle, mut items } = self;
         let Handle::Expandable {

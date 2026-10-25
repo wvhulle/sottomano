@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{cell::RefCell, collections::HashMap, time::Duration};
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use fixed_decimal::{Decimal, Sign};
@@ -86,23 +86,56 @@ pub fn duration_text(length: impl LengthOfTime, locale: Locale) -> String {
     }
 }
 
-fn formatted_span(span: Span, locale: Locale) -> String {
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct DurationFormatterKey {
+    locale: Locale,
+    shows_zero_seconds: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+struct RelativeFormatterKey {
+    locale: Locale,
+    unit: Unit,
+    numeric: Numeric,
+}
+
+thread_local! {
+    static DURATION_FORMATTERS: RefCell<HashMap<DurationFormatterKey, DurationFormatter>> =
+        RefCell::new(HashMap::new());
+    static RELATIVE_FORMATTERS: RefCell<HashMap<RelativeFormatterKey, RelativeTimeFormatter>> =
+        RefCell::new(HashMap::new());
+}
+
+fn new_duration_formatter(key: DurationFormatterKey) -> DurationFormatter {
     let mut options = DurationFormatterOptions::default();
     options.base = BaseStyle::Narrow;
-    if span.is_zero() {
+    if key.shows_zero_seconds {
         options.second_visibility = Some(FieldDisplay::Always);
     }
     let validated = ValidatedDurationFormatterOptions::validate(options)
         .expect("narrow duration options are valid");
-    let formatter = DurationFormatter::try_new((&icu_locale(locale)).into(), validated)
-        .expect("compiled ICU data covers every locale through fallback");
+    DurationFormatter::try_new((&icu_locale(key.locale)).into(), validated)
+        .expect("compiled ICU data covers every locale through fallback")
+}
+
+fn formatted_span(span: Span, locale: Locale) -> String {
+    let key = DurationFormatterKey {
+        locale,
+        shows_zero_seconds: span.is_zero(),
+    };
     let mut duration = IcuDuration::new();
     duration.days = u64::from(span.get_days().unsigned_abs());
     duration.hours = u64::from(span.get_hours().unsigned_abs());
     duration.minutes = span.get_minutes().unsigned_abs();
     duration.seconds = span.get_seconds().unsigned_abs();
     duration.milliseconds = span.get_milliseconds().unsigned_abs();
-    formatter.format(&duration).to_string()
+    DURATION_FORMATTERS.with_borrow_mut(|formatters| {
+        formatters
+            .entry(key)
+            .or_insert_with(|| new_duration_formatter(key))
+            .format(&duration)
+            .to_string()
+    })
 }
 
 #[must_use]
@@ -115,18 +148,35 @@ pub fn signed_duration_text(offset: TimeDelta, locale: Locale) -> String {
     format!("{sign}{}", duration_text(offset.abs(), locale))
 }
 
-fn relative_text(locale: Locale, unit: Unit, numeric: Numeric, value: Decimal) -> String {
-    let preferences = (&icu_locale(locale)).into();
-    let options = RelativeTimeFormatterOptions::default().with_numeric(numeric);
-    match unit {
+fn new_relative_formatter(key: RelativeFormatterKey) -> RelativeTimeFormatter {
+    let preferences = (&icu_locale(key.locale)).into();
+    let options = RelativeTimeFormatterOptions::default().with_numeric(key.numeric);
+    match key.unit {
         Unit::Day => RelativeTimeFormatter::try_new_long_day(preferences, options),
         Unit::Hour => RelativeTimeFormatter::try_new_short_hour(preferences, options),
         Unit::Minute => RelativeTimeFormatter::try_new_short_minute(preferences, options),
         _ => RelativeTimeFormatter::try_new_short_second(preferences, options),
     }
     .expect("compiled ICU data covers every locale through fallback")
-    .format(value)
-    .to_string()
+}
+
+fn relative_text(locale: Locale, unit: Unit, numeric: Numeric, value: Decimal) -> String {
+    let formatted_unit = match unit {
+        Unit::Day | Unit::Hour | Unit::Minute => unit,
+        _ => Unit::Second,
+    };
+    let key = RelativeFormatterKey {
+        locale,
+        unit: formatted_unit,
+        numeric,
+    };
+    RELATIVE_FORMATTERS.with_borrow_mut(|formatters| {
+        formatters
+            .entry(key)
+            .or_insert_with(|| new_relative_formatter(key))
+            .format(value)
+            .to_string()
+    })
 }
 
 #[must_use]

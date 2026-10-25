@@ -5,7 +5,7 @@ use iced::{
     Element,
     widget::{button, mouse_area},
 };
-use sottomano_config::Config;
+use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
@@ -14,7 +14,10 @@ use crate::{
         announced_level::LevelReading,
         bar_widget::BarWidget,
         flat_button,
-        ongoing_toast::{OngoingToast, OngoingToastActionButton},
+        ongoing_toast::{
+            OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
+            widget_state_alert_severity,
+        },
         palette_colors::PaletteColors,
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
@@ -342,6 +345,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             .into_iter()
             .chain(quota_toast)
             .chain(self.ongoing_toasts.iter().cloned())
+    }
+
+    pub(super) fn ongoing_alert_severity(&self, clock: Clock) -> Option<Severity> {
+        let alerting_widget = self
+            .kind
+            .announcing_widget()
+            .filter(|_| self.kind.hover_target().is_some());
+        alerting_widget
+            .and_then(|widget| widget_state_alert_severity(widget, clock))
+            .into_iter()
+            .chain(alerting_widget.and_then(|widget| quota_pace_alert_severity(widget, clock)))
+            .chain(self.ongoing_toasts.iter().map(|toast| toast.severity))
+            .max()
     }
 
     pub(super) fn view(
