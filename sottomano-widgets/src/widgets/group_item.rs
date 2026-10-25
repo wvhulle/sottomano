@@ -296,11 +296,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub(super) fn level_reading(
         &self,
         on_body_clicked: M,
+        locale: Locale,
         clock: Clock,
     ) -> Option<LevelReading<M>> {
         let widget = self.kind.announcing_widget()?;
         let target = self.kind.hover_target()?;
-        widget.announced_level().map(|level| LevelReading {
+        widget.announced_level(locale).map(|level| LevelReading {
             hover_target: target.clone(),
             glyph: widget.icon_at(clock),
             level,

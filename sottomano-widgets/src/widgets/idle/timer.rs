@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use humantime::format_duration;
 use iced::Element;
 use sottomano_config::Config;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
@@ -11,6 +10,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
@@ -37,14 +37,12 @@ impl IdleTimer {
         let target = HoverTarget::IdleTimeout(action);
         Self {
             control: SliderControl::new(name, 0.0..=MAX_POSITION, target.clone(), icon)
-                .readout(|value| {
-                    timeout_at(value).map_or_else(
-                        || "∞".to_owned(),
-                        |timeout| format_duration(timeout).to_string(),
-                    )
+                .readout(|value, locale| {
+                    timeout_at(value)
+                        .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
                 })
-                .label(|value| {
-                    timeout_at(value).map(|timeout| format_duration(timeout).to_string())
+                .label(|value, locale| {
+                    timeout_at(value).map(|timeout| duration_text(timeout, locale))
                 }),
             target,
             timeout: None,

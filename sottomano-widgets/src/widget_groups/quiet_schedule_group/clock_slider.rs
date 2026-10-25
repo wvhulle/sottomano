@@ -11,8 +11,8 @@ pub(super) fn new_clock_slider(
     SliderControl::new(name, CLOCK_MINUTES, target, icon)
         .scroll_step(CLOCK_STEP_MINUTES)
         .slider_step(CLOCK_STEP_MINUTES)
-        .readout(|minutes| clock_text(clock_at(minutes)))
-        .label(|minutes| Some(clock_text(clock_at(minutes))))
+        .readout(|minutes, _| clock_text(clock_at(minutes)))
+        .label(|minutes, _| Some(clock_text(clock_at(minutes))))
 }
 
 #[allow(clippy::cast_precision_loss)]

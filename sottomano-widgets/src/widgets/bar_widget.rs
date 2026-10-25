@@ -92,7 +92,7 @@ pub trait BarWidget {
         self.gauge()
     }
 
-    fn announced_level(&self) -> Option<AnnouncedLevel> {
+    fn announced_level(&self, _locale: Locale) -> Option<AnnouncedLevel> {
         None
     }
 
@@ -148,8 +148,8 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
         (**self).live_gauge()
     }
 
-    fn announced_level(&self) -> Option<AnnouncedLevel> {
-        (**self).announced_level()
+    fn announced_level(&self, locale: Locale) -> Option<AnnouncedLevel> {
+        (**self).announced_level(locale)
     }
 
     fn visible_in_bar(&self) -> bool {

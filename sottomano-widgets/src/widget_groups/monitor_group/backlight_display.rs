@@ -4,7 +4,7 @@ use crate::{
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
 };
 
@@ -17,7 +17,7 @@ pub fn face(backlight: &Backlight) -> Phosphor {
 
 pub fn tooltip(
     backlight: &Backlight,
-    brightness: String,
+    brightness: Cell,
     output: Option<&ConnectedOutput>,
 ) -> TooltipBody {
     let kind = match backlight.kind {

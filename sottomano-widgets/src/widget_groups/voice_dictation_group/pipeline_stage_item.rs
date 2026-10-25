@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use notulist_client::{GateVerdict, InferenceTickReport, PipelineActivity, PipelineStage};
 use sottomano_sources::voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline;
 
@@ -6,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, TooltipBody, entry},
         widget_state::WidgetState,
     },
 };
@@ -20,8 +22,14 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = KeyValue> {
             "Language",
             decoded_tick.map(|report| report.language.chosen_language.clone()),
         ),
-        entry("Decode time", decoded_tick.map(decode_time_text)),
-        entry("Audio length", decoded_tick.map(audio_length_text)),
+        entry(
+            "Decode time",
+            decoded_tick.and_then(|report| seconds_cell(report.whisper_secs())),
+        ),
+        entry(
+            "Audio length",
+            decoded_tick.and_then(|report| seconds_cell(report.decode.audio_secs)),
+        ),
         entry(
             "Gate",
             last_tick.and_then(|report| gate_text(report.gate.verdict)),
@@ -94,18 +102,15 @@ const fn gate_text(verdict: GateVerdict) -> Option<&'static str> {
     }
 }
 
-fn decode_time_text(report: &InferenceTickReport) -> String {
-    format!("{:.2} s", report.whisper_secs())
-}
-
-fn audio_length_text(report: &InferenceTickReport) -> String {
-    format!("{:.1} s", report.decode.audio_secs)
+fn seconds_cell(seconds: f64) -> Option<Cell> {
+    Duration::try_from_secs_f64(seconds)
+        .ok()
+        .map(Cell::duration)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::Cell;
 
     fn row_keys(activity: &PipelineActivity) -> Vec<Cell> {
         stage_rows(activity).map(|row| row.key().clone()).collect()
@@ -140,8 +145,6 @@ mod tests {
             row_keys(&activity),
             cells(&["Stage", "Language", "Decode time", "Audio length"])
         );
-        assert_eq!(decode_time_text(&report), "0.42 s");
-        assert_eq!(audio_length_text(&report), "6.2 s");
     }
 
     #[test]

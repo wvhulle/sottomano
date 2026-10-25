@@ -105,6 +105,16 @@ fn formatted_span(span: Span, locale: Locale) -> String {
     formatter.format(&duration).to_string()
 }
 
+#[must_use]
+pub fn signed_duration_text(offset: TimeDelta, locale: Locale) -> String {
+    let sign = if offset < TimeDelta::zero() {
+        '−'
+    } else {
+        '+'
+    };
+    format!("{sign}{}", duration_text(offset.abs(), locale))
+}
+
 fn relative_text(locale: Locale, unit: Unit, numeric: Numeric, value: Decimal) -> String {
     let preferences = (&icu_locale(locale)).into();
     let options = RelativeTimeFormatterOptions::default().with_numeric(numeric);

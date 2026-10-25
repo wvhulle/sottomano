@@ -86,7 +86,7 @@ impl Default for PanelSettingsGroup {
                 Phosphor::ArrowsIn(Weight::Regular),
             )
             .icon_only()
-            .readout(|value| format!("{} px", value.round())),
+            .readout(|value, _| format!("{} px", value.round())),
             appearance: LayerAppearanceControls::new(ShellLayer::Panels, |target| {
                 PanelSettingsTarget::Appearance(target).into()
             }),

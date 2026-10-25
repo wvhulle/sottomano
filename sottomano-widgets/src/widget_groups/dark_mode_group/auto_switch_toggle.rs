@@ -1,4 +1,4 @@
-use chrono::{DateTime, Locale, TimeDelta, Utc};
+use chrono::{DateTime, Locale, Utc};
 use situo_client::Position;
 use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
@@ -126,10 +126,6 @@ impl AutoSwitchToggle {
     }
 }
 
-pub fn format_offset_minutes(offset: TimeDelta) -> String {
-    format!("{:+}m", offset.num_minutes())
-}
-
 impl BarWidget for AutoSwitchToggle {
     fn name(&self) -> &'static str {
         "Dark mode auto-switch"
@@ -193,10 +189,7 @@ impl BarWidget for AutoSwitchToggle {
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
-            KeyValue::new(
-                "Offset".to_owned(),
-                Cell::from(format_offset_minutes(offset)),
-            ),
+            KeyValue::new("Offset".to_owned(), Cell::SignedDuration(offset)),
             KeyValue::new(
                 format!("Switch to {}", upcoming.target_mode.umbra_name()),
                 Cell::Time {

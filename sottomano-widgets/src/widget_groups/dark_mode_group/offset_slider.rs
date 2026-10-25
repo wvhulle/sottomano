@@ -1,9 +1,9 @@
 use chrono::TimeDelta;
 
 use super::{DarkModeTarget, OFFSET_MINUTES, OFFSET_STEP_MINUTES};
-use crate::{
-    widget_groups::dark_mode_group::auto_switch_toggle::format_offset_minutes,
-    widgets::{slider_control::SliderControl, weather_icons::WeatherIcon},
+use crate::widgets::{
+    localized_durations::signed_duration_text, slider_control::SliderControl,
+    weather_icons::WeatherIcon,
 };
 
 pub(super) fn new_offset_slider(
@@ -14,7 +14,7 @@ pub(super) fn new_offset_slider(
     SliderControl::new(name, OFFSET_MINUTES, target, icon)
         .scroll_step(OFFSET_STEP_MINUTES)
         .slider_step(OFFSET_STEP_MINUTES)
-        .readout(|minutes| format_offset_minutes(minutes_to_time_delta(minutes)))
+        .readout(|minutes, locale| signed_duration_text(minutes_to_time_delta(minutes), locale))
 }
 
 pub(super) fn minutes_to_time_delta(minutes: f32) -> TimeDelta {

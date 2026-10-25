@@ -67,7 +67,7 @@ impl Default for PowerProfileControl {
             .slider_step(STEP)
             .scroll_step(STEP)
             .icon_only()
-            .readout(|value| Profile::from_position(value).title().to_string())
+            .readout(|value, _| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
             status: ContinuousReading::default(),
             conditions: None,
@@ -250,7 +250,7 @@ impl PowerProfileControl {
     }
 
     pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
-        let profile = Section::dictionary([KeyValue::new("Active", self.control.readout_text())])
+        let profile = Section::dictionary([KeyValue::new("Active", self.control.readout_cell())])
             .titled((
                 "Power profile",
                 "Lower profiles trade speed for less power draw, heat and fan noise.",

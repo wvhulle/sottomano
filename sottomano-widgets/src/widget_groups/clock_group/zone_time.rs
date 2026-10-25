@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, convert::Infallible};
 
-use chrono::{DateTime, Locale, Offset};
+use chrono::{DateTime, Locale, Offset, TimeDelta};
 use chrono_tz::Tz;
 use iced::futures::Stream;
 use sottomano_sources::{
@@ -14,7 +14,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
     },
 };
 
@@ -87,7 +87,9 @@ impl BarWidget for ZoneTime {
             KeyValue::new("Day", self.day_relative_to_local(clock).to_owned()),
             KeyValue::new(
                 "Offset from local",
-                signed_hours_and_minutes(self.seconds_ahead_of_local(clock)),
+                Cell::SignedDuration(TimeDelta::seconds(i64::from(
+                    self.seconds_ahead_of_local(clock),
+                ))),
             ),
         ])
     }
@@ -101,16 +103,6 @@ fn city_name(zone: Tz) -> String {
         .replace('_', " ")
 }
 
-fn signed_hours_and_minutes(seconds: i32) -> String {
-    let sign = if seconds < 0 { '−' } else { '+' };
-    let minutes = seconds.unsigned_abs() / 60;
-    let hours = minutes / 60;
-    match minutes % 60 {
-        0 => format!("{sign}{hours} h"),
-        remaining => format!("{sign}{hours} h {remaining} min"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,12 +114,5 @@ mod tests {
             "Buenos Aires"
         );
         assert_eq!(city_name(Tz::UTC), "UTC");
-    }
-
-    #[test]
-    fn offsets_show_sign_hours_and_leftover_minutes() {
-        assert_eq!(signed_hours_and_minutes(-6 * 3600), "−6 h");
-        assert_eq!(signed_hours_and_minutes(3 * 3600 + 1800), "+3 h 30 min");
-        assert_eq!(signed_hours_and_minutes(0), "+0 h");
     }
 }

@@ -26,7 +26,7 @@ use crate::{
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
         text::bar_text,
-        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Cell, Freshness, KeyValue, SliderReadout, Tooltip, TooltipBody},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
         widget_state::WidgetState,
     },
@@ -69,9 +69,9 @@ pub struct SliderControl {
     range: RangeInclusive<f32>,
     scroll_step: f32,
     slider_step: f32,
-    readout: fn(f32) -> String,
+    readout: fn(f32, Locale) -> String,
     gauge: bool,
-    label: Option<fn(f32) -> Option<String>>,
+    label: Option<fn(f32, Locale) -> Option<String>>,
     icon: Glyph,
     glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: Option<SeverityThresholds>,
@@ -160,7 +160,7 @@ impl SliderControl {
             range,
             scroll_step: 1.0,
             slider_step: 1.0,
-            readout: |value| format!("{value:.0}"),
+            readout: |value, _| format!("{value:.0}"),
             gauge: true,
             label: None,
             icon: icon.into(),
@@ -174,7 +174,7 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn readout(mut self, format: fn(f32) -> String) -> Self {
+    pub fn readout(mut self, format: fn(f32, Locale) -> String) -> Self {
         self.readout = format;
         self
     }
@@ -192,14 +192,14 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn label(mut self, format: fn(f32) -> Option<String>) -> Self {
+    pub fn label(mut self, format: fn(f32, Locale) -> Option<String>) -> Self {
         self.label = Some(format);
         self.gauge = false;
         self
     }
 
     #[must_use]
-    pub fn label_with_gauge(mut self, format: fn(f32) -> Option<String>) -> Self {
+    pub fn label_with_gauge(mut self, format: fn(f32, Locale) -> Option<String>) -> Self {
         self.label = Some(format);
         self
     }
@@ -272,13 +272,18 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn readout_text(&self) -> String {
-        (self.readout)(self.current())
+    pub fn readout_text(&self, locale: Locale) -> String {
+        (self.readout)(self.current(), locale)
+    }
+
+    #[must_use]
+    pub fn readout_cell(&self) -> Cell {
+        Cell::Readout(SliderReadout::new(self.current(), self.readout))
     }
 
     pub fn readout_tooltip(&self, label: impl Into<Cell>) -> Tooltip {
         Tooltip::sourced(
-            TooltipBody::dictionary([KeyValue::new(label, self.readout_text())]),
+            TooltipBody::dictionary([KeyValue::new(label, self.readout_cell())]),
             Freshness::Live,
         )
     }
@@ -422,13 +427,17 @@ impl SliderControl {
                 range: self.range.clone(),
                 step: self.slider_step,
                 format: self.readout,
+                locale: config.calendar.locale,
             },
             &config.theme.font,
-            bar_text(&config.theme.font, self.readout_text())
-                .wrapping(Wrapping::None)
-                .width(Length::Fill)
-                .align_x(Horizontal::Center)
-                .color(PaletteColors::from(&config.theme.palette).bar_foreground),
+            bar_text(
+                &config.theme.font,
+                self.readout_text(config.calendar.locale),
+            )
+            .wrapping(Wrapping::None)
+            .width(Length::Fill)
+            .align_x(Horizontal::Center)
+            .color(PaletteColors::from(&config.theme.palette).bar_foreground),
         ))
         .padding(0)
         .style(flat_button(
@@ -504,8 +513,8 @@ impl BarWidget for SliderControl {
         self.effective_icon()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.label.and_then(|format| format(self.current()))
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        self.label.and_then(|format| format(self.current(), locale))
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
@@ -525,9 +534,9 @@ impl BarWidget for SliderControl {
             .map(|fill| fill * Ratio::new::<ratio::ratio>(f64::from(self.live)))
     }
 
-    fn announced_level(&self) -> Option<AnnouncedLevel> {
+    fn announced_level(&self, locale: Locale) -> Option<AnnouncedLevel> {
         let announcement = self.level_announcement.as_ref()?;
-        let readout = self.readout_text();
+        let readout = self.readout_text(locale);
         let body_text = if self.disabled {
             format!("Muted · {readout}")
         } else {

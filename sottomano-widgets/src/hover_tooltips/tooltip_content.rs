@@ -29,7 +29,7 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        localized_durations::{duration_text, relative_moment_text},
+        localized_durations::{duration_text, relative_moment_text, signed_duration_text},
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
@@ -642,6 +642,10 @@ impl CellView {
             Cell::RelativeMoment(at) => {
                 self.copyable_text(relative_moment_text(at, self.now, self.locale), color, row)
             }
+            Cell::SignedDuration(offset) => {
+                self.copyable_text(signed_duration_text(offset, self.locale), color, row)
+            }
+            Cell::Readout(readout) => self.copyable_text(readout.text(self.locale), color, row),
             Cell::Link { label, url, glyph } => self.openable_link(label, url, glyph, color, row),
             Cell::Hint(text) => self.text(text, self.hint, row),
         }

@@ -2,11 +2,12 @@ use std::{
     collections::HashSet,
     convert::Infallible,
     fmt::Display,
+    hash::{Hash, Hasher},
     path::PathBuf,
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Locale, TimeDelta, Utc};
 use iced::{Size, alignment::Horizontal};
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_config::severity::Severity;
@@ -41,13 +42,50 @@ pub enum Cell {
         format: LocalizedTimeFormat,
     },
     Duration(Duration),
+    SignedDuration(TimeDelta),
     RelativeMoment(DateTime<Utc>),
+    Readout(SliderReadout),
     Link {
         label: String,
         url: String,
         glyph: Option<Glyph>,
     },
     Hint(String),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SliderReadout {
+    value_bits: u32,
+    format: fn(f32, Locale) -> String,
+}
+
+impl PartialEq for SliderReadout {
+    fn eq(&self, other: &Self) -> bool {
+        self.value_bits == other.value_bits && std::ptr::fn_addr_eq(self.format, other.format)
+    }
+}
+
+impl Eq for SliderReadout {}
+
+impl Hash for SliderReadout {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value_bits.hash(state);
+    }
+}
+
+impl SliderReadout {
+    #[must_use]
+    pub fn new(value: f32, format: fn(f32, Locale) -> String) -> Self {
+        Self {
+            value_bits: value.to_bits(),
+            format,
+        }
+    }
+
+    #[must_use]
+    pub fn text(self, locale: Locale) -> String {
+        (self.format)(f32::from_bits(self.value_bits), locale)
+    }
 }
 
 impl Cell {

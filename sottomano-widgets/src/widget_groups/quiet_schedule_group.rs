@@ -4,7 +4,6 @@ pub mod quiet_window;
 use std::{ops::RangeInclusive, time::Duration};
 
 use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
-use humantime::format_duration;
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
@@ -28,6 +27,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         idle::{MAX_POSITION, position, timeout_at},
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
@@ -135,13 +135,11 @@ impl Default for QuietScheduleGroup {
                 QuietScheduleTarget::ScreenOff,
                 Phosphor::Monitor(Weight::Regular),
             )
-            .readout(|value| {
-                timeout_at(value).map_or_else(
-                    || "∞".to_owned(),
-                    |timeout| format_duration(timeout).to_string(),
-                )
+            .readout(|value, locale| {
+                timeout_at(value)
+                    .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
             })
-            .label(|value| timeout_at(value).map(|timeout| format_duration(timeout).to_string())),
+            .label(|value, locale| timeout_at(value).map(|timeout| duration_text(timeout, locale))),
             manual: None,
             phase: Phase::Inactive,
             armed_edge: None,
