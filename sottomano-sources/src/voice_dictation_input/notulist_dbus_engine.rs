@@ -1,5 +1,5 @@
 use futures::{Stream, StreamExt};
-use notulist_client::{DICTATION_BUS_NAME, DictationEngine, followed_dictation_engine};
+use notulist_client::{DICTATION_BUS_NAME, EngineState, followed_engine_state};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NotulistEngine {
-    pub engine: DictationEngine,
+    pub engine: EngineState,
 }
 
 impl ReadingSource for NotulistEngine {
@@ -22,16 +22,16 @@ impl ReadingSource for NotulistEngine {
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let session = buses.session;
         name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || pushed_delivery_stream(dictation_engines(session.clone())),
+            move || pushed_delivery_stream(engine_states(session.clone())),
             SourceDelivery::Absent,
         )
     }
 }
 
-async fn dictation_engines(
+async fn engine_states(
     session: zbus::Connection,
 ) -> Result<impl Stream<Item = Result<NotulistEngine, Error>> + Send, Error> {
-    Ok(followed_dictation_engine(&session)
+    Ok(followed_engine_state(&session)
         .await?
         .map(|engine| Ok(NotulistEngine { engine: engine? })))
 }

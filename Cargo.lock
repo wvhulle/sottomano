@@ -4338,7 +4338,7 @@ dependencies = [
 [[package]]
 name = "notulist-client"
 version = "0.0.1"
-source = "git+https://codeberg.org/wvhulle/notulist?branch=main#d3946a65b0e023f31ddbd0c291a60483ba2792ed"
+source = "git+https://codeberg.org/wvhulle/notulist?branch=main#9161ce95f4ea0ca4dfe43f1ed1ae7d95068dd9c5"
 dependencies = [
  "evdev",
  "futures-util",
