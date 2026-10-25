@@ -8,8 +8,8 @@ use crate::{
     clock::Clock,
     widgets::{
         announced_level::AnnouncedLevel,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
+        phosphor::{Phosphor, Weight, view_phosphor},
+        simple_icons::{SimpleIcon, view_simple_icon},
         tooltip_body::TooltipBody,
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
@@ -35,8 +35,8 @@ impl Glyph {
     #[must_use]
     pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
         match self {
-            Glyph::Phosphor(icon) => icon.view(size, color),
-            Glyph::SimpleIcon(icon) => icon.view(size, color),
+            Glyph::Phosphor(icon) => view_phosphor(icon, size, color),
+            Glyph::SimpleIcon(icon) => view_simple_icon(icon, size, color),
             Glyph::WeatherIcon(icon) => icon.view(size, color),
         }
     }

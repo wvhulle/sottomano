@@ -1,4 +1,6 @@
-use std::{fmt::Write, fs, path::Path};
+use std::{fmt::Write, path::Path};
+
+use crate::{pascal_case, svg_slugs};
 
 const WEIGHTS: [Weight; 6] = [
     Weight {
@@ -57,17 +59,10 @@ struct Icon {
 impl Icon {
     fn of(slug: &str) -> Self {
         Self {
-            variant: slug.split('-').map(capitalized).collect(),
+            variant: pascal_case(slug),
             slug: slug.to_owned(),
         }
     }
-}
-
-fn capitalized(segment: &str) -> String {
-    let mut chars = segment.chars();
-    chars.next().map_or_else(String::new, |first| {
-        first.to_ascii_uppercase().to_string() + chars.as_str()
-    })
 }
 
 pub fn generate(assets_dir: &Path) -> String {
@@ -137,12 +132,8 @@ impl Phosphor {{
 }
 
 fn icons(regular_dir: &Path) -> Vec<Icon> {
-    let mut slugs: Vec<String> = fs::read_dir(regular_dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "svg"))
-        .map(|path| path.file_stem().unwrap().to_str().unwrap().to_owned())
-        .collect();
-    slugs.sort_unstable();
-    slugs.iter().map(|slug| Icon::of(slug)).collect()
+    svg_slugs(regular_dir)
+        .iter()
+        .map(|slug| Icon::of(slug))
+        .collect()
 }

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub struct CaldavAccountConfig {
     pub server_url: String,
     pub user: String,
-    pub web_url: String,
     pub upcoming_days: u32,
 }
 
@@ -14,7 +13,6 @@ impl Default for CaldavAccountConfig {
         Self {
             server_url: String::new(),
             user: String::new(),
-            web_url: String::new(),
             upcoming_days: 7,
         }
     }
@@ -29,11 +27,6 @@ impl CaldavAccountConfig {
     #[must_use]
     pub fn configured_user(&self) -> Option<&str> {
         filled(&self.user)
-    }
-
-    #[must_use]
-    pub fn configured_web_url(&self) -> Option<&str> {
-        filled(&self.web_url)
     }
 }
 

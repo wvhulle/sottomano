@@ -12,7 +12,7 @@ use sottomano_sources::{
     },
 };
 
-use self::channel_level_control::{feed, input_glyph};
+use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
@@ -172,7 +172,7 @@ impl AudioGroup {
             AudioMessage::State(state) => {
                 feed(&mut self.sink_control, state.sink.as_ref());
                 feed(&mut self.source_control, state.source.as_ref());
-                self.sink_control.set_icon(Phosphor::from(&state));
+                self.sink_control.set_icon(audio_output_icon(&state));
                 self.state.load(state, clock);
                 Task::none()
             }

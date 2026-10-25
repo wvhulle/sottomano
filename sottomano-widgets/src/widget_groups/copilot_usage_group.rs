@@ -202,7 +202,7 @@ impl CopilotUsageGroup {
             })),
         )
         .face(HandleFace::Icon {
-            glyph: SimpleIcon::GithubCopilot.into(),
+            glyph: SimpleIcon::GitHubCopilot.into(),
             handle: GroupHandle::CopilotUsage,
         })
     }

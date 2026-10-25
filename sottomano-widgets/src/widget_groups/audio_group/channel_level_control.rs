@@ -13,16 +13,14 @@ use crate::{
     },
 };
 
-impl From<&AudioState> for Phosphor {
-    fn from(state: &AudioState) -> Self {
-        let muted = state.sink.as_ref().is_some_and(|sink| sink.muted);
-        match state.output_kind {
-            OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
-            OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
-            OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
-            OutputKind::Headset => Phosphor::Headset(Weight::Regular),
-            OutputKind::Display => Phosphor::Television(Weight::Regular),
-        }
+pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
+    let muted = state.sink.as_ref().is_some_and(|sink| sink.muted);
+    match state.output_kind {
+        OutputKind::Speaker if muted => Phosphor::SpeakerX(Weight::Regular),
+        OutputKind::Speaker => Phosphor::SpeakerHigh(Weight::Regular),
+        OutputKind::Headphones => Phosphor::Headphones(Weight::Regular),
+        OutputKind::Headset => Phosphor::Headset(Weight::Regular),
+        OutputKind::Display => Phosphor::Television(Weight::Regular),
     }
 }
 
@@ -32,7 +30,7 @@ impl BarWidget for AudioState {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::from(self).into()
+        audio_output_icon(self).into()
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

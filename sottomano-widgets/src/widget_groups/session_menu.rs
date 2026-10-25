@@ -32,8 +32,9 @@ pub enum SessionTarget {
     Menu,
 }
 
-impl From<SessionAction> for Phosphor {
-    fn from(action: SessionAction) -> Self {
+#[must_use]
+pub fn session_action_icon(action: SessionAction) -> Phosphor {
+    {
         let weight = Weight::Regular;
         match action {
             SessionAction::Lock => Phosphor::Lock(weight),

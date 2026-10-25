@@ -70,9 +70,7 @@ impl DesktopShell {
             self.weather_group
                 .group_content(config)
                 .map(Message::Weather),
-            self.caldav_group
-                .group_content(&config.widget_groups.caldav)
-                .map(Message::Caldav),
+            self.caldav_group.group_content().map(Message::Caldav),
             self.notification_group
                 .group_content(
                     self.shell_settings.notifications,

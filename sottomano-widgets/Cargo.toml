@@ -3,13 +3,13 @@ name = "sottomano-widgets"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-build = "build/main.rs"
 
 [lints]
 workspace = true
 
 [dependencies]
 sottomano-config = { path = "../sottomano-config" }
+sottomano-icon-sets = { path = "../sottomano-icon-sets" }
 sottomano-sources = { path = "../sottomano-sources" }
 sottomano-state = { path = "../sottomano-state" }
 bytesize.workspace = true
@@ -27,7 +27,6 @@ quick-xml = "0.42"
 reqwest.workspace = true
 rust_decimal.workspace = true
 rusty-money.workspace = true
-simpleicons-rs = "16.35.0"
 situo-client.workspace = true
 system-tray.workspace = true
 tokio.workspace = true
