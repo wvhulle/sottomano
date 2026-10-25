@@ -1,6 +1,6 @@
 use iced::{Rectangle, window::Id};
 use iced_exwlshell::{
-    actions::ActionCallback,
+    actions::RegionActionCB,
     reexport::{KeyboardInteractivity, NewLayerShellSettings, OutputOption},
 };
 use sottomano_config::screen_edges::Position;
@@ -22,12 +22,12 @@ pub fn input_region(surface: Id, bounds: Rectangle) -> Message {
 pub fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
     Message::SetInputRegion {
         id: surface,
-        callback: ActionCallback::new(move |region| {
+        callback: RegionActionCB::new(move |region| {
             rects
                 .iter()
                 .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
                 .for_each(|rect| {
-                    region.add(
+                    let _ = region.add(
                         rect.x as i32,
                         rect.y as i32,
                         rect.width.ceil() as i32,

@@ -1768,7 +1768,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1832,8 +1832,8 @@ dependencies = [
 
 [[package]]
 name = "exwlshellev"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
  "calloop 0.14.5",
  "calloop-wayland-source 0.4.1",
@@ -2807,8 +2807,8 @@ dependencies = [
 
 [[package]]
 name = "iced"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_core",
  "iced_debug",
@@ -2823,8 +2823,8 @@ dependencies = [
 
 [[package]]
 name = "iced_beacon"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bincode",
  "futures",
@@ -2846,8 +2846,8 @@ dependencies = [
 
 [[package]]
 name = "iced_core"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bitflags 2.13.2",
  "bytes",
@@ -2864,8 +2864,8 @@ dependencies = [
 
 [[package]]
 name = "iced_debug"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_beacon",
  "iced_core",
@@ -2875,8 +2875,8 @@ dependencies = [
 
 [[package]]
 name = "iced_devtools"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -2886,8 +2886,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exdevtools"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
  "iced_debug",
  "iced_devtools",
@@ -2899,8 +2899,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exwlshell"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
  "enumflags2",
  "exwlshellev",
@@ -2925,8 +2925,8 @@ dependencies = [
 
 [[package]]
 name = "iced_exwlshell_macros"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
  "darling 0.24.1",
  "manyhow",
@@ -2937,8 +2937,8 @@ dependencies = [
 
 [[package]]
 name = "iced_futures"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "futures",
  "iced_core",
@@ -2951,8 +2951,8 @@ dependencies = [
 
 [[package]]
 name = "iced_graphics"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2972,8 +2972,8 @@ dependencies = [
 
 [[package]]
 name = "iced_program"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -2981,8 +2981,8 @@ dependencies = [
 
 [[package]]
 name = "iced_renderer"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2993,8 +2993,8 @@ dependencies = [
 
 [[package]]
 name = "iced_runtime"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bytes",
  "iced_core",
@@ -3005,16 +3005,16 @@ dependencies = [
 
 [[package]]
 name = "iced_selector"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_core",
 ]
 
 [[package]]
 name = "iced_test"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_futures",
  "iced_program",
@@ -3029,8 +3029,8 @@ dependencies = [
 
 [[package]]
 name = "iced_tester"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_test",
  "iced_widget",
@@ -3040,8 +3040,8 @@ dependencies = [
 
 [[package]]
 name = "iced_tiny_skia"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -3057,9 +3057,10 @@ dependencies = [
 
 [[package]]
 name = "iced_wayland_subscriber"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
+ "exwlshellev",
  "futures",
  "iced_core",
  "iced_futures",
@@ -3071,8 +3072,8 @@ dependencies = [
 
 [[package]]
 name = "iced_wgpu"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -3092,8 +3093,8 @@ dependencies = [
 
 [[package]]
 name = "iced_widget"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.2"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_renderer",
  "log",
@@ -3105,8 +3106,8 @@ dependencies = [
 
 [[package]]
 name = "iced_winit"
-version = "0.14.0"
-source = "git+https://github.com/wvhulle/iced.git?branch=skip-low-alpha-surface-formats#2bd67e262377ac55435840a620ae8e7a9fc3077a"
+version = "0.14.1"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -5432,7 +5433,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5934,7 +5935,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5992,7 +5993,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -7145,7 +7146,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8195,8 +8196,8 @@ dependencies = [
 
 [[package]]
 name = "waycrate_xkbkeycode"
-version = "0.21.0-dev"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#66c603ac5012f20fe114c4b850b83d90bd3b57f6"
+version = "0.21.2"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#3cdd702c4fc6ed20b3126aab7314d467fdc22f9b"
 dependencies = [
  "calloop 0.14.5",
  "log",
