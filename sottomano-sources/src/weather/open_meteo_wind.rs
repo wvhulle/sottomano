@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures::Stream;
 use serde::{Deserialize, Deserializer};
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use uom::si::{
     angle::degree,
     f64::{Angle, Velocity},
@@ -56,7 +56,7 @@ impl Wind {
 
 impl ReadingSource for Wind {
     type Error = Error;
-    type StreamInputs = Position;
+    type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "weather-wind";
     const DELIVERY_CADENCE: DeliveryCadence =
@@ -70,10 +70,11 @@ impl ReadingSource for Wind {
 }
 
 impl Wind {
-    async fn poll(here: Position) -> Result<Self, Error> {
+    async fn poll(here: GeoCoordinates) -> Result<Self, Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=auto",
-            here.latitude, here.longitude
+            here.latitude_degrees(),
+            here.longitude_degrees()
         );
         let forecast: WindForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(forecast.current)

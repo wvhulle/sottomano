@@ -1,17 +1,17 @@
 use futures::{Stream, StreamExt};
-use situo_client::{Fix, Position, fix_updates};
+use situo_client::{GeoCoordinates, LocationFix, location_fix_updates};
 
 use super::Error;
 use crate::{DeliveryCadence, ReadingSource, SourceDelivery};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Location {
-    pub geo: Fix,
+    pub geo: LocationFix,
 }
 
 impl Location {
     #[must_use]
-    pub const fn position(&self) -> Position {
+    pub const fn position(&self) -> GeoCoordinates {
         self.geo.position
     }
 }
@@ -24,7 +24,7 @@ impl ReadingSource for Location {
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        fix_updates()
+        location_fix_updates()
             .map(|update| update.map(|geo| Self { geo }).map_err(Error::from))
             .map(SourceDelivery::Reading)
     }

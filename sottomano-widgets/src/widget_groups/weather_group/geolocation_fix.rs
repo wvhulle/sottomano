@@ -1,6 +1,14 @@
 use chrono::Locale;
-use situo_client::{Estimate, Origin, Place, Position};
+use situo_client::{BeaconDbEstimate, FixOrigin, GeoCoordinates, NearestPlace};
 use sottomano_sources::weather::situo_location_fix::Location;
+use uom::{
+    fmt::DisplayStyle::Abbreviation,
+    si::{
+        angle::degree,
+        f64::Length,
+        length::{kilometer, meter},
+    },
+};
 
 use crate::{
     clock::Clock,
@@ -37,11 +45,9 @@ impl MapService {
         }
     }
 
-    fn url(self, position: Position) -> String {
-        let Position {
-            latitude,
-            longitude,
-        } = position;
+    fn url(self, position: GeoCoordinates) -> String {
+        let latitude = position.latitude_degrees();
+        let longitude = position.longitude_degrees();
         match self {
             Self::GoogleMaps => {
                 format!(
@@ -62,8 +68,9 @@ impl BarWidget for Location {
 
     fn icon(&self) -> Glyph {
         match self.geo.origin {
-            Origin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
-            Origin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
+            FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
+            FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
+            FixOrigin::Estimated(_) => Phosphor::MapPin(Weight::Regular).into(),
         }
     }
 
@@ -77,13 +84,25 @@ impl BarWidget for Location {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let estimate = match &self.geo.origin {
-            Origin::Manual => None,
-            Origin::Estimated(estimate) => Some(estimate),
+            FixOrigin::Manual | FixOrigin::Pinned => None,
+            FixOrigin::Estimated(estimate) => Some(estimate),
         };
         let position = self.geo.position;
         let position_section = Section::dictionary([
-            KeyValue::new("Latitude", format!("{:.4}", position.latitude)),
-            KeyValue::new("Longitude", format!("{:.4}", position.longitude)),
+            KeyValue::new(
+                "Latitude",
+                format!(
+                    "{:.4}",
+                    position.latitude.into_format_args(degree, Abbreviation)
+                ),
+            ),
+            KeyValue::new(
+                "Longitude",
+                format!(
+                    "{:.4}",
+                    position.longitude.into_format_args(degree, Abbreviation)
+                ),
+            ),
             KeyValue::new("Source", self.geo.origin.to_string()),
         ])
         .titled("Position");
@@ -96,22 +115,28 @@ impl BarWidget for Location {
     }
 }
 
-fn place_section(place: Option<&Place>) -> Section {
+fn place_section(place: Option<&NearestPlace>) -> Section {
     Section::dictionary(place.into_iter().flat_map(|place| {
         [
             KeyValue::new("Name", place.name.as_str()),
             KeyValue::new("Country", place.country.as_str()),
-            KeyValue::new("Distance", format!("{:.2} km", place.distance_km)),
+            KeyValue::new(
+                "Distance",
+                format!(
+                    "{:.2}",
+                    place.distance.into_format_args(kilometer, Abbreviation)
+                ),
+            ),
         ]
     }))
     .titled("Place")
 }
 
-fn estimate_section(estimate: Option<&Estimate>) -> Section {
+fn estimate_section(estimate: Option<&BeaconDbEstimate>) -> Section {
     Section::dictionary(estimate.into_iter().flat_map(|estimate| {
         let observations = estimate.observations;
         [
-            KeyValue::new("Accuracy", accuracy(estimate.accuracy_metres)),
+            KeyValue::new("Accuracy", accuracy(estimate.accuracy)),
             KeyValue::new(
                 "Access points",
                 format!(
@@ -131,11 +156,9 @@ fn estimate_section(estimate: Option<&Estimate>) -> Section {
     .titled(("Estimate", "A Wi-Fi and cell fix through BeaconDB."))
 }
 
-fn map_section(position: Position) -> Section {
-    let Position {
-        latitude,
-        longitude,
-    } = position;
+fn map_section(position: GeoCoordinates) -> Section {
+    let latitude = position.latitude_degrees();
+    let longitude = position.longitude_degrees();
     Section::dictionary(MapService::ALL.map(|service| {
         KeyValue::new(
             service.name(),
@@ -149,10 +172,10 @@ fn map_section(position: Position) -> Section {
     .titled("Map")
 }
 
-fn accuracy(metres: f64) -> String {
-    if metres < 1000.0 {
-        format!("{metres:.0} m")
+fn accuracy(accuracy: Length) -> String {
+    if accuracy < Length::new::<kilometer>(1.0) {
+        format!("{:.0}", accuracy.into_format_args(meter, Abbreviation))
     } else {
-        format!("{:.1} km", metres / 1000.0)
+        format!("{:.1}", accuracy.into_format_args(kilometer, Abbreviation))
     }
 }

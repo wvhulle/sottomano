@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Local, NaiveDateTime};
 use futures::Stream;
 use serde::Deserialize;
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use uom::si::f64::Velocity;
 
 use super::Error;
@@ -137,7 +137,7 @@ impl From<RadarSlot> for Downpour {
 
 impl ReadingSource for Rain {
     type Error = Error;
-    type StreamInputs = Position;
+    type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "weather-rain";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
@@ -150,10 +150,11 @@ impl ReadingSource for Rain {
 }
 
 impl Rain {
-    async fn poll(here: Position) -> Result<Self, Error> {
+    async fn poll(here: GeoCoordinates) -> Result<Self, Error> {
         let url = format!(
             "https://graphdata.buienradar.nl/2.0/forecast/geo/Rain3Hour?lat={}&lon={}",
-            here.latitude, here.longitude
+            here.latitude_degrees(),
+            here.longitude_degrees()
         );
         let nowcast: RadarNowcast =
             http_json_client::get_json(&url, &[], 5)

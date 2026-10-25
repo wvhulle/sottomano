@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::Stream;
 use serde::Deserialize;
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use uom::si::f64::Velocity;
 
 use super::{
@@ -103,7 +103,7 @@ impl From<ModelResponse> for PrecipitationModel {
 
 impl ReadingSource for PrecipitationModel {
     type Error = Error;
-    type StreamInputs = Position;
+    type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "weather-precipitation-model";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(15));
@@ -116,10 +116,11 @@ impl ReadingSource for PrecipitationModel {
 }
 
 impl PrecipitationModel {
-    async fn poll(here: Position) -> Result<Self, Error> {
+    async fn poll(here: GeoCoordinates) -> Result<Self, Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=precipitation,weather_code,is_day&minutely_15=precipitation,weather_code,is_day&forecast_minutely_15=13&timezone=auto&timeformat=unixtime",
-            here.latitude, here.longitude
+            here.latitude_degrees(),
+            here.longitude_degrees()
         );
         let response: ModelResponse = http_json_client::get_json(&url, &[], 10).await?;
         Ok(response.into())

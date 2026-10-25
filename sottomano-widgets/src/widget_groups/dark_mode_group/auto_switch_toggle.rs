@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, Utc};
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
@@ -26,7 +26,7 @@ pub struct AutoSwitchToggle {
 
 enum Observer {
     AwaitingLocationFix,
-    Located(Position),
+    Located(GeoCoordinates),
 }
 
 pub enum ScheduleStatus {
@@ -71,7 +71,7 @@ impl AutoSwitchToggle {
         }
     }
 
-    pub fn update_location(&mut self, observer_location: Position) {
+    pub fn update_location(&mut self, observer_location: GeoCoordinates) {
         self.observer = Observer::Located(observer_location);
     }
 

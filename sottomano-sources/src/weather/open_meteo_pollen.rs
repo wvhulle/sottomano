@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use futures::Stream;
 use serde::Deserialize;
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 
 use super::Error;
 use crate::{
@@ -126,7 +126,7 @@ impl Pollen {
 
 impl ReadingSource for Pollen {
     type Error = Error;
-    type StreamInputs = Position;
+    type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "pollen";
     const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(30));
@@ -139,10 +139,11 @@ impl ReadingSource for Pollen {
 }
 
 impl Pollen {
-    async fn poll(here: Position) -> Result<Self, Error> {
+    async fn poll(here: GeoCoordinates) -> Result<Self, Error> {
         let url = format!(
             "https://air-quality-api.open-meteo.com/v1/air-quality?latitude={}&longitude={}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto",
-            here.latitude, here.longitude
+            here.latitude_degrees(),
+            here.longitude_degrees()
         );
         let air: AirQuality = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Pollen::of(&air.current))

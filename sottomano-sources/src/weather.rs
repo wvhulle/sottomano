@@ -11,7 +11,7 @@ use crate::system_protocol_clients::http_json_client;
 
 #[derive(Debug, Clone)]
 pub enum Error {
-    Situo(situo_client::Error),
+    Situo(situo_client::ClientError),
     Fetch(http_json_client::Error),
     Malformed,
     OutsideRainRadar,
@@ -30,8 +30,8 @@ impl Display for Error {
     }
 }
 
-impl From<situo_client::Error> for Error {
-    fn from(error: situo_client::Error) -> Self {
+impl From<situo_client::ClientError> for Error {
+    fn from(error: situo_client::ClientError) -> Self {
         Error::Situo(error)
     }
 }
