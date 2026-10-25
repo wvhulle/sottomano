@@ -15,6 +15,7 @@ sottomano-state = { path = "../sottomano-state" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 bytesize.workspace = true
 chrono.workspace = true
+jiff.workspace = true
 clap.workspace = true
 iced.workspace = true
 iced_controller_diagram.workspace = true

@@ -1,5 +1,9 @@
 use chrono::{DurationRound, TimeDelta};
-use situo_client::{Estimate, Fix, Method, Observations, Origin, Place, Position};
+use jiff::Timestamp;
+use situo_client::{
+    BeaconDbEstimate, EstimateMethod, FixOrigin, GeoCoordinates, LocationFix, NearestPlace,
+    ObservationCounts,
+};
 use sottomano_sources::{
     SourceDelivery,
     weather::{
@@ -14,7 +18,9 @@ use sottomano_widgets::{
     widget_groups::weather_group::{WeatherGroup, WeatherMessage},
 };
 use uom::si::{
-    f64::{Ratio, ThermodynamicTemperature},
+    angle::degree,
+    f64::{Angle, Length, Ratio, ThermodynamicTemperature},
+    length::{kilometer, meter},
     ratio::percent,
     thermodynamic_temperature::degree_celsius,
 };
@@ -89,27 +95,28 @@ fn readings(clock: Clock) -> [WeatherMessage; 2] {
             },
         }))),
         WeatherMessage::Location(SourceDelivery::Reading(Ok(Location {
-            geo: Fix {
-                position: Position {
-                    latitude: 51.0533,
-                    longitude: 3.7211,
+            geo: LocationFix {
+                position: GeoCoordinates {
+                    latitude: Angle::new::<degree>(51.0533),
+                    longitude: Angle::new::<degree>(3.7211),
                 },
-                origin: Origin::Estimated(Estimate {
-                    method: Method::Wifi,
-                    accuracy_metres: 305.0,
-                    observations: Observations {
+                origin: FixOrigin::Estimated(BeaconDbEstimate {
+                    method: EstimateMethod::Wifi,
+                    accuracy: Length::new::<meter>(305.0),
+                    observations: ObservationCounts {
                         access_points_seen: 17,
                         access_points_submitted: 15,
                         cells_seen: 1,
                         cells_submitted: 1,
                     },
                 }),
-                place: Some(Place {
+                place: Some(NearestPlace {
                     name: "Gent".to_owned(),
                     country: "BE".to_owned(),
-                    distance_km: 0.48,
+                    distance: Length::new::<kilometer>(0.48),
                 }),
-                timestamp: clock.utc().timestamp(),
+                timestamp: Timestamp::from_second(clock.utc().timestamp())
+                    .expect("the showcase clock is within jiff's range"),
             },
         }))),
     ]

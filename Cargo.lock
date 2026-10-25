@@ -4586,6 +4586,7 @@ checksum = "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -4595,6 +4596,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -4621,6 +4623,7 @@ dependencies = [
  "num-bigint",
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -6580,11 +6583,12 @@ checksum = "33f4fe9184a62d842c9ef383018f3306d8ba224fd9d836f56d7288308847c256"
 [[package]]
 name = "situo-client"
 version = "0.1.0"
-source = "git+https://codeberg.org/wvhulle/situo?branch=main#28d4c59eb76f90e1d468e348910893f4770b869c"
+source = "git+https://codeberg.org/wvhulle/situo?branch=main#ad0c9499a9226d2b32cdc8903bd73a7f1e165ce6"
 dependencies = [
  "futures-util",
+ "jiff",
  "serde",
- "serde_json",
+ "uom",
  "zbus",
 ]
 
@@ -6927,6 +6931,7 @@ dependencies = [
  "iced_test",
  "iced_tester",
  "iced_winit",
+ "jiff",
  "niri-ipc",
  "notulist-client",
  "reqwest",
@@ -8174,7 +8179,11 @@ version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a739f83872836c82a4f2527d4e54b37007b3de68cafe7edde95fd695968bf4b9"
 dependencies = [
+ "num-bigint",
+ "num-complex",
+ "num-rational",
  "num-traits",
+ "serde_core",
  "typenum",
 ]
 

@@ -1,5 +1,5 @@
 use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use sunrise::{Coordinates, SolarDay, SolarEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,7 +79,7 @@ pub struct ModeSwitch {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SolarSwitchSchedule {
-    pub observer_location: Position,
+    pub observer_location: GeoCoordinates,
     pub sun_event_offsets: SunEventOffsets,
 }
 
@@ -109,8 +109,8 @@ impl SolarSwitchSchedule {
 
     fn switches_around_date(&self, now: DateTime<Utc>) -> Vec<ModeSwitch> {
         let Some(coordinates) = Coordinates::new(
-            self.observer_location.latitude,
-            self.observer_location.longitude,
+            self.observer_location.latitude_degrees(),
+            self.observer_location.longitude_degrees(),
         ) else {
             return Vec::new();
         };

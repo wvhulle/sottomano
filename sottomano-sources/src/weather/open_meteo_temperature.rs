@@ -6,7 +6,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use serde::{Deserialize, Deserializer, de::Error as DeserializeError};
-use situo_client::Position;
+use situo_client::GeoCoordinates;
 use uom::si::{
     f64::{Ratio, ThermodynamicTemperature},
     ratio::percent,
@@ -275,7 +275,7 @@ pub struct HourlyTemperature {
 
 impl ReadingSource for Temperature {
     type Error = Error;
-    type StreamInputs = Position;
+    type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "weather-temp";
     const DELIVERY_CADENCE: DeliveryCadence =
@@ -289,10 +289,11 @@ impl ReadingSource for Temperature {
 }
 
 impl Temperature {
-    async fn poll(here: Position) -> Result<Self, Error> {
+    async fn poll(here: GeoCoordinates) -> Result<Self, Error> {
         let url = format!(
             "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current=temperature_2m,weather_code,is_day,relative_humidity_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code,is_day&forecast_days=2&past_hours=6&forecast_hours=12&timezone=auto&timeformat=unixtime",
-            here.latitude, here.longitude
+            here.latitude_degrees(),
+            here.longitude_degrees()
         );
         let forecast: TemperatureForecast = http_json_client::get_json(&url, &[], 10).await?;
         Ok(Temperature {
