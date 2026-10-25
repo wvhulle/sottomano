@@ -1,12 +1,11 @@
 use std::iter;
 
 use notulist_client::{
-    DictationEngine, DictationPhase, DictationShortcutBinding, GateVerdict, InferenceTickReport,
-    PipelineStage,
+    DictationEngine, DictationPhase, GateVerdict, InferenceTickReport, PipelineStage,
 };
 use sottomano_sources::voice_dictation_input::{
     notulist_dbus_dictation::NotulistDictation, notulist_dbus_engine::NotulistEngine,
-    notulist_dbus_pipeline_activity::NotulistPipeline, notulist_dbus_shortcuts::NotulistShortcuts,
+    notulist_dbus_pipeline_activity::NotulistPipeline,
 };
 
 use crate::{
@@ -21,21 +20,12 @@ use crate::{
     },
 };
 
-pub const RECOGNIZER_DAEMON: UnitSwitchFace = UnitSwitchFace {
-    name: "Speech server",
+pub const DICTATION_DAEMON: UnitSwitchFace = UnitSwitchFace {
+    name: "Dictation daemon",
     icon: Phosphor::Brain(Weight::Regular),
     presses: SwitchPresses {
-        turning_on: "load the speech model so dictation can start",
-        turning_off: "unload the speech model and free the GPU",
-    },
-};
-
-pub const INPUT_METHOD_DAEMON: UnitSwitchFace = UnitSwitchFace {
-    name: "Input method",
-    icon: Phosphor::Keyboard(Weight::Regular),
-    presses: SwitchPresses {
-        turning_on: "start the input method that types and corrects the transcript",
-        turning_off: "stop the input method; nothing gets typed",
+        turning_on: "load the speech model and the input method so dictation can start",
+        turning_off: "stop dictation, unload the speech model and free the GPU",
     },
 };
 
@@ -91,23 +81,6 @@ impl BarWidget for NotulistDictation {
 }
 
 #[must_use]
-pub fn shortcut_sections(shortcuts: &NotulistShortcuts) -> Vec<Section> {
-    let shortcut_rows = shortcuts
-        .bindings
-        .iter()
-        .map(|binding| KeyValue::new(binding.description.as_str(), shortcut_trigger(binding)));
-    vec![Section::dictionary(shortcut_rows).titled("Shortcuts")]
-}
-
-fn shortcut_trigger(binding: &DictationShortcutBinding) -> String {
-    if binding.bound_trigger.is_empty() {
-        format!("preferred: {}", binding.preferred_trigger)
-    } else {
-        binding.bound_trigger.clone()
-    }
-}
-
-#[must_use]
 pub fn engine_sections(engine: &NotulistEngine) -> Vec<Section> {
     if !engine.engine.is_loaded() {
         return Vec::new();
@@ -124,7 +97,7 @@ fn engine_rows(engine: &DictationEngine) -> Vec<KeyValue> {
             "Flash attention",
             if engine.flash_attention { "on" } else { "off" },
         ),
-        KeyValue::new("whisper.cpp", engine.whisper_cpp_version.clone()),
+        KeyValue::new("Runtime", engine.inference_runtime.clone()),
     ]
 }
 
@@ -204,20 +177,6 @@ fn whisper_timing(report: &InferenceTickReport) -> String {
 mod tests {
     use super::*;
 
-    fn binding(preferred_trigger: &str, bound_trigger: &str) -> DictationShortcutBinding {
-        DictationShortcutBinding {
-            shortcut_id: "dictate-while-held".to_owned(),
-            description: "Dictate while held".to_owned(),
-            preferred_trigger: preferred_trigger.to_owned(),
-            bound_trigger: bound_trigger.to_owned(),
-        }
-    }
-
-    #[test]
-    fn desktop_bound_trigger_shows_as_is() {
-        assert_eq!(shortcut_trigger(&binding("LOGO+v", "Meta+V")), "Meta+V");
-    }
-
     #[test]
     fn unloaded_engine_shows_no_section() {
         let engine = NotulistEngine {
@@ -250,13 +209,5 @@ mod tests {
         report.decode.elapsed_secs = 0.32;
         report.decode.audio_secs = 6.24;
         assert_eq!(whisper_timing(&report), "whisper 0.42 s for 6.2 s audio");
-    }
-
-    #[test]
-    fn unbound_trigger_is_labelled_as_only_preferred() {
-        assert_eq!(
-            shortcut_trigger(&binding("LOGO+v", "")),
-            "preferred: LOGO+v"
-        );
     }
 }
