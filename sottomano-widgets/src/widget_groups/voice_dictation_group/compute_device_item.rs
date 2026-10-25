@@ -6,6 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{KeyValue, TooltipBody, entry},
         widget_state::WidgetState,
     },
@@ -54,12 +55,16 @@ impl BarWidget for ComputeDevice<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        if self.runs_on_gpu() {
-            Phosphor::GraphicsCard(Weight::Regular)
+        let backend = self.0.compute_device.as_str();
+        if backend.starts_with("CUDA") {
+            SimpleIcon::NVIDIA.into()
+        } else if backend.starts_with("Metal") {
+            SimpleIcon::Apple.into()
+        } else if self.runs_on_gpu() {
+            Phosphor::GraphicsCard(Weight::Regular).into()
         } else {
-            Phosphor::Cpu(Weight::Regular)
+            Phosphor::Cpu(Weight::Regular).into()
         }
-        .into()
     }
 
     fn fallback_icon() -> Glyph {

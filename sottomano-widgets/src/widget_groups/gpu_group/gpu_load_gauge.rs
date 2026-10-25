@@ -1,4 +1,4 @@
-use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{GpuSnapshot, GpuVendor};
+use sottomano_sources::cpu_memory_compute::pci_gpu_readings::GpuSnapshot;
 use uom::si::f64::Ratio;
 
 use crate::{
@@ -7,8 +7,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_text,
         phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
         tooltip_body::{KeyValue, TooltipBody},
+        vendor_logo::VendorLogo,
     },
 };
 
@@ -18,10 +18,9 @@ impl BarWidget for GpuSnapshot {
     }
 
     fn icon(&self) -> Glyph {
-        match self.vendor {
-            GpuVendor::Nvidia => SimpleIcon::NVIDIA.into(),
-            GpuVendor::Intel => SimpleIcon::Intel.into(),
-        }
+        self.vendor
+            .vendor_logo()
+            .map_or_else(Self::fallback_icon, Glyph::from)
     }
 
     fn fallback_icon() -> Glyph {
