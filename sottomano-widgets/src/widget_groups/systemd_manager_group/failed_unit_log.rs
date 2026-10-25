@@ -18,7 +18,9 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widget_groups::{
-        systemd_manager_group::{SystemdManagerGroup, SystemdManagerMessage, SystemdTarget},
+        systemd_manager_group::{
+            SystemdManagerGroup, SystemdManagerMessage, SystemdTarget, unit_scope_icon,
+        },
         terminal_command::TerminalCommand,
     },
     widgets::{
@@ -28,7 +30,7 @@ use crate::{
         ongoing_toast::{
             OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
         },
-        phosphor::{Phosphor, Weight},
+        phosphor::Weight,
         tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
@@ -189,7 +191,7 @@ impl BarWidget for FailedUnits {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::from(self.scope)
+        unit_scope_icon(self.scope)
             .with_weight(Weight::Regular)
             .into()
     }

@@ -51,12 +51,10 @@ pub fn elapsed_text(duration: Duration) -> String {
     }
 }
 
-impl From<SystemdUnitScope> for Phosphor {
-    fn from(scope: SystemdUnitScope) -> Self {
-        match scope {
-            SystemdUnitScope::UserSession => Phosphor::User(Weight::Regular),
-            SystemdUnitScope::SystemWide => Phosphor::HardDrives(Weight::Regular),
-        }
+fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
+    match scope {
+        SystemdUnitScope::UserSession => Phosphor::User(Weight::Regular),
+        SystemdUnitScope::SystemWide => Phosphor::HardDrives(Weight::Regular),
     }
 }
 

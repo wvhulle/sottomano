@@ -47,6 +47,13 @@
         hash = "sha256-aasAz4rTllySAxSvYORu+jIKqbqPIFCDM6s8pkNiW2o=";
       };
 
+      simpleIcons = pkgs.fetchFromGitHub {
+        owner = "simple-icons";
+        repo = "simple-icons";
+        rev = "16.35.0";
+        hash = "sha256-RTQ3d3deMJQ8ToZVtoIT9jG47S32yp2ZDu/8BjMN5dg=";
+      };
+
       commonArgs = {
         inherit src;
         version = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.version;
@@ -66,6 +73,7 @@
         ];
         WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         PHOSPHOR_SVG = "${phosphorCore}/assets";
+        SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
       };
 
       shellArgs = commonArgs // {
@@ -214,6 +222,7 @@
         env.LD_LIBRARY_PATH = runtimeLibraryPath;
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         env.PHOSPHOR_SVG = "${phosphorCore}/assets";
+        env.SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"

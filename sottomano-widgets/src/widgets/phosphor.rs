@@ -1,26 +1,17 @@
 use iced::{Color, Element};
+pub use sottomano_icon_sets::{Phosphor, Weight};
 
 use crate::widgets::{bar_widget::Glyph, svg_icon};
 
-include!(concat!(env!("OUT_DIR"), "/icons.rs"));
-
 const INK_FRACTION: f32 = 208.0 / 256.0;
 
-impl Phosphor {
-    #[must_use]
-    pub fn view<'a, Message: 'a>(self, ink_size: f32, color: Color) -> Element<'a, Message> {
-        svg_icon::view(self.svg_data(), ink_size / INK_FRACTION, color)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Weight {
-    Thin,
-    Light,
-    Regular,
-    Bold,
-    Fill,
-    Duotone,
+#[must_use]
+pub fn view_phosphor<'a, Message: 'a>(
+    icon: Phosphor,
+    ink_size: f32,
+    color: Color,
+) -> Element<'a, Message> {
+    svg_icon::view(icon.svg_data(), ink_size / INK_FRACTION, color)
 }
 
 impl From<Phosphor> for Glyph {

@@ -26,7 +26,7 @@ use crate::{
     hover_tooltips::{MouseGesture, PressHints, core_grid::CoreCellGrid},
     shell_message::Message,
     widget_groups::{
-        session_menu::SessionMessage,
+        session_menu::{SessionMessage, session_action_icon},
         tray_group::{TrayMessage, menu_lines::TrayMenuLines},
         window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
@@ -216,11 +216,11 @@ impl<'a> TooltipContent<'a> {
             ),
             Freshness::Live => labelled(
                 self.annotation("live".to_owned()),
-                Phosphor::Pulse(Weight::Regular).view(glyph_size, dim),
+                Glyph::from(Phosphor::Pulse(Weight::Regular)).view(glyph_size, dim),
             ),
             Freshness::Fixed => labelled(
                 self.annotation("read once".to_owned()),
-                Phosphor::PushPin(Weight::Regular).view(glyph_size, dim),
+                Glyph::from(Phosphor::PushPin(Weight::Regular)).view(glyph_size, dim),
             ),
         };
         container(shown).align_right(Length::Fill).into()
@@ -325,7 +325,7 @@ impl<'a> TooltipContent<'a> {
         };
         MenuLine::Row(MenuRow {
             leading: Some(
-                Glyph::from(Phosphor::from(entry.action)).view(icon_size, self.foreground()),
+                Glyph::from(session_action_icon(entry.action)).view(icon_size, self.foreground()),
             ),
             label: Some(entry.action.verb().to_owned()),
             trailing: note,

@@ -104,7 +104,7 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
         return "now".to_owned();
     }
     let weekday = LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale);
-    if start.is_all_day() {
+    if start.is_all_day() || begins.date_naive() != now.date_naive() {
         return weekday;
     }
     format!(
@@ -154,7 +154,7 @@ impl BarWidget for CaldavAgenda {
             .take(LISTED_EVENTS)
             .map(|event| EventRow {
                 event,
-                nextcloud: self.nextcloud.as_ref(),
+                nextcloud: self.provider.nextcloud_web_root(),
             });
         TooltipBody::sections([
             Section::column_table(
@@ -168,7 +168,9 @@ impl BarWidget for CaldavAgenda {
             .titled(("Upcoming events", change_delivery_caption(self))),
             nextcloud_footer(
                 "open Calendar",
-                self.nextcloud.as_ref().map(NextcloudWebRoot::calendar_app),
+                self.provider
+                    .nextcloud_web_root()
+                    .map(NextcloudWebRoot::calendar_app),
                 hidden,
             ),
         ])

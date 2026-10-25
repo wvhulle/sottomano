@@ -23,9 +23,9 @@ use crate::{
             CaldavLogin, CalendarCollection, CalendarHome, connect_calendar_home,
         },
         caldav_event_query::{EventWindow, UpcomingEvent, query_upcoming_events},
+        caldav_server_provider::CaldavProvider,
         caldav_task_query::{OpenTask, query_open_tasks},
         nextcloud_notify_push::{PushLogin, activity_pings},
-        nextcloud_web_links::NextcloudWebRoot,
     },
     secret_file_reads::read_secret,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
@@ -104,7 +104,7 @@ pub struct CaldavAgenda {
     pub tasks: Vec<OpenTask>,
     pub calendar_count: usize,
     pub change_delivery: ChangeDelivery,
-    pub nextcloud: Option<NextcloudWebRoot>,
+    pub provider: CaldavProvider,
 }
 
 impl CaldavAgenda {
@@ -290,9 +290,10 @@ impl AgendaPoller {
             } else {
                 ChangeDelivery::ChangeTokenPolling
             },
-            nextcloud: self.fetched.keys().find_map(|calendar_href| {
-                NextcloudWebRoot::detected(&self.account.server_url, calendar_href)
-            }),
+            provider: CaldavProvider::detected(
+                &self.account.server_url,
+                self.fetched.keys().map(String::as_str),
+            ),
         }
     }
 }

@@ -7,9 +7,10 @@ use iced::{Subscription, Task};
 use sottomano_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
 use sottomano_sources::{
     SourceDelivery,
-    blocking_background_work::blocking,
-    caldav_tasks_events::caldav_agenda::{self, CaldavAccount, CaldavAgenda},
-    system_protocol_clients::shell_command_output::blocking::run,
+    caldav_tasks_events::{
+        caldav_agenda::{self, CaldavAccount, CaldavAgenda},
+        caldav_server_provider::CaldavProvider,
+    },
 };
 
 use self::open_tasks_reading::OpenTasks;
@@ -18,10 +19,11 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
@@ -55,7 +57,6 @@ pub struct CaldavGroup {
 pub enum CaldavMessage {
     Agenda(Box<SourceDelivery<CaldavAgenda>>),
     Expansion(ExpansionMessage),
-    OpenWeb(String),
 }
 
 impl CaldavGroup {
@@ -95,12 +96,6 @@ impl CaldavGroup {
             CaldavMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }
-            CaldavMessage::OpenWeb(url) => {
-                return Task::future(blocking("open caldav web", move || {
-                    run("xdg-open", &[&url])
-                }))
-                .discard();
-            }
         }
         Task::none()
     }
@@ -115,8 +110,18 @@ impl CaldavGroup {
         }
     }
 
-    pub fn group_content(&self, config: &CaldavAccountConfig) -> GroupContent<'_, CaldavMessage> {
-        let web_url = config.configured_web_url();
+    fn account_handle_glyph(&self) -> Glyph {
+        match self.agenda.get().map(|agenda| &agenda.provider) {
+            Some(CaldavProvider::Nextcloud(_)) => SimpleIcon::Nextcloud.into(),
+            Some(CaldavProvider::Icloud) => SimpleIcon::iCloud.into(),
+            Some(CaldavProvider::GoogleCalendar) => SimpleIcon::GoogleCalendar.into(),
+            Some(CaldavProvider::Zoho) => SimpleIcon::Zoho.into(),
+            Some(CaldavProvider::MailboxOrg) => SimpleIcon::mailbox.into(),
+            Some(CaldavProvider::Unrecognised) | None => Phosphor::Notebook(Weight::Regular).into(),
+        }
+    }
+
+    pub fn group_content(&self) -> GroupContent<'_, CaldavMessage> {
         let open_tasks = self
             .agenda
             .visible_reading()
@@ -133,25 +138,11 @@ impl CaldavGroup {
                 open_tasks,
             ]
             .into_iter()
-            .flatten()
-            .map(move |item| opened_in_browser(item, web_url)),
+            .flatten(),
         )
         .face(HandleFace::Icon {
-            glyph: Phosphor::CalendarDots(Weight::Regular).into(),
+            glyph: self.account_handle_glyph(),
             handle: GroupHandle::Caldav,
         })
-    }
-}
-
-fn opened_in_browser<'a>(
-    item: GroupItem<'a, CaldavMessage>,
-    web_url: Option<&str>,
-) -> GroupItem<'a, CaldavMessage> {
-    match web_url {
-        Some(web_url) => item.on_press(
-            "open the calendar in the browser",
-            CaldavMessage::OpenWeb(web_url.to_owned()),
-        ),
-        None => item,
     }
 }

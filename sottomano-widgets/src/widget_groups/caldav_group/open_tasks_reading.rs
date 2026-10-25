@@ -103,7 +103,7 @@ impl BarWidget for OpenTasks<'_> {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let nextcloud = self.0.nextcloud.as_ref();
+        let nextcloud = self.0.provider.nextcloud_web_root();
         let with_deadline: Vec<&OpenTask> = self
             .0
             .tasks
