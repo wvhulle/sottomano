@@ -20,7 +20,6 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
         tooltip_body::{DiagramCallout, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -207,7 +206,7 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::GameController(Weight::Regular).into()
+        self.family().brand_glyph()
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

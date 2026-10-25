@@ -1,6 +1,12 @@
 use iced_controller_diagram::ControllerModel;
 use sottomano_config::widget_groups::gamepad_bindings::GamepadButton;
 
+use crate::widgets::{
+    bar_widget::Glyph,
+    phosphor::{Phosphor, Weight},
+    simple_icons::SimpleIcon,
+};
+
 const SONY_USB_VENDOR: u16 = 0x054c;
 const NINTENDO_USB_VENDOR: u16 = 0x057e;
 
@@ -38,6 +44,16 @@ impl ControllerFamily {
             ControllerFamily::PlayStation => ControllerModel::DualSense,
             ControllerFamily::Nintendo => ControllerModel::SwitchPro,
             ControllerFamily::Xbox => ControllerModel::XboxSeries,
+        }
+    }
+
+    #[must_use]
+    pub fn brand_glyph(self) -> Glyph {
+        match self {
+            ControllerFamily::PlayStation => SimpleIcon::PlayStation.into(),
+            ControllerFamily::Nintendo | ControllerFamily::Xbox => {
+                Phosphor::GameController(Weight::Regular).into()
+            }
         }
     }
 

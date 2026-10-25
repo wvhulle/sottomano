@@ -6,6 +6,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
     },
 };
@@ -29,6 +30,7 @@ impl BarWidget for ServiceManagerFace {
                 Cell::Link {
                     label: "systemd/User".to_owned(),
                     url: "https://wiki.archlinux.org/title/Systemd/User".to_owned(),
+                    glyph: Some(SimpleIcon::ArchLinux.into()),
                 },
             ),
         ])

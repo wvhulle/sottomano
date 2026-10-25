@@ -7,6 +7,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
 };
@@ -40,6 +41,7 @@ impl BarWidget for SeatFace<'_> {
                 Cell::Link {
                     label: "Multiseat".to_owned(),
                     url: "https://wiki.archlinux.org/title/Multiseat".to_owned(),
+                    glyph: Some(SimpleIcon::ArchLinux.into()),
                 },
             ),
         ])
@@ -56,6 +58,7 @@ impl BarWidget for SeatFace<'_> {
                     Cell::Link {
                         label: "Linux console".to_owned(),
                         url: "https://wiki.archlinux.org/title/Linux_console".to_owned(),
+                        glyph: Some(SimpleIcon::ArchLinux.into()),
                     },
                 ),
             ])

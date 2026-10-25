@@ -174,6 +174,7 @@ impl ScopedLlamaServers {
                             Cell::Link {
                                 label: endpoint.clone(),
                                 url: endpoint.clone(),
+                                glyph: None,
                             },
                         )]),
                 );

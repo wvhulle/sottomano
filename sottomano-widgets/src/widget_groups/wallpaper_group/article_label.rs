@@ -37,6 +37,7 @@ impl BarWidget for Article {
                 Cell::Link {
                     label: self.title.clone(),
                     url: self.url.clone(),
+                    glyph: Some(SimpleIcon::Wikipedia.into()),
                 },
             )])
             .titled("Wikipedia"),

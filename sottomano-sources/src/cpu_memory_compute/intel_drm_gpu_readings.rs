@@ -19,7 +19,7 @@ use super::{
     memory_usage::read_meminfo,
     pci_gpu_readings::{
         DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuProcess, GpuProcesses,
-        GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, PciBusId, SharedGpuMemory,
+        GpuSnapshot, GpuTemperatureLimits, GpuThrottleReason, GpuVendor, PciBusId, SharedGpuMemory,
     },
 };
 use crate::{
@@ -133,6 +133,7 @@ pub(super) async fn read_snapshot(card: IntelDrmCard) -> Result<GpuSnapshot, Err
         let elapsed = started.elapsed();
         let idle_share = (idle_after - idle_before) as f64 / elapsed.as_secs_f64() / 1000.0;
         Ok(GpuSnapshot {
+            vendor: GpuVendor::Intel,
             load: Ratio::new::<ratio>((1.0 - idle_share).clamp(0.0, 1.0)),
             graphics_clock: megahertz_field(&card.render_frequency().join("act_freq")).ok(),
             memory: GpuMemory::SharedWithSystem(shared_gpu_memory(&card)),

@@ -14,6 +14,7 @@ use crate::{
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{
             Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
         },
@@ -51,6 +52,7 @@ pub(super) fn linked_title(title: &str, details_url: Option<String>) -> Cell {
         Some(url) => Cell::Link {
             label: title.to_owned(),
             url,
+            glyph: None,
         },
         None => title.into(),
     }
@@ -90,6 +92,7 @@ pub(super) fn nextcloud_footer(app_label: &str, app_url: Option<String>, hidden:
                     Cell::Link {
                         label: app_label.to_owned(),
                         url,
+                        glyph: Some(SimpleIcon::Nextcloud.into()),
                     },
                 )
             }),

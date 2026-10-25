@@ -25,7 +25,7 @@ use uom::si::{
 
 use super::pci_gpu_readings::{
     DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuProcess, GpuProcesses,
-    GpuSnapshot, GpuTemperatureLimits, PciBusId, VramUsage,
+    GpuSnapshot, GpuTemperatureLimits, GpuVendor, PciBusId, VramUsage,
 };
 use crate::blocking_background_work::{Panicked, blocking_poll};
 
@@ -171,6 +171,7 @@ pub(super) async fn read_snapshot(device: NvmlDevice) -> Result<GpuSnapshot, Err
     read_device(device, |device| {
         let memory = device.memory_info()?;
         Ok(GpuSnapshot {
+            vendor: GpuVendor::Nvidia,
             load: Ratio::new::<percent>(f64::from(device.utilization_rates()?.gpu)),
             graphics_clock: device.clock_info(Clock::Graphics).ok().map(megahertz_clock),
             memory: GpuMemory::Dedicated(VramUsage {

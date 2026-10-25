@@ -7,6 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{
             Cell, ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TooltipBody,
         },
@@ -32,6 +33,7 @@ impl BarWidget for PowerPolicyFace {
                 Cell::Link {
                     label: "Power management".to_owned(),
                     url: "https://wiki.archlinux.org/title/Power_management".to_owned(),
+                    glyph: Some(SimpleIcon::ArchLinux.into()),
                 },
             ),
         ])
