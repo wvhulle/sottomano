@@ -8,6 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
     },
 };
@@ -41,6 +42,7 @@ impl BarWidget for KernelFace<'_> {
                     Cell::Link {
                         label: "Kernel".to_owned(),
                         url: "https://wiki.archlinux.org/title/Kernel".to_owned(),
+                        glyph: Some(SimpleIcon::ArchLinux.into()),
                     },
                 )),
             ]

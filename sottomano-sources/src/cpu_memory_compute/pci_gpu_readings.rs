@@ -192,11 +192,18 @@ pub struct SharedGpuMemory {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuSnapshot {
+    pub vendor: GpuVendor,
     pub load: Ratio,
     pub graphics_clock: Option<Frequency>,
     pub memory: GpuMemory,
     pub temperature: Option<ThermodynamicTemperature>,
     pub power_draw: Option<Power>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpuVendor {
+    Nvidia,
+    Intel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

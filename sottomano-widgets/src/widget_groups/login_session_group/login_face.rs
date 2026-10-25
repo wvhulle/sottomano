@@ -9,6 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
     },
 };
@@ -38,6 +39,7 @@ impl BarWidget for LoginFace<'_> {
                 Cell::Link {
                     label: "Display manager".to_owned(),
                     url: "https://wiki.archlinux.org/title/Display_manager".to_owned(),
+                    glyph: Some(SimpleIcon::ArchLinux.into()),
                 },
             ),
         ])

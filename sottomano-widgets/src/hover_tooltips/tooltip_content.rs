@@ -642,7 +642,7 @@ impl CellView {
             Cell::RelativeMoment(at) => {
                 self.copyable_text(relative_moment_text(at, self.now, self.locale), color, row)
             }
-            Cell::Link { label, url } => self.openable_link(label, url, color, row),
+            Cell::Link { label, url, glyph } => self.openable_link(label, url, glyph, color, row),
             Cell::Hint(text) => self.text(text, self.hint, row),
         }
     }
@@ -651,8 +651,9 @@ impl CellView {
         &self,
         label: String,
         url: String,
+        glyph: Option<Glyph>,
         color: Color,
-        row: &Cell,
+        link_cell: &Cell,
     ) -> Element<'static, Message> {
         let underlined_label: Span<'static> = span(label.clone())
             .font(FontFaces::from(&self.font).regular)
@@ -666,9 +667,16 @@ impl CellView {
         )
         .max_width(self.max_width);
         let value = TransitioningText::new(underlined, label, self.transition, &self.font, color)
-            .identified_by(row);
+            .identified_by(link_cell);
+        let branded_value: Element<'static, Message> = match glyph {
+            Some(brand_glyph) => row([self.glyph(brand_glyph, color), value.into()])
+                .spacing(GESTURE_ICON_GAP_PX)
+                .align_y(Vertical::Center)
+                .into(),
+            None => value.into(),
+        };
         pressable_text(
-            value,
+            branded_value,
             url,
             Message::OpenUrl,
             self.link,

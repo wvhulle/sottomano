@@ -163,6 +163,7 @@ fn adapter_bus_entries(adapter: &Adapter) -> impl Iterator<Item = KeyValue> + '_
         Cell::Link {
             label: format!("{} id database", adapter.bus_id.bus_name()),
             url: adapter.bus_id.lookup_url(),
+            glyph: None,
         },
     )])
 }

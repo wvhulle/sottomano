@@ -10,7 +10,10 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::{
     clock::Clock,
-    widgets::tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+    widgets::{
+        simple_icons::SimpleIcon,
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+    },
 };
 
 pub fn pick_body(
@@ -92,6 +95,7 @@ impl ReadingSections for NixPackageFacts {
                     Cell::Link {
                         label: entry.definition.file.clone(),
                         url: entry.definition.url.clone(),
+                        glyph: Some(SimpleIcon::NixOS.into()),
                     },
                 )
             }),
@@ -128,7 +132,11 @@ fn homepage_link(url: String) -> Cell {
         .find_map(|scheme| url.strip_prefix(scheme))
         .unwrap_or(&url)
         .to_owned();
-    Cell::Link { label, url }
+    Cell::Link {
+        label,
+        url,
+        glyph: None,
+    }
 }
 
 fn origin_entry(origin: &Origin) -> Option<KeyValue> {

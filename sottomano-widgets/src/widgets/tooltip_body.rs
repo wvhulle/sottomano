@@ -45,6 +45,7 @@ pub enum Cell {
     Link {
         label: String,
         url: String,
+        glyph: Option<Glyph>,
     },
     Hint(String),
 }

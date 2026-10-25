@@ -4,7 +4,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -16,7 +16,7 @@ impl BarWidget for Tailscale {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Graph(Weight::Regular).into()
+        SimpleIcon::Tailscale.into()
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {

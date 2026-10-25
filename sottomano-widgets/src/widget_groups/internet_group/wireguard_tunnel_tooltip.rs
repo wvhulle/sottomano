@@ -9,6 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
@@ -20,7 +21,7 @@ impl BarWidget for Wireguard {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::ShieldCheck(Weight::Regular).into()
+        SimpleIcon::WireGuard.into()
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

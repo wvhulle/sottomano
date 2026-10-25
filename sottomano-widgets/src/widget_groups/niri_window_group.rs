@@ -13,6 +13,7 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{Cell, KeyValue, Section, Tooltip},
@@ -216,7 +217,7 @@ impl NiriWindowGroup {
             ],
         )
         .face(HandleFace::Icon {
-            glyph: Phosphor::AppWindow(Weight::Regular).into(),
+            glyph: SimpleIcon::niri.into(),
             handle: GroupHandle::NiriWindow,
         })
     }

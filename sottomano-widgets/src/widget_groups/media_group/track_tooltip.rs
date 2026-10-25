@@ -5,7 +5,11 @@ use sottomano_sources::media_playback_audio::mpris_players::Media;
 
 use crate::{
     desktop_index::DesktopIndex,
-    widgets::tooltip_body::{Cell, KeyValue, Section},
+    widgets::{
+        bar_widget::Glyph,
+        simple_icons::SimpleIcon,
+        tooltip_body::{Cell, KeyValue, Section},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +27,14 @@ impl SearchPlatform {
             Self::YouTubeMusic => "YouTube Music",
             Self::Spotify => "Spotify",
             Self::Bandcamp => "Bandcamp",
+        }
+    }
+
+    fn glyph(self) -> Glyph {
+        match self {
+            Self::YouTubeMusic => SimpleIcon::YouTubeMusic.into(),
+            Self::Spotify => SimpleIcon::Spotify.into(),
+            Self::Bandcamp => SimpleIcon::Bandcamp.into(),
         }
     }
 
@@ -75,11 +87,12 @@ fn path_segment(value: &str) -> String {
 pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
     let source = media.url.as_ref().and_then(|url| {
         let label = url.host_str()?.to_owned();
+        let platform = SearchPlatform::hosting(url);
         Some(KeyValue::new(
             "Source",
             Cell::Link {
                 label,
-                url: match SearchPlatform::hosting(url) {
+                url: match platform {
                     Some(spotify @ SearchPlatform::Spotify) => {
                         spotify.spotify_link(url.path(), index)
                     }
@@ -87,6 +100,7 @@ pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
                         url.to_string()
                     }
                 },
+                glyph: platform.map(SearchPlatform::glyph),
             },
         ))
     });
@@ -146,6 +160,7 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
                     Cell::Link {
                         label: query.clone(),
                         url: platform.url(&query, index),
+                        glyph: Some(platform.glyph()),
                     },
                 )
             })

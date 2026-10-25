@@ -44,6 +44,7 @@ impl BarWidget for Photo {
                         Cell::Link {
                             label: "photo page".to_owned(),
                             url: self.url.clone(),
+                            glyph: Some(SimpleIcon::Unsplash.into()),
                         },
                     )),
                 ]

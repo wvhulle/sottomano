@@ -7,6 +7,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
     },
 };
@@ -26,6 +27,13 @@ impl MapService {
         match self {
             Self::GoogleMaps => "Google Maps",
             Self::OpenStreetMap => "OpenStreetMap",
+        }
+    }
+
+    fn glyph(self) -> Glyph {
+        match self {
+            Self::GoogleMaps => SimpleIcon::GoogleMaps.into(),
+            Self::OpenStreetMap => SimpleIcon::OpenStreetMap.into(),
         }
     }
 
@@ -134,6 +142,7 @@ fn map_section(position: Position) -> Section {
             Cell::Link {
                 label: format!("{latitude:.5}, {longitude:.5}"),
                 url: service.url(position),
+                glyph: Some(service.glyph()),
             },
         )
     }))

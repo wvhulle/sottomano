@@ -9,6 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
     },
 };
@@ -23,7 +24,16 @@ impl BarWidget for CompositorFace<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::AppWindow(Weight::Regular).into()
+        let desktop_name = self.identity.desktop.as_deref().unwrap_or_default();
+        match desktop_name.to_ascii_lowercase().as_str() {
+            "niri" => SimpleIcon::niri.into(),
+            "hyprland" => SimpleIcon::Hyprland.into(),
+            "sway" => SimpleIcon::Sway.into(),
+            "i3" => SimpleIcon::i3.into(),
+            "gnome" => SimpleIcon::GNOME.into(),
+            "kde" => SimpleIcon::KDEPlasma.into(),
+            _ => Phosphor::AppWindow(Weight::Regular).into(),
+        }
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
@@ -38,6 +48,7 @@ impl BarWidget for CompositorFace<'_> {
                 Cell::Link {
                     label: "Wayland".to_owned(),
                     url: "https://wiki.archlinux.org/title/Wayland".to_owned(),
+                    glyph: Some(SimpleIcon::ArchLinux.into()),
                 },
             ),
         ])
