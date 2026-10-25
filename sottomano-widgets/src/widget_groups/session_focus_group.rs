@@ -1,12 +1,14 @@
+mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
+mod focus_run_reading;
 mod session_face;
 mod window_usage;
 
 use chrono::{DateTime, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::Config;
+use sottomano_config::{Config, widget_groups::focus_time::FocusTimeConfig};
 use sottomano_sources::{
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
@@ -22,7 +24,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::session_focus_group::{
-        context_switch_rate::ContextSwitchRate, daily_totals_gauge::DailyTotalsGauge,
+        break_log::BreakLog, context_switch_rate::ContextSwitchRate,
+        daily_totals_gauge::DailyTotalsGauge, focus_run_reading::FocusRunReading,
         session_face::SessionFace, window_usage::WindowUsage,
     },
     widgets::{
@@ -37,6 +40,8 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionFocusTarget {
     Session,
+    Breaks,
+    FocusRun,
     DailyTotals,
     ContextSwitches,
 }
@@ -83,8 +88,9 @@ impl SessionFocusGroup {
         Task::perform(FocusTracker::load(), SessionFocusMessage::Tracker)
     }
 
-    pub fn subscription() -> Subscription<SessionFocusMessage> {
-        Subscription::run(FocusTracker::idle_messages).map(SessionFocusMessage::Tracker)
+    pub fn subscription(config: &FocusTimeConfig) -> Subscription<SessionFocusMessage> {
+        Subscription::run_with(config.idle_detection_delay, FocusTracker::idle_messages)
+            .map(SessionFocusMessage::Tracker)
     }
 
     pub fn sleep_subscription(buses: &DesktopBuses) -> Subscription<SessionFocusMessage> {
@@ -138,14 +144,37 @@ impl SessionFocusGroup {
         }
     }
 
-    fn session_face<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> SessionFace<'a> {
+    fn session_face<'a>(&'a self, config: &'a Config) -> SessionFace<'a> {
         SessionFace {
             accounting: self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
             pledge: self.pledge,
+        }
+    }
+
+    fn break_log<'a>(&'a self, config: &'a Config, waking: WakingWindow) -> BreakLog<'a> {
+        BreakLog {
+            accounting: self
+                .tracker
+                .ledger()
+                .accounted(&config.widget_groups.focus_time),
+            waking,
+        }
+    }
+
+    fn focus_run_reading<'a>(
+        &'a self,
+        config: &'a Config,
+        waking: WakingWindow,
+    ) -> FocusRunReading<'a> {
+        FocusRunReading {
+            accounting: self
+                .tracker
+                .ledger()
+                .accounted(&config.widget_groups.focus_time),
+            waking,
         }
     }
 
@@ -232,15 +261,17 @@ impl SessionFocusGroup {
         waking: WakingWindow,
         clock: Clock,
     ) -> GroupContent<'a, SessionFocusMessage> {
-        let session = GroupItem::reading(
-            self.session_face(config, waking),
-            SessionFocusTarget::Session,
-        )
-        .ongoing_toast_action_buttons([OngoingToastActionButton {
-            button_label: "Taking a break".to_owned(),
-            tint: ActionTint::Proceed,
-            on_button_pressed: SessionFocusMessage::BreakPledged,
-        }]);
+        let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
+            .ongoing_toast_action_buttons([OngoingToastActionButton {
+                button_label: "Taking a break".to_owned(),
+                tint: ActionTint::Proceed,
+                on_button_pressed: SessionFocusMessage::BreakPledged,
+            }]);
+        let breaks = GroupItem::reading(self.break_log(config, waking), SessionFocusTarget::Breaks);
+        let focus_run = GroupItem::reading(
+            self.focus_run_reading(config, waking),
+            SessionFocusTarget::FocusRun,
+        );
         let totals = GroupItem::reading(
             self.daily_totals_gauge(config, waking, clock),
             SessionFocusTarget::DailyTotals,
@@ -252,7 +283,7 @@ impl SessionFocusGroup {
         GroupContent::new(
             &self.expansion,
             SessionFocusMessage::Expansion,
-            [session, totals, switches],
+            [session, breaks, focus_run, totals, switches],
         )
     }
 
@@ -265,7 +296,9 @@ impl SessionFocusGroup {
         clock: Clock,
     ) -> Tooltip {
         let body = match target {
-            SessionFocusTarget::Session => self.session_face(config, waking).tooltip(clock),
+            SessionFocusTarget::Session => self.session_face(config).tooltip(clock),
+            SessionFocusTarget::Breaks => self.break_log(config, waking).tooltip(clock),
+            SessionFocusTarget::FocusRun => self.focus_run_reading(config, waking).tooltip(clock),
             SessionFocusTarget::DailyTotals => self
                 .daily_totals_gauge(config, waking, clock)
                 .tooltip(clock),

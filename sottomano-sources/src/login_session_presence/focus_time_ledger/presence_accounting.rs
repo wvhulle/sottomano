@@ -17,30 +17,100 @@ pub struct ScreenRun {
     pub since: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BreakCause {
+    LongIdle,
+    ScreenOff,
+    Asleep,
+}
+
+impl BreakCause {
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            BreakCause::LongIdle => "long idle",
+            BreakCause::ScreenOff => "screen off",
+            BreakCause::Asleep => "asleep",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TakenBreak {
+    pub interval: Interval,
+    pub cause: BreakCause,
+}
+
+struct AwayIntervals {
+    asleep: Vec<Interval>,
+    screen_off: Vec<Interval>,
+}
+
 impl Accounting<'_> {
     fn idle_after(&self) -> TimeDelta {
         TimeDelta::from_std(self.config.idle_after).unwrap_or(TimeDelta::MAX)
     }
 
-    fn unmistakably_away(&self, now: DateTime<Utc>) -> Vec<Interval> {
+    fn intervals_in_state(&self, state: Presence, now: DateTime<Utc>) -> Vec<Interval> {
         self.ledger
             .presence_spans_ended_by(now)
-            .filter(|span| matches!(span.state, Presence::Asleep | Presence::ScreenOff))
+            .filter(|span| span.state == state)
             .map(|span| span.interval())
             .collect()
     }
 
-    fn breaks(&self, now: DateTime<Utc>) -> Vec<Interval> {
-        let idle_after = self.idle_after();
-        let away = self.unmistakably_away(now);
+    fn away_intervals(&self, now: DateTime<Utc>) -> AwayIntervals {
+        AwayIntervals {
+            asleep: self.intervals_in_state(Presence::Asleep, now),
+            screen_off: self.intervals_in_state(Presence::ScreenOff, now),
+        }
+    }
+
+    fn break_cause(&self, gap: Interval, away: &AwayIntervals) -> Option<BreakCause> {
+        if overlaps_with(&away.asleep, gap).next().is_some() {
+            Some(BreakCause::Asleep)
+        } else if overlaps_with(&away.screen_off, gap).next().is_some() {
+            Some(BreakCause::ScreenOff)
+        } else {
+            (gap.length() >= self.idle_after()).then_some(BreakCause::LongIdle)
+        }
+    }
+
+    fn taken_breaks(&self, now: DateTime<Utc>) -> Vec<TakenBreak> {
+        let away = self.away_intervals(now);
         gaps_between(
             &self.ledger.active_intervals(now),
             self.ledger.first_presence_started_at(),
             now,
         )
         .into_iter()
-        .filter(|gap| gap.length() >= idle_after || overlaps_with(&away, *gap).next().is_some())
+        .filter_map(|gap| {
+            self.break_cause(gap, &away).map(|cause| TakenBreak {
+                interval: gap,
+                cause,
+            })
+        })
         .collect()
+    }
+
+    fn breaks(&self, now: DateTime<Utc>) -> Vec<Interval> {
+        self.taken_breaks(now)
+            .into_iter()
+            .map(|taken| taken.interval)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn taken_breaks_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<TakenBreak> {
+        self.taken_breaks(now)
+            .into_iter()
+            .filter_map(|taken| {
+                taken.interval.intersect(window).map(|interval| TakenBreak {
+                    interval,
+                    cause: taken.cause,
+                })
+            })
+            .collect()
     }
 
     #[must_use]
@@ -107,9 +177,9 @@ impl Accounting<'_> {
 
     #[must_use]
     pub fn breaks_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
-        self.breaks(now)
+        self.taken_breaks_within(window, now)
             .into_iter()
-            .filter_map(|gap| gap.intersect(window))
+            .map(|taken| taken.interval)
             .collect()
     }
 
@@ -310,6 +380,39 @@ mod tests {
                 from: at(20),
                 until: at(30)
             }]
+        );
+    }
+
+    #[test]
+    fn each_taken_break_reports_why_it_counts() {
+        let config = config();
+        let ledger = folded([
+            step(focused("kitty", None), 0),
+            step(idle_edge(IdleEdge::Idled), 10),
+            step(idle_edge(IdleEdge::Resumed), 20),
+            step(screen_power_edge(ScreenEdge::Off), 30),
+            step(screen_power_edge(ScreenEdge::On), 31),
+            step(sleep_edge(SleepEdge::Suspending), 40),
+            step(sleep_edge(SleepEdge::Resumed), 41),
+            step(idle_edge(IdleEdge::Idled), 50),
+            step(idle_edge(IdleEdge::Resumed), 51),
+        ]);
+        let taken_break = |from, until, cause| TakenBreak {
+            interval: Interval {
+                from: at(from),
+                until: at(until),
+            },
+            cause,
+        };
+        assert_eq!(
+            ledger
+                .accounted(&config)
+                .taken_breaks_within(whole_day(), at(60)),
+            vec![
+                taken_break(10, 20, BreakCause::LongIdle),
+                taken_break(30, 31, BreakCause::ScreenOff),
+                taken_break(40, 41, BreakCause::Asleep),
+            ]
         );
     }
 

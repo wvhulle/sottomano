@@ -76,6 +76,14 @@ impl FocusUnit {
     }
 
     #[must_use]
+    pub fn kind_label(&self) -> &'static str {
+        match self {
+            FocusUnit::App(_) => "app",
+            FocusUnit::Project(_) => "project",
+        }
+    }
+
+    #[must_use]
     pub fn budget(&self, config: &FocusTimeConfig) -> Option<TimeDelta> {
         match self {
             FocusUnit::App(app_id) => config.app_daily_budget_minutes.get(app_id),

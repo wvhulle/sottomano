@@ -1,0 +1,108 @@
+use chrono::{DateTime, Locale, Utc};
+use sottomano_sources::login_session_presence::focus_time_ledger::{
+    Accounting, FocusUnit, WakingWindow,
+};
+
+use crate::{
+    clock::Clock,
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_time::LocalizedTimeFormat,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+    },
+};
+
+pub struct FocusRunReading<'a> {
+    pub accounting: Accounting<'a>,
+    pub waking: WakingWindow,
+}
+
+impl FocusRunReading<'_> {
+    fn focused_now(&self, now: DateTime<Utc>) -> Section {
+        let units = self.accounting.ledger.focused_units();
+        let project = units.iter().find_map(|unit| match unit {
+            FocusUnit::Project(root) => Some(root.clone()),
+            FocusUnit::App(_) => None,
+        });
+        let app = units.iter().find_map(|unit| match unit {
+            FocusUnit::App(app_id) => Some(app_id.clone()),
+            FocusUnit::Project(_) => None,
+        });
+        Section::dictionary(
+            [
+                project.map(|root| KeyValue::new("Focused project", Cell::Path(root))),
+                app.map(|app_id| KeyValue::new("Focused app", app_id)),
+            ]
+            .into_iter()
+            .flatten()
+            .chain(self.accounting.runs(now).into_iter().map(|run| {
+                KeyValue::new(
+                    format!("On this {} since", run.unit.kind_label()),
+                    Cell::Time {
+                        at: run.since,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                )
+            })),
+        )
+        .titled((
+            "Focused now".to_owned(),
+            "A run carries across window switches that share the project or app, and restarts \
+             after a break."
+                .to_owned(),
+        ))
+    }
+
+    fn longest_stretch_today(&self, now: DateTime<Utc>) -> Option<Section> {
+        let stretch = self
+            .accounting
+            .longest_run_within(self.waking.around(now), now)?;
+        Some(
+            Section::dictionary([
+                KeyValue::new(
+                    "Longest stretch without idling",
+                    Cell::duration(stretch.length()),
+                ),
+                KeyValue::new(
+                    "That stretch started at",
+                    Cell::Time {
+                        at: stretch.from,
+                        format: LocalizedTimeFormat::HourAndMinute,
+                    },
+                ),
+            ])
+            .titled((
+                "Today (waking hours)".to_owned(),
+                "A stretch ends at any idle pause, even one too short to be a break.".to_owned(),
+            )),
+        )
+    }
+
+    pub fn sections(&self, now: DateTime<Utc>) -> Vec<Section> {
+        [Some(self.focused_now(now)), self.longest_stretch_today(now)]
+            .into_iter()
+            .flatten()
+            .collect()
+    }
+}
+
+impl BarWidget for FocusRunReading<'_> {
+    fn name(&self) -> &'static str {
+        "Focus run"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::Target(Weight::Regular).into()
+    }
+
+    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+        self.accounting
+            .dominant_run(clock.utc())
+            .map(|run| run.unit.label().into_owned())
+    }
+
+    fn tooltip(&self, clock: Clock) -> TooltipBody {
+        TooltipBody::sections(self.sections(clock.utc()))
+    }
+}

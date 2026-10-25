@@ -64,16 +64,22 @@ impl DailyTotalsGauge {
 
     fn screen(&self) -> Section {
         let status = self.screen_budget.as_ref();
-        let today = KeyValue::new("Today", Cell::duration(self.screen_spent)).level(
+        let today = KeyValue::new("Active today", Cell::duration(self.screen_spent)).level(
             status
                 .map(|status| status.quota.severity())
                 .unwrap_or_default(),
         );
         let budget_entries = status.into_iter().flat_map(|status| {
-            once(KeyValue::new("Budget", Cell::duration(status.budget)))
-                .chain(runs_out_cell(&status.quota).map(|cell| KeyValue::new("Runs out", cell)))
+            once(KeyValue::new("Daily budget", Cell::duration(status.budget))).chain(
+                runs_out_cell(&status.quota).map(|cell| KeyValue::new("Budget used up at", cell)),
+            )
         });
-        Section::dictionary(once(today).chain(budget_entries)).titled("Screen")
+        Section::dictionary(once(today).chain(budget_entries)).titled((
+            "Screen".to_owned(),
+            "Only active time counts, attributed to the focused window's app and project; the \
+             budget is paced over waking hours."
+                .to_owned(),
+        ))
     }
 }
 
@@ -100,15 +106,15 @@ impl UnitSpendRecord {
         } else if records.iter().any(|record| record.budget_status.is_some()) {
             Some(Section::column_table(
                 [
-                    ColumnHeading::new("Today"),
-                    ColumnHeading::new("Budget"),
-                    ColumnHeading::new("Runs out"),
+                    ColumnHeading::new("Active today"),
+                    ColumnHeading::new("Daily budget"),
+                    ColumnHeading::new("Used up at"),
                 ],
                 records.iter().map(|record| record.budgeted_record()),
             ))
         } else {
             Some(Section::column_table(
-                [ColumnHeading::new("Today")],
+                [ColumnHeading::new("Active today")],
                 records.iter().map(|record| record.plain_record()),
             ))
         }

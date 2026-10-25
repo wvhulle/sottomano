@@ -114,13 +114,6 @@ holds the layer rules sottomano writes for its own surfaces.
     enable = true;
     umbra.enable = false;
     windowAgents.kitty.enable = true;
-    settings = {
-      calendar.other_time_zones = [ "America/New_York" ];
-      widget_groups.caldav = {
-        server_url = "https://cloud.example.org/remote.php/dav";
-        user = "alice";
-      };
-    };
     secretFiles = {
       caldav-password = config.age.secrets.caldav-password.path;
       gh-auth-token = config.age.secrets.gh-auth-token.path;
@@ -129,8 +122,8 @@ holds the layer rules sottomano writes for its own surfaces.
 }
 ```
 
-- `settings` is written verbatim to `~/.config/sottomano.toml`; see
-  [configuration](configuration.md).
+- `settings` takes the keys of the [full default](configuration.md#full-default)
+  as Nix attributes and is written verbatim to `~/.config/sottomano.toml`.
 - `secretFiles.<name>` symlinks each secret into `~/.config/sottomano/` from
   wherever it lives (agenix, sops-nix), so it never enters the Nix store.
 - `umbra.enable` (default `true`) registers dark and light palettes with

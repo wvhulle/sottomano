@@ -45,31 +45,37 @@ impl ContextSwitchRate<'_> {
         let readings = Section::dictionary(
             [
                 Some(
-                    KeyValue::new("Last hour", self.per_hour(now).to_string())
+                    KeyValue::new("Switches in the last hour", self.per_hour(now).to_string())
                         .level(self.severity(now)),
                 ),
-                Some(KeyValue::new("Today", switches_today.to_string())),
-                average_span.map(|span| KeyValue::new("Average stay", Cell::duration(span))),
+                Some(KeyValue::new("Switches today", switches_today.to_string())),
+                average_span
+                    .map(|span| KeyValue::new("Average time per window", Cell::duration(span))),
                 Some(KeyValue::new(
-                    "Active in the last hour",
+                    "Active time in the last hour",
                     Cell::duration(self.accounting.screen_spent(last_hour, now)),
                 )),
             ]
             .into_iter()
             .flatten(),
         )
-        .titled("Switches");
+        .titled((
+            "Window switches".to_owned(),
+            "A switch is focusing another window, or the same window in another app or project; \
+             refocusing the same one doesn't count."
+                .to_owned(),
+        ));
         let thresholds = Section::dictionary([
             KeyValue::new(
-                "Warns above",
+                "Warning above per hour",
                 format!("{}/h", self.accounting.config.switches_per_hour_warning),
             ),
             KeyValue::new(
-                "Critical above",
+                "Critical above per hour",
                 format!("{}/h", self.accounting.config.switches_per_hour_critical),
             ),
         ])
-        .titled("Thresholds");
+        .titled("Switch alerts");
         [readings, thresholds]
     }
 }

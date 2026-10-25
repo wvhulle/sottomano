@@ -21,7 +21,7 @@ pub use self::{
     away_reasons::{AwayReasonEdge, ScreenEdge},
     focus_identity::{FocusIdentity, Focused},
     focus_units::{FocusUnit, Presence, StoredFacet},
-    presence_accounting::{FocusRun, ScreenRun},
+    presence_accounting::{BreakCause, FocusRun, ScreenRun, TakenBreak},
     recorded_spans::{FocusScope, FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
     time_intervals::{Interval, WakingWindow},
     unit_accounting::{BudgetStatus, UnitTotal},
