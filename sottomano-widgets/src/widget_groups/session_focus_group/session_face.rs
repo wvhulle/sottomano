@@ -2,7 +2,7 @@ use chrono::{DateTime, Locale, TimeDelta, Utc};
 use quick_xml::escape::escape;
 use sottomano_config::severity::Severity;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, FocusRun, FocusUnit, Interval, ScreenRun, UnitTotal, WakingWindow,
+    Accounting, FocusUnit, Interval, ScreenRun, UnitTotal,
 };
 
 use crate::{
@@ -21,7 +21,6 @@ use crate::{
 
 pub struct SessionFace<'a> {
     pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
     pub pledge: Option<BreakPledge>,
 }
 
@@ -58,10 +57,6 @@ impl SessionFace<'_> {
         }
     }
 
-    fn dominant(&self, now: DateTime<Utc>) -> Option<FocusRun> {
-        self.accounting.dominant_run(now)
-    }
-
     fn screen_run_summary(&self, now: DateTime<Utc>, locale: Locale) -> Option<String> {
         let ScreenRun { since } = self.accounting.screen_run(now)?;
         let totals = self.accounting.unit_totals(
@@ -91,8 +86,11 @@ impl SessionFace<'_> {
         };
         Some(definition_list(
             [
-                ("At screen since", moment_text(since, now, locale)),
-                ("Without a break", duration_text(now - since, locale)),
+                ("Active since", moment_text(since, now, locale)),
+                (
+                    "Active since last break",
+                    duration_text(now - since, locale),
+                ),
             ]
             .into_iter()
             .chain(most_used_project.map(|total| unit_row("Project", total)))
@@ -100,71 +98,39 @@ impl SessionFace<'_> {
         ))
     }
 
-    fn thresholds(&self) -> Section {
+    fn session_alerts(&self) -> Section {
         let config = self.accounting.config;
         Section::dictionary([
-            KeyValue::new("Warns after", Cell::duration(config.session_warning)),
-            KeyValue::new("Critical after", Cell::duration(config.session_critical)),
-            KeyValue::new("Break grace", Cell::duration(config.break_grace)),
+            KeyValue::new(
+                "Warning after active for",
+                Cell::duration(config.session_warning),
+            ),
+            KeyValue::new(
+                "Critical after active for",
+                Cell::duration(config.session_critical),
+            ),
+            KeyValue::new(
+                "Break must start within",
+                Cell::duration(config.break_grace),
+            ),
         ])
-        .titled("Thresholds")
+        .titled((
+            "Session alerts".to_owned(),
+            "Alerts follow 'Active since last break'. After you press 'Taking a break', a break \
+             must start within the time shown or the session turns critical."
+                .to_owned(),
+        ))
     }
 
-    pub fn sections(&self, now: DateTime<Utc>) -> [Section; 3] {
-        [self.present(now), self.today(now), self.thresholds()]
+    pub fn sections(&self, now: DateTime<Utc>) -> [Section; 2] {
+        [self.current_session(now), self.session_alerts()]
     }
 
-    fn today(&self, now: DateTime<Utc>) -> Section {
-        let window = self.waking.around(now);
-        let breaks = self.accounting.breaks_within(window, now);
-        let longest_break = breaks.iter().copied().max_by_key(|gap| gap.length());
-        let longest_run = self.accounting.longest_run_within(window, now);
-        let entries = [
-            Some(KeyValue::new("Breaks", breaks.len().to_string())),
-            longest_break.map(|gap| KeyValue::new("Longest break", Cell::duration(gap.length()))),
-            longest_run.map(|run| KeyValue::new("Longest run", Cell::duration(run.length()))),
-            longest_run.map(|run| {
-                KeyValue::new(
-                    "Longest run from",
-                    Cell::Time {
-                        at: run.from,
-                        format: LocalizedTimeFormat::HourAndMinute,
-                    },
-                )
-            }),
-            Some(KeyValue::new(
-                "Break after idling",
-                Cell::duration(self.accounting.config.idle_after),
-            )),
-        ];
-        Section::dictionary(entries.into_iter().flatten()).titled("Today")
-    }
-
-    fn present(&self, now: DateTime<Utc>) -> Section {
-        let units = self.accounting.ledger.focused_units();
-        let project = units.iter().find_map(|unit| match unit {
-            FocusUnit::Project(root) => Some(root.clone()),
-            FocusUnit::App(_) => None,
-        });
-        let app = units.iter().find_map(|unit| match unit {
-            FocusUnit::App(app_id) => Some(app_id.clone()),
-            FocusUnit::Project(_) => None,
-        });
+    fn current_session(&self, now: DateTime<Utc>) -> Section {
         let last_break = self.accounting.last_break(now);
         let entries = [
-            project.map(|root| KeyValue::new("Project", Cell::Path(root))),
-            app.map(|app_id| KeyValue::new("App", app_id)),
-            self.dominant(now).map(|run| {
-                KeyValue::new(
-                    format!("{} since", run.unit.label()),
-                    Cell::Time {
-                        at: run.since,
-                        format: LocalizedTimeFormat::TimeOfDay,
-                    },
-                )
-            }),
             self.accounting.screen_run(now).map(|ScreenRun { since }| {
-                KeyValue::new("At the screen for", Cell::duration(now - since))
+                KeyValue::new("Active since last break", Cell::duration(now - since))
                     .level(self.severity(now))
             }),
             self.accounting.ledger.screen_off_since().map(|since| {
@@ -183,7 +149,12 @@ impl SessionFace<'_> {
                 KeyValue::new("Last break lasted", Cell::duration(until - from))
             }),
         ];
-        Section::dictionary(entries.into_iter().flatten()).titled("Now")
+        Section::dictionary(entries.into_iter().flatten()).titled((
+            "Current session".to_owned(),
+            "Active means recent keyboard or pointer input. The count starts when the last break \
+             ended; the Breaks reading shows what counts as one."
+                .to_owned(),
+        ))
     }
 }
 
@@ -237,13 +208,6 @@ mod tests {
         "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
     }
 
-    fn all_day() -> WakingWindow {
-        WakingWindow {
-            start: chrono::NaiveTime::MIN,
-            end: chrono::NaiveTime::MIN,
-        }
-    }
-
     fn focused(window: u64, app_id: &str) -> FocusSignal {
         FocusSignal::WindowFocusChanged(WindowFocusChange::WindowGainedFocus(Focused {
             window,
@@ -272,7 +236,6 @@ mod tests {
             .ledger;
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            waking: all_day(),
             pledge: Some(BreakPledge { at: at(10) }),
         };
         assert_eq!(face.severity(at(12)), Severity::Normal);
@@ -294,7 +257,6 @@ mod tests {
         );
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            waking: all_day(),
             pledge: Some(BreakPledge { at: at(10) }),
         };
         assert_eq!(face.severity(at(30)), Severity::Normal);
@@ -310,7 +272,6 @@ mod tests {
             .ledger;
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            waking: all_day(),
             pledge: None,
         };
         let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();

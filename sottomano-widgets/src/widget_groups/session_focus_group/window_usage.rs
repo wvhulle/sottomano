@@ -23,11 +23,11 @@ impl WindowUsage<'_> {
         let longest = self
             .accounting
             .longest_stay_on(scope, today, now)
-            .map(|stay| KeyValue::new("Longest stay", Cell::duration(stay.length())));
+            .map(|stay| KeyValue::new("Longest active stay", Cell::duration(stay.length())));
         let entries = [
             project,
             Some(KeyValue::new(
-                "Focused today",
+                "Active on this window today",
                 Cell::duration(self.accounting.spent(scope, today, now)),
             )),
             Some(KeyValue::new(
@@ -53,7 +53,7 @@ impl WindowUsage<'_> {
             })
             .collect();
         (rows.len() > 1).then(|| {
-            Section::column_table([ColumnHeading::new("Today")], rows)
+            Section::column_table([ColumnHeading::new("Active today")], rows)
                 .titled("Projects in this window")
         })
     }

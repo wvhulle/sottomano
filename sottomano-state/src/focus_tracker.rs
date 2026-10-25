@@ -19,7 +19,6 @@ use sottomano_sources::{
 
 use crate::focus_spans;
 
-const PRESENCE_RESOLUTION: Duration = Duration::from_secs(30);
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,8 +59,10 @@ impl FocusTracker {
         TrackerMessage::Loaded(focus_spans::load_since(Utc::now() - LOADED_HISTORY).await)
     }
 
-    pub fn idle_messages() -> impl Stream<Item = TrackerMessage> + Send {
-        idle_edges(PRESENCE_RESOLUTION).map(TrackerMessage::Idle)
+    pub fn idle_messages(
+        idle_detection_delay: &Duration,
+    ) -> impl Stream<Item = TrackerMessage> + Send + use<> {
+        idle_edges(*idle_detection_delay).map(TrackerMessage::Idle)
     }
 
     pub fn sleep_messages(
