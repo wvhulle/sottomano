@@ -659,17 +659,11 @@ impl DesktopShell {
     }
 
     fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
-        let players_changed = matches!(msg, MediaMessage::Reading(_));
-        let task = match self.media_group.update(msg, self.clock) {
+        match self.media_group.update(msg, self.clock) {
             media_group::Action::Run(task) => task.map(Message::Media),
             media_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Media)
             }
-        };
-        if players_changed {
-            Task::batch([task, self.resolve_icons()])
-        } else {
-            task
         }
     }
 
@@ -955,7 +949,6 @@ impl DesktopShell {
             .map(desktop_entry_app_icons::app_icon_keys)
             .unwrap_or_default();
         app_keys.extend(self.window_group.icon_keys());
-        app_keys.extend(self.media_group.icon_keys());
         let theme_keys = snapshot
             .map(desktop_entry_app_icons::theme_icon_keys)
             .unwrap_or_default();

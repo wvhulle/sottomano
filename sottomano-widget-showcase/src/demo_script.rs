@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
@@ -10,7 +10,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        media_group::MediaTarget,
+        media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
@@ -96,7 +96,16 @@ pub const DEMOS: &[Demo] = &[
         name: "media_track",
         group: media::group,
         live: unchanging,
-        script: &[Step::Hover(HoverTarget::Media(MediaTarget::Track))],
+        script: &[
+            Step::Press(HoverTarget::Media(PlayerTarget {
+                bus: Cow::Borrowed(media::SPOTIFY_BUS),
+                control: MediaTarget::Player,
+            })),
+            Step::Hover(HoverTarget::Media(PlayerTarget {
+                bus: Cow::Borrowed(media::SPOTIFY_BUS),
+                control: MediaTarget::Track,
+            })),
+        ],
     },
     Demo {
         name: "idle_screen_off",

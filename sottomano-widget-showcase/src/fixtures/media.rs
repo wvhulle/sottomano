@@ -15,10 +15,15 @@ use sottomano_widgets::{
 
 use crate::showcased_group::{ShowcasedGroup, ShowcasedMedia};
 
+pub const SPOTIFY_BUS: &str = "org.mpris.MediaPlayer2.spotify";
+
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MediaGroup::default();
     let _ = group.update(
-        MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![now_playing(clock)]))),
+        MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![
+            now_playing(clock),
+            paused_video(clock),
+        ]))),
         clock,
     );
     ShowcasedGroup::Media(Box::new(ShowcasedMedia {
@@ -29,7 +34,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 fn now_playing(clock: Clock) -> Media {
     Media {
-        bus: "org.mpris.MediaPlayer2.spotify".to_owned(),
+        bus: SPOTIFY_BUS.to_owned(),
         owner: OwnerProcess::Unidentified,
         identity: "Spotify".to_owned(),
         desktop_entry: Some("spotify".to_owned()),
@@ -58,5 +63,26 @@ fn now_playing(clock: Clock) -> Media {
         shuffle: Some(false),
         loop_mode: Some(LoopMode::Off),
         seek_mode: SeekMode::Relative,
+    }
+}
+
+fn paused_video(clock: Clock) -> Media {
+    Media {
+        bus: "org.mpris.MediaPlayer2.firefox.instance_1_42".to_owned(),
+        identity: "Mozilla Firefox".to_owned(),
+        desktop_entry: Some("firefox".to_owned()),
+        title: Some("Lofi beats to study to".to_owned()),
+        artist: Some("Lofi Girl".to_owned()),
+        album: None,
+        status: Status::Paused,
+        progress: Progress::Timed {
+            position: Duration::from_secs(1312),
+            sampled_at: clock.instant,
+            length: Duration::from_secs(3600),
+            rate: 1.0,
+        },
+        shuffle: None,
+        loop_mode: None,
+        ..now_playing(clock)
     }
 }
