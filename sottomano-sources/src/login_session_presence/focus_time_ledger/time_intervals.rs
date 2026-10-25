@@ -58,15 +58,15 @@ pub(super) fn gaps_between(
             cursor: from,
             gaps: Vec::new(),
         },
-        |scan, interval| {
-            let gap = (interval.from > scan.cursor).then_some(Interval {
-                from: scan.cursor,
-                until: interval.from,
-            });
-            GapScan {
-                cursor: scan.cursor.max(interval.until),
-                gaps: scan.gaps.into_iter().chain(gap).collect(),
+        |mut scan, interval| {
+            if interval.from > scan.cursor {
+                scan.gaps.push(Interval {
+                    from: scan.cursor,
+                    until: interval.from,
+                });
             }
+            scan.cursor = scan.cursor.max(interval.until);
+            scan
         },
     );
     let trailing = (scanned.cursor < until).then_some(Interval {

@@ -24,7 +24,54 @@ workspace:
 source becomes a subscription that yields a `Message`. `update` applies it,
 persisting state where needed, and `view` renders the layer-shell surfaces.
 
-<img src="diagrams/runtime_data_flow.svg" alt="Runtime data flow from config, sources and saved state through update and view to the layer-shell surfaces">
+```mermaid
+flowchart TB
+  subgraph sources_crate [sottomano-sources]
+    desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
+    notification_server["freedesktop<br>notification server"]
+    niri_event_thread["niri IPC<br>event thread"]
+    wayland_outputs["Wayland outputs"]
+    file_watches["inotify<br>config file, desktop entries"]
+    reading_sources["ReadingSource::delivery_stream"]
+  end
+
+  subgraph config_crate [sottomano-config]
+    config_file[("$XDG_CONFIG_HOME/sottomano.toml")]
+    config_loading["ConfigFile::load"]
+    config_file --> config_loading
+  end
+
+  subgraph widgets_crate [sottomano-widgets]
+    source_subscription["background_work::source_subscription"]
+    shell_message["Message (shell_message.rs)"]
+    source_subscription --> shell_message
+  end
+
+  subgraph shell_crate [sottomano-shell]
+    run_shell["run_shell"]
+    message_subscriptions["message_subscriptions::subscription"]
+    shell_update["DesktopShell::update"]
+    shell_view["DesktopShell::view"]
+    layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, tooltips"]
+    run_shell -->|startup load tasks| shell_update
+    message_subscriptions --> shell_update
+    shell_update -->|state| shell_view
+    shell_view --> layer_surfaces
+  end
+
+  subgraph state_crate [sottomano-state]
+    saved_state_modules["dark_mode, launches, idle,<br>focus_spans, niri_rules, …"]
+  end
+
+  sqlite_state_store[("$XDG_STATE_HOME/sottomano/state.db<br>via sqlite_state_store")]
+
+  config_loading --> run_shell
+  desktop_bus & notification_server & niri_event_thread & wayland_outputs & file_watches --> message_subscriptions
+  reading_sources -->|SourceDelivery| source_subscription
+  shell_message --> message_subscriptions
+  shell_update <-->|restore / persist| saved_state_modules
+  saved_state_modules <--> sqlite_state_store
+```
 
 ## Building and checking
 
@@ -32,8 +79,7 @@ persisting state where needed, and `view` renders the layer-shell surfaces.
 - `cargo clippy --workspace --all-targets` before committing. The workspace
   warns on clippy pedantic plus `absolute_paths`.
 - `treefmt` formats Rust (rustfmt, nightly for the options in
-  `.rustfmt.toml`), Nix (nixfmt) and D2 (`d2 fmt`), as configured in
-  `treefmt.toml`.
+  `.rustfmt.toml`) and Nix (nixfmt), as configured in `treefmt.toml`.
 
 Version control is jj, not the `git` CLI.
 
@@ -42,22 +88,43 @@ Debugging the running shell with iced's devtools and comet is described in
 
 ## CI
 
-Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy,
-format and diagrams) on pull requests and on `main`. It also checks pull request commits
+Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy and
+format) on pull requests and on `main`. It also checks pull request commits
 against Conventional Commits
 (locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
 checks pass on `main`, the `readme-recordings` pipeline re-renders the tour and
 opens a pull request when the recordings changed.
 
-<img src="diagrams/ci_pipelines.svg" alt="Woodpecker pipelines: checks on pull requests and main, then readme-recordings opening a pull request into main">
+```mermaid
+flowchart LR
+  pull_request_event(["pull request"])
+  main_push_event(["push or manual on main"])
 
-## Diagrams
+  subgraph checks_pipeline [".woodpecker/checks.yaml"]
+    cargo_checks_pr["cargo-checks-pr<br>tests, clippy"]
+    cargo_checks["cargo-checks<br>tests, clippy via cachix"]
+    format_check["format<br>treefmt: rustfmt, nixfmt"]
+    conventional_commits["conventional-commits<br>convco check FETCH_HEAD..HEAD"]
+  end
 
-The diagrams in this document are [D2](https://d2lang.com) sources in
-`docs/diagrams/` with the ELK layout. Rendered SVGs are committed next to them
-because forges do not render D2. After editing a `.d2` file, re-render it with
-`d2 docs/diagrams/<name>.d2 docs/diagrams/<name>.svg`. The `diagrams` flake
-check fails when a committed SVG is stale.
+  subgraph recordings_pipeline [".woodpecker/readme-recordings.yaml"]
+    render_recordings["render-readme-recordings<br>nix build .#readme-recordings"]
+    push_recordings_branch["push-readme-recordings-branch<br>force-push to Codeberg"]
+    open_recordings_pull_request["open-readme-recordings-pr<br>open, update or close"]
+    render_recordings -->|"cp result/*.webp recordings/"| push_recordings_branch
+    push_recordings_branch --> open_recordings_pull_request
+  end
+
+  main_branch[("main")]
+
+  pull_request_event --> cargo_checks_pr & format_check & conventional_commits
+  main_push_event --> cargo_checks & format_check
+  checks_pipeline -->|"depends_on: checks"| recordings_pipeline
+  open_recordings_pull_request -->|readme-recordings PR| main_branch
+```
+
+The `readme-recordings` pipeline skips pushes that only touch `recordings/**`
+and its own commits.
 
 ## Tour recordings
 
@@ -66,7 +133,30 @@ The recordings in [showcase.md](showcase.md) and the README are rendered by
 [sottomano-widget-showcase/CONTRIBUTING.md](../sottomano-widget-showcase/CONTRIBUTING.md)
 describes how they are scripted, added and checked.
 
-<img src="diagrams/tour_recording_pipeline.svg" alt="Tour recording pipeline from fixtures and demo scripts to webp recordings and the embedding check">
+```mermaid
+flowchart LR
+  subgraph widget_showcase [sottomano-widget-showcase]
+    group_fixtures["fixtures/*.rs<br>group(Clock), live(Clock)<br>fixed showcase_epoch"]
+    demo_script["demo_script::DEMOS<br>Hover, Press, Drag, RestFor, …"]
+    showcase_program["ShowcaseProgram::scripted"]
+    animation_recording["animation_recording::record<br>iced_test emulator, frame clock,<br>ContentCrop, lavapipe"]
+    embedding_check["tour_document_embedding::assert_embedded"]
+    interactive_tester["ShowcaseProgram::interactive<br>--window"]
+    ice_scenarios["tests/ice_scenarios.rs<br>.ice scenarios"]
+    group_fixtures --> demo_script --> showcase_program --> animation_recording
+    group_fixtures --> interactive_tester
+    group_fixtures --> ice_scenarios
+    animation_recording -->|name, width| embedding_check
+  end
+
+  recorded_webp[/"recordings/&lt;name&gt;.webp"/]
+  showcase_document["docs/showcase.md<br>must embed every recording"]
+  readme_document["README.md<br>checks the recordings it embeds"]
+
+  animation_recording -->|lossless animated webp| recorded_webp
+  embedding_check -->|"&lt;img src width&gt;"| showcase_document
+  embedding_check -->|"&lt;img src width&gt;"| readme_document
+```
 
 ## Upstream docs
 
