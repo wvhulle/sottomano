@@ -107,7 +107,7 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
     let progress = media.progress;
     let status = media.status;
     let duration = |key, duration: Option<Duration>| {
-        duration.map(|duration| KeyValue::new(key, duration_text(duration)))
+        duration.map(|duration| KeyValue::new(key, Cell::duration(duration)))
     };
     Section::dictionary(
         [
@@ -151,10 +151,6 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
             })
     });
     Section::dictionary(links).titled("Search")
-}
-
-fn duration_text(duration: Duration) -> String {
-    humantime::format_duration(Duration::from_secs(duration.as_secs())).to_string()
 }
 
 #[cfg(test)]

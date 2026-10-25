@@ -51,10 +51,8 @@ impl Display for Error {
         match self {
             Error::Credentials => write!(f, "credentials file unreadable"),
             Error::NoToken => write!(f, "no OAuth token in credentials"),
-            Error::RateLimited(cause) => write!(f, "rate limited: {cause}"),
-            Error::Backoff { remaining, cause } => {
-                let wait = humantime::format_duration(*remaining);
-                write!(f, "rate limited (retrying in {wait}): {cause}")
+            Error::RateLimited(cause) | Error::Backoff { cause, .. } => {
+                write!(f, "rate limited: {cause}")
             }
             Error::Fetch(error) => write!(f, "{error}"),
             Error::Ccusage(error) => write!(f, "ccusage: {error}"),

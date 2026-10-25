@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use sottomano_sources::network_connectivity::wireguard_tunnels::{
     Peer, Tunnel, TunnelAddress, Wireguard,
 };
@@ -7,7 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -61,8 +63,9 @@ impl BarWidget for Tunnel {
                     peer.endpoint
                         .as_deref()
                         .map(|endpoint| KeyValue::new("server", endpoint)),
-                    peer.handshake_ago
-                        .map(|ago| KeyValue::new("handshake", format!("{ago}s ago"))),
+                    peer.handshake_ago.map(|ago| {
+                        KeyValue::new("handshake ago", Cell::duration(Duration::from_secs(ago)))
+                    }),
                     Some(KeyValue::new(
                         "received",
                         peer.rx.display().iec().to_string(),

@@ -7,10 +7,9 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::duration_text,
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -50,10 +49,10 @@ impl ContextSwitchRate<'_> {
                         .level(self.severity(now)),
                 ),
                 Some(KeyValue::new("Today", switches_today.to_string())),
-                average_span.map(|span| KeyValue::new("Average stay", duration_text(span))),
+                average_span.map(|span| KeyValue::new("Average stay", Cell::duration(span))),
                 Some(KeyValue::new(
                     "Active in the last hour",
-                    duration_text(self.accounting.screen_spent(last_hour, now)),
+                    Cell::duration(self.accounting.screen_spent(last_hour, now)),
                 )),
             ]
             .into_iter()

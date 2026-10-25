@@ -25,7 +25,10 @@ use crate::{
     clock::Clock,
     hover_tooltips::PressHints,
     widget_groups::window_group::process_tree::Folding,
-    widgets::{bar_widget::Glyph, icon_handle::PixmapHandles, localized_time::LocalizedTimeFormat},
+    widgets::{
+        bar_widget::Glyph, icon_handle::PixmapHandles, localized_durations::LengthOfTime,
+        localized_time::LocalizedTimeFormat,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -37,11 +40,20 @@ pub enum Cell {
         at: DateTime<Utc>,
         format: LocalizedTimeFormat,
     },
+    Duration(Duration),
+    RelativeMoment(DateTime<Utc>),
     Link {
         label: String,
         url: String,
     },
     Hint(String),
+}
+
+impl Cell {
+    #[must_use]
+    pub fn duration(length: impl LengthOfTime) -> Self {
+        Cell::Duration(length.elapsed_length())
+    }
 }
 
 impl From<String> for Cell {

@@ -15,6 +15,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_durations::{duration_text, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
@@ -39,10 +40,6 @@ fn current_intensity_text(intensity: Velocity) -> String {
     } else {
         intensity_text(intensity)
     }
-}
-
-fn minutes_until(at: DateTime<Local>, clock: Clock) -> i64 {
-    (at - clock.local()).num_minutes().max(0)
 }
 
 const MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 0.5;
@@ -321,14 +318,15 @@ impl BarWidget for Rain {
         WeatherIcon::Raindrop.into()
     }
 
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+        let remaining = |at: DateTime<Local>| duration_text(at - clock.local(), locale);
         match self.outlook {
             RainOutlook::Dry => None,
-            RainOutlook::StartsAt(at) => Some(format!("in {}m", minutes_until(at, clock))),
-            RainOutlook::StopsAt(at) => Some(format!("for {}m", minutes_until(at, clock))),
-            RainOutlook::OutlastsForecastUntil(at) => {
-                Some(format!("for {}m+", minutes_until(at, clock)))
+            RainOutlook::StartsAt(at) => {
+                Some(relative_moment_text(at.to_utc(), clock.utc(), locale))
             }
+            RainOutlook::StopsAt(at) => Some(format!("for {}", remaining(at))),
+            RainOutlook::OutlastsForecastUntil(at) => Some(format!("for {}+", remaining(at))),
         }
     }
 
@@ -502,7 +500,7 @@ mod tests {
         let later = clock.advanced(Duration::from_mins(4));
         assert_eq!(
             rain.label(later, Locale::default()),
-            Some("in 6m".to_owned())
+            Some("in 6 min.".to_owned())
         );
     }
 

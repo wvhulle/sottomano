@@ -13,8 +13,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph},
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
@@ -64,13 +64,13 @@ impl DailyTotalsGauge {
 
     fn screen(&self) -> Section {
         let status = self.screen_budget.as_ref();
-        let today = KeyValue::new("Today", duration_text(self.screen_spent)).level(
+        let today = KeyValue::new("Today", Cell::duration(self.screen_spent)).level(
             status
                 .map(|status| status.quota.severity())
                 .unwrap_or_default(),
         );
         let budget_entries = status.into_iter().flat_map(|status| {
-            once(KeyValue::new("Budget", duration_text(status.budget)))
+            once(KeyValue::new("Budget", Cell::duration(status.budget)))
                 .chain(runs_out_cell(&status.quota).map(|cell| KeyValue::new("Runs out", cell)))
         });
         Section::dictionary(once(today).chain(budget_entries)).titled("Screen")
@@ -126,7 +126,7 @@ impl UnitSpendRecord {
         let level = self.severity();
         TableRecord::new(
             self.total.unit.label().into_owned(),
-            [Some(duration_text(self.total.spent).into())],
+            [Some(Cell::duration(self.total.spent))],
         )
         .level(level)
     }
@@ -136,10 +136,10 @@ impl UnitSpendRecord {
         TableRecord::new(
             self.total.unit.label().into_owned(),
             [
-                Some(duration_text(self.total.spent).into()),
+                Some(Cell::duration(self.total.spent)),
                 self.budget_status
                     .as_ref()
-                    .map(|status| duration_text(status.budget).into()),
+                    .map(|status| Cell::duration(status.budget)),
                 self.budget_status
                     .as_ref()
                     .and_then(|status| runs_out_cell(&status.quota)),
@@ -169,11 +169,13 @@ impl BarWidget for DailyTotalsGauge {
         Phosphor::HourglassMedium(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let spent = coarse_duration_text(self.screen_spent);
-        Some(self.screen_budget.as_ref().map_or(spent.clone(), |status| {
-            format!("{spent} / {}", coarse_duration_text(status.budget))
-        }))
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        let coarse = |length| duration_text(length, locale);
+        let spent = coarse(self.screen_spent);
+        Some(match &self.screen_budget {
+            Some(status) => format!("{spent} / {}", coarse(status.budget)),
+            None => spent,
+        })
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {

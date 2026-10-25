@@ -10,11 +10,11 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{countdown, percent_text},
+        amount_text::percent_text,
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -87,12 +87,12 @@ fn window_section(
     let used = KeyValue::new("Used", percent_text(window.utilization));
     let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
         Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
-        Pace::RunsOut { at } => KeyValue::new("Runs Out In", countdown(at, now)),
+        Pace::RunsOut { at } => KeyValue::new("Runs Out In", Cell::duration(at - now)),
         Pace::Exceeded => KeyValue::new("Used Up", "already"),
     });
     let resets = window
         .resets_at
-        .map(|at| KeyValue::new("Resets In", countdown(at, now)));
+        .map(|at| KeyValue::new("Resets In", Cell::duration(at - now)));
     Section::dictionary(once(used).chain(pace_entry).chain(resets)).titled(title)
 }
 

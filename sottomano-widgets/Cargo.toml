@@ -15,8 +15,13 @@ sottomano-state = { path = "../sottomano-state" }
 bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+fixed_decimal.workspace = true
 form_urlencoded.workspace = true
 humantime.workspace = true
+icu_experimental.workspace = true
+icu_locale_core.workspace = true
+icu_provider.workspace = true
+jiff.workspace = true
 iced.workspace = true
 iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true

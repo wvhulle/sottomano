@@ -3,9 +3,8 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusScope, FocusUnit, Interval, WakingWindow,
 };
 
-use crate::widgets::{
-    amount_text::duration_text,
-    tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+use crate::widgets::tooltip_body::{
+    Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody,
 };
 
 pub struct WindowUsage<'a> {
@@ -24,12 +23,12 @@ impl WindowUsage<'_> {
         let longest = self
             .accounting
             .longest_stay_on(scope, today, now)
-            .map(|stay| KeyValue::new("Longest stay", duration_text(stay.length())));
+            .map(|stay| KeyValue::new("Longest stay", Cell::duration(stay.length())));
         let entries = [
             project,
             Some(KeyValue::new(
                 "Focused today",
-                duration_text(self.accounting.spent(scope, today, now)),
+                Cell::duration(self.accounting.spent(scope, today, now)),
             )),
             Some(KeyValue::new(
                 "Switched to",
@@ -49,7 +48,7 @@ impl WindowUsage<'_> {
             .map(|total| {
                 TableRecord::new(
                     total.unit.label().into_owned(),
-                    [Some(duration_text(total.spent).into())],
+                    [Some(Cell::duration(total.spent))],
                 )
             })
             .collect();

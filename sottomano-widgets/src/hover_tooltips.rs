@@ -10,7 +10,6 @@ use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 pub use crate::hover_tooltips::{
     hover_area::{hoverable, on_surface, pressable_card},
-    tooltip_content::{ongoing_for, relative},
     tooltip_surfaces::TooltipHost,
 };
 use crate::{

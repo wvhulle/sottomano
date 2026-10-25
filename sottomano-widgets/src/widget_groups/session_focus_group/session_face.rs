@@ -9,8 +9,8 @@ use crate::{
     clock::Clock,
     widget_groups::session_focus_group::BreakPledge,
     widgets::{
-        amount_text::{coarse_duration_text, duration_text},
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
@@ -85,14 +85,14 @@ impl SessionFace<'_> {
                 format!(
                     "{} · {}",
                     escape(total.unit.label().as_ref()),
-                    coarse_duration_text(total.spent)
+                    duration_text(total.spent, locale)
                 ),
             )
         };
         Some(definition_list(
             [
                 ("At screen since", moment_text(since, now, locale)),
-                ("Without a break", coarse_duration_text(now - since)),
+                ("Without a break", duration_text(now - since, locale)),
             ]
             .into_iter()
             .chain(most_used_project.map(|total| unit_row("Project", total)))
@@ -103,18 +103,9 @@ impl SessionFace<'_> {
     fn thresholds(&self) -> Section {
         let config = self.accounting.config;
         Section::dictionary([
-            KeyValue::new(
-                "Warns after",
-                humantime::format_duration(config.session_warning).to_string(),
-            ),
-            KeyValue::new(
-                "Critical after",
-                humantime::format_duration(config.session_critical).to_string(),
-            ),
-            KeyValue::new(
-                "Break grace",
-                humantime::format_duration(config.break_grace).to_string(),
-            ),
+            KeyValue::new("Warns after", Cell::duration(config.session_warning)),
+            KeyValue::new("Critical after", Cell::duration(config.session_critical)),
+            KeyValue::new("Break grace", Cell::duration(config.break_grace)),
         ])
         .titled("Thresholds")
     }
@@ -130,21 +121,20 @@ impl SessionFace<'_> {
         let longest_run = self.accounting.longest_run_within(window, now);
         let entries = [
             Some(KeyValue::new("Breaks", breaks.len().to_string())),
-            longest_break.map(|gap| KeyValue::new("Longest break", duration_text(gap.length()))),
+            longest_break.map(|gap| KeyValue::new("Longest break", Cell::duration(gap.length()))),
+            longest_run.map(|run| KeyValue::new("Longest run", Cell::duration(run.length()))),
             longest_run.map(|run| {
                 KeyValue::new(
-                    "Longest run",
-                    format!(
-                        "{}, from {} to {}",
-                        duration_text(run.length()),
-                        run.from.with_timezone(&chrono::Local).format("%H:%M"),
-                        run.until.with_timezone(&chrono::Local).format("%H:%M")
-                    ),
+                    "Longest run from",
+                    Cell::Time {
+                        at: run.from,
+                        format: LocalizedTimeFormat::HourAndMinute,
+                    },
                 )
             }),
             Some(KeyValue::new(
                 "Break after idling",
-                humantime::format_duration(self.accounting.config.idle_after).to_string(),
+                Cell::duration(self.accounting.config.idle_after),
             )),
         ];
         Section::dictionary(entries.into_iter().flatten()).titled("Today")
@@ -160,6 +150,7 @@ impl SessionFace<'_> {
             FocusUnit::App(app_id) => Some(app_id.clone()),
             FocusUnit::Project(_) => None,
         });
+        let last_break = self.accounting.last_break(now);
         let entries = [
             project.map(|root| KeyValue::new("Project", Cell::Path(root))),
             app.map(|app_id| KeyValue::new("App", app_id)),
@@ -173,7 +164,7 @@ impl SessionFace<'_> {
                 )
             }),
             self.accounting.screen_run(now).map(|ScreenRun { since }| {
-                KeyValue::new("At the screen for", duration_text(now - since))
+                KeyValue::new("At the screen for", Cell::duration(now - since))
                     .level(self.severity(now))
             }),
             self.accounting.ledger.screen_off_since().map(|since| {
@@ -185,18 +176,12 @@ impl SessionFace<'_> {
                     },
                 )
             }),
-            self.accounting
-                .last_break(now)
-                .map(|Interval { from, until }| {
-                    KeyValue::new(
-                        "Last break",
-                        format!(
-                            "{} ago, {}",
-                            duration_text(now - until),
-                            duration_text(until - from)
-                        ),
-                    )
-                }),
+            last_break.map(|Interval { until, .. }| {
+                KeyValue::new("Last break ended", Cell::RelativeMoment(until))
+            }),
+            last_break.map(|Interval { from, until }| {
+                KeyValue::new("Last break lasted", Cell::duration(until - from))
+            }),
         ];
         Section::dictionary(entries.into_iter().flatten()).titled("Now")
     }
@@ -211,8 +196,9 @@ impl BarWidget for SessionFace<'_> {
         Phosphor::UserFocus(Weight::Regular).into()
     }
 
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        self.run_length(clock.utc()).map(coarse_duration_text)
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
+        self.run_length(clock.utc())
+            .map(|run_length| duration_text(run_length, locale))
     }
 
     fn state(&self, clock: Clock) -> WidgetState {

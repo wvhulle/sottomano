@@ -6,11 +6,11 @@ use sottomano_sources::systemd_units_journal::journal_previous_shutdown::{
 
 use crate::{
     clock::Clock,
-    widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -30,7 +30,7 @@ impl TableRow<2> for &UnitStop {
                 job_result,
                 ..
             } => [
-                Some(elapsed_text(*duration).into()),
+                Some(Cell::duration(*duration)),
                 (*job_result != JobResult::Done).then(|| job_result.to_string().into()),
             ],
         };
@@ -47,8 +47,8 @@ impl BarWidget for LastShutdown {
         Phosphor::Power(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(elapsed_text(self.duration))
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        Some(duration_text(self.duration, locale))
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {

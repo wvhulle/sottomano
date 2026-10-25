@@ -1,4 +1,3 @@
-use humantime::format_duration;
 use iced::alignment::Horizontal;
 use sottomano_sources::login_session_presence::logind_session_facts::{InhibitMode, PowerPolicy};
 
@@ -52,7 +51,7 @@ impl ReadingSections for PowerPolicy {
         let idle_after = self
             .idle_action_after
             .filter(|_| self.idle_action != "ignore")
-            .map(|after| KeyValue::new("Idle after", format_duration(after).to_string()));
+            .map(|after| KeyValue::new("Idle after", Cell::duration(after)));
         let sleep_tries = self
             .sleep_order
             .iter()
