@@ -47,9 +47,9 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
     };
     output::listen(connection.clone()).filter_map(|event| {
         match event {
-            OutputEvent::Insert(info) => info.name.map(OutputChange::Connected),
+            OutputEvent::Insert(info) => info.name.clone().map(OutputChange::Connected),
             OutputEvent::Changed(_) => Some(OutputChange::Rearranged),
-            OutputEvent::Removed(info) => info.name.map(OutputChange::Disconnected),
+            OutputEvent::Removed(info) => info.name.clone().map(OutputChange::Disconnected),
             OutputEvent::Stop(e) => Some(OutputChange::Unavailable(e.to_string())),
         }
         .map(Message::Output)
