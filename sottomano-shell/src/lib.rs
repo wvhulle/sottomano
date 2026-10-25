@@ -20,8 +20,8 @@ use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
-    if command_line.describes_setup() {
-        return command_line.print_setup(&sottomano_config::config_home());
+    if let Some(setup_command) = command_line.setup_command {
+        return setup_command.print(&sottomano_config::config_home());
     }
 
     tracing_subscriber::fmt()
