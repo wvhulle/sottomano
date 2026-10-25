@@ -220,7 +220,10 @@ impl DesktopShell {
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
             openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
             llama_server_group: LlamaServerGroup::default(),
-            session_focus_group: SessionFocusGroup::started_at(clock.utc()),
+            session_focus_group: SessionFocusGroup::started_at(
+                &config.widget_groups.focus_time,
+                clock.utc(),
+            ),
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
@@ -282,6 +285,8 @@ impl DesktopShell {
         let hovered_before = self.tooltip.target().cloned();
         let reheat_due = ReheatDue::after(&message);
         let dispatched = self.dispatch_message(message);
+        self.session_focus_group
+            .refresh_daily_totals(&self.config.widget_groups.focus_time, self.clock);
         let reheated =
             self.niri_window_group
                 .reheat(reheat_due, &mut self.niri_rules, &self.config, || {

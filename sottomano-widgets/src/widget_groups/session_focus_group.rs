@@ -61,6 +61,7 @@ pub struct SessionFocusGroup {
     tracker: FocusTracker,
     pledge: Option<BreakPledge>,
     expansion: GroupExpansion,
+    daily_totals: DailyTotalsGauge,
 }
 
 #[derive(Debug, Clone)]
@@ -72,12 +73,26 @@ pub enum SessionFocusMessage {
 
 impl SessionFocusGroup {
     #[must_use]
-    pub fn started_at(now: DateTime<Utc>) -> Self {
+    pub fn started_at(config: &FocusTimeConfig, now: DateTime<Utc>) -> Self {
+        let tracker = FocusTracker::started_at(now);
+        let daily_totals = DailyTotalsGauge::new(&tracker.ledger().accounted(config), now);
         Self {
-            tracker: FocusTracker::started_at(now),
+            tracker,
             pledge: None,
             expansion: GroupExpansion::default(),
+            daily_totals,
         }
+    }
+
+    pub fn refresh_daily_totals(&mut self, config: &FocusTimeConfig, clock: Clock) {
+        let now = clock.utc();
+        if !self.daily_totals.computed_in_second_of(now) {
+            self.recompute_daily_totals(config, now);
+        }
+    }
+
+    fn recompute_daily_totals(&mut self, config: &FocusTimeConfig, now: DateTime<Utc>) {
+        self.daily_totals = DailyTotalsGauge::new(&self.tracker.ledger().accounted(config), now);
     }
 
     pub fn collapse(&mut self) {
@@ -131,7 +146,9 @@ impl SessionFocusGroup {
     ) -> Task<SessionFocusMessage> {
         match message {
             SessionFocusMessage::Tracker(message) => {
-                Task::future(self.tracker.update(message, config)).discard()
+                let span_writes = self.tracker.update(message, config);
+                self.recompute_daily_totals(config, clock.utc());
+                Task::future(span_writes).discard()
             }
             SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: clock.utc() });
@@ -170,16 +187,6 @@ impl SessionFocusGroup {
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
         }
-    }
-
-    fn daily_totals_gauge<'a>(&'a self, config: &'a Config, clock: Clock) -> DailyTotalsGauge {
-        DailyTotalsGauge::new(
-            &self
-                .tracker
-                .ledger()
-                .accounted(&config.widget_groups.focus_time),
-            clock.utc(),
-        )
     }
 
     fn context_switch_rate<'a>(&'a self, config: &'a Config) -> ContextSwitchRate<'a> {
@@ -234,7 +241,6 @@ impl SessionFocusGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        clock: Clock,
     ) -> GroupContent<'a, SessionFocusMessage> {
         let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
             .ongoing_toast_action_buttons([OngoingToastActionButton {
@@ -245,10 +251,7 @@ impl SessionFocusGroup {
         let breaks = GroupItem::reading(self.break_log(config), SessionFocusTarget::Breaks);
         let focus_run =
             GroupItem::reading(self.focus_run_reading(config), SessionFocusTarget::FocusRun);
-        let totals = GroupItem::reading(
-            self.daily_totals_gauge(config, clock),
-            SessionFocusTarget::DailyTotals,
-        );
+        let totals = GroupItem::reading(&self.daily_totals, SessionFocusTarget::DailyTotals);
         let switches = GroupItem::reading(
             self.context_switch_rate(config),
             SessionFocusTarget::ContextSwitches,
@@ -271,9 +274,7 @@ impl SessionFocusGroup {
             SessionFocusTarget::Session => self.session_face(config).tooltip(clock),
             SessionFocusTarget::Breaks => self.break_log(config).tooltip(clock),
             SessionFocusTarget::FocusRun => self.focus_run_reading(config).tooltip(clock),
-            SessionFocusTarget::DailyTotals => {
-                self.daily_totals_gauge(config, clock).tooltip(clock)
-            }
+            SessionFocusTarget::DailyTotals => self.daily_totals.tooltip(clock),
             SessionFocusTarget::ContextSwitches => self.context_switch_rate(config).tooltip(clock),
         };
         Tooltip::sourced(body, Freshness::Live)
