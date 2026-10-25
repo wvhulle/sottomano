@@ -15,8 +15,9 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        amount_text::{coarse_duration_text, percent_text},
+        amount_text::percent_text,
         bar_widget::{BarWidget, OngoingToastThreshold},
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         widget_state::WidgetState,
     },
@@ -56,11 +57,11 @@ fn quota_rows(quota: &Quota, now: DateTime<Utc>, locale: Locale) -> String {
             ("Budget used", percent_text(quota.used)),
             (
                 "Time since period start",
-                coarse_duration_text(now - quota.starts_at),
+                duration_text(now - quota.starts_at, locale),
             ),
             (
                 "Period length",
-                coarse_duration_text(quota.resets_at - quota.starts_at),
+                duration_text(quota.resets_at - quota.starts_at, locale),
             ),
         ]
         .into_iter()

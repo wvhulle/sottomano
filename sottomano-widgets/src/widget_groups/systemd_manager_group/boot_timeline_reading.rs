@@ -6,9 +6,9 @@ use sottomano_sources::systemd_units_journal::boot_timeline::{BootTimeline, Rank
 
 use crate::{
     clock::Clock,
-    widget_groups::systemd_manager_group::elapsed_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -19,7 +19,7 @@ fn timeline_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2>
     TableRecord::new(
         stage.to_owned(),
         [
-            Some(elapsed_text(took).into()),
+            Some(Cell::duration(took)),
             Some(Cell::Hint(meaning.to_owned())),
         ],
     )
@@ -34,8 +34,8 @@ impl BarWidget for BootTimeline {
         Phosphor::RocketLaunch(Weight::Regular).into()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(elapsed_text(self.phases.total()))
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
+        Some(duration_text(self.phases.total(), locale))
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -127,7 +127,7 @@ impl BarWidget for StartupUnits<'_> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let blame_section = |ranked: &RankedActivations, title: &str| {
             Section::dictionary(ranked.slowest_first.iter().map(|activation| {
-                KeyValue::new(activation.name.clone(), elapsed_text(activation.duration))
+                KeyValue::new(activation.name.clone(), Cell::duration(activation.duration))
                     .level(activation.severity)
             }))
             .titled((

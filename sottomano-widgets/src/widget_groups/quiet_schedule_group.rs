@@ -471,8 +471,6 @@ impl QuietScheduleGroup {
             } else {
                 "Quiet from"
             };
-            let whole_minutes =
-                Duration::from_mins(u64::try_from((at - now).num_minutes()).unwrap_or_default());
             [
                 KeyValue::new(
                     label,
@@ -481,7 +479,7 @@ impl QuietScheduleGroup {
                         format: LocalizedTimeFormat::TimeOfDay,
                     },
                 ),
-                KeyValue::new("In", format_duration(whole_minutes).to_string()),
+                KeyValue::new("In", Cell::duration(at - now)),
             ]
         });
         TooltipBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))

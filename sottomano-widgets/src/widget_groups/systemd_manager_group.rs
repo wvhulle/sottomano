@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use iced::{Subscription, Task};
 
 use crate::clock::Clock;
@@ -39,17 +37,6 @@ use crate::{
         widget_state::WidgetState,
     },
 };
-
-const WHOLE_SECONDS_FROM: Duration = Duration::from_secs(60);
-
-#[must_use]
-pub fn elapsed_text(duration: Duration) -> String {
-    if duration < WHOLE_SECONDS_FROM {
-        format!("{:.1} s", duration.as_secs_f64())
-    } else {
-        humantime::format_duration(Duration::from_secs(duration.as_secs())).to_string()
-    }
-}
 
 fn unit_scope_icon(scope: SystemdUnitScope) -> Phosphor {
     match scope {

@@ -11,6 +11,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
@@ -101,16 +102,14 @@ pub(super) fn nextcloud_footer(app_label: &str, app_url: Option<String>, hidden:
 fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> String {
     let begins = start.starts_at();
     if begins <= now {
-        return "now".to_owned();
+        return relative_moment_text(now.to_utc(), now.to_utc(), locale);
     }
-    let weekday = LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale);
-    if start.is_all_day() || begins.date_naive() != now.date_naive() {
-        return weekday;
+    let day_offset = (begins.date_naive() - now.date_naive()).num_days();
+    if day_offset == 0 && !start.is_all_day() {
+        return LocalizedTimeFormat::HourAndMinute.format(&begins, locale);
     }
-    format!(
-        "{weekday} {}",
-        LocalizedTimeFormat::HourAndMinute.format(&begins, locale)
-    )
+    relative_day_word(day_offset, locale)
+        .unwrap_or_else(|| LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale))
 }
 
 impl BarWidget for CaldavAgenda {
@@ -127,7 +126,7 @@ impl BarWidget for CaldavAgenda {
         let event = self.next_event(now)?;
         let summary: String = event.summary.chars().take(LABEL_CHARACTERS).collect();
         Some(format!(
-            "{} {summary}",
+            "{}: {summary}",
             starts_label(event.start, now, locale)
         ))
     }

@@ -24,7 +24,7 @@ freedesktop-sound = "0.1.0"
 futures.workspace = true
 humantime.workspace = true
 icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
-icu_locale_core = "2.3.0"
+icu_locale_core.workspace = true
 image.workspace = true
 inotify = "0.11.5"
 kdl.workspace = true

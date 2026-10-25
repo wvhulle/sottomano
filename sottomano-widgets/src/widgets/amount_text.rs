@@ -1,6 +1,3 @@
-use std::time::Duration;
-
-use chrono::{DateTime, TimeDelta, Utc};
 use rust_decimal::Decimal;
 use rusty_money::{Formatter, LocalFormat, Params, Position};
 use sottomano_sources::ai_usage_spend::spend_money::Money;
@@ -8,7 +5,6 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 const SYMBOL_FIRST: &[Position] = &[Position::Sign, Position::Symbol, Position::Amount];
 const SYMBOL_LAST: &[Position] = &[Position::Sign, Position::Amount, Position::Symbol];
-const SECONDS_PER_DAY: u64 = 86_400;
 
 #[must_use]
 pub fn two_decimals(value: f64) -> String {
@@ -61,60 +57,11 @@ pub fn token_count(tokens: u64) -> String {
     }
 }
 
-#[must_use]
-pub fn countdown(at: DateTime<Utc>, now: DateTime<Utc>) -> String {
-    duration_text(at.signed_duration_since(now).max(TimeDelta::zero()))
-}
-
-#[must_use]
-pub fn duration_text(span: TimeDelta) -> String {
-    let whole_seconds = Duration::from_secs(span.num_seconds().max(0).unsigned_abs());
-    humantime::format_duration(whole_seconds).to_string()
-}
-
-#[must_use]
-pub fn coarse_duration_text(span: TimeDelta) -> String {
-    let seconds = span.num_seconds().max(0).unsigned_abs();
-    let shown = if seconds < 60 {
-        seconds
-    } else {
-        seconds - seconds % 60
-    };
-    let days = shown / SECONDS_PER_DAY;
-    let within_day = humantime::format_duration(Duration::from_secs(shown % SECONDS_PER_DAY));
-    let day_unit = if days == 1 { "day" } else { "days" };
-    match (days, shown % SECONDS_PER_DAY) {
-        (0, _) => within_day.to_string(),
-        (_, 0) => format!("{days}{day_unit}"),
-        _ => format!("{days}{day_unit} {within_day}"),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use sottomano_sources::ai_usage_spend::spend_money::usd;
 
     use super::*;
-
-    #[test]
-    fn coarse_durations_drop_seconds_from_a_minute_on() {
-        assert_eq!(coarse_duration_text(TimeDelta::seconds(48)), "48s");
-        assert_eq!(coarse_duration_text(TimeDelta::seconds(61)), "1m");
-        assert_eq!(
-            coarse_duration_text(TimeDelta::seconds(4 * 3600 + 28 * 60 + 9)),
-            "4h 28m"
-        );
-    }
-
-    #[test]
-    fn coarse_durations_count_whole_days_instead_of_months() {
-        assert_eq!(coarse_duration_text(TimeDelta::hours(745)), "31days 1h");
-        assert_eq!(coarse_duration_text(TimeDelta::days(1)), "1day");
-        assert_eq!(
-            coarse_duration_text(TimeDelta::minutes(23 * 1440 + 9 * 60 + 18)),
-            "23days 9h 18m"
-        );
-    }
 
     #[test]
     fn fractional_amounts_keep_up_to_two_decimals() {

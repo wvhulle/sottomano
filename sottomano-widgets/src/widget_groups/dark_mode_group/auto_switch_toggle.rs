@@ -1,5 +1,4 @@
 use chrono::{DateTime, Locale, TimeDelta, Utc};
-use humantime::format_duration;
 use situo_client::Position;
 use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
@@ -11,6 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
+        localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
@@ -139,12 +139,11 @@ impl BarWidget for AutoSwitchToggle {
         Phosphor::Clock(Weight::Regular).into()
     }
 
-    fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
+    fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         let now = clock.utc();
         match self.status_at(now) {
             ScheduleStatus::Following { upcoming, .. } => {
-                let whole_minutes = TimeDelta::minutes((upcoming.switch_time - now).num_minutes());
-                Some(format_duration(whole_minutes.to_std().unwrap_or_default()).to_string())
+                Some(duration_text(upcoming.switch_time - now, locale))
             }
             ScheduleStatus::Disarmed
             | ScheduleStatus::AwaitingLocationFix

@@ -18,6 +18,7 @@ pub mod icon_handle;
 pub mod idle;
 pub mod inline_slider;
 pub mod layer_appearance_controls;
+pub mod localized_durations;
 pub mod localized_time;
 pub mod marker_track;
 pub mod markup_body;

@@ -212,10 +212,10 @@ impl BarWidget for BatteryTime {
         }
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+    fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
         match self {
             BatteryTime::Idle(idle) => Some(idle.label().to_string()),
-            BatteryTime::Countdown(countdown) => Some(countdown.forecast().label()),
+            BatteryTime::Countdown(countdown) => Some(countdown.forecast().label(locale)),
         }
     }
 

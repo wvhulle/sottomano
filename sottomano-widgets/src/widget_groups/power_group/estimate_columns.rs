@@ -1,8 +1,10 @@
-use std::time::Duration;
-
+use chrono::Locale;
 use sottomano_sources::battery_power_profiles::battery_time_forecast::Estimate;
 
-use crate::widgets::tooltip_body::{Cell, ColumnHeading};
+use crate::widgets::{
+    localized_durations::duration_text,
+    tooltip_body::{Cell, ColumnHeading},
+};
 
 pub const ESTIMATE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::new("Earliest"),
@@ -48,9 +50,9 @@ impl Forecast {
         estimate.map_or(Forecast::Unavailable(otherwise), Forecast::Estimated)
     }
 
-    pub fn label(self) -> String {
+    pub fn label(self, locale: Locale) -> String {
         match self {
-            Forecast::Estimated(estimate) => duration_text(estimate.time),
+            Forecast::Estimated(estimate) => duration_text(estimate.time, locale),
             Forecast::Unavailable(reason) => reason.label().to_string(),
         }
     }
@@ -58,19 +60,11 @@ impl Forecast {
     pub fn cells(self) -> [Option<Cell>; 3] {
         match self {
             Forecast::Estimated(estimate) => [
-                Some(duration_cell(estimate.earliest)),
-                Some(duration_cell(estimate.time)),
-                Some(estimate.latest.map_or_else(|| "∞".into(), duration_cell)),
+                Some(Cell::duration(estimate.earliest)),
+                Some(Cell::duration(estimate.time)),
+                Some(estimate.latest.map_or_else(|| "∞".into(), Cell::duration)),
             ],
             Forecast::Unavailable(reason) => [None, Some(reason.explanation().into()), None],
         }
     }
-}
-
-pub fn duration_text(duration: Duration) -> String {
-    humantime::format_duration(duration).to_string()
-}
-
-fn duration_cell(duration: Duration) -> Cell {
-    duration_text(duration).into()
 }

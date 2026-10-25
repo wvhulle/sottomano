@@ -131,9 +131,9 @@ impl IdleTimer {
                 },
             ),
         };
-        let overridden = overrider.zip(timeout).map(|(overrider, timeout)| {
-            KeyValue::new(overrider, format_duration(timeout).to_string())
-        });
+        let overridden = overrider
+            .zip(timeout)
+            .map(|(overrider, timeout)| KeyValue::new(overrider, Cell::duration(timeout)));
         Tooltip::sourced(
             TooltipBody::dictionary(
                 [

@@ -4,11 +4,11 @@ use sottomano_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{countdown, spend_text},
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -59,7 +59,7 @@ impl BarWidget for ClaudeCcusageBlock {
                         .map(|cost| KeyValue::new("Projected Cost", cost.to_string())),
                     Some(KeyValue::new(
                         "Ends In",
-                        countdown(block.ends_at, clock.utc()),
+                        Cell::duration(block.ends_at - clock.utc()),
                     )),
                 ]
                 .into_iter()

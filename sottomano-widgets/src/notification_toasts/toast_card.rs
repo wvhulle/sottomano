@@ -3,6 +3,7 @@ use std::{
     time::SystemTime,
 };
 
+use chrono::{DateTime, Utc};
 use iced::{
     Alignment, Border, Color, Element, Length, Shadow, Theme, border,
     widget::{Column, Row, Space, button, container, mouse_area, progress_bar, text_input},
@@ -20,11 +21,11 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_lifecycle::ToastKind};
 use crate::{
-    hover_tooltips::{ongoing_for, relative},
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         bar_widget::Glyph,
         icon_handle::IconHandle,
+        localized_durations::{duration_text, relative_moment_text},
         markup_body::MarkupBody,
         palette_colors::PaletteColors,
         panel_frame::LayerFrameStyle,
@@ -265,9 +266,15 @@ impl ToastCard<'_> {
         let now = self.now;
         let body_text = &data.body;
         let has_body = body_text.is_some();
+        let locale = self.config.calendar.locale;
+        let now_utc = DateTime::<Utc>::from(now);
         let reltime = match &self.notif.kind {
-            ToastKind::Event { at, .. } => relative(*at, now),
-            ToastKind::Ongoing { since, .. } => ongoing_for(*since, now),
+            ToastKind::Event { at, .. } => {
+                relative_moment_text(DateTime::from(*at), now_utc, locale)
+            }
+            ToastKind::Ongoing { since, .. } => {
+                duration_text(now_utc - DateTime::<Utc>::from(*since), locale)
+            }
         };
         let reltime_span = |visible: bool| {
             visible.then(|| {

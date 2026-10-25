@@ -1,11 +1,6 @@
-use std::{
-    iter::once,
-    path::Path,
-    time::{Duration, SystemTime},
-};
+use std::{iter::once, path::Path, time::Duration};
 
-use chrono::Locale;
-use humantime::format_duration;
+use chrono::{DateTime, Locale, Utc};
 use iced::{
     Color, Element, Length, Padding,
     alignment::{Horizontal, Vertical},
@@ -34,6 +29,7 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
+        localized_durations::{duration_text, relative_moment_text},
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
@@ -194,7 +190,7 @@ impl<'a> TooltipContent<'a> {
         let shown = match freshness {
             Freshness::Polled { every, last } => pressable_text(
                 labelled(
-                    self.small_dim_text(humantime::format_duration(every).to_string()),
+                    self.small_dim_text(duration_text(every, self.config.calendar.locale)),
                     RefreshDial::new(
                         self.clock
                             .wall
@@ -314,9 +310,10 @@ impl<'a> TooltipContent<'a> {
     fn session_menu_row(&self, entry: SessionMenuEntry) -> MenuLine<'static, Message> {
         let icon_size = self.config.theme.font.icon_size_px;
         let note = match entry.idle {
-            ScheduledAfterIdle::After(after) => {
-                Trailing::Note(format!("after {} idle", format_duration(after)))
-            }
+            ScheduledAfterIdle::After(after) => Trailing::Note(format!(
+                "after {} idle",
+                duration_text(after, self.config.calendar.locale)
+            )),
             ScheduledAfterIdle::Disabled => Trailing::Note("idle: disabled".to_owned()),
             ScheduledAfterIdle::Never if entry.needs_authorisation => {
                 Trailing::Note("asks for authorisation".to_owned())
@@ -435,6 +432,7 @@ impl<'a> TooltipContent<'a> {
             max_width: self.config.tooltips.value_width,
             wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
+            now: self.clock.utc(),
             flash: self.flash(),
             link: PaletteColors::from(&self.config.theme.palette).info,
             hint: self.dim(),
@@ -580,6 +578,7 @@ struct CellView {
     max_width: f32,
     wrapping: Wrapping,
     locale: Locale,
+    now: DateTime<Utc>,
     flash: Color,
     link: Color,
     hint: Color,
@@ -590,16 +589,7 @@ struct CellView {
 impl CellView {
     fn key(&self, key: Cell, color: Color) -> Element<'static, Message> {
         let row = key.clone();
-        match key {
-            Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) => self.copyable_text(text, color, &row),
-            Cell::Link { label, url } => self.openable_link(label, url, color, &row),
-            Cell::Path(path) => self.path(&path, color, &row),
-            Cell::Hint(text) => self.text(text, self.hint, &row),
-            Cell::Time { at, format } => {
-                self.copyable_text(format.format(&at, self.locale), color, &row)
-            }
-        }
+        self.value(key, color, &row)
     }
 
     fn text(&self, text: String, color: Color, row: &Cell) -> Element<'static, Message> {
@@ -645,6 +635,12 @@ impl CellView {
             Cell::Path(path) => self.path(&path, color, row),
             Cell::Time { at, format } => {
                 self.copyable_text(format.format(&at, self.locale), color, row)
+            }
+            Cell::Duration(length) => {
+                self.copyable_text(duration_text(length, self.locale), color, row)
+            }
+            Cell::RelativeMoment(at) => {
+                self.copyable_text(relative_moment_text(at, self.now, self.locale), color, row)
             }
             Cell::Link { label, url } => self.openable_link(label, url, color, row),
             Cell::Hint(text) => self.text(text, self.hint, row),
@@ -709,37 +705,4 @@ fn cell(
     wrapping: Wrapping,
 ) -> Container<'static, Message> {
     container(bar_text(font, text).color(color).wrapping(wrapping)).max_width(max_width)
-}
-
-fn whole_seconds_between(at: SystemTime, now: SystemTime) -> humantime::FormattedDuration {
-    let whole_seconds = now.duration_since(at).map_or(0, |age| age.as_secs());
-    humantime::format_duration(Duration::from_secs(whole_seconds))
-}
-
-#[must_use]
-pub fn relative(at: SystemTime, now: SystemTime) -> String {
-    format!("{} ago", whole_seconds_between(at, now))
-}
-
-#[must_use]
-pub fn ongoing_for(since: SystemTime, now: SystemTime) -> String {
-    format!("for {}", whole_seconds_between(since, now))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn relative_time_drops_subsecond_precision() {
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        let at = now - Duration::from_millis(3_723_400);
-        assert_eq!(relative(at, now), "1h 2m 3s ago");
-    }
-
-    #[test]
-    fn future_timestamp_is_zero_seconds_ago() {
-        let now = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
-        assert_eq!(relative(now + Duration::from_secs(60), now), "0s ago");
-    }
 }

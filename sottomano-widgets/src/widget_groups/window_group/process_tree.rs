@@ -19,6 +19,7 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
+        localized_durations::duration_text,
         palette_colors::PaletteColors,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
@@ -167,6 +168,7 @@ impl<'a> ProcessTree<'a> {
         let bold = FontFaces::from(&monospace).bold;
         let transition = self.transition;
         let copy_flash = self.copy_flash();
+        let locale = self.config.calendar.locale;
 
         table::table(
             [
@@ -215,7 +217,7 @@ impl<'a> ProcessTree<'a> {
                     listing.memory.display().iec().to_string()
                 }),
                 self.number("Threads", |listing| format!("{} thr", listing.threads)),
-                self.number("Age", |listing| age(listing.uptime)),
+                self.number("Age", move |listing| duration_text(listing.uptime, locale)),
             ],
             branches,
         )
@@ -380,15 +382,5 @@ fn outline(node: &Process, depth: usize, folding: &Folding, branches: &mut Vec<B
             depth: depth + 1,
             entry: Entry::Elided { hidden },
         });
-    }
-}
-
-fn age(uptime: Duration) -> String {
-    let secs = uptime.as_secs();
-    match secs {
-        0..=59 => format!("{secs}s"),
-        60..=3599 => format!("{}m", secs / 60),
-        3600..=86_399 => format!("{}h", secs / 3600),
-        _ => format!("{}d", secs / 86_400),
     }
 }

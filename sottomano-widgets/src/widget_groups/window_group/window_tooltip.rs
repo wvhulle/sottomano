@@ -10,7 +10,6 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::{
     clock::Clock,
-    hover_tooltips::relative,
     widgets::tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
 };
 
@@ -30,7 +29,8 @@ pub fn pick_body(
             .as_deref()
             .map(|app_id| KeyValue::new("App id", app_id)),
         Some(KeyValue::new("Window id", window.id.to_string())),
-        focus_age(window).map(|focused| KeyValue::new("Focused", relative(now - focused, now))),
+        focus_age(window)
+            .map(|focused| KeyValue::new("Focused", Cell::RelativeMoment((now - focused).into()))),
     ];
     Some(TooltipBody::sections([Section::dictionary(
         window_entries.into_iter().flatten(),
@@ -79,7 +79,7 @@ impl ReadingSections for Inspection {
 }
 
 impl ReadingSections for NixPackageFacts {
-    fn sections(&self, clock: Clock) -> Vec<Section> {
+    fn sections(&self, _clock: Clock) -> Vec<Section> {
         let nixpkgs = self.nixpkgs.as_ref();
         let closure = &self.closure;
         let rows = [
@@ -112,7 +112,7 @@ impl ReadingSections for NixPackageFacts {
             )),
             Some(KeyValue::new(
                 "Added",
-                relative(self.registered, clock.wall),
+                Cell::RelativeMoment(self.registered.into()),
             )),
             origin_entry(&self.origin),
             nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
