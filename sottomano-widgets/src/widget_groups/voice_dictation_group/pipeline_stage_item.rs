@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use notulist_client::{GateVerdict, InferenceTickReport, PipelineActivity, PipelineStage};
+use notulist_client::{GateVerdict, PipelineActivity, PipelineStage};
 use sottomano_sources::voice_dictation_input::notulist_dbus_pipeline_activity::NotulistPipeline;
 
 use crate::{
@@ -110,6 +110,8 @@ fn seconds_cell(seconds: f64) -> Option<Cell> {
 
 #[cfg(test)]
 mod tests {
+    use notulist_client::InferenceTickReport;
+
     use super::*;
 
     fn row_keys(activity: &PipelineActivity) -> Vec<Cell> {

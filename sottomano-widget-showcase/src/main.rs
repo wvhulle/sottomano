@@ -5,17 +5,17 @@ use sottomano_config::Config;
 use sottomano_widget_showcase::{
     animation_recording,
     demo_script::DEMOS,
-    readme_embedding,
     showcase_program::{ShowcaseProgram, booting_clock},
+    tour_document_embedding,
 };
 
 #[derive(Debug, Parser)]
 #[command(
     name = "sottomano-widget-showcase",
-    about = "Render the README recordings of sottomano into recordings/."
+    about = "Render the tour recordings of sottomano into recordings/."
 )]
 struct CommandLine {
-    #[arg(help = "Render only this demo and skip the README embedding check.")]
+    #[arg(help = "Render only this demo and skip the tour embedding check.")]
     demo: Option<String>,
     #[arg(
         long,
@@ -39,7 +39,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .map(|demo| animation_recording::record(demo, start))
         .collect();
     if only.is_none() {
-        readme_embedding::assert_embedded(&recorded);
+        tour_document_embedding::assert_embedded(&recorded);
     }
     Ok(())
 }

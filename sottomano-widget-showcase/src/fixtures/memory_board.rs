@@ -10,7 +10,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    fixtures::{cycled, sample},
+    fixtures::{cycled, host_hardware, sample},
     showcased_group::ShowcasedGroup,
 };
 
@@ -19,6 +19,10 @@ const MEMORY_USED_MEBIBYTES: &[u64] = &[21_500, 21_900, 22_300, 21_800];
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MemoryBoardGroup::default();
     let _ = group.update(memory_reading(0), clock);
+    let _ = group.update(
+        MemoryBoardMessage::Hardware(host_hardware::ryzen_workstation_delivery()),
+        clock,
+    );
     ShowcasedGroup::MemoryBoard(Box::new(group))
 }
 

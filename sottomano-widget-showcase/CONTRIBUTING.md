@@ -1,24 +1,26 @@
 # Contributing to sottomano-widget-showcase
 
-This crate plays widget fixtures for the README recordings, the `.ice`
+This crate plays widget fixtures for the tour recordings, the `.ice`
 scenarios and the windowed tester. The workspace-wide conventions live in the
 root `CONTRIBUTING.md`; this file covers what only applies here.
 
-## README recordings
+## Tour recordings
 
 The tour recordings in the root `recordings/` are rendered offscreen by this
 crate (`nix build .#readme-recordings` renders them all the way CI does). Each
 entry of `DEMOS` in `src/demo_script.rs` shows one widget, is named
-`<group>_<widget>` and sits in the root `README.md` under the heading of its
-panel and group. The name is also the demo's iced `Preset`, which boots its
+`<group>_<widget>` and sits under the heading of its panel in `docs/showcase.md`,
+unless the README shows it. The name is also the demo's iced `Preset`, which boots its
 fixture for the recorder, the `.ice` scenarios and the windowed tester alike. It
 names a fixture and a script of steps: `Hover` / `Press` / `Drag` on
 `HoverTarget`s for panel widgets, and `HoverText` / `PressText` on
 visible text for toasts, which a `ShowcasedGroup::Toasts` fixture serves when
 the demo starts. The recorder finds each target on screen, plays the steps
 through `iced_test`'s emulator and writes `recordings/<name>.webp`, a lossless
-animated WebP that spans the full canvas width with its height cropped to what
-the demo shows.
+animated WebP cropped in both directions to what the demo shows, plus the panel
+gap as a margin. A group whose handle previews one of its items is opened by
+pressing that item's target. A handle without a preview is opened with
+`HoverTarget::GroupHandle`.
 
 Recordings are reproducible: rendering twice gives identical files, which
 `nix build .#readme-recordings --check` verifies. Time is data: every preset
@@ -51,6 +53,9 @@ which switches between presets and records interactions as `.ice` scenarios.
 Scenarios saved in `tests/ice/` run with `cargo test` (and so in CI); `expect`
 sees plain text widgets, not rich text such as toast bodies.
 
-The full run also checks that the root `README.md` embeds every recording as
-`<img src="recordings/<name>.webp" width="720">`, the logical canvas width, so
-all demos show at the same scale; it prints the expected tag when one is off.
+The full run also checks the embeds. Each recording appears once, either in
+the root `README.md` (a few highlights, as `<img src="recordings/<name>.webp"
+width="<w>">`) or in `docs/showcase.md` (the rest, as `<img
+src="../recordings/<name>.webp" width="<w>">`). `<w>` is the recording's cropped
+width in logical pixels, so all demos show at the same scale. The check prints
+the expected tag when one is missing or off.

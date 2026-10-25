@@ -91,6 +91,13 @@
         cargoExtraArgs = "--locked --workspace";
       };
 
+      formatters = [
+        pkgs.treefmt
+        pkgs.nixfmt
+        pkgs.d2
+        (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
+      ];
+
       shellArtifacts = craneLib.buildDepsOnly shellArgs;
 
       workspaceArtifacts = craneLib.buildDepsOnly workspaceArgs;
@@ -204,7 +211,31 @@
             cargoClippyExtraArgs = "--all-targets";
           }
         );
-        fmt = craneLib.cargoFmt { inherit src; };
+        format =
+          pkgs.runCommand "sottomano-format"
+            {
+              nativeBuildInputs = formatters;
+            }
+            ''
+              export HOME=$TMPDIR
+              cp -r ${src} source
+              chmod -R u+w source
+              cd source
+              treefmt --ci --tree-root .
+              touch $out
+            '';
+        diagrams = pkgs.runCommand "sottomano-diagrams" { nativeBuildInputs = [ pkgs.d2 ]; } ''
+          export HOME=$TMPDIR
+          for diagram_source in ${./docs/diagrams}/*.d2; do
+            diagram_name=$(basename "$diagram_source" .d2)
+            d2 "$diagram_source" "$TMPDIR/$diagram_name.svg"
+            if ! cmp -s "$TMPDIR/$diagram_name.svg" "${./docs/diagrams}/$diagram_name.svg"; then
+              echo "docs/diagrams/$diagram_name.svg is stale; run: d2 docs/diagrams/$diagram_name.d2 docs/diagrams/$diagram_name.svg"
+              exit 1
+            fi
+          done
+          touch $out
+        '';
       };
 
       homeModules.default = {
@@ -218,7 +249,11 @@
 
       devShells.${system}.default = craneLib.devShell {
         packages =
-          commonArgs.nativeBuildInputs ++ commonArgs.buildInputs ++ [ pkgs.glib.bin ] ++ runtimeDeps;
+          commonArgs.nativeBuildInputs
+          ++ commonArgs.buildInputs
+          ++ [ pkgs.glib.bin ]
+          ++ formatters
+          ++ runtimeDeps;
         env.LD_LIBRARY_PATH = runtimeLibraryPath;
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         env.PHOSPHOR_SVG = "${phosphorCore}/assets";

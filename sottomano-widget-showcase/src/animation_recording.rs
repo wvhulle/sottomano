@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     fs,
+    ops::Range,
     path::Path,
     time::{Duration, Instant},
 };
@@ -32,8 +33,8 @@ use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
     demo_script::{Demo, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget},
-    readme_embedding::RecordedAnimation,
     showcase_program::{ShowcaseMessage, ShowcaseProgram},
+    tour_document_embedding::RecordedAnimation,
 };
 
 pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
@@ -280,77 +281,105 @@ impl DemoRecorder {
 }
 
 #[derive(Clone, Copy, PartialEq)]
-struct RowSpan {
-    top: u16,
-    bottom: u16,
+struct PixelSpan {
+    first: u16,
+    last: u16,
 }
 
-impl RowSpan {
-    fn whole(height: u16) -> Self {
-        RowSpan {
-            top: 0,
-            bottom: height - 1,
+impl PixelSpan {
+    fn whole(length: u16) -> Self {
+        PixelSpan {
+            first: 0,
+            last: length - 1,
         }
     }
 
-    fn row(y: u16) -> Self {
-        RowSpan { top: y, bottom: y }
+    fn single(position: u16) -> Self {
+        PixelSpan {
+            first: position,
+            last: position,
+        }
     }
 
     fn union(self, other: Self) -> Self {
-        RowSpan {
-            top: self.top.min(other.top),
-            bottom: self.bottom.max(other.bottom),
+        PixelSpan {
+            first: self.first.min(other.first),
+            last: self.last.max(other.last),
         }
     }
 
     fn widened(self, margin: u16, within: Self) -> Self {
-        RowSpan {
-            top: self.top.saturating_sub(margin).max(within.top),
-            bottom: self.bottom.saturating_add(margin).min(within.bottom),
+        PixelSpan {
+            first: self.first.saturating_sub(margin).max(within.first),
+            last: self.last.saturating_add(margin).min(within.last),
         }
     }
 
-    fn height(self) -> u16 {
-        self.bottom - self.top + 1
+    fn aligned_to_logical_pixels(self, within: Self) -> Self {
+        let pixels_per_logical = SCALE_FACTOR as u16;
+        let first = self.first - self.first % pixels_per_logical;
+        let past_last = (self.last + 1).next_multiple_of(pixels_per_logical);
+        PixelSpan {
+            first: first.max(within.first),
+            last: (past_last - 1).min(within.last),
+        }
     }
 
-    fn contains(self, y: u16) -> bool {
-        (self.top..=self.bottom).contains(&y)
+    fn length(self) -> u16 {
+        self.last - self.first + 1
+    }
+
+    fn contains(self, position: u16) -> bool {
+        (self.first..=self.last).contains(&position)
+    }
+
+    fn byte_range(self) -> Range<usize> {
+        usize::from(self.first) * 4..(usize::from(self.last) + 1) * 4
     }
 }
 
 #[derive(PartialEq)]
 struct ContentRows {
-    span: RowSpan,
+    rows: PixelSpan,
+    columns: PixelSpan,
     rgba: Vec<u8>,
 }
 
 impl ContentRows {
     fn differing_from(background: [u8; 4], rgba: &[u8], canvas: FrameSize) -> Option<Self> {
         let row_bytes = usize::from(canvas.width) * 4;
-        let span = rgba
+        let (rows, columns) = rgba
             .chunks_exact(row_bytes)
             .enumerate()
-            .filter(|(_, row)| {
-                row.as_chunks::<4>()
-                    .0
-                    .iter()
-                    .any(|pixel| *pixel != background)
+            .filter_map(|(y, row)| {
+                let pixels = row.as_chunks::<4>().0;
+                let first_x = pixels.iter().position(|pixel| *pixel != background)?;
+                let last_x = pixels.iter().rposition(|pixel| *pixel != background)?;
+                let pixel_position =
+                    |position: usize| u16::try_from(position).expect("pixel fits a recording");
+                Some((
+                    PixelSpan::single(pixel_position(y)),
+                    PixelSpan {
+                        first: pixel_position(first_x),
+                        last: pixel_position(last_x),
+                    },
+                ))
             })
-            .map(|(y, _)| RowSpan::row(u16::try_from(y).expect("row fits a recording")))
-            .reduce(RowSpan::union)?;
-        let start = usize::from(span.top) * row_bytes;
-        let end = (usize::from(span.bottom) + 1) * row_bytes;
+            .reduce(|(rows, columns), (row, row_columns)| {
+                (rows.union(row), columns.union(row_columns))
+            })?;
+        let start = usize::from(rows.first) * row_bytes;
+        let end = (usize::from(rows.last) + 1) * row_bytes;
         Some(ContentRows {
-            span,
+            rows,
+            columns,
             rgba: rgba[start..end].to_vec(),
         })
     }
 
     fn row(&self, y: u16, row_bytes: usize) -> Option<&[u8]> {
-        self.span.contains(y).then(|| {
-            let start = usize::from(y - self.span.top) * row_bytes;
+        self.rows.contains(y).then(|| {
+            let start = usize::from(y - self.rows.first) * row_bytes;
             &self.rgba[start..start + row_bytes]
         })
     }
@@ -376,7 +405,8 @@ impl FrameSize {
 }
 
 struct ContentCrop {
-    shown: RowSpan,
+    shown_rows: PixelSpan,
+    shown_columns: PixelSpan,
     row_bytes: usize,
     background_row: Vec<u8>,
     size: FrameSize,
@@ -389,35 +419,48 @@ impl ContentCrop {
         background: [u8; 4],
         margin: u16,
     ) -> Self {
-        let whole = RowSpan::whole(canvas.height);
-        let shown = frames
-            .iter()
-            .filter_map(|frame| frame.content.as_ref().map(|content| content.span))
-            .reduce(RowSpan::union)
-            .map_or(whole, |span| span.widened(margin, whole));
+        let all_rows = PixelSpan::whole(canvas.height);
+        let all_columns = PixelSpan::whole(canvas.width);
+        let contents = || frames.iter().filter_map(|frame| frame.content.as_ref());
+        let shown_rows = contents()
+            .map(|content| content.rows)
+            .reduce(PixelSpan::union)
+            .map_or(all_rows, |span| span.widened(margin, all_rows));
+        let shown_columns = contents()
+            .map(|content| content.columns)
+            .reduce(PixelSpan::union)
+            .map_or(all_columns, |span| {
+                span.widened(margin, all_columns)
+                    .aligned_to_logical_pixels(all_columns)
+            });
         ContentCrop {
-            shown,
+            shown_rows,
+            shown_columns,
             row_bytes: usize::from(canvas.width) * 4,
             background_row: background.repeat(usize::from(canvas.width)),
             size: FrameSize {
-                width: canvas.width,
-                height: shown.height(),
+                width: shown_columns.length(),
+                height: shown_rows.length(),
             },
         }
     }
 
     fn crop(&self, frame: &CapturedFrame) -> Vec<u8> {
-        (self.shown.top..=self.shown.bottom)
+        (self.shown_rows.first..=self.shown_rows.last)
             .flat_map(|y| {
                 frame
                     .content
                     .as_ref()
                     .and_then(|content| content.row(y, self.row_bytes))
-                    .unwrap_or(&self.background_row)
-                    .iter()
-                    .copied()
+                    .unwrap_or(&self.background_row)[self.shown_columns.byte_range()]
+                .iter()
+                .copied()
             })
             .collect()
+    }
+
+    fn logical_width(&self) -> u16 {
+        self.size.width / SCALE_FACTOR as u16
     }
 }
 
@@ -495,5 +538,8 @@ pub fn record(demo: &'static Demo, start: Clock) -> RecordedAnimation {
         .join(RECORDINGS_DIRECTORY)
         .join(format!("{}.{RECORDING_EXTENSION}", demo.name));
     encode_animation(&frames, &crop, &animation);
-    RecordedAnimation { name: demo.name }
+    RecordedAnimation {
+        name: demo.name,
+        width: crop.logical_width(),
+    }
 }

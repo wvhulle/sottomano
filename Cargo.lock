@@ -6928,6 +6928,8 @@ dependencies = [
  "iced_tester",
  "iced_winit",
  "niri-ipc",
+ "notulist-client",
+ "reqwest",
  "rust_decimal",
  "rusty-money",
  "situo-client",

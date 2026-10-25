@@ -21,7 +21,7 @@ use uom::si::{
 };
 
 use crate::{
-    fixtures::{cycled, sample},
+    fixtures::{cycled, host_hardware, sample},
     showcased_group::ShowcasedGroup,
 };
 
@@ -30,13 +30,17 @@ const TEMPERATURE_CELSIUS: &[f64] = &[58.0, 61.0, 63.0, 60.0];
 const PACKAGE_WATTS: &[f64] = &[48.0, 63.0, 55.0, 71.0];
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::Compute(Box::new(continuous_readings(0).into_iter().fold(
-        ComputeGroup::default(),
-        |mut group, reading| {
-            let _ = group.update(reading, clock);
-            group
-        },
-    )))
+    let hardware_identity =
+        ComputeMessage::HostHardware(host_hardware::ryzen_workstation_delivery());
+    ShowcasedGroup::Compute(Box::new(
+        continuous_readings(0)
+            .into_iter()
+            .chain([hardware_identity])
+            .fold(ComputeGroup::default(), |mut group, reading| {
+                let _ = group.update(reading, clock);
+                group
+            }),
+    ))
 }
 
 pub fn live(clock: Clock) -> Vec<Message> {
