@@ -46,13 +46,6 @@ steps:
     commands:
       - nix build --print-build-logs .#checks.x86_64-linux.format
 
-  - name: d2-diagrams
-    image: nixos/nix:latest
-    depends_on: []
-    environment: *nix_config
-    commands:
-      - nix build --print-build-logs .#checks.x86_64-linux.diagrams
-
   - name: conventional-commits
     image: nixos/nix:latest
     depends_on: []

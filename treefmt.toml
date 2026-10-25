@@ -7,8 +7,3 @@ includes = ["*.rs"]
 [formatter.nixfmt]
 command = "nixfmt"
 includes = ["*.nix"]
-
-[formatter.d2]
-command = "d2"
-options = ["fmt"]
-includes = ["*.d2"]
