@@ -1,6 +1,6 @@
 use chrono::{DateTime, Locale, Utc};
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, FocusUnit, WakingWindow,
+    Accounting, FocusUnit, LAST_DAY,
 };
 
 use crate::{
@@ -15,7 +15,6 @@ use crate::{
 
 pub struct FocusRunReading<'a> {
     pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
 }
 
 impl FocusRunReading<'_> {
@@ -54,33 +53,32 @@ impl FocusRunReading<'_> {
         ))
     }
 
-    fn longest_stretch_today(&self, now: DateTime<Utc>) -> Option<Section> {
-        let stretch = self
+    fn longest_session(&self, now: DateTime<Utc>) -> Option<Section> {
+        let session = self
             .accounting
-            .longest_run_within(self.waking.around(now), now)?;
+            .longest_session_within(LAST_DAY.ending_at(now), now)?;
         Some(
             Section::dictionary([
+                KeyValue::new("Longest session", Cell::duration(session.length())),
                 KeyValue::new(
-                    "Longest stretch without idling",
-                    Cell::duration(stretch.length()),
-                ),
-                KeyValue::new(
-                    "That stretch started at",
+                    "That session started at",
                     Cell::Time {
-                        at: stretch.from,
+                        at: session.from,
                         format: LocalizedTimeFormat::HourAndMinute,
                     },
                 ),
             ])
             .titled((
-                "Today (waking hours)".to_owned(),
-                "A stretch ends at any idle pause, even one too short to be a break.".to_owned(),
+                "Last 24 hours".to_owned(),
+                "A session runs from the end of one break to the start of the next, the same \
+                 count as 'Active since last break'."
+                    .to_owned(),
             )),
         )
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> Vec<Section> {
-        [Some(self.focused_now(now)), self.longest_stretch_today(now)]
+        [Some(self.focused_now(now)), self.longest_session(now)]
             .into_iter()
             .flatten()
             .collect()

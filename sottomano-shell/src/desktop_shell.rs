@@ -431,11 +431,7 @@ impl DesktopShell {
             Message::Tray(msg) => self.update_tray(msg),
             Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
                 self.session_focus_group
-                    .screen_power_changed(
-                        edge,
-                        self.quiet_schedule_group.waking_window(),
-                        self.clock,
-                    )
+                    .screen_power_changed(edge, &self.config.widget_groups.focus_time, self.clock)
                     .map(Message::SessionFocus)
             }
             Message::IdleTimeouts(msg) => self
@@ -471,7 +467,7 @@ impl DesktopShell {
                 .map(Message::LlamaServer),
             Message::SessionFocus(msg) => self
                 .session_focus_group
-                .update(msg, self.quiet_schedule_group.waking_window(), self.clock)
+                .update(msg, &self.config.widget_groups.focus_time, self.clock)
                 .map(Message::SessionFocus),
             Message::LoginSession(msg) => self
                 .login_session_group

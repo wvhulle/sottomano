@@ -160,14 +160,10 @@ impl DesktopShell {
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip(self.clock))
             }
-            HoverTarget::Window(WindowTarget::Usage(window)) => {
-                Some(self.session_focus_group.window_usage_tooltip(
-                    *window,
-                    &self.config,
-                    self.quiet_schedule_group.waking_window(),
-                    self.clock,
-                ))
-            }
+            HoverTarget::Window(WindowTarget::Usage(window)) => Some(
+                self.session_focus_group
+                    .window_usage_tooltip(*window, &self.config, self.clock),
+            ),
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
@@ -251,7 +247,6 @@ impl DesktopShell {
             HoverTarget::SessionFocus(target) => Some(self.session_focus_group.tooltip_for(
                 *target,
                 &self.config,
-                self.quiet_schedule_group.waking_window(),
                 self.clock,
             )),
             HoverTarget::LoginSession(target) => {

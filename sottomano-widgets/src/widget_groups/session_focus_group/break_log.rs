@@ -1,7 +1,7 @@
-use chrono::{DateTime, Local, Locale, TimeDelta, Utc};
+use chrono::{DateTime, Local, Locale, Utc};
 use iced::alignment::Horizontal;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, Interval, TakenBreak,
+    Accounting, LAST_DAY, TakenBreak,
 };
 
 use crate::{
@@ -15,8 +15,6 @@ use crate::{
 };
 
 const LISTED_BREAKS_LIMIT: usize = 12;
-
-const LISTED_BREAKS_PERIOD: TimeDelta = TimeDelta::days(1);
 
 const BREAK_TABLE_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::new("Ended"),
@@ -87,7 +85,10 @@ impl RecentBreaks {
                     .iter()
                     .map(|taken| self.break_record(taken)),
             )
-            .titled(("Breaks in the last 24 hours".to_owned(), self.table_caption()))
+            .titled((
+                "Breaks in the last 24 hours".to_owned(),
+                self.table_caption(),
+            ))
         })
     }
 }
@@ -95,13 +96,9 @@ impl RecentBreaks {
 impl BreakLog<'_> {
     fn recent_breaks(&self, now: DateTime<Utc>) -> RecentBreaks {
         RecentBreaks {
-            taken_breaks: self.accounting.taken_breaks_within(
-                Interval {
-                    from: now - LISTED_BREAKS_PERIOD,
-                    until: now,
-                },
-                now,
-            ),
+            taken_breaks: self
+                .accounting
+                .taken_breaks_within(LAST_DAY.ending_at(now), now),
             now,
         }
     }
@@ -126,10 +123,13 @@ impl BreakLog<'_> {
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> Vec<Section> {
-        [Some(self.break_rules()), self.recent_breaks(now).breaks_table()]
-            .into_iter()
-            .flatten()
-            .collect()
+        [
+            Some(self.break_rules()),
+            self.recent_breaks(now).breaks_table(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 

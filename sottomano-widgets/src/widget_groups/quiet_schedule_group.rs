@@ -7,8 +7,7 @@ use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
-    login_session_presence::{focus_time_ledger::WakingWindow, logind_manager},
+    SourceDelivery, login_session_presence::logind_manager,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::{
@@ -164,15 +163,6 @@ impl QuietScheduleGroup {
     #[must_use]
     pub fn is_quiet(&self) -> bool {
         self.phase.is_quiet()
-    }
-
-    #[must_use]
-    pub fn waking_window(&self) -> WakingWindow {
-        let schedule = self.schedule();
-        WakingWindow {
-            start: schedule.end,
-            end: schedule.start,
-        }
     }
 
     #[must_use]

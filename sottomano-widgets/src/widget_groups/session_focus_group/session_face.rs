@@ -198,7 +198,7 @@ mod tests {
 
     use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
     use sottomano_sources::login_session_presence::{
-        focus_time_ledger::{AwayReasonEdge, FocusLedger, FocusSignal, Focused, WindowFocusChange},
+        focus_time_ledger::{FocusLedger, FocusSignal, Focused},
         wayland_idle_notify::IdleEdge,
     };
 
@@ -209,15 +209,19 @@ mod tests {
     }
 
     fn focused(window: u64, app_id: &str) -> FocusSignal {
-        FocusSignal::WindowFocusChanged(WindowFocusChange::WindowGainedFocus(Focused {
+        FocusSignal::WindowFocused(Focused {
             window,
             app_id: app_id.to_owned(),
             project: None,
-        }))
+        })
     }
 
-    fn idle_edge(edge: IdleEdge) -> FocusSignal {
-        FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifier(edge))
+    fn ledger_after(signals: impl IntoIterator<Item = (FocusSignal, i64)>) -> FocusLedger {
+        let mut ledger = FocusLedger::started_at(at(0));
+        for (signal, minute) in signals {
+            ledger.fold(signal, at(minute), &config());
+        }
+        ledger
     }
 
     fn config() -> FocusTimeConfig {
@@ -231,9 +235,7 @@ mod tests {
     #[test]
     fn a_pledge_without_a_break_turns_critical_after_the_grace() {
         let config = config();
-        let ledger = FocusLedger::started_at(at(0))
-            .fold(focused(1, "kitty"), at(0))
-            .ledger;
+        let ledger = ledger_after([(focused(1, "kitty"), 0)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             pledge: Some(BreakPledge { at: at(10) }),
@@ -245,16 +247,11 @@ mod tests {
     #[test]
     fn a_break_after_the_pledge_honours_it() {
         let config = config();
-        let ledger = [
+        let ledger = ledger_after([
             (focused(1, "kitty"), 0),
-            (idle_edge(IdleEdge::Idled), 11),
-            (idle_edge(IdleEdge::Resumed), 15),
-        ]
-        .into_iter()
-        .fold(
-            FocusLedger::started_at(at(0)),
-            |ledger, (signal, minute)| ledger.fold(signal, at(minute)).ledger,
-        );
+            (FocusSignal::Idle(IdleEdge::Idled), 11),
+            (FocusSignal::Idle(IdleEdge::Resumed), 15),
+        ]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             pledge: Some(BreakPledge { at: at(10) }),
@@ -265,11 +262,7 @@ mod tests {
     #[test]
     fn the_summary_names_the_most_used_app_not_the_latest_focus() {
         let config = config();
-        let ledger = FocusLedger::started_at(at(0))
-            .fold(focused(1, "firefox"), at(0))
-            .ledger
-            .fold(focused(2, "kitty"), at(40))
-            .ledger;
+        let ledger = ledger_after([(focused(1, "firefox"), 0), (focused(2, "kitty"), 40)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
             pledge: None,

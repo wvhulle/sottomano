@@ -1,96 +1,34 @@
+use std::mem::replace;
+
 use chrono::{DateTime, Utc};
 
 use super::{
-    away_reasons::{AwayReasonEdge, LatestAwayReasonEdges},
+    FocusLedger, FocusSignal,
     focus_units::Presence,
-    recorded_spans::{PresenceSpan, SpanWrite, TimelineUpdate},
+    recorded_spans::{PresenceSpan, SpanWrite},
     time_intervals::{Interval, merged},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PresenceTimeline {
-    finished_presence_spans: Vec<PresenceSpan>,
-    ongoing_presence_span: PresenceSpan,
-    latest_away_reason_edges: LatestAwayReasonEdges,
-}
-
-impl PresenceTimeline {
-    pub(super) fn active_since(started_at: DateTime<Utc>) -> Self {
-        Self {
-            finished_presence_spans: Vec::new(),
-            ongoing_presence_span: PresenceSpan {
-                state: Presence::Active,
-                started_at,
-                ended_at: started_at,
-            },
-            latest_away_reason_edges: LatestAwayReasonEdges::default(),
-        }
-    }
-
-    #[must_use]
-    pub(super) fn with_loaded_history(self, loaded_presence_spans: Vec<PresenceSpan>) -> Self {
-        Self {
-            finished_presence_spans: loaded_presence_spans
-                .into_iter()
-                .filter(|loaded| loaded.started_at < self.ongoing_presence_span.started_at)
-                .chain(self.finished_presence_spans)
-                .collect(),
-            ..self
-        }
-    }
-
-    pub(super) fn ongoing_presence_extended_to(self, now: DateTime<Utc>) -> TimelineUpdate<Self> {
-        let ongoing_presence_span = self.ongoing_presence_span.ending_at(now);
-        TimelineUpdate {
-            span_writes: vec![SpanWrite::RecordPresenceSpan(ongoing_presence_span.clone())],
-            timeline: Self {
-                ongoing_presence_span,
-                ..self
-            },
-        }
-    }
-
-    pub(super) fn reacting_to_away_reason_edge(
-        self,
-        edge: AwayReasonEdge,
+impl FocusLedger {
+    pub(super) fn follow_away_reason(
+        &mut self,
+        signal: &FocusSignal,
         now: DateTime<Utc>,
-    ) -> TimelineUpdate<Self> {
-        let latest_away_reason_edges = self
-            .latest_away_reason_edges
-            .with_latest_edge_of_its_source(edge);
-        let extended = self.ongoing_presence_extended_to(now);
-        let presence = latest_away_reason_edges.most_away_presence();
-        if presence == extended.timeline.ongoing_presence_span.state {
-            return TimelineUpdate {
-                timeline: Self {
-                    latest_away_reason_edges,
-                    ..extended.timeline
-                },
-                span_writes: extended.span_writes,
-            };
+    ) -> Option<SpanWrite> {
+        self.latest_away_reasons.note_signal(signal);
+        let presence = self.latest_away_reasons.most_away_presence();
+        if presence == self.ongoing_presence_span.state {
+            return None;
         }
         let next_presence_span = PresenceSpan {
             state: presence,
             started_at: now,
             ended_at: now,
         };
-        TimelineUpdate {
-            span_writes: extended
-                .span_writes
-                .into_iter()
-                .chain([SpanWrite::RecordPresenceSpan(next_presence_span.clone())])
-                .collect(),
-            timeline: Self {
-                finished_presence_spans: extended
-                    .timeline
-                    .finished_presence_spans
-                    .into_iter()
-                    .chain([extended.timeline.ongoing_presence_span])
-                    .collect(),
-                ongoing_presence_span: next_presence_span,
-                latest_away_reason_edges,
-            },
-        }
+        let finished_presence_span =
+            replace(&mut self.ongoing_presence_span, next_presence_span.clone());
+        self.finished_presence_spans.push(finished_presence_span);
+        Some(SpanWrite::RecordPresenceSpan(next_presence_span))
     }
 
     pub(super) fn presence_spans_ended_by(
@@ -112,6 +50,13 @@ impl PresenceTimeline {
         )
     }
 
+    pub(super) fn active_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
+        self.active_intervals(now)
+            .into_iter()
+            .filter_map(|interval| interval.intersect(window))
+            .collect()
+    }
+
     pub(super) fn first_presence_started_at(&self) -> DateTime<Utc> {
         self.finished_presence_spans
             .first()
@@ -119,7 +64,8 @@ impl PresenceTimeline {
             .started_at
     }
 
-    pub(super) fn screen_off_since(&self) -> Option<DateTime<Utc>> {
+    #[must_use]
+    pub fn screen_off_since(&self) -> Option<DateTime<Utc>> {
         (self.ongoing_presence_span.state == Presence::ScreenOff)
             .then_some(self.ongoing_presence_span.started_at)
     }

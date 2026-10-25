@@ -1,165 +1,125 @@
-use chrono::{DateTime, Utc};
+use std::mem::replace;
+
+use chrono::{DateTime, TimeDelta, Utc};
 
 use super::{
+    FocusLedger,
     focus_identity::Focused,
     focus_units::FocusUnit,
-    recorded_spans::{FocusPiece, FocusSpan, SpanWrite, TimelineUpdate},
+    recorded_spans::{FocusPiece, FocusSpan, SpanWrite},
     time_intervals::Interval,
 };
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub enum WindowFocusChange {
-    WindowGainedFocus(Focused),
-    #[default]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum OngoingWindowFocus {
+    FocusedWindowSpan(FocusSpan),
     NoWindowFocused,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OngoingWindowFocus {
-    FocusedWindowSpan(FocusSpan),
-    NoWindowFocusedSince(DateTime<Utc>),
-}
-
-impl OngoingWindowFocus {
-    fn since(&self) -> DateTime<Utc> {
-        match self {
-            OngoingWindowFocus::FocusedWindowSpan(span) => span.started_at,
-            OngoingWindowFocus::NoWindowFocusedSince(since) => *since,
-        }
-    }
-
-    fn focused_window_span(&self) -> Option<&FocusSpan> {
-        match self {
-            OngoingWindowFocus::FocusedWindowSpan(span) => Some(span),
-            OngoingWindowFocus::NoWindowFocusedSince(_) => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WindowFocusTimeline {
-    finished_window_focus_spans: Vec<FocusSpan>,
-    ongoing_window_focus: OngoingWindowFocus,
-}
-
-impl WindowFocusTimeline {
-    pub(super) fn no_window_focused_since(since: DateTime<Utc>) -> Self {
-        Self {
-            finished_window_focus_spans: Vec::new(),
-            ongoing_window_focus: OngoingWindowFocus::NoWindowFocusedSince(since),
-        }
-    }
-
-    #[must_use]
-    pub(super) fn with_loaded_history(self, loaded_window_focus_spans: Vec<FocusSpan>) -> Self {
-        let ongoing_since = self.ongoing_window_focus.since();
-        Self {
-            finished_window_focus_spans: loaded_window_focus_spans
-                .into_iter()
-                .filter(|loaded| loaded.started_at < ongoing_since)
-                .chain(self.finished_window_focus_spans)
-                .collect(),
-            ..self
-        }
-    }
-
-    pub(super) fn ongoing_window_focus_extended_to(
-        self,
+impl FocusLedger {
+    pub(super) fn focus_window(
+        &mut self,
+        focused: &Focused,
         now: DateTime<Utc>,
-    ) -> TimelineUpdate<Self> {
-        match self.ongoing_window_focus {
-            OngoingWindowFocus::FocusedWindowSpan(span) => {
-                let extended_span = span.ending_at(now);
-                TimelineUpdate {
-                    span_writes: vec![SpanWrite::RecordWindowFocusSpan(extended_span.clone())],
-                    timeline: Self {
-                        ongoing_window_focus: OngoingWindowFocus::FocusedWindowSpan(extended_span),
-                        ..self
-                    },
-                }
-            }
-            OngoingWindowFocus::NoWindowFocusedSince(_) => TimelineUpdate::without_writes(self),
-        }
-    }
-
-    pub(super) fn following_window_focus_change(
-        self,
-        change: WindowFocusChange,
-        now: DateTime<Utc>,
-    ) -> TimelineUpdate<Self> {
-        self.ongoing_window_focus_extended_to(now)
-            .then(|timeline| match change {
-                WindowFocusChange::WindowGainedFocus(focused) => {
-                    timeline.focusing_window(&focused, now)
-                }
-                WindowFocusChange::NoWindowFocused => timeline.losing_window_focus(now),
-            })
-    }
-
-    fn focusing_window(self, focused: &Focused, now: DateTime<Utc>) -> TimelineUpdate<Self> {
+        shortest_counted_focus: TimeDelta,
+    ) {
         let next_span = FocusSpan {
             window: focused.window,
             units: focused.units(),
             started_at: now,
             ended_at: now,
         };
-        let continues_ongoing_span = self
-            .ongoing_window_focus
+        if self
             .focused_window_span()
-            .is_some_and(|ongoing| ongoing.continues(&next_span));
-        if continues_ongoing_span {
-            return TimelineUpdate::without_writes(self);
+            .is_some_and(|ongoing| ongoing.continues(&next_span))
+        {
+            return;
         }
-        TimelineUpdate {
-            span_writes: vec![SpanWrite::RecordWindowFocusSpan(next_span.clone())],
-            timeline: self
-                .replacing_ongoing_window_focus(OngoingWindowFocus::FocusedWindowSpan(next_span)),
+        self.finish_ongoing_window_focus(
+            OngoingWindowFocus::NoWindowFocused,
+            shortest_counted_focus,
+        );
+        let resumed_span = self.finished_window_focus_spans.pop_if(|last| {
+            last.continues(&next_span) && now - last.ended_at < shortest_counted_focus
+        });
+        self.ongoing_window_focus =
+            OngoingWindowFocus::FocusedWindowSpan(resumed_span.unwrap_or(next_span));
+    }
+
+    pub(super) fn lose_window_focus(&mut self, shortest_counted_focus: TimeDelta) {
+        self.finish_ongoing_window_focus(
+            OngoingWindowFocus::NoWindowFocused,
+            shortest_counted_focus,
+        );
+    }
+
+    fn finish_ongoing_window_focus(
+        &mut self,
+        next: OngoingWindowFocus,
+        shortest_counted_focus: TimeDelta,
+    ) {
+        if let OngoingWindowFocus::FocusedWindowSpan(finished) =
+            replace(&mut self.ongoing_window_focus, next)
+        {
+            self.keep_finished_window_focus(finished, shortest_counted_focus);
         }
     }
 
-    fn losing_window_focus(self, now: DateTime<Utc>) -> TimelineUpdate<Self> {
-        match self.ongoing_window_focus {
-            OngoingWindowFocus::FocusedWindowSpan(_) => TimelineUpdate::without_writes(
-                self.replacing_ongoing_window_focus(OngoingWindowFocus::NoWindowFocusedSince(now)),
-            ),
-            OngoingWindowFocus::NoWindowFocusedSince(_) => TimelineUpdate::without_writes(self),
+    pub(super) fn keep_finished_window_focus(
+        &mut self,
+        finished: FocusSpan,
+        shortest_counted_focus: TimeDelta,
+    ) {
+        if finished.ended_at - finished.started_at < shortest_counted_focus {
+            return;
+        }
+        match self.finished_window_focus_spans.last_mut() {
+            Some(last)
+                if last.continues(&finished)
+                    && finished.started_at - last.ended_at < shortest_counted_focus =>
+            {
+                last.ended_at = last.ended_at.max(finished.ended_at);
+            }
+            _ => self.finished_window_focus_spans.push(finished),
         }
     }
 
-    fn replacing_ongoing_window_focus(self, next: OngoingWindowFocus) -> Self {
-        Self {
-            finished_window_focus_spans: self
-                .finished_window_focus_spans
-                .into_iter()
-                .chain(self.ongoing_window_focus.focused_window_span().cloned())
-                .collect(),
-            ongoing_window_focus: next,
+    pub(super) fn ongoing_focus_write(
+        &mut self,
+        now: DateTime<Utc>,
+        shortest_counted_focus: TimeDelta,
+    ) -> Option<SpanWrite> {
+        match &mut self.ongoing_window_focus {
+            OngoingWindowFocus::FocusedWindowSpan(span) => {
+                span.ended_at = now;
+                (now - span.started_at >= shortest_counted_focus)
+                    .then(|| SpanWrite::RecordWindowFocusSpan(span.clone()))
+            }
+            OngoingWindowFocus::NoWindowFocused => None,
         }
     }
 
     pub(super) fn focused_window_span(&self) -> Option<&FocusSpan> {
-        self.ongoing_window_focus.focused_window_span()
+        match &self.ongoing_window_focus {
+            OngoingWindowFocus::FocusedWindowSpan(span) => Some(span),
+            OngoingWindowFocus::NoWindowFocused => None,
+        }
     }
 
-    pub(super) fn focused_units(&self) -> &[FocusUnit] {
+    #[must_use]
+    pub fn focused_units(&self) -> &[FocusUnit] {
         self.focused_window_span()
             .map_or(&[], |span| span.units.as_slice())
     }
 
-    pub(super) fn finished_window_focus_spans(&self) -> &[FocusSpan] {
-        &self.finished_window_focus_spans
-    }
-
-    pub(super) fn pieces_within(
+    pub(super) fn focus_pieces_within(
         &self,
         window: Interval,
         now: DateTime<Utc>,
-        settled_spans: usize,
     ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
         let first_reaching_window = self
             .finished_window_focus_spans
-            .partition_point(|span| span.ended_at < window.from)
-            .max(settled_spans);
+            .partition_point(|span| span.ended_at < window.from);
         self.finished_window_focus_spans[first_reaching_window..]
             .iter()
             .map(FocusSpan::piece)

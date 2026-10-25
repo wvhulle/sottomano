@@ -129,16 +129,16 @@ impl Accounting<'_> {
         let floor = self
             .last_break(now)
             .map_or(DateTime::<Utc>::MIN_UTC, |gap| gap.until);
-        let window_focus_timeline = &self.ledger.window_focus_timeline;
-        let Some(focused_window_span) = window_focus_timeline.focused_window_span() else {
+        let Some(focused_window_span) = self.ledger.focused_window_span() else {
             return Vec::new();
         };
         focused_window_span
             .units
             .iter()
             .map(|unit| {
-                let chain_start = window_focus_timeline
-                    .finished_window_focus_spans()
+                let chain_start = self
+                    .ledger
+                    .finished_window_focus_spans
                     .iter()
                     .rev()
                     .scan(focused_window_span.started_at, |since, span| {
@@ -163,11 +163,15 @@ impl Accounting<'_> {
     }
 
     #[must_use]
-    pub fn longest_run_within(&self, window: Interval, now: DateTime<Utc>) -> Option<Interval> {
-        self.ledger
-            .active_within(window, now)
-            .into_iter()
-            .max_by_key(|run| run.length())
+    pub fn longest_session_within(&self, period: Interval, now: DateTime<Utc>) -> Option<Interval> {
+        gaps_between(
+            &self.breaks(now),
+            self.ledger.first_presence_started_at(),
+            now,
+        )
+        .into_iter()
+        .filter_map(|session| session.intersect(period))
+        .max_by_key(|session| session.length())
     }
 
     #[must_use]
@@ -196,8 +200,8 @@ mod tests {
         focus_time_ledger::{
             ScreenEdge,
             test_steps::{
-                at, config, focused, folded, idle_edge, kitty, no_window_focused,
-                screen_power_edge, sleep_edge, step, whole_day,
+                at, config, focused, folded, idle_edge, no_window_focused, screen_power_edge,
+                sleep_edge, step, whole_day,
             },
         },
         logind_manager::SleepEdge,
@@ -214,7 +218,7 @@ mod tests {
         ]);
         let paused = paused.accounted(&config);
         assert_eq!(
-            paused.spent(&kitty(), whole_day(), at(20)),
+            paused.screen_spent(whole_day(), at(20)),
             TimeDelta::minutes(19)
         );
         assert_eq!(paused.screen_run(at(20)), Some(ScreenRun { since: at(0) }));
@@ -226,7 +230,7 @@ mod tests {
         ]);
         let rested = rested.accounted(&config);
         assert_eq!(
-            rested.spent(&kitty(), whole_day(), at(40)),
+            rested.screen_spent(whole_day(), at(40)),
             TimeDelta::minutes(30)
         );
         assert_eq!(
@@ -243,14 +247,14 @@ mod tests {
     #[test]
     fn suspending_is_a_break_and_being_away_has_no_screen_run() {
         let config = config();
-        let asleep = folded([
+        let mut ledger = folded([
             step(focused("kitty", None), 0),
             step(sleep_edge(SleepEdge::Suspending), 5),
         ]);
-        assert_eq!(asleep.accounted(&config).screen_run(at(30)), None);
-        let woken = asleep.fold(sleep_edge(SleepEdge::Resumed), at(60)).ledger;
+        assert_eq!(ledger.accounted(&config).screen_run(at(30)), None);
+        ledger.fold(sleep_edge(SleepEdge::Resumed), at(60), &config);
         assert_eq!(
-            woken.accounted(&config).screen_run(at(61)),
+            ledger.accounted(&config).screen_run(at(61)),
             Some(ScreenRun { since: at(60) })
         );
     }
@@ -258,12 +262,12 @@ mod tests {
     #[test]
     fn a_dark_screen_is_a_break_until_it_lights_up_again() {
         let config = config();
-        let dark = folded([
+        let mut ledger = folded([
             step(focused("kitty", None), 0),
             step(screen_power_edge(ScreenEdge::Off), 10),
             step(idle_edge(IdleEdge::Resumed), 20),
         ]);
-        let accounted = dark.accounted(&config);
+        let accounted = ledger.accounted(&config);
         assert_eq!(accounted.screen_run(at(11)), None);
         assert_eq!(
             accounted.last_break(at(11)),
@@ -274,17 +278,17 @@ mod tests {
         );
         assert_eq!(accounted.screen_run(at(30)), None);
         assert_eq!(
-            accounted.spent(&kitty(), whole_day(), at(30)),
+            accounted.screen_spent(whole_day(), at(30)),
             TimeDelta::minutes(10)
         );
-        assert_eq!(dark.screen_off_since(), Some(at(10)));
+        assert_eq!(ledger.screen_off_since(), Some(at(10)));
 
-        let lit = dark.fold(screen_power_edge(ScreenEdge::On), at(40)).ledger;
+        ledger.fold(screen_power_edge(ScreenEdge::On), at(40), &config);
         assert_eq!(
-            lit.accounted(&config).screen_run(at(41)),
+            ledger.accounted(&config).screen_run(at(41)),
             Some(ScreenRun { since: at(40) })
         );
-        assert_eq!(lit.screen_off_since(), None);
+        assert_eq!(ledger.screen_off_since(), None);
     }
 
     #[test]
@@ -320,18 +324,16 @@ mod tests {
 
     #[test]
     fn idling_while_the_screen_is_off_stays_screen_off_and_lighting_it_returns_to_idle() {
-        let ledger = folded([
+        let mut ledger = folded([
             step(focused("kitty", None), 0),
             step(screen_power_edge(ScreenEdge::Off), 10),
             step(idle_edge(IdleEdge::Idled), 11),
         ]);
         assert_eq!(ledger.screen_off_since(), Some(at(10)));
-        let lit = ledger
-            .fold(screen_power_edge(ScreenEdge::On), at(20))
-            .ledger;
-        assert_eq!(lit.screen_off_since(), None);
+        ledger.fold(screen_power_edge(ScreenEdge::On), at(20), &config());
+        assert_eq!(ledger.screen_off_since(), None);
         assert_eq!(
-            lit.presence_spans_ended_by(at(21)).last().unwrap().state,
+            ledger.presence_spans_ended_by(at(21)).last().unwrap().state,
             Presence::Idle
         );
     }
@@ -414,7 +416,7 @@ mod tests {
     }
 
     #[test]
-    fn the_longest_run_ends_at_any_pause() {
+    fn the_longest_session_spans_short_pauses_and_ends_at_a_break() {
         let config = config();
         let ledger = folded([
             step(focused("kitty", None), 0),
@@ -426,9 +428,9 @@ mod tests {
         assert_eq!(
             ledger
                 .accounted(&config)
-                .longest_run_within(whole_day(), at(40)),
+                .longest_session_within(whole_day(), at(40)),
             Some(Interval {
-                from: at(11),
+                from: at(0),
                 until: at(25)
             })
         );

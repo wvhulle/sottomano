@@ -4,7 +4,6 @@ mod focus_units;
 mod presence_accounting;
 mod presence_timeline;
 mod recorded_spans;
-mod settled_unit_totals;
 mod switch_heat_gradient;
 #[cfg(test)]
 mod test_steps;
@@ -12,45 +11,41 @@ mod time_intervals;
 mod unit_accounting;
 mod window_focus_timeline;
 
-use std::path::Path;
+use std::{mem::take, path::Path};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
 
+use self::{away_reasons::LatestAwayReasons, window_focus_timeline::OngoingWindowFocus};
 pub use self::{
-    away_reasons::{AwayReasonEdge, ScreenEdge},
+    away_reasons::ScreenEdge,
     focus_identity::{FocusIdentity, Focused},
     focus_units::{FocusUnit, Presence, StoredFacet},
     presence_accounting::{BreakCause, FocusRun, ScreenRun, TakenBreak},
-    recorded_spans::{FocusScope, FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
-    time_intervals::{Interval, WakingWindow},
+    recorded_spans::{FocusSpan, LoadedSpans, PresenceSpan, SpanWrite},
+    time_intervals::{Interval, LAST_DAY, LAST_HOUR, TrailingPeriod},
     unit_accounting::{BudgetStatus, UnitTotal},
-    window_focus_timeline::WindowFocusChange,
 };
-use self::{
-    presence_timeline::PresenceTimeline,
-    recorded_spans::{FocusPiece, TimelineUpdate},
-    settled_unit_totals::SettledUnitTotals,
-    window_focus_timeline::WindowFocusTimeline,
-};
+use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum FocusSignal {
-    WindowFocusChanged(WindowFocusChange),
-    AwayReasonChanged(AwayReasonEdge),
+    WindowFocused(Focused),
+    #[default]
+    NoWindowFocused,
+    Idle(IdleEdge),
+    Sleep(SleepEdge),
+    ScreenPower(ScreenEdge),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FocusLedger {
-    window_focus_timeline: WindowFocusTimeline,
-    presence_timeline: PresenceTimeline,
-    settled_unit_totals: Option<SettledUnitTotals>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Folded {
-    pub ledger: FocusLedger,
-    pub span_writes: Vec<SpanWrite>,
+    tracking_started_at: DateTime<Utc>,
+    finished_window_focus_spans: Vec<FocusSpan>,
+    ongoing_window_focus: OngoingWindowFocus,
+    finished_presence_spans: Vec<PresenceSpan>,
+    ongoing_presence_span: PresenceSpan,
+    latest_away_reasons: LatestAwayReasons,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -63,39 +58,38 @@ impl FocusLedger {
     #[must_use]
     pub fn started_at(now: DateTime<Utc>) -> Self {
         Self {
-            window_focus_timeline: WindowFocusTimeline::no_window_focused_since(now),
-            presence_timeline: PresenceTimeline::active_since(now),
-            settled_unit_totals: None,
+            tracking_started_at: now,
+            finished_window_focus_spans: Vec::new(),
+            ongoing_window_focus: OngoingWindowFocus::NoWindowFocused,
+            finished_presence_spans: Vec::new(),
+            ongoing_presence_span: PresenceSpan {
+                state: Presence::Active,
+                started_at: now,
+                ended_at: now,
+            },
+            latest_away_reasons: LatestAwayReasons::default(),
         }
     }
 
-    #[must_use]
-    pub fn with_history(self, loaded: LoadedSpans) -> Self {
-        Self {
-            window_focus_timeline: self
-                .window_focus_timeline
-                .with_loaded_history(loaded.window_focus_spans),
-            presence_timeline: self
-                .presence_timeline
-                .with_loaded_history(loaded.presence_spans),
-            settled_unit_totals: None,
+    pub fn load_history(&mut self, loaded: LoadedSpans, config: &FocusTimeConfig) {
+        let tracking_started_at = self.tracking_started_at;
+        let shortest_counted_focus =
+            TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);
+        let tracked_spans = take(&mut self.finished_window_focus_spans);
+        for span in loaded
+            .window_focus_spans
+            .into_iter()
+            .filter(|span| span.started_at < tracking_started_at)
+            .chain(tracked_spans)
+        {
+            self.keep_finished_window_focus(span, shortest_counted_focus);
         }
-    }
-
-    #[must_use]
-    pub fn with_settled_unit_totals(mut self, window: Interval, now: DateTime<Utc>) -> Self {
-        let active = self.active_within(window, now);
-        let carried = match self.settled_unit_totals.take() {
-            Some(settled) if settled.window == window => settled,
-            Some(_) | None => SettledUnitTotals::within(window),
-        };
-        Self {
-            settled_unit_totals: Some(carried.settling(
-                self.window_focus_timeline.finished_window_focus_spans(),
-                &active,
-            )),
-            ..self
-        }
+        self.finished_presence_spans = loaded
+            .presence_spans
+            .into_iter()
+            .filter(|span| span.started_at < tracking_started_at)
+            .chain(self.finished_presence_spans.drain(..))
+            .collect();
     }
 
     #[must_use]
@@ -106,15 +100,35 @@ impl FocusLedger {
         }
     }
 
-    #[must_use]
-    pub fn focused_units(&self) -> &[FocusUnit] {
-        self.window_focus_timeline.focused_units()
+    pub fn fold(
+        &mut self,
+        signal: FocusSignal,
+        now: DateTime<Utc>,
+        config: &FocusTimeConfig,
+    ) -> Vec<SpanWrite> {
+        let shortest_counted_focus =
+            TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);
+        self.ongoing_presence_span.ended_at = now;
+        let mut span_writes: Vec<SpanWrite> = self
+            .ongoing_focus_write(now, shortest_counted_focus)
+            .into_iter()
+            .chain([SpanWrite::RecordPresenceSpan(
+                self.ongoing_presence_span.clone(),
+            )])
+            .collect();
+        match signal {
+            FocusSignal::WindowFocused(focused) => {
+                self.focus_window(&focused, now, shortest_counted_focus);
+            }
+            FocusSignal::NoWindowFocused => self.lose_window_focus(shortest_counted_focus),
+            away_signal => span_writes.extend(self.follow_away_reason(&away_signal, now)),
+        }
+        span_writes
     }
 
     #[must_use]
     pub fn project_shown_in(&self, window: u64) -> Option<&Path> {
-        self.window_focus_timeline
-            .focused_window_span()
+        self.focused_window_span()
             .filter(|span| span.window == window)?
             .units
             .iter()
@@ -123,104 +137,12 @@ impl FocusLedger {
                 FocusUnit::App(_) => None,
             })
     }
-
-    #[must_use]
-    pub fn screen_off_since(&self) -> Option<DateTime<Utc>> {
-        self.presence_timeline.screen_off_since()
-    }
-
-    #[must_use]
-    pub fn fold(self, signal: FocusSignal, now: DateTime<Utc>) -> Folded {
-        match signal {
-            FocusSignal::WindowFocusChanged(change) => {
-                let presence = self.presence_timeline.ongoing_presence_extended_to(now);
-                let window_focus = self
-                    .window_focus_timeline
-                    .following_window_focus_change(change, now);
-                Self::folded_from(window_focus, presence, self.settled_unit_totals)
-            }
-            FocusSignal::AwayReasonChanged(edge) => {
-                let window_focus = self
-                    .window_focus_timeline
-                    .ongoing_window_focus_extended_to(now);
-                let presence = self
-                    .presence_timeline
-                    .reacting_to_away_reason_edge(edge, now);
-                Self::folded_from(window_focus, presence, self.settled_unit_totals)
-            }
-        }
-    }
-
-    fn folded_from(
-        window_focus: TimelineUpdate<WindowFocusTimeline>,
-        presence: TimelineUpdate<PresenceTimeline>,
-        settled_unit_totals: Option<SettledUnitTotals>,
-    ) -> Folded {
-        Folded {
-            span_writes: window_focus
-                .span_writes
-                .into_iter()
-                .chain(presence.span_writes)
-                .collect(),
-            ledger: Self {
-                window_focus_timeline: window_focus.timeline,
-                presence_timeline: presence.timeline,
-                settled_unit_totals,
-            },
-        }
-    }
-
-    fn settled_unit_totals_for(&self, window: Interval) -> Option<&SettledUnitTotals> {
-        self.settled_unit_totals
-            .as_ref()
-            .filter(|settled| settled.window == window)
-    }
-
-    fn active_intervals(&self, now: DateTime<Utc>) -> Vec<Interval> {
-        self.presence_timeline.active_intervals(now)
-    }
-
-    fn active_within(&self, window: Interval, now: DateTime<Utc>) -> Vec<Interval> {
-        self.active_intervals(now)
-            .into_iter()
-            .filter_map(|interval| interval.intersect(window))
-            .collect()
-    }
-
-    fn presence_spans_ended_by(
-        &self,
-        now: DateTime<Utc>,
-    ) -> impl Iterator<Item = PresenceSpan> + '_ {
-        self.presence_timeline.presence_spans_ended_by(now)
-    }
-
-    fn focus_pieces_within(
-        &self,
-        window: Interval,
-        now: DateTime<Utc>,
-    ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
-        self.window_focus_timeline.pieces_within(window, now, 0)
-    }
-
-    fn unsettled_focus_pieces_within(
-        &self,
-        settled_spans: usize,
-        window: Interval,
-        now: DateTime<Utc>,
-    ) -> impl Iterator<Item = FocusPiece<'_>> + '_ {
-        self.window_focus_timeline
-            .pieces_within(window, now, settled_spans)
-    }
-
-    fn first_presence_started_at(&self) -> DateTime<Utc> {
-        self.presence_timeline.first_presence_started_at()
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        test_steps::{at, config, focused, focused_in, folded, step},
+        test_steps::{at, config, focused, focused_in, folded, no_window_focused, step, whole_day},
         *,
     };
 
@@ -235,46 +157,85 @@ mod tests {
     }
 
     #[test]
-    fn switching_focus_finishes_a_span_and_records_the_next() {
-        let Folded {
-            ledger,
-            span_writes,
-        } = FocusLedger::started_at(at(0)).fold(focused("kitty", Some("/code/sottomano")), at(0));
-        assert_eq!(recorded_window_focus_spans(&span_writes).len(), 1);
+    fn switching_focus_finishes_a_span_and_records_it() {
+        let config = config();
+        let mut ledger = FocusLedger::started_at(at(0));
+        let span_writes = ledger.fold(focused("kitty", Some("/code/sottomano")), at(0), &config);
+        assert!(recorded_window_focus_spans(&span_writes).is_empty());
 
-        let Folded {
-            ledger,
-            span_writes,
-        } = ledger.fold(focused("firefox", None), at(10));
+        let span_writes = ledger.fold(focused("firefox", None), at(10), &config);
         let recorded = recorded_window_focus_spans(&span_writes);
+        assert_eq!(recorded.len(), 1);
         assert_eq!(recorded[0].started_at, at(0));
         assert_eq!(recorded[0].ended_at, at(10));
-        assert_eq!(recorded[1].started_at, at(10));
-        let finished = ledger.window_focus_timeline.finished_window_focus_spans();
-        assert_eq!(finished.len(), 1);
-        assert_eq!(finished[0].ended_at, at(10));
+        assert_eq!(ledger.finished_window_focus_spans.len(), 1);
+        assert_eq!(ledger.finished_window_focus_spans[0].ended_at, at(10));
         assert_eq!(
             ledger.focused_units(),
             [FocusUnit::App("firefox".to_owned())]
         );
-        let config = config();
         assert_eq!(ledger.accounted(&config).runs(at(12))[0].since, at(10));
+    }
+
+    #[test]
+    fn a_focus_flicker_is_neither_kept_nor_recorded_nor_splits_the_stay() {
+        let config = config();
+        let flicker_started_at = at(10);
+        let flicker_ended_at = flicker_started_at + TimeDelta::milliseconds(400);
+        let mut ledger = FocusLedger::started_at(at(0));
+        ledger.fold(focused_in(1, "kitty", None), at(0), &config);
+        ledger.fold(focused_in(2, "firefox", None), flicker_started_at, &config);
+        let span_writes = ledger.fold(focused_in(1, "kitty", None), flicker_ended_at, &config);
+        assert!(recorded_window_focus_spans(&span_writes).is_empty());
+        assert!(ledger.finished_window_focus_spans.is_empty());
+        assert_eq!(ledger.focused_window_span().unwrap().started_at, at(0));
+        assert_eq!(
+            ledger
+                .accounted(&config)
+                .switches_within(whole_day(), at(20)),
+            1
+        );
+    }
+
+    #[test]
+    fn loaded_flickers_are_dropped_and_the_stays_around_them_joined() {
+        let config = config();
+        let kitty_span = |started_at, ended_at| FocusSpan {
+            window: 1,
+            units: vec![FocusUnit::App("kitty".to_owned())],
+            started_at,
+            ended_at,
+        };
+        let flicker_ended_at = at(-20) + TimeDelta::milliseconds(300);
+        let mut ledger = FocusLedger::started_at(at(0));
+        ledger.load_history(
+            LoadedSpans {
+                window_focus_spans: vec![
+                    kitty_span(at(-30), at(-20)),
+                    FocusSpan {
+                        window: 2,
+                        ..kitty_span(at(-20), flicker_ended_at)
+                    },
+                    kitty_span(flicker_ended_at, at(-5)),
+                ],
+                presence_spans: Vec::new(),
+            },
+            &config,
+        );
+        assert_eq!(
+            ledger.finished_window_focus_spans,
+            vec![kitty_span(at(-30), at(-5))]
+        );
     }
 
     #[test]
     fn losing_window_focus_finishes_the_span_without_presence_changing() {
         let ledger = folded([
             step(focused("kitty", None), 0),
-            step(
-                FocusSignal::WindowFocusChanged(WindowFocusChange::NoWindowFocused),
-                10,
-            ),
+            step(no_window_focused(), 10),
         ]);
         assert!(ledger.focused_units().is_empty());
-        assert_eq!(
-            ledger.window_focus_timeline.finished_window_focus_spans()[0].ended_at,
-            at(10)
-        );
+        assert_eq!(ledger.finished_window_focus_spans[0].ended_at, at(10));
         let config = config();
         assert_eq!(
             ledger.accounted(&config).screen_run(at(20)),
@@ -289,16 +250,34 @@ mod tests {
             step(focused_in(1, "kitty", Some("/code/sottomano")), 5),
             step(focused_in(2, "kitty", Some("/code/sottomano")), 10),
         ]);
-        let finished = ledger.window_focus_timeline.finished_window_focus_spans();
-        assert_eq!(finished.len(), 1);
-        assert_eq!(finished[0].window, 1);
+        assert_eq!(ledger.finished_window_focus_spans.len(), 1);
+        assert_eq!(ledger.finished_window_focus_spans[0].window, 1);
+        assert_eq!(ledger.focused_window_span().unwrap().window, 2);
+    }
+
+    #[test]
+    fn loaded_history_keeps_only_spans_from_before_tracking_started() {
+        let mut ledger = folded([
+            step(focused("kitty", None), 0),
+            step(focused("firefox", None), 10),
+        ]);
+        let earlier_span = FocusSpan {
+            window: 9,
+            units: vec![FocusUnit::App("mpv".to_owned())],
+            started_at: at(-30),
+            ended_at: at(-20),
+        };
+        let duplicated_span = ledger.finished_window_focus_spans[0].clone();
+        ledger.load_history(
+            LoadedSpans {
+                window_focus_spans: vec![earlier_span.clone(), duplicated_span.clone()],
+                presence_spans: Vec::new(),
+            },
+            &config(),
+        );
         assert_eq!(
-            ledger
-                .window_focus_timeline
-                .focused_window_span()
-                .unwrap()
-                .window,
-            2
+            ledger.finished_window_focus_spans,
+            vec![earlier_span, duplicated_span]
         );
     }
 }

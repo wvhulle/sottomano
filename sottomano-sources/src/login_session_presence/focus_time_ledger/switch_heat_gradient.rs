@@ -2,19 +2,15 @@ use chrono::{DateTime, TimeDelta, Utc};
 use color::{AlphaColor, Oklab, Srgb};
 use sottomano_config::theme::palette::Palette;
 
-use super::{Accounting, recorded_spans::FocusScope, time_intervals::Interval};
+use super::{Accounting, time_intervals::TrailingPeriod};
 
 impl Accounting<'_> {
     #[must_use]
     pub fn recent_switches_to(&self, window: u64, now: DateTime<Utc>) -> usize {
-        let span = TimeDelta::from_std(self.config.switch_heat_span).unwrap_or(TimeDelta::MAX);
-        let recent = Interval {
-            from: now
-                .checked_sub_signed(span)
-                .unwrap_or(DateTime::<Utc>::MIN_UTC),
-            until: now,
+        let recent = TrailingPeriod {
+            length: TimeDelta::from_std(self.config.switch_heat_span).unwrap_or(TimeDelta::MAX),
         };
-        self.switches_to(&FocusScope::Window(window), recent, now)
+        self.switches_to(window, recent.ending_at(now), now)
     }
 
     #[must_use]
@@ -74,16 +70,13 @@ mod tests {
     };
 
     fn returned_to_kitty(times: i64) -> FocusLedger {
-        (0..times)
-            .fold(FocusLedger::started_at(at(0)), |ledger, round| {
-                ledger
-                    .fold(focused_in(1, "kitty", None), at(round * 2))
-                    .ledger
-                    .fold(focused_in(2, "firefox", None), at(round * 2 + 1))
-                    .ledger
-            })
-            .fold(no_window_focused(), at(times * 2))
-            .ledger
+        let mut ledger = FocusLedger::started_at(at(0));
+        for round in 0..times {
+            ledger.fold(focused_in(1, "kitty", None), at(round * 2), &config());
+            ledger.fold(focused_in(2, "firefox", None), at(round * 2 + 1), &config());
+        }
+        ledger.fold(no_window_focused(), at(times * 2), &config());
+        ledger
     }
 
     fn two_hour_span_config() -> FocusTimeConfig {

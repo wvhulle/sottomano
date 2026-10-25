@@ -1,4 +1,4 @@
-use super::focus_units::Presence;
+use super::{FocusSignal, focus_units::Presence};
 use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8,20 +8,13 @@ pub enum ScreenEdge {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AwayReasonEdge {
-    IdleNotifier(IdleEdge),
-    LogindSleep(SleepEdge),
-    ScreenPower(ScreenEdge),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LatestAwayReasonEdges {
+pub struct LatestAwayReasons {
     idle: IdleEdge,
     sleep: SleepEdge,
     screen_power: ScreenEdge,
 }
 
-impl Default for LatestAwayReasonEdges {
+impl Default for LatestAwayReasons {
     fn default() -> Self {
         Self {
             idle: IdleEdge::Resumed,
@@ -31,15 +24,13 @@ impl Default for LatestAwayReasonEdges {
     }
 }
 
-impl LatestAwayReasonEdges {
-    pub(super) fn with_latest_edge_of_its_source(self, edge: AwayReasonEdge) -> Self {
-        match edge {
-            AwayReasonEdge::IdleNotifier(idle) => Self { idle, ..self },
-            AwayReasonEdge::LogindSleep(sleep) => Self { sleep, ..self },
-            AwayReasonEdge::ScreenPower(screen_power) => Self {
-                screen_power,
-                ..self
-            },
+impl LatestAwayReasons {
+    pub(super) fn note_signal(&mut self, signal: &FocusSignal) {
+        match *signal {
+            FocusSignal::Idle(idle) => self.idle = idle,
+            FocusSignal::Sleep(sleep) => self.sleep = sleep,
+            FocusSignal::ScreenPower(screen_power) => self.screen_power = screen_power,
+            FocusSignal::WindowFocused(_) | FocusSignal::NoWindowFocused => {}
         }
     }
 
@@ -58,37 +49,42 @@ impl LatestAwayReasonEdges {
 
 #[cfg(test)]
 mod tests {
+    use std::slice::from_ref;
+
     use super::*;
 
-    fn presence_after(edges: &[AwayReasonEdge]) -> Presence {
-        edges
-            .iter()
-            .copied()
-            .fold(
-                LatestAwayReasonEdges::default(),
-                LatestAwayReasonEdges::with_latest_edge_of_its_source,
-            )
-            .most_away_presence()
+    fn presence_after(signals: &[FocusSignal]) -> Presence {
+        let mut latest_away_reasons = LatestAwayReasons::default();
+        for signal in signals {
+            latest_away_reasons.note_signal(signal);
+        }
+        latest_away_reasons.most_away_presence()
     }
 
     #[test]
     fn the_most_away_reason_wins_regardless_of_arrival_order() {
-        let idled = AwayReasonEdge::IdleNotifier(IdleEdge::Idled);
-        let screen_off = AwayReasonEdge::ScreenPower(ScreenEdge::Off);
-        let suspending = AwayReasonEdge::LogindSleep(SleepEdge::Suspending);
+        let idled = FocusSignal::Idle(IdleEdge::Idled);
+        let screen_off = FocusSignal::ScreenPower(ScreenEdge::Off);
+        let suspending = FocusSignal::Sleep(SleepEdge::Suspending);
         assert_eq!(presence_after(&[]), Presence::Active);
-        assert_eq!(presence_after(&[idled]), Presence::Idle);
-        assert_eq!(presence_after(&[screen_off, idled]), Presence::ScreenOff);
-        assert_eq!(presence_after(&[idled, screen_off]), Presence::ScreenOff);
+        assert_eq!(presence_after(from_ref(&idled)), Presence::Idle);
         assert_eq!(
-            presence_after(&[suspending, screen_off, idled]),
+            presence_after(&[screen_off.clone(), idled.clone()]),
+            Presence::ScreenOff
+        );
+        assert_eq!(
+            presence_after(&[idled.clone(), screen_off.clone()]),
+            Presence::ScreenOff
+        );
+        assert_eq!(
+            presence_after(&[suspending.clone(), screen_off, idled]),
             Presence::Asleep
         );
         assert_eq!(
             presence_after(&[
                 suspending,
-                AwayReasonEdge::ScreenPower(ScreenEdge::On),
-                AwayReasonEdge::IdleNotifier(IdleEdge::Resumed),
+                FocusSignal::ScreenPower(ScreenEdge::On),
+                FocusSignal::Idle(IdleEdge::Resumed),
             ]),
             Presence::Asleep
         );
