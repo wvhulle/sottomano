@@ -12,7 +12,7 @@ use sottomano_config::{Config, widget_groups::focus_time::FocusTimeConfig};
 use sottomano_sources::{
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
-    login_session_presence::focus_time_ledger::{ScreenEdge, WakingWindow},
+    login_session_presence::focus_time_ledger::{FocusSignal, ScreenEdge},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 use sottomano_state::{
@@ -101,12 +101,12 @@ impl SessionFocusGroup {
     pub fn screen_power_changed(
         &mut self,
         edge: ScreenEdge,
-        waking: WakingWindow,
+        config: &FocusTimeConfig,
         clock: Clock,
     ) -> Task<SessionFocusMessage> {
         self.update(
-            SessionFocusMessage::Tracker(TrackerMessage::ScreenPowerChanged(edge)),
-            waking,
+            SessionFocusMessage::Tracker(TrackerMessage::Signal(FocusSignal::ScreenPower(edge))),
+            config,
             clock,
         )
     }
@@ -126,12 +126,12 @@ impl SessionFocusGroup {
     pub fn update(
         &mut self,
         message: SessionFocusMessage,
-        waking: WakingWindow,
+        config: &FocusTimeConfig,
         clock: Clock,
     ) -> Task<SessionFocusMessage> {
         match message {
             SessionFocusMessage::Tracker(message) => {
-                Task::future(self.tracker.update(message, waking)).discard()
+                Task::future(self.tracker.update(message, config)).discard()
             }
             SessionFocusMessage::BreakPledged => {
                 self.pledge = Some(BreakPledge { at: clock.utc() });
@@ -163,47 +163,31 @@ impl SessionFocusGroup {
         }
     }
 
-    fn focus_run_reading<'a>(
-        &'a self,
-        config: &'a Config,
-        waking: WakingWindow,
-    ) -> FocusRunReading<'a> {
+    fn focus_run_reading<'a>(&'a self, config: &'a Config) -> FocusRunReading<'a> {
         FocusRunReading {
             accounting: self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
         }
     }
 
-    fn daily_totals_gauge<'a>(
-        &'a self,
-        config: &'a Config,
-        waking: WakingWindow,
-        clock: Clock,
-    ) -> DailyTotalsGauge {
+    fn daily_totals_gauge<'a>(&'a self, config: &'a Config, clock: Clock) -> DailyTotalsGauge {
         DailyTotalsGauge::new(
             &self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
             clock.utc(),
         )
     }
 
-    fn context_switch_rate<'a>(
-        &'a self,
-        config: &'a Config,
-        waking: WakingWindow,
-    ) -> ContextSwitchRate<'a> {
+    fn context_switch_rate<'a>(&'a self, config: &'a Config) -> ContextSwitchRate<'a> {
         ContextSwitchRate {
             accounting: self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
         }
     }
 
@@ -236,19 +220,12 @@ impl SessionFocusGroup {
     }
 
     #[must_use]
-    pub fn window_usage_tooltip(
-        &self,
-        window: u64,
-        config: &Config,
-        waking: WakingWindow,
-        clock: Clock,
-    ) -> Tooltip {
+    pub fn window_usage_tooltip(&self, window: u64, config: &Config, clock: Clock) -> Tooltip {
         let usage = WindowUsage {
             accounting: self
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            waking,
             window,
         };
         Tooltip::sourced(usage.body(clock.utc()), Freshness::Live)
@@ -257,7 +234,6 @@ impl SessionFocusGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        waking: WakingWindow,
         clock: Clock,
     ) -> GroupContent<'a, SessionFocusMessage> {
         let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
@@ -267,16 +243,14 @@ impl SessionFocusGroup {
                 on_button_pressed: SessionFocusMessage::BreakPledged,
             }]);
         let breaks = GroupItem::reading(self.break_log(config), SessionFocusTarget::Breaks);
-        let focus_run = GroupItem::reading(
-            self.focus_run_reading(config, waking),
-            SessionFocusTarget::FocusRun,
-        );
+        let focus_run =
+            GroupItem::reading(self.focus_run_reading(config), SessionFocusTarget::FocusRun);
         let totals = GroupItem::reading(
-            self.daily_totals_gauge(config, waking, clock),
+            self.daily_totals_gauge(config, clock),
             SessionFocusTarget::DailyTotals,
         );
         let switches = GroupItem::reading(
-            self.context_switch_rate(config, waking),
+            self.context_switch_rate(config),
             SessionFocusTarget::ContextSwitches,
         );
         GroupContent::new(
@@ -291,19 +265,16 @@ impl SessionFocusGroup {
         &self,
         target: SessionFocusTarget,
         config: &Config,
-        waking: WakingWindow,
         clock: Clock,
     ) -> Tooltip {
         let body = match target {
             SessionFocusTarget::Session => self.session_face(config).tooltip(clock),
             SessionFocusTarget::Breaks => self.break_log(config).tooltip(clock),
-            SessionFocusTarget::FocusRun => self.focus_run_reading(config, waking).tooltip(clock),
-            SessionFocusTarget::DailyTotals => self
-                .daily_totals_gauge(config, waking, clock)
-                .tooltip(clock),
-            SessionFocusTarget::ContextSwitches => {
-                self.context_switch_rate(config, waking).tooltip(clock)
+            SessionFocusTarget::FocusRun => self.focus_run_reading(config).tooltip(clock),
+            SessionFocusTarget::DailyTotals => {
+                self.daily_totals_gauge(config, clock).tooltip(clock)
             }
+            SessionFocusTarget::ContextSwitches => self.context_switch_rate(config).tooltip(clock),
         };
         Tooltip::sourced(body, Freshness::Live)
     }

@@ -1,7 +1,7 @@
-use chrono::{DateTime, Locale, TimeDelta, Utc};
+use chrono::{DateTime, Locale, Utc};
 use sottomano_config::severity::Severity;
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, Interval, WakingWindow,
+    Accounting, LAST_DAY, LAST_HOUR,
 };
 
 use crate::{
@@ -16,12 +16,12 @@ use crate::{
 
 pub struct ContextSwitchRate<'a> {
     pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
 }
 
 impl ContextSwitchRate<'_> {
     fn per_hour(&self, now: DateTime<Utc>) -> usize {
-        self.accounting.switches_within(last_hour(now), now)
+        self.accounting
+            .switches_within(LAST_HOUR.ending_at(now), now)
     }
 
     fn severity(&self, now: DateTime<Utc>) -> Severity {
@@ -36,24 +36,26 @@ impl ContextSwitchRate<'_> {
     }
 
     pub fn sections(&self, now: DateTime<Utc>) -> [Section; 2] {
-        let last_hour = last_hour(now);
-        let today = self.waking.around(now);
-        let switches_today = self.accounting.switches_within(today, now);
-        let active_today = self.accounting.screen_spent(today, now);
-        let average_span = (switches_today > 0)
-            .then(|| active_today / i32::try_from(switches_today).unwrap_or(i32::MAX));
+        let last_day = LAST_DAY.ending_at(now);
+        let switches_last_day = self.accounting.switches_within(last_day, now);
+        let active_last_day = self.accounting.screen_spent(last_day, now);
+        let average_span = (switches_last_day > 0)
+            .then(|| active_last_day / i32::try_from(switches_last_day).unwrap_or(i32::MAX));
         let readings = Section::dictionary(
             [
                 Some(
                     KeyValue::new("Switches in the last hour", self.per_hour(now).to_string())
                         .level(self.severity(now)),
                 ),
-                Some(KeyValue::new("Switches today", switches_today.to_string())),
+                Some(KeyValue::new(
+                    "Switches in the last 24 hours",
+                    switches_last_day.to_string(),
+                )),
                 average_span
                     .map(|span| KeyValue::new("Average time per window", Cell::duration(span))),
                 Some(KeyValue::new(
                     "Active time in the last hour",
-                    Cell::duration(self.accounting.screen_spent(last_hour, now)),
+                    Cell::duration(self.accounting.screen_spent(LAST_HOUR.ending_at(now), now)),
                 )),
             ]
             .into_iter()
@@ -77,13 +79,6 @@ impl ContextSwitchRate<'_> {
         ])
         .titled("Switch alerts");
         [readings, thresholds]
-    }
-}
-
-fn last_hour(now: DateTime<Utc>) -> Interval {
-    Interval {
-        from: now - TimeDelta::hours(1),
-        until: now,
     }
 }
 

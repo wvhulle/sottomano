@@ -81,11 +81,7 @@ impl DesktopShell {
                 .group_content(config)
                 .map(Message::QuietSchedule),
             self.session_focus_group
-                .group_content(
-                    config,
-                    self.quiet_schedule_group.waking_window(),
-                    self.clock,
-                )
+                .group_content(config, self.clock)
                 .map(Message::SessionFocus),
         ]
     }

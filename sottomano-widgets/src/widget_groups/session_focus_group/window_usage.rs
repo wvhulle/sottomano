@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use sottomano_sources::login_session_presence::focus_time_ledger::{
-    Accounting, FocusScope, FocusUnit, Interval, WakingWindow,
+    Accounting, FocusUnit, Interval, LAST_DAY,
 };
 
 use crate::widgets::tooltip_body::{
@@ -9,12 +9,11 @@ use crate::widgets::tooltip_body::{
 
 pub struct WindowUsage<'a> {
     pub accounting: Accounting<'a>,
-    pub waking: WakingWindow,
     pub window: u64,
 }
 
 impl WindowUsage<'_> {
-    fn this_window(&self, scope: &FocusScope, today: Interval, now: DateTime<Utc>) -> Section {
+    fn this_window(&self, last_day: Interval, now: DateTime<Utc>) -> Section {
         let project = self
             .accounting
             .ledger
@@ -22,27 +21,30 @@ impl WindowUsage<'_> {
             .map(|root| KeyValue::new("Project", Cell::Path(root.to_path_buf())));
         let longest = self
             .accounting
-            .longest_stay_on(scope, today, now)
+            .longest_stay_on(self.window, last_day, now)
             .map(|stay| KeyValue::new("Longest active stay", Cell::duration(stay.length())));
         let entries = [
             project,
             Some(KeyValue::new(
-                "Active on this window today",
-                Cell::duration(self.accounting.spent(scope, today, now)),
+                "Active on this window (24h)",
+                Cell::duration(self.accounting.spent_on(self.window, last_day, now)),
             )),
             Some(KeyValue::new(
                 "Switched to",
-                format!("{} times", self.accounting.switches_to(scope, today, now)),
+                format!(
+                    "{} times",
+                    self.accounting.switches_to(self.window, last_day, now)
+                ),
             )),
             longest,
         ];
         Section::dictionary(entries.into_iter().flatten()).titled("This window")
     }
 
-    fn projects(&self, scope: &FocusScope, today: Interval, now: DateTime<Utc>) -> Option<Section> {
+    fn projects(&self, last_day: Interval, now: DateTime<Utc>) -> Option<Section> {
         let rows: Vec<TableRecord<1>> = self
             .accounting
-            .unit_totals_within(scope, today, now)
+            .unit_totals_on(self.window, last_day, now)
             .into_iter()
             .filter(|total| matches!(total.unit, FocusUnit::Project(_)))
             .map(|total| {
@@ -53,18 +55,17 @@ impl WindowUsage<'_> {
             })
             .collect();
         (rows.len() > 1).then(|| {
-            Section::column_table([ColumnHeading::new("Active today")], rows)
+            Section::column_table([ColumnHeading::new("Active (24h)")], rows)
                 .titled("Projects in this window")
         })
     }
 
     pub fn body(&self, now: DateTime<Utc>) -> TooltipBody {
-        let today = self.waking.around(now);
-        let scope = FocusScope::Window(self.window);
+        let last_day = LAST_DAY.ending_at(now);
         TooltipBody::sections(
             [
-                Some(self.this_window(&scope, today, now)),
-                self.projects(&scope, today, now),
+                Some(self.this_window(last_day, now)),
+                self.projects(last_day, now),
             ]
             .into_iter()
             .flatten(),

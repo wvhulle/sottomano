@@ -5,16 +5,11 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{
     Accounting,
-    focus_units::{FocusUnit, UnitIdentity},
-    recorded_spans::{FocusPiece, FocusScope},
-    time_intervals::{Interval, merged, overlaps_with},
+    focus_units::FocusUnit,
+    recorded_spans::FocusPiece,
+    time_intervals::{Interval, LAST_DAY, merged, overlaps_with},
 };
 use crate::ai_usage_spend::usage_quota::Quota;
-
-struct UnitTally<'a> {
-    unit: &'a FocusUnit,
-    spent: TimeDelta,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnitTotal {
@@ -25,79 +20,72 @@ pub struct UnitTotal {
 
 impl Accounting<'_> {
     #[must_use]
-    pub fn switches_within(&self, window: Interval, now: DateTime<Utc>) -> usize {
+    pub fn switches_within(&self, period: Interval, now: DateTime<Utc>) -> usize {
         self.ledger
-            .focus_pieces_within(window, now)
-            .filter(|piece| window.from <= piece.interval.from)
+            .focus_pieces_within(period, now)
+            .filter(|piece| period.from <= piece.interval.from)
             .count()
     }
 
     #[must_use]
-    pub fn switches_to(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> usize {
+    pub fn switches_to(&self, window_id: u64, period: Interval, now: DateTime<Utc>) -> usize {
         self.ledger
-            .focus_pieces_within(window, now)
+            .focus_pieces_within(period, now)
             .scan(None::<FocusPiece>, |previous, piece| {
-                let entered = scope.covers(&piece)
+                let entered = piece.window == window_id
                     && !previous.is_some_and(|previous| {
-                        scope.covers(&previous) && previous.interval.until >= piece.interval.from
+                        previous.window == window_id
+                            && previous.interval.until >= piece.interval.from
                     });
                 *previous = Some(piece);
                 Some(entered.then_some(piece.interval.from))
             })
             .flatten()
-            .filter(|started_at| window.from <= *started_at)
+            .filter(|started_at| period.from <= *started_at)
             .count()
     }
 
-    fn active_parts(
+    fn active_parts_on(
         &self,
-        scope: &FocusScope,
-        window: Interval,
+        window_id: u64,
+        period: Interval,
         now: DateTime<Utc>,
     ) -> Vec<Interval> {
-        let active = self.ledger.active_within(window, now);
+        let active = self.ledger.active_within(period, now);
         self.ledger
-            .focus_pieces_within(window, now)
-            .filter(|piece| scope.covers(piece))
+            .focus_pieces_within(period, now)
+            .filter(|piece| piece.window == window_id)
             .flat_map(|piece| overlaps_with(&active, piece.interval))
             .collect()
     }
 
-    fn spent_per_unit<'p>(
+    fn totals_of_pieces<'pieces>(
         &self,
-        settled: HashMap<UnitIdentity<'p>, UnitTally<'p>>,
-        pieces: impl Iterator<Item = FocusPiece<'p>>,
-        counted: impl Fn(&FocusUnit) -> bool,
-        window: Interval,
+        pieces: impl Iterator<Item = FocusPiece<'pieces>>,
+        period: Interval,
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
-        let active = self.ledger.active_within(window, now);
+        let active = self.ledger.active_within(period, now);
         let spent_by_unit = pieces
-            .filter(|piece| piece.interval.intersect(window).is_some())
-            .fold(settled, |spent_by_unit, piece| {
-                let overlap: TimeDelta = overlaps_with(&active, piece.interval)
-                    .map(Interval::length)
-                    .sum();
-                piece.units.iter().filter(|unit| counted(unit)).fold(
-                    spent_by_unit,
-                    |mut spent_by_unit, unit| {
-                        spent_by_unit
-                            .entry(unit.identity())
-                            .or_insert(UnitTally {
-                                unit,
-                                spent: TimeDelta::zero(),
-                            })
-                            .spent += overlap;
-                        spent_by_unit
-                    },
-                )
-            });
+            .filter(|piece| piece.interval.intersect(period).is_some())
+            .fold(
+                HashMap::<&FocusUnit, TimeDelta>::new(),
+                |mut spent_by_unit, piece| {
+                    let overlap: TimeDelta = overlaps_with(&active, piece.interval)
+                        .map(Interval::length)
+                        .sum();
+                    for unit in piece.units {
+                        *spent_by_unit.entry(unit).or_insert_with(TimeDelta::zero) += overlap;
+                    }
+                    spent_by_unit
+                },
+            );
         let mut totals: Vec<UnitTotal> = spent_by_unit
-            .into_values()
-            .map(|tally| UnitTotal {
-                spent: tally.spent,
-                budget: tally.unit.budget(self.config),
-                unit: tally.unit.clone(),
+            .into_iter()
+            .map(|(unit, spent)| UnitTotal {
+                spent,
+                budget: unit.budget(self.config),
+                unit: unit.clone(),
             })
             .collect();
         totals.sort_by(|first, second| {
@@ -109,8 +97,8 @@ impl Accounting<'_> {
         totals
     }
 
-    pub fn spent(&self, scope: &FocusScope, window: Interval, now: DateTime<Utc>) -> TimeDelta {
-        self.active_parts(scope, window, now)
+    pub fn spent_on(&self, window_id: u64, period: Interval, now: DateTime<Utc>) -> TimeDelta {
+        self.active_parts_on(window_id, period, now)
             .into_iter()
             .map(Interval::length)
             .sum()
@@ -119,57 +107,32 @@ impl Accounting<'_> {
     #[must_use]
     pub fn longest_stay_on(
         &self,
-        scope: &FocusScope,
-        window: Interval,
+        window_id: u64,
+        period: Interval,
         now: DateTime<Utc>,
     ) -> Option<Interval> {
-        merged(self.active_parts(scope, window, now))
+        merged(self.active_parts_on(window_id, period, now))
             .into_iter()
             .max_by_key(|stay| stay.length())
     }
 
     #[must_use]
-    pub fn unit_totals(&self, window: Interval, now: DateTime<Utc>) -> Vec<UnitTotal> {
-        let settled = self.ledger.settled_unit_totals_for(window);
-        self.spent_per_unit(
-            settled
-                .into_iter()
-                .flat_map(|settled| &settled.spent)
-                .map(|(unit, spent)| {
-                    (
-                        unit.identity(),
-                        UnitTally {
-                            unit,
-                            spent: *spent,
-                        },
-                    )
-                })
-                .collect(),
-            self.ledger.unsettled_focus_pieces_within(
-                settled.map_or(0, |settled| settled.settled_spans),
-                window,
-                now,
-            ),
-            |_| true,
-            window,
-            now,
-        )
+    pub fn unit_totals(&self, period: Interval, now: DateTime<Utc>) -> Vec<UnitTotal> {
+        self.totals_of_pieces(self.ledger.focus_pieces_within(period, now), period, now)
     }
 
     #[must_use]
-    pub fn unit_totals_within(
+    pub fn unit_totals_on(
         &self,
-        scope: &FocusScope,
-        window: Interval,
+        window_id: u64,
+        period: Interval,
         now: DateTime<Utc>,
     ) -> Vec<UnitTotal> {
-        self.spent_per_unit(
-            HashMap::new(),
+        self.totals_of_pieces(
             self.ledger
-                .focus_pieces_within(window, now)
-                .filter(|piece| scope.covers(piece)),
-            |companion| !matches!(scope, FocusScope::Unit(unit) if unit == companion),
-            window,
+                .focus_pieces_within(period, now)
+                .filter(|piece| piece.window == window_id),
+            period,
             now,
         )
     }
@@ -182,17 +145,12 @@ impl Accounting<'_> {
     }
 
     #[must_use]
-    pub fn screen_budget_status(
-        &self,
-        window: Interval,
-        now: DateTime<Utc>,
-    ) -> Option<BudgetStatus> {
+    pub fn screen_budget_status(&self, now: DateTime<Utc>) -> Option<BudgetStatus> {
         self.screen_budget().map(|budget| {
-            BudgetStatus::within(
+            BudgetStatus::within_last_day(
                 Cow::Borrowed("Screen"),
-                self.screen_spent(window, now),
+                self.screen_spent(LAST_DAY.ending_at(now), now),
                 budget,
-                window,
                 now,
             )
         })
@@ -201,13 +159,12 @@ impl Accounting<'_> {
 
 impl UnitTotal {
     #[must_use]
-    pub fn budget_status(&self, window: Interval, now: DateTime<Utc>) -> Option<BudgetStatus> {
+    pub fn budget_status(&self, now: DateTime<Utc>) -> Option<BudgetStatus> {
         self.budget.map(|budget| {
-            BudgetStatus::within(
+            BudgetStatus::within_last_day(
                 Cow::Owned(self.unit.label().into_owned()),
                 self.spent,
                 budget,
-                window,
                 now,
             )
         })
@@ -221,11 +178,10 @@ pub struct BudgetStatus {
 }
 
 impl BudgetStatus {
-    fn within(
+    fn within_last_day(
         label: Cow<'static, str>,
         spent: TimeDelta,
         budget: TimeDelta,
-        window: Interval,
         now: DateTime<Utc>,
     ) -> Self {
         let used = spent.as_seconds_f64() / budget.as_seconds_f64().max(1.0);
@@ -234,8 +190,8 @@ impl BudgetStatus {
             quota: Quota::within_window(
                 label,
                 Ratio::new::<ratio>(used),
-                window.until,
-                window.length(),
+                now,
+                LAST_DAY.length,
                 now,
             ),
         }
@@ -250,32 +206,8 @@ mod tests {
 
     use super::*;
     use crate::login_session_presence::focus_time_ledger::test_steps::{
-        at, config, focused, focused_in, folded, kitty, step, whole_day,
+        at, config, focused, focused_in, folded, step, whole_day,
     };
-
-    #[test]
-    fn settled_totals_plus_later_spans_match_a_full_walk() {
-        let config = config();
-        let walked = folded([
-            step(focused("kitty", Some("/code/sottomano")), 0),
-            step(focused("firefox", None), 10),
-            step(focused("kitty", Some("/code/sottomano")), 25),
-            step(focused("firefox", None), 40),
-        ]);
-        let settled = folded([
-            step(focused("kitty", Some("/code/sottomano")), 0),
-            step(focused("firefox", None), 10),
-        ])
-        .with_settled_unit_totals(whole_day(), at(10))
-        .fold(focused("kitty", Some("/code/sottomano")), at(25))
-        .ledger
-        .fold(focused("firefox", None), at(40))
-        .ledger;
-        assert_eq!(
-            settled.accounted(&config).unit_totals(whole_day(), at(50)),
-            walked.accounted(&config).unit_totals(whole_day(), at(50))
-        );
-    }
 
     #[test]
     fn switches_count_span_starts_inside_the_window() {
@@ -300,70 +232,67 @@ mod tests {
         let config = config();
         let ledger = folded([step(focused("kitty", None), 0)]);
         let accounted = ledger.accounted(&config);
-        let window = Interval {
+        let period = Interval {
             from: at(10),
             until: at(25),
         };
         assert_eq!(
-            accounted.spent(&kitty(), window, at(40)),
+            accounted.spent_on(1, period, at(40)),
             TimeDelta::minutes(15)
         );
         assert_eq!(
-            accounted.screen_spent(window, at(40)),
+            accounted.screen_spent(period, at(40)),
             TimeDelta::minutes(15)
         );
     }
 
     #[test]
-    fn a_budget_outpaced_before_the_window_ends_warns() {
+    fn a_budget_exceeded_in_the_last_day_turns_critical() {
         let mut config = config();
         config
             .app_daily_budget_minutes
             .insert("kitty".to_owned(), 60);
         let ledger = folded([step(focused("kitty", None), 0)]);
         let accounted = ledger.accounted(&config);
-        let window = Interval {
-            from: at(0),
-            until: at(600),
-        };
-        let budgeted = |now| {
+        let severity_at = |now| {
             accounted
-                .unit_totals(window, now)
+                .unit_totals(LAST_DAY.ending_at(now), now)
                 .iter()
-                .filter_map(|total| total.budget_status(window, now))
+                .filter_map(|total| total.budget_status(now))
+                .map(|status| status.quota.severity())
                 .collect::<Vec<_>>()
         };
-        let statuses = budgeted(at(120));
-        assert_eq!(statuses.len(), 1);
-        assert_eq!(statuses[0].quota.severity(), Severity::Critical);
-        assert!(budgeted(at(-30)).is_empty());
+        assert_eq!(severity_at(at(30)), [Severity::Normal]);
+        assert_eq!(severity_at(at(120)), [Severity::Critical]);
+        assert!(severity_at(at(-30)).is_empty());
     }
 
     #[test]
-    fn per_app_switches_stays_and_companions() {
+    fn per_window_switches_stays_and_projects() {
         let config = config();
         let ledger = folded([
-            step(focused("kitty", Some("/code/sottomano")), 0),
-            step(focused("firefox", None), 10),
-            step(focused("kitty", Some("/code/other")), 20),
-            step(focused("kitty", Some("/code/sottomano")), 25),
+            step(focused_in(1, "kitty", Some("/code/sottomano")), 0),
+            step(focused_in(2, "firefox", None), 10),
+            step(focused_in(1, "kitty", Some("/code/other")), 20),
+            step(focused_in(1, "kitty", Some("/code/sottomano")), 25),
         ]);
         let accounted = ledger.accounted(&config);
-        assert_eq!(accounted.switches_to(&kitty(), whole_day(), at(28)), 2);
+        assert_eq!(accounted.switches_to(1, whole_day(), at(28)), 2);
         assert_eq!(
-            accounted.longest_stay_on(&kitty(), whole_day(), at(28)),
+            accounted.longest_stay_on(1, whole_day(), at(28)),
             Some(Interval {
                 from: at(0),
                 until: at(10)
             })
         );
-        let companions = accounted.unit_totals_within(&kitty(), whole_day(), at(28));
-        assert_eq!(companions.len(), 2);
+        let totals = accounted.unit_totals_on(1, whole_day(), at(28));
+        assert_eq!(totals[0].unit, FocusUnit::App("kitty".to_owned()));
+        assert_eq!(totals[0].spent, TimeDelta::minutes(18));
         assert_eq!(
-            companions[0].unit,
+            totals[1].unit,
             FocusUnit::Project(PathBuf::from("/code/sottomano"))
         );
-        assert_eq!(companions[0].spent, TimeDelta::minutes(13));
+        assert_eq!(totals[1].spent, TimeDelta::minutes(13));
     }
 
     #[test]
@@ -374,18 +303,15 @@ mod tests {
             step(focused_in(2, "kitty", Some("/code/sottomano")), 10),
         ]);
         let accounted = ledger.accounted(&config);
-        let first = FocusScope::Window(1);
-        let second = FocusScope::Window(2);
         assert_eq!(
-            accounted.spent(&first, whole_day(), at(30)),
+            accounted.spent_on(1, whole_day(), at(30)),
             TimeDelta::minutes(10)
         );
         assert_eq!(
-            accounted.spent(&second, whole_day(), at(30)),
+            accounted.spent_on(2, whole_day(), at(30)),
             TimeDelta::minutes(20)
         );
-        assert_eq!(accounted.switches_to(&second, whole_day(), at(30)), 1);
-        assert_eq!(accounted.switches_to(&kitty(), whole_day(), at(30)), 1);
+        assert_eq!(accounted.switches_to(2, whole_day(), at(30)), 1);
         assert_eq!(
             ledger.project_shown_in(2),
             Some(Path::new("/code/sottomano"))

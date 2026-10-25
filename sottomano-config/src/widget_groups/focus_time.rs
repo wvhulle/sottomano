@@ -8,6 +8,8 @@ pub struct FocusTimeConfig {
     #[serde(with = "humantime_serde")]
     pub idle_detection_delay: Duration,
     #[serde(with = "humantime_serde")]
+    pub shortest_counted_focus: Duration,
+    #[serde(with = "humantime_serde")]
     pub idle_after: Duration,
     #[serde(with = "humantime_serde")]
     pub session_warning: Duration,
@@ -30,6 +32,7 @@ impl Default for FocusTimeConfig {
     fn default() -> Self {
         Self {
             idle_detection_delay: Duration::from_secs(30),
+            shortest_counted_focus: Duration::from_secs(1),
             idle_after: Duration::from_mins(3),
             session_warning: Duration::from_mins(45),
             session_critical: Duration::from_mins(90),

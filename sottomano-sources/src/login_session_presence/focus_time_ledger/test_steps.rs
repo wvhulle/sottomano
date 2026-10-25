@@ -4,13 +4,8 @@ use chrono::{DateTime, TimeDelta, Utc};
 use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
 
 use super::{
-    FocusLedger, FocusSignal,
-    away_reasons::{AwayReasonEdge, ScreenEdge},
-    focus_identity::Focused,
-    focus_units::FocusUnit,
-    recorded_spans::FocusScope,
+    FocusLedger, FocusSignal, away_reasons::ScreenEdge, focus_identity::Focused,
     time_intervals::Interval,
-    window_focus_timeline::WindowFocusChange,
 };
 use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
 
@@ -30,31 +25,27 @@ pub(super) fn focused(app_id: &str, project: Option<&str>) -> FocusSignal {
 }
 
 pub(super) fn focused_in(window: u64, app_id: &str, project: Option<&str>) -> FocusSignal {
-    FocusSignal::WindowFocusChanged(WindowFocusChange::WindowGainedFocus(Focused {
+    FocusSignal::WindowFocused(Focused {
         window,
         app_id: app_id.to_owned(),
         project: project.map(PathBuf::from),
-    }))
+    })
 }
 
 pub(super) fn no_window_focused() -> FocusSignal {
-    FocusSignal::WindowFocusChanged(WindowFocusChange::NoWindowFocused)
+    FocusSignal::NoWindowFocused
 }
 
 pub(super) fn idle_edge(edge: IdleEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::IdleNotifier(edge))
+    FocusSignal::Idle(edge)
 }
 
 pub(super) fn sleep_edge(edge: SleepEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::LogindSleep(edge))
+    FocusSignal::Sleep(edge)
 }
 
 pub(super) fn screen_power_edge(edge: ScreenEdge) -> FocusSignal {
-    FocusSignal::AwayReasonChanged(AwayReasonEdge::ScreenPower(edge))
-}
-
-pub(super) fn kitty() -> FocusScope {
-    FocusScope::Unit(FocusUnit::App("kitty".to_owned()))
+    FocusSignal::ScreenPower(edge)
 }
 
 pub(super) struct Step {
@@ -67,11 +58,11 @@ pub(super) fn step(signal: FocusSignal, minute: i64) -> Step {
 }
 
 pub(super) fn folded(steps: impl IntoIterator<Item = Step>) -> FocusLedger {
-    steps
-        .into_iter()
-        .fold(FocusLedger::started_at(at(0)), |ledger, step| {
-            ledger.fold(step.signal, at(step.minute)).ledger
-        })
+    let mut ledger = FocusLedger::started_at(at(0));
+    for step in steps {
+        ledger.fold(step.signal, at(step.minute), &config());
+    }
+    ledger
 }
 
 pub(super) fn whole_day() -> Interval {
