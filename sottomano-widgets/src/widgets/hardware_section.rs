@@ -5,7 +5,10 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::tooltip_body::{Cell, KeyValue, Section};
+use crate::widgets::{
+    tooltip_body::{Cell, KeyValue, Section},
+    vendor_logo::{PciVendorId, VendorLogo},
+};
 
 impl Section {
     pub fn hardware_identity(entries: impl IntoIterator<Item = KeyValue>) -> Self {
@@ -15,8 +18,16 @@ impl Section {
 
 impl From<&CpuModel> for Section {
     fn from(model: &CpuModel) -> Self {
+        let vendor_logo = model
+            .identity
+            .vendor
+            .and_then(|vendor| vendor.vendor_logo());
+        let named_model = model
+            .identity
+            .name
+            .as_deref()
+            .map(|name| KeyValue::keyed_by_logo("Model", vendor_logo, name));
         let identity = [
-            ("Model", &model.identity.name),
             ("Microarchitecture", &model.architecture.microarchitecture),
             ("Process", &model.architecture.process),
             ("Released", &model.architecture.released),
@@ -25,6 +36,7 @@ impl From<&CpuModel> for Section {
         ]
         .into_iter()
         .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)));
+        let identity = named_model.into_iter().chain(identity);
         let counts = [
             model
                 .topology
@@ -85,14 +97,19 @@ impl From<&MemoryModules> for Section {
 
 impl From<&DriveIdentity> for Section {
     fn from(drive: &DriveIdentity) -> Self {
+        let vendor_logo = drive
+            .pci_vendor
+            .and_then(|vendor| PciVendorId(vendor).vendor_logo());
+        let named_model = drive
+            .model
+            .as_deref()
+            .map(|model| KeyValue::keyed_by_logo("Model", vendor_logo, model));
         Section::hardware_identity(
-            [
-                ("Model", &drive.model),
-                ("Serial", &drive.serial),
-                ("Firmware", &drive.firmware),
-            ]
-            .into_iter()
-            .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+            named_model.into_iter().chain(
+                [("Serial", &drive.serial), ("Firmware", &drive.firmware)]
+                    .into_iter()
+                    .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+            ),
         )
     }
 }
@@ -129,10 +146,18 @@ impl From<&ModemIdentity> for Section {
 
 impl From<&Adapter> for Section {
     fn from(adapter: &Adapter) -> Self {
+        let named_vendor = adapter
+            .vendor
+            .as_deref()
+            .map(|vendor| KeyValue::keyed_by_logo("Vendor", adapter.bus_id.vendor_logo(), vendor));
+        let model = adapter
+            .model
+            .as_deref()
+            .map(|model| KeyValue::new("Model", model));
         Section::hardware_identity(
-            [("Vendor", &adapter.vendor), ("Model", &adapter.model)]
+            named_vendor
                 .into_iter()
-                .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+                .chain(model)
                 .chain(adapter_bus_entries(adapter)),
         )
     }
@@ -141,7 +166,7 @@ impl From<&Adapter> for Section {
 impl From<&GpuModel> for Section {
     fn from(model: &GpuModel) -> Self {
         Section::hardware_identity([
-            KeyValue::new("Model", model.name.as_str()),
+            KeyValue::keyed_by_logo("Model", model.vendor.vendor_logo(), model.name.as_str()),
             KeyValue::new("Driver", model.driver_version.as_str()),
         ])
     }

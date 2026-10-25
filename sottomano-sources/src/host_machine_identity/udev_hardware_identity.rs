@@ -18,6 +18,7 @@ use crate::{
 
 const UDEV_DATA: &str = "/run/udev/data";
 const CPU_INFO: &str = "/proc/cpuinfo";
+const HOST_BRIDGE_DEVICE: &str = "/sys/bus/pci/devices/0000:00:00.0";
 const CPU_DEVICES: &str = "/sys/devices/system/cpu";
 const INXI_PROGRAM: &str = "inxi";
 const INXI_CPU_REPORT_ARGS: [&str; 8] = [
@@ -158,6 +159,19 @@ impl Display for BusId {
     }
 }
 
+#[must_use]
+pub fn host_bridge_subsystem_vendor() -> Option<u16> {
+    hex_attribute(&Path::new(HOST_BRIDGE_DEVICE).join("subsystem_vendor"))
+        .filter(|vendor| *vendor != 0)
+}
+
+fn pci_parent_vendor(device: &Path) -> Option<u16> {
+    let parent = device.join("device");
+    (link_target_name(&parent.join("subsystem")).as_deref() == Some("pci"))
+        .then(|| hex_attribute(&parent.join("vendor")))
+        .flatten()
+}
+
 fn hex_attribute(path: &Path) -> Option<u16> {
     let raw = fs::read_to_string(path).ok()?;
     let digits = raw.trim();
@@ -204,6 +218,7 @@ impl Adapter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DriveIdentity {
+    pub pci_vendor: Option<u16>,
     pub model: Option<String>,
     pub serial: Option<String>,
     pub firmware: Option<String>,
@@ -213,6 +228,7 @@ impl DriveIdentity {
     #[must_use]
     pub fn of_controller(controller: &Path) -> Self {
         DriveIdentity {
+            pci_vendor: pci_parent_vendor(controller),
             model: sysfs_attribute(controller.join("model")),
             serial: sysfs_attribute(controller.join("serial")),
             firmware: sysfs_attribute(controller.join("firmware_rev"))
@@ -340,6 +356,7 @@ impl CpuModel {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CpuIdentity {
+    pub vendor: Option<CpuVendor>,
     pub name: Option<String>,
     pub microcode: Option<String>,
 }
@@ -348,8 +365,36 @@ impl CpuIdentity {
     fn parse(first_core: &str) -> Self {
         let field = |name| cpuinfo_field(first_core, name).map(str::to_owned);
         CpuIdentity {
+            vendor: CpuVendor::of_first_core(first_core),
             name: field("model name"),
             microcode: field("microcode"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CpuVendor {
+    Amd,
+    Intel,
+    Arm,
+    Apple,
+    Qualcomm,
+    HiSilicon,
+}
+
+impl CpuVendor {
+    fn of_first_core(first_core: &str) -> Option<Self> {
+        match cpuinfo_field(first_core, "vendor_id") {
+            Some("AuthenticAMD") => return Some(CpuVendor::Amd),
+            Some("GenuineIntel") => return Some(CpuVendor::Intel),
+            _ => {}
+        }
+        match cpuinfo_field(first_core, "CPU implementer")? {
+            "0x41" => Some(CpuVendor::Arm),
+            "0x61" => Some(CpuVendor::Apple),
+            "0x51" => Some(CpuVendor::Qualcomm),
+            "0x48" => Some(CpuVendor::HiSilicon),
+            _ => None,
         }
     }
 }
@@ -639,6 +684,7 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
         assert_eq!(
             CpuIdentity::parse(RAPHAEL_CPUINFO_CORE),
             CpuIdentity {
+                vendor: Some(CpuVendor::Amd),
                 name: Some("AMD Ryzen 9 7950X3D 16-Core Processor".to_owned()),
                 microcode: Some("0xa60120c".to_owned()),
             }
@@ -649,6 +695,24 @@ E:MEMORY_ARRAY_LOCATION=System Board Or Motherboard
                 cores: Some(16),
                 threads: Some(32),
             }
+        );
+    }
+
+    #[test]
+    fn cpuinfo_vendor_covers_x86_and_arm_implementers() {
+        assert_eq!(
+            CpuVendor::of_first_core("vendor_id\t: GenuineIntel\n"),
+            Some(CpuVendor::Intel)
+        );
+        assert_eq!(
+            CpuVendor::of_first_core(
+                "processor\t: 0\nCPU implementer\t: 0x61\nCPU part\t: 0x022\n"
+            ),
+            Some(CpuVendor::Apple)
+        );
+        assert_eq!(
+            CpuVendor::of_first_core("vendor_id\t: HygonGenuine\n"),
+            None
         );
     }
 

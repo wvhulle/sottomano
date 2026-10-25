@@ -10,6 +10,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
+        vendor_logo::{DistributionIds, VendorLogo},
     },
 };
 
@@ -23,7 +24,9 @@ impl BarWidget for KernelFace<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::LinuxLogo(Weight::Regular).into()
+        DistributionIds(&self.system.distribution_ids)
+            .vendor_logo()
+            .map_or_else(|| Phosphor::LinuxLogo(Weight::Regular).into(), Glyph::from)
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

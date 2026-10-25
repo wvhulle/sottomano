@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fs, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, stream};
@@ -6,10 +6,13 @@ use zbus::proxy;
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
+    host_machine_identity::udev_hardware_identity::host_bridge_subsystem_vendor,
     non_empty_text::non_empty,
     pushed_delivery_stream,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
+
+const OS_RELEASE_PATHS: [&str; 2] = ["/etc/os-release", "/usr/lib/os-release"];
 
 #[proxy(
     interface = "org.freedesktop.hostname1",
@@ -42,7 +45,36 @@ pub struct OperatingSystemIdentity {
     pub hostname: String,
     pub kernel: String,
     pub operating_system: String,
+    pub distribution_ids: Vec<String>,
     pub chassis: Option<Chassis>,
+}
+
+fn os_release_value<'a>(os_release: &'a str, key: &str) -> Option<&'a str> {
+    os_release.lines().find_map(|line| {
+        let value = line.trim().strip_prefix(key)?.strip_prefix('=')?;
+        Some(value.trim_matches(['"', '\'']))
+    })
+}
+
+fn distribution_ids_in(os_release: &str) -> Vec<String> {
+    let own_id = os_release_value(os_release, "ID");
+    let related_ids = os_release_value(os_release, "ID_LIKE")
+        .into_iter()
+        .flat_map(str::split_whitespace);
+    own_id
+        .into_iter()
+        .chain(related_ids)
+        .filter(|distribution_id| !distribution_id.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+fn current_distribution_ids() -> Vec<String> {
+    OS_RELEASE_PATHS
+        .into_iter()
+        .find_map(|path| fs::read_to_string(path).ok())
+        .map(|os_release| distribution_ids_in(&os_release))
+        .unwrap_or_default()
 }
 
 impl ReadingSource for OperatingSystemIdentity {
@@ -66,6 +98,7 @@ async fn identity_changes(
     let hostname = HostnameProxy::new(&buses.system).await?;
     let kernel = hostname.kernel_release().await?;
     let operating_system = hostname.operating_system_pretty_name().await?;
+    let distribution_ids = current_distribution_ids();
     let changes = stream::select(
         hostname.receive_hostname_changed().await.map(drop),
         hostname.receive_chassis_changed().await.map(drop),
@@ -74,11 +107,13 @@ async fn identity_changes(
         let hostname = hostname.clone();
         let kernel = kernel.clone();
         let operating_system = operating_system.clone();
+        let distribution_ids = distribution_ids.clone();
         async move {
             Ok(OperatingSystemIdentity {
                 hostname: hostname.hostname().await?,
                 kernel,
                 operating_system,
+                distribution_ids,
                 chassis: hostname.chassis().await?.parse().ok(),
             })
         }
@@ -87,6 +122,7 @@ async fn identity_changes(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MachineInfo {
+    pub board_pci_vendor: Option<u16>,
     pub hardware_vendor: Option<String>,
     pub hardware_model: Option<String>,
     pub firmware_vendor: Option<String>,
@@ -109,6 +145,7 @@ impl MachineInfo {
     pub async fn read(system: &zbus::Connection) -> zbus::Result<Self> {
         let hostname = HostnameProxy::new(system).await?;
         Ok(Self {
+            board_pci_vendor: host_bridge_subsystem_vendor(),
             hardware_vendor: text(hostname.hardware_vendor().await),
             hardware_model: text(hostname.hardware_model().await),
             firmware_vendor: text(hostname.firmware_vendor().await),
@@ -170,5 +207,23 @@ impl Chassis {
             Chassis::VirtualMachine => "vm",
             Chassis::Container => "container",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn os_release_lists_own_id_before_related_ids() {
+        let os_release =
+            "NAME=\"Pop!_OS\"\nID=pop\nID_LIKE=\"ubuntu debian\"\nVERSION_ID=\"22.04\"\n";
+        assert_eq!(distribution_ids_in(os_release), ["pop", "ubuntu", "debian"]);
+    }
+
+    #[test]
+    fn os_release_id_ignores_longer_keys() {
+        let os_release = "VERSION_ID=26.11\nID=nixos\n";
+        assert_eq!(distribution_ids_in(os_release), ["nixos"]);
     }
 }

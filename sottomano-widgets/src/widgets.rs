@@ -50,6 +50,7 @@ pub mod tooltip_body;
 pub mod transitioning_text;
 pub mod uniform_width_column;
 pub mod unit_switch;
+pub mod vendor_logo;
 pub mod weather_icons;
 pub mod weekday_picker;
 pub mod widest_readout_text;

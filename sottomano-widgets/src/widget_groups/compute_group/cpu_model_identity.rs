@@ -7,6 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
+        vendor_logo::VendorLogo,
     },
 };
 
@@ -20,7 +21,13 @@ impl BarWidget for CpuModel {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::IdentificationCard(Weight::Regular).into()
+        self.identity
+            .vendor
+            .and_then(|vendor| vendor.vendor_logo())
+            .map_or_else(
+                || Phosphor::IdentificationCard(Weight::Regular).into(),
+                Glyph::from,
+            )
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

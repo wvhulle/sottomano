@@ -112,6 +112,7 @@ fn uncore_energy_zone() -> Option<PathBuf> {
 
 fn xe_model(device: &Path) -> GpuModel {
     GpuModel {
+        vendor: GpuVendor::Intel,
         name: Adapter::of_device(device)
             .and_then(|adapter| adapter.model)
             .unwrap_or_else(|| "Intel graphics".to_owned()),

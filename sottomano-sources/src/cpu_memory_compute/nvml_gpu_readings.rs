@@ -103,6 +103,7 @@ fn celsius(degrees: u32) -> ThermodynamicTemperature {
 fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
     let device = nvml.device_by_pci_bus_id(bus.0.as_str())?;
     Ok(GpuModel {
+        vendor: GpuVendor::Nvidia,
         name: device.name()?,
         driver_version: nvml.sys_driver_version()?,
         temperature_limits: GpuTemperatureLimits {

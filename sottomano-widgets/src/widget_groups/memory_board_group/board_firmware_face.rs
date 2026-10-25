@@ -9,7 +9,9 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         tooltip_body::{Cell, Section, TooltipBody, entry},
+        vendor_logo::{PciVendorId, VendorLogo},
     },
 };
 
@@ -23,7 +25,14 @@ impl BarWidget for MachineInfo {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Circuitry(Weight::Regular).into()
+        let board_logo = self
+            .board_pci_vendor
+            .and_then(|vendor| PciVendorId(vendor).vendor_logo());
+        let coreboot_logo =
+            (self.firmware_vendor.as_deref() == Some("coreboot")).then_some(SimpleIcon::Coreboot);
+        board_logo
+            .or(coreboot_logo)
+            .map_or_else(|| Phosphor::Circuitry(Weight::Regular).into(), Glyph::from)
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

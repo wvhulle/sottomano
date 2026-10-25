@@ -5,7 +5,10 @@ use sottomano_sources::{
     screen_brightness_color::clightd_backlight::{Backlight, BacklightKind},
 };
 
-use crate::widgets::tooltip_body::KeyValue;
+use crate::widgets::{
+    tooltip_body::KeyValue,
+    vendor_logo::{PnpManufacturerName, VendorLogo},
+};
 
 const INTERNAL_CONNECTOR_PREFIXES: [&str; 3] = ["eDP", "LVDS", "DSI"];
 
@@ -53,21 +56,26 @@ impl<'a> ConnectedOutput<'a> {
 
 impl ConnectedOutput<'_> {
     pub fn hardware_entries(&self) -> Vec<KeyValue> {
-        [
-            ("Make", &self.info.make),
-            ("Model", &self.info.model),
-            ("Serial", &self.info.serial),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
-        .collect()
+        let make = self.info.make.as_deref().map(|make| {
+            KeyValue::keyed_by_logo("Make", PnpManufacturerName(make).vendor_logo(), make)
+        });
+        make.into_iter()
+            .chain(
+                [("Model", &self.info.model), ("Serial", &self.info.serial)]
+                    .into_iter()
+                    .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+            )
+            .collect()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::{Cell, Section, SectionBody};
+    use crate::widgets::{
+        simple_icons::SimpleIcon,
+        tooltip_body::{Cell, Section, SectionBody},
+    };
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
         HashMap::from([(
@@ -111,7 +119,11 @@ mod tests {
         );
         assert_eq!(
             Section::hardware_identity(output.hardware_entries()),
-            Section::dictionary([KeyValue::new("Make", "LG Display")]).titled("Hardware")
+            Section::dictionary([KeyValue::new(
+                Cell::Glyph(SimpleIcon::LG.into()),
+                "LG Display"
+            )])
+            .titled("Hardware")
         );
     }
 

@@ -36,6 +36,7 @@ pub struct GpuTemperatureLimits {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct GpuModel {
+    pub vendor: GpuVendor,
     pub name: String,
     pub driver_version: String,
     pub temperature_limits: GpuTemperatureLimits,
