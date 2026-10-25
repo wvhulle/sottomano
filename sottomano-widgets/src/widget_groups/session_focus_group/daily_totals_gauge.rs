@@ -22,6 +22,7 @@ use crate::{
 };
 
 pub struct DailyTotalsGauge {
+    computed_at: DateTime<Utc>,
     screen_spent: TimeDelta,
     screen_budget: Option<BudgetStatus>,
     units: Vec<UnitSpendRecord>,
@@ -31,6 +32,7 @@ impl DailyTotalsGauge {
     pub fn new(accounting: &Accounting<'_>, now: DateTime<Utc>) -> Self {
         let last_day = LAST_DAY.ending_at(now);
         Self {
+            computed_at: now,
             screen_spent: accounting.screen_spent(last_day, now),
             screen_budget: accounting.screen_budget_status(now),
             units: accounting
@@ -42,6 +44,10 @@ impl DailyTotalsGauge {
                 })
                 .collect(),
         }
+    }
+
+    pub fn computed_in_second_of(&self, now: DateTime<Utc>) -> bool {
+        self.computed_at.timestamp() == now.timestamp()
     }
 
     fn worst(&self) -> Option<Quota> {
