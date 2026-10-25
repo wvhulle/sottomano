@@ -19,12 +19,16 @@ use sottomano_widgets::{
     shell_message::Message,
     widget_groups::{
         audio_group::AudioGroup,
+        caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
         gamepad_group::GamepadGroup,
         idle_timeouts_group::IdleTimeoutsGroup,
+        internet_group::InternetGroup,
+        login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
+        voice_dictation_group::VoiceDictationGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
@@ -65,6 +69,10 @@ pub enum ShowcasedGroup {
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
     Gamepad(Box<ShowcasedGamepad>),
+    VoiceDictation(Box<VoiceDictationGroup>),
+    Caldav(Box<CaldavGroup>),
+    Internet(Box<InternetGroup>),
+    LoginSession(Box<LoginSessionGroup>),
     BottomBar(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
     Toasts(Box<ShowcasedToasts>),
@@ -207,6 +215,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::IdleTimeouts(_)
+            | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::Wallpaper(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
@@ -215,6 +224,9 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
+            | ShowcasedGroup::VoiceDictation(_)
+            | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::Internet(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
         }
     }
@@ -265,6 +277,22 @@ impl ShowcasedGroup {
                 .group
                 .group_content(&gamepad.bindings)
                 .map(Message::Gamepad)
+                .view(config, position, clock),
+            ShowcasedGroup::VoiceDictation(group) => group
+                .group_content()
+                .map(Message::VoiceDictation)
+                .view(config, position, clock),
+            ShowcasedGroup::Caldav(group) => group
+                .group_content()
+                .map(Message::Caldav)
+                .view(config, position, clock),
+            ShowcasedGroup::Internet(group) => group
+                .group_content()
+                .map(Message::Internet)
+                .view(config, position, clock),
+            ShowcasedGroup::LoginSession(group) => group
+                .group_content()
+                .map(Message::LoginSession)
                 .view(config, position, clock),
             ShowcasedGroup::BottomBar(session) => return session.bottom_bar_groups(config, clock),
             ShowcasedGroup::WorkspaceSidebar(session) => {
@@ -322,6 +350,26 @@ impl ShowcasedGroup {
                     let _ = gamepad.group.update(message, &gamepad.bindings, None);
                 }
             }
+            ShowcasedGroup::VoiceDictation(group) => {
+                if let Message::VoiceDictation(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
+            ShowcasedGroup::Caldav(group) => {
+                if let Message::Caldav(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
+            ShowcasedGroup::Internet(group) => {
+                if let Message::Internet(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
+            ShowcasedGroup::LoginSession(group) => {
+                if let Message::LoginSession(message) = message {
+                    let _ = group.update(message, clock);
+                }
+            }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let Message::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
@@ -370,6 +418,10 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
+            | ShowcasedGroup::VoiceDictation(_)
+            | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::Internet(_)
+            | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::Toasts(_) => {}
         }
     }
@@ -437,6 +489,30 @@ impl ShowcasedGroup {
                 };
                 gamepad.group.tooltip_for(*target, &gamepad.bindings, clock)
             }
+            ShowcasedGroup::VoiceDictation(group) => {
+                let HoverTarget::VoiceDictation(target) = target else {
+                    return None;
+                };
+                group.tooltip_for(*target, clock)
+            }
+            ShowcasedGroup::Caldav(group) => {
+                let HoverTarget::Caldav(target) = target else {
+                    return None;
+                };
+                group.tooltip_for(*target, clock)
+            }
+            ShowcasedGroup::Internet(group) => {
+                let HoverTarget::Internet(target) = target else {
+                    return None;
+                };
+                group.tooltip_for(target, clock)
+            }
+            ShowcasedGroup::LoginSession(group) => {
+                let HoverTarget::LoginSession(target) = target else {
+                    return None;
+                };
+                group.tooltip_for(*target, clock)
+            }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.tooltip_for(target, clock)
             }
@@ -458,7 +534,11 @@ impl ShowcasedGroup {
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
-            | ShowcasedGroup::Gamepad(_) => None,
+            | ShowcasedGroup::Gamepad(_)
+            | ShowcasedGroup::VoiceDictation(_)
+            | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::Internet(_)
+            | ShowcasedGroup::LoginSession(_) => None,
         }
     }
 

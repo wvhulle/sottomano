@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use reqwest::Url;
 use sottomano_sources::{
     SourceDelivery,
     media_playback_audio::mpris_players::{
@@ -41,7 +42,7 @@ fn now_playing(clock: Clock) -> Media {
         title: Some("Drifting".to_owned()),
         artist: Some("Shir-Ran Yinon".to_owned()),
         album: Some("Fiddler's Path".to_owned()),
-        url: None,
+        url: Url::parse("https://music.youtube.com/watch?v=drifting-fiddlers-path").ok(),
         status: Status::Playing,
         progress: Progress::Timed {
             position: Duration::from_secs(83),

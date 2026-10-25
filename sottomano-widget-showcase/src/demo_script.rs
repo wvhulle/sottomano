@@ -3,15 +3,19 @@ use std::{borrow::Cow, time::Duration};
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_tooltips::{GroupHandle, HoverTarget},
     shell_message::Message,
     widget_groups::{
         audio_group::{AudioTarget, ControlKind},
+        caldav_group::CaldavTarget,
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
+        internet_group::InternetTarget,
+        login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
+        voice_dictation_group::VoiceDictationTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         window_group::WindowTarget,
@@ -20,8 +24,9 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        audio, claude_usage, compute, gamepad, idle_lock, media, memory_board, niri_session,
-        notification_toasts, unchanging, wallpaper, weather,
+        audio, caldav, claude_usage, compute, gamepad, idle_lock, internet, login_session, media,
+        memory_board, niri_session, notification_toasts, unchanging, voice_dictation, wallpaper,
+        weather,
     },
     showcased_group::ShowcasedGroup,
 };
@@ -50,6 +55,15 @@ pub const DEMOS: &[Demo] = &[
         script: &[Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad))],
     },
     Demo {
+        name: "compute_model",
+        group: compute::group,
+        live: compute::live,
+        script: &[
+            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuModel)),
+        ],
+    },
+    Demo {
         name: "memory_board_memory",
         group: memory_board::group,
         live: memory_board::live,
@@ -58,12 +72,30 @@ pub const DEMOS: &[Demo] = &[
         ))],
     },
     Demo {
+        name: "memory_board_board",
+        group: memory_board::group,
+        live: memory_board::live,
+        script: &[
+            Step::Press(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
+            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Board)),
+        ],
+    },
+    Demo {
         name: "compute_temperature",
         group: compute::group,
         live: compute::live,
         script: &[
             Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
+        ],
+    },
+    Demo {
+        name: "internet_tailscale",
+        group: internet::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Internet(InternetTarget::Down)),
+            Step::Hover(HoverTarget::Internet(InternetTarget::Tailscale)),
         ],
     },
     Demo {
@@ -81,6 +113,16 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Location)),
+        ],
+    },
+    Demo {
+        name: "caldav_agenda",
+        group: caldav::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Caldav(CaldavTarget::UpcomingEvents)),
+            Step::Hover(HoverTarget::Caldav(CaldavTarget::UpcomingEvents)),
+            Step::Hover(HoverTarget::Caldav(CaldavTarget::OpenTasks)),
         ],
     },
     Demo {
@@ -157,6 +199,28 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(
                 ControlKind::Source,
             ))),
+        ],
+    },
+    Demo {
+        name: "voice_dictation_model",
+        group: voice_dictation::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::VoiceDictation(VoiceDictationTarget::Dictation)),
+            Step::Hover(HoverTarget::VoiceDictation(
+                VoiceDictationTarget::SpeechModel,
+            )),
+            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Compute)),
+        ],
+    },
+    Demo {
+        name: "login_session_kernel",
+        group: login_session::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::GroupHandle(GroupHandle::LoginSession)),
+            Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Kernel)),
+            Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Compositor)),
         ],
     },
     Demo {
