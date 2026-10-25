@@ -75,7 +75,7 @@ impl Default for NiriWindowGroup {
                 Phosphor::FrameCorners(Weight::Regular),
             )
             .icon_only()
-            .readout(|value| format!("{} px", value.round())),
+            .readout(|value, _| format!("{} px", value.round())),
             gaps: SliderControl::new(
                 "Window gaps",
                 0.0..=48.0,
@@ -83,7 +83,7 @@ impl Default for NiriWindowGroup {
                 Phosphor::Columns(Weight::Regular),
             )
             .icon_only()
-            .readout(|value| format!("{} px", value.round())),
+            .readout(|value, _| format!("{} px", value.round())),
             switch_heat: SwitchHeatBorders::default(),
         }
     }

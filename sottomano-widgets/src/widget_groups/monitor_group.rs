@@ -124,7 +124,7 @@ impl MonitorGroup {
                                 backlight_display::face(backlight),
                             )
                             .scroll_step(STEP)
-                            .readout(|value| format!("{}%", as_percent(value)))
+                            .readout(|value, _| format!("{}%", as_percent(value)))
                             .announces_level("Brightness")
                         })
                         .update(ControlMessage::Reading(percent_f(backlight.percent)));
@@ -196,7 +196,7 @@ impl MonitorGroup {
                     .get()?
                     .iter()
                     .find(|b| &b.serial == serial)?;
-                let brightness = self.sliders.get(serial)?.readout_text();
+                let brightness = self.sliders.get(serial)?.readout_cell();
                 self.backlights.tooltip_with(backlight_display::tooltip(
                     backlight,
                     brightness,

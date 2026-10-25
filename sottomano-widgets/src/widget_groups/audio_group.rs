@@ -98,7 +98,7 @@ impl Default for AudioGroup {
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
             .right_click("mute or unmute")
-            .readout(|value| format!("{}%", as_percent(value)))
+            .readout(|value, _| format!("{}%", as_percent(value)))
             .thresholds(80.0, 95.0, true)
             .announces_level("Speaker"),
             source_control: SliderControl::new(
@@ -110,7 +110,7 @@ impl Default for AudioGroup {
             .scroll_step(SCROLL_STEP)
             .relative_scroll()
             .right_click("mute or unmute")
-            .readout(|value| format!("{}%", as_percent(value)))
+            .readout(|value, _| format!("{}%", as_percent(value)))
             .glyph(input_glyph)
             .thresholds(50.0, 15.0, false)
             .announces_level("Microphone"),
@@ -280,7 +280,7 @@ impl AudioGroup {
             .map(|device| KeyValue::new("Device", device));
         self.state.tooltip_with(TooltipBody::dictionary(
             [
-                KeyValue::new(kind.label(), control.readout_text()),
+                KeyValue::new(kind.label(), control.readout_cell()),
                 KeyValue::new("State", state),
             ]
             .into_iter()

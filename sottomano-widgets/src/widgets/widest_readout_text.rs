@@ -1,5 +1,6 @@
 use std::{ops::RangeInclusive, slice::from_ref};
 
+use chrono::Locale;
 use iced::{
     Element, Event, Font, Length, Rectangle, Size,
     advanced::{
@@ -23,7 +24,8 @@ pub struct ReadoutLabels<Owner> {
     pub owner: Owner,
     pub range: RangeInclusive<f32>,
     pub step: f32,
-    pub format: fn(f32) -> String,
+    pub format: fn(f32, Locale) -> String,
+    pub locale: Locale,
 }
 
 #[derive(Clone, PartialEq)]
@@ -31,6 +33,7 @@ struct MeasuredLabels<Owner> {
     owner: Owner,
     range: RangeInclusive<f32>,
     step: f32,
+    locale: Locale,
     font: Font,
     text_size_px: f32,
 }
@@ -47,7 +50,7 @@ struct State<Owner> {
 pub struct WidestReadoutText<'a, Message, Owner> {
     current: Element<'a, Message>,
     measured: MeasuredLabels<Owner>,
-    format: fn(f32) -> String,
+    format: fn(f32, Locale) -> String,
 }
 
 pub fn widest_readout_text<'a, Message, Owner>(
@@ -61,6 +64,7 @@ pub fn widest_readout_text<'a, Message, Owner>(
             owner: labels.owner,
             range: labels.range,
             step: labels.step,
+            locale: labels.locale,
             font: FontFaces::from(font).regular,
             text_size_px: font.text_size_px,
         },
@@ -94,11 +98,11 @@ impl<Owner> MeasuredLabels<Owner> {
             .chain([end])
     }
 
-    fn widest_width(&self, format: fn(f32) -> String) -> f32 {
+    fn widest_width(&self, format: fn(f32, Locale) -> String) -> f32 {
         self.values()
             .map(|value| {
                 MeasuredParagraph::with_text(advanced_text::Text {
-                    content: format(value).as_str(),
+                    content: format(value, self.locale).as_str(),
                     bounds: Size::INFINITE,
                     size: self.text_size_px.into(),
                     line_height: LINE_HEIGHT,

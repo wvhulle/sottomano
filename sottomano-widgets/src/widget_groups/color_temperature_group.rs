@@ -76,7 +76,7 @@ impl ColorTemperatureGroup {
                 Phosphor::CircleHalf(Weight::Regular),
             )
             .scroll_step(DIM_STEP)
-            .readout(|value| format!("{}%", as_percent(value))),
+            .readout(|value, _| format!("{}%", as_percent(value))),
             warmth: SliderControl::new(
                 "Color temperature",
                 WARMTH_RANGE,
@@ -85,8 +85,8 @@ impl ColorTemperatureGroup {
             )
             .scroll_step(WARMTH_STEP)
             .slider_step(WARMTH_STEP)
-            .readout(|value| format!("{}K", as_kelvin(value)))
-            .label_with_gauge(|value| Some(format!("{}K", as_kelvin(value)))),
+            .readout(|value, _| format!("{}K", as_kelvin(value)))
+            .label_with_gauge(|value, _| Some(format!("{}K", as_kelvin(value)))),
             auto: UnitSwitch::new(
                 ScopedSystemdUnit {
                     scope: SystemdUnitScope::UserSession,
@@ -203,14 +203,14 @@ impl ColorTemperatureGroup {
                 self.gamma
                     .tooltip_with(TooltipBody::dictionary([KeyValue::new(
                         "Dim",
-                        self.dim.readout_text(),
+                        self.dim.readout_cell(),
                     )]))
             }
             ColorTemperatureTarget::Temperature => {
                 self.gamma
                     .tooltip_with(TooltipBody::dictionary([KeyValue::new(
                         "Temperature",
-                        self.warmth.readout_text(),
+                        self.warmth.readout_cell(),
                     )]))
             }
             ColorTemperatureTarget::Automatic => self.auto.tooltip(true, clock),

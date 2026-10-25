@@ -6949,7 +6949,6 @@ dependencies = [
  "chrono-tz",
  "fixed_decimal",
  "form_urlencoded",
- "humantime",
  "iced",
  "iced_controller_diagram",
  "iced_exwlshell",

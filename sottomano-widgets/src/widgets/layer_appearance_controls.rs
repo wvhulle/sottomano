@@ -96,7 +96,7 @@ impl LayerAppearanceControls {
                 hover(AppearanceTarget::Opacity),
                 Phosphor::SquareHalf(Weight::Regular),
             )
-            .readout(|value| format!("{} %", value.round()))
+            .readout(|value, _| format!("{} %", value.round()))
             .icon_only(),
             corner_radius: SliderControl::new(
                 "Corner radius",
@@ -104,7 +104,7 @@ impl LayerAppearanceControls {
                 hover(AppearanceTarget::CornerRadius),
                 Phosphor::FrameCorners(Weight::Regular),
             )
-            .readout(|value| format!("{} px", value.round()))
+            .readout(|value, _| format!("{} px", value.round()))
             .icon_only(),
             shadow_softness: SliderControl::new(
                 "Shadow softness",
@@ -112,7 +112,7 @@ impl LayerAppearanceControls {
                 hover(AppearanceTarget::ShadowSoftness),
                 Phosphor::Feather(Weight::Regular),
             )
-            .readout(|value| format!("{} px", value.round()))
+            .readout(|value, _| format!("{} px", value.round()))
             .icon_only(),
             shadow_opacity: SliderControl::new(
                 "Shadow opacity",
@@ -120,7 +120,7 @@ impl LayerAppearanceControls {
                 hover(AppearanceTarget::ShadowOpacity),
                 Phosphor::CircleHalf(Weight::Regular),
             )
-            .readout(|value| format!("{} %", value.round()))
+            .readout(|value, _| format!("{} %", value.round()))
             .icon_only(),
         }
     }

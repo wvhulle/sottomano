@@ -287,7 +287,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             levels: self
                 .items
                 .iter()
-                .filter_map(|item| item.level_reading(expand.clone(), clock))
+                .filter_map(|item| item.level_reading(expand.clone(), locale, clock))
                 .collect(),
         }
     }
