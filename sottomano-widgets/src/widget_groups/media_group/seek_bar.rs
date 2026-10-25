@@ -60,10 +60,6 @@ pub struct SeekBar {
 }
 
 impl SeekBar {
-    pub fn reset(&mut self) {
-        *self = Self::default();
-    }
-
     pub fn update(&mut self, message: SeekMessage, media: &Media, now: Instant) -> Option<Command> {
         match message {
             SeekMessage::Drag(seconds) => {

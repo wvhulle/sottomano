@@ -4,7 +4,7 @@ use sottomano_sources::media_playback_audio::mpris_players::{Command, LoopMode, 
 
 use crate::{
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
-    widget_groups::media_group::MediaTarget,
+    widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
         glyph_button,
         palette_colors::PaletteColors,
@@ -90,7 +90,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
                 color,
                 (self.on_command)(press.command),
             ),
-            press.target.into(),
+            PlayerTarget::of(&self.media.bus, press.target).into(),
             PressHints {
                 left: Some(press.does),
                 ..PressHints::default()

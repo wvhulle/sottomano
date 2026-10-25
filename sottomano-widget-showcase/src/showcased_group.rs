@@ -242,11 +242,13 @@ impl ShowcasedGroup {
                 .group_content()
                 .map(Message::ClaudeUsage)
                 .view(config, position, clock),
-            ShowcasedGroup::Media(media) => media
-                .group
-                .group_content(config, &media.desktop_entries, clock)
-                .map(Message::Media)
-                .view(config, position, clock),
+            ShowcasedGroup::Media(media) => {
+                return media
+                    .group
+                    .group_contents(config, clock)
+                    .filter_map(|group| group.map(Message::Media).view(config, position, clock))
+                    .collect();
+            }
             ShowcasedGroup::IdleTimeouts(group) => group
                 .group_content(config)
                 .map(Message::IdleTimeouts)

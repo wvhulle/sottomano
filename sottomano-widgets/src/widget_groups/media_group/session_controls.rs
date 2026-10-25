@@ -4,7 +4,7 @@ use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, Sta
 
 use crate::{
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
-    widget_groups::media_group::MediaTarget,
+    widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
         confirm_button::ConfirmButton,
         glyph_button,
@@ -69,7 +69,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     color,
                     (self.on_command)(Command::Stop),
                 ),
-                MediaTarget::Stop.into(),
+                PlayerTarget::of(&self.media.bus, MediaTarget::Stop).into(),
                 PressHints {
                     left: Some("stop playback"),
                     ..PressHints::default()
@@ -93,7 +93,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     self.on_quit.clone(),
                     self.on_cancel_quit.clone(),
                 ),
-                MediaTarget::Quit.into(),
+                PlayerTarget::of(&self.media.bus, MediaTarget::Quit).into(),
                 PressHints {
                     left: Some(if self.quit_button.is_armed() {
                         "confirm quitting the player"

@@ -1,4 +1,12 @@
-use std::{borrow::Cow, collections::HashSet, fmt::Write, fs, path::Path};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    fmt::Write,
+    fs,
+    path::Path,
+};
+
+use serde_json::Value;
 
 use crate::{capitalized, pascal_case, svg_slugs};
 
@@ -59,10 +67,48 @@ fn title_variant_name(title: &str, slug: &str) -> String {
     name
 }
 
+fn titled_arms(
+    data_path: &Path,
+    variant_of_slug: &HashMap<String, String>,
+    variants_of_title: &HashMap<String, Vec<String>>,
+) -> String {
+    println!("cargo:rerun-if-changed={}", data_path.display());
+    let icons: Value = serde_json::from_str(&fs::read_to_string(data_path).unwrap()).unwrap();
+    let mut variants_of_name: BTreeMap<&str, BTreeSet<Option<&str>>> = BTreeMap::new();
+    for icon in icons.as_array().unwrap() {
+        let variant = match icon["slug"].as_str() {
+            Some(slug) => variant_of_slug.get(slug),
+            None => icon["title"]
+                .as_str()
+                .and_then(|title| variants_of_title.get(title))
+                .filter(|variants| variants.len() == 1)
+                .and_then(|variants| variants.first()),
+        };
+        if let Some(title) = icon["title"].as_str() {
+            variants_of_name
+                .entry(title)
+                .or_default()
+                .insert(variant.map(String::as_str));
+        }
+    }
+    variants_of_name
+        .into_iter()
+        .filter(|(_, variants)| variants.len() == 1)
+        .filter_map(|(name, variants)| {
+            let variant = (*variants.first()?)?;
+            Some(format!(
+                "            {name:?} => Some(SimpleIcon::{variant}),\n"
+            ))
+        })
+        .collect()
+}
+
 pub fn generate(icons_dir: &Path) -> String {
     let mut taken_names = HashSet::new();
     let mut variants = String::new();
     let mut svg_arms = String::new();
+    let mut variant_of_slug = HashMap::new();
+    let mut variants_of_title: HashMap<String, Vec<String>> = HashMap::new();
     for slug in svg_slugs(icons_dir) {
         let svg_path = icons_dir.join(format!("{slug}.svg"));
         let title = decoded_xml_text(svg_title(&fs::read_to_string(&svg_path).unwrap()));
@@ -74,6 +120,11 @@ pub fn generate(icons_dir: &Path) -> String {
                 "simple icon {slug} has no unique variant name"
             );
         }
+        variant_of_slug.insert(slug.clone(), variant.clone());
+        variants_of_title
+            .entry(title.clone())
+            .or_default()
+            .push(variant.clone());
         writeln!(variants, "    {variant},").unwrap();
         writeln!(
             svg_arms,
@@ -82,6 +133,8 @@ pub fn generate(icons_dir: &Path) -> String {
         )
         .unwrap();
     }
+    let data_path = icons_dir.parent().unwrap().join("data/simple-icons.json");
+    let titled_arms = titled_arms(&data_path, &variant_of_slug, &variants_of_title);
     format!(
         r"
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -95,6 +148,14 @@ impl SimpleIcon {{
     pub const fn svg_data(self) -> &'static [u8] {{
         match self {{
 {svg_arms}        }}
+    }}
+
+    #[must_use]
+    #[allow(clippy::too_many_lines)]
+    pub fn titled(name: &str) -> Option<Self> {{
+        match name {{
+{titled_arms}            _ => None,
+        }}
     }}
 }}
 "

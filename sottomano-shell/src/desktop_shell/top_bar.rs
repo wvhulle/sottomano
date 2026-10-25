@@ -10,7 +10,7 @@ use crate::desktop_shell::DesktopShell;
 pub(super) struct TopBarGroups<'a> {
     pub start: Vec<GroupContent<'a, Message>>,
     pub center: [GroupContent<'a, Message>; 6],
-    pub end: [GroupContent<'a, Message>; 5],
+    pub end: Vec<GroupContent<'a, Message>>,
 }
 
 impl DesktopShell {
@@ -22,7 +22,7 @@ impl DesktopShell {
             Position::Top,
             start.into_iter().map(view),
             center.map(view),
-            end.map(view),
+            end.into_iter().map(view),
         )
     }
 
@@ -90,22 +90,25 @@ impl DesktopShell {
         ]
     }
 
-    fn top_bar_end_groups(&self) -> [GroupContent<'_, Message>; 5] {
+    fn top_bar_end_groups(&self) -> Vec<GroupContent<'_, Message>> {
         let config = &self.config;
-        [
-            self.media_group
-                .group_content(config, &self.desktop_entries, self.clock)
-                .map(Message::Media),
-            self.audio_group.group_content(config).map(Message::Audio),
-            self.voice_dictation_group
-                .group_content()
-                .map(Message::VoiceDictation),
-            self.gamepad_group
-                .group_content(&config.widget_groups.gamepad)
-                .map(Message::Gamepad),
-            self.session_menu
-                .group_content(config)
-                .map(Message::Session),
-        ]
+        let media_groups = self
+            .media_group
+            .group_contents(config, self.clock)
+            .map(|group| group.map(Message::Media));
+        media_groups
+            .chain([
+                self.audio_group.group_content(config).map(Message::Audio),
+                self.voice_dictation_group
+                    .group_content()
+                    .map(Message::VoiceDictation),
+                self.gamepad_group
+                    .group_content(&config.widget_groups.gamepad)
+                    .map(Message::Gamepad),
+                self.session_menu
+                    .group_content(config)
+                    .map(Message::Session),
+            ])
+            .collect()
     }
 }

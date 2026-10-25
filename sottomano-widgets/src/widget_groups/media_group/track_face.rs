@@ -9,9 +9,11 @@ use sottomano_sources::{
 };
 use uom::si::f64::Ratio;
 
-use super::{MediaMessage, MediaTarget, RAISE_PLAYER_HINT};
+use super::{
+    MediaMessage, MediaTarget, PlayerMessage, PlayerTarget, RAISE_PLAYER_HINT, player_message,
+};
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_tooltips::{PressHints, hoverable},
     widgets::{
         bar_widget::Glyph,
         gauge::Gauge,
@@ -19,6 +21,7 @@ use crate::{
         icon_handle::IconHandle,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         source_reading::icon_value_gap,
         text::{FontFaces, LINE_HEIGHT, colored_span},
         widget_group::GroupEvent,
@@ -37,53 +40,58 @@ pub(super) fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem
                 .size(config.theme.font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .into(),
-            HoverTarget::Media(MediaTarget::Track),
+            PlayerTarget::of(&media.bus, MediaTarget::Track).into(),
             press_hints,
             GroupEvent::Tooltip,
         )
     });
     if raisable {
-        label.on_press(RAISE_PLAYER_HINT, MediaMessage::Command(Command::Raise))
+        label.on_press(
+            RAISE_PLAYER_HINT,
+            player_message(&media.bus, PlayerMessage::Command(Command::Raise)),
+        )
     } else {
         label
     }
 }
 
-pub(super) fn track_face<'a>(
+pub(super) fn player_face<'a, Message: 'a>(
     config: &Config,
-    art: Option<&IconHandle>,
+    media: &Media,
     opacity: f32,
     gauge_fraction: Option<Ratio>,
-) -> Element<'a, MediaMessage> {
+) -> Element<'a, Message> {
     let side = config.theme.font.icon_size_px;
-    let cover = track_cover(config, art, opacity, side);
-    let Some(fraction) = gauge_fraction else {
-        return cover;
-    };
     let color = PaletteColors::from(&config.theme.palette)
         .bar_foreground
         .scale_alpha(opacity);
-    Row::with_children([cover, Gauge::new(fraction, color, side).into()])
+    let player_glyph = SimpleIcon::titled(&media.identity)
+        .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), Glyph::from);
+    let player_icon = player_glyph.view(side, color);
+    let Some(fraction) = gauge_fraction else {
+        return player_icon;
+    };
+    Row::with_children([player_icon, Gauge::new(fraction, color, side).into()])
         .spacing(icon_value_gap(config))
         .align_y(Alignment::Center)
         .into()
 }
 
-pub(super) fn track_cover<'a>(
+pub(super) fn track_cover<'a, Message: 'a>(
     config: &Config,
-    art: Option<&IconHandle>,
+    cover_art: Option<&IconHandle>,
     opacity: f32,
-    side: f32,
-) -> Element<'a, MediaMessage> {
-    if let Some(art) = art {
-        return art.view(side, opacity);
+) -> Element<'a, Message> {
+    let side = config.theme.font.icon_size_px;
+    match cover_art {
+        Some(art) => art.view(side, opacity),
+        None => Glyph::from(Phosphor::VinylRecord(Weight::Regular)).view(
+            side,
+            PaletteColors::from(&config.theme.palette)
+                .bar_foreground
+                .scale_alpha(opacity),
+        ),
     }
-    Glyph::from(Phosphor::MusicNote(Weight::Regular)).view(
-        side,
-        PaletteColors::from(&config.theme.palette)
-            .bar_foreground
-            .scale_alpha(opacity),
-    )
 }
 
 pub(super) fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
