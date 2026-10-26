@@ -11,7 +11,7 @@ use crate::{
         gauge::Gauge,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
-        text::{FontFaces, bar_text},
+        text::{FontFaces, figure_aligned_label},
         widget_state::WidgetState,
     },
 };
@@ -111,7 +111,7 @@ fn label_text<'a, Message: 'a>(
     widget
         .label(clock, config.calendar.locale)
         .filter(|label| !label.is_empty())
-        .map(|label| bar_text(&config.theme.font, label).color(color).into())
+        .map(|label| figure_aligned_label(&config.theme, &label, color))
 }
 
 fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a, Message> {
