@@ -38,7 +38,7 @@ impl BarWidget for GpuMemory {
         match self {
             GpuMemory::Dedicated(_) => None,
             GpuMemory::SharedWithSystem(shared) => {
-                Some(shared.private.display().iec_short().to_string())
+                Some(shared.allocated.display().iec_short().to_string())
             }
         }
     }
@@ -67,30 +67,16 @@ fn size_text(size: ByteSize) -> String {
 
 fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
     let buffers = Section::dictionary([
-        KeyValue::new("Private", size_text(shared.private)),
-        KeyValue::new(
-            "Shared between processes",
-            format!("≤ {}", size_text(shared.shared)),
-        ),
-        KeyValue::new("In use by GPU now", size_text(shared.active)),
-        KeyValue::new("Reclaimable", size_text(shared.purgeable)),
+        KeyValue::new("Allocated", size_text(shared.allocated)),
+        KeyValue::new("Resident", size_text(shared.resident)),
     ])
     .titled("GPU buffers");
-    let system = Section::dictionary(
-        [
-            shared.system.as_ref().map(|system| {
-                KeyValue::new(
-                    "Used",
-                    format!("{} of {}", size_text(system.used), size_text(system.total)),
-                )
-            }),
-            shared
-                .swap_out_threshold
-                .map(|threshold| KeyValue::new("Swaps GPU buffers out past", size_text(threshold))),
-        ]
-        .into_iter()
-        .flatten(),
-    )
+    let system = Section::dictionary(shared.system.as_ref().map(|system| {
+        KeyValue::new(
+            "Used",
+            format!("{} of {}", size_text(system.used), size_text(system.total)),
+        )
+    }))
     .titled("System memory");
     vec![buffers, system]
 }

@@ -1,5 +1,5 @@
 use sottomano_sources::{
-    cpu_memory_compute::pci_gpu_readings::GpuModel,
+    cpu_memory_compute::pci_gpu_readings::{GpuModel, GpuNames},
     host_machine_identity::udev_hardware_identity::{
         Adapter, CpuModel, DriveIdentity, MemoryModules, ModemIdentity, PowerSupplyIdentity,
     },
@@ -165,10 +165,22 @@ impl From<&Adapter> for Section {
 
 impl From<&GpuModel> for Section {
     fn from(model: &GpuModel) -> Self {
-        Section::hardware_identity([
-            KeyValue::keyed_by_logo("Model", model.vendor.vendor_logo(), model.name.as_str()),
-            KeyValue::new("Driver", model.driver_version.as_str()),
-        ])
+        let logo = model.vendor.vendor_logo();
+        let name_entries = match &model.names {
+            GpuNames::Chip(chip) => vec![KeyValue::keyed_by_logo("Chip", logo, chip.as_str())],
+            GpuNames::Product(product) => {
+                vec![KeyValue::keyed_by_logo("Model", logo, product.as_str())]
+            }
+            GpuNames::ChipWithProduct { chip, product } => vec![
+                KeyValue::keyed_by_logo("Model", logo, product.as_str()),
+                KeyValue::new("Chip", chip.as_str()),
+            ],
+        };
+        Section::hardware_identity(
+            name_entries
+                .into_iter()
+                .chain([KeyValue::new("Driver", model.driver.as_str())]),
+        )
     }
 }
 

@@ -12,13 +12,13 @@ use uom::si::{
 };
 
 use super::{
-    intel_drm_gpu_readings::{self, IntelDrmCard},
     memory_usage::Memory,
     nvml_gpu_readings::{self, NvmlDevice},
+    qmlib_gpu_sampler::{self, DrmGpuWorker},
 };
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
-    blocking_background_work::blocking_poll,
+    blocking_background_work::{Panicked, blocking_poll},
     polled_delivery_stream,
     system_protocol_clients::sysfs_attribute_reads::{self, read_trimmed},
 };
@@ -28,31 +28,57 @@ const PCI_DEVICES: &str = "/sys/bus/pci/devices";
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PciBusId(pub String);
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct GpuModel {
+    pub vendor: GpuVendor,
+    pub names: GpuNames,
+    pub driver: String,
+    pub temperature_limits: GpuTemperatureLimits,
+    pub power_limit: Option<Power>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct GpuTemperatureLimits {
     pub target_max: Option<ThermodynamicTemperature>,
     pub slowdown: Option<ThermodynamicTemperature>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct GpuModel {
-    pub vendor: GpuVendor,
-    pub name: String,
-    pub driver_version: String,
-    pub temperature_limits: GpuTemperatureLimits,
-    pub power_limit: Option<Power>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GpuHandle {
     Nvml(NvmlDevice),
-    IntelDrm(IntelDrmCard),
+    Drm(DrmGpuWorker),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GpuNames {
+    Chip(String),
+    Product(String),
+    ChipWithProduct { chip: String, product: String },
+}
+
+impl GpuNames {
+    #[must_use]
+    pub fn from_hardware_database(database_name: &str) -> Self {
+        let Some((chip, bracketed)) = database_name.split_once(" [") else {
+            return GpuNames::Chip(database_name.trim().to_owned());
+        };
+        let chip = chip.trim().to_owned();
+        match bracketed.strip_suffix(']').map(str::trim) {
+            Some(product) if !product.is_empty() && !product.contains('/') => {
+                GpuNames::ChipWithProduct {
+                    chip,
+                    product: product.to_owned(),
+                }
+            }
+            _ => GpuNames::Chip(chip),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiscoveredGpu {
     pub bus: PciBusId,
-    pub model: Option<GpuModel>,
+    pub model: GpuModel,
     pub handle: Result<GpuHandle, Error>,
 }
 
@@ -76,12 +102,12 @@ impl ReadingSource for GpuDiscovery {
 
 impl GpuDiscovery {
     async fn bound_to_known_drivers() -> GpuDiscovery {
-        let (nvidia, intel) = join(
+        let (nvidia, drm) = join(
             nvml_gpu_readings::discover_nvidia_gpus(),
-            intel_drm_gpu_readings::discover_xe_gpus(),
+            qmlib_gpu_sampler::discover_drm_gpus(),
         )
         .await;
-        let mut gpus: Vec<DiscoveredGpu> = nvidia.into_iter().chain(intel).collect();
+        let mut gpus: Vec<DiscoveredGpu> = nvidia.into_iter().chain(drm).collect();
         gpus.sort_by(|first, second| first.bus.cmp(&second.bus));
         GpuDiscovery { gpus }
     }
@@ -125,27 +151,33 @@ impl GpuRuntimePower {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     Nvml(nvml_gpu_readings::Error),
-    IntelDrm(sysfs_attribute_reads::Error),
+    Qmlib(String),
+    DeviceVanished,
+    WorkerStopped,
+    Panicked,
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Error::Nvml(error) => error.fmt(f),
-            Error::IntelDrm(error) => error.fmt(f),
+            Error::Qmlib(message) => write!(f, "GPU stats: {message}"),
+            Error::DeviceVanished => f.write_str("GPU no longer listed by the DRM subsystem"),
+            Error::WorkerStopped => f.write_str("GPU sampling thread stopped"),
+            Error::Panicked => f.write_str("GPU read panicked"),
         }
+    }
+}
+
+impl From<Panicked> for Error {
+    fn from(Panicked: Panicked) -> Self {
+        Error::Panicked
     }
 }
 
 impl From<nvml_gpu_readings::Error> for Error {
     fn from(error: nvml_gpu_readings::Error) -> Self {
         Error::Nvml(error)
-    }
-}
-
-impl From<sysfs_attribute_reads::Error> for Error {
-    fn from(error: sysfs_attribute_reads::Error) -> Self {
-        Error::IntelDrm(error)
     }
 }
 
@@ -183,12 +215,9 @@ pub enum GpuMemory {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SharedGpuMemory {
-    pub private: ByteSize,
-    pub shared: ByteSize,
-    pub active: ByteSize,
-    pub purgeable: ByteSize,
+    pub resident: ByteSize,
+    pub allocated: ByteSize,
     pub system: Option<Memory>,
-    pub swap_out_threshold: Option<ByteSize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -205,6 +234,7 @@ pub struct GpuSnapshot {
 pub enum GpuVendor {
     Nvidia,
     Intel,
+    Amd,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,7 +281,7 @@ impl GpuSnapshot {
     async fn poll(handle: GpuHandle) -> Result<Self, Error> {
         match handle {
             GpuHandle::Nvml(device) => Ok(nvml_gpu_readings::read_snapshot(device).await?),
-            GpuHandle::IntelDrm(card) => Ok(intel_drm_gpu_readings::read_snapshot(card).await?),
+            GpuHandle::Drm(worker) => qmlib_gpu_sampler::read_snapshot(worker).await,
         }
     }
 }
@@ -274,7 +304,7 @@ impl GpuClocks {
     async fn poll(handle: GpuHandle) -> Result<Self, Error> {
         match handle {
             GpuHandle::Nvml(device) => Ok(nvml_gpu_readings::read_clocks(device).await?),
-            GpuHandle::IntelDrm(card) => Ok(intel_drm_gpu_readings::read_clocks(card).await?),
+            GpuHandle::Drm(worker) => qmlib_gpu_sampler::read_clocks(worker).await,
         }
     }
 }
@@ -297,7 +327,7 @@ impl GpuProcesses {
     async fn poll(handle: GpuHandle) -> Result<Self, Error> {
         match handle {
             GpuHandle::Nvml(device) => Ok(nvml_gpu_readings::read_processes(device).await?),
-            GpuHandle::IntelDrm(card) => Ok(intel_drm_gpu_readings::read_processes(card).await?),
+            GpuHandle::Drm(worker) => qmlib_gpu_sampler::read_processes(worker).await,
         }
     }
 }

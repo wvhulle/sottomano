@@ -31,6 +31,7 @@ impl VendorLogo for GpuVendor {
         Some(match self {
             GpuVendor::Nvidia => SimpleIcon::NVIDIA,
             GpuVendor::Intel => SimpleIcon::Intel,
+            GpuVendor::Amd => SimpleIcon::AMD,
         })
     }
 }

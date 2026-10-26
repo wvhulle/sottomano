@@ -3,6 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     fs,
     hash::{Hash, Hasher},
+    path::Path,
     sync::Arc,
 };
 
@@ -24,12 +25,16 @@ use uom::si::{
 };
 
 use super::pci_gpu_readings::{
-    DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuProcess, GpuProcesses,
+    DiscoveredGpu, GpuClocks, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuProcess, GpuProcesses,
     GpuSnapshot, GpuTemperatureLimits, GpuVendor, PciBusId, VramUsage,
 };
-use crate::blocking_background_work::{Panicked, blocking_poll};
+use crate::{
+    blocking_background_work::{Panicked, blocking_poll},
+    host_machine_identity::udev_hardware_identity::Adapter,
+};
 
 const NVIDIA_PCI_DRIVER: &str = "/sys/bus/pci/drivers/nvidia";
+const PCI_DEVICES: &str = "/sys/bus/pci/devices";
 const NVIDIA_MODULE_VERSION: &str = "/sys/module/nvidia/version";
 
 pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
@@ -53,7 +58,8 @@ pub(super) async fn discover_nvidia_gpus() -> Vec<DiscoveredGpu> {
                 model: nvml
                     .as_ref()
                     .ok()
-                    .and_then(|nvml| read_model(nvml, &bus).ok()),
+                    .and_then(|nvml| read_model(nvml, &bus).ok())
+                    .unwrap_or_else(|| unmanaged_model(&bus)),
                 handle: nvml
                     .as_ref()
                     .map(|nvml| GpuHandle::Nvml(NvmlDevice::new(bus.clone(), nvml)))
@@ -100,12 +106,33 @@ fn celsius(degrees: u32) -> ThermodynamicTemperature {
     ThermodynamicTemperature::new::<degree_celsius>(f64::from(degrees))
 }
 
+fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
+    let database_name = Adapter::of_device(Path::new(PCI_DEVICES).join(&bus.0))?.model?;
+    Some(GpuNames::from_hardware_database(&database_name))
+}
+
+fn unmanaged_model(bus: &PciBusId) -> GpuModel {
+    GpuModel {
+        vendor: GpuVendor::Nvidia,
+        names: pci_database_names(bus).unwrap_or_else(|| GpuNames::Product("NVIDIA GPU".to_owned())),
+        driver: "nvidia".to_owned(),
+        temperature_limits: GpuTemperatureLimits::default(),
+        power_limit: None,
+    }
+}
+
 fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
     let device = nvml.device_by_pci_bus_id(bus.0.as_str())?;
+    let product = device.name()?;
     Ok(GpuModel {
         vendor: GpuVendor::Nvidia,
-        name: device.name()?,
-        driver_version: nvml.sys_driver_version()?,
+        names: match pci_database_names(bus) {
+            Some(GpuNames::Chip(chip) | GpuNames::ChipWithProduct { chip, .. }) => {
+                GpuNames::ChipWithProduct { chip, product }
+            }
+            Some(GpuNames::Product(_)) | None => GpuNames::Product(product),
+        },
+        driver: nvml.sys_driver_version()?,
         temperature_limits: GpuTemperatureLimits {
             target_max: device
                 .temperature_threshold(TemperatureThreshold::GpuMax)
