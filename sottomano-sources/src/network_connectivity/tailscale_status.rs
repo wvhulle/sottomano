@@ -15,6 +15,7 @@ use crate::{
 };
 
 const RUNNING_BACKEND_STATE: &str = "Running";
+const STARTING_BACKEND_STATE: &str = "Starting";
 pub const ADMIN_CONSOLE_URL: &str = "https://login.tailscale.com/admin/machines";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +82,14 @@ pub struct Tailnet {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Tailscale {
     Stopped,
+    Starting,
     Running(Box<Tailnet>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TailscaleSwitch {
+    Up,
+    Down,
 }
 
 #[derive(Deserialize)]
@@ -195,6 +203,9 @@ impl Tailscale {
 
     fn from_status_json(raw: &str) -> Result<Self, Error> {
         let status: Status = serde_json::from_str(raw).map_err(|_| Error::Malformed)?;
+        if status.backend_state == STARTING_BACKEND_STATE {
+            return Ok(Tailscale::Starting);
+        }
         if status.backend_state != RUNNING_BACKEND_STATE {
             return Ok(Tailscale::Stopped);
         }
@@ -226,6 +237,26 @@ impl Tailscale {
                 .map_or(KeyExpiry::Disabled, KeyExpiry::At),
             health_warnings: status.health.unwrap_or_default(),
         })))
+    }
+}
+
+impl Tailscale {
+    #[must_use]
+    pub fn switch(&self) -> TailscaleSwitch {
+        match self {
+            Tailscale::Stopped => TailscaleSwitch::Up,
+            Tailscale::Starting | Tailscale::Running(_) => TailscaleSwitch::Down,
+        }
+    }
+}
+
+pub async fn switch_tailscale(tailscale_switch: TailscaleSwitch) {
+    let subcommand = match tailscale_switch {
+        TailscaleSwitch::Up => "up",
+        TailscaleSwitch::Down => "down",
+    };
+    if let Err(command_error) = shell_command_output::output("tailscale", &[subcommand]).await {
+        tracing::warn!("tailscale {subcommand}: {command_error}");
     }
 }
 

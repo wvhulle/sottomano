@@ -3,9 +3,13 @@ xtask = "run --package xtask --"
 
 [unstable]
 codegen-backend = true
+feature-unification = true
 
 [profile.dev]
 codegen-backend = "cranelift"
 
 [profile.dev.package."*"]
 codegen-backend = "llvm"
+
+[resolver]
+feature-unification = "workspace"
