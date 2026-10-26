@@ -24,11 +24,11 @@ use sottomano_widgets::{
         compute_group::ComputeGroup,
         gamepad_group::GamepadGroup,
         idle_timeouts_group::IdleTimeoutsGroup,
-        internet_group::InternetGroup,
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
         voice_dictation_group::VoiceDictationGroup,
+        vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
@@ -71,7 +71,7 @@ pub enum ShowcasedGroup {
     Gamepad(Box<ShowcasedGamepad>),
     VoiceDictation(Box<VoiceDictationGroup>),
     Caldav(Box<CaldavGroup>),
-    Internet(Box<InternetGroup>),
+    Vpn(Box<VpnGroup>),
     LoginSession(Box<LoginSessionGroup>),
     BottomBar(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
@@ -226,7 +226,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
-            | ShowcasedGroup::Internet(_)
+            | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
         }
     }
@@ -286,9 +286,9 @@ impl ShowcasedGroup {
                 .group_content()
                 .map(Message::Caldav)
                 .view(config, position, clock),
-            ShowcasedGroup::Internet(group) => group
+            ShowcasedGroup::Vpn(group) => group
                 .group_content()
-                .map(Message::Internet)
+                .map(Message::Vpn)
                 .view(config, position, clock),
             ShowcasedGroup::LoginSession(group) => group
                 .group_content()
@@ -360,8 +360,8 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
-            ShowcasedGroup::Internet(group) => {
-                if let Message::Internet(message) = message {
+            ShowcasedGroup::Vpn(group) => {
+                if let Message::Vpn(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
@@ -420,7 +420,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
-            | ShowcasedGroup::Internet(_)
+            | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::Toasts(_) => {}
         }
@@ -501,8 +501,8 @@ impl ShowcasedGroup {
                 };
                 group.tooltip_for(*target, clock)
             }
-            ShowcasedGroup::Internet(group) => {
-                let HoverTarget::Internet(target) = target else {
+            ShowcasedGroup::Vpn(group) => {
+                let HoverTarget::Vpn(target) = target else {
                     return None;
                 };
                 group.tooltip_for(target, clock)
@@ -537,7 +537,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
-            | ShowcasedGroup::Internet(_)
+            | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::LoginSession(_) => None,
         }
     }

@@ -32,11 +32,12 @@ Pressing the temperature opens the forecast for the coming hours.
 
 <img src="recordings/weather_conditions.webp" width="436" alt="Pressing the temperature in the weather group">
 
-### Internet: Tailscale
+### VPN: Tailscale
 
-The tailnet: how each peer is reached, the exit node and when the key expires.
+The tailnet: how each peer is reached, the exit node and when the key expires,
+next to the NetworkManager VPNs and WireGuard tunnels that are up.
 
-<img src="recordings/internet_tailscale.webp" width="685" alt="Expanding the internet group and hovering Tailscale">
+<img src="recordings/vpn_tailscale.webp" width="685" alt="Expanding the VPN group and hovering Tailscale">
 
 ### Dictation: Speech model
 

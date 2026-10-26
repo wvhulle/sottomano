@@ -91,6 +91,7 @@ use sottomano_widgets::{
         systemd_manager_group::SystemdManagerGroup,
         tray_group::{self, TrayGroup, TrayMessage},
         voice_dictation_group::VoiceDictationGroup,
+        vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
@@ -135,6 +136,7 @@ pub struct DesktopShell {
     pub journal_events_group: JournalEventsGroup,
     pub pending_upgrades_group: PendingUpgradesGroup,
     pub internet_group: InternetGroup,
+    pub vpn_group: VpnGroup,
     pub net_interfaces_group: NetInterfacesGroup,
     pub monitor_group: MonitorGroup,
     pub color_temperature_group: ColorTemperatureGroup,
@@ -205,6 +207,7 @@ impl DesktopShell {
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
             internet_group: InternetGroup::default(),
+            vpn_group: VpnGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             monitor_group: MonitorGroup::default(),
             color_temperature_group: ColorTemperatureGroup::new(
@@ -412,10 +415,11 @@ impl DesktopShell {
                 .net_interfaces_group
                 .update(msg, self.clock)
                 .map(Message::NetInterfaces),
-            Message::Internet(msg) => self
-                .internet_group
-                .update(msg, self.clock)
-                .map(Message::Internet),
+            Message::Internet(msg) => {
+                self.internet_group.update(msg, self.clock);
+                Task::none()
+            }
+            Message::Vpn(msg) => self.vpn_group.update(msg, self.clock).map(Message::Vpn),
             Message::Monitor(msg) => self
                 .monitor_group
                 .update(msg, self.clock)
@@ -849,6 +853,7 @@ impl DesktopShell {
         self.disk_group.collapse();
         self.media_group.collapse();
         self.internet_group.collapse();
+        self.vpn_group.collapse();
         self.net_interfaces_group.collapse();
         self.window_group.collapse();
         self.tray_group.collapse();

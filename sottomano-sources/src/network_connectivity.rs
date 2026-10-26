@@ -3,6 +3,7 @@ pub mod ethernet_connection;
 pub mod interface_throughput;
 pub mod modem_manager_mobile;
 pub mod network_manager_proxies;
+pub mod network_manager_vpn_connections;
 pub mod tailscale_status;
 pub mod wifi_connection;
 pub mod wireguard_tunnels;

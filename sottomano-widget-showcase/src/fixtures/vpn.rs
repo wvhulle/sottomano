@@ -2,24 +2,28 @@ use chrono::TimeDelta;
 use sottomano_sources::{
     SourceDelivery,
     network_connectivity::{
-        interface_throughput::{InterfaceThroughput, NetworkTrafficDirection, Throughput},
-        network_manager_proxies::Connectivity,
+        network_manager_proxies::AddressBlock,
+        network_manager_vpn_connections::{
+            ActiveTunnel, NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
+        },
         tailscale_status::{ExitRouting, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale},
     },
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::internet_group::{InternetGroup, InternetMessage},
+    widget_groups::vpn_group::{VpnGroup, VpnMessage},
 };
-use uom::si::{f64::InformationRate, information_rate::megabyte_per_second};
+use zbus::zvariant::OwnedObjectPath;
 
 use crate::showcased_group::ShowcasedGroup;
 
 const KEY_EXPIRY_DAYS: i64 = 9;
 
+pub const COMPANY_VPN_NAME: &str = "Company VPN";
+
 pub fn group(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::Internet(Box::new(internet_readings(clock).into_iter().fold(
-        InternetGroup::default(),
+    ShowcasedGroup::Vpn(Box::new(vpn_readings(clock).into_iter().fold(
+        VpnGroup::default(),
         |mut group, reading| {
             let _ = group.update(reading, clock);
             group
@@ -27,29 +31,42 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     )))
 }
 
-fn internet_readings(clock: Clock) -> [InternetMessage; 2] {
+fn vpn_readings(clock: Clock) -> [VpnMessage; 2] {
     [
-        InternetMessage::Throughput(SourceDelivery::Reading(Ok(InterfaceThroughput {
-            down: wifi_throughput(NetworkTrafficDirection::Download, 4.2, 11.8),
-            up: wifi_throughput(NetworkTrafficDirection::Upload, 0.4, 2.1),
+        VpnMessage::NetworkManagerVpns(SourceDelivery::Reading(Ok(NetworkManagerVpns {
+            connections: vec![company_globalprotect_vpn()],
         }))),
-        InternetMessage::Tailscale(SourceDelivery::Reading(Ok(Tailscale::Running(Box::new(
+        VpnMessage::Tailscale(SourceDelivery::Reading(Ok(Tailscale::Running(Box::new(
             home_tailnet(clock),
         ))))),
     ]
 }
 
-fn wifi_throughput(
-    direction: NetworkTrafficDirection,
-    megabytes_per_second: f64,
-    peak_megabytes_per_second: f64,
-) -> Throughput {
-    Throughput {
-        interfaces: vec!["wlp4s0".to_owned()],
-        rate: InformationRate::new::<megabyte_per_second>(megabytes_per_second),
-        peak_rate: InformationRate::new::<megabyte_per_second>(peak_megabytes_per_second),
-        connectivity: Some(Connectivity::Full),
-        direction,
+fn company_globalprotect_vpn() -> VpnConnection {
+    VpnConnection {
+        name: COMPANY_VPN_NAME.to_owned(),
+        plugin: "openconnect".to_owned(),
+        protocol: Some("gp".to_owned()),
+        remote_gateway: Some("vpn.example.com".to_owned()),
+        settings_connection: OwnedObjectPath::try_from(
+            "/org/freedesktop/NetworkManager/Settings/12",
+        )
+        .expect("static object path"),
+        activity: VpnActivity::Active(Box::new(ActiveTunnel {
+            vpn_state: VpnState::Activated,
+            ipv4: Some(AddressBlock {
+                address: "10.84.17.203".to_owned(),
+                mask: "255.255.255.255".to_owned(),
+                gateway: None,
+            }),
+            ipv6: None,
+            dns: vec!["10.80.0.53".to_owned(), "10.80.0.54".to_owned()],
+            banner: None,
+            active_connection: OwnedObjectPath::try_from(
+                "/org/freedesktop/NetworkManager/ActiveConnection/7",
+            )
+            .expect("static object path"),
+        })),
     }
 }
 

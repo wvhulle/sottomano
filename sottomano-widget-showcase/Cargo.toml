@@ -30,4 +30,5 @@ rusty-money.workspace = true
 situo-client.workspace = true
 tokio.workspace = true
 uom.workspace = true
+zbus.workspace = true
 webp-animation = { version = "0.10.0", features = ["static"] }

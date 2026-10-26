@@ -5,13 +5,13 @@ pub mod compute;
 pub mod gamepad;
 pub mod host_hardware;
 pub mod idle_lock;
-pub mod internet;
 pub mod login_session;
 pub mod media;
 pub mod memory_board;
 pub mod niri_session;
 pub mod notification_toasts;
 pub mod voice_dictation;
+pub mod vpn;
 pub mod wallpaper;
 pub mod weather;
 

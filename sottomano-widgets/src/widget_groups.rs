@@ -33,6 +33,7 @@ pub mod systemd_manager_group;
 pub mod terminal_command;
 pub mod tray_group;
 pub mod voice_dictation_group;
+pub mod vpn_group;
 pub mod wallpaper_group;
 pub mod weather_group;
 pub mod window_group;

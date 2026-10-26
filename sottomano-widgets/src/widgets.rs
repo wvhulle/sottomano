@@ -43,6 +43,7 @@ pub mod slider_control;
 pub mod source_reading;
 pub mod spend_forecast_basis;
 pub mod spend_to_level;
+pub mod steady_label_width;
 pub mod svg_icon;
 pub mod text;
 pub mod toggle_control;

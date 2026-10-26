@@ -196,6 +196,8 @@ sudo apt install iproute2 network-manager modemmanager bluez inxi \
 ```
 
 Tailscale comes from [its own repository](https://tailscale.com/download/linux).
+VPNs show up when NetworkManager runs them through a VPN plugin, such as
+`network-manager-openconnect` or `network-manager-openvpn`.
 
 ### System setup
 
@@ -262,6 +264,8 @@ sudo dnf install iproute NetworkManager ModemManager bluez inxi \
 Fedora ships `tuned-ppd`, which serves the power-profiles-daemon D-Bus API the
 power group reads. Tailscale comes from
 [its own repository](https://tailscale.com/download/linux).
+VPNs show up when NetworkManager runs them through a VPN plugin, such as
+`NetworkManager-openconnect` or `NetworkManager-openvpn`.
 
 ### System setup
 

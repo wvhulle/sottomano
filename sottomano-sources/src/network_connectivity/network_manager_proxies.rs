@@ -3,7 +3,11 @@ use std::{
     net::{Ipv4Addr, Ipv6Addr},
 };
 
-use futures::{Stream, StreamExt, future::try_join_all, stream, try_join};
+use futures::{
+    Stream, StreamExt,
+    future::{join_all, try_join_all},
+    stream, try_join,
+};
 use uom::si::{
     f64::{Frequency, InformationRate},
     frequency::megahertz,
@@ -14,7 +18,7 @@ use zbus::{
     message::Type,
     proxy,
     proxy::{Builder, CacheProperties, Defaults},
-    zvariant::{OwnedObjectPath, OwnedValue},
+    zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
 };
 
 use crate::{
@@ -81,8 +85,17 @@ impl Connectivity {
 )]
 trait Manager {
     fn get_devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
+    fn deactivate_connection(&self, active_connection: &OwnedObjectPath) -> zbus::Result<()>;
+    fn activate_connection(
+        &self,
+        settings_connection: &OwnedObjectPath,
+        device: &ObjectPath<'_>,
+        specific_object: &ObjectPath<'_>,
+    ) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn connectivity(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn active_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
 }
 
 #[proxy(
@@ -156,6 +169,42 @@ trait AccessPoint {
 trait ActiveConnection {
     #[zbus(property)]
     fn id(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn vpn(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn connection(&self) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(property)]
+    fn ip4_config(&self) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(property)]
+    fn ip6_config(&self) -> zbus::Result<OwnedObjectPath>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.NetworkManager.VPN.Connection",
+    default_service = "org.freedesktop.NetworkManager"
+)]
+trait VpnConnection {
+    #[zbus(property)]
+    fn vpn_state(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn banner(&self) -> zbus::Result<String>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.NetworkManager.Settings.Connection",
+    default_service = "org.freedesktop.NetworkManager"
+)]
+trait SettingsConnection {
+    fn get_settings(&self) -> zbus::Result<HashMap<String, HashMap<String, OwnedValue>>>;
+}
+
+#[proxy(
+    interface = "org.freedesktop.NetworkManager.Settings",
+    default_service = "org.freedesktop.NetworkManager",
+    default_path = "/org/freedesktop/NetworkManager/Settings"
+)]
+trait Settings {
+    fn list_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
 }
 
 #[proxy(
@@ -303,18 +352,139 @@ pub async fn connection_id(
     active.id().await
 }
 
+pub struct VpnProfile {
+    pub settings_connection: OwnedObjectPath,
+    pub name: String,
+    pub service_type: String,
+    pub vpn_data: HashMap<String, String>,
+}
+
+pub struct ActiveVpn {
+    pub settings_connection: OwnedObjectPath,
+    pub active_connection: OwnedObjectPath,
+    pub vpn_state_code: u32,
+    pub banner: String,
+    pub ip: IpInfo,
+}
+
+pub async fn vpn_profiles(connection: &Connection) -> zbus::Result<Vec<VpnProfile>> {
+    let settings: SettingsProxy = Builder::new(connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let paths = settings.list_connections().await?;
+    let profiles = join_all(paths.into_iter().map(|path| vpn_profile(connection, path))).await;
+    Ok(profiles
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect())
+}
+
+async fn vpn_profile(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<VpnProfile>> {
+    let settings: SettingsConnectionProxy = uncached(connection, path.clone()).await?;
+    let profile = settings.get_settings().await?;
+    let Some(vpn_section) = profile.get("vpn") else {
+        return Ok(None);
+    };
+    let name = profile
+        .get("connection")
+        .and_then(|section| section.get("id"))
+        .and_then(|value| value.downcast_ref::<String>().ok())
+        .unwrap_or_default();
+    let service_type = vpn_section
+        .get("service-type")
+        .and_then(|value| value.downcast_ref::<String>().ok())
+        .unwrap_or_default();
+    let vpn_data = vpn_section
+        .get("data")
+        .and_then(|value| HashMap::<String, String>::try_from(value.try_clone().ok()?).ok())
+        .unwrap_or_default();
+    Ok(Some(VpnProfile {
+        settings_connection: path,
+        name,
+        service_type,
+        vpn_data,
+    }))
+}
+
+pub async fn active_vpns(connection: &Connection) -> zbus::Result<Vec<ActiveVpn>> {
+    let paths = manager(connection).await?.active_connections().await?;
+    let vpns = join_all(paths.into_iter().map(|path| active_vpn(connection, path))).await;
+    Ok(vpns.into_iter().filter_map(Result::ok).flatten().collect())
+}
+
+async fn active_vpn(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<ActiveVpn>> {
+    let active: ActiveConnectionProxy = uncached(connection, path.clone()).await?;
+    if !active.vpn().await? {
+        return Ok(None);
+    }
+    let vpn: VpnConnectionProxy = uncached(connection, path.clone()).await?;
+    let (vpn_state_code, banner, settings_connection, v4_path, v6_path) = try_join!(
+        vpn.vpn_state(),
+        vpn.banner(),
+        active.connection(),
+        active.ip4_config(),
+        active.ip6_config()
+    )?;
+    let (v4, v6) = try_join!(
+        ip4_config(connection, v4_path),
+        ip6_config(connection, v6_path)
+    )?;
+    Ok(Some(ActiveVpn {
+        settings_connection,
+        active_connection: path,
+        vpn_state_code,
+        banner,
+        ip: IpInfo {
+            v4: v4.block,
+            v6: v6.block,
+            dns: v4.dns.into_iter().chain(v6.dns).collect(),
+        },
+    }))
+}
+
+pub async fn activate(
+    connection: &Connection,
+    settings_connection: &OwnedObjectPath,
+) -> zbus::Result<()> {
+    let unset = ObjectPath::from_static_str_unchecked("/");
+    manager(connection)
+        .await?
+        .activate_connection(settings_connection, &unset, &unset)
+        .await
+        .map(drop)
+}
+
+pub async fn deactivate(
+    connection: &Connection,
+    active_connection: &OwnedObjectPath,
+) -> zbus::Result<()> {
+    manager(connection)
+        .await?
+        .deactivate_connection(active_connection)
+        .await
+}
+
 #[must_use]
 pub fn is_unset(path: &OwnedObjectPath) -> bool {
     path.as_str() == "/"
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AddressBlock {
     pub address: String,
     pub mask: String,
     pub gateway: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct IpInfo {
     pub v4: Option<AddressBlock>,
     pub v6: Option<AddressBlock>,
@@ -521,6 +691,9 @@ pub const WIRELESS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Device.Wir
 const ACCESS_POINT_PROPERTIES: &str = "org.freedesktop.NetworkManager.AccessPoint";
 pub const IP4_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP4Config";
 pub const IP6_CONFIG_PROPERTIES: &str = "org.freedesktop.NetworkManager.IP6Config";
+pub const ACTIVE_CONNECTION_PROPERTIES: &str = "org.freedesktop.NetworkManager.Connection.Active";
+pub const VPN_CONNECTION_PROPERTIES: &str = "org.freedesktop.NetworkManager.VPN.Connection";
+pub const SETTINGS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Settings";
 
 pub const UPLINK_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, DEVICE_PROPERTIES];
 

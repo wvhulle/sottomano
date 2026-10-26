@@ -114,7 +114,8 @@ fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
 fn unmanaged_model(bus: &PciBusId) -> GpuModel {
     GpuModel {
         vendor: GpuVendor::Nvidia,
-        names: pci_database_names(bus).unwrap_or_else(|| GpuNames::Product("NVIDIA GPU".to_owned())),
+        names: pci_database_names(bus)
+            .unwrap_or_else(|| GpuNames::Product("NVIDIA GPU".to_owned())),
         driver: "nvidia".to_owned(),
         temperature_limits: GpuTemperatureLimits::default(),
         power_limit: None,

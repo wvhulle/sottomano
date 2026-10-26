@@ -147,6 +147,7 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
             .internet_group
             .subscription(buses)
             .map(Message::Internet),
+        state.vpn_group.subscription(buses).map(Message::Vpn),
         state
             .net_interfaces_group
             .subscription(buses)

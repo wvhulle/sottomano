@@ -30,7 +30,8 @@ use crate::{
         quiet_schedule_group::QuietScheduleTarget, session_focus_group::SessionFocusTarget,
         session_menu::SessionTarget, sidebar_settings_group::SidebarSettingsTarget,
         systemd_manager_group::SystemdTarget, voice_dictation_group::VoiceDictationTarget,
-        wallpaper_group::WallpaperTarget, weather_group::WeatherTarget, window_group::WindowTarget,
+        vpn_group::VpnTarget, wallpaper_group::WallpaperTarget, weather_group::WeatherTarget,
+        window_group::WindowTarget,
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -57,6 +58,7 @@ pub enum HoverTarget {
     VoiceDictation(VoiceDictationTarget),
     IdleTimeout(IdleAction),
     Internet(InternetTarget),
+    Vpn(VpnTarget),
     Weather(WeatherTarget),
     Wallpaper(WallpaperTarget),
     Caldav(CaldavTarget),
@@ -105,6 +107,7 @@ pub enum GroupHandle {
     Systemd,
     Tray,
     VoiceDictation,
+    Vpn,
 }
 
 impl PressHints {
