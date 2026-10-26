@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     net::{Ipv4Addr, Ipv6Addr},
+    ops::RangeInclusive,
 };
 
 use futures::{
@@ -29,6 +30,8 @@ use crate::{
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
 const STATE_ACTIVATED: u32 = 100;
+const STATES_ACTIVATING: RangeInclusive<u32> = 40..=90;
+const STATE_DEACTIVATING: u32 = 110;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeviceKind {
@@ -96,6 +99,14 @@ trait Manager {
     fn connectivity(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn active_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
+    #[zbus(property)]
+    fn wireless_enabled(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn set_wireless_enabled(&self, enabled: bool) -> zbus::Result<()>;
+    #[zbus(property)]
+    fn wwan_enabled(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn set_wwan_enabled(&self, enabled: bool) -> zbus::Result<()>;
 }
 
 #[proxy(
@@ -103,6 +114,7 @@ trait Manager {
     default_service = "org.freedesktop.NetworkManager"
 )]
 trait Device {
+    fn disconnect(&self) -> zbus::Result<()>;
     #[zbus(property)]
     fn device_type(&self) -> zbus::Result<u32>;
     #[zbus(property)]
@@ -255,6 +267,7 @@ pub struct DeviceInfo {
     pub interface: String,
     pub kind: DeviceKind,
     pub connected: bool,
+    pub switching: bool,
     path: OwnedObjectPath,
     proxy: DeviceProxy<'static>,
 }
@@ -272,6 +285,7 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
         kind: DeviceKind::from(kind),
         interface,
         connected: state == STATE_ACTIVATED,
+        switching: STATES_ACTIVATING.contains(&state) || state == STATE_DEACTIVATING,
         path,
         proxy,
     })
@@ -470,6 +484,35 @@ pub async fn deactivate(
         .await?
         .deactivate_connection(active_connection)
         .await
+}
+
+pub async fn wireless_enabled(connection: &Connection) -> zbus::Result<bool> {
+    manager(connection).await?.wireless_enabled().await
+}
+
+pub async fn toggle_wireless_radio(connection: &Connection) -> zbus::Result<()> {
+    let manager = manager(connection).await?;
+    let enabled = manager.wireless_enabled().await?;
+    manager.set_wireless_enabled(!enabled).await
+}
+
+pub async fn toggle_wwan_radio(connection: &Connection) -> zbus::Result<()> {
+    let manager = manager(connection).await?;
+    let enabled = manager.wwan_enabled().await?;
+    manager.set_wwan_enabled(!enabled).await
+}
+
+pub async fn disconnect_device(device: &DeviceInfo) -> zbus::Result<()> {
+    device.proxy.disconnect().await
+}
+
+pub async fn connect_device(connection: &Connection, device: &DeviceInfo) -> zbus::Result<()> {
+    let unset = ObjectPath::from_static_str_unchecked("/");
+    manager(connection)
+        .await?
+        .activate_connection(&unset.clone().into(), &device.path, &unset)
+        .await
+        .map(drop)
 }
 
 #[must_use]

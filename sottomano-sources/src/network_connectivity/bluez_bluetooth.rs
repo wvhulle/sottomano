@@ -1,5 +1,10 @@
-use futures::Stream;
-use zbus::fdo::ManagedObjects;
+use futures::{Stream, future::join_all};
+use zbus::{
+    Connection,
+    fdo::{ManagedObjects, ObjectManagerProxy, PropertiesProxy},
+    names::InterfaceName,
+    zvariant::{OwnedObjectPath, Value},
+};
 
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
@@ -33,6 +38,7 @@ pub struct Radio {
 #[derive(Debug, Clone)]
 pub struct Bluetooth {
     pub radio: Option<Radio>,
+    pub power_switching: bool,
     pub adapter: Option<Adapter>,
 }
 
@@ -52,6 +58,11 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
         .filter_map(|interfaces| interface(interfaces, ADAPTER))
         .map(|adapter| prop::<bool>(adapter, "Powered").unwrap_or(false))
         .reduce(|any, powered| any || powered)?;
+    let power_switching = objects
+        .values()
+        .filter_map(|interfaces| interface(interfaces, ADAPTER))
+        .filter_map(|adapter| prop::<String>(adapter, "PowerState"))
+        .any(|power_state| matches!(power_state.as_str(), "off-enabling" | "on-disabling"));
     let adapter = objects
         .iter()
         .filter(|(_, interfaces)| interface(interfaces, ADAPTER).is_some())
@@ -59,6 +70,7 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     if !powered {
         return Some(Bluetooth {
             radio: None,
+            power_switching,
             adapter,
         });
     }
@@ -95,6 +107,7 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
 
     Some(Bluetooth {
         radio: Some(Radio { connected, paired }),
+        power_switching,
         adapter,
     })
 }
@@ -112,4 +125,56 @@ impl ReadingSource for Bluetooth {
             managed_objects_readings(system.clone(), SERVICE, ROOT, reading)
         })
     }
+}
+
+async fn set_adapter_power(
+    connection: &Connection,
+    adapter: OwnedObjectPath,
+    powered: bool,
+) -> zbus::Result<()> {
+    PropertiesProxy::builder(connection)
+        .destination(SERVICE)?
+        .path(adapter)?
+        .build()
+        .await?
+        .set(
+            InterfaceName::from_static_str_unchecked(ADAPTER),
+            "Powered",
+            Value::from(powered),
+        )
+        .await
+        .map_err(zbus::Error::from)
+}
+
+async fn toggle_adapter_power(connection: &Connection) -> zbus::Result<()> {
+    let objects = ObjectManagerProxy::builder(connection)
+        .destination(SERVICE)?
+        .path(ROOT)?
+        .build()
+        .await?
+        .get_managed_objects()
+        .await?;
+    let adapters: Vec<(OwnedObjectPath, bool)> = objects
+        .iter()
+        .filter_map(|(path, interfaces)| {
+            let adapter = interface(interfaces, ADAPTER)?;
+            Some((
+                path.clone(),
+                prop::<bool>(adapter, "Powered").unwrap_or(false),
+            ))
+        })
+        .collect();
+    let any_powered = adapters.iter().any(|(_, powered)| *powered);
+    join_all(
+        adapters
+            .into_iter()
+            .map(|(adapter, _)| set_adapter_power(connection, adapter, !any_powered)),
+    )
+    .await
+    .into_iter()
+    .collect()
+}
+
+pub async fn toggle_bluetooth_power() -> zbus::Result<()> {
+    toggle_adapter_power(&Connection::system().await?).await
 }

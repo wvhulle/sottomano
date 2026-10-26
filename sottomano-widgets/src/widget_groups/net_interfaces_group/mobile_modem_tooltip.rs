@@ -24,10 +24,17 @@ impl BarWidget for Mobile {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
-        if self.state == Some(ModemState::Connected) {
-            self.signal.map_or(Severity::Normal, signal_level).into()
-        } else {
-            WidgetState::Off
+        match self.state {
+            Some(ModemState::Connected) => {
+                self.signal.map_or(Severity::Normal, signal_level).into()
+            }
+            Some(
+                ModemState::Enabling
+                | ModemState::Disabling
+                | ModemState::Connecting
+                | ModemState::Disconnecting,
+            ) => WidgetState::Pending,
+            _ => WidgetState::Off,
         }
     }
 

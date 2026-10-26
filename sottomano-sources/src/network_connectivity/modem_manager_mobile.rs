@@ -10,7 +10,9 @@ use zbus::{
 use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
-    network_connectivity::{device_or_absent, interface, managed_objects_readings},
+    network_connectivity::{
+        device_or_absent, interface, managed_objects_readings, network_manager_proxies,
+    },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 
@@ -260,4 +262,8 @@ impl ReadingSource for Mobile {
             managed_objects_readings(system.clone(), SERVICE, ROOT, reading)
         })
     }
+}
+
+pub async fn toggle_mobile_radio() -> zbus::Result<()> {
+    network_manager_proxies::toggle_wwan_radio(&zbus::Connection::system().await?).await
 }

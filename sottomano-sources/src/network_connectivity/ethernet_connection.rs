@@ -1,4 +1,8 @@
-use futures::{Stream, future::try_join_all, try_join};
+use futures::{
+    Stream,
+    future::{join_all, try_join_all},
+    try_join,
+};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
@@ -26,6 +30,7 @@ pub struct Link {
 pub struct PortState {
     pub name: String,
     pub connected: bool,
+    pub switching: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -118,6 +123,7 @@ async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
             .into_iter()
             .map(|device| PortState {
                 connected: device.connected,
+                switching: device.switching,
                 name: device.interface,
             })
             .collect(),
@@ -180,4 +186,29 @@ impl ReadingSource for EthernetDetails {
             },
         )
     }
+}
+
+pub async fn toggle_ethernet_ports() -> zbus::Result<()> {
+    let system = Connection::system().await?;
+    let ethernet_ports: Vec<network_manager_proxies::DeviceInfo> =
+        network_manager_proxies::devices(&system)
+            .await?
+            .into_iter()
+            .filter(|device| device.kind == network_manager_proxies::DeviceKind::Ethernet)
+            .collect();
+    let any_connected = ethernet_ports.iter().any(|device| device.connected);
+    let port_switches = ethernet_ports
+        .iter()
+        .filter(|device| device.connected == any_connected)
+        .map(|device| {
+            let system = system.clone();
+            async move {
+                if any_connected {
+                    network_manager_proxies::disconnect_device(device).await
+                } else {
+                    network_manager_proxies::connect_device(&system, device).await
+                }
+            }
+        });
+    join_all(port_switches).await.into_iter().collect()
 }

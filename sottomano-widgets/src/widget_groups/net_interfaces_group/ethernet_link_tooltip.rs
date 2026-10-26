@@ -25,6 +25,9 @@ impl BarWidget for Ethernet {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
+        if self.ports.iter().any(|port| port.switching) {
+            return WidgetState::Pending;
+        }
         WidgetState::of_toggle(self.connected_count() > 0)
     }
 
@@ -32,7 +35,9 @@ impl BarWidget for Ethernet {
         TooltipBody::dictionary(self.ports.iter().map(|port| {
             KeyValue::new(
                 port.name.as_str(),
-                if port.connected {
+                if port.switching {
+                    "switching"
+                } else if port.connected {
                     "connected"
                 } else {
                     "disconnected"
