@@ -11,7 +11,9 @@ use sottomano_sources::{
     SourceDelivery,
     network_connectivity::{
         network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch, switch_vpn},
-        tailscale_status::{self, ExitRouting, Tailscale, open_admin},
+        tailscale_status::{
+            self, ExitRouting, Tailscale, TailscaleSwitch, open_admin, switch_tailscale,
+        },
         wireguard_tunnels::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -68,6 +70,7 @@ pub enum VpnMessage {
     Expansion(ExpansionMessage),
     SwitchVpn(VpnSwitch),
     DisconnectWireguard(String),
+    SwitchTailscale(TailscaleSwitch),
     OpenTailscale,
 }
 
@@ -114,6 +117,10 @@ impl VpnGroup {
             VpnMessage::DisconnectWireguard(name) => {
                 return Task::future(blocking("wireguard down", move || disconnect(&name)))
                     .discard();
+            }
+            VpnMessage::SwitchTailscale(tailscale_switch) => {
+                return Task::future(switch_tailscale(tailscale_switch))
+                    .then(|()| first_delivery::<Tailscale>(()).map(VpnMessage::Tailscale));
             }
             VpnMessage::OpenTailscale => {
                 return Task::future(blocking("tailscale admin", open_admin)).discard();
@@ -234,11 +241,23 @@ impl VpnGroup {
                         )
                 }))
                 .chain(self.tailscale.display().map(|tailscale| {
-                    GroupItem::reading(tailscale, VpnTarget::Tailscale)
-                        .on_press("open Tailscale", VpnMessage::OpenTailscale)
-                        .previewed_on_handle_if(
-                            previewed_vpn_name.is_none() && self.tailscale_routes_traffic(),
-                        )
+                    let mut item = GroupItem::reading(tailscale, VpnTarget::Tailscale)
+                        .on_right_press(
+                            "open the Tailscale admin console",
+                            VpnMessage::OpenTailscale,
+                        );
+                    if let Some(tailscale_switch) = self.tailscale.get().map(Tailscale::switch) {
+                        item = item.on_press(
+                            match tailscale_switch {
+                                TailscaleSwitch::Up => "turn Tailscale on",
+                                TailscaleSwitch::Down => "turn Tailscale off",
+                            },
+                            VpnMessage::SwitchTailscale(tailscale_switch),
+                        );
+                    }
+                    item.previewed_on_handle_if(
+                        previewed_vpn_name.is_none() && self.tailscale_routes_traffic(),
+                    )
                 })),
         )
         .face(HandleFace::Icon {

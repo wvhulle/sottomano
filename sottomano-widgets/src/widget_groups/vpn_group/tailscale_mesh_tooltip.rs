@@ -101,6 +101,7 @@ impl BarWidget for Tailscale {
     fn state(&self, clock: Clock) -> WidgetState {
         match self {
             Tailscale::Stopped => WidgetState::Off,
+            Tailscale::Starting => WidgetState::Pending,
             Tailscale::Running(tailnet) if tailnet_needs_attention(tailnet, clock.utc()) => {
                 WidgetState::Warning
             }
@@ -118,8 +119,14 @@ impl BarWidget for Tailscale {
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
-        let Tailscale::Running(tailnet) = self else {
-            return TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")]);
+        let tailnet = match self {
+            Tailscale::Running(tailnet) => tailnet,
+            Tailscale::Starting => {
+                return TooltipBody::dictionary([KeyValue::new("Tailscale", "starting")]);
+            }
+            Tailscale::Stopped => {
+                return TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")]);
+            }
         };
         let health_entries = tailnet
             .health_warnings
