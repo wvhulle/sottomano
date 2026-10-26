@@ -56,6 +56,7 @@ impl DesktopShell {
                     .group_content(self.clock)
                     .map(Message::NetInterfaces),
                 self.internet_group.group_content().map(Message::Internet),
+                self.vpn_group.group_content().map(Message::Vpn),
             ])
             .collect(),
             center: self.top_bar_center_groups(),

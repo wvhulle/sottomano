@@ -11,11 +11,11 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        internet_group::InternetTarget,
         login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
         voice_dictation_group::VoiceDictationTarget,
+        vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
         window_group::WindowTarget,
@@ -24,9 +24,9 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        audio, caldav, claude_usage, compute, gamepad, idle_lock, internet, login_session, media,
-        memory_board, niri_session, notification_toasts, unchanging, voice_dictation, wallpaper,
-        weather,
+        audio, caldav, claude_usage, compute, gamepad, idle_lock, login_session, media,
+        memory_board, niri_session, notification_toasts, unchanging, voice_dictation, vpn,
+        wallpaper, weather,
     },
     showcased_group::ShowcasedGroup,
 };
@@ -90,12 +90,14 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "internet_tailscale",
-        group: internet::group,
+        name: "vpn_tailscale",
+        group: vpn::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::Internet(InternetTarget::Down)),
-            Step::Hover(HoverTarget::Internet(InternetTarget::Tailscale)),
+            Step::Press(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
+                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
+            ))),
+            Step::Hover(HoverTarget::Vpn(VpnTarget::Tailscale)),
         ],
     },
     Demo {

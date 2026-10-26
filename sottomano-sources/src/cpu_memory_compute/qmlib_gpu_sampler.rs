@@ -191,11 +191,10 @@ struct ClientSample {
 
 impl GpuSampleWorker {
     fn open(bus: PciBusId, vendor: GpuVendor) -> Result<Self, Error> {
-        let mut devices = catch_unwind(|| {
-            DrmDevices::find_devices(&vec![bus.0.as_str()], &HashMap::new())
-        })
-        .map_err(|_| Error::Panicked)?
-        .map_err(qmlib_failure)?;
+        let mut devices =
+            catch_unwind(|| DrmDevices::find_devices(&vec![bus.0.as_str()], &HashMap::new()))
+                .map_err(|_| Error::Panicked)?
+                .map_err(qmlib_failure)?;
         devices
             .set_clients_pid_tree(SCAN_EVERY_PROCESS)
             .map_err(qmlib_failure)?;

@@ -21,6 +21,7 @@ use sottomano_widgets::{
         notification_group::NotificationGroup,
         power_group::PowerGroup,
         voice_dictation_group::VoiceDictationGroup,
+        vpn_group::VpnGroup,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
@@ -217,6 +218,7 @@ impl DesktopShell {
                 Some(self.idle_timeouts_group.tooltip_for(*kind, self.clock))
             }
             HoverTarget::Internet(target) => self.internet_group.tooltip_for(target, self.clock),
+            HoverTarget::Vpn(target) => self.vpn_group.tooltip_for(target, self.clock),
             HoverTarget::Weather(target) => {
                 self.weather_group
                     .tooltip_for(*target, &self.config, self.clock)
@@ -319,8 +321,11 @@ impl DesktopShell {
             HoverTarget::LoginSession(target) => on_buses(&|buses| {
                 LoginSessionGroup::refresh(*target, buses).map(Message::LoginSession)
             }),
-            HoverTarget::Internet(target) => {
-                on_buses(&|buses| InternetGroup::refresh(target, buses).map(Message::Internet))
+            HoverTarget::Internet(_) => {
+                on_buses(&|buses| InternetGroup::refresh(buses).map(Message::Internet))
+            }
+            HoverTarget::Vpn(target) => {
+                on_buses(&|buses| VpnGroup::refresh(target, buses).map(Message::Vpn))
             }
             HoverTarget::Monitor(target) => {
                 on_buses(&|buses| MonitorGroup::refresh(target, buses).map(Message::Monitor))
@@ -373,9 +378,9 @@ impl DesktopShell {
                         .hover(hovered, &self.config, buses, self.clock)
                         .map(Message::NetInterfaces)
                 }),
-            self.internet_group
+            self.vpn_group
                 .hover(hovered, &self.config, buses, self.clock)
-                .map(Message::Internet),
+                .map(Message::Vpn),
             self.compute_group
                 .hover(hovered, &self.config, self.clock)
                 .map(Message::Compute),
