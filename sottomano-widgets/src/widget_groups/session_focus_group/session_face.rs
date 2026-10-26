@@ -169,7 +169,9 @@ impl BarWidget for SessionFace<'_> {
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         self.run_length(clock.utc())
-            .map(|run_length| duration_text(run_length, locale))
+            .map(|run_length| TimeDelta::minutes(run_length.num_minutes()))
+            .filter(|whole_minutes| !whole_minutes.is_zero())
+            .map(|whole_minutes| duration_text(whole_minutes, locale))
     }
 
     fn state(&self, clock: Clock) -> WidgetState {
