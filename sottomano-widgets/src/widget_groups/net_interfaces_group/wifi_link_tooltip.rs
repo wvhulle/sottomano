@@ -28,6 +28,9 @@ impl BarWidget for Wifi {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
+        if self.switching {
+            return WidgetState::Pending;
+        }
         self.link
             .as_ref()
             .map_or(WidgetState::Off, |link| signal_level(link.signal).into())
@@ -39,7 +42,12 @@ impl BarWidget for Wifi {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let Some(link) = &self.link else {
-            return TooltipBody::dictionary([KeyValue::new("WiFi", "disconnected")]);
+            let radio_state = if self.radio_enabled {
+                "disconnected"
+            } else {
+                "radio off"
+            };
+            return TooltipBody::dictionary([KeyValue::new("WiFi", radio_state)]);
         };
         TooltipBody::sections([Section::dictionary(
             link.ssid

@@ -10,10 +10,10 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     network_connectivity::{
-        bluez_bluetooth::Bluetooth,
-        ethernet_connection::{Ethernet, EthernetDetails},
-        modem_manager_mobile::Mobile,
-        wifi_connection::{Wifi, WifiDetails},
+        bluez_bluetooth::{Bluetooth, toggle_bluetooth_power},
+        ethernet_connection::{Ethernet, EthernetDetails, toggle_ethernet_ports},
+        modem_manager_mobile::{Mobile, ModemState, toggle_mobile_radio},
+        wifi_connection::{Wifi, WifiDetails, toggle_wifi_radio},
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -25,6 +25,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
+        group_item::GroupItem,
         on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
@@ -66,6 +67,7 @@ pub enum NetInterfacesMessage {
     Mobile(Box<SourceDelivery<Mobile>>),
     WifiDetailsFetched(Box<SourceDelivery<WifiDetails>>),
     EthernetDetailsFetched(SourceDelivery<EthernetDetails>),
+    ToggleRadio(NetInterfaceTarget),
     Expansion(ExpansionMessage),
 }
 
@@ -110,6 +112,14 @@ impl NetInterfacesGroup {
             }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
                 self.ethernet_details.receive_delivery(fetched, clock);
+            }
+            NetInterfacesMessage::ToggleRadio(target) => {
+                return Task::future(async move {
+                    if let Err(bus_error) = toggle_radio(target).await {
+                        tracing::warn!("toggle {target:?}: {bus_error}");
+                    }
+                })
+                .discard();
             }
             NetInterfacesMessage::Expansion(msg) => {
                 self.expansion.update(msg);
@@ -162,6 +172,52 @@ impl NetInterfacesGroup {
         }
     }
 
+    fn radio_on(&self, target: NetInterfaceTarget) -> bool {
+        match target {
+            NetInterfaceTarget::Bluetooth => self
+                .bluetooth
+                .get()
+                .is_some_and(|bluetooth| bluetooth.radio.is_some()),
+            NetInterfaceTarget::Ethernet => self
+                .ethernet
+                .get()
+                .is_some_and(|ethernet| ethernet.connected_count() > 0),
+            NetInterfaceTarget::Wifi => self.wifi.get().is_some_and(|wifi| wifi.radio_enabled),
+            NetInterfaceTarget::Mobile => self
+                .mobile
+                .get()
+                .and_then(|mobile| mobile.state)
+                .is_some_and(|state| {
+                    !matches!(state, ModemState::Disabled | ModemState::Disabling)
+                }),
+        }
+    }
+
+    fn radio_item<'group>(
+        &'group self,
+        radio: Option<&'group dyn BarWidget>,
+        target: NetInterfaceTarget,
+    ) -> Option<GroupItem<'group, NetInterfacesMessage>> {
+        Some(GroupItem::reading(radio?, target).on_press(
+            self.press_does(target),
+            NetInterfacesMessage::ToggleRadio(target),
+        ))
+    }
+
+    fn press_does(&self, target: NetInterfaceTarget) -> &'static str {
+        let radio_on = self.radio_on(target);
+        match target {
+            NetInterfaceTarget::Bluetooth if radio_on => "turn Bluetooth off",
+            NetInterfaceTarget::Bluetooth => "turn Bluetooth on",
+            NetInterfaceTarget::Ethernet if radio_on => "disconnect Ethernet",
+            NetInterfaceTarget::Ethernet => "connect Ethernet",
+            NetInterfaceTarget::Wifi if radio_on => "turn Wi-Fi off",
+            NetInterfaceTarget::Wifi => "turn Wi-Fi on",
+            NetInterfaceTarget::Mobile if radio_on => "turn mobile data off",
+            NetInterfaceTarget::Mobile => "turn mobile data on",
+        }
+    }
+
     pub fn group_content(&self, clock: Clock) -> GroupContent<'_, NetInterfacesMessage> {
         let mobile_is_uplink = self
             .mobile
@@ -176,13 +232,11 @@ impl NetInterfacesGroup {
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [
-                self.bluetooth.group_item(NetInterfaceTarget::Bluetooth),
-                self.ethernet.group_item(NetInterfaceTarget::Ethernet),
-                self.wifi
-                    .group_item(NetInterfaceTarget::Wifi)
+                self.radio_item(self.bluetooth.display(), NetInterfaceTarget::Bluetooth),
+                self.radio_item(self.ethernet.display(), NetInterfaceTarget::Ethernet),
+                self.radio_item(self.wifi.display(), NetInterfaceTarget::Wifi)
                     .map(|item| item.previewed_on_handle_if(wifi_is_uplink)),
-                self.mobile
-                    .group_item(NetInterfaceTarget::Mobile)
+                self.radio_item(self.mobile.display(), NetInterfaceTarget::Mobile)
                     .map(|item| item.previewed_on_handle_if(mobile_is_uplink)),
             ]
             .into_iter()
@@ -197,4 +251,13 @@ impl NetInterfacesGroup {
 
 fn shows_uplink_signal(widget: &dyn BarWidget, clock: Clock) -> bool {
     widget.state(clock) != WidgetState::Off && widget.gauge().is_some()
+}
+
+async fn toggle_radio(target: NetInterfaceTarget) -> zbus::Result<()> {
+    match target {
+        NetInterfaceTarget::Bluetooth => toggle_bluetooth_power().await,
+        NetInterfaceTarget::Ethernet => toggle_ethernet_ports().await,
+        NetInterfaceTarget::Wifi => toggle_wifi_radio().await,
+        NetInterfaceTarget::Mobile => toggle_mobile_radio().await,
+    }
 }

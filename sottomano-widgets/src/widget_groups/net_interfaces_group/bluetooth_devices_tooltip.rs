@@ -32,6 +32,9 @@ impl BarWidget for Bluetooth {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
+        if self.power_switching {
+            return WidgetState::Pending;
+        }
         self.radio.as_ref().map_or(WidgetState::Off, |radio| {
             radio
                 .best_signal()

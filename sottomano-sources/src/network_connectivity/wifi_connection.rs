@@ -32,6 +32,8 @@ pub struct Link {
 #[derive(Debug, Clone)]
 pub struct Wifi {
     pub device: String,
+    pub radio_enabled: bool,
+    pub switching: bool,
     pub link: Option<Link>,
 }
 
@@ -62,7 +64,9 @@ async fn wifi_device(
 }
 
 async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
-    let device = wifi_device(&connection).await?;
+    let (device, radio_enabled) = try_join!(wifi_device(&connection), async {
+        Ok(network_manager_proxies::wireless_enabled(&connection).await?)
+    })?;
     let ap_path = if device.connected {
         Some(network_manager_proxies::active_access_point(&connection, &device).await?)
     } else {
@@ -83,6 +87,8 @@ async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
     };
     Ok(Wifi {
         device: device.interface,
+        radio_enabled,
+        switching: device.switching,
         link,
     })
 }
@@ -167,6 +173,10 @@ async fn readings_while_access_point_holds(
         )
     });
     Ok(device_readings(readings))
+}
+
+pub async fn toggle_wifi_radio() -> zbus::Result<()> {
+    network_manager_proxies::toggle_wireless_radio(&Connection::system().await?).await
 }
 
 impl Wifi {
