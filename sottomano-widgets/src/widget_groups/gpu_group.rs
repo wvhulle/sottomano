@@ -60,7 +60,7 @@ impl From<GpuTarget> for HoverTarget {
 }
 
 struct GpuDevice {
-    model: Option<GpuModel>,
+    model: GpuModel,
     handle: Option<GpuHandle>,
     snapshot: ContinuousReading<GpuSnapshot>,
     runtime_power: Option<GpuRuntimePower>,
@@ -85,18 +85,14 @@ impl GpuDevice {
     fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
         Some(GpuTemperatureLabel {
             current: self.snapshot.get()?.temperature?,
-            limits: self
-                .model
-                .as_ref()
-                .map(|model| model.temperature_limits)
-                .unwrap_or_default(),
+            limits: self.model.temperature_limits,
         })
     }
 
     fn power_label(&self) -> Option<GpuPowerDraw> {
         Some(GpuPowerDraw {
             draw: self.snapshot.get()?.power_draw?,
-            limit: self.model.as_ref().and_then(|model| model.power_limit),
+            limit: self.model.power_limit,
         })
     }
 }
@@ -307,7 +303,7 @@ impl GpuGroup {
         match target.reading {
             GpuReading::Load => snapshot.tooltip_with_sections(
                 self.discovery
-                    .sections_described_by(|_| device.model.iter().map(Section::from).collect()),
+                    .sections_described_by(|_| vec![Section::from(&device.model)]),
                 clock,
             ),
             GpuReading::Clock => Some(
