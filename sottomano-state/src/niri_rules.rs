@@ -435,11 +435,15 @@ enum Written {
     Known(String),
 }
 
+pub struct AdoptedRules<Rewrite> {
+    pub styling: NiriStyling,
+    pub rewrite: Rewrite,
+}
+
 #[derive(Clone)]
 pub struct NiriRulesFile {
     path: PathBuf,
     written: Written,
-    styling: NiriStyling,
     switch_heat: SwitchHeat,
 }
 
@@ -449,25 +453,20 @@ impl NiriRulesFile {
         Self {
             path: config_home.join("sottomano").join("niri.kdl"),
             written: Written::Unread,
-            styling: NiriStyling::default(),
             switch_heat: SwitchHeat::default(),
         }
     }
 
     pub fn reheat(
         &mut self,
+        styling: NiriStyling,
         switch_heat: SwitchHeat,
     ) -> Option<impl Future<Output = bool> + Send + use<>> {
         if switch_heat == self.switch_heat {
             return None;
         }
         self.switch_heat = switch_heat;
-        Some(self.write().persisted())
-    }
-
-    #[must_use]
-    pub fn styling(&self) -> NiriStyling {
-        self.styling
+        Some(self.write(styling).persisted())
     }
 
     #[must_use]
@@ -481,12 +480,11 @@ impl NiriRulesFile {
         }
     }
 
-    pub fn restyle<Change: FnOnce(&mut NiriStyling)>(
+    pub fn write_styling(
         &mut self,
-        change: Change,
-    ) -> impl Future<Output = bool> + Send + use<Change> {
-        change(&mut self.styling);
-        self.write().persisted()
+        styling: NiriStyling,
+    ) -> impl Future<Output = bool> + Send + use<> {
+        self.write(styling).persisted()
     }
 
     pub fn read(&self) -> impl Future<Output = StoredRules> + Send + use<> {
@@ -503,26 +501,34 @@ impl NiriRulesFile {
         }
     }
 
-    pub fn adopt(&mut self, stored: StoredRules) -> impl Future<Output = bool> + Send + use<> {
+    pub fn adopt(
+        &mut self,
+        stored: StoredRules,
+        current_styling: NiriStyling,
+    ) -> AdoptedRules<impl Future<Output = bool> + Send + use<>> {
+        let mut styling = current_styling;
         self.written = match stored {
             StoredRules::Unreadable(kind) => Written::Unreadable(kind),
             StoredRules::Absent => Written::Absent,
             StoredRules::Text(text) => {
                 match text.parse::<SottomanoRules>() {
-                    Ok(rules) => self.styling = NiriStyling::from(rules),
+                    Ok(rules) => styling = NiriStyling::from(rules),
                     Err(e) => tracing::warn!("niri rules: keeping the current look, file is {e}"),
                 }
                 Written::Known(text)
             }
         };
-        self.write().persisted()
+        AdoptedRules {
+            styling,
+            rewrite: self.write(styling).persisted(),
+        }
     }
 
-    fn write(&mut self) -> RulesWrite {
+    fn write(&mut self, styling: NiriStyling) -> RulesWrite {
         if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
             return RulesWrite::Withheld;
         }
-        let rules = match SottomanoRules::styled(self.styling, &self.switch_heat).to_kdl_v1() {
+        let rules = match SottomanoRules::styled(styling, &self.switch_heat).to_kdl_v1() {
             Ok(rules) => rules,
             Err(e) => {
                 tracing::warn!("niri rules: rendering failed: {e}");
@@ -661,15 +667,25 @@ mod tests {
     #[test]
     fn an_unchanged_heat_is_not_rewritten() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        assert!(rules.reheat(heated_terminal()).is_some());
-        assert!(rules.reheat(heated_terminal()).is_none());
+        assert!(rules.reheat(styled(), heated_terminal()).is_some());
+        assert!(rules.reheat(styled(), heated_terminal()).is_none());
     }
 
     #[test]
     fn an_absent_file_keeps_the_defaults() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        drop(rules.adopt(StoredRules::Absent));
-        assert_eq!(rules.styling(), NiriStyling::default());
+        let adopted = rules.adopt(StoredRules::Absent, NiriStyling::default());
+        assert_eq!(adopted.styling, NiriStyling::default());
+    }
+
+    #[test]
+    fn a_stored_look_is_adopted_over_the_current_one() {
+        let text = SottomanoRules::styled(styled(), &SwitchHeat::Hidden)
+            .to_kdl_v1()
+            .unwrap();
+        let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
+        let adopted = rules.adopt(StoredRules::Text(text), NiriStyling::default());
+        assert_eq!(adopted.styling, styled());
     }
 
     #[test]

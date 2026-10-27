@@ -272,6 +272,11 @@ impl SliderControl {
     }
 
     #[must_use]
+    pub fn settled_value(&self) -> f32 {
+        self.device_setting.reported_value()
+    }
+
+    #[must_use]
     pub fn readout_text(&self, locale: Locale) -> String {
         (self.readout)(self.current(), locale)
     }

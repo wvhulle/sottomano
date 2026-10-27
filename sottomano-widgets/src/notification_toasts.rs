@@ -25,7 +25,7 @@ use sottomano_sources::{
         niri_window_placement::Placement,
     },
 };
-use sottomano_state::ShellSettings;
+use sottomano_state::{LayerAppearance, NotificationSettings};
 use toast_card::ToastCard;
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};
@@ -48,7 +48,7 @@ pub struct ToastContext<'a> {
     pub placement: Placement,
     pub entries: Option<&'a DesktopEntries>,
     pub config: &'a Config,
-    pub shell_settings: &'a ShellSettings,
+    pub notifications: NotificationSettings,
     pub quiet: bool,
     pub clock: Clock,
 }
@@ -59,7 +59,7 @@ impl<'a> ToastContext<'a> {
         niri: &EventStreamState,
         entries: Option<&'a DesktopEntries>,
         config: &'a Config,
-        shell_settings: &'a ShellSettings,
+        notifications: NotificationSettings,
         quiet: bool,
         clock: Clock,
     ) -> Self {
@@ -67,7 +67,7 @@ impl<'a> ToastContext<'a> {
             placement: Placement::derive(niri),
             entries,
             config,
-            shell_settings,
+            notifications,
             quiet,
             clock,
         }
@@ -136,7 +136,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
         output: &str,
         config: &'a Config,
         theme: &'a Theme,
-        settings: &'a ShellSettings,
+        overlay_appearance: LayerAppearance,
         bar_clearance: Padding,
         clock: Clock,
     ) -> WindowAnchoredToasts<'a> {
@@ -153,7 +153,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 id: notif.data.id,
                 anchor: notif.place.anchor,
                 card: reveal_y(
-                    ToastCard::new(notif, config, theme, settings, clock.wall)
+                    ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
                         .hovered(self.hovered == Some(notif.data.id))
                         .reveal(notif.opacity(now)),
                     notif.slot(now),
@@ -162,7 +162,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 animating: notif.is_animating(now),
             })
             .collect();
-        WindowAnchoredToasts::new(toasts, bar_clearance, &settings.overlays, config)
+        WindowAnchoredToasts::new(toasts, bar_clearance, &overlay_appearance, config)
     }
 
     #[must_use]

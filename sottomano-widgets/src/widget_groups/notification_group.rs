@@ -1,4 +1,5 @@
-use sottomano_state::NotificationSettings;
+use iced::Task;
+use sottomano_state::shell_settings::{self, ShellSetting};
 
 use crate::{
     clock::Clock,
@@ -20,6 +21,7 @@ pub enum NotificationGroupMessage {
     Expansion(ExpansionMessage),
     ToggleSound,
     ToggleDoNotDisturb,
+    SoundLoaded(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,20 +36,34 @@ impl From<NotificationTarget> for HoverTarget {
     }
 }
 
-#[derive(Default)]
-pub struct NotificationGroup {
-    expansion: GroupExpansion,
+pub enum Action {
+    Run(Task<NotificationGroupMessage>),
+    ToggleDoNotDisturb,
 }
 
-fn sound_toggle(notification_settings: NotificationSettings) -> IconToggle {
+pub struct NotificationGroup {
+    expansion: GroupExpansion,
+    alert_sound: bool,
+}
+
+impl Default for NotificationGroup {
+    fn default() -> Self {
+        Self {
+            expansion: GroupExpansion::default(),
+            alert_sound: true,
+        }
+    }
+}
+
+fn sound_toggle(alert_sound: bool) -> IconToggle {
     IconToggle::new(
         "Notification sound",
-        if notification_settings.sound {
+        if alert_sound {
             Phosphor::Bell(Weight::Regular)
         } else {
             Phosphor::BellSlash(Weight::Regular)
         },
-        notification_settings.sound,
+        alert_sound,
         SwitchPresses {
             turning_on: "play a sound with each notification",
             turning_off: "show notifications silently",
@@ -56,16 +72,28 @@ fn sound_toggle(notification_settings: NotificationSettings) -> IconToggle {
 }
 
 impl NotificationGroup {
+    pub fn load() -> Task<NotificationGroupMessage> {
+        Task::perform(
+            shell_settings::load_alert_sound(),
+            NotificationGroupMessage::SoundLoaded,
+        )
+    }
+
+    #[must_use]
+    pub fn alert_sound_enabled(&self) -> bool {
+        self.alert_sound
+    }
+
     #[must_use]
     pub fn tooltip_for(
+        &self,
         target: NotificationTarget,
-        notification_settings: NotificationSettings,
         status: NotificationStatus,
         clock: Clock,
     ) -> Tooltip {
         match target {
             NotificationTarget::Status => Tooltip::sourced(status.tooltip(clock), Freshness::Live),
-            NotificationTarget::Sound => sound_toggle(notification_settings).switch_tooltip(clock),
+            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_tooltip(clock),
         }
     }
 
@@ -73,13 +101,29 @@ impl NotificationGroup {
         self.expansion.collapse();
     }
 
-    pub fn update(&mut self, message: ExpansionMessage) {
-        self.expansion.update(message);
+    pub fn update(&mut self, message: NotificationGroupMessage) -> Action {
+        match message {
+            NotificationGroupMessage::Expansion(menu) => {
+                self.expansion.update(menu);
+                Action::Run(Task::none())
+            }
+            NotificationGroupMessage::ToggleSound => {
+                self.alert_sound = !self.alert_sound;
+                Action::Run(
+                    Task::future(shell_settings::save(ShellSetting::Sound(self.alert_sound)))
+                        .discard(),
+                )
+            }
+            NotificationGroupMessage::SoundLoaded(alert_sound) => {
+                self.alert_sound = alert_sound;
+                Action::Run(Task::none())
+            }
+            NotificationGroupMessage::ToggleDoNotDisturb => Action::ToggleDoNotDisturb,
+        }
     }
 
     pub fn group_content(
         &self,
-        notification_settings: NotificationSettings,
         status: NotificationStatus,
     ) -> GroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
@@ -101,7 +145,7 @@ impl NotificationGroup {
                     NotificationGroupMessage::ToggleDoNotDisturb,
                 ),
                 GroupItem::toggle(
-                    sound_toggle(notification_settings),
+                    sound_toggle(self.alert_sound),
                     NotificationTarget::Sound,
                     NotificationGroupMessage::ToggleSound,
                 ),
@@ -178,5 +222,17 @@ impl BarWidget for DoNotDisturbStatus {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{NotificationGroup, NotificationGroupMessage};
+
+    #[test]
+    fn a_loaded_sound_setting_reads_back_unchanged() {
+        let mut notification_group = NotificationGroup::default();
+        let _ = notification_group.update(NotificationGroupMessage::SoundLoaded(false));
+        assert!(!notification_group.alert_sound_enabled());
     }
 }

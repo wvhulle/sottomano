@@ -15,7 +15,6 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         memory_board_group::MemoryBoardGroup,
         monitor_group::MonitorGroup,
-        notification_group::NotificationGroup,
         power_group::PowerGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
@@ -112,27 +111,17 @@ impl DesktopShell {
     #[must_use]
     pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
-            HoverTarget::PanelSettings(target) => Some(self.panel_settings_group.tooltip_for(
+            HoverTarget::PanelSettings(target) => {
+                Some(self.panel_settings_group.tooltip_for(*target, self.clock))
+            }
+            HoverTarget::SidebarSettings(target) => {
+                Some(self.sidebar_settings_group.tooltip_for(*target, self.clock))
+            }
+            HoverTarget::OverlaySettings(target) => {
+                Some(self.overlay_settings_group.tooltip_for(*target, self.clock))
+            }
+            HoverTarget::Notification(target) => Some(self.notification_group.tooltip_for(
                 *target,
-                &self.shell_settings.layout,
-                &self.shell_settings.panels,
-                self.clock,
-            )),
-            HoverTarget::SidebarSettings(target) => Some(self.sidebar_settings_group.tooltip_for(
-                *target,
-                &self.shell_settings.layout,
-                &self.shell_settings.sidebar,
-                self.clock,
-            )),
-            HoverTarget::OverlaySettings(target) => Some(self.overlay_settings_group.tooltip_for(
-                *target,
-                self.shell_settings.notifications,
-                &self.shell_settings.overlays,
-                self.clock,
-            )),
-            HoverTarget::Notification(target) => Some(NotificationGroup::tooltip_for(
-                *target,
-                self.shell_settings.notifications,
                 self.notification_status(),
                 self.clock,
             )),
@@ -158,7 +147,7 @@ impl DesktopShell {
             HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
                 &self.niri_snapshot,
                 &self.desktop_entries,
-                self.niri_rules.styling().layout,
+                self.niri_window_group.niri_layout(),
                 *workspace,
             ),
             HoverTarget::WorkspaceOrder => Some(Tooltip::empty()),
@@ -175,11 +164,9 @@ impl DesktopShell {
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target, self.clock),
             HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target, self.clock),
             HoverTarget::Power(target) => self.power_group.tooltip_for(*target, self.clock),
-            HoverTarget::NiriWindow(target) => Some(self.niri_window_group.tooltip_for(
-                *target,
-                &self.niri_rules,
-                self.clock,
-            )),
+            HoverTarget::NiriWindow(target) => {
+                Some(self.niri_window_group.tooltip_for(*target, self.clock))
+            }
             HoverTarget::Systemd(target) => {
                 self.systemd_manager_group.tooltip_for(target, self.clock)
             }

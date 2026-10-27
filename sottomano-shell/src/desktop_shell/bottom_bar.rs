@@ -38,23 +38,18 @@ impl DesktopShell {
 
     fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 9] {
         let config = &self.config;
-        let shell_settings = &self.shell_settings;
         [
             self.panel_settings_group
-                .group_content(config, &shell_settings.layout, &shell_settings.panels)
+                .group_content(config)
                 .map(Message::PanelSettings),
             self.sidebar_settings_group
-                .group_content(config, &shell_settings.layout, &shell_settings.sidebar)
+                .group_content(config)
                 .map(Message::SidebarSettings),
             self.overlay_settings_group
-                .group_content(
-                    config,
-                    shell_settings.notifications,
-                    &shell_settings.overlays,
-                )
+                .group_content(config)
                 .map(Message::OverlaySettings),
             self.niri_window_group
-                .group_content(config, self.niri_rules.styling())
+                .group_content(config)
                 .map(Message::NiriWindow),
             self.monitor_group
                 .group_content(config)
@@ -104,7 +99,7 @@ impl DesktopShell {
     }
 
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
-        match self.shell_settings.layout.workspaces_placement {
+        match self.sidebar_settings_group.workspaces_placement() {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 self.niri_snapshot.get()?,

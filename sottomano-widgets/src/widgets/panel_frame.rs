@@ -14,7 +14,7 @@ use iced::{
 };
 use iced_exwlshell::BlurRegions;
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::{LayerAppearance, ShellLayout};
+use sottomano_state::LayerAppearance;
 
 use crate::widgets::{palette_colors::PaletteColors, region_reporter::rounded_blur_rows};
 
@@ -96,8 +96,8 @@ impl OutlinedSides {
     }
 
     #[must_use]
-    pub fn all_when_floating(self, layout: &ShellLayout) -> Self {
-        if layout.float_offset_px > 0.0 {
+    pub fn all_when_floating(self, float_offset_px: f32) -> Self {
+        if float_offset_px > 0.0 {
             Self::ALL
         } else {
             self

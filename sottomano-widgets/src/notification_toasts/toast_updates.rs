@@ -378,11 +378,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
             placement,
             entries,
             config,
-            shell_settings,
+            notifications,
             quiet,
             clock,
         } = context;
-        let notifications = &shell_settings.notifications;
         if *quiet {
             self.hold_while_quiet(toast);
             return Task::none();
@@ -412,7 +411,7 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         )
         .map(|remaining| Countdown::started(remaining, now));
         let window = ToastWindow::resolve(data, placement);
-        let place = placement_for(window, placement, shell_settings.notifications, config);
+        let place = placement_for(window, placement, *notifications, config);
         let shown = self
             .live
             .iter_mut()

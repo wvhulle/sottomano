@@ -43,7 +43,7 @@ impl DesktopShell {
         window: Id,
         output: &'a str,
     ) -> Element<'a, Message> {
-        let float = self.shell_settings.layout.float_offset_px;
+        let float = self.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
             |position, content| anchor_tooltips_on_surface(window, position, origin, content);

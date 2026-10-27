@@ -93,6 +93,11 @@ impl DeviceSetting {
     }
 
     #[must_use]
+    pub fn reported_value(&self) -> f32 {
+        self.device_feedback.reported_value
+    }
+
+    #[must_use]
     pub fn lagging_device_value(&self, step: f32) -> Option<f32> {
         let requested_value = self.user_request.requested_value()?;
         (!self.device_feedback.has_reached(requested_value, step))

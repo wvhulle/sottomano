@@ -1,7 +1,7 @@
 use iced::Task;
 use sottomano_config::theme::palette::Palette;
 use sottomano_state::{
-    niri_rules::{HeatedWindow, NiriRulesFile, SwitchHeat},
+    niri_rules::{HeatedWindow, NiriRulesFile, NiriStyling, SwitchHeat},
     switch_heat_borders,
 };
 
@@ -54,7 +54,8 @@ impl SwitchHeatBorders {
     pub(super) fn reheat(
         &self,
         due: ReheatDue,
-        rules: &mut NiriRulesFile,
+        rules_file: &mut NiriRulesFile,
+        styling: NiriStyling,
         palette: &Palette,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
     ) -> Task<NiriWindowMessage> {
@@ -70,8 +71,8 @@ impl SwitchHeatBorders {
         } else {
             SwitchHeat::Hidden
         };
-        rules
-            .reheat(switch_heat)
+        rules_file
+            .reheat(styling, switch_heat)
             .map_or_else(Task::none, |written| Task::future(written).discard())
     }
 }

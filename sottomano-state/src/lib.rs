@@ -14,35 +14,24 @@ pub mod working_days;
 
 use core::f32::consts::FRAC_1_SQRT_2;
 
-#[derive(Debug, Clone)]
-pub struct ShellSettings {
-    pub layout: ShellLayout,
-    pub panels: LayerAppearance,
-    pub sidebar: LayerAppearance,
-    pub overlays: LayerAppearance,
-    pub notifications: NotificationSettings,
-}
-
-impl Default for ShellSettings {
-    fn default() -> Self {
-        Self {
-            layout: ShellLayout::default(),
-            panels: LayerAppearance::default(),
-            sidebar: LayerAppearance::default(),
-            overlays: LayerAppearance {
-                opacity: 0.85,
-                ..LayerAppearance::default()
-            },
-            notifications: NotificationSettings::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellLayer {
     Panels,
     Sidebar,
     Overlays,
+}
+
+impl ShellLayer {
+    #[must_use]
+    pub fn default_appearance(self) -> LayerAppearance {
+        match self {
+            Self::Panels | Self::Sidebar => LayerAppearance::default(),
+            Self::Overlays => LayerAppearance {
+                opacity: 0.85,
+                ..LayerAppearance::default()
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,25 +103,6 @@ pub struct OutlineStyle {
 impl Default for OutlineStyle {
     fn default() -> Self {
         Self { drawn: true }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ShellLayout {
-    pub disconnected_groups: bool,
-    pub auto_collapse_groups: bool,
-    pub workspaces_placement: WorkspacesPlacement,
-    pub float_offset_px: f32,
-}
-
-impl Default for ShellLayout {
-    fn default() -> Self {
-        Self {
-            disconnected_groups: false,
-            auto_collapse_groups: true,
-            workspaces_placement: WorkspacesPlacement::Sidebar,
-            float_offset_px: 0.0,
-        }
     }
 }
 

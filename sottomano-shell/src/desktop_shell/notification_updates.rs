@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use iced::{Task, window::Id};
-use sottomano_state::shell_settings::{self, ShellSetting};
 use sottomano_widgets::{
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
-        notification_group::NotificationGroupMessage,
+        notification_group::{self, NotificationGroupMessage},
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
     },
     widgets::widget_group::GroupToastRequests,
@@ -46,7 +45,7 @@ impl DesktopShell {
                 &self.niri,
                 self.desktop_entries.get(),
                 &self.config,
-                &self.shell_settings,
+                self.notification_settings(),
                 self.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
@@ -55,20 +54,9 @@ impl DesktopShell {
     }
 
     pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match msg {
-            NotificationGroupMessage::Expansion(menu) => {
-                self.notification_group.update(menu);
-                Task::none()
-            }
-            NotificationGroupMessage::ToggleSound => {
-                let notifications = &mut self.shell_settings.notifications;
-                notifications.sound = !notifications.sound;
-                Task::future(shell_settings::save(ShellSetting::Sound(
-                    notifications.sound,
-                )))
-                .discard()
-            }
-            NotificationGroupMessage::ToggleDoNotDisturb => {
+        match self.notification_group.update(msg) {
+            notification_group::Action::Run(task) => task.map(Message::NotificationGroup),
+            notification_group::Action::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
             }
         }
@@ -98,7 +86,7 @@ impl DesktopShell {
                     &self.niri,
                     self.desktop_entries.get(),
                     &self.config,
-                    &self.shell_settings,
+                    self.notification_settings(),
                     false,
                     self.clock,
                 ));

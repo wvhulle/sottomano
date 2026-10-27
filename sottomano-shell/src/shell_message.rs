@@ -14,7 +14,6 @@ use sottomano_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
-use sottomano_state::{ShellSettings, niri_rules::StoredRules};
 use sottomano_widgets::{
     bar_slot_drag::DragMessage,
     desktop_index::ResolvedIcons,
@@ -88,8 +87,6 @@ pub enum Message {
     IdleTimeouts(IdleTimeoutsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
-    ShellSettingsLoaded(ShellSettings),
-    NiriRulesLoaded(StoredRules),
     ConfigFileChanged,
     ConfigLoaded(Result<Box<Config>, Arc<LoadError>>),
     SoundThemeLoaded(SoundTheme),

@@ -77,7 +77,8 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: Appearan
     .is_some()
 }
 
-pub async fn load(layer: ShellLayer, defaults: LayerAppearance) -> LayerAppearance {
+pub async fn load(layer: ShellLayer) -> LayerAppearance {
+    let defaults = layer.default_appearance();
     with_table(
         "layer appearance: load failed",
         &[CREATE_TABLE],

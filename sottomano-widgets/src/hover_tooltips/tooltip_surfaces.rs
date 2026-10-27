@@ -8,7 +8,7 @@ use iced::{
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::{ShellSettings, niri_rules::StyledSurface};
+use sottomano_state::{LayerAppearance, niri_rules::StyledSurface};
 use tokio::time::sleep;
 
 use crate::{
@@ -251,7 +251,7 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
-        shell_settings: &ShellSettings,
+        surface_style: TooltipSurfaceStyle,
         assets: WindowAssets<'a>,
         content: impl Fn(&HoverTarget) -> Tooltip,
         clock: Clock,
@@ -270,7 +270,7 @@ impl TooltipHost {
                 Position::Top,
                 self.transition.seq(),
                 config,
-                shell_settings,
+                surface_style.overlay_appearance,
             ));
         };
 
@@ -298,12 +298,18 @@ impl TooltipHost {
                 placement.position,
                 self.transition.seq(),
                 config,
-                shell_settings,
+                surface_style.overlay_appearance,
             ))
-            .padding(shell_settings.layout.float_offset_px)
+            .padding(surface_style.float_offset_px)
             .into(),
         )
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TooltipSurfaceStyle {
+    pub overlay_appearance: LayerAppearance,
+    pub float_offset_px: f32,
 }
 
 fn hoverable_content(content: Element<'_, PopupMessage>) -> Element<'_, PopupMessage> {

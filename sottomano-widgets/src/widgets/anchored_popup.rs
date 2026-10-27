@@ -15,7 +15,7 @@ use iced::{
     window,
 };
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::ShellSettings;
+use sottomano_state::LayerAppearance;
 
 use crate::{
     hover_tooltips::PopupMessage,
@@ -70,13 +70,12 @@ pub fn anchored_popup<'a>(
     position: Position,
     seq: u64,
     config: &Config,
-    settings: &ShellSettings,
+    overlay_appearance: LayerAppearance,
 ) -> Element<'a, PopupMessage> {
     let background = PaletteColors::from(&config.theme.palette)
         .surface
-        .scale_alpha(settings.overlays.opacity);
-    let overlays = &settings.overlays;
-    let overlay_frame = LayerFrameStyle::new(overlays, config);
+        .scale_alpha(overlay_appearance.opacity);
+    let overlay_frame = LayerFrameStyle::new(&overlay_appearance, config);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
@@ -87,8 +86,8 @@ pub fn anchored_popup<'a>(
         seq,
         morph: config.tooltips.popup_morph,
         background,
-        radius: overlays.corner_radius_px,
-        blurred: overlays.blurred,
+        radius: overlay_appearance.corner_radius_px,
+        blurred: overlay_appearance.blurred,
         shadow: overlay_frame.drop_shadow(),
         outline: overlay_frame.outline_border(),
     })

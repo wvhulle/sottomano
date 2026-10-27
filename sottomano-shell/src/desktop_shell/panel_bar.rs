@@ -38,7 +38,7 @@ impl DesktopShell {
         position: Position,
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
-        let panels = &self.shell_settings.panels;
+        let panels = self.panel_settings_group.panel_appearance();
         let palette = PaletteColors::from(&self.config.theme.palette);
         let centered = mouse_area(
             container(content)
@@ -47,9 +47,9 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(Message::DismissPressed);
-        let groups_joined = !self.shell_settings.layout.disconnected_groups;
+        let groups_joined = !self.panel_settings_group.groups_disconnected();
         let band_style = if groups_joined {
-            LayerFrameStyle::new(panels, &self.config).container_style()
+            LayerFrameStyle::new(&panels, &self.config).container_style()
         } else {
             container::Style::default().color(palette.bar_foreground)
         };
@@ -58,7 +58,7 @@ impl DesktopShell {
             right: false,
             ..OutlinedSides::inward_of(position)
         }
-        .all_when_floating(&self.shell_settings.layout);
+        .all_when_floating(self.panel_settings_group.float_offset_px());
         let strip = panel_frame(
             container(centered)
                 .width(Length::Fill)
@@ -80,11 +80,11 @@ impl DesktopShell {
         groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let panels = &self.shell_settings.panels;
-        let groups_disconnected = self.shell_settings.layout.disconnected_groups;
-        let frame_style = LayerFrameStyle::new(panels, config).container_style();
-        let outlined_sides =
-            OutlinedSides::inward_of(position).all_when_floating(&self.shell_settings.layout);
+        let panels = self.panel_settings_group.panel_appearance();
+        let groups_disconnected = self.panel_settings_group.groups_disconnected();
+        let frame_style = LayerFrameStyle::new(&panels, config).container_style();
+        let outlined_sides = OutlinedSides::inward_of(position)
+            .all_when_floating(self.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;

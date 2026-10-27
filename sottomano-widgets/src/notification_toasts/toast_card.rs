@@ -16,7 +16,7 @@ use sottomano_sources::{
     },
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
 };
-use sottomano_state::ShellSettings;
+use sottomano_state::LayerAppearance;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_lifecycle::ToastKind};
@@ -137,7 +137,7 @@ pub struct ToastCard<'a, Routed> {
     notif: &'a Notification<Routed>,
     config: &'a Config,
     theme: &'a Theme,
-    settings: &'a ShellSettings,
+    overlay_appearance: LayerAppearance,
     now: SystemTime,
     hovered: bool,
     reveal: f32,
@@ -148,14 +148,14 @@ impl<'a, Routed> ToastCard<'a, Routed> {
         notif: &'a Notification<Routed>,
         config: &'a Config,
         theme: &'a Theme,
-        settings: &'a ShellSettings,
+        overlay_appearance: LayerAppearance,
         now: SystemTime,
     ) -> Self {
         Self {
             notif,
             config,
             theme,
-            settings,
+            overlay_appearance,
             now,
             hovered: false,
             reveal: 1.0,
@@ -224,13 +224,13 @@ impl<Routed> ToastCard<'_, Routed> {
         let opacity = if hovered {
             1.0
         } else {
-            self.settings.overlays.opacity
+            self.overlay_appearance.opacity
         };
-        let shadow = LayerFrameStyle::new(&self.settings.overlays, self.config).drop_shadow();
+        let shadow = LayerFrameStyle::new(&self.overlay_appearance, self.config).drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
-                border::rounded(self.settings.overlays.corner_radius_px)
+                border::rounded(self.overlay_appearance.corner_radius_px)
                     .color(urgency.color.scale_alpha(self.reveal))
                     .width(BORDER_WIDTH_PX),
             )
@@ -248,7 +248,7 @@ impl<Routed> ToastCard<'_, Routed> {
         MarkupBody::new(body, font, text)
             .size(font.small_text_size_px)
             .block_spacing(self.config.layout.overlay.row_spacing)
-            .corner_radius(self.settings.overlays.corner_radius_px)
+            .corner_radius(self.overlay_appearance.corner_radius_px)
             .into()
     }
 
@@ -407,7 +407,7 @@ impl<Routed> ToastCard<'_, Routed> {
     ) -> Element<'b, NotificationMessage> {
         let id = self.notif.data.id;
         let font = &self.config.theme.font;
-        let radius = self.settings.overlays.corner_radius_px;
+        let radius = self.overlay_appearance.corner_radius_px;
         let reply = move |message| NotificationMessage::Reply { id, message };
         let field = text_input(placeholder, &self.notif.reply_draft)
             .font(FontFaces::from(font).regular)
@@ -449,7 +449,7 @@ impl<Routed> ToastCard<'_, Routed> {
         text: Color,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.theme.font;
-        let radius = self.settings.overlays.corner_radius_px;
+        let radius = self.overlay_appearance.corner_radius_px;
         button(bar_text(font, label).size(font.text_size_px).color(text))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {
