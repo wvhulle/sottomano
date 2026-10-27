@@ -1,4 +1,4 @@
-use std::{collections::HashMap, mem::replace, num::NonZeroUsize, time::Duration};
+use std::{collections::HashMap, mem::replace, time::Duration};
 
 use iced::{
     Task,
@@ -15,8 +15,6 @@ use crate::{
         DeliveryTiming, ReadingSections, Section, SourcedSections, TooltipBody,
     },
 };
-
-const FIRST_FETCH_PENDING_LINES: NonZeroUsize = NonZeroUsize::new(3).unwrap();
 
 #[derive(Debug, Clone)]
 pub struct RememberedSnapshot<S: SnapshotSource> {
@@ -255,7 +253,7 @@ where
             }
             HoverFetchProgress::AwaitingFirstDelivery => Some(SourcedSections::awaiting_delivery(
                 TooltipBody::sections(remembered.map_or_else(
-                    || vec![Section::pending_lines(FIRST_FETCH_PENDING_LINES)],
+                    || vec![Section::section_seeding()],
                     |remembered| describe(&remembered.remembered_snapshot),
                 )),
             )),
@@ -294,7 +292,7 @@ mod tests {
     use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
-    use crate::widgets::tooltip_body::SectionsDeliveryState;
+    use crate::widgets::tooltip_body::{SectionBody, SectionsDeliveryState};
 
     #[derive(Debug, Clone, PartialEq)]
     struct CountedSnapshot(u32);
@@ -361,6 +359,9 @@ mod tests {
             SectionsDeliveryState::AwaitingDelivery
         );
         assert!(hover.reading().is_none());
+        let seeded = hover.sections_described_by(|_| Vec::new()).unwrap();
+        let sections: Vec<&SectionBody> = seeded.filled_sections().map(Section::body).collect();
+        assert_eq!(sections, [&SectionBody::SectionSeeding]);
     }
 
     #[test]

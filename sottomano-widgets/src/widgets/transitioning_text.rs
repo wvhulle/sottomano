@@ -37,6 +37,7 @@ const SHIMMER_BASE_ALPHA: f32 = 0.1;
 const SHIMMER_CREST_ALPHA: f32 = 0.36;
 const SHIMMER_HALF_BAND: f32 = 0.18;
 const NOISE_ALPHA: f32 = 0.5;
+const NOISE_GLYPH_ADVANCE_PER_SIZE: f32 = 0.6;
 const BAR_HEIGHT_FRACTION: f32 = 0.7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -294,8 +295,7 @@ impl<Message> TransitioningText<'_, Message> {
         glyph_change: Duration,
         locked: impl Fn(usize, char) -> bool,
     ) -> String {
-        let frame = (elapsed.as_millis() / glyph_change.as_millis().max(1)) as u64;
-        let frame_seed = self.seed() ^ frame.wrapping_mul(0x9E37_79B9);
+        let frame_seed = self.frame_seed(elapsed, glyph_change);
         self.text
             .chars()
             .enumerate()
@@ -306,6 +306,23 @@ impl<Message> TransitioningText<'_, Message> {
                     noise_glyph(frame_seed, position)
                 }
             })
+            .collect()
+    }
+
+    fn frame_seed(&self, elapsed: Duration, glyph_change: Duration) -> u64 {
+        let frame = (elapsed.as_millis() / glyph_change.as_millis().max(1)) as u64;
+        self.seed() ^ frame.wrapping_mul(0x9E37_79B9)
+    }
+
+    fn noise_run(&self, area: Rectangle, elapsed: Duration, glyph_change: Duration) -> String {
+        if !self.text.is_empty() {
+            return self.scrambled(elapsed, glyph_change, |_, _| false);
+        }
+        let glyph_count =
+            (area.width / (self.size * NOISE_GLYPH_ADVANCE_PER_SIZE)).floor() as usize;
+        let frame_seed = self.frame_seed(elapsed, glyph_change);
+        (0..glyph_count)
+            .map(|position| noise_glyph(frame_seed, position))
             .collect()
     }
 
@@ -331,7 +348,7 @@ impl<Message> TransitioningText<'_, Message> {
                 self.fill_bars(renderer, area, shimmer_background(self.color, crest));
             }
             PlaceholderEffect::Noise { glyph_change } => {
-                let content = self.scrambled(elapsed, glyph_change, |_, _| false);
+                let content = self.noise_run(area, elapsed, glyph_change);
                 self.fill_text(
                     renderer,
                     content,
