@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use iced::{Task, window::Id};
-use sottomano_state::shell_settings;
+use sottomano_state::shell_settings::{self, ShellSetting};
 use sottomano_widgets::{
     notification_toasts::ToastContext,
     shell_message::Message,
@@ -61,7 +61,10 @@ impl DesktopShell {
             NotificationGroupMessage::ToggleSound => {
                 let notifications = &mut self.shell_settings.notifications;
                 notifications.sound = !notifications.sound;
-                Task::future(shell_settings::save_sound(notifications.sound)).discard()
+                Task::future(shell_settings::save(ShellSetting::Sound(
+                    notifications.sound,
+                )))
+                .discard()
             }
             NotificationGroupMessage::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)

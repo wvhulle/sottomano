@@ -1,7 +1,6 @@
 pub mod bottom_bar;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
-pub mod notification_toast_layer;
 pub mod notification_updates;
 pub mod panel_bar;
 pub mod pointer_drag;
@@ -45,7 +44,7 @@ use sottomano_sources::{
     voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
 use sottomano_state::{
-    ShellSettings, idle, launches,
+    ShellSettings, launches,
     niri_rules::{NiriRulesFile, StoredRules},
     shell_settings,
 };
@@ -260,9 +259,7 @@ impl DesktopShell {
             Task::perform(launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
-            Task::perform(idle::load(), |t| {
-                Message::IdleTimeouts(IdleTimeoutsMessage::Loaded(t))
-            }),
+            IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
             Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
             Task::perform(shell.niri_rules.read(), Message::NiriRulesLoaded),
             NiriWindowGroup::load(),
@@ -582,16 +579,7 @@ impl DesktopShell {
         ) {
             overlay_settings_group::Action::Run(task) => task,
             overlay_settings_group::Action::ReflowToasts(task) => {
-                let placement = niri_window_placement::Placement::derive(&self.niri);
-                Task::batch([
-                    self.notifications.on_niri_changed(
-                        &placement,
-                        &self.config,
-                        self.shell_settings.notifications,
-                        self.clock.instant,
-                    ),
-                    task,
-                ])
+                Task::batch([self.reflow_toasts(), task])
             }
         }
     }
@@ -612,6 +600,10 @@ impl DesktopShell {
         outputs: HashMap<String, niri_output_facts::OutputInfo>,
     ) -> Task<Message> {
         self.outputs = outputs;
+        self.reflow_toasts()
+    }
+
+    fn reflow_toasts(&mut self) -> Task<Message> {
         let placement = niri_window_placement::Placement::derive(&self.niri);
         self.notifications.on_niri_changed(
             &placement,
@@ -627,13 +619,8 @@ impl DesktopShell {
             .map(Message::SessionFocus)
     }
 
-    fn update_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
-        let handled = self.dispatch_window_group(msg);
-        Task::batch([handled, self.refocus_session()])
-    }
-
-    fn dispatch_window_group(&mut self, msg: WindowGroupMessage) -> Task<Message> {
-        match self.window_group.update(msg, self.clock) {
+    fn update_window_group(&mut self, window_message: WindowGroupMessage) -> Task<Message> {
+        let handled = match self.window_group.update(window_message, self.clock) {
             window_group::Action::Run(task) => task.map(Message::WindowGroup),
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => {
                 self.audio_group.toggle_window_mute(pid).map(Message::Audio)
@@ -646,7 +633,8 @@ impl DesktopShell {
             window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
                 self.update_pointer_drag(drag)
             }
-        }
+        };
+        Task::batch([handled, self.refocus_session()])
     }
 
     fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
@@ -915,13 +903,7 @@ impl DesktopShell {
             tasks.push(self.refresh_quick_launch());
         }
         if self.notifications.is_active() {
-            let placement = niri_window_placement::Placement::derive(&self.niri);
-            tasks.push(self.notifications.on_niri_changed(
-                &placement,
-                &self.config,
-                self.shell_settings.notifications,
-                self.clock.instant,
-            ));
+            tasks.push(self.reflow_toasts());
         }
         Task::batch(tasks)
     }
@@ -1009,7 +991,15 @@ impl DesktopShell {
             Some(Surface {
                 output,
                 role: SurfaceRole::NotificationToasts,
-            }) => self.notification_toast_layer(output),
+            }) => Element::from(self.notifications.anchored_toasts(
+                output,
+                &self.config,
+                &self.theme,
+                &self.shell_settings,
+                self.bar_clearance(output),
+                self.clock,
+            ))
+            .map(Message::Notification),
             _ => blank().into(),
         }
     }

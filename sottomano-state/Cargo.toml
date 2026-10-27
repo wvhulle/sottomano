@@ -19,3 +19,6 @@ niri-ipc.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 turso.workspace = true
+
+[dev-dependencies]
+sottomano-sources = { path = "../sottomano-sources", features = ["test-support"] }

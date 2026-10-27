@@ -1,7 +1,8 @@
 use iced::Task;
 use sottomano_config::Config;
 use sottomano_state::{
-    LayerAppearance, ShellLayer, ShellLayout, WorkspacesPlacement, shell_settings,
+    LayerAppearance, ShellLayer, ShellLayout, WorkspacesPlacement,
+    shell_settings::{self, ShellSetting},
 };
 
 use crate::{
@@ -109,9 +110,9 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
                 shell_layout.workspaces_placement = shell_layout.workspaces_placement.toggled();
-                Task::future(shell_settings::save_workspaces_placement(
+                Task::future(shell_settings::save(ShellSetting::WorkspacesPlacement(
                     shell_layout.workspaces_placement,
-                ))
+                )))
                 .discard()
             }
             SidebarSettingsMessage::Appearance(msg) => self

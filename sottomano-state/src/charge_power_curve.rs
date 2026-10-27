@@ -75,20 +75,13 @@ async fn write_bin(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        for statement in SCHEMA {
-            conn.execute(statement, ()).await.unwrap();
-        }
-        conn
-    }
+    use super::*;
 
     #[tokio::test]
     async fn bins_survive_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         let mut curve = ChargeCurve::default();
         curve.bins[3] = Some(PowerBin {
             mean_w: 28.5,
@@ -101,7 +94,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_battery_has_an_empty_curve() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         assert_eq!(
             read_curve(&conn, "BAT9").await.unwrap(),
             ChargeCurve::default()

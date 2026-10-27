@@ -76,6 +76,10 @@ impl Default for IdleTimeoutsGroup {
 }
 
 impl IdleTimeoutsGroup {
+    pub fn load() -> Task<IdleTimeoutsMessage> {
+        Task::perform(idle::load(), IdleTimeoutsMessage::Loaded)
+    }
+
     fn timer_mut(&mut self, kind: IdleAction) -> &mut IdleTimer {
         match kind {
             IdleAction::Lock => &mut self.lock,

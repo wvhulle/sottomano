@@ -75,6 +75,16 @@ impl Deref for TableConnection {
     }
 }
 
+#[cfg(any(test, feature = "test-support"))]
+pub async fn in_memory_connection(schema: &[&str]) -> turso::Connection {
+    let database = turso::Builder::new_local(":memory:").build().await.unwrap();
+    let conn = database.connect().unwrap();
+    for statement in schema {
+        conn.execute(*statement, ()).await.unwrap();
+    }
+    conn
+}
+
 pub async fn with_table<T>(
     label: &str,
     schema: &[&str],

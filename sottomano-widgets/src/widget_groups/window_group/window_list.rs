@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use iced::{
-    Alignment, Border, Element, Subscription, Task,
-    border,
+    Alignment, Border, Element, Subscription, Task, border,
     widget::{Row, container, progress_bar, right, stack, text},
 };
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
@@ -17,11 +16,11 @@ use sottomano_sources::{
         unity_launcher_badges::{self, LauncherEntries, LauncherEntry},
     },
     media_playback_audio::pipewire_audio::WindowAudio,
+    stream_operators::restarting,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
-    background_work::restarting_subscription,
     bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
     clock::Clock,
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
@@ -90,7 +89,7 @@ pub enum Action {
 impl WindowList {
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowListMessage> {
         Subscription::batch([
-            restarting_subscription("job view", kde_job_view_progress::serve)
+            Subscription::run(|| restarting("job view", kde_job_view_progress::serve))
                 .map(WindowListMessage::JobsChanged),
             if agents.kitty {
                 Subscription::run_with(agents.clone(), |_| {

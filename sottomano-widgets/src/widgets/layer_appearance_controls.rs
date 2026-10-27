@@ -1,9 +1,8 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::sqlite_state_store::{flag, real};
 use sottomano_state::{
     LayerAppearance, ShellLayer,
-    layer_appearance::{self, AppearanceSetting},
+    layer_appearance::{self, AppearanceSetting, AppearanceValue},
 };
 
 use crate::{
@@ -241,12 +240,21 @@ impl LayerAppearanceControls {
         value: f32,
         on_control: fn(ControlMessage) -> AppearanceMessage,
     ) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance::save(self.layer, setting, real(stored)))
-            .map(move |ok| on_control(ControlMessage::Persisted { value, ok }))
+        Task::future(layer_appearance::save(
+            self.layer,
+            setting,
+            AppearanceValue::Real(stored),
+        ))
+        .map(move |ok| on_control(ControlMessage::Persisted { value, ok }))
     }
 
     fn persist_switch(&self, setting: AppearanceSetting, enabled: bool) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance::save(self.layer, setting, flag(enabled))).discard()
+        Task::future(layer_appearance::save(
+            self.layer,
+            setting,
+            AppearanceValue::Flag(enabled),
+        ))
+        .discard()
     }
 
     pub fn items<'a, M: Clone + 'a>(

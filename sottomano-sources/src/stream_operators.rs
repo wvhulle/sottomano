@@ -125,7 +125,7 @@ where
     T: Send,
     E: Send,
 {
-    stream::once(connecting).try_flatten().until_first_failure()
+    until_first_failure(stream::once(connecting).try_flatten())
 }
 
 pub fn resubscribing_until_failure<F, S, T, E>(
@@ -137,10 +137,22 @@ where
     T: Send,
     E: Send,
 {
-    stream::repeat_with(subscribe)
-        .then(identity)
-        .try_flatten()
-        .until_first_failure()
+    until_first_failure(stream::repeat_with(subscribe).then(identity).try_flatten())
+}
+
+fn until_first_failure<T, E>(
+    results: impl Stream<Item = Result<T, E>> + Send,
+) -> impl Stream<Item = Result<T, E>> + Send
+where
+    T: Send,
+    E: Send,
+{
+    let mut failed = false;
+    results.take_while(move |outcome| {
+        let before_failure = !failed;
+        failed = outcome.is_err();
+        ready(before_failure)
+    })
 }
 
 pub fn restarting<F, S, E>(
@@ -221,20 +233,6 @@ pub trait StreamOperators: Stream + Sized {
             } else {
                 stream::iter([released.clone()]).right_stream()
             }
-        })
-    }
-
-    fn until_first_failure<T, E>(self) -> impl Stream<Item = Result<T, E>> + Send
-    where
-        Self: Stream<Item = Result<T, E>> + Send,
-        T: Send,
-        E: Send,
-    {
-        let mut failed = false;
-        self.take_while(move |item| {
-            let before_failure = !failed;
-            failed = item.is_err();
-            ready(before_failure)
         })
     }
 }

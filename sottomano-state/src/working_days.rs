@@ -108,26 +108,20 @@ async fn write_days(conn: &turso::Connection, days: WorkingDays) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use chrono::{Weekday, WeekdaySet};
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_TABLE, WorkingDays, read_days, write_days};
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
-
     #[tokio::test]
     async fn an_unsaved_week_reads_as_monday_to_friday() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
 
         assert_eq!(read_days(&conn).await.unwrap(), WorkingDays::default());
     }
 
     #[tokio::test]
     async fn chosen_days_survive_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         let days = WorkingDays {
             weekdays: WeekdaySet::from_array([Weekday::Mon, Weekday::Tue, Weekday::Thu]),
         };
@@ -138,7 +132,7 @@ mod tests {
 
     #[tokio::test]
     async fn an_empty_week_round_trips() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         let days = WorkingDays {
             weekdays: WeekdaySet::EMPTY,
         };

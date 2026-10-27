@@ -127,15 +127,9 @@ async fn write_model(
 #[cfg(test)]
 mod tests {
     use nalgebra::{Matrix3, Vector3};
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_TABLE, Profile, RegressionState, read_models, write_model};
-
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
 
     fn distinct_state() -> RegressionState {
         RegressionState {
@@ -146,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn coefficients_and_covariance_survive_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
             .await
             .unwrap();

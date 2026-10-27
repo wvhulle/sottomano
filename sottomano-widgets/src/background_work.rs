@@ -1,14 +1,10 @@
-use std::{convert::identity, fmt::Display, future::Future};
+use std::convert::identity;
 
-use iced::{
-    Subscription, Task,
-    futures::{Stream, StreamExt},
-};
+use iced::{Subscription, Task, futures::StreamExt};
 use sottomano_sources::{
     ReadingSource, SourceDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::{clipboard_copy, niri_action_requests},
-    stream_operators::restarting,
 };
 
 use crate::shell_message::Message;
@@ -18,21 +14,6 @@ pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
         niri_action_requests::send_action(&action).err()
     }))
     .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
-}
-
-pub fn restarting_subscription<F, S, E>(
-    source: &'static str,
-    connect: fn() -> F,
-) -> Subscription<S::Item>
-where
-    F: Future<Output = Result<S, E>> + Send + 'static,
-    S: Stream + Send + 'static,
-    S::Item: Send + 'static,
-    E: Display + Send + 'static,
-{
-    Subscription::run_with((source, connect), |&(source, connect)| {
-        restarting(source, connect)
-    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

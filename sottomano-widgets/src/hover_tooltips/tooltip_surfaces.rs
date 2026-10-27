@@ -6,10 +6,10 @@ use iced::{
     widget::{container, mouse_area},
     window::Id,
 };
-use tokio::time::sleep;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_state::{ShellSettings, niri_rules::StyledSurface};
+use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
@@ -18,7 +18,7 @@ use crate::{
         tooltip_content::TooltipContent,
         tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
     },
-    layer_surfaces::{PanelEdge, base_settings, input_region},
+    layer_surfaces::{PanelEdge, base_settings, input_regions},
     shell_message::Message,
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
@@ -179,7 +179,7 @@ impl TooltipHost {
                 settings: tooltip_settings(output),
                 id,
             }),
-            Task::done(input_region(id, Rectangle::default())),
+            Task::done(input_regions(id, Vec::new())),
         ])
     }
 

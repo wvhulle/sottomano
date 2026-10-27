@@ -122,19 +122,13 @@ mod tests {
     use std::time::Duration;
 
     use chrono::NaiveTime;
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_TABLE, QuietHoursSchedule, read_schedule, write_schedule};
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
-
     #[tokio::test]
     async fn schedule_survives_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         let schedule = QuietHoursSchedule {
             follows_schedule: false,
             start: NaiveTime::from_hms_opt(22, 15, 0).unwrap(),
@@ -148,7 +142,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_screen_off_round_trips_as_null() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         let schedule = QuietHoursSchedule {
             screen_off: None,
             ..QuietHoursSchedule::default()

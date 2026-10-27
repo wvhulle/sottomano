@@ -14,11 +14,6 @@ pub struct PanelEdge {
 }
 
 #[must_use]
-pub fn input_region(surface: Id, bounds: Rectangle) -> Message {
-    input_regions(surface, vec![bounds])
-}
-
-#[must_use]
 pub fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
     Message::SetInputRegion {
         id: surface,
