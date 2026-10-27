@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-const HIDE_GRACE: Duration = Duration::from_millis(250);
+pub const HIDE_GRACE: Duration = Duration::from_millis(250);
 const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {

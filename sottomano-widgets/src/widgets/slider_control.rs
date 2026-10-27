@@ -399,23 +399,73 @@ impl SliderControl {
         })
     }
 
+    #[must_use]
+    pub fn always_open_view<'a>(
+        &self,
+        config: &Config,
+        clock: Clock,
+        gap: f32,
+    ) -> Element<'a, ControlMessage> {
+        let opened = Row::with_children([
+            self.state_glyph(config, clock),
+            self.inline_slider_view(config),
+            self.readout_view(config),
+        ])
+        .spacing(gap)
+        .align_y(Alignment::Center);
+        let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
+        if self.right_click.is_some() {
+            area = area.on_right_press(ControlMessage::Right);
+        }
+        area.into()
+    }
+
     fn expanded_view<'a>(
         &self,
         config: &Config,
         expand: f32,
         clock: Clock,
     ) -> Element<'a, ControlMessage> {
+        let closing_button = |content: Element<'a, ControlMessage>| -> Element<'a, ControlMessage> {
+            button(content)
+                .padding(0)
+                .style(flat_button(
+                    PaletteColors::from(&config.theme.palette).bar_foreground,
+                ))
+                .on_press(ControlMessage::Press)
+                .into()
+        };
+        let gap = config.layout.panel.widget_spacing;
+        let revealed = Row::with_children([
+            self.inline_slider_view(config),
+            closing_button(self.readout_view(config)),
+        ])
+        .spacing(gap)
+        .align_y(Alignment::Center);
+        let opened = Row::with_children([
+            closing_button(self.state_glyph(config, clock)),
+            reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
+        ])
+        .align_y(Alignment::Center);
+        let press_hints = PressHints {
+            left: Some("close the slider"),
+            right: self.right_click,
+            scroll: Some("adjust"),
+            ..PressHints::default()
+        };
+        self.scrollable_hover_area(opened.into(), press_hints)
+    }
+
+    fn state_glyph<'a>(&self, config: &Config, clock: Clock) -> Element<'a, ControlMessage> {
         let state = self.state(clock);
-        let glyph = button(self.effective_icon().with_weight(state.weight()).view(
+        self.effective_icon().with_weight(state.weight()).view(
             config.theme.font.icon_size_px,
             state.color(&PaletteColors::from(&config.theme.palette)),
-        ))
-        .padding(0)
-        .style(flat_button(
-            PaletteColors::from(&config.theme.palette).bar_foreground,
-        ))
-        .on_press(ControlMessage::Press);
-        let slider = inline_slider(
+        )
+    }
+
+    fn inline_slider_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+        inline_slider(
             config,
             self.range.clone(),
             self.current(),
@@ -425,8 +475,11 @@ impl SliderControl {
             ControlMessage::Set,
             ControlMessage::Release,
             ControlMessage::Scroll,
-        );
-        let readout = button(widest_readout_text(
+        )
+    }
+
+    fn readout_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
+        widest_readout_text(
             ReadoutLabels {
                 owner: self.target.clone(),
                 range: self.range.clone(),
@@ -443,29 +496,17 @@ impl SliderControl {
             .width(Length::Fill)
             .align_x(Horizontal::Center)
             .color(PaletteColors::from(&config.theme.palette).bar_foreground),
-        ))
-        .padding(0)
-        .style(flat_button(
-            PaletteColors::from(&config.theme.palette).bar_foreground,
-        ))
-        .on_press(ControlMessage::Press);
-        let gap = config.layout.panel.widget_spacing;
-        let revealed = Row::with_children([slider, readout.into()])
-            .spacing(gap)
-            .align_y(Alignment::Center);
-        let opened = Row::with_children([
-            glyph.into(),
-            reveal_x(container(revealed).padding(Padding::ZERO.left(gap)), expand),
-        ])
-        .align_y(Alignment::Center);
-        let press_hints = PressHints {
-            left: Some("close the slider"),
-            right: self.right_click,
-            scroll: Some("adjust"),
-            ..PressHints::default()
-        };
+        )
+        .into()
+    }
+
+    fn scrollable_hover_area<'a>(
+        &self,
+        content: Element<'a, ControlMessage>,
+        press_hints: PressHints,
+    ) -> Element<'a, ControlMessage> {
         let hover = hoverable(
-            opened.into(),
+            content,
             self.target.clone(),
             press_hints,
             ControlMessage::Tooltip,

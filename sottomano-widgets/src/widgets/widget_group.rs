@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 use chrono::Locale;
 use iced::{
@@ -13,11 +13,12 @@ use crate::{
     hover_tooltips::{GroupHandle, HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         activity_line::activity_line,
+        aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
         bar_widget::{BarWidget, Glyph},
         expand_animation::expand_animation,
         flat_button,
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemPlacement},
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
         palette_colors::PaletteColors,
@@ -204,6 +205,12 @@ impl<'a, M: 'a> Handle<'a, M> {
     }
 }
 
+pub(super) struct DrawerCells<'a, M> {
+    pub face: Element<'a, GroupEvent<M>>,
+    pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
+    pub unaligned: Vec<Element<'a, GroupEvent<M>>>,
+}
+
 pub struct GroupContent<'a, M> {
     handle: Handle<'a, M>,
     items: Vec<GroupItem<'a, M>>,
@@ -260,36 +267,85 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    fn ongoing_toasts(
-        &self,
-        locale: Locale,
-        clock: Clock,
-    ) -> impl Iterator<Item = OngoingToast<M>> {
-        self.handle
-            .expand_message()
-            .into_iter()
-            .flat_map(|expand| {
-                self.items.iter().flat_map(move |item| {
-                    item.ongoing_toasts_with_reading(expand.clone(), locale, clock)
-                })
-            })
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
-
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
-        let Some(expand) = self.handle.expand_message() else {
-            return GroupToastRequests::default();
-        };
+        match self.handle.expand_message() {
+            Some(expand) => self.toast_requests_revealed_by(&expand, locale, clock),
+            None => GroupToastRequests::default(),
+        }
+    }
+
+    pub(super) fn toast_requests_revealed_by(
+        &self,
+        reveal_message: &M,
+        locale: Locale,
+        clock: Clock,
+    ) -> GroupToastRequests<M> {
         GroupToastRequests {
-            ongoing_toasts: self.ongoing_toasts(locale, clock).collect(),
+            ongoing_toasts: self
+                .items
+                .iter()
+                .flat_map(|item| {
+                    item.ongoing_toasts_with_reading(reveal_message.clone(), locale, clock)
+                })
+                .collect(),
             levels: self
                 .items
                 .iter()
-                .filter_map(|item| item.level_reading(expand.clone(), locale, clock))
+                .filter_map(|item| item.level_reading(reveal_message.clone(), locale, clock))
                 .collect(),
         }
+    }
+
+    pub(super) fn has_expandable_handle(&self) -> bool {
+        self.handle.expand_message().is_some()
+    }
+
+    pub(super) fn highest_alert_severity(&self, clock: Clock) -> Severity {
+        self.handle
+            .expand_message()
+            .and_then(|_| {
+                self.items
+                    .iter()
+                    .filter_map(|item| item.ongoing_alert_severity(clock))
+                    .max()
+            })
+            .unwrap_or_default()
+    }
+
+    pub(super) fn drawer_cells(
+        self,
+        config: &'a Config,
+        clock: Clock,
+    ) -> Option<DrawerCells<'a, M>> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let GroupContent { handle, mut items } = self;
+        let face = match handle {
+            Handle::Expandable { face, .. } => face,
+            Handle::Fixed => HandleFace::FirstItem,
+        };
+        let face_item = face.into_face_item(config, &mut items, PressHints::default(), clock);
+        let face_view = face_item.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
+        let (aligned, unaligned) = items.iter().fold(
+            (BTreeMap::new(), Vec::new()),
+            |(mut aligned, mut unaligned), item| {
+                let item_view = item.drawer_view(config, clock);
+                match item.alignment() {
+                    ItemAlignment::Aligned(quantity) => {
+                        aligned.insert(quantity, item_view);
+                    }
+                    ItemAlignment::Unaligned => unaligned.push(item_view),
+                }
+                (aligned, unaligned)
+            },
+        );
+        Some(DrawerCells {
+            face: face_view,
+            aligned,
+            unaligned,
+        })
     }
 
     pub fn view<Outer: From<GroupEvent<M>> + 'a>(
@@ -301,16 +357,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         if self.items.is_empty() {
             return None;
         }
-        let highest_alert_severity = self
-            .handle
-            .expand_message()
-            .and_then(|_| {
-                self.items
-                    .iter()
-                    .filter_map(|item| item.ongoing_alert_severity(clock))
-                    .max()
-            })
-            .unwrap_or_default();
+        let highest_alert_severity = self.highest_alert_severity(clock);
         let GroupContent { handle, mut items } = self;
         let Handle::Expandable {
             expansion,
@@ -414,14 +461,14 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
 }
 
 #[derive(Clone, Copy)]
-struct EdgeIndicator {
-    highest_alert_severity: Severity,
-    cursor_hovering: bool,
-    expanded: bool,
+pub(super) struct EdgeIndicator {
+    pub highest_alert_severity: Severity,
+    pub cursor_hovering: bool,
+    pub expanded: bool,
 }
 
 impl EdgeIndicator {
-    fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
+    pub(super) fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
         let thickness = config.panel_bar.indicator_thickness;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;

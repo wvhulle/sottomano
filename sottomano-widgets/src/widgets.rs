@@ -1,6 +1,8 @@
 pub mod activity_line;
+pub mod aligned_quantity;
 pub mod amount_text;
 pub mod anchored_popup;
+pub mod anchored_sheet;
 pub mod announced_level;
 pub mod app_window_focus;
 pub mod bar_widget;
@@ -14,6 +16,7 @@ pub mod expand_animation;
 pub mod favicon;
 pub mod focus_indicator;
 pub mod gauge;
+pub mod group_drawer;
 pub mod group_item;
 pub mod hardware_section;
 pub mod hover_fetched_snapshot;

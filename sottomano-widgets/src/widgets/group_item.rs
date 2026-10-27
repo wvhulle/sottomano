@@ -2,8 +2,8 @@ use std::rc::Rc;
 
 use chrono::Locale;
 use iced::{
-    Element,
-    widget::{button, mouse_area},
+    Alignment, Element,
+    widget::{Row, button, mouse_area, text::Wrapping},
 };
 use sottomano_config::{Config, severity::Severity};
 
@@ -11,6 +11,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
+        aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
         bar_widget::BarWidget,
         flat_button,
@@ -21,13 +22,23 @@ use crate::{
         palette_colors::PaletteColors,
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
+        text::bar_text,
         toggle_control::IconToggle,
         widget_group::GroupEvent,
     },
 };
 
+const PRESS_DESCRIPTION_WIDTH_EMS: f32 = 13.0;
+const DRAWER_ICON_GAP_EMS: f32 = 0.75;
+
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
-type DrawControl<'a, M> = Box<dyn Fn(f32, Clock) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ItemPlacement {
+    Bar,
+    Drawer,
+}
 
 enum ItemKind<'a, M> {
     Reading {
@@ -71,7 +82,9 @@ impl<'a, M: 'a> ItemKind<'a, M> {
             Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
         };
         let lift_control = |draw: DrawControl<'a, M>| -> DrawControl<'a, Outer> {
-            Box::new(move |reveal, clock| draw(reveal, clock).map(move |event| event.map(lift)))
+            Box::new(move |reveal, clock, placement| {
+                draw(reveal, clock, placement).map(move |event| event.map(lift))
+            })
         };
         match self {
             ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
@@ -123,6 +136,7 @@ pub struct GroupItem<'a, M> {
     previewed_on_handle: bool,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
+    alignment: ItemAlignment,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -135,6 +149,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             previewed_on_handle: false,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
+            alignment: ItemAlignment::Unaligned,
         }
     }
 
@@ -153,7 +168,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::of_kind(ItemKind::Control {
             widget,
             target: target.into(),
-            draw: Box::new(draw),
+            draw: Box::new(move |reveal, clock, _| draw(reveal, clock)),
         })
     }
 
@@ -163,14 +178,22 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
-        Self::control(slider, slider.target().clone(), move |reveal, clock| {
-            let on_control = Rc::clone(&on_control);
-            slider
-                .view(config, reveal, clock)
-                .map(move |message| match message {
+        Self::of_kind(ItemKind::Control {
+            widget: slider,
+            target: slider.target().clone(),
+            draw: Box::new(move |reveal, clock, placement| {
+                let on_control = Rc::clone(&on_control);
+                let slider_view = match placement {
+                    ItemPlacement::Bar => slider.view(config, reveal, clock),
+                    ItemPlacement::Drawer => {
+                        slider.always_open_view(config, clock, drawer_icon_gap(config))
+                    }
+                };
+                slider_view.map(move |message| match message {
                     ControlMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
                     message => GroupEvent::Group(on_control(message)),
                 })
+            }),
         })
     }
 
@@ -232,6 +255,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
+    pub fn aligned_as(self, quantity: AlignedQuantity) -> Self {
+        Self {
+            alignment: ItemAlignment::Aligned(quantity),
+            ..self
+        }
+    }
+
+    pub(super) fn alignment(&self) -> ItemAlignment {
+        self.alignment
+    }
+
+    #[must_use]
     pub fn ongoing_toasts(self, ongoing_toasts: impl IntoIterator<Item = OngoingToast<M>>) -> Self {
         Self {
             ongoing_toasts: ongoing_toasts.into_iter().collect(),
@@ -267,6 +302,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .into_iter()
                 .map(|alert| alert.map_messages(lift))
                 .collect(),
+            alignment: self.alignment,
         }
     }
 
@@ -369,20 +405,50 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
+        self.placed_view(config, reveal, clock, ItemPlacement::Bar)
+    }
+
+    pub(super) fn drawer_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        let item_view = self.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
+        match &self.on_press {
+            Some(press) => Row::with_children([item_view, press_description(config, press.does)])
+                .spacing(drawer_icon_gap(config))
+                .align_y(Alignment::Center)
+                .into(),
+            None => item_view,
+        }
+    }
+
+    pub(super) fn placed_view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+        placement: ItemPlacement,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
+        {
+            ItemPlacement::Bar => hoverable(
+                element,
+                target.clone(),
+                self.press_hints(),
+                GroupEvent::Tooltip,
+            ),
+            ItemPlacement::Drawer => element,
+        };
         let mut element = match &self.kind {
-            ItemKind::Reading { widget, target } => hoverable(
+            ItemKind::Reading { widget, target } => explained(
                 source_reading(config, widget.as_ref(), reveal, clock),
-                target.clone(),
-                self.press_hints(),
-                GroupEvent::Tooltip,
+                target,
             ),
-            ItemKind::HoverableElement { target, draw } => hoverable(
-                draw(reveal),
-                target.clone(),
-                self.press_hints(),
-                GroupEvent::Tooltip,
-            ),
-            ItemKind::Control { draw, .. } => draw(reveal, clock),
+            ItemKind::HoverableElement { target, draw } => explained(draw(reveal), target),
+            ItemKind::Control { draw, .. } => draw(reveal, clock, placement),
             ItemKind::Element { draw } => draw(reveal),
         };
         if let Some(press) = self.on_press.clone() {
@@ -401,4 +467,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
         element
     }
+}
+
+fn drawer_icon_gap(config: &Config) -> f32 {
+    DRAWER_ICON_GAP_EMS * config.theme.font.text_size_px
+}
+
+fn press_description<'a, Message: 'a>(config: &Config, does: &'static str) -> Element<'a, Message> {
+    let font = &config.theme.font;
+    bar_text(font, does)
+        .size(font.small_text_size_px)
+        .width(PRESS_DESCRIPTION_WIDTH_EMS * font.text_size_px)
+        .wrapping(Wrapping::Word)
+        .color(PaletteColors::from(&config.theme.palette).secondary_foreground)
+        .into()
 }

@@ -119,6 +119,7 @@ pub enum GroupHandle {
     Power,
     QuickLaunch,
     QuietSchedule,
+    SettingsDrawer,
     SidebarSettings,
     Systemd,
     Tray,
