@@ -14,7 +14,6 @@ workspace = true
 [dependencies]
 sottomano-config = { path = "../sottomano-config" }
 sottomano-sources = { path = "../sottomano-sources" }
-sottomano-state = { path = "../sottomano-state" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 chrono.workspace = true
 clap.workspace = true
@@ -29,8 +28,12 @@ niri-ipc.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
+turso.workspace = true
 zbus.workspace = true
 uom.workspace = true
+
+[dev-dependencies]
+sottomano-sources = { path = "../sottomano-sources", features = ["test-support"] }
 
 [features]
 devtools = ["iced_exwlshell/debug"]

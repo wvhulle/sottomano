@@ -1,5 +1,7 @@
 mod clock_slider;
+mod quiet_hours_store;
 pub mod quiet_window;
+mod working_days_store;
 
 use std::{ops::RangeInclusive, time::Duration};
 
@@ -7,23 +9,21 @@ use chrono::{DateTime, Local, Locale, Utc, Weekday, WeekdaySet};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery, login_session_presence::logind_manager,
+    login_session_presence::logind_manager,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-};
-use sottomano_state::{
-    quiet_hours::{self, QuietHoursSchedule},
-    working_days::{self, WorkingDays},
 };
 use tokio::time::sleep;
 
-use self::clock_slider::{clock_at, clock_minutes, new_clock_slider};
+use self::{
+    clock_slider::{clock_at, clock_minutes, new_clock_slider},
+    quiet_hours_store::QuietHoursSchedule,
+    working_days_store::{MONDAY_TO_FRIDAY, with_day_toggled},
+};
 use crate::{
-    background_work::source_subscription,
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
@@ -69,7 +69,7 @@ pub enum QuietSlider {
 #[derive(Debug, Clone)]
 pub enum QuietScheduleMessage {
     ScheduleLoaded(QuietHoursSchedule),
-    WorkingDaysLoaded(SourceDelivery<WorkingDays>),
+    WorkingDaysLoaded(WeekdaySet),
     ToggleWorkingDay(Weekday),
     EdgeDue,
     ToggleQuietNow,
@@ -103,7 +103,7 @@ struct ArmedEdge {
 
 pub struct QuietScheduleGroup {
     follows_schedule: bool,
-    working_days: ContinuousReading<WorkingDays>,
+    working_days: WeekdaySet,
     start_slider: SliderControl,
     end_slider: SliderControl,
     screen_off_slider: SliderControl,
@@ -118,7 +118,7 @@ impl Default for QuietScheduleGroup {
         let defaults = QuietHoursSchedule::default();
         let mut quiet_schedule_group = Self {
             follows_schedule: defaults.follows_schedule,
-            working_days: ContinuousReading::default(),
+            working_days: MONDAY_TO_FRIDAY,
             start_slider: new_clock_slider(
                 "Quiet from",
                 QuietScheduleTarget::Start,
@@ -152,11 +152,16 @@ impl Default for QuietScheduleGroup {
 
 impl QuietScheduleGroup {
     pub fn load() -> Task<QuietScheduleMessage> {
-        Task::perform(quiet_hours::load(), QuietScheduleMessage::ScheduleLoaded)
-    }
-
-    pub fn subscription() -> Subscription<QuietScheduleMessage> {
-        source_subscription::<WorkingDays>(()).map(QuietScheduleMessage::WorkingDaysLoaded)
+        Task::batch([
+            Task::perform(
+                quiet_hours_store::load(),
+                QuietScheduleMessage::ScheduleLoaded,
+            ),
+            Task::perform(
+                working_days_store::load(),
+                QuietScheduleMessage::WorkingDaysLoaded,
+            ),
+        ])
     }
 
     pub fn resume_subscription(buses: &DesktopBuses) -> Subscription<QuietScheduleMessage> {
@@ -172,10 +177,6 @@ impl QuietScheduleGroup {
     #[must_use]
     pub fn working_days(&self) -> WeekdaySet {
         self.working_days
-            .get()
-            .copied()
-            .unwrap_or_default()
-            .weekdays
     }
 
     #[must_use]
@@ -279,18 +280,13 @@ impl QuietScheduleGroup {
                 self.phase = self.phase_at(clock.local());
                 Task::none()
             }
-            QuietScheduleMessage::WorkingDaysLoaded(delivery) => {
-                self.working_days
-                    .receive_keeping_last_reading(delivery, clock);
+            QuietScheduleMessage::WorkingDaysLoaded(working_days) => {
+                self.working_days = working_days;
                 Task::none()
             }
             QuietScheduleMessage::ToggleWorkingDay(day) => {
-                let toggled = WorkingDays {
-                    weekdays: self.working_days(),
-                }
-                .toggled(day);
-                self.working_days.load(toggled, clock);
-                Task::future(working_days::save(toggled)).discard()
+                self.working_days = with_day_toggled(self.working_days, day);
+                Task::future(working_days_store::save(self.working_days)).discard()
             }
             QuietScheduleMessage::EdgeDue => {
                 let now = clock.local();
@@ -306,7 +302,7 @@ impl QuietScheduleGroup {
             QuietScheduleMessage::ToggleFollowsSchedule => {
                 self.follows_schedule = !self.follows_schedule;
                 self.manual = None;
-                Task::future(quiet_hours::save(self.requested_schedule())).discard()
+                Task::future(quiet_hours_store::save(self.requested_schedule())).discard()
             }
             QuietScheduleMessage::Slider(slider, control) => self.update_slider(slider, control),
             QuietScheduleMessage::Expansion(m) => {
@@ -346,7 +342,7 @@ impl QuietScheduleGroup {
                     self.screen_off_slider
                         .update(ControlMessage::Disabled(timeout_at(value).is_none()));
                 }
-                Task::future(quiet_hours::save(self.requested_schedule())).map(move |ok| {
+                Task::future(quiet_hours_store::save(self.requested_schedule())).map(move |ok| {
                     QuietScheduleMessage::Slider(slider, ControlMessage::Persisted { value, ok })
                 })
             }
@@ -449,11 +445,10 @@ impl QuietScheduleGroup {
                 } else {
                     "day off"
                 };
-                self.working_days
-                    .tooltip_with(TooltipBody::dictionary([KeyValue::new(
-                        weekday_name(day, locale),
-                        kind,
-                    )]))
+                Some(Tooltip::sourced(
+                    TooltipBody::dictionary([KeyValue::new(weekday_name(day, locale), kind)]),
+                    Freshness::Live,
+                ))
             }
         }
     }
@@ -547,10 +542,11 @@ mod tests {
     use std::time::Duration;
 
     use chrono::NaiveTime;
-    use sottomano_state::quiet_hours::QuietHoursSchedule;
 
     use super::{QuietChange, QuietScheduleGroup};
-    use crate::widget_groups::quiet_schedule_group::quiet_window::Phase;
+    use crate::widget_groups::quiet_schedule_group::{
+        quiet_hours_store::QuietHoursSchedule, quiet_window::Phase,
+    };
 
     fn group_in_phase(phase: Phase, screen_off: Option<Duration>) -> QuietScheduleGroup {
         let mut group = QuietScheduleGroup::default();

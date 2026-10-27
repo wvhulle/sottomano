@@ -1,14 +1,10 @@
-use std::convert::Infallible;
-
 use chrono::TimeDelta;
-use futures::{Stream, StreamExt, stream};
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
+const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS dark_mode_schedule (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     armed INTEGER NOT NULL,
     sunrise_offset INTEGER NOT NULL,
@@ -30,19 +26,7 @@ impl Default for DarkModeSchedule {
     }
 }
 
-impl ReadingSource for DarkModeSchedule {
-    type Error = Infallible;
-    type StreamInputs = ();
-
-    const NAME: &'static str = "dark mode schedule";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
-
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(load()).map(Ok).map(SourceDelivery::Reading)
-    }
-}
-
-async fn load() -> DarkModeSchedule {
+pub async fn load() -> DarkModeSchedule {
     with_table(
         "dark mode schedule: load failed",
         &[CREATE_TABLE],
@@ -56,14 +40,14 @@ pub async fn save(schedule: DarkModeSchedule) -> bool {
     with_table(
         "dark mode schedule: save failed",
         &[CREATE_TABLE],
-        async |conn| write_schedule(conn, schedule).await,
+        async |connection| write_schedule(connection, schedule).await,
     )
     .await
     .is_some()
 }
 
-async fn read_schedule(conn: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {
-    let mut rows = conn
+async fn read_schedule(connection: &turso::Connection) -> Result<DarkModeSchedule, StoreError> {
+    let mut rows = connection
         .query(
             "SELECT armed, sunrise_offset, sunset_offset FROM dark_mode_schedule WHERE id = 0",
             (),
@@ -83,19 +67,20 @@ async fn read_schedule(conn: &turso::Connection) -> Result<DarkModeSchedule, Sto
 }
 
 async fn write_schedule(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     schedule: DarkModeSchedule,
 ) -> Result<(), StoreError> {
-    conn.execute(
-        "INSERT INTO dark_mode_schedule (id, armed, sunrise_offset, sunset_offset)
+    connection
+        .execute(
+            "INSERT INTO dark_mode_schedule (id, armed, sunrise_offset, sunset_offset)
          VALUES (0, ?1, ?2, ?3)
          ON CONFLICT(id) DO UPDATE SET armed = ?1, sunrise_offset = ?2, sunset_offset = ?3",
-        (
-            i64::from(schedule.auto_switch_armed),
-            schedule.sun_event_offsets.sunrise_offset.num_seconds(),
-            schedule.sun_event_offsets.sunset_offset.num_seconds(),
-        ),
-    )
-    .await?;
+            (
+                i64::from(schedule.auto_switch_armed),
+                schedule.sun_event_offsets.sunrise_offset.num_seconds(),
+                schedule.sun_event_offsets.sunset_offset.num_seconds(),
+            ),
+        )
+        .await?;
     Ok(())
 }

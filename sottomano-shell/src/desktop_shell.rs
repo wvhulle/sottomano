@@ -1,3 +1,4 @@
+mod app_launch_store;
 pub mod bottom_bar;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
@@ -43,13 +44,12 @@ use sottomano_sources::{
     },
     voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
-use sottomano_state::{NotificationSettings, launches, niri_rules::NiriRulesFile};
 use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{TooltipHost, tooltip_surfaces::TooltipSurfaceStyle},
-    notification_toasts::{NotificationLayer, ToastContext},
+    notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     widget_groups::{
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
@@ -71,7 +71,7 @@ use sottomano_widgets::{
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
         monitor_group::MonitorGroup,
         net_interfaces_group::NetInterfacesGroup,
-        niri_window_group::{NiriWindowGroup, ReheatDue},
+        niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
         notification_group::NotificationGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
         overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
@@ -251,8 +251,8 @@ impl DesktopShell {
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
             Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
-            Task::perform(launches::load(), Message::TrackerLoaded),
-            SessionFocusGroup::load().map(Message::SessionFocus),
+            Task::perform(app_launch_store::load(), Message::TrackerLoaded),
+            SessionFocusGroup::load(clock).map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
             IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
             PanelSettingsGroup::load().map(Message::PanelSettings),
@@ -260,6 +260,7 @@ impl DesktopShell {
             OverlaySettingsGroup::load().map(Message::OverlaySettings),
             NotificationGroup::load().map(Message::NotificationGroup),
             QuietScheduleGroup::load().map(Message::QuietSchedule),
+            DarkModeGroup::load().map(Message::DarkMode),
             shell.niri_window_group.load().map(Message::NiriWindow),
             Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
             Task::perform(
@@ -281,17 +282,20 @@ impl DesktopShell {
         self.clock = Clock::real();
         let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
-        let reheat_due = reheat_due_after(&message);
+        let reheat_due = reheats_switch_heat(&message);
         let dispatched = self.dispatch_message(message);
         self.session_focus_group
             .refresh_daily_totals(&self.config.widget_groups.focus_time, self.clock);
-        let reheated = self
-            .niri_window_group
-            .reheat(reheat_due, &self.config, || {
-                self.session_focus_group
-                    .heated_windows(&self.niri, &self.config, self.clock)
-            })
-            .map(Message::NiriWindow);
+        let reheated = if reheat_due {
+            self.niri_window_group
+                .reheat(&self.config, || {
+                    self.session_focus_group
+                        .heated_windows(&self.niri, &self.config, self.clock)
+                })
+                .map(Message::NiriWindow)
+        } else {
+            Task::none()
+        };
         let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
             Task::none()
         } else {
@@ -871,7 +875,7 @@ impl DesktopShell {
                 ));
             }
             if let Some(launch) = self.launch_tracker.observe(&event) {
-                tasks.push(Task::future(launches::record(launch)).discard());
+                tasks.push(Task::future(app_launch_store::record(launch)).discard());
             }
             let _ = self.niri.apply(event);
         }
@@ -1012,9 +1016,9 @@ pub(crate) fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
         .and_then(|window| window.app_id.as_deref())
 }
 
-fn reheat_due_after(message: &Message) -> ReheatDue {
-    ReheatDue(matches!(
+fn reheats_switch_heat(message: &Message) -> bool {
+    matches!(
         message,
         Message::Niri(_) | Message::SessionFocus(_) | Message::NiriWindow(_) | Message::Clock(_)
-    ))
+    )
 }

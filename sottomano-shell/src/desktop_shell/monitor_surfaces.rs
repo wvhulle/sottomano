@@ -5,8 +5,10 @@ use sottomano_config::screen_edges::Position;
 use sottomano_sources::{
     blocking_background_work::blocking, desktop_windows_apps::niri_output_facts,
 };
-use sottomano_state::niri_rules::StyledSurface;
-use sottomano_widgets::layer_surfaces::{base_settings, input_regions};
+use sottomano_widgets::{
+    layer_surfaces::{base_settings, input_regions},
+    widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
+};
 
 use crate::{
     desktop_shell::DesktopShell,

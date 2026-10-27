@@ -20,13 +20,15 @@ use sottomano_sources::{
     },
     login_session_presence::session_power_actions::SessionAction,
 };
-use sottomano_state::{idle::ScheduledAfterIdle, niri_rules::NiriLayout};
 use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
     hover_tooltips::PressHints,
-    widget_groups::window_group::process_tree::Folding,
+    widget_groups::{
+        idle_timeouts_group::ScheduledAfterIdle, niri_window_group::niri_kdl_rules::NiriLayout,
+        window_group::process_tree::Folding,
+    },
     widgets::{
         bar_widget::Glyph, icon_handle::PixmapHandles, localized_durations::LengthOfTime,
         localized_time::LocalizedTimeFormat,

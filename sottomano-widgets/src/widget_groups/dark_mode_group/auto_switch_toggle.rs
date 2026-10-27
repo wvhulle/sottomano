@@ -3,23 +3,22 @@ use situo_client::GeoCoordinates;
 use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
     ColorMode, ModeSwitch, SolarSwitchSchedule, SunEventOffsets, SunOutlook,
 };
-use sottomano_state::dark_mode::DarkModeSchedule;
 
 use crate::{
     clock::Clock,
+    widget_groups::dark_mode_group::dark_mode_schedule_store::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
 pub struct AutoSwitchToggle {
-    pub saved_schedule: ContinuousReading<DarkModeSchedule>,
+    pub saved_schedule: DarkModeSchedule,
     observer: Observer,
     last_switch_check: DateTime<Utc>,
 }
@@ -47,24 +46,18 @@ pub enum SwitchDecision {
 impl AutoSwitchToggle {
     pub fn new(clock: Clock) -> Self {
         Self {
-            saved_schedule: ContinuousReading::default(),
+            saved_schedule: DarkModeSchedule::default(),
             observer: Observer::AwaitingLocationFix,
             last_switch_check: clock.utc(),
         }
     }
 
-    pub fn schedule_tooltip(&self, clock: Clock) -> Option<Tooltip> {
-        self.saved_schedule.tooltip_with(self.tooltip(clock))
+    pub fn schedule_tooltip(&self, clock: Clock) -> Tooltip {
+        Tooltip::sourced(self.tooltip(clock), Freshness::Live)
     }
 
     pub fn press_does(&self) -> &'static str {
-        if self
-            .saved_schedule
-            .get()
-            .copied()
-            .unwrap_or_default()
-            .auto_switch_armed
-        {
+        if self.saved_schedule.auto_switch_armed {
             "stop switching between light and dark at sunrise and sunset"
         } else {
             "switch to light at sunrise and to dark at sunset"
@@ -75,16 +68,12 @@ impl AutoSwitchToggle {
         self.observer = Observer::Located(observer_location);
     }
 
-    pub fn toggle_auto_switch(&mut self, clock: Clock) {
-        let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
-        schedule.auto_switch_armed = !schedule.auto_switch_armed;
-        self.saved_schedule.load(schedule, clock);
+    pub fn toggle_auto_switch(&mut self) {
+        self.saved_schedule.auto_switch_armed = !self.saved_schedule.auto_switch_armed;
     }
 
-    pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets, clock: Clock) {
-        let mut schedule = self.saved_schedule.get().copied().unwrap_or_default();
-        schedule.sun_event_offsets = offsets;
-        self.saved_schedule.load(schedule, clock);
+    pub fn change_sun_event_offsets(&mut self, offsets: SunEventOffsets) {
+        self.saved_schedule.sun_event_offsets = offsets;
     }
 
     pub fn mark_checked(&mut self, now: DateTime<Utc>) {
@@ -92,7 +81,7 @@ impl AutoSwitchToggle {
     }
 
     pub fn status_at(&self, now: DateTime<Utc>) -> ScheduleStatus {
-        let saved = self.saved_schedule.get().copied().unwrap_or_default();
+        let saved = self.saved_schedule;
         if !saved.auto_switch_armed {
             return ScheduleStatus::Disarmed;
         }
@@ -148,13 +137,7 @@ impl BarWidget for AutoSwitchToggle {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(
-            self.saved_schedule
-                .get()
-                .copied()
-                .unwrap_or_default()
-                .auto_switch_armed,
-        )
+        WidgetState::of_toggle(self.saved_schedule.auto_switch_armed)
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
@@ -176,9 +159,6 @@ impl BarWidget for AutoSwitchToggle {
         };
         let offset = self
             .saved_schedule
-            .get()
-            .copied()
-            .unwrap_or_default()
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
         TooltipBody::dictionary([

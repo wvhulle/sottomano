@@ -11,20 +11,22 @@ workspace = true
 sottomano-config = { path = "../sottomano-config" }
 sottomano-icon-sets = { path = "../sottomano-icon-sets" }
 sottomano-sources = { path = "../sottomano-sources" }
-sottomano-state = { path = "../sottomano-state" }
 bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+club-kdl = { version = "0.14.1", features = ["kdl-rs"] }
 fixed_decimal.workspace = true
 form_urlencoded.workspace = true
 icu_experimental.workspace = true
 icu_locale_core.workspace = true
 icu_provider.workspace = true
 jiff.workspace = true
+kdl.workspace = true
 iced.workspace = true
 iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true
 image.workspace = true
+nalgebra.workspace = true
 niri-ipc.workspace = true
 notulist-client.workspace = true
 quick-xml = "0.42"
@@ -35,6 +37,10 @@ situo-client.workspace = true
 system-tray.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+turso.workspace = true
 uom.workspace = true
 usvg.workspace = true
 zbus.workspace = true
+
+[dev-dependencies]
+sottomano-sources = { path = "../sottomano-sources", features = ["test-support"] }

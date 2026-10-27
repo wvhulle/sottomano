@@ -3,10 +3,10 @@ use std::mem;
 use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
-use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
     background_work::niri_action,
     bar_slot_drag::{DragMessage, SlotClick},
+    widget_groups::sidebar_settings_group::WorkspacesPlacement,
     widgets::{
         panel_frame::LayerFrameStyle,
         pointer_drag::{

@@ -1,22 +1,58 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{
-    LayerAppearance, ShellLayer, WorkspacesPlacement,
-    shell_settings::{self, ShellSetting},
-};
+use sottomano_sources::sqlite_state_store::Columns;
 
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
+    widget_groups::shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspacesPlacement {
+    Sidebar,
+    BottomPanel,
+}
+
+impl WorkspacesPlacement {
+    #[must_use]
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Sidebar => Self::BottomPanel,
+            Self::BottomPanel => Self::Sidebar,
+        }
+    }
+}
+
+async fn load_workspaces_placement() -> WorkspacesPlacement {
+    shell_settings_row::load_stored_row(
+        "shell settings: load workspaces placement failed",
+        WorkspacesPlacement::Sidebar,
+        workspaces_placement_from_columns,
+    )
+    .await
+}
+
+fn workspaces_placement_from_columns(
+    columns: &Columns,
+    row: &turso::Row,
+    fallback: WorkspacesPlacement,
+) -> WorkspacesPlacement {
+    match columns.optional_flag(row, "workspaces_in_sidebar") {
+        Some(true) => WorkspacesPlacement::Sidebar,
+        Some(false) => WorkspacesPlacement::BottomPanel,
+        None => fallback,
+    }
+}
 
 fn workspaces_sidebar_toggle(placement: WorkspacesPlacement) -> IconToggle {
     IconToggle::new(
@@ -72,7 +108,7 @@ impl SidebarSettingsGroup {
     pub fn load() -> Task<SidebarSettingsMessage> {
         Task::batch([
             Task::perform(
-                shell_settings::load_workspaces_placement(),
+                load_workspaces_placement(),
                 SidebarSettingsMessage::PlacementLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Sidebar)
@@ -116,7 +152,7 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
                 self.workspaces_placement = self.workspaces_placement.toggled();
-                Task::future(shell_settings::save(ShellSetting::WorkspacesPlacement(
+                Task::future(shell_settings_row::save(ShellSetting::WorkspacesPlacement(
                     self.workspaces_placement,
                 )))
                 .discard()
@@ -165,9 +201,54 @@ impl SidebarSettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_state::WorkspacesPlacement;
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{SidebarSettingsGroup, SidebarSettingsMessage};
+    use super::{
+        SidebarSettingsGroup, SidebarSettingsMessage, WorkspacesPlacement,
+        workspaces_placement_from_columns,
+    };
+    use crate::widget_groups::shell_settings_row::{
+        CREATE_TABLE, ShellSetting, read_stored_row, write_setting,
+    };
+
+    async fn stored_placement(connection: &turso::Connection) -> WorkspacesPlacement {
+        read_stored_row(
+            connection,
+            WorkspacesPlacement::Sidebar,
+            workspaces_placement_from_columns,
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_bottom_panel_placement_round_trips() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        write_setting(
+            &connection,
+            ShellSetting::WorkspacesPlacement(WorkspacesPlacement::BottomPanel),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            stored_placement(&connection).await,
+            WorkspacesPlacement::BottomPanel
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unwritten_placement_falls_back_to_the_sidebar() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        write_setting(&connection, ShellSetting::Sound(false))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            stored_placement(&connection).await,
+            WorkspacesPlacement::Sidebar
+        );
+    }
 
     #[test]
     fn a_loaded_placement_reads_back_unchanged() {

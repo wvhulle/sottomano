@@ -1,16 +1,18 @@
+pub mod niri_kdl_rules;
 mod switch_heat_borders;
 
 use iced::Task;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_state::niri_rules::{
-    AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
-};
 
-pub use self::switch_heat_borders::ReheatDue;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::niri_window_group::switch_heat_borders::SwitchHeatBorders,
+    widget_groups::niri_window_group::{
+        niri_kdl_rules::{
+            AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+        },
+        switch_heat_borders::SwitchHeatBorders,
+    },
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
@@ -133,13 +135,11 @@ impl NiriWindowGroup {
 
     pub fn reheat(
         &mut self,
-        due: ReheatDue,
         config: &Config,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
     ) -> Task<NiriWindowMessage> {
         let styling = self.requested_styling();
         self.switch_heat.reheat(
-            due,
             &mut self.rules_file,
             styling,
             &config.theme.palette,
@@ -270,9 +270,10 @@ impl NiriWindowGroup {
 mod tests {
     use std::path::Path;
 
-    use sottomano_state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling, StoredRules};
-
     use super::{NiriWindowGroup, NiriWindowMessage};
+    use crate::widget_groups::niri_window_group::niri_kdl_rules::{
+        NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+    };
 
     const STORED_RULES: &str = r#"layer-rule {
     match namespace="^sottomano-panel$"

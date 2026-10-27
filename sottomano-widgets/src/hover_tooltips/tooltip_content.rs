@@ -14,12 +14,12 @@ use iced::{
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
 use sottomano_config::{Config, theme::font::ResolvedFont};
-use sottomano_state::idle::ScheduledAfterIdle;
 
 use crate::{
     clock::Clock,
     hover_tooltips::{MouseGesture, PopupMessage, PressHints, core_grid::CoreCellGrid},
     widget_groups::{
+        idle_timeouts_group::ScheduledAfterIdle,
         session_menu::{SessionMessage, session_action_icon},
         tray_group::{TrayMessage, menu_lines::TrayMenuLines},
         window_group::process_tree::ProcessTree,

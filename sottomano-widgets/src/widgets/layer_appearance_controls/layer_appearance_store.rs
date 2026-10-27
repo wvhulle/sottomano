@@ -1,6 +1,8 @@
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
 
-use crate::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
+use crate::widgets::shell_layer_appearance::{
+    LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
+};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS layer_appearance (
     layer TEXT PRIMARY KEY,
@@ -71,7 +73,7 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: Appearan
             setting.column()
         ),
         &[CREATE_TABLE],
-        async |conn| write_setting(conn, layer, setting, value.into()).await,
+        async |connection| write_setting(connection, layer, setting, value.into()).await,
     )
     .await
     .is_some()
@@ -82,36 +84,37 @@ pub async fn load(layer: ShellLayer) -> LayerAppearance {
     with_table(
         "layer appearance: load failed",
         &[CREATE_TABLE],
-        async |conn| read_layer_appearance(conn, layer, defaults).await,
+        async |connection| read_layer_appearance(connection, layer, defaults).await,
     )
     .await
     .unwrap_or(defaults)
 }
 
 async fn write_setting(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     layer: ShellLayer,
     setting: AppearanceSetting,
     value: turso::Value,
 ) -> Result<(), StoreError> {
     let column = setting.column();
-    conn.execute(
-        format!(
-            "INSERT INTO layer_appearance (layer, {column}) VALUES (?1, ?2)
+    connection
+        .execute(
+            format!(
+                "INSERT INTO layer_appearance (layer, {column}) VALUES (?1, ?2)
              ON CONFLICT(layer) DO UPDATE SET {column} = ?2"
-        ),
-        (layer.key(), value),
-    )
-    .await?;
+            ),
+            (layer.key(), value),
+        )
+        .await?;
     Ok(())
 }
 
 async fn read_layer_appearance(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     layer: ShellLayer,
     defaults: LayerAppearance,
 ) -> Result<LayerAppearance, StoreError> {
-    let mut rows = conn
+    let mut rows = connection
         .query(
             "SELECT opacity, corner_radius_px, blurred, drop_shadow, shadow_softness_px,
                     shadow_opacity, outline
@@ -156,11 +159,11 @@ mod tests {
     use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
     use super::{AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_setting};
-    use crate::{LayerAppearance, ShellLayer};
+    use crate::widgets::shell_layer_appearance::{LayerAppearance, ShellLayer};
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
         for (setting, value) in [
             (AppearanceSetting::Opacity, real(0.4)),
             (AppearanceSetting::CornerRadius, real(9.0)),
@@ -170,13 +173,13 @@ mod tests {
             (AppearanceSetting::ShadowOpacity, real(0.5)),
             (AppearanceSetting::Outline, flag(false)),
         ] {
-            write_setting(&conn, ShellLayer::Sidebar, setting, value)
+            write_setting(&connection, ShellLayer::Sidebar, setting, value)
                 .await
                 .unwrap();
         }
 
         let defaults = LayerAppearance::default();
-        let sidebar = read_layer_appearance(&conn, ShellLayer::Sidebar, defaults)
+        let sidebar = read_layer_appearance(&connection, ShellLayer::Sidebar, defaults)
             .await
             .unwrap();
         assert!((sidebar.opacity - 0.4).abs() < f32::EPSILON);
@@ -187,7 +190,7 @@ mod tests {
         assert!((sidebar.shadow.opacity - 0.5).abs() < f32::EPSILON);
         assert!(!sidebar.outline.drawn);
 
-        let panels = read_layer_appearance(&conn, ShellLayer::Panels, defaults)
+        let panels = read_layer_appearance(&connection, ShellLayer::Panels, defaults)
             .await
             .unwrap();
         assert_eq!(panels, defaults);

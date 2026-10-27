@@ -1,8 +1,8 @@
 use iced::Element;
 use sottomano_config::screen_edges::Position;
-use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
-    widget_groups::workspaces_group::inline_strip, widgets::widget_group::GroupContent,
+    widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
+    widgets::widget_group::GroupContent,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};

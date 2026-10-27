@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use chrono::{DateTime, TimeDelta, Utc};
-use futures::{Stream, StreamExt, stream};
+use iced::futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
 use sottomano_sources::{
@@ -15,7 +15,7 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-use crate::focus_spans;
+use crate::widget_groups::session_focus_group::focus_span_store;
 
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);
 
@@ -50,8 +50,8 @@ impl FocusTracker {
         &self.ledger
     }
 
-    pub async fn load() -> TrackerMessage {
-        TrackerMessage::Loaded(focus_spans::load_since(Utc::now() - LOADED_HISTORY).await)
+    pub async fn load(now: DateTime<Utc>) -> TrackerMessage {
+        TrackerMessage::Loaded(focus_span_store::load_since(now - LOADED_HISTORY, now).await)
     }
 
     pub fn idle_messages(
@@ -98,14 +98,15 @@ impl FocusTracker {
         &mut self,
         message: TrackerMessage,
         config: &FocusTimeConfig,
+        now: DateTime<Utc>,
     ) -> impl Future<Output = ()> + Send + use<> {
         let span_writes = match message {
             TrackerMessage::Loaded(loaded) => {
                 self.ledger.load_history(loaded, config);
                 Vec::new()
             }
-            TrackerMessage::Signal(signal) => self.ledger.fold(signal, Utc::now(), config),
+            TrackerMessage::Signal(signal) => self.ledger.fold(signal, now, config),
         };
-        stream::iter(span_writes).for_each(focus_spans::record)
+        stream::iter(span_writes).for_each(focus_span_store::record)
     }
 }

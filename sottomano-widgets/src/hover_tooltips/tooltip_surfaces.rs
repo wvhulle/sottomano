@@ -8,7 +8,6 @@ use iced::{
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::{LayerAppearance, niri_rules::StyledSurface};
 use tokio::time::sleep;
 
 use crate::{
@@ -19,8 +18,10 @@ use crate::{
         tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
+    widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
+        shell_layer_appearance::LayerAppearance,
         tooltip_body::Tooltip,
         window_icon::WindowAssets,
     },

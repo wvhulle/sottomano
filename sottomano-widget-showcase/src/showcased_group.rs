@@ -11,7 +11,6 @@ use sottomano_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
 };
-use sottomano_state::niri_rules::NiriLayout;
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
@@ -26,6 +25,7 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
+        niri_window_group::niri_kdl_rules::NiriLayout,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,

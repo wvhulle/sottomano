@@ -1,8 +1,10 @@
 mod battery_charge_gauge;
 mod battery_time_reading;
+mod charge_power_curve_store;
 mod cpu_tuning_sections;
 mod estimate_columns;
 mod power_draw_gauge;
+mod power_draw_regression_store;
 mod power_profile_control;
 mod profile_status_sections;
 

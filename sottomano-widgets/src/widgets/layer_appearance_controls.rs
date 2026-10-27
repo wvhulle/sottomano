@@ -1,16 +1,16 @@
+mod layer_appearance_store;
+
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{
-    LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
-    layer_appearance::{self, AppearanceSetting, AppearanceValue},
-};
 
+use self::layer_appearance_store::{AppearanceSetting, AppearanceValue};
 use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
@@ -135,7 +135,10 @@ impl LayerAppearanceControls {
     }
 
     pub fn load(layer: ShellLayer) -> Task<AppearanceMessage> {
-        Task::perform(layer_appearance::load(layer), AppearanceMessage::Loaded)
+        Task::perform(
+            layer_appearance_store::load(layer),
+            AppearanceMessage::Loaded,
+        )
     }
 
     #[must_use]
@@ -265,7 +268,7 @@ impl LayerAppearanceControls {
         value: f32,
         on_control: fn(ControlMessage) -> AppearanceMessage,
     ) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance::save(
+        Task::future(layer_appearance_store::save(
             self.layer,
             setting,
             AppearanceValue::Real(stored),
@@ -274,7 +277,7 @@ impl LayerAppearanceControls {
     }
 
     fn persist_switch(&self, setting: AppearanceSetting, enabled: bool) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance::save(
+        Task::future(layer_appearance_store::save(
             self.layer,
             setting,
             AppearanceValue::Flag(enabled),
@@ -322,12 +325,14 @@ impl LayerAppearanceControls {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_state::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
-
     use super::{AppearanceMessage, LayerAppearanceControls};
     use crate::{
-        hover_tooltips::HoverTarget, widget_groups::panel_settings_group::PanelSettingsTarget,
-        widgets::slider_control::ControlMessage,
+        hover_tooltips::HoverTarget,
+        widget_groups::panel_settings_group::PanelSettingsTarget,
+        widgets::{
+            shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
+            slider_control::ControlMessage,
+        },
     };
 
     fn panel_controls() -> LayerAppearanceControls {

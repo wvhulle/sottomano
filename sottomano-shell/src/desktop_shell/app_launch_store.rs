@@ -22,20 +22,21 @@ pub async fn load() -> Vec<Launch> {
 }
 
 pub async fn record(launch: Launch) {
-    with_table("launch store: record failed", &SCHEMA, async |conn| {
-        write_launch(conn, &launch).await
+    with_table("launch store: record failed", &SCHEMA, async |connection| {
+        write_launch(connection, &launch).await
     })
     .await;
 }
 
-async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreError> {
+async fn read_launches(connection: &turso::Connection) -> Result<Vec<Launch>, StoreError> {
     let cutoff = (Utc::now() - Duration::days(TTL_DAYS)).to_rfc3339();
-    conn.execute(
-        "DELETE FROM launch_events WHERE launched_at < ?1",
-        (cutoff,),
-    )
-    .await?;
-    let mut rows = conn
+    connection
+        .execute(
+            "DELETE FROM launch_events WHERE launched_at < ?1",
+            (cutoff,),
+        )
+        .await?;
+    let mut rows = connection
         .query(
             "SELECT workspace, app_id, launched_at FROM launch_events",
             (),
@@ -57,16 +58,17 @@ async fn read_launches(conn: &turso::Connection) -> Result<Vec<Launch>, StoreErr
     Ok(launches)
 }
 
-async fn write_launch(conn: &turso::Connection, launch: &Launch) -> Result<(), StoreError> {
-    conn.execute(
-        "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3)",
-        (
-            launch.workspace.clone(),
-            launch.app_id.clone(),
-            launch.launched_at.to_rfc3339(),
-        ),
-    )
-    .await?;
+async fn write_launch(connection: &turso::Connection, launch: &Launch) -> Result<(), StoreError> {
+    connection
+        .execute(
+            "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3)",
+            (
+                launch.workspace.clone(),
+                launch.app_id.clone(),
+                launch.launched_at.to_rfc3339(),
+            ),
+        )
+        .await?;
     Ok(())
 }
 
@@ -87,19 +89,19 @@ mod tests {
 
     #[tokio::test]
     async fn a_launch_survives_a_round_trip() {
-        let conn = in_memory_connection(&SCHEMA).await;
+        let connection = in_memory_connection(&SCHEMA).await;
         let launch = firefox_on_web(0);
-        write_launch(&conn, &launch).await.unwrap();
+        write_launch(&connection, &launch).await.unwrap();
 
-        assert_eq!(read_launches(&conn).await.unwrap(), vec![launch]);
+        assert_eq!(read_launches(&connection).await.unwrap(), vec![launch]);
     }
 
     #[tokio::test]
     async fn repeated_launches_accumulate() {
-        let conn = in_memory_connection(&SCHEMA).await;
-        write_launch(&conn, &firefox_on_web(5)).await.unwrap();
-        write_launch(&conn, &firefox_on_web(0)).await.unwrap();
+        let connection = in_memory_connection(&SCHEMA).await;
+        write_launch(&connection, &firefox_on_web(5)).await.unwrap();
+        write_launch(&connection, &firefox_on_web(0)).await.unwrap();
 
-        assert_eq!(read_launches(&conn).await.unwrap().len(), 2);
+        assert_eq!(read_launches(&connection).await.unwrap().len(), 2);
     }
 }

@@ -94,7 +94,6 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         ClockGroup::subscription(&state.config).map(Message::Clock),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
         DarkModeGroup::subscription().map(Message::DarkMode),
-        QuietScheduleGroup::subscription().map(Message::QuietSchedule),
         TrayGroup::subscription().map(Message::Tray),
         AudioGroup::subscription().map(Message::Audio),
         state

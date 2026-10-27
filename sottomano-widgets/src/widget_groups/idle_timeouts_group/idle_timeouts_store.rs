@@ -60,14 +60,14 @@ pub async fn save(timeouts: Timeouts) -> bool {
     with_table(
         "idle timeouts: save failed",
         &[CREATE_TABLE],
-        async |conn| write_timeouts(conn, timeouts).await,
+        async |connection| write_timeouts(connection, timeouts).await,
     )
     .await
     .is_some()
 }
 
-async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError> {
-    let mut rows = conn
+async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {
+    let mut rows = connection
         .query(
             "SELECT lock_user, screen_off, standby, power_down FROM idle_timeouts WHERE id = 0",
             (),
@@ -85,23 +85,27 @@ async fn read_timeouts(conn: &turso::Connection) -> Result<Timeouts, StoreError>
     })
 }
 
-async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<(), StoreError> {
+async fn write_timeouts(
+    connection: &turso::Connection,
+    timeouts: Timeouts,
+) -> Result<(), StoreError> {
     let seconds = |timeout: Option<Duration>| {
         timeout.map(|duration| i64::try_from(duration.as_secs()).unwrap_or(i64::MAX))
     };
-    conn.execute(
-        "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)
+    connection
+        .execute(
+            "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)
          VALUES (0, ?1, ?2, ?3, ?4)
          ON CONFLICT(id) DO UPDATE SET lock_user = ?1, screen_off = ?2, standby = ?3, power_down = \
-         ?4",
-        (
-            seconds(timeouts.lock_user),
-            seconds(timeouts.screen_off),
-            seconds(timeouts.sleep),
-            seconds(timeouts.power_down),
-        ),
-    )
-    .await?;
+             ?4",
+            (
+                seconds(timeouts.lock_user),
+                seconds(timeouts.screen_off),
+                seconds(timeouts.sleep),
+                seconds(timeouts.power_down),
+            ),
+        )
+        .await?;
     Ok(())
 }
 
@@ -118,16 +122,16 @@ mod tests {
 
     #[tokio::test]
     async fn timeouts_survive_a_round_trip() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let timeouts = Timeouts {
             lock_user: Some(Duration::from_secs(60)),
             screen_off: None,
             sleep: Some(Duration::from_secs(600)),
             power_down: Some(Duration::from_secs(3600)),
         };
-        write_timeouts(&conn, timeouts).await.unwrap();
+        write_timeouts(&connection, timeouts).await.unwrap();
 
-        assert_eq!(read_timeouts(&conn).await.unwrap(), timeouts);
+        assert_eq!(read_timeouts(&connection).await.unwrap(), timeouts);
     }
 
     #[test]

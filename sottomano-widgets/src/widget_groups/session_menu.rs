@@ -9,10 +9,10 @@ use sottomano_sources::{
         session_power_actions::SessionAction,
     },
 };
-use sottomano_state::idle::Timeouts;
 
 use crate::{
     hover_tooltips::{HoverTarget, pressable_card},
+    widget_groups::idle_timeouts_group::Timeouts,
     widgets::{
         bar_widget::Glyph,
         group_item::GroupItem,

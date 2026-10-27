@@ -4,9 +4,10 @@ use iced::{
     window::Id,
 };
 use sottomano_config::screen_edges::Position;
-use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
-    widget_groups::workspaces_group::sidebar_column,
+    widget_groups::{
+        sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
+    },
     widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
