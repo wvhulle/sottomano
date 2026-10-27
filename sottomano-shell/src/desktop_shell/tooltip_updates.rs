@@ -5,7 +5,6 @@ use sottomano_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses
 use sottomano_widgets::{
     hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
     layer_surfaces::PanelEdge,
-    shell_message::Message,
     widget_groups::{
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
@@ -27,7 +26,7 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep_until;
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 fn hide_tooltip_at(due: Instant) -> Task<Message> {
     Task::future(async move {
@@ -63,7 +62,7 @@ impl DesktopShell {
                     self.tooltip
                         .defer_switch(&parent, &target, anchor, press_hints)
                 {
-                    return intent_elapsed;
+                    return intent_elapsed.map(Message::Tooltip);
                 }
                 self.tooltip.open(&parent, target, anchor, press_hints);
                 Task::none()

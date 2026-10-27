@@ -26,7 +26,9 @@ use super::{
 };
 use crate::{
     background_work::niri_action,
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
+    layer_surfaces::SurfaceRequest,
+    notification_toasts::ToastLayerHost,
     toast_messages::NotificationMessage,
     widgets::{
         announced_level::LevelReading,
@@ -41,7 +43,7 @@ fn is_window_owned_action(key: &str) -> bool {
     matches!(key, "move" | "quit")
 }
 
-impl NotificationLayer {
+impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub fn adopt_sound_theme(&mut self, theme: SoundTheme) {
         self.sound_theme = theme;
     }
@@ -51,7 +53,7 @@ impl NotificationLayer {
         message: NotificationMessage,
         context: &ToastContext,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let handled = self.handle(message, context, toast_surface_on);
         Task::batch([handled, self.release_orphaned_keyboard()])
     }
@@ -61,7 +63,7 @@ impl NotificationLayer {
         message: NotificationMessage,
         context: &ToastContext,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         match message {
             NotificationMessage::Connected(handle) => {
                 self.outbound = Some(handle);
@@ -124,12 +126,12 @@ impl NotificationLayer {
             .map(|file| file.to_string_lossy().into_owned())
     }
 
-    fn open_previewed_file(&mut self, id: u32, context: &ToastContext) -> Task<Message> {
+    fn open_previewed_file(&mut self, id: u32, context: &ToastContext) -> Task<Routed> {
         let Some(file) = self.previewed_file(id) else {
             return Task::none();
         };
         Task::batch([
-            Task::done(Message::OpenUrl(file)),
+            Task::done(Routed::from(PopupMessage::OpenUrl(file))),
             self.close_all(
                 [id],
                 close_reason::DISMISSED,
@@ -139,19 +141,20 @@ impl NotificationLayer {
         ])
     }
 
-    fn copy_previewed_file_path(&self, id: u32) -> Task<Message> {
-        self.previewed_file(id)
-            .map_or_else(Task::none, |file| Task::done(Message::CopyText(file)))
+    fn copy_previewed_file_path(&self, id: u32) -> Task<Routed> {
+        self.previewed_file(id).map_or_else(Task::none, |file| {
+            Task::done(Routed::from(PopupMessage::CopyText(file)))
+        })
     }
 
     pub fn show_widget_toasts(
         &mut self,
-        requests: GroupToastRequests<Message>,
+        requests: GroupToastRequests<Routed>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let ongoing_toasts = self.show_ongoing_toasts(requests.ongoing_toasts, context);
         let previous_levels = mem::replace(&mut self.previous_levels, requests.levels.clone());
-        let level_toasts: Vec<Task<Message>> = requests
+        let level_toasts: Vec<Task<Routed>> = requests
             .levels
             .into_iter()
             .filter(|reading| reading.changed_since(&previous_levels))
@@ -162,9 +165,9 @@ impl NotificationLayer {
 
     fn show_ongoing_toasts(
         &mut self,
-        active: Vec<OngoingToast<Message>>,
+        active: Vec<OngoingToast<Routed>>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         if context.quiet {
             return Task::none();
         }
@@ -188,12 +191,12 @@ impl NotificationLayer {
             context.config,
             context.clock.instant,
         );
-        let to_raise: Vec<OngoingToast<Message>> = active
+        let to_raise: Vec<OngoingToast<Routed>> = active
             .into_iter()
             .filter(|toast| !self.snoozed.iter().any(|snoozed| snoozed.key == toast.key))
             .filter(|toast| !self.showing().any(|n| n.already_shows(toast)))
             .collect();
-        let raised: Vec<Task<Message>> = to_raise
+        let raised: Vec<Task<Routed>> = to_raise
             .into_iter()
             .map(|toast| self.serve_ongoing(toast, context))
             .collect();
@@ -202,9 +205,9 @@ impl NotificationLayer {
 
     fn serve_ongoing(
         &mut self,
-        mut toast: OngoingToast<Message>,
+        mut toast: OngoingToast<Routed>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let shown = self
             .showing()
             .find(|n| n.shows_ongoing(&toast.key))
@@ -221,9 +224,9 @@ impl NotificationLayer {
 
     fn announce_level(
         &mut self,
-        reading: LevelReading<Message>,
+        reading: LevelReading<Routed>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let toast_id = self
             .showing()
             .find(|n| n.announces_level_of(&reading.hover_target))
@@ -239,7 +242,7 @@ impl NotificationLayer {
         path: &Path,
         error: &LoadError,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let message = escape(error.message()).into_owned();
         let body = match error.offending_line() {
             Some(line) => format!(
@@ -260,7 +263,7 @@ impl NotificationLayer {
                 body: Some(body),
                 progress: None,
                 since: context.clock.wall,
-                on_body_clicked: Message::OpenUrl(path.display().to_string()),
+                on_body_clicked: Routed::from(PopupMessage::OpenUrl(path.display().to_string())),
                 action_buttons: Vec::new(),
             },
             context,
@@ -271,7 +274,7 @@ impl NotificationLayer {
         &mut self,
         failure: &niri_action_requests::ActionFailure,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let toast_id = self.fresh_shell_toast_id();
         let data = NotificationData {
             severity: Severity::Warning,
@@ -285,7 +288,7 @@ impl NotificationLayer {
         self.serve(
             ToastContent::shell_failure(
                 data,
-                Message::CopyText(failure.to_string()),
+                Routed::from(PopupMessage::CopyText(failure.to_string())),
                 context.clock.wall,
             ),
             context,
@@ -296,7 +299,7 @@ impl NotificationLayer {
         &mut self,
         failure: &zbus::Error,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let toast_id = self.fresh_shell_toast_id();
         let data = NotificationData {
             severity: Severity::Critical,
@@ -309,14 +312,14 @@ impl NotificationLayer {
         self.serve(
             ToastContent::shell_failure(
                 data,
-                Message::CopyText(failure.to_string()),
+                Routed::from(PopupMessage::CopyText(failure.to_string())),
                 context.clock.wall,
             ),
             context,
         )
     }
 
-    pub fn withdraw_config_error(&mut self, config: &Config, now: Instant) -> Task<Message> {
+    pub fn withdraw_config_error(&mut self, config: &Config, now: Instant) -> Task<Routed> {
         let shown: Vec<u32> = self
             .showing()
             .filter(|n| n.shows_ongoing(&OngoingKey::ConfigFile))
@@ -325,7 +328,7 @@ impl NotificationLayer {
         self.close_all(shown, close_reason::CLOSED_BY_CALL, config, now)
     }
 
-    fn hold_while_quiet(&mut self, toast: ToastContent) {
+    fn hold_while_quiet(&mut self, toast: ToastContent<Routed>) {
         if !toast.kind.is_from_dbus_client() {
             return;
         }
@@ -333,7 +336,7 @@ impl NotificationLayer {
         self.held.push(toast.data);
     }
 
-    pub fn release_held(&mut self, context: &ToastContext) -> Task<Message> {
+    pub fn release_held(&mut self, context: &ToastContext) -> Task<Routed> {
         let held: Vec<NotificationData> = mem::take(&mut self.held);
         Task::batch(held.into_iter().map(|data| {
             self.serve(
@@ -343,7 +346,7 @@ impl NotificationLayer {
         }))
     }
 
-    fn drop_held(&mut self, id: u32) -> Task<Message> {
+    fn drop_held(&mut self, id: u32) -> Task<Routed> {
         let was_held = self.held.iter().any(|held| held.id == id);
         self.held.retain(|held| held.id != id);
         if was_held {
@@ -370,7 +373,7 @@ impl NotificationLayer {
         self.snoozed.extend(snoozed);
     }
 
-    fn serve(&mut self, toast: ToastContent, context: &ToastContext) -> Task<Message> {
+    fn serve(&mut self, toast: ToastContent<Routed>, context: &ToastContext) -> Task<Routed> {
         let ToastContext {
             placement,
             entries,
@@ -439,7 +442,7 @@ impl NotificationLayer {
         config: &Config,
         notifications: NotificationSettings,
         now: Instant,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let stale: Vec<u32> = self
             .showing()
             .filter(|n| is_stale(n, placement))
@@ -454,7 +457,7 @@ impl NotificationLayer {
         self.live.retain(|n| !n.has_faded(now));
     }
 
-    fn expire(&mut self, context: &ToastContext) -> Task<Message> {
+    fn expire(&mut self, context: &ToastContext) -> Task<Routed> {
         let now = context.clock.instant;
         let expired: Vec<u32> = self
             .showing()
@@ -505,7 +508,7 @@ impl NotificationLayer {
         reason: u32,
         config: &Config,
         now: Instant,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let closed = self
             .withdraw_showing(candidates, reason.into(), config, now)
             .into_iter()
@@ -526,12 +529,12 @@ impl NotificationLayer {
         key: &str,
         context: &ToastContext,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let placement = &context.placement;
-        if let Some(shell_message) = self.shell_message_for(id, key) {
+        if let Some(routed_message) = self.routed_message_for(id, key) {
             self.snooze_ongoing_toast(id);
             return Task::batch([
-                Task::done(shell_message),
+                Task::done(routed_message),
                 self.close_all(
                     [id],
                     close_reason::DISMISSED,
@@ -576,16 +579,17 @@ impl NotificationLayer {
         &self,
         id: u32,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let toast_surface = self
             .showing()
             .find(|n| n.data.id == id)
             .and_then(|n| n.place.output.as_deref())
             .and_then(toast_surface_on);
         let Some(toast_surface) = toast_surface else {
-            return Task::done(Message::Notification(
-                NotificationMessage::DefaultActivated { id, token: None },
-            ));
+            return Task::done(Routed::from(NotificationMessage::DefaultActivated {
+                id,
+                token: None,
+            }));
         };
 
         let (sender, mut receiver) = mpsc::channel(1);
@@ -594,19 +598,17 @@ impl NotificationLayer {
         });
 
         Task::batch([
-            Task::done(Message::RequestActivationToken {
-                id: toast_surface,
+            Task::done(Routed::from(SurfaceRequest::ActivationToken {
+                surface: toast_surface,
                 sink,
-            }),
+            })),
             Task::future(async move {
                 timeout(ACTIVATION_TOKEN_GRACE, receiver.recv())
                     .await
                     .ok()
                     .flatten()
             })
-            .map(move |token| {
-                Message::Notification(NotificationMessage::DefaultActivated { id, token })
-            }),
+            .map(move |token| Routed::from(NotificationMessage::DefaultActivated { id, token })),
         ])
     }
 
@@ -615,7 +617,7 @@ impl NotificationLayer {
         id: u32,
         token: Option<String>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         let survives_action_invocation = self.showing().any(|n| n.data.id == id && n.data.resident);
         let mut outbound: Vec<Outbound> = token
             .map(|token| Outbound::ActivationToken { id, token })
@@ -646,7 +648,7 @@ impl NotificationLayer {
         self.emit_in_order(outbound)
     }
 
-    pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Message> {
+    pub(super) fn emit_in_order(&self, outbound: Vec<Outbound>) -> Task<Routed> {
         match &self.outbound {
             Some(sender) if !outbound.is_empty() => {
                 let sender = sender.clone();
@@ -673,7 +675,11 @@ impl NotificationLayer {
     }
 }
 
-fn action_on_window(key: &str, window: u64, placement: &Placement) -> Option<Task<Message>> {
+fn action_on_window<Routed: ToastLayerHost>(
+    key: &str,
+    window: u64,
+    placement: &Placement,
+) -> Option<Task<Routed>> {
     match key {
         DEFAULT_ACTION => Some(niri_action(niri_ipc::Action::FocusWindow { id: window })),
         "quit" => Some(niri_action(niri_ipc::Action::CloseWindow {
@@ -694,7 +700,7 @@ fn action_on_window(key: &str, window: u64, placement: &Placement) -> Option<Tas
     }
 }
 
-fn is_stale(notif: &Notification, placement: &Placement) -> bool {
+fn is_stale<Routed>(notif: &Notification<Routed>, placement: &Placement) -> bool {
     let window = notif.place.window;
     let window_owned = notif
         .data

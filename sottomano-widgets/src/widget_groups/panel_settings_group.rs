@@ -8,7 +8,6 @@ use sottomano_state::{
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    shell_message::Message,
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -21,8 +20,8 @@ use crate::{
 };
 
 pub enum Action {
-    Run(Task<Message>),
-    Reflow(Task<Message>),
+    Run(Task<PanelSettingsMessage>),
+    Reflow(Task<PanelSettingsMessage>),
 }
 
 fn disconnected_toggle(shell_layout: &ShellLayout) -> IconToggle {
@@ -176,9 +175,10 @@ impl PanelSettingsGroup {
                 Action::Reflow(
                     Task::future(shell_settings::save(ShellSetting::FloatOffset(value))).map(
                         move |ok| {
-                            Message::PanelSettings(PanelSettingsMessage::FloatOffset(
-                                ControlMessage::Persisted { value, ok },
-                            ))
+                            PanelSettingsMessage::FloatOffset(ControlMessage::Persisted {
+                                value,
+                                ok,
+                            })
                         },
                     ),
                 )
@@ -186,7 +186,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::Appearance(msg) => Action::Run(
                 self.appearance
                     .update(msg, panels)
-                    .map(|msg| Message::PanelSettings(PanelSettingsMessage::Appearance(msg))),
+                    .map(PanelSettingsMessage::Appearance),
             ),
         }
     }

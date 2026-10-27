@@ -6,7 +6,6 @@ use iced::{
 use sottomano_config::screen_edges::Position;
 use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
-    shell_message::Message,
     widget_groups::workspaces_group::sidebar_column,
     widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
@@ -14,7 +13,7 @@ use sottomano_widgets::{
     },
 };
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
     pub(super) fn workspace_sidebar<'a>(

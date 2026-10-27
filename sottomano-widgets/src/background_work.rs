@@ -7,13 +7,13 @@ use sottomano_sources::{
     desktop_windows_apps::{clipboard_copy, niri_action_requests},
 };
 
-use crate::shell_message::Message;
-
-pub fn niri_action(action: niri_ipc::Action) -> Task<Message> {
+pub fn niri_action<Routed: From<niri_action_requests::ActionFailure> + Send + 'static>(
+    action: niri_ipc::Action,
+) -> Task<Routed> {
     Task::future(blocking("niri action", move || {
         niri_action_requests::send_action(&action).err()
     }))
-    .and_then(|failure| Task::done(Message::NiriActionFailed(failure)))
+    .and_then(|failure| Task::done(Routed::from(failure)))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

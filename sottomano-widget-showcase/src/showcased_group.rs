@@ -16,7 +16,6 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
-    shell_message::Message,
     widget_groups::{
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
@@ -40,7 +39,10 @@ use sottomano_widgets::{
     },
 };
 
-use crate::fixtures::{compute, memory_board, niri_session};
+use crate::{
+    fixtures::{compute, memory_board, niri_session},
+    showcase_message::ShowcaseMessage,
+};
 
 pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
 
@@ -89,7 +91,7 @@ pub struct ShowcasedToasts {
 }
 
 impl ShowcasedToasts {
-    fn window_frames<'a>(&'a self, config: &'a Config) -> Element<'a, Message> {
+    fn window_frames<'a>(&'a self, config: &'a Config) -> Element<'a, ShowcaseMessage> {
         let palette = PaletteColors::from(&config.theme.palette);
         let frames = self.niri.windows.windows.values().filter_map(|window| {
             let (x, y) = window.layout.tile_pos_in_workspace_view?;
@@ -134,7 +136,11 @@ pub struct ShowcasedNiriSession {
 }
 
 impl ShowcasedNiriSession {
-    fn sidebar_groups<'a>(&'a self, config: &'a Config, clock: Clock) -> Vec<Element<'a, Message>> {
+    fn sidebar_groups<'a>(
+        &'a self,
+        config: &'a Config,
+        clock: Clock,
+    ) -> Vec<Element<'a, ShowcaseMessage>> {
         self.snapshot
             .get()
             .and_then(|snapshot| {
@@ -147,7 +153,7 @@ impl ShowcasedNiriSession {
                     clock,
                 )
             })
-            .map(|workspaces| workspaces.map(Message::from))
+            .map(|workspaces| workspaces.map(ShowcaseMessage::from))
             .into_iter()
             .collect()
     }
@@ -156,7 +162,7 @@ impl ShowcasedNiriSession {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<Element<'a, Message>> {
+    ) -> Vec<Element<'a, ShowcaseMessage>> {
         let Some(snapshot) = self.snapshot.get() else {
             return Vec::new();
         };
@@ -169,7 +175,7 @@ impl ShowcasedNiriSession {
             Some(&configured_in_fixture_order(snapshot)),
             clock,
         )
-        .map(|workspaces| workspaces.map(Message::from));
+        .map(|workspaces| workspaces.map(ShowcaseMessage::from));
         let windows = self
             .window_group
             .view(
@@ -186,7 +192,9 @@ impl ShowcasedNiriSession {
                 &undragged(),
                 clock,
             )
-            .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))));
+            .map(|element| {
+                element.map(|event| ShowcaseMessage::from(event.map(ShowcaseMessage::WindowGroup)))
+            });
         workspaces.into_iter().chain(windows).collect()
     }
 
@@ -235,64 +243,68 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<Element<'a, Message>> {
+    ) -> Vec<Element<'a, ShowcaseMessage>> {
         let position = self.position();
         let single = match self {
             ShowcasedGroup::Compute(group) => group
                 .group_content()
-                .map(Message::Compute)
+                .map(ShowcaseMessage::Compute)
                 .view(config, position, clock),
             ShowcasedGroup::MemoryBoard(group) => group
                 .group_content()
-                .map(Message::MemoryBoard)
+                .map(ShowcaseMessage::MemoryBoard)
                 .view(config, position, clock),
             ShowcasedGroup::Weather(group) => group
                 .group_content(config)
-                .map(Message::Weather)
+                .map(ShowcaseMessage::Weather)
                 .view(config, position, clock),
             ShowcasedGroup::ClaudeUsage(group) => group
                 .group_content()
-                .map(Message::ClaudeUsage)
+                .map(ShowcaseMessage::ClaudeUsage)
                 .view(config, position, clock),
             ShowcasedGroup::Media(media) => {
                 return media
                     .group
                     .group_contents(config, clock)
-                    .filter_map(|group| group.map(Message::Media).view(config, position, clock))
+                    .filter_map(|group| {
+                        group
+                            .map(ShowcaseMessage::Media)
+                            .view(config, position, clock)
+                    })
                     .collect();
             }
             ShowcasedGroup::IdleTimeouts(group) => group
                 .group_content(config)
-                .map(Message::IdleTimeouts)
+                .map(ShowcaseMessage::IdleTimeouts)
                 .view(config, position, clock),
             ShowcasedGroup::Wallpaper(group) => group
                 .group_content()
-                .map(Message::Wallpaper)
+                .map(ShowcaseMessage::Wallpaper)
                 .view(config, position, clock),
             ShowcasedGroup::Audio(group) => group
                 .group_content(config)
-                .map(Message::Audio)
+                .map(ShowcaseMessage::Audio)
                 .view(config, position, clock),
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
                 .group_content(&gamepad.bindings)
-                .map(Message::Gamepad)
+                .map(ShowcaseMessage::Gamepad)
                 .view(config, position, clock),
             ShowcasedGroup::VoiceDictation(group) => group
                 .group_content()
-                .map(Message::VoiceDictation)
+                .map(ShowcaseMessage::VoiceDictation)
                 .view(config, position, clock),
             ShowcasedGroup::Caldav(group) => group
                 .group_content()
-                .map(Message::Caldav)
+                .map(ShowcaseMessage::Caldav)
                 .view(config, position, clock),
             ShowcasedGroup::Vpn(group) => group
                 .group_content()
-                .map(Message::Vpn)
+                .map(ShowcaseMessage::Vpn)
                 .view(config, position, clock),
             ShowcasedGroup::LoginSession(group) => group
                 .group_content()
-                .map(Message::LoginSession)
+                .map(ShowcaseMessage::LoginSession)
                 .view(config, position, clock),
             ShowcasedGroup::BottomBar(session) => return session.bottom_bar_groups(config, clock),
             ShowcasedGroup::WorkspaceSidebar(session) => {
@@ -303,75 +315,75 @@ impl ShowcasedGroup {
         single.into_iter().collect()
     }
 
-    pub fn update(&mut self, message: Message, clock: Clock) {
+    pub fn update(&mut self, message: ShowcaseMessage, clock: Clock) {
         match self {
             ShowcasedGroup::Compute(group) => {
-                if let Message::Compute(message) = message {
+                if let ShowcaseMessage::Compute(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::MemoryBoard(group) => {
-                if let Message::MemoryBoard(message) = message {
+                if let ShowcaseMessage::MemoryBoard(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Weather(group) => {
-                if let Message::Weather(message) = message {
+                if let ShowcaseMessage::Weather(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::ClaudeUsage(group) => {
-                if let Message::ClaudeUsage(message) = message {
+                if let ShowcaseMessage::ClaudeUsage(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Media(media) => {
-                if let Message::Media(message) = message {
+                if let ShowcaseMessage::Media(message) = message {
                     let _ = media.group.update(message, clock);
                 }
             }
             ShowcasedGroup::IdleTimeouts(group) => {
-                if let Message::IdleTimeouts(message) = message {
+                if let ShowcaseMessage::IdleTimeouts(message) = message {
                     let _ = group.update(message);
                 }
             }
             ShowcasedGroup::Wallpaper(group) => {
-                if let Message::Wallpaper(message) = message {
+                if let ShowcaseMessage::Wallpaper(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Audio(group) => {
-                if let Message::Audio(message) = message {
+                if let ShowcaseMessage::Audio(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Gamepad(gamepad) => {
-                if let Message::Gamepad(message) = message {
+                if let ShowcaseMessage::Gamepad(message) = message {
                     let _ = gamepad.group.update(message, &gamepad.bindings, None);
                 }
             }
             ShowcasedGroup::VoiceDictation(group) => {
-                if let Message::VoiceDictation(message) = message {
+                if let ShowcaseMessage::VoiceDictation(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Caldav(group) => {
-                if let Message::Caldav(message) = message {
+                if let ShowcaseMessage::Caldav(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Vpn(group) => {
-                if let Message::Vpn(message) = message {
+                if let ShowcaseMessage::Vpn(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::LoginSession(group) => {
-                if let Message::LoginSession(message) = message {
+                if let ShowcaseMessage::LoginSession(message) = message {
                     let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                if let Message::WindowGroup(message) = message {
+                if let ShowcaseMessage::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
                 }
             }
@@ -549,7 +561,7 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn backdrop<'a>(&'a self, config: &'a Config) -> Option<Element<'a, Message>> {
+    pub fn backdrop<'a>(&'a self, config: &'a Config) -> Option<Element<'a, ShowcaseMessage>> {
         match self {
             ShowcasedGroup::Toasts(toasts) => Some(toasts.window_frames(config)),
             _ => None,

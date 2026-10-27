@@ -15,7 +15,7 @@ use uom::{
 };
 
 use crate::{
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
@@ -155,7 +155,7 @@ impl<'a> ProcessTree<'a> {
     }
 
     #[must_use]
-    pub fn view(self) -> Element<'static, Message> {
+    pub fn view(self) -> Element<'static, PopupMessage> {
         let mut branches = Vec::new();
         outline(self.root, 0, self.folding, &mut branches);
 
@@ -195,7 +195,7 @@ impl<'a> ProcessTree<'a> {
                                 .push(pressable_text(
                                     cell,
                                     listing.name,
-                                    Message::CopyText,
+                                    PopupMessage::CopyText,
                                     flash,
                                     copy_flash,
                                     Interaction::Copy,
@@ -228,7 +228,7 @@ impl<'a> ProcessTree<'a> {
         .into()
     }
 
-    fn heading(&self, title: &str) -> Element<'static, Message> {
+    fn heading(&self, title: &str) -> Element<'static, PopupMessage> {
         column_heading(
             &self.config.theme.font,
             title.to_owned(),
@@ -241,7 +241,7 @@ impl<'a> ProcessTree<'a> {
         &self,
         title: &str,
         field: impl Fn(&Listing) -> String + 'static,
-    ) -> table::Column<'static, 'static, Branch, Message> {
+    ) -> table::Column<'static, 'static, Branch, PopupMessage> {
         let dim = self.dim();
         let flash = self.flash();
         let tint = self.tint();
@@ -265,7 +265,7 @@ impl<'a> ProcessTree<'a> {
             pressable_text(
                 cell,
                 text,
-                Message::CopyText,
+                PopupMessage::CopyText,
                 flash,
                 copy_flash,
                 Interaction::Copy,
@@ -303,11 +303,11 @@ impl<'a> ProcessTree<'a> {
     }
 }
 
-fn blank(size: f32) -> Element<'static, Message> {
+fn blank(size: f32) -> Element<'static, PopupMessage> {
     Space::new().width(size).height(size).into()
 }
 
-fn caret(listing: &Listing, size: f32, color: Color) -> Element<'static, Message> {
+fn caret(listing: &Listing, size: f32, color: Color) -> Element<'static, PopupMessage> {
     match listing.fold {
         Fold::Leaf => blank(size),
         Fold::Folded { .. } => fold_toggle(
@@ -325,9 +325,14 @@ fn caret(listing: &Listing, size: f32, color: Color) -> Element<'static, Message
     }
 }
 
-fn fold_toggle(icon: Phosphor, pid: i32, size: f32, color: Color) -> Element<'static, Message> {
+fn fold_toggle(
+    icon: Phosphor,
+    pid: i32,
+    size: f32,
+    color: Color,
+) -> Element<'static, PopupMessage> {
     mouse_area(Glyph::from(icon).view(size, color))
-        .on_press(Message::WindowGroup(WindowGroupMessage::WindowList(
+        .on_press(PopupMessage::WindowGroup(WindowGroupMessage::WindowList(
             WindowListMessage::ProcessFoldToggled(pid),
         )))
         .interaction(Interaction::Pointer)

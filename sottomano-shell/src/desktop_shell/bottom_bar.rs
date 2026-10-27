@@ -2,11 +2,10 @@ use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
-    shell_message::Message, widget_groups::workspaces_group::inline_strip,
-    widgets::widget_group::GroupContent,
+    widget_groups::workspaces_group::inline_strip, widgets::widget_group::GroupContent,
 };
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
     pub start: [GroupContent<'a, Message>; 9],

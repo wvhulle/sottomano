@@ -1,11 +1,8 @@
 use iced::{Rectangle, window::Id};
-use iced_exwlshell::{
-    actions::RegionActionCB,
-    reexport::{KeyboardInteractivity, NewLayerShellSettings, OutputOption},
+use iced_exwlshell::reexport::{
+    ActivationTokenSink, KeyboardInteractivity, NewLayerShellSettings, OutputOption,
 };
 use sottomano_config::screen_edges::Position;
-
-use crate::shell_message::Message;
 
 #[derive(Debug, Clone)]
 pub struct PanelEdge {
@@ -13,24 +10,29 @@ pub struct PanelEdge {
     pub position: Position,
 }
 
+#[derive(Debug, Clone)]
+pub enum SurfaceRequest {
+    Open {
+        settings: NewLayerShellSettings,
+        surface: Id,
+    },
+    InputRegions {
+        surface: Id,
+        regions: Vec<Rectangle>,
+    },
+    KeyboardInteractivity {
+        surface: Id,
+        interactivity: KeyboardInteractivity,
+    },
+    ActivationToken {
+        surface: Id,
+        sink: ActivationTokenSink,
+    },
+}
+
 #[must_use]
-pub fn input_regions(surface: Id, rects: Vec<Rectangle>) -> Message {
-    Message::SetInputRegion {
-        id: surface,
-        callback: RegionActionCB::new(move |region| {
-            rects
-                .iter()
-                .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
-                .for_each(|rect| {
-                    let _ = region.add(
-                        rect.x as i32,
-                        rect.y as i32,
-                        rect.width.ceil() as i32,
-                        rect.height.ceil() as i32,
-                    );
-                });
-        }),
-    }
+pub fn input_regions(surface: Id, regions: Vec<Rectangle>) -> SurfaceRequest {
+    SurfaceRequest::InputRegions { surface, regions }
 }
 
 #[must_use]

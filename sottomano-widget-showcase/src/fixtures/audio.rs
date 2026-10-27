@@ -5,12 +5,12 @@ use sottomano_sources::media_playback_audio::pipewire_audio::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    shell_message::Message,
     widget_groups::audio_group::{AudioGroup, AudioMessage},
 };
 
 use crate::{
     fixtures::{cycled, sample},
+    showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
 };
 
@@ -40,9 +40,9 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::Audio(Box::new(group))
 }
 
-pub fn live(clock: Clock) -> Vec<Message> {
+pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    vec![Message::Audio(peaks(tick))]
+    vec![ShowcaseMessage::Audio(peaks(tick))]
 }
 
 fn peaks(tick: u32) -> AudioMessage {

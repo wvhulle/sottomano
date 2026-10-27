@@ -4,7 +4,6 @@ use iced::{Task, window::Id};
 use sottomano_state::shell_settings::{self, ShellSetting};
 use sottomano_widgets::{
     notification_toasts::ToastContext,
-    shell_message::Message,
     toast_messages::NotificationMessage,
     widget_groups::{
         notification_group::NotificationGroupMessage,
@@ -13,7 +12,10 @@ use sottomano_widgets::{
     widgets::widget_group::GroupToastRequests,
 };
 
-use crate::desktop_shell::{DesktopShell, bottom_bar::BottomBarGroups, top_bar::TopBarGroups};
+use crate::{
+    desktop_shell::{DesktopShell, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
+    shell_message::Message,
+};
 
 impl DesktopShell {
     pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {

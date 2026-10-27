@@ -14,12 +14,11 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverTarget, PressHints, TooltipMessage,
+        HoverTarget, PopupMessage, PressHints, TooltipMessage,
         tooltip_content::TooltipContent,
         tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
     },
-    layer_surfaces::{PanelEdge, base_settings, input_regions},
-    shell_message::Message,
+    layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
         tooltip_body::Tooltip,
@@ -81,14 +80,14 @@ impl TooltipHost {
         target: &HoverTarget,
         anchor: Rectangle,
         press_hints: PressHints,
-    ) -> Option<Task<Message>> {
+    ) -> Option<Task<TooltipMessage>> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
             return None;
         }
         self.transition.cancel_leave();
         let (intent_elapsed, handle) = Task::future(sleep(SWITCH_INTENT))
-            .map(|()| Message::Tooltip(TooltipMessage::SwitchIntentElapsed))
+            .map(|()| TooltipMessage::SwitchIntentElapsed)
             .abortable();
         self.pending_switch = Some(PendingSwitch {
             parent: parent.clone(),
@@ -168,16 +167,16 @@ impl TooltipHost {
         }
     }
 
-    pub fn open_surface(&mut self, output: &str) -> Task<Message> {
+    pub fn open_surface(&mut self, output: &str) -> Task<SurfaceRequest> {
         if self.surfaces.contains_key(output) {
             return Task::none();
         }
         let id = Id::unique();
         self.surfaces.insert(output.to_string(), id);
         Task::batch([
-            Task::done(Message::NewLayerShell {
+            Task::done(SurfaceRequest::Open {
                 settings: tooltip_settings(output),
-                id,
+                surface: id,
             }),
             Task::done(input_regions(id, Vec::new())),
         ])
@@ -256,7 +255,7 @@ impl TooltipHost {
         assets: WindowAssets<'a>,
         content: impl Fn(&HoverTarget) -> Tooltip,
         clock: Clock,
-    ) -> Option<Element<'a, Message>> {
+    ) -> Option<Element<'a, PopupMessage>> {
         if !self.hosts(surface) {
             return None;
         }
@@ -307,10 +306,10 @@ impl TooltipHost {
     }
 }
 
-fn hoverable_content(content: Element<'_, Message>) -> Element<'_, Message> {
+fn hoverable_content(content: Element<'_, PopupMessage>) -> Element<'_, PopupMessage> {
     mouse_area(content)
-        .on_enter(Message::Tooltip(TooltipMessage::EnterTooltip))
-        .on_exit(Message::Tooltip(TooltipMessage::ExitTooltip))
+        .on_enter(PopupMessage::Tooltip(TooltipMessage::EnterTooltip))
+        .on_exit(PopupMessage::Tooltip(TooltipMessage::ExitTooltip))
         .into()
 }
 

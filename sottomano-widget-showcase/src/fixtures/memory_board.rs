@@ -5,12 +5,12 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    shell_message::Message,
     widget_groups::memory_board_group::{MemoryBoardGroup, MemoryBoardMessage, MemoryBoardTarget},
 };
 
 use crate::{
     fixtures::{cycled, host_hardware, sample},
+    showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
 };
 
@@ -26,12 +26,12 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::MemoryBoard(Box::new(group))
 }
 
-pub fn live(clock: Clock) -> Vec<Message> {
+pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
     [memory_reading(tick)]
         .into_iter()
         .chain(on_hover_readings(MemoryBoardTarget::Memory, tick))
-        .map(Message::MemoryBoard)
+        .map(ShowcaseMessage::MemoryBoard)
         .collect()
 }
 

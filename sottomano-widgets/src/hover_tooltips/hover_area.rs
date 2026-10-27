@@ -8,14 +8,9 @@ use iced::{
         mouse, overlay, renderer,
         widget::{Operation, Tree, tree},
     },
-    window::Id,
 };
-use sottomano_config::screen_edges::Position;
 
-use crate::{
-    hover_tooltips::{HoverTarget, PressHints, TooltipMessage},
-    shell_message::Message,
-};
+use crate::hover_tooltips::{HoverTarget, PressHints, TooltipMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Opening {
@@ -49,29 +44,6 @@ pub fn pressable_card<'a, M: 'a>(
         press_hints: PressHints::default(),
         opening: Opening::Press,
         wrap: Box::new(wrap),
-    })
-}
-
-#[must_use]
-pub fn on_surface(
-    surface: Id,
-    position: Position,
-    origin_in_overlay: Vector,
-    content: Element<'_, Message>,
-) -> Element<'_, Message> {
-    content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor {
-            target,
-            anchor,
-            press_hints,
-        }) => Message::Tooltip(TooltipMessage::Enter {
-            surface,
-            position,
-            target,
-            anchor: anchor + origin_in_overlay,
-            press_hints,
-        }),
-        other => other,
     })
 }
 

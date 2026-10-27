@@ -10,7 +10,6 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    shell_message::Message,
     widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
 };
 use uom::si::{
@@ -22,6 +21,7 @@ use uom::si::{
 
 use crate::{
     fixtures::{cycled, host_hardware, sample},
+    showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
 };
 
@@ -43,12 +43,12 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ))
 }
 
-pub fn live(clock: Clock) -> Vec<Message> {
+pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
     continuous_readings(tick)
         .into_iter()
         .chain(on_hover_readings(ComputeTarget::CpuLoad, tick))
-        .map(Message::Compute)
+        .map(ShowcaseMessage::Compute)
         .collect()
 }
 

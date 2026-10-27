@@ -20,9 +20,9 @@ use tokio::sync::mpsc;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},
-    shell_message::AppWindowFocus,
     widgets::{
         activity_line::activity_line,
+        app_window_focus::AppWindowFocus,
         bar_widget::Glyph,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
