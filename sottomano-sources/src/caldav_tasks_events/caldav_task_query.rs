@@ -8,6 +8,7 @@ use crate::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment,
     caldav_agenda::{CalendarResource, Error, parsed_calendar_data},
     caldav_calendar_discovery::{CalendarCollection, CalendarHome},
+    caldav_event_query::displayed_summary,
 };
 
 const LOWEST_PRIORITY: u32 = 9;
@@ -40,42 +41,85 @@ impl PriorityBand {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskDeadline {
+    Due(AgendaMoment),
+    Undated,
+}
+
+impl TaskDeadline {
+    #[must_use]
+    pub fn due_moment(self) -> Option<AgendaMoment> {
+        match self {
+            TaskDeadline::Due(due) => Some(due),
+            TaskDeadline::Undated => None,
+        }
+    }
+
+    fn earliest_first(self, other: Self) -> Ordering {
+        match (self, other) {
+            (TaskDeadline::Due(due), TaskDeadline::Due(other_due)) => {
+                due.starts_at().cmp(&other_due.starts_at())
+            }
+            (TaskDeadline::Due(_), TaskDeadline::Undated) => Ordering::Less,
+            (TaskDeadline::Undated, TaskDeadline::Due(_)) => Ordering::Greater,
+            (TaskDeadline::Undated, TaskDeadline::Undated) => Ordering::Equal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TaskPriority {
+    Ranked(u32),
+    Unranked,
+}
+
+impl TaskPriority {
+    #[must_use]
+    pub fn band(self) -> Option<PriorityBand> {
+        match self {
+            TaskPriority::Ranked(priority) => PriorityBand::of_ical_priority(priority),
+            TaskPriority::Unranked => None,
+        }
+    }
+
+    fn of_ical_priority(priority: u32) -> Self {
+        if (1..=LOWEST_PRIORITY).contains(&priority) {
+            TaskPriority::Ranked(priority)
+        } else {
+            TaskPriority::Unranked
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskProgress {
+    NotStarted,
+    Started,
+    PercentComplete(u8),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenTask {
     pub summary: String,
     pub calendar: String,
     pub object_href: String,
-    pub due: Option<AgendaMoment>,
-    pub priority: Option<u32>,
-    pub percent_complete: Option<u8>,
-    pub started: bool,
+    pub deadline: TaskDeadline,
+    pub priority: TaskPriority,
+    pub progress: TaskProgress,
 }
 
 impl OpenTask {
     #[must_use]
     pub fn is_overdue(&self, now: DateTime<Local>) -> bool {
-        self.due.is_some_and(|due| due.ends_before(now))
-    }
-
-    #[must_use]
-    pub fn priority_band(&self) -> Option<PriorityBand> {
-        self.priority.and_then(PriorityBand::of_ical_priority)
+        matches!(self.deadline, TaskDeadline::Due(due) if due.ends_before(now))
     }
 
     #[must_use]
     pub fn earliest_due_first(&self, other: &Self) -> Ordering {
-        let undated_last = |task: &Self| task.due.map(AgendaMoment::starts_at);
-        match (undated_last(self), undated_last(other)) {
-            (Some(due), Some(other_due)) => due.cmp(&other_due),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => Ordering::Equal,
-        }
-        .then_with(|| self.priority_or_lowest().cmp(&other.priority_or_lowest()))
-    }
-
-    fn priority_or_lowest(&self) -> u32 {
-        self.priority.unwrap_or(LOWEST_PRIORITY + 1)
+        self.deadline
+            .earliest_first(other.deadline)
+            .then_with(|| self.priority.cmp(&other.priority))
     }
 }
 
@@ -95,20 +139,37 @@ pub async fn query_open_tasks(
 fn open_tasks(resources: &[CalendarResource], calendar_name: &str) -> Vec<OpenTask> {
     resources
         .iter()
-        .flat_map(|resource| resource.calendar.todos().map(move |todo| (resource, todo)))
-        .filter(|(_, todo)| still_open(todo))
-        .map(|(resource, todo)| OpenTask {
-            summary: todo.get_summary().unwrap_or("(untitled)").trim().to_owned(),
-            calendar: calendar_name.to_owned(),
-            object_href: resource.href.clone(),
-            due: todo.get_due().map(AgendaMoment::of),
-            priority: todo
-                .get_priority()
-                .filter(|priority| (1..=LOWEST_PRIORITY).contains(priority)),
-            percent_complete: todo.get_percent_complete().filter(|percent| *percent > 0),
-            started: todo.get_status() == Some(TodoStatus::InProcess),
+        .flat_map(|resource| {
+            resource
+                .calendar
+                .todos()
+                .filter(|todo| still_open(todo))
+                .map(move |todo| open_task(&resource.href, todo, calendar_name))
         })
         .collect()
+}
+
+fn open_task(object_href: &str, todo: &Todo, calendar_name: &str) -> OpenTask {
+    OpenTask {
+        summary: displayed_summary(todo.get_summary().unwrap_or_default()),
+        calendar: calendar_name.to_owned(),
+        object_href: object_href.to_owned(),
+        deadline: todo.get_due().map_or(TaskDeadline::Undated, |due| {
+            TaskDeadline::Due(AgendaMoment::of(due))
+        }),
+        priority: todo
+            .get_priority()
+            .map_or(TaskPriority::Unranked, TaskPriority::of_ical_priority),
+        progress: task_progress(todo),
+    }
+}
+
+fn task_progress(todo: &Todo) -> TaskProgress {
+    match todo.get_percent_complete() {
+        Some(percent) if percent > 0 => TaskProgress::PercentComplete(percent),
+        _ if todo.get_status() == Some(TodoStatus::InProcess) => TaskProgress::Started,
+        _ => TaskProgress::NotStarted,
+    }
 }
 
 fn still_open(todo: &Todo) -> bool {
@@ -153,22 +214,24 @@ mod tests {
             .unwrap();
         assert!(!taxes.is_overdue(evening));
         assert!(taxes.is_overdue(evening + TimeDelta::days(1)));
-        assert_eq!(taxes.priority, Some(1));
+        assert_eq!(taxes.priority, TaskPriority::Ranked(1));
     }
 
     #[test]
     fn progress_and_undefined_priority_are_read() {
         let tasks = parsed();
-        assert!(tasks[1].started);
-        assert_eq!(tasks[1].percent_complete, Some(40));
-        assert_eq!(tasks[1].due, None);
-        assert_eq!(tasks[2].priority, None);
+        assert_eq!(tasks[1].progress, TaskProgress::PercentComplete(40));
+        assert_eq!(tasks[1].deadline, TaskDeadline::Undated);
+        assert_eq!(tasks[2].priority, TaskPriority::Unranked);
     }
 
     #[test]
     fn a_zoned_due_time_converts_to_local_time() {
         let brussels_two_pm = Brussels.with_ymd_and_hms(2026, 10, 30, 14, 0, 0).unwrap();
-        assert_eq!(parsed()[2].due, Some(AgendaMoment::Zoned(brussels_two_pm)));
+        assert_eq!(
+            parsed()[2].deadline,
+            TaskDeadline::Due(AgendaMoment::Zoned(brussels_two_pm))
+        );
     }
 
     #[test]
@@ -182,8 +245,8 @@ mod tests {
     #[test]
     fn priorities_fall_into_the_rfc_5545_bands() {
         let tasks = parsed();
-        assert_eq!(tasks[0].priority_band(), Some(PriorityBand::High));
-        assert_eq!(tasks[2].priority_band(), None);
+        assert_eq!(tasks[0].priority.band(), Some(PriorityBand::High));
+        assert_eq!(tasks[2].priority.band(), None);
         assert_eq!(
             PriorityBand::of_ical_priority(5),
             Some(PriorityBand::Medium)

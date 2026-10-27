@@ -1,6 +1,6 @@
 use chrono::{DateTime, Days, Local, NaiveDate};
 use fast_dav_rs::{CalendarQueryOptions, TimeRange};
-use icalendar::{Component, EventLike};
+use icalendar::{Component, Event, EventLike};
 
 use crate::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment,
@@ -9,33 +9,54 @@ use crate::caldav_tasks_events::{
 };
 
 const CALDAV_UTC_FORMAT: &str = "%Y%m%dT%H%M%SZ";
+const UNTITLED_SUMMARY: &str = "(untitled)";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventOrigin {
+    CalendarObject {
+        object_href: String,
+        recurrence_id: AgendaMoment,
+    },
+    SubscriptionFeed,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpcomingEvent {
     pub summary: String,
     pub calendar: String,
-    pub object_href: String,
-    pub recurrence_id: AgendaMoment,
+    pub origin: EventOrigin,
     pub start: AgendaMoment,
-    pub end: Option<AgendaMoment>,
-    pub location: Option<String>,
+    pub end: AgendaMoment,
+    pub location: String,
 }
 
 impl UpcomingEvent {
     #[must_use]
     pub fn has_ended(&self, now: DateTime<Local>) -> bool {
         match self.end {
-            Some(AgendaMoment::AllDay(last_day_exclusive)) => {
-                last_day_exclusive <= now.date_naive()
-            }
-            Some(end) => end.starts_at() <= now,
-            None => self.start.ends_before(now),
+            AgendaMoment::AllDay(last_day_exclusive) => last_day_exclusive <= now.date_naive(),
+            AgendaMoment::Floating(_) | AgendaMoment::Zoned(_) => self.end.starts_at() <= now,
         }
     }
 
     #[must_use]
     pub fn is_ongoing(&self, now: DateTime<Local>) -> bool {
         self.start.starts_at() <= now && !self.has_ended(now)
+    }
+
+    #[must_use]
+    pub fn overlaps(&self, window: EventWindow) -> bool {
+        let Some(window_end) = window.last_day_exclusive() else {
+            return false;
+        };
+        self.start.day_in(&Local) < window_end && self.end.day_in(&Local) >= window.first_day
+    }
+}
+
+pub(super) fn displayed_summary(summary: &str) -> String {
+    match summary.trim() {
+        "" => UNTITLED_SUMMARY.to_owned(),
+        trimmed => trimmed.to_owned(),
     }
 }
 
@@ -46,10 +67,13 @@ pub struct EventWindow {
 }
 
 impl EventWindow {
+    fn last_day_exclusive(self) -> Option<NaiveDate> {
+        self.first_day
+            .checked_add_days(Days::new(u64::from(self.days)))
+    }
+
     fn caldav_bounds(self) -> Option<TimeRange> {
-        let last_day_exclusive = self
-            .first_day
-            .checked_add_days(Days::new(u64::from(self.days)))?;
+        let last_day_exclusive = self.last_day_exclusive()?;
         let [start, end] = [self.first_day, last_day_exclusive].map(|day| {
             AgendaMoment::AllDay(day)
                 .starts_in(&Local)
@@ -76,9 +100,9 @@ pub async fn query_upcoming_events(
     calendar: &CalendarCollection,
     window: EventWindow,
 ) -> Result<Vec<UpcomingEvent>, Error> {
-    let options = window
-        .query_options()
-        .ok_or(Error::Discovery("upcoming_days reaches past the calendar"))?;
+    let Some(options) = window.query_options() else {
+        return Err(Error::WindowBeyondCalendar);
+    };
     let objects = home
         .client
         .calendar_query_options(&calendar.href, &options)
@@ -93,32 +117,32 @@ fn upcoming_events(resources: &[CalendarResource], calendar_name: &str) -> Vec<U
     resources
         .iter()
         .flat_map(|resource| {
-            resource
-                .calendar
-                .events()
-                .map(move |event| (resource, event))
-        })
-        .filter_map(|(resource, event)| {
-            let start = AgendaMoment::of(event.get_start()?);
-            Some(UpcomingEvent {
-                summary: event
-                    .get_summary()
-                    .unwrap_or("(untitled)")
-                    .trim()
-                    .to_owned(),
-                calendar: calendar_name.to_owned(),
-                object_href: resource.href.clone(),
-                recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::of),
-                start,
-                end: event.get_end().map(AgendaMoment::of),
-                location: event
-                    .get_location()
-                    .map(str::trim)
-                    .filter(|location| !location.is_empty())
-                    .map(str::to_owned),
+            resource.calendar.events().filter_map(move |event| {
+                calendar_object_event(&resource.href, event, calendar_name)
             })
         })
         .collect()
+}
+
+fn calendar_object_event(
+    object_href: &str,
+    event: &Event,
+    calendar_name: &str,
+) -> Option<UpcomingEvent> {
+    let start = AgendaMoment::of(event.get_start()?);
+    Some(UpcomingEvent {
+        summary: displayed_summary(event.get_summary().unwrap_or_default()),
+        calendar: calendar_name.to_owned(),
+        origin: EventOrigin::CalendarObject {
+            object_href: object_href.to_owned(),
+            recurrence_id: event.get_recurrence_id().map_or(start, AgendaMoment::of),
+        },
+        start,
+        end: event
+            .get_end()
+            .map_or_else(|| start.default_event_end(), AgendaMoment::of),
+        location: event.get_location().unwrap_or_default().trim().to_owned(),
+    })
 }
 
 #[cfg(test)]
@@ -143,17 +167,36 @@ mod tests {
         let events = parsed(include_str!("caldav_fixtures/expanded_weekly_standup.ics"));
         assert_eq!(events.len(), 2);
         assert_eq!(events[0].summary, "Standup");
-        assert_eq!(events[0].location.as_deref(), Some("Room 4"));
+        assert_eq!(events[0].location, "Room 4");
         let second_start = Utc.with_ymd_and_hms(2026, 11, 2, 9, 0, 0).unwrap();
         assert_eq!(events[1].start.starts_in(&Utc), second_start);
-        assert_eq!(events[1].recurrence_id, events[1].start);
-        assert!(events[1].object_href.ends_with("/fixture.ics"));
+        let EventOrigin::CalendarObject {
+            object_href,
+            recurrence_id,
+        } = &events[1].origin
+        else {
+            panic!("a CalDAV event comes from a calendar object");
+        };
+        assert_eq!(*recurrence_id, events[1].start);
+        assert!(object_href.ends_with("/fixture.ics"));
     }
 
     #[test]
     fn a_single_event_is_referenced_by_its_start() {
         let holiday = &parsed(include_str!("caldav_fixtures/all_day_holiday.ics"))[0];
-        assert_eq!(holiday.recurrence_id, holiday.start);
+        assert!(matches!(
+            holiday.origin,
+            EventOrigin::CalendarObject { recurrence_id, .. } if recurrence_id == holiday.start
+        ));
+    }
+
+    #[test]
+    fn an_event_without_end_lasts_its_whole_start_day() {
+        let day = NaiveDate::from_ymd_opt(2026, 11, 1).unwrap();
+        assert_eq!(
+            AgendaMoment::AllDay(day).default_event_end(),
+            AgendaMoment::AllDay(day.succ_opt().unwrap())
+        );
     }
 
     #[test]

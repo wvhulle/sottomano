@@ -48,6 +48,10 @@ pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
     const DELIVERY_CADENCE: DeliveryCadence;
 
     fn delivery_stream(key: Self::StreamInputs) -> impl Stream<Item = SourceDelivery<Self>> + Send;
+
+    fn delivery_cadence(&self) -> DeliveryCadence {
+        Self::DELIVERY_CADENCE
+    }
 }
 
 #[derive(Debug, Clone)]

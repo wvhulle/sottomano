@@ -129,7 +129,7 @@ impl<S: ReadingSource + ReadingSections> ContinuousReading<S> {
 
 impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
     fn accepted(self, delivery: SourceDelivery<S>, clock: Clock) -> Self {
-        let freshness = Freshness::from_source_cadence::<S>(clock);
+        let freshness = self.delivery_freshness(&delivery, clock);
         match delivery {
             SourceDelivery::Absent => ContinuousReading::Absent,
             SourceDelivery::Unchanged => self.restamped(freshness),
@@ -170,13 +170,24 @@ impl<S: ReadingSource + BarWidget> ContinuousReading<S> {
 impl<S: ReadingSource> ContinuousReading<S> {
     pub fn load(&mut self, data: S, clock: Clock) {
         *self = ContinuousReading::Read {
+            freshness: Freshness::of_reading(&data, clock),
             data,
-            freshness: Freshness::from_source_cadence::<S>(clock),
         };
     }
 
     pub fn receive_keeping_last_reading(&mut self, delivery: SourceDelivery<S>, clock: Clock) {
-        self.keep_with(delivery, Freshness::from_source_cadence::<S>(clock));
+        let freshness = self.delivery_freshness(&delivery, clock);
+        self.keep_with(delivery, freshness);
+    }
+
+    fn delivery_freshness(&self, delivery: &SourceDelivery<S>, clock: Clock) -> Freshness {
+        if let SourceDelivery::Reading(Ok(data)) = delivery {
+            return Freshness::of_reading(data, clock);
+        }
+        self.get().map_or_else(
+            || Freshness::from_source_cadence::<S>(clock),
+            |data| Freshness::of_reading(data, clock),
+        )
     }
 }
 

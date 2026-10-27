@@ -1,4 +1,5 @@
 use std::{
+    fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
     sync::{
         Arc,
@@ -14,7 +15,10 @@ use tokio::{
     net::TcpStream,
     time::{sleep, timeout},
 };
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    MaybeTlsStream, WebSocketStream, connect_async,
+    tungstenite::{Error as WebSocketError, Message},
+};
 
 use crate::{secret_file_reads::read_secret, system_protocol_clients::http_json_client};
 
@@ -40,7 +44,40 @@ enum PushLink {
 
 enum ConnectFailure {
     Unsupported,
-    Failed(String),
+    PasswordUnreadable,
+    Capabilities(http_json_client::Error),
+    WebSocket(WebSocketError),
+    AuthenticationRefused,
+    NoAuthenticationReply,
+}
+
+impl Display for ConnectFailure {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            ConnectFailure::Unsupported => write!(f, "server offers no notify_push"),
+            ConnectFailure::PasswordUnreadable => write!(f, "password unreadable"),
+            ConnectFailure::Capabilities(error) => write!(f, "capabilities request: {error}"),
+            ConnectFailure::WebSocket(error) => write!(f, "websocket: {error}"),
+            ConnectFailure::AuthenticationRefused => write!(f, "credentials refused"),
+            ConnectFailure::NoAuthenticationReply => write!(f, "no authentication reply"),
+        }
+    }
+}
+
+impl From<WebSocketError> for ConnectFailure {
+    fn from(error: WebSocketError) -> Self {
+        ConnectFailure::WebSocket(error)
+    }
+}
+
+impl From<http_json_client::Error> for ConnectFailure {
+    fn from(error: http_json_client::Error) -> Self {
+        match error {
+            http_json_client::Error::Status { status: 404, .. }
+            | http_json_client::Error::Decode(_) => ConnectFailure::Unsupported,
+            other => ConnectFailure::Capabilities(other),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -84,7 +121,7 @@ pub fn activity_pings(
         move |link| {
             let login = login.clone();
             let push_live = push_live.clone();
-            async move { Some(next_activity_ping(link, &login, &push_live).await) }
+            async move { Some(((), next_activity_ping(link, &login, &push_live).await)) }
         },
     )
 }
@@ -93,7 +130,7 @@ async fn next_activity_ping(
     mut link: PushLink,
     login: &PushLogin,
     push_live: &AtomicBool,
-) -> ((), PushLink) {
+) -> PushLink {
     loop {
         link = match link {
             PushLink::Connecting { after } => {
@@ -101,13 +138,13 @@ async fn next_activity_ping(
                 match listen_for_activity(login).await {
                     Ok(socket) => {
                         push_live.store(true, Ordering::Relaxed);
-                        return ((), PushLink::Listening(Box::new(socket)));
+                        return PushLink::Listening(Box::new(socket));
                     }
                     Err(ConnectFailure::Unsupported) => PushLink::Connecting {
                         after: UNSUPPORTED_RECHECK,
                     },
-                    Err(ConnectFailure::Failed(reason)) => {
-                        tracing::warn!("nextcloud notify_push: {reason}");
+                    Err(failure) => {
+                        tracing::warn!("nextcloud notify_push: {failure}");
                         PushLink::Connecting {
                             after: (after * 2).clamp(FIRST_RETRY, LONGEST_RETRY),
                         }
@@ -116,7 +153,7 @@ async fn next_activity_ping(
             }
             PushLink::Listening(mut socket) => match socket.next().await {
                 Some(Ok(Message::Text(text))) if text.as_str().starts_with("notify_activity") => {
-                    return ((), PushLink::Listening(socket));
+                    return PushLink::Listening(socket);
                 }
                 Some(Ok(_)) => PushLink::Listening(socket),
                 Some(Err(_)) | None => {
@@ -129,26 +166,17 @@ async fn next_activity_ping(
 }
 
 async fn listen_for_activity(login: &PushLogin) -> Result<PushSocket, ConnectFailure> {
-    let password = read_secret(&login.password)
-        .ok_or_else(|| ConnectFailure::Failed("password unreadable".to_owned()))?;
+    let Some(password) = read_secret(&login.password) else {
+        return Err(ConnectFailure::PasswordUnreadable);
+    };
     let websocket_url = advertised_websocket(login, &password).await?;
-    let (mut socket, _) = connect_async(websocket_url.as_str())
-        .await
-        .map_err(|error| ConnectFailure::Failed(error.to_string()))?;
-    for credential in [login.user.as_str(), password.as_str()] {
-        socket
-            .send(Message::text(credential))
-            .await
-            .map_err(|error| ConnectFailure::Failed(error.to_string()))?;
-    }
+    let (mut socket, _) = connect_async(websocket_url.as_str()).await?;
+    socket.send(Message::text(login.user.as_str())).await?;
+    socket.send(Message::text(password.as_str())).await?;
     match timeout(HANDSHAKE_TIMEOUT, socket.next()).await {
         Ok(Some(Ok(Message::Text(reply)))) if reply.as_str() == "authenticated" => Ok(socket),
-        Ok(Some(Ok(Message::Text(reply)))) => {
-            Err(ConnectFailure::Failed(reply.as_str().to_owned()))
-        }
-        _ => Err(ConnectFailure::Failed(
-            "no authentication reply from notify_push".to_owned(),
-        )),
+        Ok(Some(Ok(Message::Text(_)))) => Err(ConnectFailure::AuthenticationRefused),
+        _ => Err(ConnectFailure::NoAuthenticationReply),
     }
 }
 
@@ -170,17 +198,9 @@ async fn advertised_websocket(login: &PushLogin, password: &str) -> Result<Strin
         ],
         HANDSHAKE_TIMEOUT.as_secs(),
     )
-    .await
-    .map_err(|error| match error {
-        http_json_client::Error::Status { status: 404, .. }
-        | http_json_client::Error::Decode(_) => ConnectFailure::Unsupported,
-        other => ConnectFailure::Failed(other.to_string()),
-    })?;
-    capabilities
-        .ocs
-        .data
-        .capabilities
-        .notify_push
-        .map(|push| push.endpoints.websocket)
-        .ok_or(ConnectFailure::Unsupported)
+    .await?;
+    let Some(notify_push) = capabilities.ocs.data.capabilities.notify_push else {
+        return Err(ConnectFailure::Unsupported);
+    };
+    Ok(notify_push.endpoints.websocket)
 }

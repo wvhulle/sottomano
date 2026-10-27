@@ -4,7 +4,8 @@ use form_urlencoded::byte_serialize;
 use reqwest::Url;
 
 use crate::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment, caldav_event_query::UpcomingEvent,
+    agenda_moment_zones::AgendaMoment,
+    caldav_event_query::{EventOrigin, UpcomingEvent},
     caldav_task_query::OpenTask,
 };
 
@@ -36,14 +37,20 @@ impl NextcloudWebRoot {
     }
 
     #[must_use]
-    pub fn event_details(&self, event: &UpcomingEvent) -> String {
-        let object_id: String =
-            byte_serialize(STANDARD.encode(&event.object_href).as_bytes()).collect();
-        format!(
+    pub fn event_details(&self, event: &UpcomingEvent) -> Option<String> {
+        let EventOrigin::CalendarObject {
+            object_href,
+            recurrence_id,
+        } = &event.origin
+        else {
+            return None;
+        };
+        let object_id: String = byte_serialize(STANDARD.encode(object_href).as_bytes()).collect();
+        Some(format!(
             "{}/edit/{object_id}/{}",
             self.calendar_app(),
-            calendar_js_unix_seconds(event.recurrence_id)
-        )
+            calendar_js_unix_seconds(*recurrence_id)
+        ))
     }
 
     #[must_use]
@@ -75,6 +82,7 @@ mod tests {
     use chrono_tz::Tz;
 
     use super::*;
+    use crate::caldav_tasks_events::caldav_task_query::{TaskDeadline, TaskPriority, TaskProgress};
 
     fn ryzen() -> NextcloudWebRoot {
         NextcloudWebRoot::detected(
@@ -112,17 +120,24 @@ mod tests {
         let event = UpcomingEvent {
             summary: "Standup".to_owned(),
             calendar: "Personal".to_owned(),
-            object_href: "/remote.php/dav/calendars/wvhulle/personal/standup.ics".to_owned(),
-            recurrence_id: start,
+            origin: EventOrigin::CalendarObject {
+                object_href: "/remote.php/dav/calendars/wvhulle/personal/standup.ics".to_owned(),
+                recurrence_id: start,
+            },
             start,
-            end: None,
-            location: None,
+            end: start,
+            location: String::new(),
         };
         assert_eq!(
-            ryzen().event_details(&event),
+            ryzen().event_details(&event).unwrap(),
             "https://ryzen.tail1b1a03.ts.net/apps/calendar/edit/\
              L3JlbW90ZS5waHAvZGF2L2NhbGVuZGFycy93dmh1bGxlL3BlcnNvbmFsL3N0YW5kdXAuaWNz/1793001600"
         );
+        let subscribed = UpcomingEvent {
+            origin: EventOrigin::SubscriptionFeed,
+            ..event
+        };
+        assert_eq!(ryzen().event_details(&subscribed), None);
     }
 
     #[test]
@@ -142,10 +157,9 @@ mod tests {
             summary: "Arabisch leren".to_owned(),
             calendar: "Personal Tasks".to_owned(),
             object_href: "/remote.php/dav/calendars/wvhulle/E0C13D62/arabisch.ics".to_owned(),
-            due: None,
-            priority: None,
-            percent_complete: None,
-            started: false,
+            deadline: TaskDeadline::Undated,
+            priority: TaskPriority::Unranked,
+            progress: TaskProgress::NotStarted,
         };
         assert_eq!(
             ryzen().task_details(&task).unwrap(),

@@ -1,3 +1,6 @@
+use std::str::FromStr;
+
+use calcard::common::timezone::Tz as CalendarZone;
 use chrono::{DateTime, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 use chrono_tz::Tz;
 use icalendar::{CalendarDateTime, DatePerhapsTime};
@@ -20,11 +23,32 @@ impl AgendaMoment {
             DatePerhapsTime::DateTime(CalendarDateTime::Utc(instant)) => {
                 AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC))
             }
-            DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone { date_time, tzid }) => tzid
-                .parse::<Tz>()
-                .ok()
-                .and_then(|zone| zone.from_local_datetime(&date_time).earliest())
-                .map_or(AgendaMoment::Floating(date_time), AgendaMoment::Zoned),
+            DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone { date_time, tzid }) => {
+                let Some(zone) = resolved_zone(&tzid) else {
+                    return AgendaMoment::Floating(date_time);
+                };
+                let Some(instant) = zone.from_local_datetime(&date_time).earliest() else {
+                    return AgendaMoment::Floating(date_time);
+                };
+                AgendaMoment::Zoned(instant)
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn of_expanded(instant: DateTime<CalendarZone>) -> Self {
+        match instant.timezone() {
+            CalendarZone::Floating => AgendaMoment::Floating(instant.naive_local()),
+            CalendarZone::Fixed(_) => AgendaMoment::Zoned(instant.with_timezone(&Tz::UTC)),
+            CalendarZone::Tz(zone) => AgendaMoment::Zoned(instant.with_timezone(&zone)),
+        }
+    }
+
+    #[must_use]
+    pub fn default_event_end(self) -> Self {
+        match self {
+            AgendaMoment::AllDay(day) => day.succ_opt().map_or(self, AgendaMoment::AllDay),
+            AgendaMoment::Floating(_) | AgendaMoment::Zoned(_) => self,
         }
     }
 
@@ -74,6 +98,13 @@ impl AgendaMoment {
     }
 }
 
+fn resolved_zone(tzid: &str) -> Option<Tz> {
+    match CalendarZone::from_str(tzid) {
+        Ok(CalendarZone::Tz(zone)) => Some(zone),
+        Ok(CalendarZone::Floating | CalendarZone::Fixed(_)) | Err(()) => None,
+    }
+}
+
 fn wall_clock_in<Z: TimeZone>(viewer: &Z, wall_clock: NaiveDateTime) -> DateTime<Z> {
     viewer
         .from_local_datetime(&wall_clock)
@@ -111,10 +142,22 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_zone_name_falls_back_to_the_viewers_wall_clock() {
+    fn a_windows_zone_name_resolves_to_its_iana_zone() {
         let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
             date_time: wall_clock(14),
             tzid: "W. Europe Standard Time".to_owned(),
+        }));
+        assert_eq!(
+            moment.starts_in(&Utc),
+            Utc.with_ymd_and_hms(2026, 10, 30, 13, 0, 0).unwrap()
+        );
+    }
+
+    #[test]
+    fn an_unknown_zone_name_falls_back_to_the_viewers_wall_clock() {
+        let moment = AgendaMoment::of(DatePerhapsTime::DateTime(CalendarDateTime::WithTimezone {
+            date_time: wall_clock(14),
+            tzid: "Olympus Mons Standard Time".to_owned(),
         }));
         assert_eq!(moment, AgendaMoment::Floating(wall_clock(14)));
         assert_eq!(moment.starts_in(&New_York).naive_local(), wall_clock(14));

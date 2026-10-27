@@ -79,6 +79,9 @@ impl CaldavGroup {
             user: config.configured_user()?.to_owned(),
             password: self.password.clone()?,
             upcoming_days: config.upcoming_days,
+            change_poll_interval: config.change_poll_interval,
+            push_safety_recheck_interval: config.push_safety_recheck_interval,
+            subscription_download_interval: config.subscription_download_interval,
         })
     }
 

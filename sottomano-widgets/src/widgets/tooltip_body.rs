@@ -617,7 +617,16 @@ pub enum Freshness {
 impl Freshness {
     #[must_use]
     pub fn from_source_cadence<S: ReadingSource>(clock: Clock) -> Self {
-        match S::DELIVERY_CADENCE {
+        Self::of_cadence(S::DELIVERY_CADENCE, clock)
+    }
+
+    #[must_use]
+    pub fn of_reading<S: ReadingSource>(reading: &S, clock: Clock) -> Self {
+        Self::of_cadence(reading.delivery_cadence(), clock)
+    }
+
+    fn of_cadence(cadence: DeliveryCadence, clock: Clock) -> Self {
+        match cadence {
             DeliveryCadence::PolledEvery(every) => Freshness::Polled {
                 every,
                 last: clock.wall,
