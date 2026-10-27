@@ -121,6 +121,8 @@ window_app_id = "spotify"
 slow_job = "10s"
 slow_boot_unit = "5s"
 slow_shutdown_stop = "5s"
+slower_boot_warning_percent = 25
+slower_boot_critical_percent = 60
 
 [widget_groups.claude_usage]
 monthly_budget_usd = 200
