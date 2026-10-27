@@ -209,10 +209,16 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         script: &[
             Step::Press(HoverTarget::VoiceDictation(VoiceDictationTarget::Dictation)),
+            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Runtime)),
             Step::Hover(HoverTarget::VoiceDictation(
                 VoiceDictationTarget::SpeechModel,
             )),
-            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Compute)),
+            Step::Hover(HoverTarget::VoiceDictation(
+                VoiceDictationTarget::RuntimeConfiguration,
+            )),
+            Step::Hover(HoverTarget::VoiceDictation(
+                VoiceDictationTarget::InferenceHardware,
+            )),
         ],
     },
     Demo {

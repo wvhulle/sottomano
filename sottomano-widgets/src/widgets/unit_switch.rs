@@ -33,6 +33,7 @@ pub struct UnitSwitchFace {
 #[derive(Clone, Copy)]
 struct UnitSwitchReading {
     face: UnitSwitchFace,
+    shown_glyph: Glyph,
     activity: UnitActivity,
 }
 
@@ -51,7 +52,7 @@ impl BarWidget for UnitSwitchReading {
     }
 
     fn icon(&self) -> Glyph {
-        self.face.icon.with_weight(Weight::Regular).into()
+        self.shown_glyph
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
@@ -172,6 +173,7 @@ impl UnitSwitch {
         };
         Some(UnitSwitchReading {
             face: self.face,
+            shown_glyph: self.face.icon.with_weight(Weight::Regular).into(),
             activity,
         })
     }
@@ -188,7 +190,25 @@ impl UnitSwitch {
         target: impl Into<HoverTarget>,
         pressed: M,
     ) -> Option<GroupItem<'a, M>> {
-        let reading = self.reading(serving)?;
+        self.group_item_with_glyph(
+            self.face.icon.with_weight(Weight::Regular).into(),
+            serving,
+            target,
+            pressed,
+        )
+    }
+
+    pub fn group_item_with_glyph<'a, M: 'a>(
+        &self,
+        shown_glyph: Glyph,
+        serving: bool,
+        target: impl Into<HoverTarget>,
+        pressed: M,
+    ) -> Option<GroupItem<'a, M>> {
+        let reading = UnitSwitchReading {
+            shown_glyph,
+            ..self.reading(serving)?
+        };
         Some(GroupItem::reading(reading, target).on_press(reading.press_does(), pressed))
     }
 }

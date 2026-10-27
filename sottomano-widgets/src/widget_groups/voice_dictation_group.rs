@@ -1,16 +1,21 @@
-mod compute_device_item;
 mod dictation_phase_item;
+mod inference_hardware_item;
+mod model_card_sections;
 mod output_problems_item;
 mod pipeline_stage_item;
+mod runtime_configuration_item;
 mod speech_model_item;
+mod speech_runtime_sections;
 
 use iced::{Subscription, Task};
 use notulist_client::{DictationCommand, DictationEngine, EngineState};
+use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     voice_dictation_input::{
+        huggingface_model_card::HuggingFaceModelCard,
         notulist_dbus_dictation::{NotulistDictation, send_logged_dictation_command},
         notulist_dbus_engine::NotulistEngine,
         notulist_dbus_output_problems::NotulistOutputProblems,
@@ -23,13 +28,16 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::voice_dictation_group::{
-        compute_device_item::ComputeDevice,
         dictation_phase_item::{press_does, shows_pipeline},
+        inference_hardware_item::InferenceHardware,
+        runtime_configuration_item::RuntimeConfiguration,
+        speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
     },
     widgets::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        on_hover_reading::OnHoverReading,
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
         tooltip_body::Tooltip,
@@ -40,9 +48,9 @@ use crate::{
 
 const DICTATION_UNIT: &str = "notulist.service";
 
-const DICTATION_DAEMON: UnitSwitchFace = UnitSwitchFace {
-    name: "Dictation daemon",
-    icon: Phosphor::Brain(Weight::Regular),
+const SPEECH_RUNTIME: UnitSwitchFace = UnitSwitchFace {
+    name: "Speech runtime",
+    icon: Phosphor::Engine(Weight::Regular),
     presses: SwitchPresses {
         turning_on: "load the speech model and the input method so dictation can start",
         turning_off: "stop dictation, unload the speech model and free the GPU",
@@ -53,10 +61,11 @@ const DICTATION_DAEMON: UnitSwitchFace = UnitSwitchFace {
 pub enum VoiceDictationTarget {
     Dictation,
     Pipeline,
+    Runtime,
     SpeechModel,
-    Compute,
+    RuntimeConfiguration,
+    InferenceHardware,
     TypingOutput,
-    Daemon,
 }
 
 impl From<VoiceDictationTarget> for HoverTarget {
@@ -70,7 +79,8 @@ pub struct VoiceDictationGroup {
     engine: ContinuousReading<NotulistEngine>,
     pipeline: ContinuousReading<NotulistPipeline>,
     output_problems: ContinuousReading<NotulistOutputProblems>,
-    daemon: UnitSwitch,
+    model_card: OnHoverReading<HuggingFaceModelCard>,
+    runtime: UnitSwitch,
     expansion: GroupExpansion,
 }
 
@@ -80,8 +90,9 @@ pub enum VoiceDictationMessage {
     Engine(SourceDelivery<NotulistEngine>),
     Pipeline(SourceDelivery<NotulistPipeline>),
     OutputProblems(SourceDelivery<NotulistOutputProblems>),
+    ModelCardFetched(SourceDelivery<HuggingFaceModelCard>),
     ToggleRecording,
-    Daemon(UnitSwitchMessage),
+    Runtime(UnitSwitchMessage),
     Expansion(ExpansionMessage),
 }
 
@@ -103,7 +114,8 @@ impl VoiceDictationGroup {
             engine: ContinuousReading::default(),
             pipeline: ContinuousReading::default(),
             output_problems: ContinuousReading::default(),
-            daemon: UnitSwitch::new(dictation_unit, DICTATION_DAEMON),
+            model_card: OnHoverReading::default(),
+            runtime: UnitSwitch::new(dictation_unit, SPEECH_RUNTIME),
             expansion: GroupExpansion::default(),
         }
     }
@@ -117,9 +129,9 @@ impl VoiceDictationGroup {
                 .map(VoiceDictationMessage::Pipeline),
             source_subscription::<NotulistOutputProblems>(buses.clone())
                 .map(VoiceDictationMessage::OutputProblems),
-            self.daemon
+            self.runtime
                 .subscription(buses)
-                .map(VoiceDictationMessage::Daemon),
+                .map(VoiceDictationMessage::Runtime),
         ])
     }
 
@@ -128,13 +140,14 @@ impl VoiceDictationGroup {
         buses: &DesktopBuses,
     ) -> Task<VoiceDictationMessage> {
         match target {
-            VoiceDictationTarget::Dictation | VoiceDictationTarget::Daemon => {
-                first_delivery::<NotulistDictation>(buses.clone())
-                    .map(VoiceDictationMessage::Dictation)
-            }
+            VoiceDictationTarget::Dictation => first_delivery::<NotulistDictation>(buses.clone())
+                .map(VoiceDictationMessage::Dictation),
             VoiceDictationTarget::Pipeline => first_delivery::<NotulistPipeline>(buses.clone())
                 .map(VoiceDictationMessage::Pipeline),
-            VoiceDictationTarget::SpeechModel | VoiceDictationTarget::Compute => {
+            VoiceDictationTarget::Runtime
+            | VoiceDictationTarget::SpeechModel
+            | VoiceDictationTarget::RuntimeConfiguration
+            | VoiceDictationTarget::InferenceHardware => {
                 first_delivery::<NotulistEngine>(buses.clone()).map(VoiceDictationMessage::Engine)
             }
             VoiceDictationTarget::TypingOutput => {
@@ -142,6 +155,31 @@ impl VoiceDictationGroup {
                     .map(VoiceDictationMessage::OutputProblems)
             }
         }
+    }
+
+    pub fn hover(
+        &mut self,
+        hovered: Option<&HoverTarget>,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<VoiceDictationMessage> {
+        self.model_card.stop();
+        let Some(HoverTarget::VoiceDictation(VoiceDictationTarget::SpeechModel)) = hovered else {
+            return Task::none();
+        };
+        let Some(repository) = self
+            .loaded_engine()
+            .map(|engine| engine.model_repository.clone())
+            .filter(|repository| !repository.is_empty())
+        else {
+            return Task::none();
+        };
+        self.model_card.start_hover_fetch(
+            repository,
+            VoiceDictationMessage::ModelCardFetched,
+            config,
+            clock,
+        )
     }
 
     pub fn collapse(&mut self) {
@@ -171,15 +209,19 @@ impl VoiceDictationGroup {
                     .receive_keeping_last_success(delivery, clock);
                 Task::none()
             }
+            VoiceDictationMessage::ModelCardFetched(delivery) => {
+                self.model_card.receive_delivery(delivery, clock);
+                Task::none()
+            }
             VoiceDictationMessage::ToggleRecording => {
                 Task::future(send_logged_dictation_command(DictationCommand::Toggle)).discard()
             }
-            VoiceDictationMessage::Daemon(m) => self
-                .daemon
-                .update(m, clock)
-                .map(VoiceDictationMessage::Daemon),
-            VoiceDictationMessage::Expansion(m) => {
-                self.expansion.update(m);
+            VoiceDictationMessage::Runtime(message) => self
+                .runtime
+                .update(message, clock)
+                .map(VoiceDictationMessage::Runtime),
+            VoiceDictationMessage::Expansion(message) => {
+                self.expansion.update(message);
                 Task::none()
             }
         }
@@ -196,23 +238,47 @@ impl VoiceDictationGroup {
         self.dictation.get().is_some_and(shows_pipeline)
     }
 
+    fn runtime_tooltip(&self, clock: Clock) -> Option<Tooltip> {
+        let serving = self.dictation.get().is_some();
+        let runtime_sections = self
+            .engine
+            .sections_described_by(|reading| match &reading.engine {
+                EngineState::SpeechModelReady(engine) => SpeechRuntime(engine).sections(),
+                EngineState::LoadingSpeechModel | EngineState::SpeechModelUnavailable(_) => {
+                    Vec::new()
+                }
+            });
+        Some(
+            self.runtime
+                .tooltip(serving, clock)?
+                .with_groups(runtime_sections),
+        )
+    }
+
     #[must_use]
     pub fn tooltip_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             VoiceDictationTarget::Dictation => self.dictation.tooltip(clock),
             VoiceDictationTarget::Pipeline => self.pipeline.tooltip(clock),
-            VoiceDictationTarget::SpeechModel => self.engine.tooltip(clock),
-            VoiceDictationTarget::Compute => self
+            VoiceDictationTarget::Runtime => self.runtime_tooltip(clock),
+            VoiceDictationTarget::SpeechModel => self
                 .engine
-                .tooltip_with(ComputeDevice(self.loaded_engine()?).tooltip(clock)),
+                .tooltip_with_groups(self.model_card.sections(clock), clock),
+            VoiceDictationTarget::RuntimeConfiguration => self
+                .engine
+                .tooltip_with(RuntimeConfiguration(self.loaded_engine()?).tooltip(clock)),
+            VoiceDictationTarget::InferenceHardware => self
+                .engine
+                .tooltip_with(InferenceHardware(self.loaded_engine()?).tooltip(clock)),
             VoiceDictationTarget::TypingOutput => self.output_problems.tooltip(clock),
-            VoiceDictationTarget::Daemon => self.daemon.tooltip(true, clock),
         }
     }
 
     pub fn group_content(&self) -> GroupContent<'_, VoiceDictationMessage> {
         let dictation = self.dictation.get();
         let engine = self.loaded_engine();
+        let runtime_glyph =
+            engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
         GroupContent::new(
             &self.expansion,
             VoiceDictationMessage::Expansion,
@@ -229,17 +295,27 @@ impl VoiceDictationGroup {
                 self.pipeline
                     .group_item(VoiceDictationTarget::Pipeline)
                     .filter(|_| self.dictating() || self.pipeline.failure().is_some()),
+                self.runtime.group_item_with_glyph(
+                    runtime_glyph,
+                    dictation.is_some(),
+                    VoiceDictationTarget::Runtime,
+                    VoiceDictationMessage::Runtime(UnitSwitchMessage::Press),
+                ),
                 self.engine.group_item(VoiceDictationTarget::SpeechModel),
-                engine.map(|engine| {
-                    GroupItem::reading(ComputeDevice(engine), VoiceDictationTarget::Compute)
+                engine.map(|loaded| {
+                    GroupItem::reading(
+                        RuntimeConfiguration(loaded),
+                        VoiceDictationTarget::RuntimeConfiguration,
+                    )
+                }),
+                engine.map(|loaded| {
+                    GroupItem::reading(
+                        InferenceHardware(loaded),
+                        VoiceDictationTarget::InferenceHardware,
+                    )
                 }),
                 self.output_problems
                     .group_item(VoiceDictationTarget::TypingOutput),
-                self.daemon.group_item(
-                    self.dictation.get().is_some(),
-                    VoiceDictationTarget::Daemon,
-                    VoiceDictationMessage::Daemon(UnitSwitchMessage::Press),
-                ),
             ]
             .into_iter()
             .flatten(),

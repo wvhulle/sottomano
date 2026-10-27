@@ -380,6 +380,9 @@ impl DesktopShell {
             self.llama_server_group
                 .hover(hovered, &self.config, self.clock)
                 .map(Message::LlamaServer),
+            self.voice_dictation_group
+                .hover(hovered, &self.config, self.clock)
+                .map(Message::VoiceDictation),
         ])
     }
 }
