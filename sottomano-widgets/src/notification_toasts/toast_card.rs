@@ -6,7 +6,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use iced::{
     Alignment, Border, Color, Element, Length, Shadow, Theme, border,
-    widget::{Column, Row, Space, button, container, mouse_area, progress_bar, text_input},
+    widget::{Column, Row, button, container, mouse_area, progress_bar, space, text_input},
 };
 use reqwest::Url;
 use sottomano_config::{Config, notification_toasts::ToastCardConfig, severity::Severity};
@@ -342,7 +342,7 @@ impl ToastCard<'_> {
         if has_actions {
             let actions = self
                 .actions_row(&button_actions, previewed, text)
-                .push(Space::new().width(Length::Fill));
+                .push(space::horizontal());
             column = column.push(match reltime_span(true) {
                 Some(time) => actions.push(time),
                 None => actions,
@@ -494,9 +494,7 @@ fn icon_slot<'a>(
     };
     let overlay = container(icon_widget(badge, card_size.app_badge_size, reveal, text))
         .width(main_size)
-        .height(main_size)
-        .align_x(Alignment::Start)
-        .align_y(Alignment::Start);
+        .height(main_size);
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 

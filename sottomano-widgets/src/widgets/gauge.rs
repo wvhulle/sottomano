@@ -1,6 +1,6 @@
 use iced::{
-    Border, Color, Element, Theme,
-    widget::{Space, column, container},
+    Color, Element, Theme, border,
+    widget::{progress_bar, stack},
 };
 use uom::{
     fmt::DisplayStyle::Abbreviation,
@@ -49,36 +49,42 @@ impl Gauge {
         self
     }
 
-    fn segment<'a, Message: 'a>(&self, fraction: f32, color: Color) -> Element<'a, Message> {
-        container(Space::new().width(GIRTH).height(self.height * fraction))
-            .style(rounded_fill(color))
+    fn vertical_bar<'a, Message: 'a>(
+        &self,
+        reach: f32,
+        track_color: Color,
+        bar_color: Color,
+    ) -> Element<'a, Message> {
+        progress_bar(0.0..=1.0, reach)
+            .vertical()
+            .length(self.height)
+            .girth(GIRTH)
+            .style(move |_: &Theme| progress_bar::Style {
+                background: track_color.into(),
+                bar: bar_color.into(),
+                border: border::rounded(1),
+            })
             .into()
-    }
-}
-
-fn rounded_fill(color: Color) -> impl Fn(&Theme) -> container::Style {
-    move |_| container::Style {
-        background: Some(color.into()),
-        border: Border::default().rounded(1.0),
-        ..container::Style::default()
     }
 }
 
 #[allow(clippy::cast_possible_truncation)]
 fn bar_reach(fill: Ratio) -> f32 {
-    fill.get::<ratio>().clamp(0.0, 1.0) as f32
+    fill.get::<ratio>() as f32
 }
 
 impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
     fn from(gauge: Gauge) -> Self {
         let reach = bar_reach(gauge.fill);
         let live_reach = bar_reach(gauge.live).min(reach);
-        container(column![
-            gauge.segment(reach - live_reach, gauge.color.scale_alpha(HEADROOM_ALPHA)),
-            gauge.segment(live_reach, gauge.color),
-        ])
-        .align_bottom(gauge.height)
-        .style(rounded_fill(gauge.color.scale_alpha(TRACK_ALPHA)))
+        stack![
+            gauge.vertical_bar(
+                reach,
+                gauge.color.scale_alpha(TRACK_ALPHA),
+                gauge.color.scale_alpha(HEADROOM_ALPHA),
+            ),
+            gauge.vertical_bar(live_reach, Color::TRANSPARENT, gauge.color),
+        ]
         .into()
     }
 }

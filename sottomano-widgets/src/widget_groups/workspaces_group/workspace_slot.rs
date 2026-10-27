@@ -29,10 +29,7 @@ pub(super) fn drop_tint(
             .focus
             .scale_alpha(DROP_TARGET_ALPHA)
     });
-    move |_| container::Style {
-        background: tint.map(Into::into),
-        ..container::Style::default()
-    }
+    move |_| tint.map_or_else(container::Style::default, container::background)
 }
 
 pub(super) fn edge_line<'a>(

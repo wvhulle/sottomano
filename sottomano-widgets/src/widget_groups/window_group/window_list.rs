@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
 use iced::{
-    Alignment, Border, Element, Length, Subscription, Task,
-    alignment::{Horizontal, Vertical},
+    Alignment, Border, Element, Subscription, Task,
     border,
-    border::Radius,
-    widget::{Row, container, progress_bar, stack, text},
+    widget::{Row, container, progress_bar, right, stack, text},
 };
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
@@ -610,22 +608,12 @@ fn count_badge<'a>(
             .color(foreground),
     )
     .padding([0.0, config.layout.panel.widget_spacing])
-    .style(move |_| container::Style {
-        background: Some(background.into()),
-        border: iced::Border {
-            radius: Radius::new(size),
-            ..iced::Border::default()
-        },
-        ..container::Style::default()
+    .style(move |_| {
+        container::Style::default()
+            .background(background)
+            .border(border::rounded(size))
     });
-    Some(
-        container(badge)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(Horizontal::Right)
-            .align_y(Vertical::Top)
-            .into(),
-    )
+    Some(right(badge).into())
 }
 
 fn badged_icon<'a>(

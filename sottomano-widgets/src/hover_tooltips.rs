@@ -202,9 +202,7 @@ pub enum TooltipMessage {
     },
     EnterTooltip,
     ExitTooltip,
-    SwitchIntentElapsed {
-        seq: u64,
-    },
+    SwitchIntentElapsed,
 }
 
 #[cfg(test)]

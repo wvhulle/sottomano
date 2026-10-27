@@ -4,7 +4,7 @@ use iced::Task;
 use sottomano_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses;
 use sottomano_widgets::{
     hover_tooltips::{
-        HoverTarget, TooltipMessage, tooltip_surfaces::DeferredSwitch, tooltip_transition::Departed,
+        HoverTarget, TooltipMessage, tooltip_transition::Departed,
     },
     layer_surfaces::PanelEdge,
     shell_message::Message,
@@ -31,15 +31,11 @@ use tokio::time::sleep_until;
 
 use crate::desktop_shell::DesktopShell;
 
-fn deliver_at(due: Instant, message: Message) -> Task<Message> {
+fn hide_tooltip_at(due: Instant) -> Task<Message> {
     Task::future(async move {
         sleep_until(due.into()).await;
-        message
+        Message::TooltipHideElapsed
     })
-}
-
-fn hide_tooltip_at(due: Instant) -> Task<Message> {
-    deliver_at(due, Message::TooltipHideElapsed)
 }
 
 impl DesktopShell {
@@ -65,20 +61,17 @@ impl DesktopShell {
                     output: host.output.clone(),
                     position,
                 };
-                if let Some(DeferredSwitch { seq, after }) =
+                if let Some(intent_elapsed) =
                     self.tooltip
                         .defer_switch(&parent, &target, anchor, press_hints)
                 {
-                    return deliver_at(
-                        self.clock.instant + after,
-                        Message::Tooltip(TooltipMessage::SwitchIntentElapsed { seq }),
-                    );
+                    return intent_elapsed;
                 }
                 self.tooltip.open(&parent, target, anchor, press_hints);
                 Task::none()
             }
-            TooltipMessage::SwitchIntentElapsed { seq } => {
-                if let Some(pending) = self.tooltip.take_pending_switch(seq) {
+            TooltipMessage::SwitchIntentElapsed => {
+                if let Some(pending) = self.tooltip.take_pending_switch() {
                     self.tooltip.open(
                         &pending.parent,
                         pending.target,
