@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
+  <d:response>
+    <d:href>/remote.php/dav/calendars/demo/</d:href>
+    <d:propstat>
+      <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop><d:displayname/><cs:source/><oc:calendar-enabled/></d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/calendars/demo/personal/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:displayname>Personal</d:displayname>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop><cs:source/><oc:calendar-enabled/></d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/calendars/demo/archive/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:displayname>Archive</d:displayname>
+        <d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+        <oc:calendar-enabled>0</oc:calendar-enabled>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/calendars/demo/work-outlook/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:displayname>Work</d:displayname>
+        <d:resourcetype><d:collection/><cs:subscribed/></d:resourcetype>
+        <cs:source><d:href>webcal://outlook.example.com/owa/calendar/reachcalendar.ics?a=1&amp;b=2</d:href></cs:source>
+        <oc:calendar-enabled>1</oc:calendar-enabled>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/calendars/demo/holidays/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:displayname>Holidays</d:displayname>
+        <d:resourcetype><d:collection/><cs:subscribed/></d:resourcetype>
+        <cs:source><d:href>https://holidays.example.org/be.ics</d:href></cs:source>
+        <oc:calendar-enabled>0</oc:calendar-enabled>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>

@@ -884,6 +884,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd17eb909a8c6a894926bfcc3400a4bb0e732f5a57d37b1f14e8b29e329bace8"
 
 [[package]]
+name = "calcard"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c601473ec15a875626bce73db1a1f0fc81e9c949ca25f1463b714947c0a70a1f"
+dependencies = [
+ "ahash",
+ "chrono",
+ "chrono-tz",
+ "hashify",
+ "jmap-tools",
+ "mail-builder",
+ "mail-parser",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "calloop"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2635,6 +2653,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashify"
+version = "0.2.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dd1246c0e5493286aeb2dde35b1f4eb9c4ce00e628641210a5e553fc001a1f26"
+dependencies = [
+ "indexmap",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "hashlink"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3716,6 +3746,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "jmap-tools"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bdcd368dcd58a5efaac10c142fb8cddb4d2949af1297b624df3ff0db4cbff54"
+dependencies = [
+ "hashify",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "jni"
 version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4207,6 +4248,21 @@ name = "lz4_flex"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef0d4ed8669f8f8826eb00dc878084aa8f253506c4fd5e8f58f5bce72ddb97e"
+
+[[package]]
+name = "mail-builder"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccbc27cb02a58a311a404769a22f5abf63fe3173b290d80be7c534f9c7023151"
+
+[[package]]
+name = "mail-parser"
+version = "0.11.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec00bda90c6e645a54506c630c2820cd6b1890cfd2b0a169b50f74b2b8c7c86"
+dependencies = [
+ "hashify",
+]
 
 [[package]]
 name = "malloc_buf"
@@ -6904,6 +6960,7 @@ dependencies = [
  "adskalman",
  "base64 0.22.1",
  "bytesize",
+ "calcard",
  "chrono",
  "chrono-tz",
  "color",
@@ -6915,6 +6972,7 @@ dependencies = [
  "freedesktop-sound",
  "futures",
  "humantime",
+ "iana-time-zone",
  "icalendar",
  "icu_locale_core",
  "image",
@@ -6931,6 +6989,7 @@ dependencies = [
  "procfs",
  "qmlib",
  "reqwest",
+ "roxmltree 0.21.2",
  "rusqlite",
  "rust_decimal",
  "rusty-money",

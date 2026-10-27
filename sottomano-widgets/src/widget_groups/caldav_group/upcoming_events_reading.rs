@@ -4,6 +4,7 @@ use sottomano_sources::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment,
     caldav_agenda::{CaldavAgenda, ChangeDelivery},
     caldav_event_query::UpcomingEvent,
+    caldav_server_provider::CaldavProvider,
     nextcloud_web_links::NextcloudWebRoot,
 };
 
@@ -27,34 +28,35 @@ const LABEL_CHARACTERS: usize = 28;
 
 struct EventRow<'a> {
     event: &'a UpcomingEvent,
-    nextcloud: Option<&'a NextcloudWebRoot>,
+    provider: &'a CaldavProvider,
 }
 
 impl TableRow<3> for EventRow<'_> {
     fn table_record(self) -> TableRecord<3> {
+        let details_link = self
+            .provider
+            .nextcloud_web_root()
+            .and_then(|nextcloud| nextcloud.event_details(self.event));
+        let title = match details_link {
+            Some(url) => linked_title(&self.event.summary, url),
+            None => self.event.summary.as_str().into(),
+        };
         TableRecord::new(
-            linked_title(
-                &self.event.summary,
-                self.nextcloud
-                    .map(|nextcloud| nextcloud.event_details(self.event)),
-            ),
+            title,
             [
                 Some(moment_cell(self.event.start)),
                 Some(Cell::Hint(self.event.calendar.clone())),
-                self.event.location.clone().map(Cell::from),
+                (!self.event.location.is_empty()).then(|| Cell::from(self.event.location.clone())),
             ],
         )
     }
 }
 
-pub(super) fn linked_title(title: &str, details_url: Option<String>) -> Cell {
-    match details_url {
-        Some(url) => Cell::Link {
-            label: title.to_owned(),
-            url,
-            glyph: None,
-        },
-        None => title.into(),
+pub(super) fn linked_title(title: &str, url: String) -> Cell {
+    Cell::Link {
+        label: title.to_owned(),
+        url,
+        glyph: None,
     }
 }
 
@@ -71,10 +73,13 @@ pub(super) fn moment_cell(moment: AgendaMoment) -> Cell {
 
 pub(super) fn change_delivery_caption(agenda: &CaldavAgenda) -> String {
     let checked = match agenda.change_delivery {
-        ChangeDelivery::NextcloudNotifyPush => {
-            "refreshed when Nextcloud notify_push reports activity"
+        ChangeDelivery::NextcloudNotifyPush { .. } => {
+            "refreshed when Nextcloud notify_push reports activity and rechecked on the interval \
+             below"
         }
-        ChangeDelivery::ChangeTokenPolling => "calendar change tokens checked every minute",
+        ChangeDelivery::ChangeTokenPolling { .. } => {
+            "calendar change tokens checked on the interval below"
+        }
     };
     format!(
         "{} calendars over CalDAV, {checked}.",
@@ -82,16 +87,21 @@ pub(super) fn change_delivery_caption(agenda: &CaldavAgenda) -> String {
     )
 }
 
-pub(super) fn nextcloud_footer(app_label: &str, app_url: Option<String>, hidden: usize) -> Section {
+pub(super) fn nextcloud_footer(
+    app_label: &str,
+    provider: &CaldavProvider,
+    app_url: fn(&NextcloudWebRoot) -> String,
+    hidden: usize,
+) -> Section {
     Section::dictionary(
         [
             (hidden > 0).then(|| KeyValue::new("Not shown", format!("{hidden} more"))),
-            app_url.map(|url| {
+            provider.nextcloud_web_root().map(|nextcloud| {
                 KeyValue::new(
                     "Nextcloud",
                     Cell::Link {
                         label: app_label.to_owned(),
-                        url,
+                        url: app_url(nextcloud),
                         glyph: Some(SimpleIcon::Nextcloud.into()),
                     },
                 )
@@ -156,7 +166,7 @@ impl BarWidget for CaldavAgenda {
             .take(LISTED_EVENTS)
             .map(|event| EventRow {
                 event,
-                nextcloud: self.provider.nextcloud_web_root(),
+                provider: &self.provider,
             });
         TooltipBody::sections([
             Section::column_table(
@@ -170,9 +180,8 @@ impl BarWidget for CaldavAgenda {
             .titled(("Upcoming events", change_delivery_caption(self))),
             nextcloud_footer(
                 "open Calendar",
-                self.provider
-                    .nextcloud_web_root()
-                    .map(NextcloudWebRoot::calendar_app),
+                &self.provider,
+                NextcloudWebRoot::calendar_app,
                 hidden,
             ),
         ])

@@ -190,6 +190,9 @@ button = "left_trigger"
 server_url = ""
 user = ""
 upcoming_days = 7
+change_poll_interval = "1m"
+push_safety_recheck_interval = "15m"
+subscription_download_interval = "15m"
 
 [notification_toasts.placement]
 fallback_corner = "bottom-right"

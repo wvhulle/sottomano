@@ -20,13 +20,28 @@ pub struct CalendarHome {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChangeTracking {
+    Token(String),
+    Untracked,
+}
+
+impl ChangeTracking {
+    #[must_use]
+    pub fn unchanged_since(&self, earlier: &Self) -> bool {
+        matches!(
+            (self, earlier),
+            (ChangeTracking::Token(current), ChangeTracking::Token(previous)) if current == previous
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CalendarCollection {
     pub href: String,
     pub name: String,
-    pub color: Option<String>,
     pub holds_events: bool,
     pub holds_tasks: bool,
-    pub change_token: Option<String>,
+    pub change_tracking: ChangeTracking,
 }
 
 impl From<CalendarInfo> for CalendarCollection {
@@ -47,8 +62,10 @@ impl From<CalendarInfo> for CalendarCollection {
                 .map(str::trim)
                 .filter(|name| !name.is_empty())
                 .map_or_else(|| last_path_segment(&info.href), str::to_owned),
-            color: info.color.filter(|color| !color.trim().is_empty()),
-            change_token: info.sync_token.or(info.etag),
+            change_tracking: info
+                .sync_token
+                .or(info.etag)
+                .map_or(ChangeTracking::Untracked, ChangeTracking::Token),
             href: info.href,
         }
     }
@@ -64,16 +81,17 @@ pub async fn connect_calendar_home(login: CaldavLogin<'_>) -> Result<CalendarHom
         .basic_auth(login.user, login.password)
         .timeout(REQUEST_TIMEOUT)
         .build()?;
-    let principal = client
-        .discover_current_user_principal()
-        .await?
-        .ok_or(Error::Discovery("server names no current-user-principal"))?;
-    let path = client
+    let Some(principal) = client.discover_current_user_principal().await? else {
+        return Err(Error::NoCurrentUserPrincipal);
+    };
+    let Some(path) = client
         .discover_calendar_home_set(&principal)
         .await?
         .into_iter()
         .next()
-        .ok_or(Error::Discovery("principal has no calendar-home-set"))?;
+    else {
+        return Err(Error::NoCalendarHomeSet);
+    };
     Ok(CalendarHome { client, path })
 }
 
@@ -89,7 +107,7 @@ impl CalendarHome {
     }
 }
 
-fn last_path_segment(href: &str) -> String {
+pub(super) fn last_path_segment(href: &str) -> String {
     href.rsplit('/')
         .find(|segment| !segment.is_empty())
         .unwrap_or(href)
@@ -117,13 +135,12 @@ mod tests {
     }
 
     #[test]
-    fn an_event_calendar_keeps_its_name_color_and_sync_token() {
+    fn an_event_calendar_keeps_its_name_and_sync_token() {
         let personal = &listed_calendars()[0];
         assert_eq!(personal.name, "Personal");
-        assert_eq!(personal.color.as_deref(), Some("#0082c9"));
         assert_eq!(
-            personal.change_token.as_deref(),
-            Some("http://sabre.io/ns/sync/42")
+            personal.change_tracking,
+            ChangeTracking::Token("http://sabre.io/ns/sync/42".to_owned())
         );
         assert!(personal.holds_events && !personal.holds_tasks);
         assert_eq!(personal.href, "/remote.php/dav/calendars/wvhulle/personal/");
@@ -133,7 +150,13 @@ mod tests {
     fn a_calendar_without_display_name_is_named_after_its_path() {
         let tasks = &listed_calendars()[1];
         assert_eq!(tasks.name, "tasks");
-        assert_eq!(tasks.color, None);
         assert!(tasks.holds_tasks && !tasks.holds_events);
+    }
+
+    #[test]
+    fn an_untracked_calendar_never_counts_as_unchanged() {
+        assert!(!ChangeTracking::Untracked.unchanged_since(&ChangeTracking::Untracked));
+        let token = ChangeTracking::Token("42".to_owned());
+        assert!(token.unchanged_since(&token.clone()));
     }
 }

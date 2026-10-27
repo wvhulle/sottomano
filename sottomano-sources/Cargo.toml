@@ -12,6 +12,7 @@ sottomano-config = { path = "../sottomano-config" }
 adskalman = "0.18.0"
 base64 = "0.22.1"
 bytesize.workspace = true
+calcard = "0.3.14"
 chrono.workspace = true
 chrono-tz.workspace = true
 color = "0.3.3"
@@ -23,6 +24,7 @@ freedesktop-icons = "0.4.0"
 freedesktop-sound = "0.1.0"
 futures.workspace = true
 humantime.workspace = true
+iana-time-zone = "0.1.65"
 icalendar = { version = "0.17.15", features = ["parser", "chrono-tz"] }
 icu_locale_core.workspace = true
 image.workspace = true
@@ -39,6 +41,7 @@ procfs = { version = "0.18.0", default-features = false }
 qmlib = { version = "2.3.0", default-features = false }
 notulist-client.workspace = true
 reqwest.workspace = true
+roxmltree = "0.21.2"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 rust_decimal.workspace = true
 rusty-money.workspace = true

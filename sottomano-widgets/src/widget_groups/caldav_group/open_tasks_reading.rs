@@ -3,7 +3,8 @@ use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::caldav_tasks_events::{
     caldav_agenda::CaldavAgenda,
-    caldav_task_query::{OpenTask, PriorityBand},
+    caldav_server_provider::CaldavProvider,
+    caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskProgress},
     nextcloud_web_links::NextcloudWebRoot,
 };
 
@@ -29,21 +30,26 @@ pub struct OpenTasks<'a>(pub &'a CaldavAgenda);
 struct TaskRow<'a> {
     task: &'a OpenTask,
     now: DateTime<Local>,
-    nextcloud: Option<&'a NextcloudWebRoot>,
+    provider: &'a CaldavProvider,
 }
 
 impl TableRow<4> for TaskRow<'_> {
     fn table_record(self) -> TableRecord<4> {
+        let details_link = self
+            .provider
+            .nextcloud_web_root()
+            .and_then(|nextcloud| nextcloud.task_details(self.task));
+        let title = match details_link {
+            Some(url) => linked_title(&self.task.summary, url),
+            None => self.task.summary.as_str().into(),
+        };
         TableRecord::new(
-            linked_title(
-                &self.task.summary,
-                self.nextcloud
-                    .and_then(|nextcloud| nextcloud.task_details(self.task)),
-            ),
+            title,
             [
-                self.task.due.map(moment_cell),
+                self.task.deadline.due_moment().map(moment_cell),
                 self.task
-                    .priority_band()
+                    .priority
+                    .band()
                     .map(|band| Cell::Hint(band.name().to_owned())),
                 Some(Cell::Hint(progress_hint(self.task))),
                 Some(Cell::Hint(self.task.calendar.clone())),
@@ -57,7 +63,7 @@ fn task_severity(task: &OpenTask, now: DateTime<Local>) -> Severity {
     if task.is_overdue(now) {
         return Severity::Critical;
     }
-    match task.priority_band() {
+    match task.priority.band() {
         Some(PriorityBand::High) => Severity::Warning,
         Some(PriorityBand::Low) => Severity::Low,
         Some(PriorityBand::Medium) | None => Severity::Normal,
@@ -65,10 +71,10 @@ fn task_severity(task: &OpenTask, now: DateTime<Local>) -> Severity {
 }
 
 fn progress_hint(task: &OpenTask) -> String {
-    match (task.percent_complete, task.started) {
-        (Some(percent), _) => format!("{percent} %"),
-        (None, true) => "started".to_owned(),
-        (None, false) => String::new(),
+    match task.progress {
+        TaskProgress::PercentComplete(percent) => format!("{percent} %"),
+        TaskProgress::Started => "started".to_owned(),
+        TaskProgress::NotStarted => String::new(),
     }
 }
 
@@ -103,12 +109,12 @@ impl BarWidget for OpenTasks<'_> {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let nextcloud = self.0.provider.nextcloud_web_root();
+        let provider = &self.0.provider;
         let with_deadline: Vec<&OpenTask> = self
             .0
             .tasks
             .iter()
-            .filter(|task| task.due.is_some())
+            .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
             .collect();
         let without_deadline = self.0.tasks.len() - with_deadline.len();
         let hidden = with_deadline.len().saturating_sub(LISTED_TASKS);
@@ -118,7 +124,7 @@ impl BarWidget for OpenTasks<'_> {
             .map(|task| TaskRow {
                 task,
                 now,
-                nextcloud,
+                provider,
             });
         TooltipBody::sections([
             Section::column_table(
@@ -138,15 +144,11 @@ impl BarWidget for OpenTasks<'_> {
                     change_delivery_caption(self.0)
                 ),
             )),
-            nextcloud_footer(
-                "open Tasks",
-                nextcloud.map(NextcloudWebRoot::tasks_app),
-                hidden,
-            )
-            .with_entries(
-                (without_deadline > 0)
-                    .then(|| KeyValue::new("Without deadline", without_deadline.to_string())),
-            ),
+            nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app, hidden)
+                .with_entries(
+                    (without_deadline > 0)
+                        .then(|| KeyValue::new("Without deadline", without_deadline.to_string())),
+                ),
         ])
     }
 }

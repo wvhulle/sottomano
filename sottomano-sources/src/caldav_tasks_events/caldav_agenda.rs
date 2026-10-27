@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter, Result as FmtResult},
+    mem,
     path::PathBuf,
     str::FromStr,
     sync::{
@@ -12,7 +13,10 @@ use std::{
 
 use chrono::{DateTime, Local};
 use fast_dav_rs::CalendarObject;
-use futures::{Stream, StreamExt};
+use futures::{
+    Stream, StreamExt,
+    future::{join_all, try_join_all},
+};
 use icalendar::Calendar;
 use tokio::sync::Mutex;
 
@@ -20,26 +24,31 @@ use crate::{
     DeliveryCadence, ReadingSource, SourceDelivery,
     caldav_tasks_events::{
         caldav_calendar_discovery::{
-            CaldavLogin, CalendarCollection, CalendarHome, connect_calendar_home,
+            CaldavLogin, CalendarCollection, CalendarHome, ChangeTracking, connect_calendar_home,
         },
         caldav_event_query::{EventWindow, UpcomingEvent, query_upcoming_events},
+        caldav_home_listing::SubscribedCalendar,
         caldav_server_provider::CaldavProvider,
         caldav_task_query::{OpenTask, query_open_tasks},
         nextcloud_notify_push::{PushLogin, activity_pings},
+        webcal_feed_expansion::download_feed_events,
     },
     secret_file_reads::read_secret,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
 };
 
-const RECHECK_WITHOUT_PUSH: Duration = Duration::from_mins(1);
-const RECHECK_WHILE_PUSHED: Duration = Duration::from_mins(15);
+const DEFAULT_POLL_INTERVAL: Duration = Duration::from_mins(1);
+const SHORTEST_POLL_INTERVAL: Duration = Duration::from_secs(10);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum Error {
     Secret,
     Rejected,
-    Discovery(&'static str),
-    Dav(String),
+    NoCurrentUserPrincipal,
+    NoCalendarHomeSet,
+    WindowBeyondCalendar,
+    ListingUnparseable(roxmltree::Error),
+    Dav(Arc<fast_dav_rs::Error>),
 }
 
 impl Display for Error {
@@ -47,8 +56,13 @@ impl Display for Error {
         match self {
             Error::Secret => write!(f, "password unreadable"),
             Error::Rejected => write!(f, "user or password rejected (HTTP 401)"),
-            Error::Discovery(reason) => write!(f, "{reason}"),
-            Error::Dav(detail) => write!(f, "{detail}"),
+            Error::NoCurrentUserPrincipal => write!(f, "server names no current-user-principal"),
+            Error::NoCalendarHomeSet => write!(f, "principal has no calendar-home-set"),
+            Error::WindowBeyondCalendar => write!(f, "upcoming_days reaches past the calendar"),
+            Error::ListingUnparseable(error) => {
+                write!(f, "calendar home listing unparseable: {error}")
+            }
+            Error::Dav(error) => write!(f, "{error}"),
         }
     }
 }
@@ -62,8 +76,14 @@ impl From<fast_dav_rs::Error> for Error {
             {
                 Error::Rejected
             }
-            other => Error::Dav(other.to_string()),
+            other => Error::Dav(Arc::new(other)),
         }
+    }
+}
+
+impl From<roxmltree::Error> for Error {
+    fn from(error: roxmltree::Error) -> Self {
+        Error::ListingUnparseable(error)
     }
 }
 
@@ -90,12 +110,43 @@ pub struct CaldavAccount {
     pub user: String,
     pub password: PathBuf,
     pub upcoming_days: u32,
+    pub change_poll_interval: Duration,
+    pub push_safety_recheck_interval: Duration,
+    pub subscription_download_interval: Duration,
+}
+
+impl CaldavAccount {
+    fn current_change_delivery(&self, push_live: &AtomicBool) -> ChangeDelivery {
+        if push_live.load(Ordering::Relaxed) {
+            ChangeDelivery::NextcloudNotifyPush {
+                safety_recheck_every: self
+                    .push_safety_recheck_interval
+                    .max(SHORTEST_POLL_INTERVAL),
+            }
+        } else {
+            ChangeDelivery::ChangeTokenPolling {
+                poll_every: self.change_poll_interval.max(SHORTEST_POLL_INTERVAL),
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChangeDelivery {
-    NextcloudNotifyPush,
-    ChangeTokenPolling,
+    NextcloudNotifyPush { safety_recheck_every: Duration },
+    ChangeTokenPolling { poll_every: Duration },
+}
+
+impl ChangeDelivery {
+    #[must_use]
+    pub fn recheck_interval(self) -> Duration {
+        match self {
+            ChangeDelivery::NextcloudNotifyPush {
+                safety_recheck_every,
+            } => safety_recheck_every,
+            ChangeDelivery::ChangeTokenPolling { poll_every } => poll_every,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,7 +178,7 @@ impl ReadingSource for CaldavAgenda {
     type StreamInputs = CaldavAccount;
 
     const NAME: &'static str = "caldav-agenda";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(RECHECK_WITHOUT_PUSH);
+    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(DEFAULT_POLL_INTERVAL);
 
     fn delivery_stream(account: CaldavAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
         let push_live = Arc::new(AtomicBool::new(false));
@@ -136,8 +187,9 @@ impl ReadingSource for CaldavAgenda {
             user: account.user.clone(),
             password: account.password.clone(),
         };
-        let poller = Arc::new(Mutex::new(AgendaPoller::new(account, push_live.clone())));
+        let recheck_account = account.clone();
         let recheck_live = push_live.clone();
+        let poller = Arc::new(Mutex::new(AgendaPoller::new(account, push_live.clone())));
         reread_on_trigger_or_deadline(
             activity_pings(push_login, push_live),
             move || {
@@ -145,26 +197,32 @@ impl ReadingSource for CaldavAgenda {
                 async move { poller.lock().await.poll().await }
             },
             move |_| {
-                let recheck = if recheck_live.load(Ordering::Relaxed) {
-                    RECHECK_WHILE_PUSHED
-                } else {
-                    RECHECK_WITHOUT_PUSH
-                };
+                let recheck = recheck_account
+                    .current_change_delivery(&recheck_live)
+                    .recheck_interval();
                 Some(Instant::now() + recheck)
             },
         )
         .map(SourceDelivery::Reading)
         .repeats_as_unchanged()
     }
+
+    fn delivery_cadence(&self) -> DeliveryCadence {
+        DeliveryCadence::PolledEvery(self.change_delivery.recheck_interval())
+    }
 }
 
-struct ConnectedHome {
-    home: CalendarHome,
-    password: String,
+enum HomeConnection {
+    Disconnected,
+    Connected {
+        home: Box<CalendarHome>,
+        password: String,
+    },
 }
 
 struct FetchedCalendar {
-    change_token: Option<String>,
+    href: String,
+    change_tracking: ChangeTracking,
     window: EventWindow,
     events: Vec<UpcomingEvent>,
     tasks: Vec<OpenTask>,
@@ -173,8 +231,9 @@ struct FetchedCalendar {
 impl FetchedCalendar {
     fn still_current(&self, calendar: &CalendarCollection, window: EventWindow) -> bool {
         self.window == window
-            && calendar.change_token.is_some()
-            && self.change_token == calendar.change_token
+            && calendar
+                .change_tracking
+                .unchanged_since(&self.change_tracking)
     }
 
     async fn fetch(
@@ -193,7 +252,8 @@ impl FetchedCalendar {
             Vec::new()
         };
         Ok(Self {
-            change_token: calendar.change_token.clone(),
+            href: calendar.href.clone(),
+            change_tracking: calendar.change_tracking.clone(),
             window,
             events,
             tasks,
@@ -201,11 +261,71 @@ impl FetchedCalendar {
     }
 }
 
+struct FetchedSubscription {
+    href: String,
+    downloaded_at: Instant,
+    window: EventWindow,
+    events: Vec<UpcomingEvent>,
+}
+
+impl FetchedSubscription {
+    fn still_fresh(&self, window: EventWindow, refresh_interval: Duration) -> bool {
+        self.window == window && self.downloaded_at.elapsed() < refresh_interval
+    }
+
+    async fn first_download(
+        http_client: &reqwest::Client,
+        subscription: &SubscribedCalendar,
+        window: EventWindow,
+    ) -> Self {
+        Self {
+            href: subscription.href.clone(),
+            downloaded_at: Instant::now(),
+            window,
+            events: downloaded_or_logged(http_client, subscription, window)
+                .await
+                .unwrap_or_default(),
+        }
+    }
+
+    async fn redownloaded(
+        self,
+        http_client: &reqwest::Client,
+        subscription: &SubscribedCalendar,
+        window: EventWindow,
+    ) -> Self {
+        Self {
+            downloaded_at: Instant::now(),
+            window,
+            events: downloaded_or_logged(http_client, subscription, window)
+                .await
+                .unwrap_or(self.events),
+            href: self.href,
+        }
+    }
+}
+
+async fn downloaded_or_logged(
+    http_client: &reqwest::Client,
+    subscription: &SubscribedCalendar,
+    window: EventWindow,
+) -> Option<Vec<UpcomingEvent>> {
+    match download_feed_events(http_client, subscription, window).await {
+        Ok(events) => Some(events),
+        Err(error) => {
+            tracing::warn!("calendar subscription {}: {error}", subscription.name);
+            None
+        }
+    }
+}
+
 struct AgendaPoller {
     account: CaldavAccount,
     push_live: Arc<AtomicBool>,
-    connection: Option<ConnectedHome>,
-    fetched: HashMap<String, FetchedCalendar>,
+    http_client: reqwest::Client,
+    connection: HomeConnection,
+    fetched_calendars: HashMap<String, FetchedCalendar>,
+    fetched_subscriptions: HashMap<String, FetchedSubscription>,
 }
 
 impl AgendaPoller {
@@ -213,26 +333,33 @@ impl AgendaPoller {
         Self {
             account,
             push_live,
-            connection: None,
-            fetched: HashMap::new(),
+            http_client: reqwest::Client::new(),
+            connection: HomeConnection::Disconnected,
+            fetched_calendars: HashMap::new(),
+            fetched_subscriptions: HashMap::new(),
         }
     }
 
     async fn poll(&mut self) -> Result<CaldavAgenda, Error> {
-        let password = read_secret(&self.account.password).ok_or(Error::Secret)?;
+        let Some(password) = read_secret(&self.account.password) else {
+            return Err(Error::Secret);
+        };
         let home = self.connected_home(password).await?;
         let refreshed = self.refresh(&home).await;
         if refreshed.is_err() {
-            self.connection = None;
+            self.connection = HomeConnection::Disconnected;
         }
         refreshed
     }
 
     async fn connected_home(&mut self, password: String) -> Result<CalendarHome, Error> {
-        if let Some(connected) = &self.connection
-            && connected.password == password
+        if let HomeConnection::Connected {
+            home,
+            password: known_password,
+        } = &self.connection
+            && *known_password == password
         {
-            return Ok(connected.home.clone());
+            return Ok(CalendarHome::clone(home));
         }
         let home = connect_calendar_home(CaldavLogin {
             server_url: &self.account.server_url,
@@ -240,42 +367,79 @@ impl AgendaPoller {
             password: &password,
         })
         .await?;
-        self.connection = Some(ConnectedHome {
-            home: home.clone(),
+        self.connection = HomeConnection::Connected {
+            home: Box::new(home.clone()),
             password,
-        });
+        };
         Ok(home)
     }
 
     async fn refresh(&mut self, home: &CalendarHome) -> Result<CaldavAgenda, Error> {
+        let listing = home.home_listing().await?;
         let calendars = home.list_calendars().await?;
         let window = EventWindow {
             first_day: Local::now().date_naive(),
             days: self.account.upcoming_days,
         };
-        let mut current = HashMap::with_capacity(calendars.len());
-        for calendar in &calendars {
-            let fetched = match self.fetched.remove(&calendar.href) {
-                Some(cached) if cached.still_current(calendar, window) => cached,
-                _ => FetchedCalendar::fetch(home, calendar, window).await?,
-            };
-            current.insert(calendar.href.clone(), fetched);
-        }
-        self.fetched = current;
+        let mut previous_calendars = mem::take(&mut self.fetched_calendars);
+        let calendar_fetches = calendars
+            .iter()
+            .filter(|calendar| listing.shows(&calendar.href))
+            .map(|calendar| {
+                let cached = previous_calendars.remove(&calendar.href);
+                async move {
+                    match cached {
+                        Some(cached) if cached.still_current(calendar, window) => Ok(cached),
+                        _ => FetchedCalendar::fetch(home, calendar, window).await,
+                    }
+                }
+            });
+        let fetched_calendars = try_join_all(calendar_fetches).await?;
+        let mut previous_subscriptions = mem::take(&mut self.fetched_subscriptions);
+        let http_client = &self.http_client;
+        let refresh_interval = self
+            .account
+            .subscription_download_interval
+            .max(SHORTEST_POLL_INTERVAL);
+        let subscription_downloads = listing.subscribed_calendars.iter().map(|subscription| {
+            let cached = previous_subscriptions.remove(&subscription.href);
+            async move {
+                match cached {
+                    Some(cached) if cached.still_fresh(window, refresh_interval) => cached,
+                    Some(cached) => cached.redownloaded(http_client, subscription, window).await,
+                    None => {
+                        FetchedSubscription::first_download(http_client, subscription, window).await
+                    }
+                }
+            }
+        });
+        let fetched_subscriptions = join_all(subscription_downloads).await;
+        fetched_calendars.into_iter().for_each(|fetched| {
+            self.fetched_calendars.insert(fetched.href.clone(), fetched);
+        });
+        fetched_subscriptions.into_iter().for_each(|fetched| {
+            self.fetched_subscriptions
+                .insert(fetched.href.clone(), fetched);
+        });
         Ok(self.assembled_agenda(Local::now()))
     }
 
     fn assembled_agenda(&self, now: DateTime<Local>) -> CaldavAgenda {
         let mut events: Vec<UpcomingEvent> = self
-            .fetched
+            .fetched_calendars
             .values()
             .flat_map(|calendar| calendar.events.iter())
+            .chain(
+                self.fetched_subscriptions
+                    .values()
+                    .flat_map(|subscription| subscription.events.iter()),
+            )
             .filter(|event| !event.has_ended(now))
             .cloned()
             .collect();
         events.sort_by_key(|event| event.start.starts_at());
         let mut tasks: Vec<OpenTask> = self
-            .fetched
+            .fetched_calendars
             .values()
             .flat_map(|calendar| calendar.tasks.iter())
             .cloned()
@@ -284,15 +448,11 @@ impl AgendaPoller {
         CaldavAgenda {
             events,
             tasks,
-            calendar_count: self.fetched.len(),
-            change_delivery: if self.push_live.load(Ordering::Relaxed) {
-                ChangeDelivery::NextcloudNotifyPush
-            } else {
-                ChangeDelivery::ChangeTokenPolling
-            },
+            calendar_count: self.fetched_calendars.len() + self.fetched_subscriptions.len(),
+            change_delivery: self.account.current_change_delivery(&self.push_live),
             provider: CaldavProvider::detected(
                 &self.account.server_url,
-                self.fetched.keys().map(String::as_str),
+                self.fetched_calendars.keys().map(String::as_str),
             ),
         }
     }
