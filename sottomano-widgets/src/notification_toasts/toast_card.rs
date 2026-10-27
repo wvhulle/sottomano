@@ -16,7 +16,6 @@ use sottomano_sources::{
     },
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
 };
-use sottomano_state::LayerAppearance;
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_lifecycle::ToastKind};
@@ -29,6 +28,7 @@ use crate::{
         markup_body::MarkupBody,
         palette_colors::PaletteColors,
         panel_frame::LayerFrameStyle,
+        shell_layer_appearance::LayerAppearance,
         text::{FontFaces, bar_text},
     },
 };

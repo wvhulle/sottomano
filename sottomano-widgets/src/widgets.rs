@@ -33,12 +33,11 @@ pub mod phosphor;
 pub mod pointer_drag;
 pub mod popup_connector;
 pub mod pressable_text;
-
 pub mod rate_text;
 pub mod refresh_dial;
 pub mod region_reporter;
 pub mod reveal;
-
+pub mod shell_layer_appearance;
 pub mod simple_icons;
 pub mod slider_control;
 pub mod source_reading;

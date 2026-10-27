@@ -36,39 +36,45 @@ pub const SCHEMA: [&str; 8] = [
 const SORTABLE_INSTANT: SecondsFormat = SecondsFormat::Nanos;
 const UTC_AS_Z: bool = true;
 
-pub async fn load_since(since: DateTime<Utc>) -> LoadedSpans {
-    with_table("focus spans: load failed", &SCHEMA, async |conn| {
-        forget_before(conn, Utc::now() - RETENTION).await?;
-        read_spans(conn, since).await
+pub async fn load_since(since: DateTime<Utc>, now: DateTime<Utc>) -> LoadedSpans {
+    with_table("focus spans: load failed", &SCHEMA, async |connection| {
+        forget_before(connection, now - RETENTION).await?;
+        read_spans(connection, since).await
     })
     .await
     .unwrap_or_default()
 }
 
 pub async fn record(write: SpanWrite) {
-    with_table("focus spans: write failed", &SCHEMA, async |conn| {
-        record_span(conn, &write).await
+    with_table("focus spans: write failed", &SCHEMA, async |connection| {
+        record_span(connection, &write).await
     })
     .await;
 }
 
-async fn forget_before(conn: &turso::Connection, cutoff: DateTime<Utc>) -> Result<(), StoreError> {
+async fn forget_before(
+    connection: &turso::Connection,
+    cutoff: DateTime<Utc>,
+) -> Result<(), StoreError> {
     let cutoff = cutoff.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
-    conn.execute(
-        "DELETE FROM window_focus_span_facets_by_start_instant WHERE span_started_at < ?1",
-        (cutoff.as_str(),),
-    )
-    .await?;
-    conn.execute(
-        "DELETE FROM window_focus_spans_by_start_instant WHERE started_at < ?1",
-        (cutoff.as_str(),),
-    )
-    .await?;
-    conn.execute(
-        "DELETE FROM presence_spans_by_start_instant WHERE started_at < ?1",
-        (cutoff.as_str(),),
-    )
-    .await?;
+    connection
+        .execute(
+            "DELETE FROM window_focus_span_facets_by_start_instant WHERE span_started_at < ?1",
+            (cutoff.as_str(),),
+        )
+        .await?;
+    connection
+        .execute(
+            "DELETE FROM window_focus_spans_by_start_instant WHERE started_at < ?1",
+            (cutoff.as_str(),),
+        )
+        .await?;
+    connection
+        .execute(
+            "DELETE FROM presence_spans_by_start_instant WHERE started_at < ?1",
+            (cutoff.as_str(),),
+        )
+        .await?;
     Ok(())
 }
 
@@ -80,10 +86,10 @@ struct FacetRow {
 }
 
 async fn read_spans(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     since: DateTime<Utc>,
 ) -> Result<LoadedSpans, StoreError> {
-    let mut rows = conn
+    let mut rows = connection
         .query(
             "SELECT s.window_id, s.started_at, s.ended_at, f.facet, f.value
              FROM window_focus_spans_by_start_instant s
@@ -126,7 +132,7 @@ async fn read_spans(
         })
         .collect();
 
-    let mut rows = conn
+    let mut rows = connection
         .query(
             "SELECT started_at, ended_at, state FROM presence_spans_by_start_instant WHERE \
              ended_at >= ?1 ORDER BY started_at",
@@ -155,42 +161,45 @@ async fn read_spans(
     })
 }
 
-async fn record_span(conn: &turso::Connection, write: &SpanWrite) -> Result<(), StoreError> {
+async fn record_span(connection: &turso::Connection, write: &SpanWrite) -> Result<(), StoreError> {
     match write {
         SpanWrite::RecordWindowFocusSpan(span) => {
             let started_at = span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
-            conn.execute(
-                "INSERT INTO window_focus_spans_by_start_instant (started_at, window_id, \
-                 ended_at) VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = \
-                 max(ended_at, excluded.ended_at)",
-                (
-                    started_at.as_str(),
-                    span.window.cast_signed(),
-                    span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
-                ),
-            )
-            .await?;
-            for stored in span.units.iter().map(StoredFacet::from) {
-                conn.execute(
-                    "INSERT OR IGNORE INTO window_focus_span_facets_by_start_instant \
-                     (span_started_at, facet, value) VALUES (?1, ?2, ?3)",
-                    (started_at.as_str(), stored.facet, stored.value),
+            connection
+                .execute(
+                    "INSERT INTO window_focus_spans_by_start_instant (started_at, window_id, \
+                     ended_at) VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET \
+                     ended_at = max(ended_at, excluded.ended_at)",
+                    (
+                        started_at.as_str(),
+                        span.window.cast_signed(),
+                        span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
+                    ),
                 )
                 .await?;
+            for stored in span.units.iter().map(StoredFacet::from) {
+                connection
+                    .execute(
+                        "INSERT OR IGNORE INTO window_focus_span_facets_by_start_instant \
+                         (span_started_at, facet, value) VALUES (?1, ?2, ?3)",
+                        (started_at.as_str(), stored.facet, stored.value),
+                    )
+                    .await?;
             }
         }
         SpanWrite::RecordPresenceSpan(span) => {
-            conn.execute(
-                "INSERT INTO presence_spans_by_start_instant (started_at, ended_at, state) VALUES \
-                 (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = max(ended_at, \
-                 excluded.ended_at)",
-                (
-                    span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
-                    span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
-                    span.state.stored_name(),
-                ),
-            )
-            .await?;
+            connection
+                .execute(
+                    "INSERT INTO presence_spans_by_start_instant (started_at, ended_at, state) \
+                     VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = \
+                     max(ended_at, excluded.ended_at)",
+                    (
+                        span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
+                        span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
+                        span.state.stored_name(),
+                    ),
+                )
+                .await?;
         }
     }
     Ok(())
@@ -224,22 +233,22 @@ mod tests {
         }
     }
 
-    async fn recorded(conn: &turso::Connection, writes: &[SpanWrite]) {
+    async fn recorded(connection: &turso::Connection, writes: &[SpanWrite]) {
         for write in writes {
-            record_span(conn, write).await.unwrap();
+            record_span(connection, write).await.unwrap();
         }
     }
 
     #[tokio::test]
     async fn recording_a_span_again_keeps_its_latest_end_in_any_order() {
-        let conn = in_memory_connection(&SCHEMA).await;
+        let connection = in_memory_connection(&SCHEMA).await;
         let presence = PresenceSpan {
             state: Presence::ScreenOff,
             started_at: at(0),
             ended_at: at(0),
         };
         recorded(
-            &conn,
+            &connection,
             &[
                 SpanWrite::RecordWindowFocusSpan(focus_span(0)),
                 SpanWrite::RecordWindowFocusSpan(FocusSpan {
@@ -255,7 +264,7 @@ mod tests {
         )
         .await;
 
-        let loaded = read_spans(&conn, at(-1)).await.unwrap();
+        let loaded = read_spans(&connection, at(-1)).await.unwrap();
         assert_eq!(
             loaded.window_focus_spans,
             vec![FocusSpan {
@@ -274,7 +283,7 @@ mod tests {
 
     #[tokio::test]
     async fn spans_starting_within_the_same_second_stay_distinct() {
-        let conn = in_memory_connection(&SCHEMA).await;
+        let connection = in_memory_connection(&SCHEMA).await;
         let first = focus_span(0);
         let second = FocusSpan {
             window: 43,
@@ -283,39 +292,43 @@ mod tests {
             ..focus_span(0)
         };
         recorded(
-            &conn,
+            &connection,
             &[
                 SpanWrite::RecordWindowFocusSpan(first.clone()),
                 SpanWrite::RecordWindowFocusSpan(second.clone()),
             ],
         )
         .await;
-        let loaded = read_spans(&conn, at(-1)).await.unwrap();
+        let loaded = read_spans(&connection, at(-1)).await.unwrap();
         assert_eq!(loaded.window_focus_spans, vec![first, second]);
     }
 
     #[tokio::test]
     async fn loading_skips_spans_that_ended_before_the_window() {
-        let conn = in_memory_connection(&SCHEMA).await;
+        let connection = in_memory_connection(&SCHEMA).await;
         recorded(
-            &conn,
+            &connection,
             &[
                 SpanWrite::RecordWindowFocusSpan(focus_span(-30)),
                 SpanWrite::RecordWindowFocusSpan(focus_span(10)),
             ],
         )
         .await;
-        let loaded = read_spans(&conn, at(0)).await.unwrap();
+        let loaded = read_spans(&connection, at(0)).await.unwrap();
         assert_eq!(loaded.window_focus_spans.len(), 1);
         assert_eq!(loaded.window_focus_spans[0].started_at, at(10));
     }
 
     #[tokio::test]
     async fn forgetting_old_spans_takes_their_facets_along() {
-        let conn = in_memory_connection(&SCHEMA).await;
-        recorded(&conn, &[SpanWrite::RecordWindowFocusSpan(focus_span(-30))]).await;
-        forget_before(&conn, at(0)).await.unwrap();
-        let mut rows = conn
+        let connection = in_memory_connection(&SCHEMA).await;
+        recorded(
+            &connection,
+            &[SpanWrite::RecordWindowFocusSpan(focus_span(-30))],
+        )
+        .await;
+        forget_before(&connection, at(0)).await.unwrap();
+        let mut rows = connection
             .query(
                 "SELECT COUNT(*) AS facets FROM window_focus_span_facets_by_start_instant",
                 (),

@@ -1,23 +1,66 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{
-    LayerAppearance, ShellLayer,
-    shell_settings::{self, PanelLayout, ShellSetting},
-};
+use sottomano_sources::sqlite_state_store::Columns;
 
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
+    widget_groups::shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PanelLayout {
+    pub disconnected_groups: bool,
+    pub auto_collapse_groups: bool,
+    pub float_offset_px: f32,
+}
+
+impl Default for PanelLayout {
+    fn default() -> Self {
+        Self {
+            disconnected_groups: false,
+            auto_collapse_groups: true,
+            float_offset_px: 0.0,
+        }
+    }
+}
+
+async fn load_panel_layout() -> PanelLayout {
+    shell_settings_row::load_stored_row(
+        "shell settings: load panel layout failed",
+        PanelLayout::default(),
+        panel_layout_from_columns,
+    )
+    .await
+}
+
+fn panel_layout_from_columns(
+    columns: &Columns,
+    row: &turso::Row,
+    defaults: PanelLayout,
+) -> PanelLayout {
+    PanelLayout {
+        float_offset_px: columns
+            .optional_real(row, "float_offset_px")
+            .map_or(defaults.float_offset_px, |offset| offset as f32),
+        disconnected_groups: columns
+            .optional_flag(row, "disconnected_groups")
+            .unwrap_or(defaults.disconnected_groups),
+        auto_collapse_groups: columns
+            .optional_flag(row, "auto_collapse_groups")
+            .unwrap_or(defaults.auto_collapse_groups),
+    }
+}
 
 pub enum Action {
     Run(Task<PanelSettingsMessage>),
@@ -107,10 +150,7 @@ impl Default for PanelSettingsGroup {
 impl PanelSettingsGroup {
     pub fn load() -> Task<PanelSettingsMessage> {
         Task::batch([
-            Task::perform(
-                shell_settings::load_panel_layout(),
-                PanelSettingsMessage::LayoutLoaded,
-            ),
+            Task::perform(load_panel_layout(), PanelSettingsMessage::LayoutLoaded),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
         ])
     }
@@ -178,7 +218,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 self.disconnected_groups = !self.disconnected_groups;
                 Action::Run(
-                    Task::future(shell_settings::save(ShellSetting::DisconnectedGroups(
+                    Task::future(shell_settings_row::save(ShellSetting::DisconnectedGroups(
                         self.disconnected_groups,
                     )))
                     .discard(),
@@ -187,7 +227,7 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 self.auto_collapse_groups = !self.auto_collapse_groups;
                 Action::Run(
-                    Task::future(shell_settings::save(ShellSetting::AutoCollapseGroups(
+                    Task::future(shell_settings_row::save(ShellSetting::AutoCollapseGroups(
                         self.auto_collapse_groups,
                     )))
                     .discard(),
@@ -210,7 +250,7 @@ impl PanelSettingsGroup {
     fn update_float_offset(&mut self, control: ControlMessage) -> Action {
         let settled_before = self.float_offset.settled_value();
         let persisting = match self.float_offset.update(control) {
-            SliderAction::Commit(value) => Task::future(shell_settings::save(
+            SliderAction::Commit(value) => Task::future(shell_settings_row::save(
                 ShellSetting::FloatOffset(value),
             ))
             .map(move |ok| {
@@ -267,9 +307,53 @@ impl PanelSettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_state::shell_settings::PanelLayout;
+    use iced::futures::{StreamExt, stream};
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{PanelSettingsGroup, PanelSettingsMessage};
+    use super::{PanelLayout, PanelSettingsGroup, PanelSettingsMessage, panel_layout_from_columns};
+    use crate::widget_groups::shell_settings_row::{
+        CREATE_TABLE, ShellSetting, read_stored_row, write_setting,
+    };
+
+    async fn stored_panel_layout(connection: &turso::Connection) -> PanelLayout {
+        read_stored_row(
+            connection,
+            PanelLayout::default(),
+            panel_layout_from_columns,
+        )
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn panel_layout_settings_round_trip_to_their_own_columns() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        stream::iter([
+            ShellSetting::FloatOffset(3.25),
+            ShellSetting::DisconnectedGroups(true),
+            ShellSetting::AutoCollapseGroups(false),
+        ])
+        .for_each(async |setting| write_setting(&connection, setting).await.unwrap())
+        .await;
+
+        let panel_layout = stored_panel_layout(&connection).await;
+        assert!((panel_layout.float_offset_px - 3.25).abs() < f32::EPSILON);
+        assert!(panel_layout.disconnected_groups);
+        assert!(!panel_layout.auto_collapse_groups);
+    }
+
+    #[tokio::test]
+    async fn an_unwritten_panel_layout_keeps_its_defaults() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        write_setting(&connection, ShellSetting::Sound(false))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            stored_panel_layout(&connection).await,
+            PanelLayout::default()
+        );
+    }
 
     #[test]
     fn a_loaded_panel_layout_reads_back_unchanged() {

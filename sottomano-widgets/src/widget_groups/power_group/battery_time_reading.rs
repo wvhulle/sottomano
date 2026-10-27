@@ -7,7 +7,6 @@ use sottomano_sources::battery_power_profiles::{
     battery_time_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
     upower_battery_state::{Battery, IdleReason},
 };
-use sottomano_state::charge_power_curve;
 use uom::si::{
     f64::{Power, Ratio},
     power::watt,
@@ -15,7 +14,10 @@ use uom::si::{
 
 use crate::{
     clock::Clock,
-    widget_groups::power_group::estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+    widget_groups::power_group::{
+        charge_power_curve_store,
+        estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+    },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_text,
@@ -56,7 +58,7 @@ impl BatteryTimeReading {
             .clone()
             .observe(sample.state_of_charge, sample.power, since_previous);
         self.curve = Some(curve.clone());
-        Task::future(charge_power_curve::save(
+        Task::future(charge_power_curve_store::save(
             battery.serial.clone(),
             bin_of(sample.state_of_charge),
             curve,
@@ -73,7 +75,7 @@ impl BatteryTimeReading {
             return Task::none();
         }
         self.load_started = true;
-        Task::future(charge_power_curve::load(serial.to_string())).map(CurveLoaded)
+        Task::future(charge_power_curve_store::load(serial.to_string())).map(CurveLoaded)
     }
 
     pub(super) fn time_for(

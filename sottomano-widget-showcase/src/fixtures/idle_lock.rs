@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use sottomano_state::idle::Timeouts;
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
+    widget_groups::idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage, Timeouts},
 };
 
 use crate::showcased_group::ShowcasedGroup;

@@ -4,10 +4,10 @@ use iced::Size;
 use sottomano_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::IconCandidate,
 };
-use sottomano_state::niri_rules::NiriLayout;
 
 use crate::{
     desktop_index::DesktopIndex,
+    widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
     widgets::{
         continuous_reading::ContinuousReading,
         tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},

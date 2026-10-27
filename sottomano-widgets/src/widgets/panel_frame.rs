@@ -14,9 +14,11 @@ use iced::{
 };
 use iced_exwlshell::BlurRegions;
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::LayerAppearance;
 
-use crate::widgets::{palette_colors::PaletteColors, region_reporter::rounded_blur_rows};
+use crate::widgets::{
+    palette_colors::PaletteColors, region_reporter::rounded_blur_rows,
+    shell_layer_appearance::LayerAppearance,
+};
 
 pub struct LayerFrameStyle<'a> {
     appearance: &'a LayerAppearance,

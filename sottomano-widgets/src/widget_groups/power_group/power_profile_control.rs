@@ -14,7 +14,6 @@ use sottomano_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_state::power;
 use uom::si::{f64::Power, power::watt};
 
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        power_draw_regression_store,
     },
     widgets::{
         continuous_reading::ContinuousReading,
@@ -209,7 +209,12 @@ impl PowerProfileControl {
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
             .observe(sample.conditions, sample.draw, since_previous);
         models.insert(sample.profile, next);
-        Task::future(power::save(battery.serial.clone(), sample.profile, next)).discard()
+        Task::future(power_draw_regression_store::save(
+            battery.serial.clone(),
+            sample.profile,
+            next,
+        ))
+        .discard()
     }
 
     fn start_loading(&mut self, serial: &str) -> Task<PowerProfileMessage> {
@@ -217,7 +222,8 @@ impl PowerProfileControl {
             return Task::none();
         }
         self.load_started = true;
-        Task::future(power::load(serial.to_string())).map(PowerProfileMessage::Loaded)
+        Task::future(power_draw_regression_store::load(serial.to_string()))
+            .map(PowerProfileMessage::Loaded)
     }
 
     fn drain_estimates(&self) -> Option<HashMap<Profile, Option<Estimate>>> {

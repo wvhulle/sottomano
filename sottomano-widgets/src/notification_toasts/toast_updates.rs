@@ -15,7 +15,6 @@ use sottomano_sources::{
     },
     desktop_windows_apps::{niri_action_requests, niri_window_placement::Placement},
 };
-use sottomano_state::NotificationSettings;
 use tokio::{sync::mpsc, time::timeout};
 
 use super::{
@@ -28,7 +27,7 @@ use crate::{
     background_work::niri_action,
     hover_tooltips::PopupMessage,
     layer_surfaces::SurfaceRequest,
-    notification_toasts::ToastLayerHost,
+    notification_toasts::{NotificationSettings, ToastLayerHost},
     toast_messages::NotificationMessage,
     widgets::{
         announced_level::LevelReading,

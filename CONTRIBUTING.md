@@ -23,7 +23,9 @@ recordings are in [docs/development.md](docs/development.md).
   rather than branching on vendor inline. No per-model constants: a limit or
   cause is shown only when the kernel publishes it.
 - Strict config/state separation: no field appears in both the TOML config
-  (`sottomano-config/src/`) and runtime state (`sottomano-state/src/`).
+  (`sottomano-config/src/`) and the runtime state that widget groups persist
+  through `sqlite_state_store` (the `*_store` modules next to each group in
+  `sottomano-widgets/src/`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and

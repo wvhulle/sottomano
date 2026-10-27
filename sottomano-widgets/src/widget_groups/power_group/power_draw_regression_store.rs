@@ -30,7 +30,7 @@ pub async fn load(battery: String) -> HashMap<Profile, RegressionState> {
     with_table(
         "power regression: load failed",
         &[CREATE_TABLE],
-        async |conn| read_models(conn, &battery).await,
+        async |connection| read_models(connection, &battery).await,
     )
     .await
     .unwrap_or_default()
@@ -40,16 +40,16 @@ pub async fn save(battery: String, profile: Profile, state: RegressionState) {
     with_table(
         "power regression: save failed",
         &[CREATE_TABLE],
-        async |conn| write_model(conn, &battery, profile, state).await,
+        async |connection| write_model(connection, &battery, profile, state).await,
     )
     .await;
 }
 
 async fn read_models(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     battery: &str,
 ) -> Result<HashMap<Profile, RegressionState>, StoreError> {
-    let mut rows = conn
+    let mut rows = connection
         .query(
             "SELECT profile, base_w, k_bright, k_load,
                     cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22
@@ -89,13 +89,14 @@ async fn read_models(
 }
 
 async fn write_model(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     battery: &str,
     profile: Profile,
     state: RegressionState,
 ) -> Result<(), StoreError> {
-    conn.execute(
-        "INSERT INTO battery_draw_model (battery, profile, base_w, k_bright, k_load,
+    connection
+        .execute(
+            "INSERT INTO battery_draw_model (battery, profile, base_w, k_bright, k_load,
              cov_00, cov_01, cov_02, cov_10, cov_11, cov_12, cov_20, cov_21, cov_22)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
          ON CONFLICT(battery, profile)
@@ -103,24 +104,24 @@ async fn write_model(
              cov_00 = ?6, cov_01 = ?7, cov_02 = ?8,
              cov_10 = ?9, cov_11 = ?10, cov_12 = ?11,
              cov_20 = ?12, cov_21 = ?13, cov_22 = ?14",
-        (
-            battery,
-            profile.name().to_string(),
-            state.coefficients[0],
-            state.coefficients[1],
-            state.coefficients[2],
-            state.covariance[(0, 0)],
-            state.covariance[(0, 1)],
-            state.covariance[(0, 2)],
-            state.covariance[(1, 0)],
-            state.covariance[(1, 1)],
-            state.covariance[(1, 2)],
-            state.covariance[(2, 0)],
-            state.covariance[(2, 1)],
-            state.covariance[(2, 2)],
-        ),
-    )
-    .await?;
+            (
+                battery,
+                profile.name().to_string(),
+                state.coefficients[0],
+                state.coefficients[1],
+                state.coefficients[2],
+                state.covariance[(0, 0)],
+                state.covariance[(0, 1)],
+                state.covariance[(0, 2)],
+                state.covariance[(1, 0)],
+                state.covariance[(1, 1)],
+                state.covariance[(1, 2)],
+                state.covariance[(2, 0)],
+                state.covariance[(2, 1)],
+                state.covariance[(2, 2)],
+            ),
+        )
+        .await?;
     Ok(())
 }
 
@@ -140,12 +141,12 @@ mod tests {
 
     #[tokio::test]
     async fn coefficients_and_covariance_survive_a_round_trip() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
-        write_model(&conn, "BAT0", Profile::Balanced, distinct_state())
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        write_model(&connection, "BAT0", Profile::Balanced, distinct_state())
             .await
             .unwrap();
 
-        let models = read_models(&conn, "BAT0").await.unwrap();
+        let models = read_models(&connection, "BAT0").await.unwrap();
         assert_eq!(models[&Profile::Balanced], distinct_state());
     }
 }

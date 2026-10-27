@@ -8,9 +8,8 @@ use sottomano_sources::{
     desktop_windows_apps::niri_window_placement::{Placement, WindowOwner},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
-use sottomano_state::NotificationSettings;
 
-use crate::toast_messages::NotificationMessage;
+use crate::{notification_toasts::NotificationSettings, toast_messages::NotificationMessage};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {

@@ -15,7 +15,6 @@ use iced::{
     window,
 };
 use sottomano_config::{Config, notification_toasts::ToastPlacementConfig};
-use sottomano_state::LayerAppearance;
 
 use super::{
     toast_anchor_geometry,
@@ -26,6 +25,7 @@ use crate::{
     widgets::{
         child_view::{ChildView, ChildViewMut},
         region_reporter::RegionRoles,
+        shell_layer_appearance::LayerAppearance,
     },
 };
 

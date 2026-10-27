@@ -1,20 +1,24 @@
 use iced::Task;
 use sottomano_config::theme::palette::Palette;
-use sottomano_state::{
-    niri_rules::{HeatedWindow, NiriRulesFile, NiriStyling, SwitchHeat},
-    switch_heat_borders,
-};
+use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, upsert_column, with_table};
 
 use crate::{
-    widget_groups::niri_window_group::NiriWindowMessage,
+    widget_groups::niri_window_group::{
+        NiriWindowMessage,
+        niri_kdl_rules::{HeatedWindow, NiriRulesFile, NiriStyling, SwitchHeat},
+    },
     widgets::{
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReheatDue(pub bool);
+const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS switch_heat_borders (
+    id INTEGER PRIMARY KEY CHECK (id = 0),
+    shown INTEGER
+)";
+
+const SHOWN_BY_DEFAULT: bool = true;
 
 #[derive(Debug, Default)]
 pub(super) struct SwitchHeatBorders {
@@ -23,10 +27,7 @@ pub(super) struct SwitchHeatBorders {
 
 impl SwitchHeatBorders {
     pub(super) fn load() -> Task<NiriWindowMessage> {
-        Task::perform(
-            switch_heat_borders::load_shown(),
-            NiriWindowMessage::SwitchHeatLoaded,
-        )
+        Task::perform(load_shown(), NiriWindowMessage::SwitchHeatLoaded)
     }
 
     pub(super) fn toggle(&self) -> IconToggle {
@@ -44,7 +45,7 @@ impl SwitchHeatBorders {
 
     pub(super) fn flip(&mut self) -> Task<NiriWindowMessage> {
         self.shown = !self.shown;
-        Task::future(switch_heat_borders::save_shown(self.shown)).discard()
+        Task::future(save_shown(self.shown)).discard()
     }
 
     pub(super) fn adopt_loaded(&mut self, shown: bool) {
@@ -53,15 +54,11 @@ impl SwitchHeatBorders {
 
     pub(super) fn reheat(
         &self,
-        due: ReheatDue,
         rules_file: &mut NiriRulesFile,
         styling: NiriStyling,
         palette: &Palette,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
     ) -> Task<NiriWindowMessage> {
-        let ReheatDue(true) = due else {
-            return Task::none();
-        };
         let switch_heat = if self.shown {
             SwitchHeat::Shown {
                 focus_ring_color: format!("{:x}", palette.focus.to_rgba8()),
@@ -74,5 +71,57 @@ impl SwitchHeatBorders {
         rules_file
             .reheat(styling, switch_heat)
             .map_or_else(Task::none, |written| Task::future(written).discard())
+    }
+}
+
+async fn load_shown() -> bool {
+    with_table(
+        "switch heat borders: load failed",
+        &[CREATE_TABLE],
+        read_shown,
+    )
+    .await
+    .unwrap_or(SHOWN_BY_DEFAULT)
+}
+
+async fn save_shown(shown: bool) -> bool {
+    with_table(
+        "switch heat borders: save failed",
+        &[CREATE_TABLE],
+        async |connection| {
+            upsert_column(connection, "switch_heat_borders", "shown", flag(shown)).await
+        },
+    )
+    .await
+    .is_some()
+}
+
+async fn read_shown(connection: &turso::Connection) -> Result<bool, StoreError> {
+    let mut rows = connection
+        .query("SELECT shown FROM switch_heat_borders WHERE id = 0", ())
+        .await?;
+    let columns = Columns::of(&rows);
+    let Some(row) = rows.next().await? else {
+        return Ok(SHOWN_BY_DEFAULT);
+    };
+    Ok(columns
+        .optional_flag(&row, "shown")
+        .unwrap_or(SHOWN_BY_DEFAULT))
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, upsert_column};
+
+    use super::{CREATE_TABLE, read_shown};
+
+    #[tokio::test]
+    async fn borders_show_until_turned_off() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        assert!(read_shown(&connection).await.unwrap());
+        upsert_column(&connection, "switch_heat_borders", "shown", flag(false))
+            .await
+            .unwrap();
+        assert!(!read_shown(&connection).await.unwrap());
     }
 }

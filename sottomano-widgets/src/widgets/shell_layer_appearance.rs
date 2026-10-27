@@ -1,17 +1,3 @@
-pub mod charge_power_curve;
-pub mod dark_mode;
-pub mod focus_spans;
-pub mod focus_tracker;
-pub mod idle;
-pub mod launches;
-pub mod layer_appearance;
-pub mod niri_rules;
-pub mod power;
-pub mod quiet_hours;
-pub mod shell_settings;
-pub mod switch_heat_borders;
-pub mod working_days;
-
 use core::f32::consts::FRAC_1_SQRT_2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,22 +48,6 @@ impl LayerAppearance {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WorkspacesPlacement {
-    Sidebar,
-    BottomPanel,
-}
-
-impl WorkspacesPlacement {
-    #[must_use]
-    pub fn toggled(self) -> Self {
-        match self {
-            Self::Sidebar => Self::BottomPanel,
-            Self::BottomPanel => Self::Sidebar,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShadowStyle {
     pub cast: bool,
@@ -103,20 +73,5 @@ pub struct OutlineStyle {
 impl Default for OutlineStyle {
     fn default() -> Self {
         Self { drawn: true }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct NotificationSettings {
-    pub sound: bool,
-    pub toast_spatial_layout: bool,
-}
-
-impl Default for NotificationSettings {
-    fn default() -> Self {
-        Self {
-            sound: true,
-            toast_spatial_layout: true,
-        }
     }
 }

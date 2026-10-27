@@ -13,18 +13,18 @@ use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::{NotificationSettings, ShellLayer};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{TooltipHost, TooltipMessage, tooltip_surfaces::TooltipSurfaceStyle},
     layer_surfaces::PanelEdge,
-    notification_toasts::{NotificationLayer, ToastContext},
+    notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
     widgets::{
         favicon::Favicons,
         palette_colors::PaletteColors,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+        shell_layer_appearance::ShellLayer,
         text::FontFaces,
         tooltip_body::Tooltip,
         window_icon::WindowAssets,

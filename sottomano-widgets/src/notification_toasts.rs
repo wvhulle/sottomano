@@ -25,7 +25,6 @@ use sottomano_sources::{
         niri_window_placement::Placement,
     },
 };
-use sottomano_state::{LayerAppearance, NotificationSettings};
 use toast_card::ToastCard;
 pub use toast_lifecycle::Notification;
 use toast_lifecycle::{BodyClick, Countdown, ToastKind};
@@ -39,10 +38,28 @@ use crate::{
     hover_tooltips::PopupMessage,
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
-    widgets::{announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y},
+    widgets::{
+        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
+        shell_layer_appearance::LayerAppearance,
+    },
 };
 
 const DEFAULT_ACTION: &str = "default";
+
+#[derive(Debug, Clone, Copy)]
+pub struct NotificationSettings {
+    pub sound: bool,
+    pub toast_spatial_layout: bool,
+}
+
+impl Default for NotificationSettings {
+    fn default() -> Self {
+        Self {
+            sound: true,
+            toast_spatial_layout: true,
+        }
+    }
+}
 
 pub struct ToastContext<'a> {
     pub placement: Placement,

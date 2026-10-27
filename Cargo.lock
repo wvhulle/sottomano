@@ -6099,9 +6099,9 @@ checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "roxmltree"
-version = "0.21.1"
+version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
 dependencies = [
  "memchr",
 ]
@@ -6886,12 +6886,12 @@ dependencies = [
  "reqwest",
  "sottomano-config",
  "sottomano-sources",
- "sottomano-state",
  "sottomano-widgets",
  "tokio",
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
+ "turso",
  "uom",
  "wayland-client",
  "zbus",
@@ -6957,23 +6957,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sottomano-state"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "club-kdl",
- "futures",
- "kdl 6.7.1",
- "nalgebra",
- "niri-ipc",
- "sottomano-config",
- "sottomano-sources",
- "tokio",
- "tracing",
- "turso",
-]
-
-[[package]]
 name = "sottomano-widget-showcase"
 version = "0.0.1"
 dependencies = [
@@ -6994,7 +6977,6 @@ dependencies = [
  "situo-client",
  "sottomano-config",
  "sottomano-sources",
- "sottomano-state",
  "sottomano-widgets",
  "tokio",
  "uom",
@@ -7009,6 +6991,7 @@ dependencies = [
  "bytesize",
  "chrono",
  "chrono-tz",
+ "club-kdl",
  "fixed_decimal",
  "form_urlencoded",
  "iced",
@@ -7019,6 +7002,8 @@ dependencies = [
  "icu_provider",
  "image",
  "jiff",
+ "kdl 6.7.1",
+ "nalgebra",
  "niri-ipc",
  "notulist-client",
  "quick-xml 0.42.0",
@@ -7029,10 +7014,10 @@ dependencies = [
  "sottomano-config",
  "sottomano-icon-sets",
  "sottomano-sources",
- "sottomano-state",
  "system-tray",
  "tokio",
  "tracing",
+ "turso",
  "uom",
  "usvg 0.48.1",
  "zbus",
@@ -8315,7 +8300,7 @@ dependencies = [
  "kurbo 0.13.1",
  "log",
  "pico-args",
- "roxmltree 0.21.1",
+ "roxmltree 0.21.2",
  "simplecss",
  "siphasher",
  "skrifa 0.44.0",

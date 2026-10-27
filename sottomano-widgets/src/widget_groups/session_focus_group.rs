@@ -2,6 +2,8 @@ mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
 mod focus_run_reading;
+mod focus_span_store;
+mod focus_tracker;
 mod session_face;
 mod window_usage;
 
@@ -15,18 +17,21 @@ use sottomano_sources::{
     login_session_presence::focus_time_ledger::{FocusSignal, ScreenEdge},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
-use sottomano_state::{
-    focus_tracker::{FocusTracker, TrackerMessage},
-    niri_rules::HeatedWindow,
-};
 
 use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::session_focus_group::{
-        break_log::BreakLog, context_switch_rate::ContextSwitchRate,
-        daily_totals_gauge::DailyTotalsGauge, focus_run_reading::FocusRunReading,
-        session_face::SessionFace, window_usage::WindowUsage,
+    widget_groups::{
+        niri_window_group::niri_kdl_rules::HeatedWindow,
+        session_focus_group::{
+            break_log::BreakLog,
+            context_switch_rate::ContextSwitchRate,
+            daily_totals_gauge::DailyTotalsGauge,
+            focus_run_reading::FocusRunReading,
+            focus_tracker::{FocusTracker, TrackerMessage},
+            session_face::SessionFace,
+            window_usage::WindowUsage,
+        },
     },
     widgets::{
         bar_widget::BarWidget,
@@ -99,8 +104,11 @@ impl SessionFocusGroup {
         self.expansion.collapse();
     }
 
-    pub fn load() -> Task<SessionFocusMessage> {
-        Task::perform(FocusTracker::load(), SessionFocusMessage::Tracker)
+    pub fn load(clock: Clock) -> Task<SessionFocusMessage> {
+        Task::perform(
+            FocusTracker::load(clock.utc()),
+            SessionFocusMessage::Tracker,
+        )
     }
 
     pub fn subscription(config: &FocusTimeConfig) -> Subscription<SessionFocusMessage> {
@@ -146,7 +154,7 @@ impl SessionFocusGroup {
     ) -> Task<SessionFocusMessage> {
         match message {
             SessionFocusMessage::Tracker(message) => {
-                let span_writes = self.tracker.update(message, config);
+                let span_writes = self.tracker.update(message, config, clock.utc());
                 self.recompute_daily_totals(config, clock.utc());
                 Task::future(span_writes).discard()
             }

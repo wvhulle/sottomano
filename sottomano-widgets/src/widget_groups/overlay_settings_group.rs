@@ -1,17 +1,15 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{
-    LayerAppearance, ShellLayer,
-    shell_settings::{self, ShellSetting},
-};
 
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
+    widget_groups::shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -81,7 +79,11 @@ impl OverlaySettingsGroup {
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
-                shell_settings::load_toast_spatial_layout(),
+                shell_settings_row::load_stored_flag(
+                    "shell settings: load toast spatial layout failed",
+                    "toast_spatial_layout",
+                    true,
+                ),
                 OverlaySettingsMessage::SpatialLayoutLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Overlays)
@@ -126,7 +128,7 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
                 self.toast_spatial_layout = !self.toast_spatial_layout;
                 Action::ReflowToasts(
-                    Task::future(shell_settings::save(ShellSetting::ToastSpatialLayout(
+                    Task::future(shell_settings_row::save(ShellSetting::ToastSpatialLayout(
                         self.toast_spatial_layout,
                     )))
                     .discard(),

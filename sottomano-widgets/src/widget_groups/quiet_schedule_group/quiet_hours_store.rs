@@ -44,7 +44,7 @@ pub async fn save(schedule: QuietHoursSchedule) -> bool {
     with_table(
         "quiet hours schedule: save failed",
         &[CREATE_TABLE],
-        async |conn| write_schedule(conn, schedule).await,
+        async |connection| write_schedule(connection, schedule).await,
     )
     .await
     .is_some()
@@ -58,8 +58,8 @@ fn time_of_minutes(minutes: i64) -> NaiveTime {
     NaiveTime::MIN + TimeDelta::minutes(minutes)
 }
 
-async fn read_schedule(conn: &turso::Connection) -> Result<QuietHoursSchedule, StoreError> {
-    let mut rows = conn
+async fn read_schedule(connection: &turso::Connection) -> Result<QuietHoursSchedule, StoreError> {
+    let mut rows = connection
         .query(
             "SELECT follows_schedule, start_minutes, end_minutes, screen_off FROM quiet_hours \
              WHERE id = 0",
@@ -79,25 +79,27 @@ async fn read_schedule(conn: &turso::Connection) -> Result<QuietHoursSchedule, S
 }
 
 async fn write_schedule(
-    conn: &turso::Connection,
+    connection: &turso::Connection,
     schedule: QuietHoursSchedule,
 ) -> Result<(), StoreError> {
     let screen_off = schedule
         .screen_off
         .map(|timeout| i64::try_from(timeout.as_secs()).unwrap_or(i64::MAX));
-    conn.execute(
-        "INSERT INTO quiet_hours (id, follows_schedule, start_minutes, end_minutes, screen_off)
+    connection
+        .execute(
+            "INSERT INTO quiet_hours (id, follows_schedule, start_minutes, end_minutes, \
+             screen_off)
          VALUES (0, ?1, ?2, ?3, ?4)
          ON CONFLICT(id) DO UPDATE SET follows_schedule = ?1, start_minutes = ?2, end_minutes = \
-         ?3, screen_off = ?4",
-        (
-            i64::from(schedule.follows_schedule),
-            minutes_since_midnight(schedule.start),
-            minutes_since_midnight(schedule.end),
-            screen_off,
-        ),
-    )
-    .await?;
+             ?3, screen_off = ?4",
+            (
+                i64::from(schedule.follows_schedule),
+                minutes_since_midnight(schedule.start),
+                minutes_since_midnight(schedule.end),
+                screen_off,
+            ),
+        )
+        .await?;
     Ok(())
 }
 
@@ -112,27 +114,27 @@ mod tests {
 
     #[tokio::test]
     async fn schedule_survives_a_round_trip() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let schedule = QuietHoursSchedule {
             follows_schedule: false,
             start: NaiveTime::from_hms_opt(22, 15, 0).unwrap(),
             end: NaiveTime::from_hms_opt(6, 45, 0).unwrap(),
             screen_off: Some(Duration::from_secs(30)),
         };
-        write_schedule(&conn, schedule).await.unwrap();
+        write_schedule(&connection, schedule).await.unwrap();
 
-        assert_eq!(read_schedule(&conn).await.unwrap(), schedule);
+        assert_eq!(read_schedule(&connection).await.unwrap(), schedule);
     }
 
     #[tokio::test]
     async fn disabled_screen_off_round_trips_as_null() {
-        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let schedule = QuietHoursSchedule {
             screen_off: None,
             ..QuietHoursSchedule::default()
         };
-        write_schedule(&conn, schedule).await.unwrap();
+        write_schedule(&connection, schedule).await.unwrap();
 
-        assert_eq!(read_schedule(&conn).await.unwrap(), schedule);
+        assert_eq!(read_schedule(&connection).await.unwrap(), schedule);
     }
 }

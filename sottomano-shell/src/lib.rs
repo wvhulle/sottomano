@@ -15,8 +15,9 @@ use iced_exwlshell::{
 };
 use sottomano_config::{Config, ConfigFile, SecretPaths};
 use sottomano_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
-use sottomano_state::niri_rules::NiriRulesFile;
-use sottomano_widgets::widgets::text::FontFaces;
+use sottomano_widgets::{
+    widget_groups::niri_window_group::niri_kdl_rules::NiriRulesFile, widgets::text::FontFaces,
+};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
@@ -28,8 +29,8 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             EnvFilter::new(
-                "error,sottomano_shell=warn,sottomano_widgets=warn,sottomano_state=warn,\
-                 sottomano_sources=warn,exwlshellev=warn,iced_exwlshell=warn",
+                "error,sottomano_shell=warn,sottomano_widgets=warn,sottomano_sources=warn,\
+                 exwlshellev=warn,iced_exwlshell=warn",
             )
         }))
         .with_span_events(FmtSpan::CLOSE)

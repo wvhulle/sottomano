@@ -28,6 +28,7 @@ pub mod power_group;
 pub mod quiet_schedule_group;
 pub mod session_focus_group;
 pub mod session_menu;
+mod shell_settings_row;
 pub mod sidebar_settings_group;
 pub mod systemd_manager_group;
 pub mod terminal_command;

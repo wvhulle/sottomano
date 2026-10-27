@@ -1,3 +1,5 @@
+mod idle_timeouts_store;
+
 use std::{convert::identity, time::Duration};
 
 use iced::{
@@ -9,8 +11,8 @@ use sottomano_config::Config;
 use sottomano_sources::login_session_presence::{
     focus_time_ledger::ScreenEdge, idle_session_actions::IdleAction, wayland_idle_notify::IdleEdge,
 };
-use sottomano_state::idle::{self, Timeouts};
 
+pub use self::idle_timeouts_store::{ScheduledAfterIdle, Timeouts};
 use crate::{
     clock::Clock,
     hover_tooltips::GroupHandle,
@@ -77,7 +79,7 @@ impl Default for IdleTimeoutsGroup {
 
 impl IdleTimeoutsGroup {
     pub fn load() -> Task<IdleTimeoutsMessage> {
-        Task::perform(idle::load(), IdleTimeoutsMessage::Loaded)
+        Task::perform(idle_timeouts_store::load(), IdleTimeoutsMessage::Loaded)
     }
 
     fn timer_mut(&mut self, kind: IdleAction) -> &mut IdleTimer {
@@ -144,9 +146,13 @@ impl IdleTimeoutsGroup {
                     Task::none()
                 }
                 TimerChange::Persist(value) => {
-                    let persist = Task::future(idle::save(self.timeouts())).map(move |ok| {
-                        IdleTimeoutsMessage::Timer(kind, ControlMessage::Persisted { value, ok })
-                    });
+                    let persist =
+                        Task::future(idle_timeouts_store::save(self.timeouts())).map(move |ok| {
+                            IdleTimeoutsMessage::Timer(
+                                kind,
+                                ControlMessage::Persisted { value, ok },
+                            )
+                        });
                     Task::batch([persist, self.rearm()])
                 }
             },

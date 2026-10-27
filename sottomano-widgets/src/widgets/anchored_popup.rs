@@ -15,7 +15,6 @@ use iced::{
     window,
 };
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::LayerAppearance;
 
 use crate::{
     hover_tooltips::PopupMessage,
@@ -25,6 +24,7 @@ use crate::{
         panel_frame::LayerFrameStyle,
         popup_connector::ConnectorTriangle,
         region_reporter::RegionRoles,
+        shell_layer_appearance::LayerAppearance,
     },
 };
 

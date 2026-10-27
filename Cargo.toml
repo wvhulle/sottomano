@@ -5,7 +5,6 @@ members = [
   "sottomano-config",
   "sottomano-icon-sets",
   "sottomano-sources",
-  "sottomano-state",
   "sottomano-widgets",
   "sottomano-shell",
   "sottomano-widget-showcase",

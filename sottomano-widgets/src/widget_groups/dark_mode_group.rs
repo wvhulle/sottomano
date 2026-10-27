@@ -1,4 +1,5 @@
 mod auto_switch_toggle;
+mod dark_mode_schedule_store;
 mod offset_slider;
 mod umbra_dark_mode;
 
@@ -18,10 +19,12 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::situo_location_fix::Location,
 };
-use sottomano_state::dark_mode::{self, DarkModeSchedule};
 use tokio::time::sleep;
 
-use self::offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes};
+use self::{
+    dark_mode_schedule_store::DarkModeSchedule,
+    offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
+};
 use crate::{
     background_work::{first_delivery, source_subscription},
     clock::Clock,
@@ -75,7 +78,7 @@ struct ArmedSwitch {
 
 #[derive(Debug, Clone)]
 pub enum DarkModeMessage {
-    ScheduleLoaded(SourceDelivery<DarkModeSchedule>),
+    ScheduleLoaded(DarkModeSchedule),
     LocationFix(SourceDelivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<DarkMode>),
@@ -107,10 +110,16 @@ impl DarkModeGroup {
 }
 
 impl DarkModeGroup {
+    pub fn load() -> Task<DarkModeMessage> {
+        Task::perform(
+            dark_mode_schedule_store::load(),
+            DarkModeMessage::ScheduleLoaded,
+        )
+    }
+
     pub fn subscription() -> Subscription<DarkModeMessage> {
         Subscription::batch([
             ToggleControl::<DarkMode>::subscription(()).map(DarkModeMessage::ModeToggle),
-            source_subscription::<DarkModeSchedule>(()).map(DarkModeMessage::ScheduleLoaded),
             source_subscription::<Location>(()).map(DarkModeMessage::LocationFix),
         ])
     }
@@ -180,16 +189,8 @@ impl DarkModeGroup {
 
     fn handle(&mut self, msg: DarkModeMessage, clock: Clock) -> Task<DarkModeMessage> {
         match msg {
-            DarkModeMessage::ScheduleLoaded(delivery) => {
-                self.auto_switch_toggle
-                    .saved_schedule
-                    .receive_keeping_last_reading(delivery, clock);
-                let saved = self
-                    .auto_switch_toggle
-                    .saved_schedule
-                    .get()
-                    .copied()
-                    .unwrap_or_default();
+            DarkModeMessage::ScheduleLoaded(saved) => {
+                self.auto_switch_toggle.saved_schedule = saved;
                 for edge in [ColorMode::Light, ColorMode::Dark] {
                     let minutes =
                         time_delta_to_minutes(saved.sun_event_offsets.offset_for_mode(edge));
@@ -210,10 +211,12 @@ impl DarkModeGroup {
                 .update(m, clock)
                 .map(DarkModeMessage::ModeToggle),
             DarkModeMessage::ToggleAutoSwitch => {
-                self.auto_switch_toggle.toggle_auto_switch(clock);
+                self.auto_switch_toggle.toggle_auto_switch();
                 self.persist_saved_schedule()
             }
-            DarkModeMessage::OffsetSlider(edge, m) => self.update_offset_slider(edge, m, clock),
+            DarkModeMessage::OffsetSlider(edge, control_message) => {
+                self.update_offset_slider(edge, control_message)
+            }
             DarkModeMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -226,10 +229,9 @@ impl DarkModeGroup {
     fn update_offset_slider(
         &mut self,
         edge: ColorMode,
-        m: ControlMessage,
-        clock: Clock,
+        control_message: ControlMessage,
     ) -> Task<DarkModeMessage> {
-        match self.offset_slider_for_mut(edge).update(m) {
+        match self.offset_slider_for_mut(edge).update(control_message) {
             Action::Opened => {
                 self.offset_slider_for_mut(edge.opposite_mode()).close();
                 Task::none()
@@ -238,19 +240,11 @@ impl DarkModeGroup {
                 let offsets = self
                     .auto_switch_toggle
                     .saved_schedule
-                    .get()
-                    .copied()
-                    .unwrap_or_default()
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
-                self.auto_switch_toggle
-                    .change_sun_event_offsets(offsets, clock);
-                Task::future(dark_mode::save(
-                    self.auto_switch_toggle
-                        .saved_schedule
-                        .get()
-                        .copied()
-                        .unwrap_or_default(),
+                self.auto_switch_toggle.change_sun_event_offsets(offsets);
+                Task::future(dark_mode_schedule_store::save(
+                    self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |ok| {
                     DarkModeMessage::OffsetSlider(edge, ControlMessage::Persisted { value, ok })
@@ -277,12 +271,8 @@ impl DarkModeGroup {
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
-        Task::future(dark_mode::save(
-            self.auto_switch_toggle
-                .saved_schedule
-                .get()
-                .copied()
-                .unwrap_or_default(),
+        Task::future(dark_mode_schedule_store::save(
+            self.auto_switch_toggle.saved_schedule,
         ))
         .discard()
     }
@@ -305,7 +295,7 @@ impl DarkModeGroup {
     pub fn tooltip_for(&self, target: DarkModeTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             DarkModeTarget::Mode => self.mode_toggle.tooltip(clock),
-            DarkModeTarget::Schedule => self.auto_switch_toggle.schedule_tooltip(clock),
+            DarkModeTarget::Schedule => Some(self.auto_switch_toggle.schedule_tooltip(clock)),
             DarkModeTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
             DarkModeTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
         }

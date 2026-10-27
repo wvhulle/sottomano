@@ -11,10 +11,10 @@ workspace:
 - `sottomano-config/` holds the TOML config types and their loading.
 - `sottomano-sources/` holds the data sources and sinks the shell reads and
   writes.
-- `sottomano-state/` holds the runtime state the shell persists and restores.
-- `sottomano-widgets/` holds the widgets, widget groups, hover tooltips and the
-  `Message` they produce.
-- `sottomano-shell/` composes them into the running shell (binary `sottomano`).
+- `sottomano-widgets/` holds the widgets, widget groups and hover tooltips.
+  Each widget group restores and persists its own state.
+- `sottomano-shell/` composes them into the running shell (binary `sottomano`)
+  and defines the `Message` they produce.
 - `sottomano-widget-showcase/` plays widget fixtures for the tour recordings,
   the `.ice` scenarios and the windowed tester.
 
@@ -43,34 +43,39 @@ flowchart TB
 
   subgraph widgets_crate [sottomano-widgets]
     source_subscription["background_work::source_subscription"]
-    shell_message["Message (shell_message.rs)"]
-    source_subscription --> shell_message
+    widget_groups["widget groups<br>update, view"]
+    group_stores["group *_store modules<br>dark_mode_schedule_store, idle_timeouts_store,<br>focus_span_store, shell_settings_row, …"]
+    niri_kdl_rules["niri_window_group::niri_kdl_rules"]
+    widget_groups <-->|restore / persist| group_stores
+    widget_groups <--> niri_kdl_rules
   end
 
   subgraph shell_crate [sottomano-shell]
     run_shell["run_shell"]
+    shell_message["Message (shell_message.rs)"]
     message_subscriptions["message_subscriptions::subscription"]
     shell_update["DesktopShell::update"]
     shell_view["DesktopShell::view"]
+    app_launch_store["desktop_shell::app_launch_store"]
     layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, tooltips"]
     run_shell -->|startup load tasks| shell_update
+    shell_message --> message_subscriptions
     message_subscriptions --> shell_update
     shell_update -->|state| shell_view
     shell_view --> layer_surfaces
-  end
-
-  subgraph state_crate [sottomano-state]
-    saved_state_modules["dark_mode, launches, idle,<br>focus_spans, niri_rules, …"]
+    shell_update <-->|restore / persist| app_launch_store
   end
 
   sqlite_state_store[("$XDG_STATE_HOME/sottomano/state.db<br>via sqlite_state_store")]
+  niri_kdl_file[("$XDG_CONFIG_HOME/sottomano/niri.kdl<br>niri layer, layout and window rules")]
 
   config_loading --> run_shell
   desktop_bus & notification_server & niri_event_thread & wayland_outputs & file_watches --> message_subscriptions
   reading_sources -->|SourceDelivery| source_subscription
-  shell_message --> message_subscriptions
-  shell_update <-->|restore / persist| saved_state_modules
-  saved_state_modules <--> sqlite_state_store
+  source_subscription --> shell_message
+  shell_update <-->|group messages and tasks| widget_groups
+  group_stores & app_launch_store <--> sqlite_state_store
+  niri_kdl_rules <-->|read / rewrite| niri_kdl_file
 ```
 
 ## Building and checking
