@@ -7,7 +7,6 @@ use sottomano_state::WorkspacesPlacement;
 use sottomano_widgets::{
     background_work::niri_action,
     bar_slot_drag::{DragMessage, SlotClick},
-    shell_message::Message,
     widgets::{
         panel_frame::LayerFrameStyle,
         pointer_drag::{
@@ -17,7 +16,7 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep;
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub type ShellDrag = PointerDrag<SlotClick>;
 

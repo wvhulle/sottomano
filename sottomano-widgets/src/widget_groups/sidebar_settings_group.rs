@@ -8,7 +8,6 @@ use sottomano_state::{
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    shell_message::Message,
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -100,7 +99,7 @@ impl SidebarSettingsGroup {
         msg: SidebarSettingsMessage,
         shell_layout: &mut ShellLayout,
         sidebar: &mut LayerAppearance,
-    ) -> Task<Message> {
+    ) -> Task<SidebarSettingsMessage> {
         match msg {
             SidebarSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -118,7 +117,7 @@ impl SidebarSettingsGroup {
             SidebarSettingsMessage::Appearance(msg) => self
                 .appearance
                 .update(msg, sidebar)
-                .map(|msg| Message::SidebarSettings(SidebarSettingsMessage::Appearance(msg))),
+                .map(SidebarSettingsMessage::Appearance),
         }
     }
 

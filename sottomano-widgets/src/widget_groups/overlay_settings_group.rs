@@ -8,7 +8,6 @@ use sottomano_state::{
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    shell_message::Message,
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -20,8 +19,8 @@ use crate::{
 };
 
 pub enum Action {
-    Run(Task<Message>),
-    ReflowToasts(Task<Message>),
+    Run(Task<OverlaySettingsMessage>),
+    ReflowToasts(Task<OverlaySettingsMessage>),
 }
 
 fn toast_spatial_layout_toggle(notifications: NotificationSettings) -> IconToggle {
@@ -129,7 +128,7 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::Appearance(msg) => Action::Run(
                 self.appearance
                     .update(msg, overlays)
-                    .map(|msg| Message::OverlaySettings(OverlaySettingsMessage::Appearance(msg))),
+                    .map(OverlaySettingsMessage::Appearance),
             ),
         }
     }

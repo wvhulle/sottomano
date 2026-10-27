@@ -6,7 +6,6 @@ use sottomano_state::{
 };
 
 use crate::{
-    shell_message::Message,
     widget_groups::niri_window_group::NiriWindowMessage,
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -15,21 +14,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReheatDue(bool);
-
-impl ReheatDue {
-    #[must_use]
-    pub fn after(message: &Message) -> Self {
-        Self(matches!(
-            message,
-            Message::Niri(_)
-                | Message::SessionFocus(_)
-                | Message::NiriWindow(_)
-                | Message::NiriRulesLoaded(_)
-                | Message::Clock(_)
-        ))
-    }
-}
+pub struct ReheatDue(pub bool);
 
 #[derive(Debug, Default)]
 pub(super) struct SwitchHeatBorders {
@@ -37,10 +22,11 @@ pub(super) struct SwitchHeatBorders {
 }
 
 impl SwitchHeatBorders {
-    pub(super) fn load() -> Task<Message> {
-        Task::perform(switch_heat_borders::load_shown(), |shown| {
-            Message::NiriWindow(NiriWindowMessage::SwitchHeatLoaded(shown))
-        })
+    pub(super) fn load() -> Task<NiriWindowMessage> {
+        Task::perform(
+            switch_heat_borders::load_shown(),
+            NiriWindowMessage::SwitchHeatLoaded,
+        )
     }
 
     pub(super) fn toggle(&self) -> IconToggle {
@@ -56,7 +42,7 @@ impl SwitchHeatBorders {
         )
     }
 
-    pub(super) fn flip(&mut self) -> Task<Message> {
+    pub(super) fn flip(&mut self) -> Task<NiriWindowMessage> {
         self.shown = !self.shown;
         Task::future(switch_heat_borders::save_shown(self.shown)).discard()
     }
@@ -71,7 +57,7 @@ impl SwitchHeatBorders {
         rules: &mut NiriRulesFile,
         palette: &Palette,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
-    ) -> Task<Message> {
+    ) -> Task<NiriWindowMessage> {
         let ReheatDue(true) = due else {
             return Task::none();
         };

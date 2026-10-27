@@ -6,7 +6,7 @@ use sottomano_config::Config;
 use uom::si::ratio::ratio;
 
 use crate::{
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
     widgets::{
         palette_colors::PaletteColors,
         tooltip_body::{PhysicalCoreCells, ThreadCell},
@@ -28,14 +28,14 @@ impl<'a> CoreCellGrid<'a> {
     }
 
     #[must_use]
-    pub fn view(self) -> Element<'static, Message> {
+    pub fn view(self) -> Element<'static, PopupMessage> {
         let gap = self.config.layout.overlay.row_spacing / 2.0;
         Row::with_children(self.cores.iter().map(|core| self.core_cell(core)))
             .spacing(gap)
             .into()
     }
 
-    fn core_cell(&self, core: &PhysicalCoreCells) -> Element<'static, Message> {
+    fn core_cell(&self, core: &PhysicalCoreCells) -> Element<'static, PopupMessage> {
         let side = self.config.theme.font.text_size_px;
         let outline = PaletteColors::from(&self.config.theme.palette).inactive;
         let thread_height = side - 2.0 * OUTLINE_PX;
@@ -61,7 +61,7 @@ impl<'a> CoreCellGrid<'a> {
         .into()
     }
 
-    fn thread_column(&self, thread: ThreadCell, height: f32) -> Element<'static, Message> {
+    fn thread_column(&self, thread: ThreadCell, height: f32) -> Element<'static, PopupMessage> {
         let ink: Color =
             WidgetState::from(thread.level).color(&PaletteColors::from(&self.config.theme.palette));
         progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)

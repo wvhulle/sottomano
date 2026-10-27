@@ -4,16 +4,13 @@ use iced::{
     widget::{Row, column, container, mouse_area, row},
 };
 use sottomano_config::screen_edges::Position;
-use sottomano_widgets::{
-    shell_message::Message,
-    widgets::{
-        palette_colors::PaletteColors,
-        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
-        region_reporter::{RegionRoles, region_reporter},
-    },
+use sottomano_widgets::widgets::{
+    palette_colors::PaletteColors,
+    panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+    region_reporter::{RegionRoles, region_reporter},
 };
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
     pub(super) fn panel_bar<'a>(

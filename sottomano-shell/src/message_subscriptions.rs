@@ -20,7 +20,6 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     background_work::source_subscription,
-    shell_message::{Message, OutputChange},
     toast_messages::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
@@ -37,7 +36,10 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
 
-use crate::desktop_shell::{DesktopShell, focused_app_id};
+use crate::{
+    desktop_shell::{DesktopShell, focused_app_id},
+    shell_message::{Message, OutputChange},
+};
 
 fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
     let Some(connection) = wayland else {

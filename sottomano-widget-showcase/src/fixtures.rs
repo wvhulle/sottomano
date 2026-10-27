@@ -17,7 +17,9 @@ pub mod weather;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use sottomano_widgets::{clock::Clock, shell_message::Message};
+use sottomano_widgets::clock::Clock;
+
+use crate::showcase_message::ShowcaseMessage;
 
 pub const LIVE_INTERVAL: Duration = Duration::from_millis(1500);
 const SHOWCASE_EPOCH_UNIX_SECONDS: u64 = 1_781_517_600;
@@ -40,6 +42,6 @@ pub fn cycled<T: Copy>(values: &[T], tick: u32) -> T {
     values[usize::try_from(tick).unwrap_or_default() % values.len()]
 }
 
-pub fn unchanging(_clock: Clock) -> Vec<Message> {
+pub fn unchanging(_clock: Clock) -> Vec<ShowcaseMessage> {
     Vec::new()
 }

@@ -4,7 +4,6 @@ use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    shell_message::Message,
     widget_groups::{
         audio_group::{AudioTarget, ControlKind},
         caldav_group::CaldavTarget,
@@ -28,13 +27,14 @@ use crate::{
         memory_board, niri_session, notification_toasts, unchanging, voice_dictation, vpn,
         wallpaper, weather,
     },
+    showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
 };
 
 pub struct Demo {
     pub name: &'static str,
     pub group: fn(Clock) -> ShowcasedGroup,
-    pub live: fn(Clock) -> Vec<Message>,
+    pub live: fn(Clock) -> Vec<ShowcaseMessage>,
     pub script: &'static [Step],
 }
 

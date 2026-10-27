@@ -5,7 +5,10 @@ use iced_exwlshell::reexport::KeyboardInteractivity;
 use sottomano_sources::desktop_notifications::notification_data::{Outbound, close_reason};
 
 use super::{NotificationLayer, ToastContext, toast_lifecycle::ExitPace};
-use crate::{shell_message::Message, toast_messages::ReplyMessage};
+use crate::{
+    layer_surfaces::SurfaceRequest, notification_toasts::ToastLayerHost,
+    toast_messages::ReplyMessage,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ReplyFocus {
@@ -17,14 +20,14 @@ pub enum ReplyFocus {
     Idle,
 }
 
-impl NotificationLayer {
+impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
     pub(super) fn update_reply(
         &mut self,
         id: u32,
         message: ReplyMessage,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
         context: &ToastContext,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         match message {
             ReplyMessage::PointerEntered => self.claim_keyboard(id, toast_surface_on),
             ReplyMessage::PointerLeft if self.draft_of(id).is_empty() => self.release_keyboard(),
@@ -40,7 +43,7 @@ impl NotificationLayer {
         }
     }
 
-    pub(super) fn release_orphaned_keyboard(&mut self) -> Task<Message> {
+    pub(super) fn release_orphaned_keyboard(&mut self) -> Task<Routed> {
         match self.reply_focus {
             ReplyFocus::Typing { id, .. } if !self.showing().any(|n| n.data.id == id) => {
                 self.release_keyboard()
@@ -60,7 +63,7 @@ impl NotificationLayer {
         &mut self,
         id: u32,
         toast_surface_on: &dyn Fn(&str) -> Option<Id>,
-    ) -> Task<Message> {
+    ) -> Task<Routed> {
         if matches!(self.reply_focus, ReplyFocus::Typing { id: typing, .. } if typing == id) {
             return Task::none();
         }
@@ -80,7 +83,7 @@ impl NotificationLayer {
         ])
     }
 
-    fn release_keyboard(&mut self) -> Task<Message> {
+    fn release_keyboard(&mut self) -> Task<Routed> {
         match mem::take(&mut self.reply_focus) {
             ReplyFocus::Typing { toast_surface, .. } => {
                 keyboard_interactivity(toast_surface, KeyboardInteractivity::None)
@@ -89,7 +92,7 @@ impl NotificationLayer {
         }
     }
 
-    fn submit_reply(&mut self, id: u32, context: &ToastContext) -> Task<Message> {
+    fn submit_reply(&mut self, id: u32, context: &ToastContext) -> Task<Routed> {
         let text = self
             .live
             .iter_mut()
@@ -120,12 +123,12 @@ impl NotificationLayer {
     }
 }
 
-fn keyboard_interactivity(
+fn keyboard_interactivity<Routed: ToastLayerHost>(
     toast_surface: Id,
     interactivity: KeyboardInteractivity,
-) -> Task<Message> {
-    Task::done(Message::KeyboardInteractivityChange {
-        id: toast_surface,
-        keyboard_interactivity: interactivity,
-    })
+) -> Task<Routed> {
+    Task::done(Routed::from(SurfaceRequest::KeyboardInteractivity {
+        surface: toast_surface,
+        interactivity,
+    }))
 }

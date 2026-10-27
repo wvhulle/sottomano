@@ -17,7 +17,6 @@ use sottomano_sources::desktop_notifications::notification_data::{
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
     hover_tooltips::HoverTarget,
-    shell_message::Message,
     widgets::{
         announced_level::LevelReading,
         bar_widget::Glyph,
@@ -52,8 +51,8 @@ impl From<u32> for ExitPace {
     }
 }
 
-pub enum BodyClick {
-    Shell(Box<Message>),
+pub enum BodyClick<Routed> {
+    Shell(Box<Routed>),
     DbusDefaultAction,
 }
 
@@ -66,7 +65,7 @@ pub enum EventSource {
     },
 }
 
-pub enum ToastKind {
+pub enum ToastKind<Routed> {
     Event {
         at: SystemTime,
         source: EventSource,
@@ -74,11 +73,11 @@ pub enum ToastKind {
     Ongoing {
         key: OngoingKey,
         since: SystemTime,
-        action_messages: Vec<Message>,
+        action_messages: Vec<Routed>,
     },
 }
 
-impl ToastKind {
+impl<Routed> ToastKind<Routed> {
     pub(super) fn is_from_dbus_client(&self) -> bool {
         matches!(
             self,
@@ -104,13 +103,13 @@ impl ToastKind {
     }
 }
 
-pub struct ToastContent {
+pub struct ToastContent<Routed> {
     pub data: NotificationData,
-    pub kind: ToastKind,
-    pub body_click: BodyClick,
+    pub kind: ToastKind<Routed>,
+    pub body_click: BodyClick<Routed>,
 }
 
-impl ToastContent {
+impl<Routed> ToastContent<Routed> {
     pub(super) fn from_dbus_client(data: NotificationData, at: SystemTime) -> Self {
         Self {
             data,
@@ -124,7 +123,7 @@ impl ToastContent {
 
     pub(super) fn shell_failure(
         data: NotificationData,
-        on_body_clicked: Message,
+        on_body_clicked: Routed,
         at: SystemTime,
     ) -> Self {
         Self {
@@ -138,7 +137,7 @@ impl ToastContent {
     }
 
     pub(super) fn level_announcement(
-        reading: LevelReading<Message>,
+        reading: LevelReading<Routed>,
         toast_id: u32,
         at: SystemTime,
     ) -> Self {
@@ -155,7 +154,7 @@ impl ToastContent {
         }
     }
 
-    pub(super) fn ongoing(toast: OngoingToast<Message>, toast_id: u32) -> Self {
+    pub(super) fn ongoing(toast: OngoingToast<Routed>, toast_id: u32) -> Self {
         Self {
             data: toast.toast_notification_data(toast_id),
             kind: ToastKind::Ongoing {
@@ -172,10 +171,10 @@ impl ToastContent {
     }
 }
 
-pub struct Notification {
+pub struct Notification<Routed> {
     pub data: NotificationData,
-    pub kind: ToastKind,
-    pub body_click: BodyClick,
+    pub kind: ToastKind<Routed>,
+    pub body_click: BodyClick<Routed>,
     pub icons: CardIcons,
     pub(super) place: ToastPlacement,
     pub(super) countdown: Option<Countdown>,
@@ -185,13 +184,13 @@ pub struct Notification {
     slot: Animation<bool>,
 }
 
-impl Notification {
+impl<Routed> Notification<Routed> {
     pub(super) fn appearing(
         ToastContent {
             data,
             kind,
             body_click,
-        }: ToastContent,
+        }: ToastContent<Routed>,
         icons: CardIcons,
         countdown: Option<Countdown>,
         seq: u64,
@@ -219,7 +218,7 @@ impl Notification {
             data,
             kind,
             body_click,
-        }: ToastContent,
+        }: ToastContent<Routed>,
         icons: CardIcons,
         countdown: Option<Countdown>,
         place: ToastPlacement,
@@ -243,7 +242,7 @@ impl Notification {
         }
     }
 
-    pub(super) fn already_shows(&self, toast: &OngoingToast<Message>) -> bool {
+    pub(super) fn already_shows(&self, toast: &OngoingToast<Routed>) -> bool {
         self.shows_ongoing(&toast.key)
             && self.data.severity >= toast.severity
             && self.data.body == toast.body

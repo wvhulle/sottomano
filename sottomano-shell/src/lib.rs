@@ -1,6 +1,7 @@
 mod command_line;
 mod desktop_shell;
 mod message_subscriptions;
+mod shell_message;
 
 use std::{error::Error, sync::Arc};
 

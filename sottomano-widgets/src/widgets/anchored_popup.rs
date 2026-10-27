@@ -18,7 +18,7 @@ use sottomano_config::{Config, screen_edges::Position};
 use sottomano_state::ShellSettings;
 
 use crate::{
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
     widgets::{
         child_view::{ChildView, ChildViewMut},
         palette_colors::PaletteColors,
@@ -41,13 +41,13 @@ impl PopupFrame {
 }
 
 pub struct Rendering<'a> {
-    element: Element<'a, Message>,
+    element: Element<'a, PopupMessage>,
     incoming: bool,
 }
 
 impl<'a> Rendering<'a> {
     #[must_use]
-    pub fn incoming(element: Element<'a, Message>) -> Self {
+    pub fn incoming(element: Element<'a, PopupMessage>) -> Self {
         Self {
             element,
             incoming: true,
@@ -55,7 +55,7 @@ impl<'a> Rendering<'a> {
     }
 
     #[must_use]
-    pub fn outgoing(element: Element<'a, Message>) -> Self {
+    pub fn outgoing(element: Element<'a, PopupMessage>) -> Self {
         Self {
             element,
             incoming: false,
@@ -71,7 +71,7 @@ pub fn anchored_popup<'a>(
     seq: u64,
     config: &Config,
     settings: &ShellSettings,
-) -> Element<'a, Message> {
+) -> Element<'a, PopupMessage> {
     let background = PaletteColors::from(&config.theme.palette)
         .surface
         .scale_alpha(settings.overlays.opacity);
@@ -180,7 +180,7 @@ impl<'a> AnchoredPopup<'a> {
         }
     }
 
-    fn child_elements(&self) -> Vec<&Element<'a, Message>> {
+    fn child_elements(&self) -> Vec<&Element<'a, PopupMessage>> {
         self.renderings
             .iter()
             .map(|rendering| &rendering.element)
@@ -214,7 +214,7 @@ impl<'a> AnchoredPopup<'a> {
         &'t self,
         tree: &'t Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, Message>> {
+    ) -> impl DoubleEndedIterator<Item = ChildView<'t, 'a, PopupMessage>> {
         self.renderings
             .iter()
             .zip(&tree.children)
@@ -230,7 +230,7 @@ impl<'a> AnchoredPopup<'a> {
         &'t mut self,
         tree: &'t mut Tree,
         layout: Layout<'t>,
-    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, Message>> {
+    ) -> impl DoubleEndedIterator<Item = ChildViewMut<'t, 'a, PopupMessage>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children)
@@ -295,7 +295,7 @@ impl<'a> AnchoredPopup<'a> {
         &'t mut self,
         tree: &'t mut Tree,
         layout: Layout<'t>,
-    ) -> Option<ChildViewMut<'t, 'a, Message>> {
+    ) -> Option<ChildViewMut<'t, 'a, PopupMessage>> {
         self.renderings
             .iter_mut()
             .zip(&mut tree.children)
@@ -309,7 +309,7 @@ impl<'a> AnchoredPopup<'a> {
     }
 }
 
-impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
+impl Widget<PopupMessage, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<MorphState>()
     }
@@ -501,7 +501,7 @@ impl Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_> {
         cursor: Cursor,
         renderer: &iced::Renderer,
         clipboard: &mut dyn Clipboard,
-        shell: &mut Shell<'_, Message>,
+        shell: &mut Shell<'_, PopupMessage>,
         viewport: &Rectangle,
     ) {
         if let Some(rendering) = self.live_view(tree, layout) {

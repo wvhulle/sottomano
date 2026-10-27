@@ -8,13 +8,12 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::desktop_notifications::notification_data::{
     ActionTint, ExpireTimeout, NotifAction, NotificationData,
 };
-use sottomano_widgets::{
-    clock::Clock, shell_message::Message, toast_messages::NotificationMessage,
-};
+use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     fixtures::sample,
+    showcase_message::ShowcaseMessage,
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts},
 };
 
@@ -84,9 +83,9 @@ pub fn next_to_window(clock: Clock) -> ShowcasedGroup {
     )
 }
 
-pub fn downloading(clock: Clock) -> Vec<Message> {
+pub fn downloading(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    vec![Message::Notification(NotificationMessage::Served(
+    vec![ShowcaseMessage::Notification(NotificationMessage::Served(
         Box::new(download(tick)),
     ))]
 }

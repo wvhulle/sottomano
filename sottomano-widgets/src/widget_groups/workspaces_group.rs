@@ -14,7 +14,6 @@ use self::{inline_strip::inline_label, workspace_slot::SlotTone};
 use crate::{
     bar_slot_drag::{DragMessage, SlotDragEvent},
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
-    shell_message::Message,
     widgets::{
         glyph_button,
         palette_colors::PaletteColors,
@@ -31,16 +30,6 @@ pub enum WorkspacesMessage {
     Tooltip(TooltipMessage),
     Drag(DragMessage),
     RestoreOrder { output: String },
-}
-
-impl From<WorkspacesMessage> for Message {
-    fn from(message: WorkspacesMessage) -> Self {
-        match message {
-            WorkspacesMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
-            WorkspacesMessage::Drag(drag) => Message::PointerDrag(drag),
-            WorkspacesMessage::RestoreOrder { output } => Message::RestoreWorkspaceOrder { output },
-        }
-    }
 }
 
 #[must_use]

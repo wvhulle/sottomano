@@ -10,12 +10,11 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    shell_message::Message,
     widget_groups::claude_usage_group::{ClaudeUsageGroup, ClaudeUsageMessage},
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
-use crate::{fixtures::sample, showcased_group::ShowcasedGroup};
+use crate::{fixtures::sample, showcase_message::ShowcaseMessage, showcased_group::ShowcasedGroup};
 
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = ClaudeUsageGroup::new(None);
@@ -23,9 +22,11 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::ClaudeUsage(Box::new(group))
 }
 
-pub fn live(clock: Clock) -> Vec<Message> {
+pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
-    vec![Message::ClaudeUsage(usage_windows_delivered(tick, clock))]
+    vec![ShowcaseMessage::ClaudeUsage(usage_windows_delivered(
+        tick, clock,
+    ))]
 }
 
 fn usage_windows_delivered(tick: u32, clock: Clock) -> ClaudeUsageMessage {

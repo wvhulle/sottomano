@@ -133,8 +133,8 @@ fn icon_file(name: &str) -> Option<PathBuf> {
         .ok()
 }
 
-pub struct ToastCard<'a> {
-    notif: &'a Notification,
+pub struct ToastCard<'a, Routed> {
+    notif: &'a Notification<Routed>,
     config: &'a Config,
     theme: &'a Theme,
     settings: &'a ShellSettings,
@@ -143,9 +143,9 @@ pub struct ToastCard<'a> {
     reveal: f32,
 }
 
-impl<'a> ToastCard<'a> {
+impl<'a, Routed> ToastCard<'a, Routed> {
     pub fn new(
-        notif: &'a Notification,
+        notif: &'a Notification<Routed>,
         config: &'a Config,
         theme: &'a Theme,
         settings: &'a ShellSettings,
@@ -175,8 +175,8 @@ impl<'a> ToastCard<'a> {
     }
 }
 
-impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
-    fn from(card: ToastCard<'_>) -> Self {
+impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
+    fn from(card: ToastCard<'_, Routed>) -> Self {
         let id = card.notif.data.id;
         let style = card.style();
         let text = style.text_color.unwrap_or_default();
@@ -207,7 +207,7 @@ impl From<ToastCard<'_>> for Element<'_, NotificationMessage> {
     }
 }
 
-impl ToastCard<'_> {
+impl<Routed> ToastCard<'_, Routed> {
     fn style(&self) -> container::Style {
         let palette = self.theme.extended_palette();
         let hovered = self.hovered;
@@ -242,7 +242,7 @@ impl ToastCard<'_> {
     }
 }
 
-impl ToastCard<'_> {
+impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str, text: Color) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
         MarkupBody::new(body, font, text)

@@ -33,7 +33,8 @@ use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
     demo_script::{Demo, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget},
-    showcase_program::{ShowcaseMessage, ShowcaseProgram},
+    showcase_message::ShowcaseMessage,
+    showcase_program::ShowcaseProgram,
     tour_document_embedding::RecordedAnimation,
 };
 

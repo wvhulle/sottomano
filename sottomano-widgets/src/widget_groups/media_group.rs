@@ -19,8 +19,8 @@ use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
-    shell_message::AppWindowFocus,
     widgets::{
+        app_window_focus::AppWindowFocus,
         confirm_button::{ConfirmButton, Press},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,

@@ -5,8 +5,7 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_tooltips::on_surface,
-    shell_message::Message,
+    hover_tooltips::TooltipMessage,
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
         DraggedBarSlot,
@@ -14,7 +13,29 @@ use sottomano_widgets::{
     },
 };
 
-use crate::desktop_shell::DesktopShell;
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
+
+fn anchor_tooltips_on_surface(
+    surface: Id,
+    position: Position,
+    origin_in_overlay: Vector,
+    content: Element<'_, Message>,
+) -> Element<'_, Message> {
+    content.map(move |message| match message {
+        Message::Tooltip(TooltipMessage::EnterAnchor {
+            target,
+            anchor,
+            press_hints,
+        }) => Message::Tooltip(TooltipMessage::Enter {
+            surface,
+            position,
+            target,
+            anchor: anchor + origin_in_overlay,
+            press_hints,
+        }),
+        unanchored => unanchored,
+    })
+}
 
 impl DesktopShell {
     pub(super) fn monitor_layout<'a>(
@@ -24,7 +45,8 @@ impl DesktopShell {
     ) -> Element<'a, Message> {
         let float = self.shell_settings.layout.float_offset_px;
         let origin = Vector::new(-float, -float);
-        let on_edge = |position, content| on_surface(window, position, origin, content);
+        let on_edge =
+            |position, content| anchor_tooltips_on_surface(window, position, origin, content);
         let workspace_sidebar = container(on_edge(
             Position::Left,
             self.workspace_sidebar(window, output),

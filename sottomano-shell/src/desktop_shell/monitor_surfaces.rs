@@ -6,12 +6,12 @@ use sottomano_sources::{
     blocking_background_work::blocking, desktop_windows_apps::niri_output_facts,
 };
 use sottomano_state::niri_rules::StyledSurface;
-use sottomano_widgets::{
-    layer_surfaces::{base_settings, input_regions},
+use sottomano_widgets::layer_surfaces::{base_settings, input_regions};
+
+use crate::{
+    desktop_shell::DesktopShell,
     shell_message::{Message, OutputChange},
 };
-
-use crate::desktop_shell::DesktopShell;
 
 trait EdgeStripLayer {
     fn anchor(self) -> Anchor;
@@ -223,7 +223,7 @@ impl DesktopShell {
                 settings: panel_settings(output),
                 id: panel,
             }),
-            Task::done(input_regions(panel, Vec::new())),
+            Task::done(input_regions(panel, Vec::new()).into()),
         ];
         for position in Position::ALL {
             let id = Id::unique();
@@ -257,7 +257,7 @@ impl DesktopShell {
                 settings: notification_toasts_settings(output),
                 id,
             }),
-            Task::done(input_regions(id, Vec::new())),
+            Task::done(input_regions(id, Vec::new()).into()),
         ])
     }
 
@@ -299,7 +299,7 @@ impl DesktopShell {
             self.open_panel_and_reservations(output),
             self.open_notification_toasts_surface(output),
         ];
-        opens.push(self.tooltip.open_surface(output));
+        opens.push(self.tooltip.open_surface(output).map(Message::from));
         opens.extend(
             Position::BARS
                 .into_iter()

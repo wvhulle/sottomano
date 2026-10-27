@@ -54,7 +54,6 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     hover_tooltips::TooltipHost,
     notification_toasts::{NotificationLayer, ToastContext},
-    shell_message::{AppWindowFocus, Message},
     widget_groups::{
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
@@ -96,14 +95,18 @@ use sottomano_widgets::{
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
-        continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
-        text::FontFaces, tooltip_body::Tooltip, window_icon::WindowAssets,
+        app_window_focus::AppWindowFocus, continuous_reading::ContinuousReading, favicon::Favicons,
+        palette_colors::PaletteColors, text::FontFaces, tooltip_body::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
-use crate::desktop_shell::{
-    monitor_surfaces::{Surface, SurfaceRole, query_outputs},
-    pointer_drag::ShellDrag,
+use crate::{
+    desktop_shell::{
+        monitor_surfaces::{Surface, SurfaceRole, query_outputs},
+        pointer_drag::ShellDrag,
+    },
+    shell_message::Message,
 };
 
 pub struct DesktopShell {
@@ -161,7 +164,7 @@ pub struct DesktopShell {
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
     pub tooltip: TooltipHost,
-    pub notifications: NotificationLayer,
+    pub notifications: NotificationLayer<Message>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
@@ -262,7 +265,7 @@ impl DesktopShell {
             IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
             Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
             Task::perform(shell.niri_rules.read(), Message::NiriRulesLoaded),
-            NiriWindowGroup::load(),
+            NiriWindowGroup::load().map(Message::NiriWindow),
             Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),
@@ -283,16 +286,17 @@ impl DesktopShell {
         self.clock = Clock::real();
         let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
-        let reheat_due = ReheatDue::after(&message);
+        let reheat_due = reheat_due_after(&message);
         let dispatched = self.dispatch_message(message);
         self.session_focus_group
             .refresh_daily_totals(&self.config.widget_groups.focus_time, self.clock);
-        let reheated =
-            self.niri_window_group
-                .reheat(reheat_due, &mut self.niri_rules, &self.config, || {
-                    self.session_focus_group
-                        .heated_windows(&self.niri, &self.config, self.clock)
-                });
+        let reheated = self
+            .niri_window_group
+            .reheat(reheat_due, &mut self.niri_rules, &self.config, || {
+                self.session_focus_group
+                    .heated_windows(&self.niri, &self.config, self.clock)
+            })
+            .map(Message::NiriWindow);
         let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
             Task::none()
         } else {
@@ -384,13 +388,19 @@ impl DesktopShell {
             Message::Gpu(msg) => self.gpu_group.update(msg, self.clock).map(Message::Gpu),
             Message::Disk(msg) => self.disk_group.update(msg, self.clock).map(Message::Disk),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
-            Message::SidebarSettings(msg) => self.sidebar_settings_group.update(
-                msg,
-                &mut self.shell_settings.layout,
-                &mut self.shell_settings.sidebar,
-            ),
+            Message::SidebarSettings(msg) => self
+                .sidebar_settings_group
+                .update(
+                    msg,
+                    &mut self.shell_settings.layout,
+                    &mut self.shell_settings.sidebar,
+                )
+                .map(Message::SidebarSettings),
             Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
-            Message::NiriWindow(msg) => self.niri_window_group.update(msg, &mut self.niri_rules),
+            Message::NiriWindow(msg) => self
+                .niri_window_group
+                .update(msg, &mut self.niri_rules)
+                .map(Message::NiriWindow),
             Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
             Message::Clock(msg) => self.clock_group.update(msg, self.clock).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
@@ -577,9 +587,9 @@ impl DesktopShell {
             &mut self.shell_settings.notifications,
             &mut self.shell_settings.overlays,
         ) {
-            overlay_settings_group::Action::Run(task) => task,
+            overlay_settings_group::Action::Run(task) => task.map(Message::OverlaySettings),
             overlay_settings_group::Action::ReflowToasts(task) => {
-                Task::batch([self.reflow_toasts(), task])
+                Task::batch([self.reflow_toasts(), task.map(Message::OverlaySettings)])
             }
         }
     }
@@ -951,8 +961,10 @@ impl DesktopShell {
             &mut self.shell_settings.layout,
             &mut self.shell_settings.panels,
         ) {
-            panel_settings_group::Action::Run(task) => task,
-            panel_settings_group::Action::Reflow(task) => Task::batch([self.reserve(), task]),
+            panel_settings_group::Action::Run(task) => task.map(Message::PanelSettings),
+            panel_settings_group::Action::Reflow(task) => {
+                Task::batch([self.reserve(), task.map(Message::PanelSettings)])
+            }
         }
     }
 
@@ -975,7 +987,7 @@ impl DesktopShell {
             |target| self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
             self.clock,
         ) {
-            return tooltip;
+            return tooltip.map(Message::from);
         }
         let blank = || Space::new().width(Length::Fill).height(Length::Fill);
         if self.backdrops.contains_key(&window) {
@@ -1024,4 +1036,15 @@ pub(crate) fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
         .values()
         .find(|window| window.is_focused)
         .and_then(|window| window.app_id.as_deref())
+}
+
+fn reheat_due_after(message: &Message) -> ReheatDue {
+    ReheatDue(matches!(
+        message,
+        Message::Niri(_)
+            | Message::SessionFocus(_)
+            | Message::NiriWindow(_)
+            | Message::NiriRulesLoaded(_)
+            | Message::Clock(_)
+    ))
 }

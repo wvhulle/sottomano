@@ -8,7 +8,6 @@ pub use self::switch_heat_borders::ReheatDue;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    shell_message::Message,
     widget_groups::niri_window_group::switch_heat_borders::SwitchHeatBorders,
     widgets::{
         group_item::GroupItem,
@@ -90,7 +89,7 @@ impl Default for NiriWindowGroup {
 }
 
 impl NiriWindowGroup {
-    pub fn load() -> Task<Message> {
+    pub fn load() -> Task<NiriWindowMessage> {
         SwitchHeatBorders::load()
     }
 
@@ -100,7 +99,7 @@ impl NiriWindowGroup {
         rules: &mut NiriRulesFile,
         config: &Config,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
-    ) -> Task<Message> {
+    ) -> Task<NiriWindowMessage> {
         self.switch_heat
             .reheat(due, rules, &config.theme.palette, heated_windows)
     }
@@ -147,7 +146,11 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn update(&mut self, msg: NiriWindowMessage, rules: &mut NiriRulesFile) -> Task<Message> {
+    pub fn update(
+        &mut self,
+        msg: NiriWindowMessage,
+        rules: &mut NiriRulesFile,
+    ) -> Task<NiriWindowMessage> {
         match msg {
             NiriWindowMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -162,9 +165,7 @@ impl NiriWindowGroup {
                 Task::perform(
                     rules.restyle(move |styling| styling.layout.window_corner_radius_px = value),
                     move |ok| {
-                        Message::NiriWindow(NiriWindowMessage::CornerRadius(
-                            ControlMessage::Persisted { value, ok },
-                        ))
+                        NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
                     },
                 )
             }
@@ -174,12 +175,7 @@ impl NiriWindowGroup {
                 };
                 Task::perform(
                     rules.restyle(move |styling| styling.layout.gaps_px = value),
-                    move |ok| {
-                        Message::NiriWindow(NiriWindowMessage::Gaps(ControlMessage::Persisted {
-                            value,
-                            ok,
-                        }))
-                    },
+                    move |ok| NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok }),
                 )
             }
             NiriWindowMessage::ToggleXray => {

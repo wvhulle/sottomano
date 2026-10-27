@@ -20,7 +20,6 @@ use sottomano_widgets::{
     hover_tooltips::{TooltipHost, TooltipMessage},
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, ToastContext},
-    shell_message::Message,
     toast_messages::NotificationMessage,
     widgets::{
         favicon::Favicons,
@@ -37,6 +36,7 @@ use crate::{
     demo_script::{DEMOS, Demo},
     fixtures::{sample, showcase_epoch},
     scripted_frames::scripted_frames,
+    showcase_message::ShowcaseMessage,
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
 };
 
@@ -45,18 +45,6 @@ pub fn booting_clock() -> Clock {
     Clock {
         wall: showcase_epoch(),
         ..Clock::real()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ShowcaseMessage {
-    Frame(Clock),
-    Shell(Box<Message>),
-}
-
-impl From<Message> for ShowcaseMessage {
-    fn from(message: Message) -> Self {
-        ShowcaseMessage::Shell(Box::new(message))
     }
 }
 
@@ -118,7 +106,7 @@ pub struct ShowcaseState {
     theme: Theme,
     group: ShowcasedGroup,
     tooltip: TooltipHost,
-    notifications: NotificationLayer,
+    notifications: NotificationLayer<ShowcaseMessage>,
     clock: Clock,
     booted_at: Clock,
     delivered_sample: u32,
@@ -133,8 +121,8 @@ impl ShowcaseState {
         shell_settings.notifications.sound = false;
         let group = (demo.group)(clock);
         let opening_toasts = Task::batch(group.opening_toasts().iter().map(|toast| {
-            Task::done(ShowcaseMessage::from(Message::Notification(
-                NotificationMessage::Served(Box::new(toast.clone())),
+            Task::done(ShowcaseMessage::Notification(NotificationMessage::Served(
+                Box::new(toast.clone()),
             )))
         }));
         let state = ShowcaseState {
@@ -155,9 +143,9 @@ impl ShowcaseState {
         (state, opening_toasts)
     }
 
-    fn update_shell(&mut self, message: Message) -> Task<ShowcaseMessage> {
+    fn route_message(&mut self, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
-            Message::Tooltip(TooltipMessage::EnterAnchor {
+            ShowcaseMessage::Tooltip(TooltipMessage::EnterAnchor {
                 target,
                 anchor,
                 press_hints,
@@ -167,20 +155,18 @@ impl ShowcaseState {
                 self.tooltip.open(&panel_edge, target, anchor, press_hints);
                 Task::none()
             }
-            Message::Tooltip(message) => {
+            ShowcaseMessage::Tooltip(message) => {
                 let _hide_due = self.tooltip.update(message, self.clock.instant);
                 Task::none()
             }
-            Message::TooltipHideElapsed => {
+            ShowcaseMessage::TooltipHideElapsed => {
                 let departing = self
                     .shown_tooltip()
                     .and_then(|content| self.tooltip.departure(content));
                 self.tooltip.leave_elapsed(self.clock.instant, departing);
                 Task::none()
             }
-            Message::Notification(message) => {
-                self.update_notification(message).map(ShowcaseMessage::from)
-            }
+            ShowcaseMessage::Notification(message) => self.update_notification(message),
             other => {
                 self.group.update(other, self.clock);
                 Task::none()
@@ -198,7 +184,7 @@ impl ShowcaseState {
         if sample(clock) > self.delivered_sample {
             self.delivered_sample = sample(clock);
             for reading in (self.demo.live)(clock) {
-                tasks.push(self.update_shell(reading));
+                tasks.push(self.route_message(reading));
             }
         }
         if self
@@ -206,19 +192,21 @@ impl ShowcaseState {
             .hide_due()
             .is_some_and(|due| due <= clock.instant)
         {
-            tasks.push(self.update_shell(Message::TooltipHideElapsed));
+            tasks.push(self.route_message(ShowcaseMessage::TooltipHideElapsed));
         }
         if self
             .notifications
             .next_expiry()
             .is_some_and(|due| due <= clock.instant)
         {
-            tasks.push(self.update_shell(Message::Notification(NotificationMessage::ExpiryDue)));
+            tasks.push(self.route_message(ShowcaseMessage::Notification(
+                NotificationMessage::ExpiryDue,
+            )));
         }
         Task::batch(tasks)
     }
 
-    fn toast_layer(&self) -> Element<'_, Message> {
+    fn toast_layer(&self) -> Element<'_, ShowcaseMessage> {
         Element::from(self.notifications.anchored_toasts(
             SHOWCASE_OUTPUT,
             &self.config,
@@ -227,10 +215,10 @@ impl ShowcaseState {
             Padding::ZERO,
             self.clock,
         ))
-        .map(Message::Notification)
+        .map(ShowcaseMessage::Notification)
     }
 
-    fn update_notification(&mut self, message: NotificationMessage) -> Task<Message> {
+    fn update_notification(&mut self, message: NotificationMessage) -> Task<ShowcaseMessage> {
         let unplaced = EventStreamState::default();
         let context = ToastContext::new(
             self.group.niri().unwrap_or(&unplaced),
@@ -256,7 +244,7 @@ impl ShowcaseState {
         }
     }
 
-    fn group_strip(&self) -> Element<'_, Message> {
+    fn group_strip(&self) -> Element<'_, ShowcaseMessage> {
         let panel = &self.config.layout.panel;
         let position = self.group.position();
         let layer = match position {
@@ -292,24 +280,26 @@ impl ShowcaseState {
         }
     }
 
-    fn tooltip_layer(&self) -> Option<Element<'_, Message>> {
+    fn tooltip_layer(&self) -> Option<Element<'_, ShowcaseMessage>> {
         let surface = self.tooltip.surface_on(SHOWCASE_OUTPUT)?;
-        self.tooltip.view(
-            surface,
-            &self.config,
-            &self.shell_settings,
-            WindowAssets {
-                entries: &self.desktop_entries,
-                favicons: &self.favicons,
-                controller_artwork: &self.controller_artwork,
-            },
-            |target| {
-                self.group
-                    .tooltip_for(target, &self.config, self.clock)
-                    .unwrap_or_else(Tooltip::empty)
-            },
-            self.clock,
-        )
+        self.tooltip
+            .view(
+                surface,
+                &self.config,
+                &self.shell_settings,
+                WindowAssets {
+                    entries: &self.desktop_entries,
+                    favicons: &self.favicons,
+                    controller_artwork: &self.controller_artwork,
+                },
+                |target| {
+                    self.group
+                        .tooltip_for(target, &self.config, self.clock)
+                        .unwrap_or_else(Tooltip::empty)
+                },
+                self.clock,
+            )
+            .map(|popup| popup.map(ShowcaseMessage::from))
     }
 }
 
@@ -351,7 +341,7 @@ impl Program for ShowcaseProgram {
     fn update(&self, state: &mut ShowcaseState, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
             ShowcaseMessage::Frame(clock) => state.advance_frame(clock),
-            ShowcaseMessage::Shell(message) => state.update_shell(*message),
+            routed => state.route_message(routed),
         }
     }
 
@@ -381,7 +371,7 @@ impl Program for ShowcaseProgram {
         )
         .width(Length::Fill)
         .height(Length::Fill);
-        scripted_frames(state.clock.instant, layers).map(ShowcaseMessage::from)
+        scripted_frames(state.clock.instant, layers)
     }
 
     fn subscription(&self, _state: &ShowcaseState) -> Subscription<ShowcaseMessage> {

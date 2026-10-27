@@ -5,7 +5,6 @@ pub mod desktop_index;
 pub mod hover_tooltips;
 pub mod layer_surfaces;
 pub mod notification_toasts;
-pub mod shell_message;
 pub mod toast_messages;
 pub mod widget_groups;
 pub mod widgets;

@@ -21,7 +21,8 @@ use sottomano_sources::{
         notification_data::{NotificationData, Outbound},
     },
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, niri_window_placement::Placement,
+        desktop_entry_app_icons::DesktopEntries, niri_action_requests::ActionFailure,
+        niri_window_placement::Placement,
     },
 };
 use sottomano_state::ShellSettings;
@@ -35,7 +36,8 @@ use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     clock::Clock,
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
+    layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
     widgets::{announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y},
 };
@@ -72,25 +74,62 @@ impl<'a> ToastContext<'a> {
     }
 }
 
+pub trait ToastLayerHost:
+    Clone
+    + Send
+    + 'static
+    + From<PopupMessage>
+    + From<SurfaceRequest>
+    + From<NotificationMessage>
+    + From<ActionFailure>
+{
+}
+
+impl<Routed> ToastLayerHost for Routed where
+    Routed: Clone
+        + Send
+        + 'static
+        + From<PopupMessage>
+        + From<SurfaceRequest>
+        + From<NotificationMessage>
+        + From<ActionFailure>
+{
+}
+
 pub(super) struct SnoozedOngoingToast {
     key: OngoingKey,
     snoozed_at: Severity,
 }
 
-#[derive(Default)]
-pub struct NotificationLayer {
+pub struct NotificationLayer<Routed> {
     outbound: Option<mpsc::Sender<Outbound>>,
     sound_theme: SoundTheme,
-    live: Vec<Notification>,
+    live: Vec<Notification<Routed>>,
     held: Vec<NotificationData>,
     next_seq: u64,
     hovered: Option<u32>,
     reply_focus: ReplyFocus,
     snoozed: Vec<SnoozedOngoingToast>,
-    previous_levels: Vec<LevelReading<Message>>,
+    previous_levels: Vec<LevelReading<Routed>>,
 }
 
-impl NotificationLayer {
+impl<Routed> Default for NotificationLayer<Routed> {
+    fn default() -> Self {
+        Self {
+            outbound: None,
+            sound_theme: SoundTheme::default(),
+            live: Vec::new(),
+            held: Vec::new(),
+            next_seq: 0,
+            hovered: None,
+            reply_focus: ReplyFocus::default(),
+            snoozed: Vec::new(),
+            previous_levels: Vec::new(),
+        }
+    }
+}
+
+impl<Routed: Clone> NotificationLayer<Routed> {
     #[must_use]
     pub fn anchored_toasts<'a>(
         &'a self,
@@ -102,7 +141,7 @@ impl NotificationLayer {
         clock: Clock,
     ) -> WindowAnchoredToasts<'a> {
         let now = clock.instant;
-        let mut ordered: Vec<&Notification> = self
+        let mut ordered: Vec<&Notification<Routed>> = self
             .live
             .iter()
             .filter(|n| n.place.output.as_deref() == Some(output))
@@ -165,7 +204,7 @@ impl NotificationLayer {
             })
     }
 
-    fn showing(&self) -> impl Iterator<Item = &Notification> {
+    fn showing(&self) -> impl Iterator<Item = &Notification<Routed>> {
         self.live.iter().filter(|n| !n.is_withdrawing())
     }
 
@@ -185,7 +224,7 @@ impl NotificationLayer {
             .any(|n| n.data.id == id && n.data.actions.iter().any(|a| a.key == DEFAULT_ACTION))
     }
 
-    fn shell_message_for(&self, toast_id: u32, action_key: &str) -> Option<Message> {
+    fn routed_message_for(&self, toast_id: u32, action_key: &str) -> Option<Routed> {
         let notif = self.showing().find(|n| n.data.id == toast_id)?;
         if action_key == DEFAULT_ACTION {
             return match &notif.body_click {

@@ -8,7 +8,7 @@ use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::{
-    shell_message::Message,
+    hover_tooltips::PopupMessage,
     widgets::{
         favicon::Favicons,
         palette_colors::PaletteColors,
@@ -50,7 +50,7 @@ impl<'a> WorkspaceSchematic<'a> {
     }
 
     #[must_use]
-    pub fn view(self) -> Element<'static, Message> {
+    pub fn view(self) -> Element<'static, PopupMessage> {
         let mut rows = vec![
             RowWidget::with_children(
                 self.preview
@@ -75,13 +75,13 @@ impl<'a> WorkspaceSchematic<'a> {
         self.preview.niri_layout.gaps_px * self.config.widget_groups.workspaces.preview_scale
     }
 
-    fn column(&self, tiles: &[PreviewTile]) -> Element<'static, Message> {
+    fn column(&self, tiles: &[PreviewTile]) -> Element<'static, PopupMessage> {
         Column::with_children(tiles.iter().map(|tile| self.tile(tile)))
             .spacing(self.tile_gap())
             .into()
     }
 
-    fn tile(&self, tile: &PreviewTile) -> Element<'static, Message> {
+    fn tile(&self, tile: &PreviewTile) -> Element<'static, PopupMessage> {
         let scale = self.config.widget_groups.workspaces.preview_scale;
         let side = self.config.theme.font.icon_size_px;
         let width = (tile.tile_size.width * scale).max(side);
@@ -122,7 +122,7 @@ impl<'a> WorkspaceSchematic<'a> {
             .height(height)
             .padding(TILE_PADDING)
             .clip(true)
-            .on_press(Message::FocusWindow(tile.window))
+            .on_press(PopupMessage::FocusWindow(tile.window))
             .style(move |_, status| {
                 let hovered = matches!(status, Status::Hovered | Status::Pressed);
                 button::Style {
@@ -154,7 +154,7 @@ impl<'a> WorkspaceSchematic<'a> {
         }
     }
 
-    fn label(&self, label: &WindowLabel) -> Element<'static, Message> {
+    fn label(&self, label: &WindowLabel) -> Element<'static, PopupMessage> {
         WindowTitle::new(label, self.config)
             .size(self.config.theme.font.small_text_size_px)
             .wrapping(Wrapping::WordOrGlyph)
