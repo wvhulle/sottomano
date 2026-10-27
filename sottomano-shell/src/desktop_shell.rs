@@ -467,7 +467,7 @@ impl DesktopShell {
                 .map(Message::OpenRouterCredit),
             Message::LlamaServer(msg) => self
                 .llama_server_group
-                .update(msg, self.clock)
+                .update(msg, &self.config, self.clock)
                 .map(Message::LlamaServer),
             Message::SessionFocus(msg) => self
                 .session_focus_group

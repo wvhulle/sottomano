@@ -59,6 +59,11 @@ impl<S: ReadingSource> OnHoverReading<S> {
         self.keep_shape();
     }
 
+    #[must_use]
+    pub fn is_hovered(&self) -> bool {
+        self.fetching.is_some()
+    }
+
     fn keep_shape(&mut self) {
         if let Some(Ok(reading)) = self.latest.take() {
             self.shape = Some(reading);

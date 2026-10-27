@@ -40,11 +40,20 @@ pub mod weather_group;
 pub mod window_group;
 pub mod workspaces_group;
 
-use sottomano_sources::system_protocol_clients::{
-    dbus_desktop_buses, http_json_client, shell_command_output, sysfs_attribute_reads,
+use sottomano_sources::{
+    ai_usage_spend::gguf_header_model_card::GgufHeaderError,
+    system_protocol_clients::{
+        dbus_desktop_buses, http_json_client, shell_command_output, sysfs_attribute_reads,
+    },
 };
 
 use crate::widgets::tooltip_body::{KeyValue, Section};
+
+impl From<GgufHeaderError> for Section {
+    fn from(error: GgufHeaderError) -> Self {
+        Section::error(error)
+    }
+}
 
 impl From<dbus_desktop_buses::Error> for Section {
     fn from(error: dbus_desktop_buses::Error) -> Self {

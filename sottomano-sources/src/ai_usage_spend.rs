@@ -1,6 +1,7 @@
 pub mod ccusage_cli_reports;
 pub mod claude_usage;
 pub mod copilot_usage;
+pub mod gguf_header_model_card;
 pub mod llama_server_slots;
 pub mod model_spend_ranking;
 pub mod openrouter_credits;

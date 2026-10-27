@@ -1,6 +1,5 @@
 mod dictation_phase_item;
 mod inference_hardware_item;
-mod model_card_sections;
 mod output_problems_item;
 mod pipeline_stage_item;
 mod runtime_configuration_item;

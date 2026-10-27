@@ -1,5 +1,6 @@
 mod context_fill_gauge;
 mod generation_rate_label;
+mod gguf_model_card_sections;
 mod loaded_model_label;
 mod scoped_servers;
 mod slot_occupancy_gauge;
@@ -9,9 +10,10 @@ use scoped_servers::{ScopedLlamaServers, ScopedServersMessage};
 use sottomano_config::Config;
 use sottomano_sources::{
     SourceDelivery,
-    ai_usage_spend::llama_server_slots::LlamaModelProps,
+    ai_usage_spend::{gguf_header_model_card::GgufModelCard, llama_server_slots::LlamaModelProps},
     system_protocol_clients::dbus_desktop_buses::{Bus, DesktopBuses},
     systemd_units_journal::SystemdUnitScope,
+    voice_dictation_input::huggingface_model_card::HuggingFaceModelCard,
 };
 
 use crate::{
@@ -62,6 +64,8 @@ pub struct LlamaServerGroup {
     user: ScopedLlamaServers,
     system: ScopedLlamaServers,
     model_props: OnHoverReading<LlamaModelProps>,
+    gguf_card: OnHoverReading<GgufModelCard>,
+    base_model_card: OnHoverReading<HuggingFaceModelCard>,
     expansion: GroupExpansion,
 }
 
@@ -71,6 +75,8 @@ impl Default for LlamaServerGroup {
             user: ScopedLlamaServers::new(SystemdUnitScope::UserSession),
             system: ScopedLlamaServers::new(SystemdUnitScope::SystemWide),
             model_props: OnHoverReading::default(),
+            gguf_card: OnHoverReading::default(),
+            base_model_card: OnHoverReading::default(),
             expansion: GroupExpansion::default(),
         }
     }
@@ -81,6 +87,8 @@ pub enum LlamaServerMessage {
     User(ScopedServersMessage),
     System(ScopedServersMessage),
     ModelPropsFetched(SourceDelivery<LlamaModelProps>),
+    GgufCardRead(SourceDelivery<GgufModelCard>),
+    BaseModelCardFetched(SourceDelivery<HuggingFaceModelCard>),
     Expansion(ExpansionMessage),
 }
 
@@ -105,6 +113,8 @@ impl LlamaServerGroup {
         clock: Clock,
     ) -> Task<LlamaServerMessage> {
         self.model_props.stop();
+        self.gguf_card.stop();
+        self.base_model_card.stop();
         let Some(HoverTarget::LlamaServer(
             target @ LlamaServerTarget {
                 reading: LlamaServerReading::Model,
@@ -114,16 +124,44 @@ impl LlamaServerGroup {
         else {
             return Task::none();
         };
-        let instance = match target.bus {
-            Bus::Session => self.user.resident_instance(&target.unit),
-            Bus::System => self.system.resident_instance(&target.unit),
+        let servers = match target.bus {
+            Bus::Session => &self.user,
+            Bus::System => &self.system,
         };
-        let Some(instance) = instance else {
+        let props_fetch = servers.resident_instance(&target.unit).map(|instance| {
+            self.model_props.start_hover_fetch(
+                instance,
+                LlamaServerMessage::ModelPropsFetched,
+                config,
+                clock,
+            )
+        });
+        let card_read = servers.resident_model_file(&target.unit).map(|model_file| {
+            self.gguf_card.start_hover_fetch(
+                model_file,
+                LlamaServerMessage::GgufCardRead,
+                config,
+                clock,
+            )
+        });
+        Task::batch(props_fetch.into_iter().chain(card_read))
+    }
+
+    fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {
+        if !self.gguf_card.is_hovered() {
+            return Task::none();
+        }
+        let Some(repository) = self
+            .gguf_card
+            .reading()
+            .and_then(GgufModelCard::base_model_repository)
+            .map(str::to_owned)
+        else {
             return Task::none();
         };
-        self.model_props.start_hover_fetch(
-            instance,
-            LlamaServerMessage::ModelPropsFetched,
+        self.base_model_card.start_hover_fetch(
+            repository,
+            LlamaServerMessage::BaseModelCardFetched,
             config,
             clock,
         )
@@ -132,6 +170,7 @@ impl LlamaServerGroup {
     pub fn update(
         &mut self,
         message: LlamaServerMessage,
+        config: &Config,
         clock: Clock,
     ) -> Task<LlamaServerMessage> {
         match message {
@@ -147,6 +186,14 @@ impl LlamaServerGroup {
                 self.model_props.receive_delivery(delivery, clock);
                 Task::none()
             }
+            LlamaServerMessage::GgufCardRead(delivery) => {
+                self.gguf_card.receive_delivery(delivery, clock);
+                self.fetch_base_model_card(config, clock)
+            }
+            LlamaServerMessage::BaseModelCardFetched(delivery) => {
+                self.base_model_card.receive_delivery(delivery, clock);
+                Task::none()
+            }
             LlamaServerMessage::Expansion(message) => {
                 self.expansion.update(message);
                 Task::none()
@@ -156,10 +203,17 @@ impl LlamaServerGroup {
 
     #[must_use]
     pub fn tooltip_for(&self, target: &LlamaServerTarget, clock: Clock) -> Option<Tooltip> {
-        let model_props = self.model_props.sections(clock);
+        let model_groups: Vec<_> = [
+            self.model_props.sections(clock),
+            self.gguf_card.sections(clock),
+            self.base_model_card.sections(clock),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         match target.bus {
-            Bus::Session => self.user.tooltip_for(target, model_props, clock),
-            Bus::System => self.system.tooltip_for(target, model_props, clock),
+            Bus::Session => self.user.tooltip_for(target, model_groups, clock),
+            Bus::System => self.system.tooltip_for(target, model_groups, clock),
         }
     }
 

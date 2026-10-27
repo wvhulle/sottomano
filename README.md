@@ -43,7 +43,7 @@ next to the NetworkManager VPNs and WireGuard tunnels that are up.
 
 The speech model the dictation daemon loaded and the device it runs on.
 
-<img src="recordings/voice_dictation_model.webp" width="563" alt="Expanding the dictation group and hovering the speech model and compute device">
+<img src="recordings/voice_dictation_model.webp" width="548" alt="Expanding the dictation group and hovering the speech model and compute device">
 
 ### Toast: Next to its window
 
