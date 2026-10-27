@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use bytesize::ByteSize;
 use chrono::TimeDelta;
 use sottomano_sources::{
     SnapshotDelivery,
@@ -10,17 +11,19 @@ use sottomano_sources::{
             ActiveTunnel, NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
         },
         tailscale_status::{ExitRouting, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale},
+        wireguard_tunnels::{self, Tunnel, TunnelAddress, Wireguard},
     },
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::vpn_group::{VpnGroup, VpnMessage},
+    widget_groups::vpn_group::{VpnGroup, VpnMessage, VpnTarget},
 };
 use zbus::zvariant::OwnedObjectPath;
 
 use crate::showcased_group::ShowcasedGroup;
 
 const KEY_EXPIRY_DAYS: i64 = 9;
+pub const LAB_TUNNEL_NAME: &str = "wg-lab";
 
 pub const COMPANY_VPN_NAME: &str = "Company VPN";
 
@@ -34,7 +37,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     )))
 }
 
-fn vpn_readings(clock: Clock) -> [VpnMessage; 2] {
+fn vpn_readings(clock: Clock) -> [VpnMessage; 3] {
     [
         VpnMessage::NetworkManagerVpns(SnapshotDelivery::live_push(Ok(NetworkManagerVpns {
             connections: vec![company_globalprotect_vpn()],
@@ -43,7 +46,28 @@ fn vpn_readings(clock: Clock) -> [VpnMessage; 2] {
             Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
         )),
+        VpnMessage::Wireguard(SnapshotDelivery::fixture_delivered(
+            Ok(Wireguard {
+                tunnels: vec![lab_wireguard_tunnel()],
+            }),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
+        )),
     ]
+}
+
+fn lab_wireguard_tunnel() -> Tunnel {
+    Tunnel {
+        name: LAB_TUNNEL_NAME.to_owned(),
+        server: false,
+        port: Some(51820),
+        peers: vec![wireguard_tunnels::Peer {
+            endpoint: Some("203.0.113.24:51820".to_owned()),
+            allowed_ips: Some("10.42.0.0/24".to_owned()),
+            handshake_ago: Some(37),
+            rx: ByteSize::mib(84),
+            tx: ByteSize::mib(12),
+        }],
+    }
 }
 
 fn company_globalprotect_vpn() -> VpnConnection {
@@ -108,5 +132,20 @@ fn home_tailnet(clock: Clock) -> Tailnet {
         },
         key_expiry: KeyExpiry::At(clock.utc() + TimeDelta::days(KEY_EXPIRY_DAYS)),
         health_warnings: Vec::new(),
+    }
+}
+
+pub fn on_hover(target: &VpnTarget) -> Vec<VpnMessage> {
+    match target {
+        VpnTarget::Wireguard(tunnel) if tunnel.as_ref() == LAB_TUNNEL_NAME => {
+            vec![VpnMessage::TunnelAddressFetched(
+                SnapshotDelivery::single_read(Ok(TunnelAddress {
+                    ip: Some("10.42.0.7/24".to_owned()),
+                })),
+            )]
+        }
+        VpnTarget::Wireguard(_) | VpnTarget::NetworkManagerVpn(_) | VpnTarget::Tailscale => {
+            Vec::new()
+        }
     }
 }

@@ -4,10 +4,13 @@ use sottomano_sources::{
     SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::{Chassis, OperatingSystemIdentity},
     login_session_presence::logind_session_facts::SessionIdentity,
+    systemd_units_journal::graphical_session_target::GraphicalSession,
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::login_session_group::{LoginSessionGroup, LoginSessionMessage},
+    widget_groups::login_session_group::{
+        LoginSessionGroup, LoginSessionMessage, LoginSessionTarget,
+    },
 };
 
 use crate::showcased_group::ShowcasedGroup;
@@ -43,4 +46,29 @@ fn session_readings() -> [LoginSessionMessage; 2] {
             session_type: "wayland".to_owned(),
         }))),
     ]
+}
+
+pub fn on_hover(target: LoginSessionTarget, _clock: Clock) -> Vec<LoginSessionMessage> {
+    match target {
+        LoginSessionTarget::Compositor => vec![LoginSessionMessage::GraphicalFetched(
+            SnapshotDelivery::single_read(Ok(niri_graphical_session())),
+        )],
+        LoginSessionTarget::Kernel
+        | LoginSessionTarget::Seat
+        | LoginSessionTarget::Login
+        | LoginSessionTarget::Account
+        | LoginSessionTarget::ServiceManager
+        | LoginSessionTarget::DesktopServices
+        | LoginSessionTarget::PowerPolicy => Vec::new(),
+    }
+}
+
+fn niri_graphical_session() -> GraphicalSession {
+    GraphicalSession {
+        current_desktop: Some("niri".to_owned()),
+        session_desktop: Some("niri".to_owned()),
+        compositor_version: "niri 25.11".to_owned(),
+        wayland_display: "wayland-1".to_owned(),
+        x11_display: Some(":0".to_owned()),
+    }
 }

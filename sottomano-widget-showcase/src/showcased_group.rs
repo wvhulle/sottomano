@@ -1,6 +1,6 @@
 use iced::{
-    Element, Length, Padding, border,
-    widget::{Column, container, stack, text},
+    Element, Font, Length, Padding, border,
+    widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
@@ -40,11 +40,16 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    fixtures::{compute, memory_board, niri_session, voice_dictation},
+    fixtures::{
+        claude_usage, compute, login_session, memory_board, niri_session, voice_dictation, vpn,
+    },
     showcase_message::ShowcaseMessage,
 };
 
 pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
+const TERMINAL_PADDING_PX: f32 = 10.0;
+const WINDOW_CORNER_RADIUS_PX: f32 = 8.0;
+const FOCUS_RING_WIDTH_PX: f32 = 3.0;
 
 fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
     snapshot
@@ -88,6 +93,35 @@ pub struct ShowcasedGamepad {
 pub struct ShowcasedToasts {
     pub niri: EventStreamState,
     pub opening: Vec<NotificationData>,
+    pub terminal_scrollback: &'static [TerminalLine],
+}
+
+pub enum TerminalLine {
+    Prompt {
+        directory: &'static str,
+        command: &'static str,
+    },
+    Status {
+        verb: &'static str,
+        detail: &'static str,
+    },
+}
+
+impl TerminalLine {
+    fn view<'a>(&self, palette: PaletteColors) -> Element<'a, ShowcaseMessage> {
+        let (lead, lead_color, rest) = match self {
+            TerminalLine::Prompt { directory, command } => (*directory, palette.info, *command),
+            TerminalLine::Status { verb, detail } => (*verb, palette.success, *detail),
+        };
+        Row::with_children([
+            text(lead).font(Font::MONOSPACE).color(lead_color).into(),
+            text(rest)
+                .font(Font::MONOSPACE)
+                .color(palette.bar_foreground)
+                .into(),
+        ])
+        .into()
+    }
 }
 
 impl ShowcasedToasts {
@@ -96,19 +130,25 @@ impl ShowcasedToasts {
         let frames = self.niri.windows.windows.values().filter_map(|window| {
             let (x, y) = window.layout.tile_pos_in_workspace_view?;
             let (width, height) = window.layout.window_size;
-            let title = window
-                .title
-                .as_deref()
-                .map(|title| text(title).color(palette.bar_foreground).into());
-            let frame = container(Column::with_children(title))
-                .padding(config.layout.overlay.content_inset)
+            let focus_ring = if window.is_focused {
+                palette.focus
+            } else {
+                palette.inactive
+            };
+            let scrollback = Column::with_children(
+                self.terminal_scrollback
+                    .iter()
+                    .map(|line| line.view(palette)),
+            );
+            let frame = container(scrollback)
+                .padding(TERMINAL_PADDING_PX)
                 .width(Length::Fixed(f32::from(u16::try_from(width).ok()?)))
                 .height(Length::Fixed(f32::from(u16::try_from(height).ok()?)))
                 .style(move |_| container::Style {
                     background: Some(palette.surface.into()),
-                    border: border::rounded(config.layout.overlay.content_inset)
-                        .color(palette.bar_foreground.scale_alpha(0.4))
-                        .width(1.0),
+                    border: border::rounded(WINDOW_CORNER_RADIUS_PX)
+                        .color(focus_ring)
+                        .width(FOCUS_RING_WIDTH_PX),
                     ..container::Style::default()
                 });
             Some(
@@ -385,38 +425,72 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn hover(&mut self, target: &HoverTarget, config: &Config, clock: Clock) {
+    pub fn hover(
+        &mut self,
+        target: &HoverTarget,
+        config: &Config,
+        clock: Clock,
+    ) -> Vec<ShowcaseMessage> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 let _ = group.hover(Some(target), config, clock);
-                if let HoverTarget::Compute(target) = target {
-                    compute::on_hover(*target).into_iter().for_each(|reading| {
-                        let _ = group.update(reading, clock);
-                    });
-                }
+                let HoverTarget::Compute(target) = target else {
+                    return Vec::new();
+                };
+                compute::on_hover(*target)
+                    .into_iter()
+                    .map(ShowcaseMessage::Compute)
+                    .collect()
             }
             ShowcasedGroup::MemoryBoard(group) => {
                 let _ = group.hover(Some(target), config, clock);
-                if let HoverTarget::MemoryBoard(target) = target {
-                    memory_board::on_hover(*target)
-                        .into_iter()
-                        .for_each(|reading| {
-                            let _ = group.update(reading, clock);
-                        });
-                }
+                let HoverTarget::MemoryBoard(target) = target else {
+                    return Vec::new();
+                };
+                memory_board::on_hover(*target)
+                    .into_iter()
+                    .map(ShowcaseMessage::MemoryBoard)
+                    .collect()
             }
             ShowcasedGroup::ClaudeUsage(group) => {
                 let _ = group.hover(Some(target), config, clock);
+                let HoverTarget::ClaudeUsage(target) = target else {
+                    return Vec::new();
+                };
+                claude_usage::on_hover(*target, clock)
+                    .into_iter()
+                    .map(ShowcaseMessage::ClaudeUsage)
+                    .collect()
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 let _ = group.hover(Some(target), config, clock);
-                if let HoverTarget::VoiceDictation(target) = target {
-                    voice_dictation::on_hover(*target)
-                        .into_iter()
-                        .for_each(|reading| {
-                            let _ = group.update(reading, clock);
-                        });
-                }
+                let HoverTarget::VoiceDictation(target) = target else {
+                    return Vec::new();
+                };
+                voice_dictation::on_hover(*target)
+                    .into_iter()
+                    .map(ShowcaseMessage::VoiceDictation)
+                    .collect()
+            }
+            ShowcasedGroup::Vpn(group) => {
+                let _ = group.hover(Some(target), config, None, clock);
+                let HoverTarget::Vpn(target) = target else {
+                    return Vec::new();
+                };
+                vpn::on_hover(target)
+                    .into_iter()
+                    .map(ShowcaseMessage::Vpn)
+                    .collect()
+            }
+            ShowcasedGroup::LoginSession(group) => {
+                let _ = group.hover(Some(target), config, None, clock);
+                let HoverTarget::LoginSession(target) = target else {
+                    return Vec::new();
+                };
+                login_session::on_hover(*target, clock)
+                    .into_iter()
+                    .map(ShowcaseMessage::LoginSession)
+                    .collect()
             }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 let _ = session
@@ -424,9 +498,8 @@ impl ShowcasedGroup {
                     .hover(&session.niri, Some(target), config, clock);
                 niri_session::on_hover(target)
                     .into_iter()
-                    .for_each(|reading| {
-                        let _ = session.window_group.update(reading, clock);
-                    });
+                    .map(ShowcaseMessage::WindowGroup)
+                    .collect()
             }
             ShowcasedGroup::Weather(_)
             | ShowcasedGroup::Media(_)
@@ -435,9 +508,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Caldav(_)
-            | ShowcasedGroup::Vpn(_)
-            | ShowcasedGroup::LoginSession(_)
-            | ShowcasedGroup::Toasts(_) => {}
+            | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
     }
 

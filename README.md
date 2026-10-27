@@ -47,9 +47,9 @@ The speech model the dictation daemon loaded and the device it runs on.
 
 ### Toast: Next to its window
 
-When the sending window is visible, the toast sits beside it.
+When the sending window is visible, the toast sits in its top corner.
 
-<img src="recordings/toast_window_anchored.webp" width="504" alt="A build toast placed beside the terminal that sent it">
+<img src="recordings/toast_window_anchored.webp" width="504" alt="A build toast placed in the corner of the terminal that sent it">
 
 The other groups are in [docs/showcase.md](docs/showcase.md). The recordings
 use fixtures, so the numbers are made up.

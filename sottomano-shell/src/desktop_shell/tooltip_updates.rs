@@ -371,13 +371,9 @@ impl DesktopShell {
             self.claude_usage_group
                 .hover(hovered, &self.config, self.clock)
                 .map(Message::ClaudeUsage),
-            self.desktop_buses
-                .as_ref()
-                .map_or_else(Task::none, |buses| {
-                    self.login_session_group
-                        .hover(hovered, &self.config, buses, self.clock)
-                        .map(Message::LoginSession)
-                }),
+            self.login_session_group
+                .hover(hovered, &self.config, buses, self.clock)
+                .map(Message::LoginSession),
             self.llama_server_group
                 .hover(hovered, &self.config, self.clock)
                 .map(Message::LlamaServer),

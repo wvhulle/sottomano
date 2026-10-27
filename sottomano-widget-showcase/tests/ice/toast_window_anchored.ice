@@ -3,4 +3,4 @@ mode: Patient
 preset: toast_window_anchored
 -----
 expect "Build finished"
-expect "~/Code/sottomano"
+expect "~/projects/weather-station"

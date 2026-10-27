@@ -3,13 +3,17 @@ use std::time::Duration;
 use bytesize::ByteSize;
 use sottomano_sources::{
     SnapshotDelivery,
-    cpu_memory_compute::memory_usage::{Memory, MemoryProcess, MemoryProcesses},
+    cpu_memory_compute::{
+        memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
+        memory_usage::{Memory, MemoryProcess, MemoryProcesses},
+    },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::memory_board_group::{MemoryBoardGroup, MemoryBoardMessage, MemoryBoardTarget},
 };
+use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius};
 
 use crate::{
     fixtures::{cycled, host_hardware, sample},
@@ -60,8 +64,8 @@ fn hover_fetched_snapshot_messages(
     tick: u32,
 ) -> Vec<MemoryBoardMessage> {
     match target {
-        MemoryBoardTarget::Memory => vec![MemoryBoardMessage::MemoryProcessesFetched(
-            SnapshotDelivery::fixture_delivered(
+        MemoryBoardTarget::Memory => vec![
+            MemoryBoardMessage::MemoryProcessesFetched(SnapshotDelivery::fixture_delivered(
                 Ok(MemoryProcesses {
                     processes: [
                         ("firefox", 5_800 + u64::from(tick % 4) * 120),
@@ -78,8 +82,26 @@ fn hover_fetched_snapshot_messages(
                     .collect(),
                 }),
                 DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
-            ),
-        )],
+            )),
+            MemoryBoardMessage::ModuleTemperaturesFetched(SnapshotDelivery::fixture_delivered(
+                Ok(module_temperatures(tick)),
+                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
+            )),
+        ],
         MemoryBoardTarget::Board => Vec::new(),
+    }
+}
+
+fn module_temperatures(tick: u32) -> MemoryModuleTemperatures {
+    MemoryModuleTemperatures {
+        modules: [("0-0051", 41.5), ("0-0053", 43.0)]
+            .into_iter()
+            .map(|(bus_address, degrees)| MemoryModuleTemperature {
+                bus_address: bus_address.to_owned(),
+                temperature: ThermodynamicTemperature::new::<degree_celsius>(
+                    degrees + f64::from(tick % 3) * 0.25,
+                ),
+            })
+            .collect(),
     }
 }

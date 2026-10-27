@@ -81,12 +81,16 @@
         cargoExtraArgs = "--locked -p sottomano-shell";
       };
 
+      showcaseAppIcons = "${pkgs.papirus-icon-theme}/share/icons/Papirus/64x64/apps";
+
       showcaseArgs = commonArgs // {
+        SHOWCASE_APP_ICONS = showcaseAppIcons;
         pname = "sottomano-widget-showcase";
         cargoExtraArgs = "--locked -p sottomano-widget-showcase";
       };
 
       workspaceArgs = commonArgs // {
+        SHOWCASE_APP_ICONS = showcaseAppIcons;
         pname = "sottomano-workspace";
         cargoExtraArgs = "--locked --workspace";
       };
@@ -239,6 +243,7 @@
         env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         env.PHOSPHOR_SVG = "${phosphorCore}/assets";
         env.SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
+        env.SHOWCASE_APP_ICONS = showcaseAppIcons;
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"

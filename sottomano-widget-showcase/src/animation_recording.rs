@@ -34,7 +34,7 @@ use crate::{
     demo_script::{Demo, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget},
     showcase_message::ShowcaseMessage,
-    showcase_program::ShowcaseProgram,
+    showcase_program::{HOVER_FETCH_LATENCY, ShowcaseProgram},
 };
 
 pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
@@ -189,7 +189,7 @@ impl DemoRecorder {
             Step::Hover(target) => {
                 let pointer = self.locate(HoveredWidget(target.clone()));
                 self.point_at(pointer);
-                self.capture_during(HOVER_HOLD)
+                self.capture_during(HOVER_FETCH_LATENCY + HOVER_HOLD)
             }
             Step::Press(target) => {
                 let pointer = self.locate(HoveredWidget(target.clone()));

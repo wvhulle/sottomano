@@ -1,5 +1,9 @@
 use chrono::{TimeZone, Utc};
-use notulist_client::{DictationEngine, DictationPhase, EngineState};
+use notulist_client::{
+    BufferStageReport, CleanupStageReport, DecodeStageReport, DictationEngine, DictationPhase,
+    EngineState, FilterStageReport, GateStageReport, InferenceTickReport, LanguageStageReport,
+    OutputProblem, PipelineActivity, PipelineStage, ReconcileStageReport,
+};
 use sottomano_sources::{
     SnapshotDelivery,
     systemd_units_journal::unit_active_state::{UnitActiveState, UnitActivity},
@@ -7,6 +11,8 @@ use sottomano_sources::{
         huggingface_model_card::{HuggingFaceModelCard, ModelCardData},
         notulist_dbus_dictation::NotulistDictation,
         notulist_dbus_engine::NotulistEngine,
+        notulist_dbus_output_problems::NotulistOutputProblems,
+        notulist_dbus_pipeline_activity::NotulistPipeline,
     },
 };
 use sottomano_widgets::{
@@ -29,7 +35,7 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
     )))
 }
 
-fn dictation_readings() -> [VoiceDictationMessage; 3] {
+fn dictation_readings() -> [VoiceDictationMessage; 5] {
     [
         VoiceDictationMessage::Runtime(UnitSwitchMessage::ActiveState(
             SnapshotDelivery::live_push(Ok(UnitActiveState {
@@ -37,12 +43,62 @@ fn dictation_readings() -> [VoiceDictationMessage; 3] {
             })),
         )),
         VoiceDictationMessage::Dictation(SnapshotDelivery::live_push(Ok(NotulistDictation {
-            phase: DictationPhase::Idle,
+            phase: DictationPhase::Listening,
         }))),
         VoiceDictationMessage::Engine(SnapshotDelivery::live_push(Ok(NotulistEngine {
             engine: EngineState::SpeechModelReady(loaded_whisper_engine()),
         }))),
+        VoiceDictationMessage::Pipeline(SnapshotDelivery::live_push(Ok(NotulistPipeline {
+            activity: PipelineActivity {
+                stage: PipelineStage::Decoding,
+                last_tick: Some(latest_decoded_pass()),
+            },
+        }))),
+        VoiceDictationMessage::OutputProblems(SnapshotDelivery::live_push(Ok(
+            NotulistOutputProblems {
+                problems: vec![OutputProblem::TranscriptDiscardedWithoutTarget],
+            },
+        ))),
     ]
+}
+
+fn latest_decoded_pass() -> InferenceTickReport {
+    InferenceTickReport {
+        tick: 14,
+        final_flush: false,
+        buffer: BufferStageReport {
+            buffered_secs: 6.8,
+            sliding_mode: false,
+            dropped_chunks: 0,
+        },
+        gate: GateStageReport::default(),
+        language: LanguageStageReport {
+            ran: true,
+            elapsed_secs: 0.09,
+            chosen_language: "en".to_owned(),
+            decided: true,
+        },
+        decode: DecodeStageReport {
+            ran: true,
+            elapsed_secs: 0.42,
+            audio_secs: 6.8,
+            text: "Remind me to water the tomatoes tonight.".to_owned(),
+        },
+        filter: FilterStageReport {
+            ran: true,
+            ..FilterStageReport::default()
+        },
+        reconcile: ReconcileStageReport {
+            ran: true,
+            confirmed_words: 7,
+            appended_chars: 40,
+            ..ReconcileStageReport::default()
+        },
+        cleanup: CleanupStageReport {
+            ran: true,
+            elapsed_secs: 0.03,
+        },
+    }
 }
 
 fn loaded_whisper_engine() -> DictationEngine {
@@ -54,10 +110,10 @@ fn loaded_whisper_engine() -> DictationEngine {
         model_license: "MIT".to_owned(),
         model_quantization: "q5_0".to_owned(),
         multilingual: true,
-        languages: vec!["en".to_owned(), "nl".to_owned(), "it".to_owned()],
+        languages: vec!["en".to_owned(), "es".to_owned(), "fr".to_owned()],
         speech_detection_model: "silero-v5".to_owned(),
         compute_device: "CUDA".to_owned(),
-        compute_device_name: "NVIDIA GeForce RTX 4070".to_owned(),
+        compute_device_name: "NVIDIA GeForce RTX 3060".to_owned(),
         available_accelerators: vec!["CUDA".to_owned(), "Vulkan".to_owned()],
         inference_threads: 8,
         flash_attention: true,

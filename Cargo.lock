@@ -1817,7 +1817,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -1882,7 +1882,7 @@ dependencies = [
 [[package]]
 name = "exwlshellev"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "calloop 0.14.5",
  "calloop-wayland-source 0.4.1",
@@ -2966,7 +2966,7 @@ dependencies = [
 [[package]]
 name = "iced_exdevtools"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "iced_debug",
  "iced_devtools",
@@ -2979,7 +2979,7 @@ dependencies = [
 [[package]]
 name = "iced_exwlshell"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "enumflags2",
  "exwlshellev",
@@ -3005,7 +3005,7 @@ dependencies = [
 [[package]]
 name = "iced_exwlshell_macros"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "darling 0.24.1",
  "manyhow",
@@ -3137,7 +3137,7 @@ dependencies = [
 [[package]]
 name = "iced_wayland_subscriber"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "exwlshellev",
  "futures",
@@ -4672,7 +4672,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -5768,7 +5768,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6270,7 +6270,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6328,7 +6328,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7483,7 +7483,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -8550,7 +8550,7 @@ dependencies = [
 [[package]]
 name = "waycrate_xkbkeycode"
 version = "0.21.2"
-source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=sottomano#30f61357e0cddea03b2c1ff0e46723c87845d37e"
+source = "git+https://github.com/wvhulle/exwlshelleventloop.git?branch=master#7dc91dadaedcf40756ea443f1cce0a715e614d98"
 dependencies = [
  "calloop 0.14.5",
  "log",

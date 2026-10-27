@@ -1,4 +1,7 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    time::{Duration, Instant},
+};
 
 use iced::{
     Element, Length, Padding, Settings, Subscription, Task, Theme,
@@ -41,6 +44,7 @@ use crate::{
 };
 
 const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
+pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(1400);
 
 #[must_use]
 pub fn booting_clock() -> Clock {
@@ -112,6 +116,12 @@ pub struct ShowcaseState {
     clock: Clock,
     booted_at: Clock,
     delivered_sample: u32,
+    pending_hover_replies: Vec<PendingHoverReply>,
+}
+
+struct PendingHoverReply {
+    due: Instant,
+    reply: ShowcaseMessage,
 }
 
 impl ShowcaseState {
@@ -143,6 +153,7 @@ impl ShowcaseState {
             clock,
             booted_at: clock,
             delivered_sample: sample(clock),
+            pending_hover_replies: Vec::new(),
         };
         (state, opening_toasts)
     }
@@ -154,7 +165,13 @@ impl ShowcaseState {
                 anchor,
                 press_hints,
             }) => {
-                self.group.hover(&target, &self.config, self.clock);
+                let due = self.clock.instant + HOVER_FETCH_LATENCY;
+                self.pending_hover_replies = self
+                    .group
+                    .hover(&target, &self.config, self.clock)
+                    .into_iter()
+                    .map(|reply| PendingHoverReply { due, reply })
+                    .collect();
                 let panel_edge = self.panel_edge();
                 self.tooltip.open(&panel_edge, target, anchor, press_hints);
                 Task::none()
@@ -190,6 +207,14 @@ impl ShowcaseState {
             for reading in (self.demo.live)(clock) {
                 tasks.push(self.route_message(reading));
             }
+        }
+        let (due_replies, waiting_replies) = self
+            .pending_hover_replies
+            .drain(..)
+            .partition(|pending| pending.due <= clock.instant);
+        self.pending_hover_replies = waiting_replies;
+        for pending in due_replies {
+            tasks.push(self.route_message(pending.reply));
         }
         if self
             .tooltip

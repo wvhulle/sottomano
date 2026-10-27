@@ -179,19 +179,18 @@ impl State {
 
     fn frame(&mut self, now: Instant) {
         self.now = Some(now);
-        let Some(next) = self.pending.take() else {
-            return;
-        };
-        if next == ShownText::Placeholder {
+        if let Some(next) = self.pending.take() {
+            self.transition = self
+                .shown
+                .transition_to(&next)
+                .map(|kind| Transition { kind, started: now });
+            self.shown = next;
+        }
+        if self.shown == ShownText::Placeholder {
             self.placeholder_since.get_or_insert(now);
         } else {
             self.placeholder_since = None;
         }
-        self.transition = self
-            .shown
-            .transition_to(&next)
-            .map(|kind| Transition { kind, started: now });
-        self.shown = next;
     }
 
     fn placeholder_elapsed(&self) -> Duration {
@@ -640,5 +639,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::Clock;
+
+    #[test]
+    fn a_placeholder_shown_from_the_start_keeps_pulsing() {
+        let first_frame = Clock::real().instant;
+        let mut state = State::settled(ShownText::Placeholder);
+        state.frame(first_frame);
+        state.frame(first_frame + Duration::from_millis(700));
+        assert_eq!(state.placeholder_elapsed(), Duration::from_millis(700));
     }
 }
