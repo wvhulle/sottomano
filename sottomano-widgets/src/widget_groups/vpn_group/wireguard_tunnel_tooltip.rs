@@ -8,6 +8,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
@@ -67,11 +68,8 @@ impl BarWidget for Tunnel {
                     peer.handshake_ago.map(|ago| {
                         KeyValue::new("handshake ago", Cell::duration(Duration::from_secs(ago)))
                     }),
-                    Some(KeyValue::new(
-                        "received",
-                        peer.rx.display().iec().to_string(),
-                    )),
-                    Some(KeyValue::new("sent", peer.tx.display().iec().to_string())),
+                    Some(KeyValue::new("received", Quantity::size(peer.rx))),
+                    Some(KeyValue::new("sent", Quantity::size(peer.tx))),
                 ]
                 .into_iter()
                 .flatten()

@@ -8,6 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -94,9 +95,9 @@ impl BarWidget for Mobile {
             Section::dictionary(
                 [
                     self.rx
-                        .map(|rx| KeyValue::new("Received (RX)", rx.display().iec().to_string())),
+                        .map(|rx| KeyValue::new("Received (RX)", Quantity::size(rx))),
                     self.tx
-                        .map(|tx| KeyValue::new("Sent (TX)", tx.display().iec().to_string())),
+                        .map(|tx| KeyValue::new("Sent (TX)", Quantity::size(tx))),
                 ]
                 .into_iter()
                 .flatten(),

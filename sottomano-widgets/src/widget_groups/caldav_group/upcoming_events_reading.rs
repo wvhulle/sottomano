@@ -171,9 +171,9 @@ impl BarWidget for CaldavAgenda {
         TooltipBody::sections([
             Section::column_table(
                 [
-                    ColumnHeading::new("Starts"),
-                    ColumnHeading::new("Calendar").align_x(Horizontal::Left),
-                    ColumnHeading::new("Location").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Starts"),
+                    ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Location").align_x(Horizontal::Left),
                 ],
                 rows,
             )

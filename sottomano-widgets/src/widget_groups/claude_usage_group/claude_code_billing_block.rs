@@ -6,6 +6,7 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -50,13 +51,13 @@ impl BarWidget for ClaudeCcusageBlock {
             source,
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", block.cost.to_string())),
+                    Some(KeyValue::new("Cost", Quantity::spend(block.cost))),
                     block
                         .cost_per_hour
                         .map(|rate| KeyValue::new("Burn Rate", format!("{rate}/h"))),
                     block
                         .projected_cost
-                        .map(|cost| KeyValue::new("Projected Cost", cost.to_string())),
+                        .map(|cost| KeyValue::new("Projected Cost", Quantity::spend(cost))),
                     Some(KeyValue::new(
                         "Ends In",
                         Cell::duration(block.ends_at - clock.utc()),

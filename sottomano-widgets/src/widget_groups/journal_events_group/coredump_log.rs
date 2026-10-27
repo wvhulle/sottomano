@@ -78,10 +78,10 @@ impl BarWidget for Vec<CoredumpEntry> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Process").align_x(Horizontal::Left),
-                ColumnHeading::new("Signal").align_x(Horizontal::Left),
-                ColumnHeading::new("PID"),
-                ColumnHeading::new("Unit").align_x(Horizontal::Left),
+                ColumnHeading::titled("Process").align_x(Horizontal::Left),
+                ColumnHeading::titled("Signal").align_x(Horizontal::Left),
+                ColumnHeading::titled("PID"),
+                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
             ],
             self.iter(),
         )

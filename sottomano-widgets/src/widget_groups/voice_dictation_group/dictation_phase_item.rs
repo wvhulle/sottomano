@@ -6,6 +6,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
@@ -92,7 +93,7 @@ fn dictation_error_rows(dictation_error: &DictationError) -> Vec<KeyValue> {
         }
         DictationError::MicrophoneDeliveredSilence(
             MicrophoneSilence::OnlyZeroSamplesDelivered { samples },
-        ) => vec![KeyValue::new("Zero samples", samples.to_string())],
+        ) => vec![KeyValue::new("Zero samples", Quantity::count(*samples))],
         DictationError::MicrophoneDeliveredSilence(MicrophoneSilence::NoSamplesDelivered)
         | DictationError::TranscriptionPassInterrupted(_) => Vec::new(),
         DictationError::SpeechModelUnavailable(load_error) => {

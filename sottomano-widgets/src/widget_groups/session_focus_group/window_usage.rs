@@ -55,7 +55,7 @@ impl WindowUsage<'_> {
             })
             .collect();
         (rows.len() > 1).then(|| {
-            Section::column_table([ColumnHeading::new("Active (24h)")], rows)
+            Section::column_table([ColumnHeading::titled("Active (24h)")], rows)
                 .titled("Projects in this window")
         })
     }

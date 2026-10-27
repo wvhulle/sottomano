@@ -9,6 +9,7 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
@@ -55,12 +56,12 @@ impl BarWidget for CopilotCcusage {
                 .into_iter()
                 .chain([KeyValue::new(
                     "Monthly Budget",
-                    usd(Decimal::from(self.budget.monthly_limit_usd)).to_string(),
+                    Quantity::spend(usd(Decimal::from(self.budget.monthly_limit_usd))),
                 )]),
             ),
             Section::dictionary([
-                KeyValue::new("Tokens", usage.tokens.to_string()),
-                KeyValue::new("Cost", usage.cost.to_string()),
+                KeyValue::new("Tokens", Quantity::count(usage.tokens)),
+                KeyValue::new("Cost", Quantity::spend(usage.cost)),
                 KeyValue::new("Models", usage.models.to_string()),
             ])
             .titled(

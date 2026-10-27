@@ -7,9 +7,9 @@ use crate::widgets::{
 };
 
 pub const ESTIMATE_HEADINGS: [ColumnHeading; 3] = [
-    ColumnHeading::new("Earliest"),
-    ColumnHeading::new("Median"),
-    ColumnHeading::new("Latest"),
+    ColumnHeading::titled("Earliest"),
+    ColumnHeading::titled("Median"),
+    ColumnHeading::titled("Latest"),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq)]

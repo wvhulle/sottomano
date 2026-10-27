@@ -11,6 +11,7 @@ use sottomano_sources::desktop_windows_apps::{
 use crate::{
     clock::Clock,
     widgets::{
+        localized_quantities::Quantity,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
     },
@@ -110,10 +111,7 @@ impl ReadingSections for NixPackageFacts {
                     closure.path_count
                 ),
             )),
-            Some(KeyValue::new(
-                "Own size",
-                closure.own_size.display().iec().to_string(),
-            )),
+            Some(KeyValue::new("Own size", Quantity::size(closure.own_size))),
             Some(KeyValue::new(
                 "Added",
                 Cell::RelativeMoment(self.registered.into()),

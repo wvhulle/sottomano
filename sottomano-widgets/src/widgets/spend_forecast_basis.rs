@@ -6,7 +6,10 @@ use sottomano_sources::ai_usage_spend::{
     working_time_forecast::{SpendBudget, SpendPacing},
 };
 
-use crate::widgets::tooltip_body::{KeyValue, Section};
+use crate::widgets::{
+    localized_quantities::Quantity,
+    tooltip_body::{KeyValue, Section},
+};
 
 const CLOCK_FORMAT: &str = "%H:%M";
 
@@ -54,7 +57,7 @@ impl KeyValue {
     #[must_use]
     pub fn monthly_budget(budget: &SpendBudget, spent: &Money, projected: Option<Money>) -> Self {
         let limit = usd(Decimal::from(budget.monthly_limit_usd));
-        let entry = KeyValue::new("Monthly Budget", limit.to_string());
+        let entry = KeyValue::new("Monthly Budget", Quantity::spend(limit));
         let exceeds_limit = |cost: &Money| cost.amount() > limit.amount();
         if exceeds_limit(spent) || projected.as_ref().is_some_and(exceeds_limit) {
             entry.level(Severity::Warning)

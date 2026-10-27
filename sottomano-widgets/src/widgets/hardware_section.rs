@@ -6,6 +6,7 @@ use sottomano_sources::{
 };
 
 use crate::widgets::{
+    localized_quantities::{DisplayUnit, Quantity},
     tooltip_body::{Cell, KeyValue, Section},
     vendor_logo::{PciVendorId, VendorLogo},
 };
@@ -41,11 +42,11 @@ impl From<&CpuModel> for Section {
             model
                 .topology
                 .cores
-                .map(|count| KeyValue::new("Cores", count.to_string())),
+                .map(|count| KeyValue::new("Cores", Quantity::count(count))),
             model
                 .topology
                 .threads
-                .map(|count| KeyValue::new("Threads", count.to_string())),
+                .map(|count| KeyValue::new("Threads", Quantity::count(count))),
         ]
         .into_iter()
         .flatten();
@@ -76,9 +77,12 @@ impl From<&MemoryModules> for Section {
     fn from(modules: &MemoryModules) -> Self {
         Section::hardware_identity(modules.0.iter().flat_map(|group| {
             let module = &group.module;
-            let speed = module
-                .speed_mts
-                .map(|speed| KeyValue::new("Speed", format!("{speed} MT/s")));
+            let speed = module.speed_mts.map(|speed| {
+                KeyValue::new(
+                    "Speed",
+                    Quantity::measured(f64::from(speed), DisplayUnit::MegatransfersPerSecond, 0),
+                )
+            });
             [
                 ("Manufacturer", &module.manufacturer),
                 ("Part number", &module.part_number),
@@ -88,8 +92,8 @@ impl From<&MemoryModules> for Section {
             .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
             .chain(speed)
             .chain([
-                KeyValue::new("Module size", module.size.display().iec().to_string()),
-                KeyValue::new("Modules", group.count.to_string()),
+                KeyValue::new("Module size", Quantity::size(module.size)),
+                KeyValue::new("Modules", Quantity::count(group.count)),
             ])
         }))
     }

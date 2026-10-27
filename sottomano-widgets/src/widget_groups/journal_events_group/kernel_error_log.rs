@@ -91,8 +91,8 @@ impl BarWidget for Vec<KernelOccurrence> {
         });
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Count"),
-                ColumnHeading::new("Message").align_x(Horizontal::Left),
+                ColumnHeading::titled("Count"),
+                ColumnHeading::titled("Message").align_x(Horizontal::Left),
             ],
             hidden_notice
                 .into_iter()
@@ -133,9 +133,8 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
         );
-        let TooltipBody::Sections(sections) = errors.tooltip(Clock::real()) else {
-            panic!("expected sections");
-        };
+        let body = errors.tooltip(Clock::real());
+        let sections = body.listed_sections();
         let SectionBody::ColumnTable { records, .. } = sections[0].body() else {
             panic!("expected column table");
         };

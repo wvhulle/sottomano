@@ -30,12 +30,11 @@ use sottomano_widgets::clock::Clock;
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
-    RECORDING_EXTENSION, RECORDINGS_DIRECTORY, WORKSPACE_ROOT,
+    RECORDING_EXTENSION, RECORDINGS_DIRECTORY,
     demo_script::{Demo, Step},
     hovered_widget::{AnyHoveredWidget, HoveredWidget},
     showcase_message::ShowcaseMessage,
     showcase_program::ShowcaseProgram,
-    tour_document_embedding::RecordedAnimation,
 };
 
 pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
@@ -459,10 +458,6 @@ impl ContentCrop {
             })
             .collect()
     }
-
-    fn logical_width(&self) -> u16 {
-        self.size.width / SCALE_FACTOR as u16
-    }
 }
 
 fn register_font(config: &Config) {
@@ -514,8 +509,7 @@ fn encode_animation(frames: &[CapturedFrame], crop: &ContentCrop, animation: &Pa
     fs::write(animation, &*webp_bytes).expect("recordings directory is writable");
 }
 
-#[must_use]
-pub fn record(demo: &'static Demo, start: Clock) -> RecordedAnimation {
+pub fn record(demo: &'static Demo, start: Clock, output_root: &Path) {
     let config = Config::fallback();
     register_font(&config);
     let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
@@ -535,12 +529,8 @@ pub fn record(demo: &'static Demo, start: Clock) -> RecordedAnimation {
         margin_pixels,
     );
     drop(recorder);
-    let animation = Path::new(WORKSPACE_ROOT)
-        .join(RECORDINGS_DIRECTORY)
-        .join(format!("{}.{RECORDING_EXTENSION}", demo.name));
+    let recordings_directory = output_root.join(RECORDINGS_DIRECTORY);
+    fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
+    let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
     encode_animation(&frames, &crop, &animation);
-    RecordedAnimation {
-        name: demo.name,
-        width: crop.logical_width(),
-    }
 }

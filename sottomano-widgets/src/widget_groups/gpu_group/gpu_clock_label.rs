@@ -9,7 +9,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
     },
@@ -39,7 +39,7 @@ impl BarWidget for GpuClockLabel {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([KeyValue::new(
             "Graphics clock",
-            megahertz_text(self.current),
+            Quantity::clock_megahertz(self.current),
         )])
     }
 }
@@ -57,13 +57,13 @@ impl ReadingSections for GpuClocks {
         [Section::dictionary(
             [
                 self.graphics_clock_ceiling
-                    .map(|ceiling| KeyValue::new("Ceiling", megahertz_text(ceiling))),
+                    .map(|ceiling| KeyValue::new("Ceiling", Quantity::clock_megahertz(ceiling))),
                 self.memory_clock
-                    .map(|memory| KeyValue::new("Memory clock", megahertz_text(memory))),
+                    .map(|memory| KeyValue::new("Memory clock", Quantity::clock_megahertz(memory))),
                 self.performance_state
                     .map(|state| KeyValue::new("Performance state", format!("P{state}"))),
                 self.fan
-                    .map(|speed| KeyValue::new("Fan", percent_text(speed))),
+                    .map(|speed| KeyValue::new("Fan", Quantity::share(speed))),
             ]
             .into_iter()
             .flatten(),

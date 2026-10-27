@@ -12,7 +12,8 @@ pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS layer_appearance (
     drop_shadow INTEGER,
     shadow_softness_px REAL,
     shadow_opacity REAL,
-    outline INTEGER
+    outline INTEGER,
+    outline_opacity REAL
 )";
 
 #[derive(Debug, Clone, Copy)]
@@ -24,6 +25,7 @@ pub enum AppearanceSetting {
     ShadowSoftness,
     ShadowOpacity,
     Outline,
+    OutlineOpacity,
 }
 
 impl AppearanceSetting {
@@ -36,6 +38,7 @@ impl AppearanceSetting {
             Self::ShadowSoftness => "shadow_softness_px",
             Self::ShadowOpacity => "shadow_opacity",
             Self::Outline => "outline",
+            Self::OutlineOpacity => "outline_opacity",
         }
     }
 }
@@ -117,7 +120,7 @@ async fn read_layer_appearance(
     let mut rows = connection
         .query(
             "SELECT opacity, corner_radius_px, blurred, drop_shadow, shadow_softness_px,
-                    shadow_opacity, outline
+                    shadow_opacity, outline, outline_opacity
              FROM layer_appearance WHERE layer = ?1",
             (layer.key(),),
         )
@@ -150,6 +153,7 @@ async fn read_layer_appearance(
         },
         outline: OutlineStyle {
             drawn: flag(AppearanceSetting::Outline, defaults.outline.drawn),
+            opacity: real(AppearanceSetting::OutlineOpacity, defaults.outline.opacity),
         },
     })
 }
@@ -172,6 +176,7 @@ mod tests {
             (AppearanceSetting::ShadowSoftness, real(33.0)),
             (AppearanceSetting::ShadowOpacity, real(0.5)),
             (AppearanceSetting::Outline, flag(false)),
+            (AppearanceSetting::OutlineOpacity, real(0.75)),
         ] {
             write_setting(&connection, ShellLayer::Sidebar, setting, value)
                 .await
@@ -189,6 +194,7 @@ mod tests {
         assert!((sidebar.shadow.softness_px - 33.0).abs() < f32::EPSILON);
         assert!((sidebar.shadow.opacity - 0.5).abs() < f32::EPSILON);
         assert!(!sidebar.outline.drawn);
+        assert!((sidebar.outline.opacity - 0.75).abs() < f32::EPSILON);
 
         let panels = read_layer_appearance(&connection, ShellLayer::Panels, defaults)
             .await

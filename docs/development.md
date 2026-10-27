@@ -117,10 +117,10 @@ flowchart LR
   end
 
   subgraph recordings_pipeline [".woodpecker/readme-recordings.yaml"]
-    render_recordings["render-readme-recordings<br>nix build .#readme-recordings"]
+    render_recordings["render-readme-recordings<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
     push_recordings_branch["push-readme-recordings-branch<br>force-push to Codeberg"]
     open_recordings_pull_request["open-readme-recordings-pr<br>open, update or close"]
-    render_recordings -->|"cp result/*.webp recordings/"| push_recordings_branch
+    render_recordings -->|"recordings/, resized embeds"| push_recordings_branch
     push_recordings_branch --> open_recordings_pull_request
   end
 
@@ -161,22 +161,23 @@ flowchart LR
     demo_script["demo_script::DEMOS<br>Hover, Press, Drag, RestFor, …"]
     showcase_program["ShowcaseProgram::scripted"]
     animation_recording["animation_recording::record<br>iced_test emulator, frame clock,<br>ContentCrop, lavapipe"]
-    embedding_check["tour_document_embedding::assert_embedded"]
     interactive_tester["ShowcaseProgram::interactive<br>--window"]
     ice_scenarios["tests/ice_scenarios.rs<br>.ice scenarios"]
     group_fixtures --> demo_script --> showcase_program --> animation_recording
     group_fixtures --> interactive_tester
     group_fixtures --> ice_scenarios
-    animation_recording -->|name, width| embedding_check
   end
 
+  embedding_update["cargo xtask update-recording-embeds"]
+
   recorded_webp[/"recordings/&lt;name&gt;.webp"/]
-  showcase_document["docs/showcase.md<br>must embed every recording"]
-  readme_document["README.md<br>checks the recordings it embeds"]
+  showcase_document["docs/showcase.md<br>embeds the rest, widths rewritten"]
+  readme_document["README.md<br>widths rewritten for the recordings it embeds"]
 
   animation_recording -->|lossless animated webp| recorded_webp
-  embedding_check -->|"&lt;img src width&gt;"| showcase_document
-  embedding_check -->|"&lt;img src width&gt;"| readme_document
+  recorded_webp -->|pixel width / 2| embedding_update
+  embedding_update -->|"&lt;img src width&gt;"| showcase_document
+  embedding_update -->|"&lt;img src width&gt;"| readme_document
 ```
 
 ## Upstream docs

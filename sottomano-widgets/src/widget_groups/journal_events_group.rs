@@ -26,6 +26,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        localized_quantities::Quantity,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -210,19 +211,19 @@ impl BarWidget for JournalEventsGroup {
         let kernel = self
             .kernel
             .visible_reading()
-            .map(|errors| KeyValue::new("Kernel errors", errors.len().to_string()));
+            .map(|errors| KeyValue::new("Kernel errors", Quantity::count(errors.len())));
         let service = self
             .service_errors
             .visible_reading()
-            .map(|errors| KeyValue::new("Service errors", errors.entry_count.to_string()));
+            .map(|errors| KeyValue::new("Service errors", Quantity::count(errors.entry_count)));
         let coredumps = self
             .coredumps
             .visible_reading()
-            .map(|coredumps| KeyValue::new("Coredumps", coredumps.len().to_string()));
+            .map(|coredumps| KeyValue::new("Coredumps", Quantity::count(coredumps.len())));
         let oom_kills = self
             .oom_kills
             .visible_reading()
-            .map(|kills| KeyValue::new("OOM kills", kills.len().to_string()));
+            .map(|kills| KeyValue::new("OOM kills", Quantity::count(kills.len())));
         TooltipBody::sections([Section::dictionary(
             kernel
                 .into_iter()

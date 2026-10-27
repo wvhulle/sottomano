@@ -1,14 +1,11 @@
 use sottomano_sources::battery_power_profiles::upower_battery_state::Battery;
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{energy::watt_hour, f64::Ratio, ratio::percent},
-};
+use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
@@ -41,16 +38,10 @@ impl BarWidget for Battery {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(
             [
-                Some(KeyValue::new("Battery", percent_text(self.capacity))),
+                Some(KeyValue::new("Battery", Quantity::share(self.capacity))),
                 self.status
                     .map(|status| KeyValue::new("Status", status.as_str())),
-                Some(KeyValue::new(
-                    "Remaining",
-                    format!(
-                        "{:.1}",
-                        self.energy.into_format_args(watt_hour, Abbreviation)
-                    ),
-                )),
+                Some(KeyValue::new("Remaining", Quantity::energy(self.energy))),
             ]
             .into_iter()
             .flatten(),

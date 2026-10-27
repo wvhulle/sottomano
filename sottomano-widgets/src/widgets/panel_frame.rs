@@ -20,6 +20,8 @@ use crate::widgets::{
     shell_layer_appearance::LayerAppearance,
 };
 
+const SHADOW_DROP_PER_SOFTNESS: f32 = 0.25;
+
 pub struct LayerFrameStyle<'a> {
     appearance: &'a LayerAppearance,
     config: &'a Config,
@@ -50,7 +52,9 @@ impl<'a> LayerFrameStyle<'a> {
             return Border::default();
         }
         Border {
-            color: PaletteColors::from(&self.config.theme.palette).frame_outline,
+            color: PaletteColors::from(&self.config.theme.palette)
+                .frame_outline
+                .scale_alpha(self.appearance.outline.opacity),
             width: self.config.panel_bar.frame_outline,
             radius: Radius::default(),
         }
@@ -66,6 +70,15 @@ impl<'a> LayerFrameStyle<'a> {
             color: Color::BLACK.scale_alpha(shadow.opacity),
             offset: Vector::ZERO,
             blur_radius: shadow.softness_px,
+        }
+    }
+
+    #[must_use]
+    pub fn lifted_drop_shadow(&self) -> Shadow {
+        let centered_shadow = self.drop_shadow();
+        Shadow {
+            offset: Vector::new(0.0, centered_shadow.blur_radius * SHADOW_DROP_PER_SOFTNESS),
+            ..centered_shadow
         }
     }
 }

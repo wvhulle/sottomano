@@ -26,6 +26,8 @@ pub struct Palette {
     pub surface_raised: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
     pub frame_outline: AlphaColor<Srgb>,
+    #[serde(with = "css_color")]
+    pub secondary_foreground: AlphaColor<Srgb>,
 }
 
 impl Default for Palette {
@@ -42,6 +44,7 @@ impl Default for Palette {
             dim: css("#3e4b59"),
             surface_raised: css("#202229"),
             frame_outline: css("#3e4b59"),
+            secondary_foreground: css("#bfbdb6"),
         }
     }
 }

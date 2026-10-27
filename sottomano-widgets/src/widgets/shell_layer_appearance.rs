@@ -14,6 +14,16 @@ impl ShellLayer {
             Self::Panels | Self::Sidebar => LayerAppearance::default(),
             Self::Overlays => LayerAppearance {
                 opacity: 0.85,
+                corner_radius_px: 12.0,
+                shadow: ShadowStyle {
+                    cast: true,
+                    softness_px: 32.0,
+                    opacity: 0.45,
+                },
+                outline: OutlineStyle {
+                    drawn: true,
+                    opacity: 0.5,
+                },
                 ..LayerAppearance::default()
             },
         }
@@ -68,10 +78,14 @@ impl Default for ShadowStyle {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct OutlineStyle {
     pub drawn: bool,
+    pub opacity: f32,
 }
 
 impl Default for OutlineStyle {
     fn default() -> Self {
-        Self { drawn: true }
+        Self {
+            drawn: true,
+            opacity: 1.0,
+        }
     }
 }

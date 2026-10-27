@@ -252,20 +252,20 @@ impl LoginSessionGroup {
             LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_sections(self.session.sections(clock))),
+            .map(|tooltip| tooltip.with_groups(self.session.sections(clock))),
             LoginSessionTarget::Account => session_face(&AccountFace {
                 identity: identity?,
             }),
             LoginSessionTarget::Compositor => session_face(&CompositorFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_sections(self.graphical.sections(clock))),
+            .map(|tooltip| tooltip.with_groups(self.graphical.sections(clock))),
             LoginSessionTarget::ServiceManager => session_face(&ServiceManagerFace)
-                .map(|tooltip| tooltip.with_sections(self.service_manager.sections(clock))),
+                .map(|tooltip| tooltip.with_groups(self.service_manager.sections(clock))),
             LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
-                .map(|tooltip| tooltip.with_sections(self.graphical_target.sections(clock))),
+                .map(|tooltip| tooltip.with_groups(self.graphical_target.sections(clock))),
             LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
-                .map(|tooltip| tooltip.with_sections(self.power.sections(clock))),
+                .map(|tooltip| tooltip.with_groups(self.power.sections(clock))),
         }
     }
 }

@@ -266,7 +266,7 @@ impl PowerProfileControl {
             .tooltip_with(TooltipBody::sections(
                 [Some(profile), battery_life].into_iter().flatten(),
             ))
-            .map(|tooltip| tooltip.with_sections(self.status.sections(clock)))
+            .map(|tooltip| tooltip.with_groups(self.status.sections(clock)))
     }
 
     fn battery_life_section(&self) -> Section {

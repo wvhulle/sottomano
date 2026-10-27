@@ -10,8 +10,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::percent_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -84,9 +84,11 @@ fn window_section(
     quota: Option<&Quota>,
     now: DateTime<Utc>,
 ) -> Section {
-    let used = KeyValue::new("Used", percent_text(window.utilization));
+    let used = KeyValue::new("Used", Quantity::share(window.utilization).decimals(2));
     let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
-        Pace::Lasts { at_reset } => KeyValue::new("Projected At Reset", percent_text(at_reset)),
+        Pace::Lasts { at_reset } => {
+            KeyValue::new("Projected At Reset", Quantity::share(at_reset).decimals(2))
+        }
         Pace::RunsOut { at } => KeyValue::new("Runs Out In", Cell::duration(at - now)),
         Pace::Exceeded => KeyValue::new("Used Up", "already"),
     });
@@ -107,15 +109,13 @@ fn extra_section(extra: Option<&ExtraUsage>) -> Section {
             reason.map(|reason| KeyValue::new("Reason", reason)),
             extra
                 .spent
-                .as_ref()
-                .map(|spent| KeyValue::new("Spent This Month", spent.to_string())),
+                .map(|spent| KeyValue::new("Spent This Month", Quantity::spend(spent))),
             extra
                 .monthly_limit
-                .as_ref()
-                .map(|limit| KeyValue::new("Monthly Limit", limit.to_string())),
+                .map(|limit| KeyValue::new("Monthly Limit", Quantity::spend(limit))),
             extra
                 .used_share
-                .map(|used| KeyValue::new("Used", percent_text(used))),
+                .map(|used| KeyValue::new("Used", Quantity::share(used).decimals(2))),
         ]
         .into_iter()
         .flatten()

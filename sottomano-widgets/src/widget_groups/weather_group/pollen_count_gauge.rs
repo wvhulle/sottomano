@@ -5,6 +5,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -94,18 +95,23 @@ impl BarWidget for AllergenConcentration {
         TooltipBody::sections([
             Section::dictionary([KeyValue::new(
                 self.allergen.name(),
-                format!("{:.1} grains/m³", self.grains_per_cubic_metre),
+                Quantity::measured(
+                    self.grains_per_cubic_metre,
+                    DisplayUnit::GrainsPerCubicMeter,
+                    1,
+                ),
             )]),
             Section::dictionary([
-                KeyValue::new(
-                    "Moderate from",
-                    format!("{} grains/m³", thresholds.moderate),
-                ),
-                KeyValue::new("High from", format!("{} grains/m³", thresholds.high)),
+                KeyValue::new("Moderate from", pollen_threshold(thresholds.moderate)),
+                KeyValue::new("High from", pollen_threshold(thresholds.high)),
             ])
             .titled("Thresholds"),
         ])
     }
+}
+
+fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
+    Quantity::measured(grains_per_cubic_metre, DisplayUnit::GrainsPerCubicMeter, 0)
 }
 
 impl BarWidget for Pollen {

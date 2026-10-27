@@ -63,8 +63,8 @@ impl BarWidget for LastShutdown {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Took"),
-                ColumnHeading::new("Result").align_x(Horizontal::Left),
+                ColumnHeading::titled("Took"),
+                ColumnHeading::titled("Result").align_x(Horizontal::Left),
             ],
             self.slowest_stops.iter(),
         )

@@ -7,6 +7,8 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         slider_control::{ControlMessage, SliderControl, percent_f},
         tooltip_body::{KeyValue, TooltipBody},
@@ -54,9 +56,12 @@ pub(super) fn device_entries(
         .device
         .as_deref()
         .map(|device| KeyValue::new("Device", device));
-    [KeyValue::new(kind.label(), format!("{}%", reading.percent))]
-        .into_iter()
-        .chain(device)
+    [KeyValue::new(
+        kind.label(),
+        Quantity::share(percent_fill(reading.percent)),
+    )]
+    .into_iter()
+    .chain(device)
 }
 
 pub(super) fn input_glyph(_value: f32, muted: bool) -> Phosphor {

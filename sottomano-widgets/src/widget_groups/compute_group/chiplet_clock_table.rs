@@ -7,12 +7,9 @@ use sottomano_sources::cpu_memory_compute::{
 };
 use uom::si::f64::{Frequency, Ratio};
 
-use super::{
-    cpu_clock_label::frequency_text,
-    cpu_clock_limit_causes::{cause_level, causes_text},
-};
+use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::widgets::{
-    gauge::percent_text,
+    localized_quantities::Quantity,
     tooltip_body::{ColumnHeading, Section, TableRecord, TableRow},
 };
 
@@ -82,9 +79,10 @@ impl TableRow<4> for PhysicalCoreClock {
         TableRecord::new(
             format!("Core {}", self.first_thread),
             [
-                Some(frequency_text(self.clock).into()),
-                self.busy.map(|busy| percent_text(busy).into()),
-                self.distinct_cap.map(|cap| frequency_text(cap).into()),
+                Some(Quantity::clock_gigahertz(self.clock).into()),
+                self.busy.map(|busy| Quantity::share(busy).into()),
+                self.distinct_cap
+                    .map(|cap| Quantity::clock_gigahertz(cap).into()),
                 causes_text(&self.own_causes).map(Into::into),
             ],
         )
@@ -109,10 +107,10 @@ impl ChipletClockTable<'_> {
         rows.sort_by_key(|row| row.first_thread);
         Section::column_table(
             [
-                ColumnHeading::new("Clock"),
-                ColumnHeading::new("Load"),
-                ColumnHeading::new("Cap"),
-                ColumnHeading::new("Limit"),
+                ColumnHeading::titled("Clock"),
+                ColumnHeading::titled("Load"),
+                ColumnHeading::titled("Cap"),
+                ColumnHeading::titled("Limit"),
             ],
             rows,
         )

@@ -5,6 +5,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -50,8 +51,8 @@ impl BarWidget for CopilotFree {
             ),
             Section::dictionary(
                 [
-                    KeyValue::new("Chat", self.chat.to_string()),
-                    KeyValue::new("Completions", self.completions.to_string()),
+                    KeyValue::new("Chat", Quantity::count(self.chat)),
+                    KeyValue::new("Completions", Quantity::count(self.completions)),
                 ]
                 .into_iter()
                 .chain(self.reset.map(|at| {

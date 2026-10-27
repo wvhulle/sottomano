@@ -16,6 +16,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_durations::{duration_text, relative_moment_text},
+        localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
@@ -27,7 +28,7 @@ use crate::{
     },
 };
 
-pub(super) fn intensity_text(intensity: Velocity) -> String {
+fn intensity_text(intensity: Velocity) -> String {
     format!(
         "{:.1}",
         intensity.into_format_args(millimeter_per_hour, Abbreviation)
@@ -39,6 +40,14 @@ fn current_intensity_text(intensity: Velocity) -> String {
         "none right now".to_string()
     } else {
         intensity_text(intensity)
+    }
+}
+
+fn current_intensity_cell(intensity: Velocity) -> Cell {
+    if intensity <= Velocity::default() {
+        "none right now".into()
+    } else {
+        Quantity::precipitation_rate(intensity).into()
     }
 }
 
@@ -123,9 +132,9 @@ fn frames_not_yet_over(forecast: &[Downpour], now: DateTime<Local>) -> &[Downpou
 }
 
 const SCHEDULE_HEADINGS: [ColumnHeading; 3] = [
-    ColumnHeading::new("Rain"),
-    ColumnHeading::new(""),
-    ColumnHeading::new("Intensity").align_x(Horizontal::Left),
+    ColumnHeading::titled("Rain"),
+    ColumnHeading::untitled(),
+    ColumnHeading::titled("Intensity").align_x(Horizontal::Left),
 ];
 
 struct ScheduledRadarFrame<'a> {
@@ -138,8 +147,8 @@ impl TableRow<3> for ScheduledRadarFrame<'_> {
         let intensity = self.frame.intensity;
         let strength = self.scale.strength(intensity);
         let amount = match strength {
-            RadarRainStrength::Dry => "–".to_owned(),
-            _ => intensity_text(intensity),
+            RadarRainStrength::Dry => Cell::from("–"),
+            _ => Quantity::precipitation_rate(intensity).into(),
         };
         TableRecord::new(
             Cell::Time {
@@ -147,7 +156,7 @@ impl TableRow<3> for ScheduledRadarFrame<'_> {
                 format: LocalizedTimeFormat::HourAndMinute,
             },
             [
-                Some(amount.into()),
+                Some(amount),
                 Some(Cell::Glyph(strength.glyph())),
                 Some(strength.to_string().into()),
             ],
@@ -286,7 +295,7 @@ impl BarWidget for RainForecast<'_> {
         let scale = self.intensity_scale();
         TooltipBody::sections([
             Section::dictionary(
-                iter::once(KeyValue::new("Now", current_intensity_text(rain.intensity)))
+                iter::once(KeyValue::new("Now", current_intensity_cell(rain.intensity)))
                     .chain(turn_entry),
             )
             .titled("Buienradar radar"),
@@ -563,7 +572,13 @@ mod tests {
         .intensity_scale();
         let row = |frame| RecordCells::from(ScheduledRadarFrame { frame, scale }.table_record());
         let wet = row(&rain.forecast[0]);
-        assert_eq!(wet.cell(0), Some(&Cell::from("2.0 mm/h")));
+        assert_eq!(
+            wet.cell(0).map(|cell| match cell {
+                Cell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
+                _ => String::new(),
+            }),
+            Some("2.0 mm/h".to_owned())
+        );
         assert_eq!(wet.cell(2), Some(&Cell::from("Moderate")));
         let dry = row(&rain.forecast[1]);
         assert_eq!(dry.cell(0), Some(&Cell::from("–")));

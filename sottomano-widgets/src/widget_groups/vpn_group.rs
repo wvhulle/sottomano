@@ -178,7 +178,7 @@ impl VpnGroup {
                 Some(
                     self.wireguard
                         .tooltip_with(tunnel.tooltip(clock))?
-                        .with_sections(self.tunnel_address.sections(clock)),
+                        .with_groups(self.tunnel_address.sections(clock)),
                 )
             }
             VpnTarget::Tailscale => self.tailscale.tooltip(clock),

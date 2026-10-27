@@ -6,7 +6,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
     },
@@ -47,7 +47,7 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
             slot.task
                 .map(|task| format!("{} / {}", task.tokens(), slot.context).into()),
             slot.task
-                .map(|task| percent_text(context_fill(&task, slot.context)).into()),
+                .map(|task| Quantity::share(context_fill(&task, slot.context)).into()),
         ],
     )
 }
@@ -72,9 +72,9 @@ impl BarWidget for ContextFill<'_> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("State").align_x(Horizontal::Left),
-                ColumnHeading::new("Tokens"),
-                ColumnHeading::new("Fill"),
+                ColumnHeading::titled("State").align_x(Horizontal::Left),
+                ColumnHeading::titled("Tokens"),
+                ColumnHeading::titled("Fill"),
             ],
             self.slots.iter().map(slot_record),
         )

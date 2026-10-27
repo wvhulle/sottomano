@@ -41,7 +41,7 @@ use crate::{
             keyed_slot_list::keyed_slot_list,
         },
         text::FontFaces,
-        tooltip_body::Section,
+        tooltip_body::{Section, SourcedSections},
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
@@ -152,7 +152,7 @@ impl WindowList {
     }
 
     #[must_use]
-    pub fn process_sections(&self, clock: Clock) -> Vec<Section> {
+    pub fn process_sections(&self, clock: Clock) -> Vec<SourcedSections> {
         self.hovered_window
             .iter()
             .flat_map(|window| {
@@ -167,7 +167,8 @@ impl WindowList {
                         vec![Section::tree(Some(&kept), &self.folding).titled("Process")]
                     }),
                 ]
-                .concat()
+                .into_iter()
+                .flatten()
             })
             .collect()
     }

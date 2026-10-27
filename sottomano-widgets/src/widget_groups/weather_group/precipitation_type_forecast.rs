@@ -6,9 +6,9 @@ use sottomano_sources::weather::open_meteo_precipitation_model::{
 
 use crate::{
     clock::Clock,
-    widget_groups::weather_group::rain_intensity::intensity_text,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         tooltip_body::{
             Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
@@ -20,9 +20,9 @@ use crate::{
 const MODEL_QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
 
 const MODEL_SCHEDULE_HEADINGS: [ColumnHeading; 3] = [
-    ColumnHeading::new("Rain"),
-    ColumnHeading::new(""),
-    ColumnHeading::new("Type").align_x(Horizontal::Left),
+    ColumnHeading::titled("Rain"),
+    ColumnHeading::untitled(),
+    ColumnHeading::titled("Type").align_x(Horizontal::Left),
 ];
 
 impl TableRow<3> for &ModelQuarterHour {
@@ -33,7 +33,7 @@ impl TableRow<3> for &ModelQuarterHour {
                 format: LocalizedTimeFormat::HourAndMinute,
             },
             [
-                Some(intensity_text(self.intensity).into()),
+                Some(Quantity::precipitation_rate(self.intensity).into()),
                 Some(Cell::Glyph(
                     WeatherIcon::Sky(self.condition, self.daylight).into(),
                 )),
@@ -74,7 +74,7 @@ impl BarWidget for PrecipitationModel {
         TooltipBody::sections([
             Section::dictionary([
                 KeyValue::new("Now", self.current.condition.to_string()),
-                KeyValue::new("Rain", intensity_text(self.current.intensity)),
+                KeyValue::new("Rain", Quantity::precipitation_rate(self.current.intensity)),
             ])
             .titled("Open-Meteo model"),
             Section::column_table(
@@ -115,7 +115,13 @@ mod tests {
             ))
                 .table_record(),
         );
-        assert_eq!(row.cell(0), Some(&Cell::from("5.6 mm/h")));
+        assert_eq!(
+            row.cell(0).map(|cell| match cell {
+                Cell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
+                _ => String::new(),
+            }),
+            Some("5.6 mm/h".to_owned())
+        );
         assert_eq!(row.cell(2), Some(&Cell::from("Light drizzle")));
     }
 

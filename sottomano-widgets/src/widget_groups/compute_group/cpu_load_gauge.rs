@@ -13,7 +13,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, ThreadCell, TooltipBody},
         widget_state::WidgetState,
@@ -71,15 +71,15 @@ impl ChipletLiveState<'_> {
                         mean_share(members.iter().map(|reading| share(reading)))
                     };
                     let load = mean(|reading| reading.busy).map(|busy| {
-                        KeyValue::new("Load", percent_text(busy)).level(busy_level(busy))
+                        KeyValue::new("Load", Quantity::share(busy)).level(busy_level(busy))
                     });
                     let user = mean(|reading| reading.split.user)
-                        .map(|user| KeyValue::new("User", percent_text(user)));
+                        .map(|user| KeyValue::new("User", Quantity::share(user)));
                     let kernel = mean(|reading| reading.split.system)
-                        .map(|system| KeyValue::new("Kernel", percent_text(system)));
+                        .map(|system| KeyValue::new("Kernel", Quantity::share(system)));
                     let deep_idle =
                         mean_share(members.iter().filter_map(|reading| reading.deep_idle))
-                            .map(|idle| KeyValue::new("Deep sleep", percent_text(idle)));
+                            .map(|idle| KeyValue::new("Deep sleep", Quantity::share(idle)));
                     load.into_iter()
                         .chain(user)
                         .chain(kernel)
@@ -130,7 +130,7 @@ impl BarWidget for CpuUsage {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("CPU load", percent_text(self.busy))])
+        TooltipBody::dictionary([KeyValue::new("CPU load", Quantity::share(self.busy))])
     }
 }
 
@@ -138,7 +138,7 @@ impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.processes.iter().map(|process| {
-                KeyValue::new(process.name.clone(), percent_text(process.busy))
+                KeyValue::new(process.name.clone(), Quantity::share(process.busy))
                     .level(busy_level(process.busy))
             }))
             .titled((

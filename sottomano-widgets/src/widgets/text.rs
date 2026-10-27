@@ -20,7 +20,7 @@ pub fn column_heading<'a>(
     color: Color,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     bar_text(font, title)
-        .font(FontFaces::from(font).italic)
+        .size(font.small_text_size_px)
         .color(color)
 }
 

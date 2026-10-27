@@ -56,9 +56,9 @@ impl BarWidget for ServiceErrors {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Latest"),
-                ColumnHeading::new("Count"),
-                ColumnHeading::new("Message").align_x(Horizontal::Left),
+                ColumnHeading::titled("Latest"),
+                ColumnHeading::titled("Count"),
+                ColumnHeading::titled("Message").align_x(Horizontal::Left),
             ],
             self.by_unit_oldest_first.iter(),
         )

@@ -88,7 +88,7 @@ pub fn anchored_popup<'a>(
         background,
         radius: overlay_appearance.corner_radius_px,
         blurred: overlay_appearance.blurred,
-        shadow: overlay_frame.drop_shadow(),
+        shadow: overlay_frame.lifted_drop_shadow(),
         outline: overlay_frame.outline_border(),
     })
 }

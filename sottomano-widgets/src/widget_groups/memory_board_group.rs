@@ -147,14 +147,15 @@ impl MemoryBoardGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: MemoryBoardTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            MemoryBoardTarget::Memory => self.memory.tooltip_with_sections(
+            MemoryBoardTarget::Memory => self.memory.tooltip_with_groups(
                 [
                     self.memory_processes.sections(clock),
                     self.module_temperatures.sections(clock),
                     self.hardware
                         .sections_described_by(|hardware| vec![Section::from(&hardware.memory)]),
                 ]
-                .concat(),
+                .into_iter()
+                .flatten(),
                 clock,
             ),
             MemoryBoardTarget::Board => {

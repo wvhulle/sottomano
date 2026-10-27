@@ -1986,6 +1986,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2214fb00f669ee96bee5bb29dfb1ddabe058b2bc426817efc79afa03c9bc55ae"
 dependencies = [
  "displaydoc",
+ "ryu",
  "smallvec",
  "writeable",
 ]
@@ -3276,6 +3277,7 @@ dependencies = [
  "icu_pattern",
  "icu_plurals",
  "icu_provider",
+ "serde",
  "writeable",
  "zerovec",
 ]
@@ -7056,6 +7058,7 @@ dependencies = [
  "iced",
  "iced_controller_diagram",
  "iced_exwlshell",
+ "icu_decimal",
  "icu_experimental",
  "icu_locale_core",
  "icu_provider",
@@ -9674,6 +9677,7 @@ name = "xtask"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "image",
  "sottomano-config",
 ]
 

@@ -21,6 +21,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TableRecord, TableRow, TooltipBody},
         widget_state::WidgetState,
@@ -190,8 +191,8 @@ impl IdleBattery {
     fn tooltip(self) -> TooltipBody {
         TooltipBody::dictionary([
             KeyValue::new("Status", self.explanation()),
-            KeyValue::new("Charge", percent_text(self.capacity)),
-            KeyValue::new("Charge limit", percent_text(self.charge_limit)),
+            KeyValue::new("Charge", Quantity::share(self.capacity)),
+            KeyValue::new("Charge limit", Quantity::share(self.charge_limit)),
         ])
     }
 }

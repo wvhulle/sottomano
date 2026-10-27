@@ -61,8 +61,8 @@ impl BarWidget for BootTimeline {
             }));
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Took"),
-                ColumnHeading::new("Meaning").align_x(Horizontal::Left),
+                ColumnHeading::titled("Took"),
+                ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
             ],
             timeline_records,
         )])

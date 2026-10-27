@@ -8,6 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -56,9 +57,9 @@ impl BarWidget for RootFilesystem {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let capacity = Section::dictionary([
             KeyValue::new("Mount", "/".to_owned()),
-            KeyValue::new("Used", format!("{}%", self.used_pct())),
-            KeyValue::new("Free", self.free.display().iec().to_string()),
-            KeyValue::new("Total", self.total.display().iec().to_string()),
+            KeyValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
+            KeyValue::new("Free", Quantity::size(self.free)),
+            KeyValue::new("Total", Quantity::size(self.total)),
         ]);
         TooltipBody::sections([capacity, Section::from(&self.filesystem)])
     }
@@ -69,17 +70,11 @@ impl From<&Filesystem> for Section {
         match filesystem {
             Filesystem::Btrfs(space) => Section::dictionary([
                 KeyValue::new("Compression", space.compression.to_string()),
-                KeyValue::new(
-                    "Unallocated space",
-                    space.unallocated.display().iec().to_string(),
-                ),
-                KeyValue::new(
-                    "Metadata in use",
-                    space.metadata.used.display().iec().to_string(),
-                ),
+                KeyValue::new("Unallocated space", Quantity::size(space.unallocated)),
+                KeyValue::new("Metadata in use", Quantity::size(space.metadata.used)),
                 KeyValue::new(
                     "Metadata reserved",
-                    space.metadata.allocated.display().iec().to_string(),
+                    Quantity::size(space.metadata.allocated),
                 ),
             ])
             .titled("Btrfs"),

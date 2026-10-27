@@ -27,7 +27,7 @@ use crate::{
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
         on_hover_reading::OnHoverReading,
-        tooltip_body::{ReadingSections, Section, Tooltip, TooltipBody},
+        tooltip_body::{ReadingSections, Section, SourcedSections, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -186,12 +186,12 @@ impl GpuGroup {
     fn hovered_sections(
         &self,
         bus: &PciBusId,
-        sections: impl FnOnce(&Self) -> Vec<Section>,
-    ) -> Vec<Section> {
+        sections: impl FnOnce(&Self) -> Option<SourcedSections>,
+    ) -> Option<SourcedSections> {
         if self.hovered_bus.as_ref() == Some(bus) {
             sections(self)
         } else {
-            Vec::new()
+            None
         }
     }
 
@@ -301,7 +301,7 @@ impl GpuGroup {
         let device = self.devices.get(&target.bus)?;
         let snapshot = &device.snapshot;
         match target.reading {
-            GpuReading::Load => snapshot.tooltip_with_sections(
+            GpuReading::Load => snapshot.tooltip_with_groups(
                 self.discovery
                     .sections_described_by(|_| vec![Section::from(&device.model)]),
                 clock,
@@ -309,14 +309,14 @@ impl GpuGroup {
             GpuReading::Clock => Some(
                 snapshot
                     .tooltip_with(device.clock_label()?.tooltip(clock))?
-                    .with_sections(
+                    .with_groups(
                         self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
                     ),
             ),
             GpuReading::Memory => Some(
                 snapshot
                     .tooltip_with(TooltipBody::sections(device.memory()?.sections(clock)))?
-                    .with_sections(
+                    .with_groups(
                         self.hovered_sections(&target.bus, |group| group.processes.sections(clock)),
                     ),
             ),

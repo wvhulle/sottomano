@@ -10,6 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{Freshness, KeyValue, Tooltip, TooltipBody},
@@ -202,7 +203,7 @@ impl BarWidget for NotificationStatus {
         if self.held > 0 {
             TooltipBody::dictionary([KeyValue::new(
                 "Held until do not disturb ends",
-                self.held.to_string(),
+                Quantity::count(self.held),
             )])
         } else {
             TooltipBody::sections([])

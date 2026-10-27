@@ -4,15 +4,15 @@ use sottomano_sources::disk_storage::disk_io_activity::{
 use uom::si::{
     f64::{InformationRate, Ratio},
     information_rate::{gibibyte_per_second, kibibyte_per_second},
-    ratio::{percent, ratio},
+    ratio::ratio,
 };
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        rate_text::per_second_text,
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
@@ -69,11 +69,8 @@ impl BarWidget for DiskTransfer {
         };
         TooltipBody::dictionary([
             KeyValue::new("Disk", self.disk.clone()),
-            KeyValue::new(rate_label, per_second_text(self.rate)),
-            KeyValue::new(
-                "Disk busy",
-                format!("{:.0}%", self.disk_busy.get::<percent>()),
-            ),
+            KeyValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+            KeyValue::new("Disk busy", Quantity::share(self.disk_busy)),
         ])
     }
 }

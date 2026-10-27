@@ -19,6 +19,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        localized_quantities::Quantity,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -144,7 +145,10 @@ impl BarWidget for PendingUpgradesGroup {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
-            KeyValue::new(firmware_upgrade_list::LABEL, upgrades.len().to_string())
+            KeyValue::new(
+                firmware_upgrade_list::LABEL,
+                Quantity::count(upgrades.len()),
+            )
         }))
     }
 }

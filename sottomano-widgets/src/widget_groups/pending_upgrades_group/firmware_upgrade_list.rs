@@ -79,12 +79,12 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Vendor").align_x(Horizontal::Left),
-                ColumnHeading::new("Installed"),
-                ColumnHeading::new("Offered"),
-                ColumnHeading::new("Released"),
-                ColumnHeading::new("Urgency").align_x(Horizontal::Left),
-                ColumnHeading::new("Summary").align_x(Horizontal::Left),
+                ColumnHeading::titled("Vendor").align_x(Horizontal::Left),
+                ColumnHeading::titled("Installed"),
+                ColumnHeading::titled("Offered"),
+                ColumnHeading::titled("Released"),
+                ColumnHeading::titled("Urgency").align_x(Horizontal::Left),
+                ColumnHeading::titled("Summary").align_x(Horizontal::Left),
             ],
             self.iter(),
         )

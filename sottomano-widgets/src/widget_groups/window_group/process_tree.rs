@@ -2,10 +2,10 @@ use std::{collections::BTreeSet, time::Duration};
 
 use bytesize::ByteSize;
 use iced::{
-    Alignment, Color, Element, Length, Padding,
+    Alignment, Color, Element, Padding,
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
-    widget::{Row, Space, container, mouse_area, table},
+    widget::{Row, Space, container, mouse_area},
 };
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::desktop_windows_apps::process_tree_inspection::Process;
@@ -19,6 +19,7 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
+        content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         localized_durations::duration_text,
         palette_colors::PaletteColors,
         phosphor::{self, Phosphor},
@@ -36,7 +37,6 @@ const ROW_GAP_PX: f32 = 3.0;
 const CARET_GAP_PX: f32 = 2.0;
 const MAX_CHILDREN: usize = 19;
 const UNFOLDED_DEPTH_BY_DEFAULT: usize = 3;
-const DIM_ALPHA: f32 = 0.7;
 const WARNING_CPU_PERCENT: f64 = 2.0;
 const CRITICAL_CPU_PERCENT: f64 = 10.0;
 
@@ -161,7 +161,7 @@ impl<'a> ProcessTree<'a> {
 
         let foreground = self.foreground();
         let flash = self.flash();
-        let dim = self.dim();
+        let secondary_foreground = self.secondary_foreground();
         let tint = self.tint();
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
@@ -170,9 +170,9 @@ impl<'a> ProcessTree<'a> {
         let copy_flash = self.copy_flash();
         let locale = self.config.calendar.locale;
 
-        table::table(
+        content_sized_table(
             [
-                table::column(self.heading("Binary"), move |branch: Branch| {
+                content_sized_column(self.heading("Binary"), move |branch: Branch| {
                     let is_root = branch.depth == 0;
                     let caret_size = font.text_size_px;
                     let row = match branch.entry {
@@ -191,7 +191,11 @@ impl<'a> ProcessTree<'a> {
                             )
                             .identified_by(&listing.pid);
                             Row::new()
-                                .push(caret(&listing, caret_size, tint.or(level, dim)))
+                                .push(caret(
+                                    &listing,
+                                    caret_size,
+                                    tint.or(level, secondary_foreground),
+                                ))
                                 .push(pressable_text(
                                     cell,
                                     listing.name,
@@ -201,15 +205,14 @@ impl<'a> ProcessTree<'a> {
                                     Interaction::Copy,
                                 ))
                         }
-                        Entry::Elided { hidden } => Row::new()
-                            .push(blank(caret_size))
-                            .push(bar_text(&font, format!("+{hidden} more")).color(dim)),
+                        Entry::Elided { hidden } => Row::new().push(blank(caret_size)).push(
+                            bar_text(&font, format!("+{hidden} more")).color(secondary_foreground),
+                        ),
                     };
                     let row = row.spacing(CARET_GAP_PX).align_y(Alignment::Center);
                     let indent = INDENT_PX * branch.depth as f32;
                     Element::from(container(row).padding(Padding::ZERO.left(indent)))
                 })
-                .width(Length::Fill)
                 .align_y(Vertical::Top),
                 self.number("PID", |listing| listing.pid.to_string()),
                 self.number("CPU", |listing| cpu_text(listing.cpu)),
@@ -221,8 +224,6 @@ impl<'a> ProcessTree<'a> {
             ],
             branches,
         )
-        .width(Length::Fill)
-        .separator(0.0)
         .padding_x(COLUMN_GAP_PX / 2.0)
         .padding_y(ROW_GAP_PX / 2.0)
         .into()
@@ -232,7 +233,7 @@ impl<'a> ProcessTree<'a> {
         column_heading(
             &self.config.theme.font,
             title.to_owned(),
-            PaletteColors::from(&self.config.theme.palette).inactive,
+            self.secondary_foreground(),
         )
         .into()
     }
@@ -241,19 +242,19 @@ impl<'a> ProcessTree<'a> {
         &self,
         title: &str,
         field: impl Fn(&Listing) -> String + 'static,
-    ) -> table::Column<'static, 'static, Branch, PopupMessage> {
-        let dim = self.dim();
+    ) -> ContentSizedColumn<'static, Branch, PopupMessage> {
+        let secondary_foreground = self.secondary_foreground();
         let flash = self.flash();
         let tint = self.tint();
         let font = self.config.theme.monospace_font.clone();
         let transition = self.transition;
         let copy_flash = self.copy_flash();
-        table::column(self.heading(title), move |branch: Branch| {
+        content_sized_column(self.heading(title), move |branch: Branch| {
             let Entry::Listed(listing) = branch.entry else {
                 return blank(0.0);
             };
             let text = field(&listing);
-            let color = tint.or(listing.level(), dim);
+            let color = tint.or(listing.level(), secondary_foreground);
             let cell = TransitioningText::new(
                 bar_text(&font, text.clone()).color(color),
                 text.clone(),
@@ -295,11 +296,8 @@ impl<'a> ProcessTree<'a> {
         self.config.tooltips.copy_flash
     }
 
-    fn dim(&self) -> Color {
-        Color {
-            a: DIM_ALPHA,
-            ..PaletteColors::from(&self.config.theme.palette).bar_foreground
-        }
+    fn secondary_foreground(&self) -> Color {
+        PaletteColors::from(&self.config.theme.palette).secondary_foreground
     }
 }
 

@@ -26,6 +26,7 @@ pub enum AppearanceTarget {
     ShadowSoftness,
     ShadowOpacity,
     Outline,
+    OutlineOpacity,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +35,7 @@ pub enum AppearanceMessage {
     CornerRadius(ControlMessage),
     ShadowSoftness(ControlMessage),
     ShadowOpacity(ControlMessage),
+    OutlineOpacity(ControlMessage),
     ToggleBlur,
     ToggleShadow,
     ToggleOutline,
@@ -83,6 +85,7 @@ pub struct LayerAppearanceControls {
     corner_radius: SliderControl,
     shadow_softness: SliderControl,
     shadow_opacity: SliderControl,
+    outline_opacity: SliderControl,
     blurred: bool,
     shadow_cast: bool,
     outline_drawn: bool,
@@ -129,6 +132,14 @@ impl LayerAppearanceControls {
             )
             .readout(|value, _| format!("{} %", value.round()))
             .icon_only(),
+            outline_opacity: SliderControl::new(
+                "Outline opacity",
+                0.0..=100.0,
+                hover(AppearanceTarget::OutlineOpacity),
+                Phosphor::SquareHalfBottom(Weight::Regular),
+            )
+            .readout(|value, _| format!("{} %", value.round()))
+            .icon_only(),
         };
         appearance_controls.adopt_loaded(defaults);
         appearance_controls
@@ -154,6 +165,7 @@ impl LayerAppearanceControls {
             },
             outline: OutlineStyle {
                 drawn: self.outline_drawn,
+                opacity: self.outline_opacity.settled_value() / 100.0,
             },
         }
     }
@@ -170,6 +182,8 @@ impl LayerAppearanceControls {
             .update(ControlMessage::Reading(appearance.shadow.softness_px));
         self.shadow_opacity
             .update(ControlMessage::Reading(appearance.shadow.opacity * 100.0));
+        self.outline_opacity
+            .update(ControlMessage::Reading(appearance.outline.opacity * 100.0));
     }
 
     pub fn close(&mut self) {
@@ -177,6 +191,7 @@ impl LayerAppearanceControls {
         self.corner_radius.close();
         self.shadow_softness.close();
         self.shadow_opacity.close();
+        self.outline_opacity.close();
     }
 
     #[must_use]
@@ -193,6 +208,9 @@ impl LayerAppearanceControls {
                 self.shadow_opacity.readout_tooltip("Shadow opacity")
             }
             AppearanceTarget::Outline => outline_toggle(self.outline_drawn).switch_tooltip(clock),
+            AppearanceTarget::OutlineOpacity => {
+                self.outline_opacity.readout_tooltip("Outline opacity")
+            }
         }
     }
 
@@ -242,6 +260,17 @@ impl LayerAppearanceControls {
                     AppearanceMessage::ShadowOpacity,
                 )
             }
+            AppearanceMessage::OutlineOpacity(control) => {
+                let SliderAction::Commit(value) = self.outline_opacity.update(control) else {
+                    return Task::none();
+                };
+                self.persist_slider(
+                    AppearanceSetting::OutlineOpacity,
+                    value / 100.0,
+                    value,
+                    AppearanceMessage::OutlineOpacity,
+                )
+            }
             AppearanceMessage::ToggleBlur => {
                 self.blurred = !self.blurred;
                 self.persist_switch(AppearanceSetting::Blurred, self.blurred)
@@ -289,7 +318,7 @@ impl LayerAppearanceControls {
         &'a self,
         config: &'a Config,
         lift: fn(AppearanceMessage) -> M,
-    ) -> [GroupItem<'a, M>; 7] {
+    ) -> [GroupItem<'a, M>; 8] {
         let hover = self.hover;
         [
             GroupItem::slider(&self.opacity, config, move |control| {
@@ -319,6 +348,9 @@ impl LayerAppearanceControls {
                 hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
             ),
+            GroupItem::slider(&self.outline_opacity, config, move |control| {
+                lift(AppearanceMessage::OutlineOpacity(control))
+            }),
         ]
     }
 }
@@ -363,7 +395,10 @@ mod tests {
                 softness_px: 12.0,
                 opacity: 0.25,
             },
-            outline: OutlineStyle { drawn: false },
+            outline: OutlineStyle {
+                drawn: false,
+                opacity: 0.75,
+            },
         };
         let mut appearance_controls = panel_controls();
         let _ = appearance_controls.update(AppearanceMessage::Loaded(loaded));

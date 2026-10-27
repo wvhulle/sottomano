@@ -10,7 +10,7 @@ use crate::{
     widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
     widgets::{
         continuous_reading::ContinuousReading,
-        tooltip_body::{PreviewTile, Tooltip, TooltipBody, WholeBody, WorkspacePreview},
+        tooltip_body::{PreviewTile, Section, Tooltip, TooltipBody, WorkspacePreview},
     },
 };
 
@@ -26,7 +26,7 @@ pub fn tooltip(
         return None;
     }
     let tile = |window| preview_tile(icons, window);
-    snapshot.tooltip_with(TooltipBody::from(WholeBody::Workspace(WorkspacePreview {
+    snapshot.tooltip_with(TooltipBody::from(Section::workspace(WorkspacePreview {
         columns: scrolling_columns(windows)
             .into_iter()
             .map(|column| column.into_iter().map(&tile).collect())

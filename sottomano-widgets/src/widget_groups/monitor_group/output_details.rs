@@ -6,6 +6,7 @@ use sottomano_sources::{
 };
 
 use crate::widgets::{
+    localized_quantities::{DisplayUnit, Quantity},
     tooltip_body::KeyValue,
     vendor_logo::{PnpManufacturerName, VendorLogo},
 };
@@ -42,14 +43,20 @@ impl<'a> ConnectedOutput<'a> {
              }| {
                 [
                     KeyValue::new("Resolution", format!("{width}x{height}")),
-                    KeyValue::new("Refresh", format!("{refresh_hz:.2} Hz")),
+                    KeyValue::new(
+                        "Refresh",
+                        Quantity::measured(refresh_hz, DisplayUnit::Hertz, 2),
+                    ),
                 ]
             },
         );
         [KeyValue::new("Output", self.connector)]
             .into_iter()
             .chain(mode_entries)
-            .chain([KeyValue::new("Scale", format!("{:.2}", self.info.scale))])
+            .chain([KeyValue::new(
+                "Scale",
+                Quantity::measured(self.info.scale, DisplayUnit::Unitless, 2),
+            )])
             .collect()
     }
 }
@@ -113,8 +120,8 @@ mod tests {
             [
                 KeyValue::new("Output", "eDP-1"),
                 KeyValue::new("Resolution", "1920x1200"),
-                KeyValue::new("Refresh", "60.00 Hz"),
-                KeyValue::new("Scale", "1.20"),
+                KeyValue::new("Refresh", Quantity::measured(60.0, DisplayUnit::Hertz, 2)),
+                KeyValue::new("Scale", Quantity::measured(1.2, DisplayUnit::Unitless, 2)),
             ]
         );
         assert_eq!(
