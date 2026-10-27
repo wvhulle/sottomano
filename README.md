@@ -30,26 +30,26 @@ the card's top line says what a click does.
 
 Pressing the temperature opens the forecast for the coming hours.
 
-<img src="recordings/weather_conditions.webp" width="412" alt="Pressing the temperature in the weather group">
+<img src="recordings/weather_conditions.webp" width="401" alt="Pressing the temperature in the weather group">
 
 ### VPN: Tailscale
 
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard tunnels that are up.
 
-<img src="recordings/vpn_tailscale.webp" width="660" alt="Expanding the VPN group and hovering Tailscale">
+<img src="recordings/vpn_tailscale.webp" width="645" alt="Expanding the VPN group and hovering Tailscale">
 
 ### Dictation: Speech model
 
 The speech model the dictation daemon loaded and the device it runs on.
 
-<img src="recordings/voice_dictation_model.webp" width="548" alt="Expanding the dictation group and hovering the speech model and compute device">
+<img src="recordings/voice_dictation_model.webp" width="679" alt="Expanding the dictation group and hovering the speech model and compute device">
 
 ### Toast: Next to its window
 
 When the sending window is visible, the toast sits in its top corner.
 
-<img src="recordings/toast_window_anchored.webp" width="504" alt="A build toast placed in the corner of the terminal that sent it">
+<img src="recordings/toast_window_anchored.webp" width="688" alt="A build toast placed in the corner of the terminal that sent it">
 
 The other groups are in [docs/showcase.md](docs/showcase.md). The recordings
 use fixtures, so the numbers are made up.
