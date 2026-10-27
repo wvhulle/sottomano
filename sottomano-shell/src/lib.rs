@@ -44,7 +44,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let loaded = tracing::debug_span!("load config").in_scope(|| config_file.load());
     let config = loaded
         .as_ref()
-        .map_or_else(|_| Config::fallback(), Config::clone);
+        .map_or_else(|_| Config::default(), Config::clone);
     let loaded = loaded.map(Box::new).map_err(Arc::new);
 
     let wayland = wayland_client::Connection::connect_to_env()

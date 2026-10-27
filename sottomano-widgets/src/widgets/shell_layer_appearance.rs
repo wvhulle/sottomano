@@ -17,12 +17,12 @@ impl ShellLayer {
                 corner_radius_px: 12.0,
                 shadow: ShadowStyle {
                     cast: true,
-                    softness_px: 32.0,
-                    opacity: 0.45,
+                    softness_px: 16.0,
+                    opacity: 0.18,
                 },
                 outline: OutlineStyle {
                     drawn: true,
-                    opacity: 0.5,
+                    opacity: 1.0,
                 },
                 ..LayerAppearance::default()
             },

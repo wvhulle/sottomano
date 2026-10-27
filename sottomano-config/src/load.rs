@@ -33,9 +33,8 @@ pub struct Config {
     pub launched_programs: LaunchedPrograms,
 }
 
-impl Config {
-    #[must_use]
-    pub fn fallback() -> Self {
+impl Default for Config {
+    fn default() -> Self {
         UserConfig::default()
             .resolve()
             .expect("the default configuration resolves")

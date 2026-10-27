@@ -33,7 +33,7 @@ struct CommandLine {
 fn main() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
     if command_line.window {
-        let program = ShowcaseProgram::interactive(&Config::fallback());
+        let program = ShowcaseProgram::interactive(&Config::default());
         return Ok(iced_winit::run(iced_tester::attach(program))?);
     }
     let start = booting_clock();
