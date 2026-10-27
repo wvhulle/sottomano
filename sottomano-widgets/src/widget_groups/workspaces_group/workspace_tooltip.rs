@@ -8,36 +8,38 @@ use sottomano_sources::desktop_windows_apps::{
 use crate::{
     desktop_index::DesktopIndex,
     widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
-    widgets::{
-        continuous_reading::ContinuousReading,
-        tooltip_body::{PreviewTile, Section, Tooltip, TooltipBody, WorkspacePreview},
+    widgets::tooltip_body::{
+        DeliveryTiming, PreviewTile, Section, Tooltip, TooltipBody, WorkspacePreview,
     },
 };
 
 #[must_use]
 pub fn tooltip(
-    snapshot: &ContinuousReading<niri_window_snapshot::Snapshot>,
+    snapshot: &niri_window_snapshot::Snapshot,
     icons: &DesktopIndex,
     niri_layout: NiriLayout,
     workspace: u64,
 ) -> Option<Tooltip> {
-    let windows = snapshot.get()?.windows_on_workspace(workspace);
+    let windows = snapshot.windows_on_workspace(workspace);
     if windows.is_empty() {
         return None;
     }
     let tile = |window| preview_tile(icons, window);
-    snapshot.tooltip_with(TooltipBody::from(Section::workspace(WorkspacePreview {
-        columns: scrolling_columns(windows)
-            .into_iter()
-            .map(|column| column.into_iter().map(&tile).collect())
-            .collect(),
-        floating: windows
-            .iter()
-            .filter(|window| window.layout.is_floating)
-            .map(&tile)
-            .collect(),
-        niri_layout,
-    })))
+    Some(Tooltip::sourced(
+        TooltipBody::from(Section::workspace(WorkspacePreview {
+            columns: scrolling_columns(windows)
+                .into_iter()
+                .map(|column| column.into_iter().map(&tile).collect())
+                .collect(),
+            floating: windows
+                .iter()
+                .filter(|window| window.layout.is_floating)
+                .map(&tile)
+                .collect(),
+            niri_layout,
+        })),
+        DeliveryTiming::LivePush,
+    ))
 }
 
 fn scrolling_columns(

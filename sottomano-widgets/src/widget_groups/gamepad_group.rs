@@ -22,7 +22,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
-        tooltip_body::{Freshness, Tooltip},
+        tooltip_body::{DeliveryTiming, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -251,7 +251,10 @@ impl GamepadGroup {
     ) -> Option<Tooltip> {
         let GamepadTarget::Controller { slot } = target;
         let reading = self.reading(self.controller(slot)?, bindings);
-        Some(Tooltip::sourced(reading.tooltip(clock), Freshness::Live))
+        Some(Tooltip::sourced(
+            reading.tooltip(clock),
+            DeliveryTiming::LivePush,
+        ))
     }
 
     pub fn group_content<'a>(

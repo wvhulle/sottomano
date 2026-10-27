@@ -11,24 +11,23 @@ use sottomano_config::severity::Severity;
 use systemd::journal::Journal;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
     systemd_units_journal::journal_record_fields::{
         JournalPriority, MessageId, OwningUnit, SubjectUnit,
     },
 };
 
-impl ReadingSource for Vec<OomKillEntry> {
+impl SnapshotSource for Vec<OomKillEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
     const NAME: &'static str = OomKillEntry::NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<OomKillEntry>()
             .map(|entries| entries.map(OomKillEntry::innermost))
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

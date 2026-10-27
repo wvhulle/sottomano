@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use futures::Stream;
 
-use super::{CopilotAccount, Error, USER_POLL_INTERVAL, UserInfo, plan_polls, user_info};
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery};
+use super::{CopilotAccount, Error, UserInfo, plan_polls, user_info};
+use crate::{SnapshotDelivery, SnapshotSource};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotFree {
@@ -12,14 +12,15 @@ pub struct CopilotFree {
     pub reset: Option<DateTime<Utc>>,
 }
 
-impl ReadingSource for CopilotFree {
+impl SnapshotSource for CopilotFree {
     type Error = Error;
     type StreamInputs = CopilotAccount;
 
     const NAME: &'static str = "copilot-usage-free";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
 
-    fn delivery_stream(inputs: CopilotAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        inputs: CopilotAccount,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         plan_polls(inputs, UserInfo::free_plan, Self::poll)
     }
 }

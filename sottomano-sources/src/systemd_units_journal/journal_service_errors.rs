@@ -6,24 +6,23 @@ use sottomano_config::severity::Severity;
 use systemd::journal::Journal;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     system_protocol_clients::journal_follow::{JournalEvent, JournalFollowError, journal_windows},
     systemd_units_journal::journal_record_fields::{
         JournalPriority, JournalTransport, LoggingUnit, MessageId, OwningUnit, either_of,
     },
 };
 
-impl ReadingSource for ServiceErrors {
+impl SnapshotSource for ServiceErrors {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
     const NAME: &'static str = ServiceErrorEntry::NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<ServiceErrorEntry>()
             .map(|entries| entries.map(ServiceErrors::from))
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

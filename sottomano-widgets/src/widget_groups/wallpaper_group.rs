@@ -7,17 +7,17 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::SecretPaths;
-use sottomano_sources::SourceDelivery;
+use sottomano_sources::SnapshotDelivery;
 
 use self::wallpaper_lookup::Lookup;
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -38,14 +38,14 @@ impl From<WallpaperTarget> for HoverTarget {
 }
 
 pub struct WallpaperGroup {
-    lookup: ContinuousReading<Lookup>,
+    lookup: LatestSnapshot<Lookup>,
     unsplash_key: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
-    Lookup(Box<SourceDelivery<Lookup>>),
+    Lookup(Box<SnapshotDelivery<Lookup>>),
     Expansion(ExpansionMessage),
 }
 
@@ -57,7 +57,7 @@ impl WallpaperGroup {
     #[must_use]
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
-            lookup: ContinuousReading::default(),
+            lookup: LatestSnapshot::default(),
             unsplash_key: secrets.unsplash_access_key.clone(),
             expansion: GroupExpansion::default(),
         }
@@ -65,7 +65,7 @@ impl WallpaperGroup {
 
     pub fn subscription(&self) -> Subscription<WallpaperMessage> {
         match &self.unsplash_key {
-            Some(unsplash_key) => source_subscription::<Lookup>(unsplash_key.clone())
+            Some(unsplash_key) => snapshot_subscription::<Lookup>(unsplash_key.clone())
                 .map(|reading| WallpaperMessage::Lookup(Box::new(reading))),
             None => Subscription::none(),
         }
@@ -73,7 +73,7 @@ impl WallpaperGroup {
 
     pub fn update(&mut self, message: WallpaperMessage, clock: Clock) -> Task<WallpaperMessage> {
         match message {
-            WallpaperMessage::Lookup(delivery) => self.lookup.receive_delivery(*delivery, clock),
+            WallpaperMessage::Lookup(delivery) => self.lookup.receive(*delivery, clock),
             WallpaperMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }

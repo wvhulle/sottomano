@@ -1,10 +1,8 @@
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_sources::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment,
-    caldav_agenda::{CaldavAgenda, ChangeDelivery},
-    caldav_event_query::UpcomingEvent,
-    caldav_server_provider::CaldavProvider,
+    agenda_moment_zones::AgendaMoment, caldav_agenda::CaldavAgenda,
+    caldav_event_query::UpcomingEvent, caldav_server_provider::CaldavProvider,
     nextcloud_web_links::NextcloudWebRoot,
 };
 
@@ -71,20 +69,8 @@ pub(super) fn moment_cell(moment: AgendaMoment) -> Cell {
     }
 }
 
-pub(super) fn change_delivery_caption(agenda: &CaldavAgenda) -> String {
-    let checked = match agenda.change_delivery {
-        ChangeDelivery::NextcloudNotifyPush { .. } => {
-            "refreshed when Nextcloud notify_push reports activity and rechecked on the interval \
-             below"
-        }
-        ChangeDelivery::ChangeTokenPolling { .. } => {
-            "calendar change tokens checked on the interval below"
-        }
-    };
-    format!(
-        "{} calendars over CalDAV, {checked}.",
-        agenda.calendar_count
-    )
+pub(super) fn calendar_count_caption(agenda: &CaldavAgenda) -> String {
+    format!("{} calendars over CalDAV.", agenda.calendar_count)
 }
 
 pub(super) fn nextcloud_footer(
@@ -177,7 +163,7 @@ impl BarWidget for CaldavAgenda {
                 ],
                 rows,
             )
-            .titled(("Upcoming events", change_delivery_caption(self))),
+            .titled(("Upcoming events", calendar_count_caption(self))),
             nextcloud_footer(
                 "open Calendar",
                 &self.provider,

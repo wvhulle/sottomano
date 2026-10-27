@@ -3,7 +3,7 @@ use std::{fmt, fs, path::PathBuf, str::FromStr};
 use futures::{Stream, StreamExt, stream};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
@@ -81,18 +81,17 @@ impl X3dCachePreference {
     }
 }
 
-impl ReadingSource for X3dCachePreference {
+impl SnapshotSource for X3dCachePreference {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "x3d-cache-preference";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async { Self::mode_file().is_some() };
         stream::once(exposed).while_held(
-            || stream::once(blocking_poll(Self::read)).map(SourceDelivery::Reading),
-            SourceDelivery::Absent,
+            || stream::once(blocking_poll(Self::read)).map(SnapshotDelivery::single_read),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

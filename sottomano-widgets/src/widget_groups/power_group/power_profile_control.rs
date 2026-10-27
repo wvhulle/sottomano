@@ -6,7 +6,7 @@ use std::{
 
 use iced::{Subscription, Task};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     battery_power_profiles::{
         battery_time_forecast::{Estimate, RegressionState, time_until_empty},
         power_profiles_daemon::{self, Conditions, Profile, ProfileStatus},
@@ -17,7 +17,7 @@ use sottomano_sources::{
 use uom::si::{f64::Power, power::watt};
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     widget_groups::power_group::{
         PowerTarget,
@@ -25,7 +25,7 @@ use crate::{
         sqlite_power_draw_regression,
     },
     widgets::{
-        continuous_reading::ContinuousReading,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         tooltip_body::{KeyValue, Section, TableRecord, TableRow, Tooltip, TooltipBody},
@@ -46,7 +46,7 @@ const MIN_SAMPLE_W: f64 = 0.5;
 
 pub struct PowerProfileControl {
     control: SliderControl,
-    status: ContinuousReading<ProfileStatus>,
+    status: LatestSnapshot<ProfileStatus, HidesFetchFailures>,
     conditions: Option<Conditions>,
     battery: Option<Battery>,
     profile_models: Option<HashMap<Profile, RegressionState>>,
@@ -69,7 +69,7 @@ impl Default for PowerProfileControl {
             .icon_only()
             .readout(|value, _| Profile::from_position(value).title().to_string())
             .glyph(|value, _| profile_face(Profile::from_position(value))),
-            status: ContinuousReading::default(),
+            status: LatestSnapshot::default(),
             conditions: None,
             battery: None,
             profile_models: None,
@@ -82,8 +82,8 @@ impl Default for PowerProfileControl {
 
 #[derive(Debug, Clone)]
 pub enum PowerProfileMessage {
-    Status(SourceDelivery<ProfileStatus>),
-    Conditions(SourceDelivery<Conditions>),
+    Status(SnapshotDelivery<ProfileStatus>),
+    Conditions(SnapshotDelivery<Conditions>),
     Loaded(HashMap<Profile, RegressionState>),
     Control(ControlMessage),
     SwitchToProfile(Profile),
@@ -109,8 +109,8 @@ impl PowerProfileControl {
 
     pub fn subscription(buses: &DesktopBuses) -> Subscription<PowerProfileMessage> {
         Subscription::batch([
-            source_subscription::<ProfileStatus>(buses.clone()).map(PowerProfileMessage::Status),
-            source_subscription::<Conditions>(buses.clone()).map(PowerProfileMessage::Conditions),
+            snapshot_subscription::<ProfileStatus>(buses.clone()).map(PowerProfileMessage::Status),
+            snapshot_subscription::<Conditions>(buses.clone()).map(PowerProfileMessage::Conditions),
         ])
     }
 
@@ -124,7 +124,7 @@ impl PowerProfileControl {
     pub fn update(&mut self, msg: PowerProfileMessage, clock: Clock) -> Task<PowerProfileMessage> {
         match msg {
             PowerProfileMessage::Status(delivery) => {
-                self.status.receive_keeping_last_reading(delivery, clock);
+                self.status.receive(delivery, clock);
                 if let Some(profile) = self.active_profile() {
                     self.control
                         .update(ControlMessage::Reading(profile.position()));
@@ -133,13 +133,19 @@ impl PowerProfileControl {
             }
             PowerProfileMessage::Conditions(delivery) => {
                 self.conditions = match delivery {
-                    SourceDelivery::Reading(Ok(conditions)) => Some(conditions),
-                    SourceDelivery::Reading(Err(error)) => {
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(conditions),
+                        ..
+                    } => Some(conditions),
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(error),
+                        ..
+                    } => {
                         tracing::debug!("power conditions: {error}");
                         None
                     }
-                    SourceDelivery::Absent => None,
-                    SourceDelivery::Unchanged => self.conditions,
+                    SnapshotDelivery::SourceUnavailable => None,
+                    SnapshotDelivery::SnapshotUnchanged => self.conditions,
                 };
             }
             PowerProfileMessage::Loaded(models) => {

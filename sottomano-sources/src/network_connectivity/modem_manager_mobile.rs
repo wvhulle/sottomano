@@ -8,7 +8,7 @@ use zbus::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::{Adapter, ModemIdentity, reported},
     network_connectivity::{
         device_or_absent, interface, managed_objects_readings, network_manager_proxies,
@@ -249,14 +249,13 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-impl ReadingSource for Mobile {
+impl SnapshotSource for Mobile {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(system.clone(), SERVICE, move || {
             managed_objects_readings(system.clone(), SERVICE, ROOT, reading)

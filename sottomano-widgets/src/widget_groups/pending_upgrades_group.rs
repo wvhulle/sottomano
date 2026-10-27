@@ -6,19 +6,19 @@ mod firmware_upgrade_list;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
+    SnapshotDelivery, host_machine_identity::fwupd_firmware_upgrades::FirmwareUpgrade,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
@@ -41,13 +41,13 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
-    firmware: ContinuousReading<Vec<FirmwareUpgrade>>,
+    firmware: LatestSnapshot<Vec<FirmwareUpgrade>>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum PendingUpgradesMessage {
-    Firmware(SourceDelivery<Vec<FirmwareUpgrade>>),
+    Firmware(SnapshotDelivery<Vec<FirmwareUpgrade>>),
     OpenTerminal(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -58,7 +58,7 @@ impl PendingUpgradesGroup {
     }
 
     pub fn subscription(buses: &DesktopBuses) -> Subscription<PendingUpgradesMessage> {
-        source_subscription::<Vec<FirmwareUpgrade>>(buses.clone())
+        snapshot_subscription::<Vec<FirmwareUpgrade>>(buses.clone())
             .map(PendingUpgradesMessage::Firmware)
     }
 
@@ -69,7 +69,7 @@ impl PendingUpgradesGroup {
     ) -> Task<PendingUpgradesMessage> {
         match msg {
             PendingUpgradesMessage::Firmware(upgrades) => {
-                self.firmware.receive_delivery(upgrades, clock);
+                self.firmware.receive(upgrades, clock);
             }
             PendingUpgradesMessage::OpenTerminal(terminal) => return terminal.open(),
             PendingUpgradesMessage::Expansion(msg) => {

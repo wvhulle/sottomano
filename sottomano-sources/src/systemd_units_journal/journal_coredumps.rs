@@ -12,7 +12,7 @@ use sottomano_config::severity::Severity;
 use systemd::journal::{Journal, OpenOptions};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     system_protocol_clients::journal_follow::{
         JournalEvent, JournalFollowError, decode_record, journal_windows,
     },
@@ -21,15 +21,14 @@ use crate::{
     },
 };
 
-impl ReadingSource for Vec<CoredumpEntry> {
+impl SnapshotSource for Vec<CoredumpEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
     const NAME: &'static str = CoredumpEntry::NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        journal_windows::<CoredumpEntry>().map(SourceDelivery::Reading)
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        journal_windows::<CoredumpEntry>().map(SnapshotDelivery::live_push)
     }
 }
 

@@ -11,7 +11,8 @@ use sottomano_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadSt
 use tokio::time::sleep;
 
 use crate::{
-    stream_operators::{StreamOperators, read_once_then_per_burst, ticked},
+    delivery_cadence_drivers::PeriodicPolling,
+    stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         inotify_directory_changes::{self, WatchTarget},
         sysfs_attribute_reads,
@@ -388,11 +389,11 @@ fn gamepad_events(
 fn roster_with_battery_refresh(
     gamepads: Vec<DiscoveredGamepad>,
 ) -> impl Stream<Item = RawGamepadEvent> + Send {
-    ticked(BATTERY_REFRESH, move || {
-        ready(RawGamepadEvent::Roster(
-            gamepads.iter().map(DiscoveredGamepad::connected).collect(),
-        ))
-    })
+    PeriodicPolling::every(BATTERY_REFRESH)
+        .poll_ticks()
+        .map(move |_| {
+            RawGamepadEvent::Roster(gamepads.iter().map(DiscoveredGamepad::connected).collect())
+        })
 }
 
 fn connected_gamepad_events(

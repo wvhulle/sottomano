@@ -12,7 +12,7 @@ use failed_unit_log::failed_units_item;
 use running_job_reading::slow_jobs_item;
 use sottomano_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
         SystemdOnBus, SystemdUnitScope,
@@ -24,13 +24,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{copy_to_clipboard, source_subscription},
+    background_work::{copy_to_clipboard, snapshot_subscription},
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
@@ -99,23 +99,23 @@ impl From<SystemdTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct SystemdManagerGroup {
-    boot: ContinuousReading<BootTimeline>,
-    failed_system: ContinuousReading<FailedUnits>,
-    failed_user: ContinuousReading<FailedUnits>,
-    slow_system_jobs: ContinuousReading<SlowJobs>,
-    slow_user_jobs: ContinuousReading<SlowJobs>,
-    last_shutdown: ContinuousReading<LastShutdown>,
+    boot: LatestSnapshot<BootTimeline, HidesFetchFailures>,
+    failed_system: LatestSnapshot<FailedUnits>,
+    failed_user: LatestSnapshot<FailedUnits>,
+    slow_system_jobs: LatestSnapshot<SlowJobs>,
+    slow_user_jobs: LatestSnapshot<SlowJobs>,
+    last_shutdown: LatestSnapshot<LastShutdown>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum SystemdManagerMessage {
-    Boot(SourceDelivery<BootTimeline>),
-    FailedSystem(SourceDelivery<FailedUnits>),
-    FailedUser(SourceDelivery<FailedUnits>),
-    SlowSystemJobs(SourceDelivery<SlowJobs>),
-    SlowUserJobs(SourceDelivery<SlowJobs>),
-    LastShutdown(SourceDelivery<LastShutdown>),
+    Boot(SnapshotDelivery<BootTimeline>),
+    FailedSystem(SnapshotDelivery<FailedUnits>),
+    FailedUser(SnapshotDelivery<FailedUnits>),
+    SlowSystemJobs(SnapshotDelivery<SlowJobs>),
+    SlowUserJobs(SnapshotDelivery<SlowJobs>),
+    LastShutdown(SnapshotDelivery<LastShutdown>),
     OpenLog(TerminalCommand),
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
@@ -137,26 +137,26 @@ impl SystemdManagerGroup {
             scope,
         };
         Subscription::batch([
-            source_subscription::<BootTimeline>(BootTimelineWatch {
+            snapshot_subscription::<BootTimeline>(BootTimelineWatch {
                 buses: buses.clone(),
                 slow_unit: config.slow_boot_unit,
             })
             .map(SystemdManagerMessage::Boot),
-            source_subscription::<FailedUnits>(systemd(SystemdUnitScope::SystemWide))
+            snapshot_subscription::<FailedUnits>(systemd(SystemdUnitScope::SystemWide))
                 .map(SystemdManagerMessage::FailedSystem),
-            source_subscription::<FailedUnits>(systemd(SystemdUnitScope::UserSession))
+            snapshot_subscription::<FailedUnits>(systemd(SystemdUnitScope::UserSession))
                 .map(SystemdManagerMessage::FailedUser),
-            source_subscription::<SlowJobs>(SlowJobsWatch {
+            snapshot_subscription::<SlowJobs>(SlowJobsWatch {
                 systemd: systemd(SystemdUnitScope::SystemWide),
                 slow_after: config.slow_job,
             })
             .map(SystemdManagerMessage::SlowSystemJobs),
-            source_subscription::<SlowJobs>(SlowJobsWatch {
+            snapshot_subscription::<SlowJobs>(SlowJobsWatch {
                 systemd: systemd(SystemdUnitScope::UserSession),
                 slow_after: config.slow_job,
             })
             .map(SystemdManagerMessage::SlowUserJobs),
-            source_subscription::<LastShutdown>(config.slow_shutdown_stop)
+            snapshot_subscription::<LastShutdown>(config.slow_shutdown_stop)
                 .map(SystemdManagerMessage::LastShutdown),
         ])
     }
@@ -168,22 +168,22 @@ impl SystemdManagerGroup {
     ) -> Task<SystemdManagerMessage> {
         match msg {
             SystemdManagerMessage::Boot(delivery) => {
-                self.boot.receive_keeping_last_reading(delivery, clock);
+                self.boot.receive(delivery, clock);
             }
             SystemdManagerMessage::FailedSystem(delivery) => {
-                self.failed_system.receive_delivery(delivery, clock);
+                self.failed_system.receive(delivery, clock);
             }
             SystemdManagerMessage::FailedUser(delivery) => {
-                self.failed_user.receive_delivery(delivery, clock);
+                self.failed_user.receive(delivery, clock);
             }
             SystemdManagerMessage::SlowSystemJobs(delivery) => {
-                self.slow_system_jobs.receive_delivery(delivery, clock);
+                self.slow_system_jobs.receive(delivery, clock);
             }
             SystemdManagerMessage::SlowUserJobs(delivery) => {
-                self.slow_user_jobs.receive_delivery(delivery, clock);
+                self.slow_user_jobs.receive(delivery, clock);
             }
             SystemdManagerMessage::LastShutdown(delivery) => {
-                self.last_shutdown.receive_delivery(delivery, clock);
+                self.last_shutdown.receive(delivery, clock);
             }
             SystemdManagerMessage::OpenLog(journal) => return journal.open(),
             SystemdManagerMessage::RestartFailedUnit(restart) => {

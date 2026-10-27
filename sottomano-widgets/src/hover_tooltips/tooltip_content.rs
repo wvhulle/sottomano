@@ -1,4 +1,8 @@
-use std::{iter::once, path::Path, time::Duration};
+use std::{
+    iter::once,
+    path::Path,
+    time::{Duration, SystemTime},
+};
 
 use chrono::{DateTime, Locale, Utc};
 use iced::{
@@ -34,9 +38,9 @@ use crate::{
         refresh_dial::RefreshDial,
         text::{FontFaces, LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
-            Cell, ChipletCells, ColumnHeading, ControllerCallouts, Freshness, KeyValue, Readiness,
-            RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry, SourcedSections,
-            TableColumns, Tooltip, TrayMenuBody,
+            Cell, ChipletCells, ColumnHeading, ControllerCallouts, DeliveryTiming, KeyValue,
+            Readiness, RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry,
+            SourcedSections, TableColumns, Tooltip, TrayMenuBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -114,14 +118,14 @@ impl<'a> TooltipContent<'a> {
             .map(|group| -> Element<'static, PopupMessage> {
                 uniform_width_column([
                     self.group_sections(group),
-                    self.footer_row(None, Some(self.freshness(group.freshness()))),
+                    self.footer_row(None, Some(self.delivery_timing(group.delivery_timing()))),
                 ])
                 .spacing(self.config.layout.overlay.row_spacing)
                 .into()
             });
         let closing: Element<'static, PopupMessage> = uniform_width_column([
             self.group_sections(closing_group),
-            self.closing_row(Some(closing_group.freshness())),
+            self.closing_row(Some(closing_group.delivery_timing())),
         ])
         .spacing(SECTION_SEPARATION_PX / 2.0)
         .into();
@@ -141,25 +145,28 @@ impl<'a> TooltipContent<'a> {
         .into()
     }
 
-    fn closing_row(&self, closing_freshness: Option<Freshness>) -> Element<'static, PopupMessage> {
+    fn closing_row(
+        &self,
+        closing_freshness: Option<DeliveryTiming>,
+    ) -> Element<'static, PopupMessage> {
         let press_hints = self.tooltip.press_hints;
         let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,
-            closing_freshness.map(|freshness| self.freshness(freshness)),
+            closing_freshness.map(|delivery_timing| self.delivery_timing(delivery_timing)),
         )
     }
 
     fn footer_row(
         &self,
         hints: Option<Element<'static, PopupMessage>>,
-        freshness: Option<Element<'static, PopupMessage>>,
+        delivery_timing: Option<Element<'static, PopupMessage>>,
     ) -> Element<'static, PopupMessage> {
         container(
             row(hints
                 .into_iter()
                 .chain(once(Space::new().width(Length::Fill).into()))
-                .chain(freshness))
+                .chain(delivery_timing))
             .spacing(COLUMN_GAP_PX)
             .align_y(Vertical::Center),
         )
@@ -221,7 +228,7 @@ impl<'a> TooltipContent<'a> {
         PaletteColors::from(&self.config.theme.palette).secondary_foreground
     }
 
-    fn freshness(&self, freshness: Freshness) -> Element<'static, PopupMessage> {
+    fn delivery_timing(&self, delivery_timing: DeliveryTiming) -> Element<'static, PopupMessage> {
         let secondary_foreground = self.secondary_foreground();
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
@@ -230,40 +237,71 @@ impl<'a> TooltipContent<'a> {
                 .align_y(Vertical::Center)
                 .into()
         };
-        match freshness {
-            Freshness::Polled { every, last } => pressable_text(
-                labelled(
-                    self.small_dim_text(duration_text(every, self.config.calendar.locale)),
-                    RefreshDial::new(
-                        self.clock
-                            .wall
-                            .duration_since(last)
-                            .unwrap_or(Duration::ZERO),
-                        every,
-                        self.clock.instant,
-                        glyph_size,
-                        secondary_foreground,
-                        secondary_foreground.scale_alpha(REFRESH_TRACK_ALPHA),
-                    )
-                    .view(),
-                ),
-                (),
-                |()| PopupMessage::RefreshHoveredReading,
-                self.flash(),
-                self.config.tooltips.copy_flash,
-                Interaction::Pointer,
+        match delivery_timing {
+            DeliveryTiming::PeriodicPolling {
+                poll_period,
+                delivered_at,
+            } => self.refreshable_dial(
+                duration_text(poll_period, self.config.calendar.locale),
+                poll_period,
+                delivered_at,
             ),
-            Freshness::Live => labelled(
+            DeliveryTiming::LivePushWithRecheck {
+                recheck_period,
+                delivered_at,
+            } => self.refreshable_dial(
+                format!(
+                    "live, recheck {}",
+                    duration_text(recheck_period, self.config.calendar.locale)
+                ),
+                recheck_period,
+                delivered_at,
+            ),
+            DeliveryTiming::LivePush => labelled(
                 self.small_dim_text("live".to_owned()),
                 Glyph::from(Phosphor::Pulse(Weight::Regular))
                     .view(glyph_size, secondary_foreground),
             ),
-            Freshness::Fixed => labelled(
+            DeliveryTiming::SingleRead => labelled(
                 self.small_dim_text("read once".to_owned()),
                 Glyph::from(Phosphor::PushPin(Weight::Regular))
                     .view(glyph_size, secondary_foreground),
             ),
         }
+    }
+
+    fn refreshable_dial(
+        &self,
+        label_text: String,
+        refresh_period: Duration,
+        delivered_at: SystemTime,
+    ) -> Element<'static, PopupMessage> {
+        let secondary_foreground = self.secondary_foreground();
+        let glyph_size = self.config.theme.font.small_text_size_px;
+        pressable_text(
+            row([
+                self.small_dim_text(label_text).into(),
+                RefreshDial::new(
+                    self.clock
+                        .wall
+                        .duration_since(delivered_at)
+                        .unwrap_or(Duration::ZERO),
+                    refresh_period,
+                    self.clock.instant,
+                    glyph_size,
+                    secondary_foreground,
+                    secondary_foreground.scale_alpha(REFRESH_TRACK_ALPHA),
+                )
+                .view(),
+            ])
+            .spacing(GESTURE_ICON_GAP_PX)
+            .align_y(Vertical::Center),
+            (),
+            |()| PopupMessage::RefreshHoveredReading,
+            self.flash(),
+            self.config.tooltips.copy_flash,
+            Interaction::Pointer,
+        )
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {

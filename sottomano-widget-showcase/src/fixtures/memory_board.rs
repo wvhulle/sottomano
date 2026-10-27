@@ -1,7 +1,10 @@
+use std::time::Duration;
+
 use bytesize::ByteSize;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     cpu_memory_compute::memory_usage::{Memory, MemoryProcess, MemoryProcesses},
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -30,40 +33,52 @@ pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
     let tick = sample(clock);
     [memory_reading(tick)]
         .into_iter()
-        .chain(on_hover_readings(MemoryBoardTarget::Memory, tick))
+        .chain(hover_fetched_snapshot_messages(
+            MemoryBoardTarget::Memory,
+            tick,
+        ))
         .map(ShowcaseMessage::MemoryBoard)
         .collect()
 }
 
 pub fn on_hover(target: MemoryBoardTarget) -> Vec<MemoryBoardMessage> {
-    on_hover_readings(target, 0)
+    hover_fetched_snapshot_messages(target, 0)
 }
 
 fn memory_reading(tick: u32) -> MemoryBoardMessage {
-    MemoryBoardMessage::Memory(SourceDelivery::Reading(Ok(Memory {
-        used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
-        total: ByteSize::gib(64),
-    })))
+    MemoryBoardMessage::Memory(SnapshotDelivery::fixture_delivered(
+        Ok(Memory {
+            used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
+            total: ByteSize::gib(64),
+        }),
+        DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
+    ))
 }
 
-fn on_hover_readings(target: MemoryBoardTarget, tick: u32) -> Vec<MemoryBoardMessage> {
+fn hover_fetched_snapshot_messages(
+    target: MemoryBoardTarget,
+    tick: u32,
+) -> Vec<MemoryBoardMessage> {
     match target {
         MemoryBoardTarget::Memory => vec![MemoryBoardMessage::MemoryProcessesFetched(
-            SourceDelivery::Reading(Ok(MemoryProcesses {
-                processes: [
-                    ("firefox", 5_800 + u64::from(tick % 4) * 120),
-                    ("rust-analyzer", 3_100 + u64::from(tick % 3) * 90),
-                    ("sottomano", 180),
-                ]
-                .into_iter()
-                .zip(1000..)
-                .map(|((name, mebibytes), pid)| MemoryProcess {
-                    pid,
-                    name: name.to_owned(),
-                    resident: ByteSize::mib(mebibytes),
-                })
-                .collect(),
-            })),
+            SnapshotDelivery::fixture_delivered(
+                Ok(MemoryProcesses {
+                    processes: [
+                        ("firefox", 5_800 + u64::from(tick % 4) * 120),
+                        ("rust-analyzer", 3_100 + u64::from(tick % 3) * 90),
+                        ("sottomano", 180),
+                    ]
+                    .into_iter()
+                    .zip(1000..)
+                    .map(|((name, mebibytes), pid)| MemoryProcess {
+                        pid,
+                        name: name.to_owned(),
+                        resident: ByteSize::mib(mebibytes),
+                    })
+                    .collect(),
+                }),
+                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(3))),
+            ),
         )],
         MemoryBoardTarget::Board => Vec::new(),
     }

@@ -12,14 +12,14 @@ use serde_json::json;
 use sottomano_config::severity::Severity;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         model_spend_ranking::{ModelRanking, ModelSpend},
         spend_money::{Money, deserialize_usd, usd},
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
-    polled_delivery_stream,
+    delivery_cadence_drivers::PeriodicPolling,
     secret_file_reads::read_secret,
     system_protocol_clients::http_json_client,
 };
@@ -157,17 +157,17 @@ impl OpenRouterSpend {
     }
 }
 
-impl ReadingSource for OpenRouterSpend {
+impl SnapshotSource for OpenRouterSpend {
     type Error = Error;
     type StreamInputs = OpenRouterAccount;
 
     const NAME: &'static str = "openrouter-spend";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(1));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_mins(1))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 
@@ -259,18 +259,17 @@ impl OpenRouterStrictBudget {
     }
 }
 
-impl ReadingSource for OpenRouterStrictBudget {
+impl SnapshotSource for OpenRouterStrictBudget {
     type Error = Error;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "openrouter-strict-budget";
-    const DELIVERY_CADENCE: DeliveryCadence =
-        DeliveryCadence::PolledEvery(Duration::from_secs(300));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(300))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 

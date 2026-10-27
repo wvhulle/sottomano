@@ -32,7 +32,7 @@ flowchart TB
     niri_event_thread["niri IPC<br>event thread"]
     wayland_outputs["Wayland outputs"]
     file_watches["inotify<br>config file, desktop entries"]
-    reading_sources["ReadingSource::delivery_stream"]
+    snapshot_sources["SnapshotSource::delivery_stream"]
   end
 
   subgraph config_crate [sottomano-config]
@@ -42,7 +42,7 @@ flowchart TB
   end
 
   subgraph widgets_crate [sottomano-widgets]
-    source_subscription["background_work::source_subscription"]
+    snapshot_subscription["background_work::snapshot_subscription"]
     widget_groups["widget groups<br>update, view"]
     group_stores["group sqlite_* modules<br>sqlite_dark_mode_schedule, sqlite_idle_timeouts,<br>sqlite_focus_spans, sqlite_shell_settings_row, …"]
     niri_kdl_rules["niri_window_group::niri_kdl_rules"]
@@ -71,8 +71,8 @@ flowchart TB
 
   config_loading --> run_shell
   desktop_bus & notification_server & niri_event_thread & wayland_outputs & file_watches --> message_subscriptions
-  reading_sources -->|SourceDelivery| source_subscription
-  source_subscription --> shell_message
+  snapshot_sources -->|SnapshotDelivery| snapshot_subscription
+  snapshot_subscription --> shell_message
   shell_update <-->|group messages and tasks| widget_groups
   group_stores & sqlite_app_launches <--> sqlite_state_store
   niri_kdl_rules <-->|read / rewrite| niri_kdl_file

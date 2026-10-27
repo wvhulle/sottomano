@@ -8,9 +8,9 @@ use futures::Stream;
 use uom::si::{f64::Power, power::watt};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
-    polled_delivery_stream,
+    delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_i64, read_trimmed},
 };
 
@@ -28,17 +28,16 @@ pub struct PowerZone {
     pub draw: Power,
 }
 
-impl ReadingSource for CpuPower {
+impl SnapshotSource for CpuPower {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "cpu power";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
     }
 }
 

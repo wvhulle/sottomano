@@ -8,7 +8,7 @@ use iced::{
 };
 use sottomano_config::{Config, widget_groups::tray::ClickAction};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     desktop_windows_apps::{
         niri_window_placement::WindowOwner,
         status_notifier_tray::{self, Status, TrayCommand, TrayItem, TrayUpdate},
@@ -24,9 +24,9 @@ use crate::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
         bar_widget::Glyph,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         icon_handle::PixmapHandles,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip, TooltipBody, TrayMenuBody},
@@ -42,7 +42,7 @@ impl From<Arc<error::Error>> for Section {
 
 #[derive(Default)]
 pub struct TrayGroup {
-    items: ContinuousReading<Vec<TrayItem>>,
+    items: LatestSnapshot<Vec<TrayItem>, HidesFetchFailures>,
     pixmap_handles: PixmapHandles,
     commands: Option<mpsc::Sender<TrayCommand>>,
     open_submenus: HashSet<i32>,
@@ -92,13 +92,14 @@ impl TrayGroup {
                 self.pixmap_handles = self
                     .pixmap_handles
                     .refreshed(items.iter().flat_map(TrayItem::pixmaps));
-                self.items.load(items, clock);
+                self.items
+                    .receive(SnapshotDelivery::live_push(Ok(items)), clock);
                 Action::None
             }
             TrayMessage::Update(TrayUpdate::HostFailed(failure)) => {
                 self.commands = None;
                 self.items
-                    .receive_keeping_last_reading(SourceDelivery::Reading(Err(failure)), clock);
+                    .receive(SnapshotDelivery::live_push(Err(failure)), clock);
                 Action::None
             }
             TrayMessage::Expansion(m) => {

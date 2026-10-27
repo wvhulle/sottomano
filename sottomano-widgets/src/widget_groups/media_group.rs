@@ -7,7 +7,7 @@ use std::{
 use iced::{Element, Subscription, Task, time::every, widget::Row};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::niri_window_placement::WindowOwner,
     media_playback_audio::mpris_players::{self, Command, Media, Progress, Status},
@@ -15,16 +15,16 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         app_window_focus::AppWindowFocus,
         confirm_button::{ConfirmButton, Press},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
         icon_handle::IconHandle,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
@@ -85,7 +85,7 @@ impl From<PlayerTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MediaGroup {
-    players: ContinuousReading<Vec<Media>>,
+    players: LatestSnapshot<Vec<Media>, HidesFetchFailures>,
     sessions: HashMap<String, PlayerSession>,
 }
 
@@ -114,7 +114,7 @@ struct CoverArt {
 
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
-    Reading(SourceDelivery<Vec<Media>>),
+    Reading(SnapshotDelivery<Vec<Media>>),
     ArtLoaded {
         bus: String,
         url: String,
@@ -164,7 +164,8 @@ impl MediaGroup {
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<MediaMessage> {
-        let readings = source_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
+        let readings =
+            snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
         if self.is_progressing() {
             Subscription::batch([
                 readings,
@@ -202,7 +203,7 @@ impl MediaGroup {
         match msg {
             MediaMessage::ProgressAdvanced => {}
             MediaMessage::Reading(delivery) => {
-                self.players.receive_keeping_last_reading(delivery, clock);
+                self.players.receive(delivery, clock);
                 self.follow_players(clock.instant);
                 return Action::Run(self.art_loads());
             }
@@ -519,7 +520,7 @@ mod tests {
 
     fn reported(group: &mut MediaGroup, players: Vec<Media>, clock: Clock) {
         let _ = group.update(
-            MediaMessage::Reading(SourceDelivery::Reading(Ok(players))),
+            MediaMessage::Reading(SnapshotDelivery::live_push(Ok(players))),
             clock,
         );
     }

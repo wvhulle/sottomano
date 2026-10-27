@@ -68,7 +68,7 @@ impl DesktopShell {
     fn drag_ghost_layer<'a>(&'a self, window: Id, output: &'a str) -> Option<Element<'a, Message>> {
         let view = self.drag_view();
         let drag = view.drag.filter(|drag| drag.surface == window)?;
-        let snapshot = self.niri_snapshot.get()?;
+        let snapshot = &self.niri_snapshot;
         let card = match drag.item {
             DraggedBarSlot::Workspace(workspace) => {
                 workspaces_group::drag_ghost(snapshot, output, workspace, &self.config, &view)?

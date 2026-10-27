@@ -5,11 +5,10 @@ use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::niri_output_facts,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
-    pushed_delivery_stream,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_units_journal::{ManagerProxy, UnitProxy},
 };
@@ -31,15 +30,14 @@ pub struct GraphicalSessionTarget {
     pub reached_at: Option<DateTime<Utc>>,
 }
 
-impl ReadingSource for GraphicalSession {
+impl SnapshotSource for GraphicalSession {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "graphical session";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(Self::read()).map(SourceDelivery::Reading)
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        stream::once(Self::read()).map(SnapshotDelivery::single_read)
     }
 }
 
@@ -63,15 +61,14 @@ impl GraphicalSession {
     }
 }
 
-impl ReadingSource for GraphicalSessionTarget {
+impl SnapshotSource for GraphicalSessionTarget {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "graphical session target";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(target_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(target_changes(buses))
     }
 }
 

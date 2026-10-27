@@ -11,7 +11,7 @@ use iced::{Subscription, Task, mouse::ScrollDelta};
 use output_details::ConnectedOutput;
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::niri_output_facts::OutputInfo,
     screen_brightness_color::{
@@ -22,12 +22,12 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -53,7 +53,7 @@ impl From<MonitorTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MonitorGroup {
-    backlights: ContinuousReading<Vec<Backlight>>,
+    backlights: LatestSnapshot<Vec<Backlight>, HidesFetchFailures>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<AutoBrightness>,
     expansion: GroupExpansion,
@@ -62,7 +62,8 @@ pub struct MonitorGroup {
 #[derive(Debug, Clone)]
 pub enum MonitorMessage {
     Expansion(ExpansionMessage),
-    Backlights(SourceDelivery<Vec<Backlight>>),
+    Backlights(SnapshotDelivery<Vec<Backlight>>),
+    BacklightsReread(Vec<Backlight>),
     Backlight(String, ControlMessage),
     AutoBrightness(ToggleMessage<AutoBrightness>),
 }
@@ -70,7 +71,7 @@ pub enum MonitorMessage {
 impl MonitorGroup {
     pub fn subscription(buses: &DesktopBuses) -> Subscription<MonitorMessage> {
         Subscription::batch([
-            source_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
+            snapshot_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
             ToggleControl::<AutoBrightness>::subscription(buses.clone())
                 .map(MonitorMessage::AutoBrightness),
         ])
@@ -108,27 +109,15 @@ impl MonitorGroup {
                 Task::none()
             }
             MonitorMessage::Backlights(delivery) => {
-                self.backlights
-                    .receive_keeping_last_reading(delivery, clock);
-                let list = self.backlights.get().into_iter().flatten();
-                self.sliders
-                    .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
-                for backlight in list {
-                    self.sliders
-                        .entry(backlight.serial.clone())
-                        .or_insert_with(|| {
-                            SliderControl::new(
-                                "Backlight",
-                                PERCENT,
-                                MonitorTarget::Backlight(backlight.serial.clone()),
-                                backlight_display::face(backlight),
-                            )
-                            .scroll_step(STEP)
-                            .readout(|value, _| format!("{}%", as_percent(value)))
-                            .announces_level("Brightness")
-                        })
-                        .update(ControlMessage::Reading(percent_f(backlight.percent)));
-                }
+                self.backlights.receive(delivery, clock);
+                self.sync_backlight_sliders();
+                Task::none()
+            }
+            MonitorMessage::BacklightsReread(reread_backlights) => {
+                self.backlights.apply_command(CommandOutcome::Reread {
+                    reread_fetch: Ok(reread_backlights),
+                });
+                self.sync_backlight_sliders();
                 Task::none()
             }
             MonitorMessage::Backlight(serial, m) => self.update_backlight(serial, m),
@@ -146,6 +135,28 @@ impl MonitorGroup {
                 .into_iter()
                 .map(|serial| self.update_backlight(serial, ControlMessage::Scroll(delta))),
         )
+    }
+
+    fn sync_backlight_sliders(&mut self) {
+        let list = self.backlights.get().into_iter().flatten();
+        self.sliders
+            .retain(|serial, _| list.clone().any(|b| &b.serial == serial));
+        for backlight in list {
+            self.sliders
+                .entry(backlight.serial.clone())
+                .or_insert_with(|| {
+                    SliderControl::new(
+                        "Backlight",
+                        PERCENT,
+                        MonitorTarget::Backlight(backlight.serial.clone()),
+                        backlight_display::face(backlight),
+                    )
+                    .scroll_step(STEP)
+                    .readout(|value, _| format!("{}%", as_percent(value)))
+                    .announces_level("Brightness")
+                })
+                .update(ControlMessage::Reading(percent_f(backlight.percent)));
+        }
     }
 
     fn update_backlight(&mut self, serial: String, m: ControlMessage) -> Task<MonitorMessage> {
@@ -168,7 +179,7 @@ impl MonitorGroup {
             }
             Action::None | Action::Right | Action::Adjust(_) if write_settled => Task::perform(
                 blocking("backlight reread", clightd_backlight::poll_all),
-                |list| MonitorMessage::Backlights(SourceDelivery::Reading(Ok(list))),
+                MonitorMessage::BacklightsReread,
             ),
             Action::None | Action::Right | Action::Adjust(_) => Task::none(),
         }

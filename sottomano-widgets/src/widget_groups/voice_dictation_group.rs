@@ -10,7 +10,7 @@ use iced::{Subscription, Task};
 use notulist_client::{DictationCommand, DictationEngine, EngineState};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope},
     voice_dictation_input::{
@@ -23,7 +23,7 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::voice_dictation_group::{
@@ -34,9 +34,9 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
         tooltip_body::Tooltip,
@@ -74,22 +74,22 @@ impl From<VoiceDictationTarget> for HoverTarget {
 }
 
 pub struct VoiceDictationGroup {
-    dictation: ContinuousReading<NotulistDictation>,
-    engine: ContinuousReading<NotulistEngine>,
-    pipeline: ContinuousReading<NotulistPipeline>,
-    output_problems: ContinuousReading<NotulistOutputProblems>,
-    model_card: OnHoverReading<HuggingFaceModelCard>,
+    dictation: LatestSnapshot<NotulistDictation, HidesFailuresAfterSuccess>,
+    engine: LatestSnapshot<NotulistEngine, HidesFailuresAfterSuccess>,
+    pipeline: LatestSnapshot<NotulistPipeline, HidesFailuresAfterSuccess>,
+    output_problems: LatestSnapshot<NotulistOutputProblems, HidesFailuresAfterSuccess>,
+    model_card: HoverFetchedSnapshot<HuggingFaceModelCard>,
     runtime: UnitSwitch,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum VoiceDictationMessage {
-    Dictation(SourceDelivery<NotulistDictation>),
-    Engine(SourceDelivery<NotulistEngine>),
-    Pipeline(SourceDelivery<NotulistPipeline>),
-    OutputProblems(SourceDelivery<NotulistOutputProblems>),
-    ModelCardFetched(SourceDelivery<HuggingFaceModelCard>),
+    Dictation(SnapshotDelivery<NotulistDictation>),
+    Engine(SnapshotDelivery<NotulistEngine>),
+    Pipeline(SnapshotDelivery<NotulistPipeline>),
+    OutputProblems(SnapshotDelivery<NotulistOutputProblems>),
+    ModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
     ToggleRecording,
     Runtime(UnitSwitchMessage),
     Expansion(ExpansionMessage),
@@ -109,11 +109,11 @@ impl VoiceDictationGroup {
             unit_name: DICTATION_UNIT.to_owned(),
         };
         Self {
-            dictation: ContinuousReading::default(),
-            engine: ContinuousReading::default(),
-            pipeline: ContinuousReading::default(),
-            output_problems: ContinuousReading::default(),
-            model_card: OnHoverReading::default(),
+            dictation: LatestSnapshot::default(),
+            engine: LatestSnapshot::default(),
+            pipeline: LatestSnapshot::default(),
+            output_problems: LatestSnapshot::default(),
+            model_card: HoverFetchedSnapshot::default(),
             runtime: UnitSwitch::new(dictation_unit, SPEECH_RUNTIME),
             expansion: GroupExpansion::default(),
         }
@@ -121,12 +121,13 @@ impl VoiceDictationGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<VoiceDictationMessage> {
         Subscription::batch([
-            source_subscription::<NotulistDictation>(buses.clone())
+            snapshot_subscription::<NotulistDictation>(buses.clone())
                 .map(VoiceDictationMessage::Dictation),
-            source_subscription::<NotulistEngine>(buses.clone()).map(VoiceDictationMessage::Engine),
-            source_subscription::<NotulistPipeline>(buses.clone())
+            snapshot_subscription::<NotulistEngine>(buses.clone())
+                .map(VoiceDictationMessage::Engine),
+            snapshot_subscription::<NotulistPipeline>(buses.clone())
                 .map(VoiceDictationMessage::Pipeline),
-            source_subscription::<NotulistOutputProblems>(buses.clone())
+            snapshot_subscription::<NotulistOutputProblems>(buses.clone())
                 .map(VoiceDictationMessage::OutputProblems),
             self.runtime
                 .subscription(buses)
@@ -160,7 +161,6 @@ impl VoiceDictationGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        clock: Clock,
     ) -> Task<VoiceDictationMessage> {
         self.model_card.stop();
         let Some(HoverTarget::VoiceDictation(VoiceDictationTarget::SpeechModel)) = hovered else {
@@ -177,7 +177,6 @@ impl VoiceDictationGroup {
             repository,
             VoiceDictationMessage::ModelCardFetched,
             config,
-            clock,
         )
     }
 
@@ -192,24 +191,23 @@ impl VoiceDictationGroup {
     ) -> Task<VoiceDictationMessage> {
         match msg {
             VoiceDictationMessage::Dictation(delivery) => {
-                self.dictation.receive_keeping_last_success(delivery, clock);
+                self.dictation.receive(delivery, clock);
                 Task::none()
             }
             VoiceDictationMessage::Engine(delivery) => {
-                self.engine.receive_keeping_last_success(delivery, clock);
+                self.engine.receive(delivery, clock);
                 Task::none()
             }
             VoiceDictationMessage::Pipeline(delivery) => {
-                self.pipeline.receive_keeping_last_success(delivery, clock);
+                self.pipeline.receive(delivery, clock);
                 Task::none()
             }
             VoiceDictationMessage::OutputProblems(delivery) => {
-                self.output_problems
-                    .receive_keeping_last_success(delivery, clock);
+                self.output_problems.receive(delivery, clock);
                 Task::none()
             }
             VoiceDictationMessage::ModelCardFetched(delivery) => {
-                self.model_card.receive_delivery(delivery, clock);
+                self.model_card.receive(delivery, clock);
                 Task::none()
             }
             VoiceDictationMessage::ToggleRecording => {

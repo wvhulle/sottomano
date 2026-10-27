@@ -9,7 +9,7 @@ use super::{
     signals_matching, state_changed_at, systemd_signal,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{connected_until_failure, read_once_then_per_burst},
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_record_fields::JournalPriority,
@@ -89,18 +89,17 @@ impl FailedUnitRestart {
     }
 }
 
-impl ReadingSource for FailedUnits {
+impl SnapshotSource for FailedUnits {
     type Error = zbus::Error;
     type StreamInputs = SystemdOnBus;
 
     const NAME: &'static str = "failed systemd units";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = systemd.scope;
         connected_until_failure(watch_failed(systemd.connection(), scope.per_user()))
             .map(move |listed| listed.map(|units| FailedUnits { units, scope }))
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

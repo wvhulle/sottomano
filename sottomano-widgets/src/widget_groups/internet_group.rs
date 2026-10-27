@@ -3,18 +3,18 @@ use iced::{Subscription, Task};
 mod network_throughput_gauge;
 
 use sottomano_sources::{
-    SourceDelivery, network_connectivity::interface_throughput::InterfaceThroughput,
+    SnapshotDelivery, network_connectivity::interface_throughput::InterfaceThroughput,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -36,13 +36,13 @@ impl From<InternetTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct InternetGroup {
-    throughput: ContinuousReading<InterfaceThroughput>,
+    throughput: LatestSnapshot<InterfaceThroughput>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum InternetMessage {
-    Throughput(SourceDelivery<InterfaceThroughput>),
+    Throughput(SnapshotDelivery<InterfaceThroughput>),
     Expansion(ExpansionMessage),
 }
 
@@ -52,7 +52,7 @@ impl InternetGroup {
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<InternetMessage> {
-        source_subscription::<InterfaceThroughput>(buses.clone()).map(InternetMessage::Throughput)
+        snapshot_subscription::<InterfaceThroughput>(buses.clone()).map(InternetMessage::Throughput)
     }
 
     pub fn refresh(buses: &DesktopBuses) -> Task<InternetMessage> {
@@ -62,7 +62,7 @@ impl InternetGroup {
     pub fn update(&mut self, msg: InternetMessage, clock: Clock) {
         match msg {
             InternetMessage::Throughput(delivery) => {
-                self.throughput.receive_delivery(delivery, clock);
+                self.throughput.receive(delivery, clock);
             }
             InternetMessage::Expansion(m) => {
                 self.expansion.update(m);

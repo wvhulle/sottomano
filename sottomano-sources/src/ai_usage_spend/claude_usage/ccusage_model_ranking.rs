@@ -4,12 +4,11 @@ use futures::{Stream, StreamExt, stream};
 
 use super::{Error, LoginKind, logins};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         ccusage_cli_reports::{self, Agent},
         model_spend_ranking::ModelRanking,
     },
-    pushed_delivery_stream,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
 };
 
@@ -21,16 +20,15 @@ pub struct ClaudeCcusageModels {
     pub month: ModelRanking,
 }
 
-impl ReadingSource for ClaudeCcusageModels {
+impl SnapshotSource for ClaudeCcusageModels {
     type Error = Error;
     type StreamInputs = Option<PathBuf>;
 
     const NAME: &'static str = "claude-ccusage-models";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(
         credentials: Option<PathBuf>,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(ccusage_cli_reports::installed()).while_held(
             move || {
                 let subscription_logins = match credentials.clone() {
@@ -42,14 +40,16 @@ impl ReadingSource for ClaudeCcusageModels {
                 subscription_logins
                     .distinct_until_changed()
                     .switch_map(|covered_by_subscription| {
-                        pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
-                            ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
-                            move || Self::read(covered_by_subscription),
-                            |_| ccusage_cli_reports::next_local_midnight(),
-                        ))))
+                        SnapshotDelivery::live_push_deliveries(ready(Ok(
+                            reread_on_trigger_or_deadline(
+                                ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
+                                move || Self::read(covered_by_subscription),
+                                |_| ccusage_cli_reports::next_local_midnight(),
+                            ),
+                        )))
                     })
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

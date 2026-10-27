@@ -13,7 +13,7 @@ use uom::si::{
 };
 
 use super::{Error, root_mount_facts::RootMount};
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream};
+use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
 const SAMPLE_WINDOW: Duration = Duration::from_secs(1);
@@ -39,17 +39,16 @@ pub struct DiskActivity {
     pub write: DiskTransfer,
 }
 
-impl ReadingSource for DiskActivity {
+impl SnapshotSource for DiskActivity {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "disk activity";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(SAMPLE_INTERVAL).poll_deliveries(move || Self::poll(()))
     }
 }
 

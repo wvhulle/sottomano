@@ -16,10 +16,10 @@ pub use self::{
     ccusage_monthly_usage::CopilotCcusage, free_quota::CopilotFree, metered_quota::CopilotMetered,
 };
 use crate::{
-    ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
+    delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::network_manager_proxies,
-    polled_delivery_stream,
     secret_file_reads::read_secret,
     stream_operators::StreamOperators,
     system_protocol_clients::{
@@ -30,7 +30,7 @@ use crate::{
 const API_BASE: &str = "https://api.github.com";
 pub const USER_ENDPOINT: &str = "/copilot_internal/user";
 const USER_AGENT: &str = "sottomano";
-const USER_POLL_INTERVAL: Duration = Duration::from_secs(15);
+const USER_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(15));
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -114,9 +114,9 @@ fn plan_polls<S, F>(
     account: CopilotAccount,
     on_plan: fn(&UserInfo) -> bool,
     poll: impl Fn(CopilotAccount) -> F + Send + Sync + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
+) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: ReadingSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
+    S: SnapshotSource<StreamInputs = CopilotAccount, Error = Error> + PartialEq,
     F: Future<Output = Result<S, Error>> + Send + 'static,
 {
     path_present(account.gh_auth_token.clone()).while_held(
@@ -131,19 +131,25 @@ where
                     stream::once(async move { user_info(&checked).await }).flat_map(move |info| {
                         match info {
                             Ok(info) if on_plan(&info) => {
-                                polled_delivery_stream(polled.clone(), poll.clone()).left_stream()
+                                let polled = polled.clone();
+                                let poll = poll.clone();
+                                USER_POLLING
+                                    .poll_deliveries(move || poll(polled.clone()))
+                                    .left_stream()
                             }
-                            Ok(_) => stream::iter([SourceDelivery::Absent]).right_stream(),
+                            Ok(_) => {
+                                stream::iter([SnapshotDelivery::SourceUnavailable]).right_stream()
+                            }
                             Err(e) => {
-                                stream::iter([SourceDelivery::Reading(Err(e))]).right_stream()
+                                stream::iter([SnapshotDelivery::single_read(Err(e))]).right_stream()
                             }
                         }
                     })
                 },
-                SourceDelivery::Absent,
+                SnapshotDelivery::SourceUnavailable,
             )
         },
-        SourceDelivery::Absent,
+        SnapshotDelivery::SourceUnavailable,
     )
 }
 

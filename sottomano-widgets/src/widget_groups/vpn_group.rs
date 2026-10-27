@@ -8,7 +8,7 @@ mod wireguard_tunnel_tooltip;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     network_connectivity::{
         network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch, switch_vpn},
         tailscale_status::{
@@ -20,13 +20,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -54,19 +54,19 @@ impl From<VpnTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct VpnGroup {
-    network_manager_vpns: ContinuousReading<NetworkManagerVpns>,
-    wireguard: ContinuousReading<Wireguard>,
-    tailscale: ContinuousReading<Tailscale>,
-    tunnel_address: OnHoverReading<TunnelAddress>,
+    network_manager_vpns: LatestSnapshot<NetworkManagerVpns>,
+    wireguard: LatestSnapshot<Wireguard>,
+    tailscale: LatestSnapshot<Tailscale>,
+    tunnel_address: HoverFetchedSnapshot<TunnelAddress>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum VpnMessage {
-    NetworkManagerVpns(SourceDelivery<NetworkManagerVpns>),
-    Wireguard(SourceDelivery<Wireguard>),
-    TunnelAddressFetched(SourceDelivery<TunnelAddress>),
-    Tailscale(SourceDelivery<Tailscale>),
+    NetworkManagerVpns(SnapshotDelivery<NetworkManagerVpns>),
+    Wireguard(SnapshotDelivery<Wireguard>),
+    TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
+    Tailscale(SnapshotDelivery<Tailscale>),
     Expansion(ExpansionMessage),
     SwitchVpn(VpnSwitch),
     DisconnectWireguard(String),
@@ -81,10 +81,10 @@ impl VpnGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<VpnMessage> {
         Subscription::batch([
-            source_subscription::<NetworkManagerVpns>(buses.clone())
+            snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                 .map(VpnMessage::NetworkManagerVpns),
-            source_subscription::<Wireguard>(()).map(VpnMessage::Wireguard),
-            source_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
+            snapshot_subscription::<Wireguard>(()).map(VpnMessage::Wireguard),
+            snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
         ])
     }
 
@@ -101,13 +101,13 @@ impl VpnGroup {
         use sottomano_sources::blocking_background_work::blocking;
         match msg {
             VpnMessage::NetworkManagerVpns(delivery) => {
-                self.network_manager_vpns.receive_delivery(delivery, clock);
+                self.network_manager_vpns.receive(delivery, clock);
             }
-            VpnMessage::Wireguard(reading) => self.wireguard.receive_delivery(reading, clock),
+            VpnMessage::Wireguard(reading) => self.wireguard.receive(reading, clock),
             VpnMessage::TunnelAddressFetched(fetched) => {
-                self.tunnel_address.receive_delivery(fetched, clock);
+                self.tunnel_address.receive(fetched, clock);
             }
-            VpnMessage::Tailscale(reading) => self.tailscale.receive_delivery(reading, clock),
+            VpnMessage::Tailscale(reading) => self.tailscale.receive(reading, clock),
             VpnMessage::Expansion(m) => {
                 self.expansion.update(m);
             }
@@ -134,7 +134,6 @@ impl VpnGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: Option<&DesktopBuses>,
-        clock: Clock,
     ) -> Task<VpnMessage> {
         self.tunnel_address.stop();
         let Some(HoverTarget::Vpn(VpnTarget::Wireguard(tunnel))) = hovered else {
@@ -150,7 +149,6 @@ impl VpnGroup {
             },
             VpnMessage::TunnelAddressFetched,
             config,
-            clock,
         )
     }
 

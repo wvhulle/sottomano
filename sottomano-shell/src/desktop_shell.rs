@@ -91,9 +91,8 @@ use sottomano_widgets::{
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
-        app_window_focus::AppWindowFocus, continuous_reading::ContinuousReading, favicon::Favicons,
-        palette_colors::PaletteColors, text::FontFaces, tooltip_body::Tooltip,
-        window_icon::WindowAssets,
+        app_window_focus::AppWindowFocus, favicon::Favicons, palette_colors::PaletteColors,
+        text::FontFaces, tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
@@ -152,7 +151,7 @@ pub struct DesktopShell {
     pub window_group: WindowGroup,
     pub launch_tracker: LaunchTracker,
     pub niri: EventStreamState,
-    pub niri_snapshot: ContinuousReading<niri_window_snapshot::Snapshot>,
+    pub niri_snapshot: niri_window_snapshot::Snapshot,
     pub outputs: HashMap<String, niri_output_facts::OutputInfo>,
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
@@ -227,7 +226,7 @@ impl DesktopShell {
             window_group: WindowGroup::default(),
             launch_tracker: LaunchTracker::default(),
             niri: EventStreamState::default(),
-            niri_snapshot: ContinuousReading::default(),
+            niri_snapshot: niri_window_snapshot::Snapshot::default(),
             outputs: HashMap::new(),
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
@@ -779,12 +778,9 @@ impl DesktopShell {
     }
 
     fn derive_niri_snapshot(&mut self) {
-        self.niri_snapshot.load(
-            niri_window_snapshot::Snapshot::derive(
-                &self.niri,
-                self.window_group.window_processes(),
-            ),
-            self.clock,
+        self.niri_snapshot = niri_window_snapshot::Snapshot::derive(
+            &self.niri,
+            self.window_group.window_processes(),
         );
     }
 
@@ -904,9 +900,7 @@ impl DesktopShell {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
         };
-        let Some(snapshot) = self.niri_snapshot.get() else {
-            return Task::none();
-        };
+        let snapshot = &self.niri_snapshot;
         let now = self.clock.utc();
         let ranked = snapshot
             .active_workspaces()
@@ -924,14 +918,9 @@ impl DesktopShell {
     }
 
     fn resolve_icons(&mut self) -> Task<Message> {
-        let snapshot = self.niri_snapshot.get();
-        let mut app_keys = snapshot
-            .map(desktop_entry_app_icons::app_icon_keys)
-            .unwrap_or_default();
+        let mut app_keys = desktop_entry_app_icons::app_icon_keys(&self.niri_snapshot);
         app_keys.extend(self.window_group.icon_keys());
-        let theme_keys = snapshot
-            .map(desktop_entry_app_icons::theme_icon_keys)
-            .unwrap_or_default();
+        let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.niri_snapshot);
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)
             .map(Message::IconsResolved)

@@ -1,7 +1,7 @@
 use chrono::{TimeZone, Utc};
 use notulist_client::{DictationEngine, DictationPhase, EngineState};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     systemd_units_journal::unit_active_state::{UnitActiveState, UnitActivity},
     voice_dictation_input::{
         huggingface_model_card::{HuggingFaceModelCard, ModelCardData},
@@ -31,15 +31,15 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 fn dictation_readings() -> [VoiceDictationMessage; 3] {
     [
-        VoiceDictationMessage::Runtime(UnitSwitchMessage::ActiveState(SourceDelivery::Reading(
-            Ok(UnitActiveState {
+        VoiceDictationMessage::Runtime(UnitSwitchMessage::ActiveState(
+            SnapshotDelivery::live_push(Ok(UnitActiveState {
                 activity: UnitActivity::Running,
-            }),
-        ))),
-        VoiceDictationMessage::Dictation(SourceDelivery::Reading(Ok(NotulistDictation {
+            })),
+        )),
+        VoiceDictationMessage::Dictation(SnapshotDelivery::live_push(Ok(NotulistDictation {
             phase: DictationPhase::Idle,
         }))),
-        VoiceDictationMessage::Engine(SourceDelivery::Reading(Ok(NotulistEngine {
+        VoiceDictationMessage::Engine(SnapshotDelivery::live_push(Ok(NotulistEngine {
             engine: EngineState::SpeechModelReady(loaded_whisper_engine()),
         }))),
     ]
@@ -71,7 +71,7 @@ fn loaded_whisper_engine() -> DictationEngine {
 pub fn on_hover(target: VoiceDictationTarget) -> Vec<VoiceDictationMessage> {
     match target {
         VoiceDictationTarget::SpeechModel => vec![VoiceDictationMessage::ModelCardFetched(
-            SourceDelivery::Reading(Ok(whisper_model_card())),
+            SnapshotDelivery::single_read(Ok(whisper_model_card())),
         )],
         VoiceDictationTarget::Dictation
         | VoiceDictationTarget::Pipeline

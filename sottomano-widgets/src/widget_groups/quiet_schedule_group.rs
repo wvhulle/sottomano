@@ -31,7 +31,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
         weather_icons::WeatherIcon,
         weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
@@ -428,7 +428,7 @@ impl QuietScheduleGroup {
         match target {
             QuietScheduleTarget::DoNotDisturb => Some(Tooltip::sourced(
                 self.status_tooltip(clock),
-                Freshness::Live,
+                DeliveryTiming::LivePush,
             )),
             QuietScheduleTarget::FollowSchedule => {
                 Some(self.follow_schedule_toggle().switch_tooltip(clock))
@@ -447,7 +447,7 @@ impl QuietScheduleGroup {
                 };
                 Some(Tooltip::sourced(
                     TooltipBody::dictionary([KeyValue::new(weekday_name(day, locale), kind)]),
-                    Freshness::Live,
+                    DeliveryTiming::LivePush,
                 ))
             }
         }

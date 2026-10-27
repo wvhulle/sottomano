@@ -7,9 +7,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::cpu_topology::cpulist;
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
-    polled_delivery_stream,
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, read_trimmed},
 };
@@ -33,22 +33,24 @@ pub struct SharedCacheTraffic {
     pub hit_rate: Ratio,
 }
 
-impl ReadingSource for L3CacheTraffic {
+impl SnapshotSource for L3CacheTraffic {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "l3 cache traffic";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let countable = async {
             spawn_blocking(|| read_l3_cache_traffic().is_ok())
                 .await
                 .unwrap_or(false)
         };
         stream::once(countable).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
-            SourceDelivery::Absent,
+            move || {
+                PeriodicPolling::every(Duration::from_secs(3))
+                    .poll_deliveries(move || Self::poll(()))
+            },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

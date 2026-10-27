@@ -7,7 +7,7 @@ use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{ReadingError, device_or_absent, network_manager_proxies, nm_readings},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -136,14 +136,13 @@ async fn read_details(connection: Connection) -> Result<EthernetDetails, Reading
     Ok(EthernetDetails { ports })
 }
 
-impl ReadingSource for Ethernet {
+impl SnapshotSource for Ethernet {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(
             system.clone(),
@@ -159,14 +158,13 @@ impl ReadingSource for Ethernet {
     }
 }
 
-impl ReadingSource for EthernetDetails {
+impl SnapshotSource for EthernetDetails {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "ethernet details";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(
             system.clone(),

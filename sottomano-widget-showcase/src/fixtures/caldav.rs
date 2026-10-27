@@ -3,14 +3,15 @@ use std::time::Duration;
 use chrono::{NaiveDateTime, TimeDelta, Timelike};
 use sottomano_config::SecretPaths;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     caldav_tasks_events::{
         agenda_moment_zones::AgendaMoment,
-        caldav_agenda::{CaldavAgenda, ChangeDelivery},
+        caldav_agenda::CaldavAgenda,
         caldav_event_query::{EventOrigin, UpcomingEvent},
         caldav_server_provider::CaldavProvider,
         caldav_task_query::{OpenTask, TaskDeadline, TaskPriority, TaskProgress},
     },
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -25,9 +26,10 @@ const PERSONAL_CALENDAR: &str = "/remote.php/dav/calendars/demo/personal/";
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = CaldavGroup::new(&SecretPaths::default());
     let _ = group.update(
-        CaldavMessage::Agenda(Box::new(SourceDelivery::Reading(Ok(nextcloud_agenda(
-            clock,
-        ))))),
+        CaldavMessage::Agenda(Box::new(SnapshotDelivery::fixture_delivered(
+            Ok(nextcloud_agenda(clock)),
+            DeliveryCadence::LivePushWithRecheck(PeriodicPolling::every(Duration::from_mins(15))),
+        ))),
         clock,
     );
     ShowcasedGroup::Caldav(Box::new(group))
@@ -95,9 +97,6 @@ fn nextcloud_agenda(clock: Clock) -> CaldavAgenda {
             ),
         ],
         calendar_count: 2,
-        change_delivery: ChangeDelivery::NextcloudNotifyPush {
-            safety_recheck_every: Duration::from_mins(15),
-        },
         provider: CaldavProvider::detected(NEXTCLOUD_SERVER, [PERSONAL_CALENDAR]),
     }
 }

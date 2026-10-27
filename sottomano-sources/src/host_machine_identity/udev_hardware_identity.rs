@@ -10,7 +10,7 @@ use futures::{Stream, StreamExt, stream};
 use serde_json::Value;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
     host_machine_identity::hostname1_os_identity::MachineInfo,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, shell_command_output},
@@ -299,15 +299,14 @@ impl Display for HostHardwareError {
     }
 }
 
-impl ReadingSource for HostHardware {
+impl SnapshotSource for HostHardware {
     type Error = HostHardwareError;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "host hardware";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(Self::read(buses)).map(SourceDelivery::Reading)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        stream::once(Self::read(buses)).map(SnapshotDelivery::single_read)
     }
 }
 

@@ -2,7 +2,7 @@ use futures::{Stream, try_join};
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     network_connectivity::{
         ReadingError, device_or_absent,
         network_manager_proxies::{self, ActiveVpn, AddressBlock, VpnProfile},
@@ -177,14 +177,13 @@ async fn read(connection: Connection) -> Result<NetworkManagerVpns, ReadingError
     })
 }
 
-impl ReadingSource for NetworkManagerVpns {
+impl SnapshotSource for NetworkManagerVpns {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "NetworkManager VPN connections";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(
             system.clone(),

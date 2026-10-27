@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use chrono::{Datelike, Locale, Utc};
 use iced::futures::Stream;
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::ticked_at_boundaries,
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
 
 use crate::{
@@ -20,15 +20,14 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LocalDate;
 
-impl ReadingSource for LocalDate {
+impl SnapshotSource for LocalDate {
     type Error = Infallible;
     type StreamInputs = ();
 
     const NAME: &'static str = "local date";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        ticked_at_boundaries(TICK, || LocalDate)
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(TICK).boundary_aligned_deliveries(|| LocalDate)
     }
 }
 

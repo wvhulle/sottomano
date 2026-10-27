@@ -13,7 +13,8 @@ use iced::{Size, alignment::Horizontal};
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::DeliveryCadence,
     desktop_windows_apps::{
         process_tree_inspection::Process, status_notifier_tray::MenuNode,
         window_title_labels::WindowLabel,
@@ -602,23 +603,23 @@ impl From<Section> for TooltipBody {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcedSections {
     readiness: Readiness,
-    freshness: Freshness,
+    delivery_timing: DeliveryTiming,
     sections: Vec<Section>,
 }
 
 impl SourcedSections {
     #[must_use]
-    pub fn new(readiness: Readiness, freshness: Freshness, body: TooltipBody) -> Self {
+    pub fn new(readiness: Readiness, delivery_timing: DeliveryTiming, body: TooltipBody) -> Self {
         Self {
             readiness,
-            freshness,
+            delivery_timing,
             sections: body.sections,
         }
     }
 
     #[must_use]
-    pub fn settled(body: TooltipBody, freshness: Freshness) -> Self {
-        Self::new(Readiness::Settled, freshness, body)
+    pub fn settled(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
+        Self::new(Readiness::Settled, delivery_timing, body)
     }
 
     #[must_use]
@@ -627,8 +628,8 @@ impl SourcedSections {
     }
 
     #[must_use]
-    pub fn freshness(&self) -> Freshness {
-        self.freshness
+    pub fn delivery_timing(&self) -> DeliveryTiming {
+        self.delivery_timing
     }
 
     pub fn filled_sections(&self) -> impl Iterator<Item = &Section> {
@@ -650,31 +651,68 @@ impl From<Infallible> for Section {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Freshness {
-    Polled { every: Duration, last: SystemTime },
-    Live,
-    Fixed,
+pub enum DeliveryTiming {
+    PeriodicPolling {
+        poll_period: Duration,
+        delivered_at: SystemTime,
+    },
+    LivePushWithRecheck {
+        recheck_period: Duration,
+        delivered_at: SystemTime,
+    },
+    LivePush,
+    SingleRead,
 }
 
-impl Freshness {
+impl DeliveryTiming {
     #[must_use]
-    pub fn from_source_cadence<S: ReadingSource>(clock: Clock) -> Self {
-        Self::of_cadence(S::DELIVERY_CADENCE, clock)
+    pub fn from_snapshot_delivery<S: SnapshotSource>(
+        delivery: &SnapshotDelivery<S>,
+        clock: Clock,
+    ) -> Option<Self> {
+        match delivery {
+            SnapshotDelivery::SnapshotDelivered {
+                stamped_cadence, ..
+            } => Some(Self::from_delivery_cadence(
+                stamped_cadence.delivery_cadence(),
+                clock,
+            )),
+            SnapshotDelivery::SourceUnavailable | SnapshotDelivery::SnapshotUnchanged => None,
+        }
     }
 
     #[must_use]
-    pub fn of_reading<S: ReadingSource>(reading: &S, clock: Clock) -> Self {
-        Self::of_cadence(reading.delivery_cadence(), clock)
-    }
-
-    fn of_cadence(cadence: DeliveryCadence, clock: Clock) -> Self {
-        match cadence {
-            DeliveryCadence::PolledEvery(every) => Freshness::Polled {
-                every,
-                last: clock.wall,
+    pub fn from_delivery_cadence(delivery_cadence: DeliveryCadence, clock: Clock) -> Self {
+        match delivery_cadence {
+            DeliveryCadence::PeriodicPolling(polling) => DeliveryTiming::PeriodicPolling {
+                poll_period: polling.poll_period(),
+                delivered_at: clock.wall,
             },
-            DeliveryCadence::PushedLive => Freshness::Live,
-            DeliveryCadence::ReadOnce => Freshness::Fixed,
+            DeliveryCadence::LivePushWithRecheck(recheck) => DeliveryTiming::LivePushWithRecheck {
+                recheck_period: recheck.poll_period(),
+                delivered_at: clock.wall,
+            },
+            DeliveryCadence::LivePush => DeliveryTiming::LivePush,
+            DeliveryCadence::SingleRead => DeliveryTiming::SingleRead,
+        }
+    }
+
+    #[must_use]
+    pub fn redelivered(self, clock: Clock) -> Self {
+        match self {
+            DeliveryTiming::PeriodicPolling { poll_period, .. } => {
+                DeliveryTiming::PeriodicPolling {
+                    poll_period,
+                    delivered_at: clock.wall,
+                }
+            }
+            DeliveryTiming::LivePushWithRecheck { recheck_period, .. } => {
+                DeliveryTiming::LivePushWithRecheck {
+                    recheck_period,
+                    delivered_at: clock.wall,
+                }
+            }
+            DeliveryTiming::LivePush | DeliveryTiming::SingleRead => self,
         }
     }
 }
@@ -699,8 +737,8 @@ impl Tooltip {
     }
 
     #[must_use]
-    pub fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
-        Self::grouped([SourcedSections::settled(body, freshness)])
+    pub fn sourced(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
+        Self::grouped([SourcedSections::settled(body, delivery_timing)])
     }
 
     #[must_use]

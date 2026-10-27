@@ -8,7 +8,7 @@ mod wifi_link_tooltip;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     network_connectivity::{
         bluez_bluetooth::{Bluetooth, toggle_bluetooth_power},
         ethernet_connection::{Ethernet, EthernetDetails, toggle_ethernet_ports},
@@ -19,14 +19,14 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -50,23 +50,23 @@ impl From<NetInterfaceTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NetInterfacesGroup {
-    bluetooth: ContinuousReading<Bluetooth>,
-    ethernet: ContinuousReading<Ethernet>,
-    wifi: ContinuousReading<Wifi>,
-    mobile: ContinuousReading<Mobile>,
-    wifi_details: OnHoverReading<WifiDetails>,
-    ethernet_details: OnHoverReading<EthernetDetails>,
+    bluetooth: LatestSnapshot<Bluetooth>,
+    ethernet: LatestSnapshot<Ethernet>,
+    wifi: LatestSnapshot<Wifi>,
+    mobile: LatestSnapshot<Mobile>,
+    wifi_details: HoverFetchedSnapshot<WifiDetails>,
+    ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum NetInterfacesMessage {
-    Bluetooth(SourceDelivery<Bluetooth>),
-    Ethernet(SourceDelivery<Ethernet>),
-    Wifi(SourceDelivery<Wifi>),
-    Mobile(Box<SourceDelivery<Mobile>>),
-    WifiDetailsFetched(Box<SourceDelivery<WifiDetails>>),
-    EthernetDetailsFetched(SourceDelivery<EthernetDetails>),
+    Bluetooth(SnapshotDelivery<Bluetooth>),
+    Ethernet(SnapshotDelivery<Ethernet>),
+    Wifi(SnapshotDelivery<Wifi>),
+    Mobile(Box<SnapshotDelivery<Mobile>>),
+    WifiDetailsFetched(Box<SnapshotDelivery<WifiDetails>>),
+    EthernetDetailsFetched(SnapshotDelivery<EthernetDetails>),
     ToggleRadio(NetInterfaceTarget),
     Expansion(ExpansionMessage),
 }
@@ -79,14 +79,15 @@ impl NetInterfacesGroup {
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
             self.expansion.while_expanded(
-                source_subscription::<Bluetooth>(buses.clone())
+                snapshot_subscription::<Bluetooth>(buses.clone())
                     .map(NetInterfacesMessage::Bluetooth),
             ),
             self.expansion.while_expanded(
-                source_subscription::<Ethernet>(buses.clone()).map(NetInterfacesMessage::Ethernet),
+                snapshot_subscription::<Ethernet>(buses.clone())
+                    .map(NetInterfacesMessage::Ethernet),
             ),
-            source_subscription::<Wifi>(buses.clone()).map(NetInterfacesMessage::Wifi),
-            source_subscription::<Mobile>(buses.clone())
+            snapshot_subscription::<Wifi>(buses.clone()).map(NetInterfacesMessage::Wifi),
+            snapshot_subscription::<Mobile>(buses.clone())
                 .map(|delivery| NetInterfacesMessage::Mobile(Box::new(delivery))),
         ])
     }
@@ -98,20 +99,20 @@ impl NetInterfacesGroup {
     ) -> Task<NetInterfacesMessage> {
         match msg {
             NetInterfacesMessage::Bluetooth(delivery) => {
-                self.bluetooth.receive_delivery(delivery, clock);
+                self.bluetooth.receive(delivery, clock);
             }
             NetInterfacesMessage::Ethernet(delivery) => {
-                self.ethernet.receive_delivery(delivery, clock);
+                self.ethernet.receive(delivery, clock);
             }
-            NetInterfacesMessage::Wifi(delivery) => self.wifi.receive_delivery(delivery, clock),
+            NetInterfacesMessage::Wifi(delivery) => self.wifi.receive(delivery, clock),
             NetInterfacesMessage::Mobile(delivery) => {
-                self.mobile.receive_delivery(*delivery, clock);
+                self.mobile.receive(*delivery, clock);
             }
             NetInterfacesMessage::WifiDetailsFetched(fetched) => {
-                self.wifi_details.receive_delivery(*fetched, clock);
+                self.wifi_details.receive(*fetched, clock);
             }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
-                self.ethernet_details.receive_delivery(fetched, clock);
+                self.ethernet_details.receive(fetched, clock);
             }
             NetInterfacesMessage::ToggleRadio(target) => {
                 return Task::future(async move {
@@ -133,7 +134,6 @@ impl NetInterfacesGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
-        clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         self.wifi_details.stop();
         self.ethernet_details.stop();
@@ -143,7 +143,6 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
                     config,
-                    clock,
                 )
             }
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
@@ -151,7 +150,6 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     NetInterfacesMessage::EthernetDetailsFetched,
                     config,
-                    clock,
                 )
             }
             _ => Task::none(),

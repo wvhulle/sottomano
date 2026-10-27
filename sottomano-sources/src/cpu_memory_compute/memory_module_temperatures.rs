@@ -5,8 +5,9 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use super::hwmon_temperature_sensors::{HwmonChip, TemperatureSensor};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
-    polled_delivery_after_setup, system_protocol_clients::sysfs_attribute_reads::Error,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
+    system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
 const MEMORY_MODULE_SENSOR_CHIPS: [&str; 2] = ["spd5118", "jc42"];
@@ -22,15 +23,14 @@ pub struct MemoryModuleTemperature {
     pub temperature: ThermodynamicTemperature,
 }
 
-impl ReadingSource for MemoryModuleTemperatures {
+impl SnapshotSource for MemoryModuleTemperatures {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "memory module temperatures";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_after_setup(
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries_after_setup(
             blocking_poll(|| Ok(MemoryModuleSensor::discover())),
             Self::poll,
         )

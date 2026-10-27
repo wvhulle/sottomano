@@ -7,7 +7,8 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
         kitty_terminal_windows::WindowProcesses,
         niri_window_snapshot::Snapshot,
@@ -22,7 +23,7 @@ use sottomano_widgets::{
     widget_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
     },
-    widgets::{continuous_reading::ContinuousReading, favicon::Favicons},
+    widgets::favicon::Favicons,
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
@@ -34,15 +35,15 @@ const CHAT_WORKSPACE: u64 = 3;
 const TERMINAL_WINDOW: u64 = 2;
 const TERMINAL_PID: i32 = 4200;
 
-pub fn bottom_bar(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::BottomBar(Box::new(session(clock)))
+pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::BottomBar(Box::new(session()))
 }
 
-pub fn workspace_sidebar(clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::WorkspaceSidebar(Box::new(session(clock)))
+pub fn workspace_sidebar(_clock: Clock) -> ShowcasedGroup {
+    ShowcasedGroup::WorkspaceSidebar(Box::new(session()))
 }
 
-fn session(clock: Clock) -> ShowcasedNiriSession {
+fn session() -> ShowcasedNiriSession {
     let niri = [workspaces(), windows()].into_iter().fold(
         EventStreamState::default(),
         |mut state, event| {
@@ -50,8 +51,7 @@ fn session(clock: Clock) -> ShowcasedNiriSession {
             state
         },
     );
-    let mut snapshot = ContinuousReading::default();
-    snapshot.load(Snapshot::derive(&niri, &WindowProcesses::default()), clock);
+    let snapshot = Snapshot::derive(&niri, &WindowProcesses::default());
     ShowcasedNiriSession {
         window_group: WindowGroup::default(),
         niri,
@@ -66,10 +66,15 @@ pub fn on_hover(target: &HoverTarget) -> Vec<WindowGroupMessage> {
     match target {
         HoverTarget::Window(WindowTarget::Inspect(TERMINAL_WINDOW)) => vec![
             WindowGroupMessage::WindowList(WindowListMessage::ProcessTreeScanned(
-                SourceDelivery::Reading(Ok(terminal_processes())),
+                SnapshotDelivery::fixture_delivered(
+                    Ok(terminal_processes()),
+                    DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(
+                        1,
+                    ))),
+                ),
             )),
             WindowGroupMessage::WindowList(WindowListMessage::ProcessInspected(Box::new(
-                SourceDelivery::Reading(Ok(terminal_inspection())),
+                SnapshotDelivery::single_read(Ok(terminal_inspection())),
             ))),
         ],
         _ => Vec::new(),

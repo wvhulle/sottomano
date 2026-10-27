@@ -5,7 +5,7 @@ use notulist_client::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
 };
@@ -15,18 +15,17 @@ pub struct NotulistDictation {
     pub phase: DictationPhase,
 }
 
-impl ReadingSource for NotulistDictation {
+impl SnapshotSource for NotulistDictation {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "notulist";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let session = buses.session;
         name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || pushed_delivery_stream(dictation_phases(session.clone())),
-            SourceDelivery::Absent,
+            move || SnapshotDelivery::live_push_deliveries(dictation_phases(session.clone())),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

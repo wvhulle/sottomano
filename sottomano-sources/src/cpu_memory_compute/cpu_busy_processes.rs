@@ -5,10 +5,10 @@ use procfs::process::all_processes;
 use uom::si::f64::Ratio;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::process_tree_inspection::{CpuCapacity, binary_name},
-    polled_delivery_stream,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -28,17 +28,16 @@ pub struct CpuBusyProcesses {
     pub processes: Vec<CpuBusyProcess>,
 }
 
-impl ReadingSource for CpuBusyProcesses {
+impl SnapshotSource for CpuBusyProcesses {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "cpu busy processes";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
     }
 }
 

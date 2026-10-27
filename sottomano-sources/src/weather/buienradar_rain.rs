@@ -8,7 +8,7 @@ use uom::si::f64::Velocity;
 
 use super::Error;
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream,
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::http_json_client,
 };
 
@@ -135,17 +135,16 @@ impl From<RadarSlot> for Downpour {
     }
 }
 
-impl ReadingSource for Rain {
+impl SnapshotSource for Rain {
     type Error = Error;
     type StreamInputs = GeoCoordinates;
 
     const NAME: &'static str = "weather-rain";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(60)).poll_deliveries(move || Self::poll(inputs))
     }
 }
 

@@ -23,8 +23,10 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        continuous_reading::ContinuousReading, pointer_drag::DragView, tooltip_body::Tooltip,
-        widget_group::GroupEvent, window_icon::WindowAssets,
+        pointer_drag::DragView,
+        tooltip_body::{DeliveryTiming, Tooltip},
+        widget_group::GroupEvent,
+        window_icon::WindowAssets,
     },
 };
 
@@ -76,7 +78,6 @@ impl WindowGroup {
         niri_state: &EventStreamState,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        clock: Clock,
     ) -> Task<WindowGroupMessage> {
         let watched = match hovered {
             Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
@@ -85,18 +86,20 @@ impl WindowGroup {
             _ => None,
         };
         self.window_list
-            .hover_process(watched, config, clock)
+            .hover_process(watched, config)
             .map(WindowGroupMessage::WindowList)
     }
 
     #[must_use]
     pub fn pick_tooltip(
         niri_state: &EventStreamState,
-        snapshot: &ContinuousReading<niri_window_snapshot::Snapshot>,
         window: u64,
         clock: Clock,
     ) -> Option<Tooltip> {
-        snapshot.tooltip_with(window_tooltip::pick_body(niri_state, window, clock.wall)?)
+        Some(Tooltip::sourced(
+            window_tooltip::pick_body(niri_state, window, clock.wall)?,
+            DeliveryTiming::LivePush,
+        ))
     }
 
     #[must_use]

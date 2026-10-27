@@ -5,7 +5,7 @@ use std::{
 
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
     wallpaper_place_article::{self, DisplayedWallpaper, Wallpaper},
@@ -63,14 +63,13 @@ impl From<Failure> for Section {
     }
 }
 
-impl ReadingSource for Lookup {
+impl SnapshotSource for Lookup {
     type Error = Failure;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "wallpaper lookup";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(wallpaper_place_article::daemon_installed()).while_held(
             move || {
                 let unsplash_key = unsplash_key.clone();
@@ -80,35 +79,37 @@ impl ReadingSource for Lookup {
                         let unsplash_key = unsplash_key.clone();
                         let path = match displayed {
                             Err(failure) => {
-                                return stream::iter([SourceDelivery::Reading(Err(
+                                return stream::iter([SnapshotDelivery::live_push(Err(
                                     Failure::Query(failure),
                                 ))])
                                 .left_stream();
                             }
                             Ok(DisplayedWallpaper::NoImageFile) => {
-                                return stream::iter([SourceDelivery::Absent]).left_stream();
+                                return stream::iter([SnapshotDelivery::SourceUnavailable])
+                                    .left_stream();
                             }
                             Ok(DisplayedWallpaper::ImageFile(path)) => path,
                         };
                         let Some(id) = wallpaper_place_article::photo_id(&path) else {
-                            return stream::iter([SourceDelivery::Absent]).left_stream();
+                            return stream::iter([SnapshotDelivery::SourceUnavailable])
+                                .left_stream();
                         };
                         let unresolved =
                             Lookup::of(&wallpaper_place_article::unresolved(&path, &id));
                         let resolved = async move {
-                            SourceDelivery::Reading(
+                            SnapshotDelivery::live_push(
                                 wallpaper_place_article::resolve(path, id, &unsplash_key)
                                     .await
                                     .map(|wallpaper| Lookup::of(&wallpaper))
                                     .map_err(Failure::Resolve),
                             )
                         };
-                        stream::iter([SourceDelivery::Reading(Ok(unresolved))])
+                        stream::iter([SnapshotDelivery::live_push(Ok(unresolved))])
                             .chain(stream::once(resolved))
                             .right_stream()
                     })
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

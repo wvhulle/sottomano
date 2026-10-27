@@ -1,6 +1,6 @@
 use iced::{Subscription, Task};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
         ScopedSystemdUnit, SystemdUnitOnBus,
@@ -9,13 +9,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
@@ -79,12 +79,12 @@ impl BarWidget for UnitSwitchReading {
 pub struct UnitSwitch {
     unit: ScopedSystemdUnit,
     face: UnitSwitchFace,
-    active_state: ContinuousReading<UnitActiveState>,
+    active_state: LatestSnapshot<UnitActiveState, HidesFetchFailures>,
 }
 
 #[derive(Debug, Clone)]
 pub enum UnitSwitchMessage {
-    ActiveState(SourceDelivery<UnitActiveState>),
+    ActiveState(SnapshotDelivery<UnitActiveState>),
     Press,
     Requested {
         change: UnitChange,
@@ -99,7 +99,7 @@ impl UnitSwitch {
         Self {
             unit,
             face,
-            active_state: ContinuousReading::default(),
+            active_state: LatestSnapshot::default(),
         }
     }
 
@@ -112,7 +112,7 @@ impl UnitSwitch {
     }
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<UnitSwitchMessage> {
-        source_subscription::<UnitActiveState>(SystemdUnitOnBus {
+        snapshot_subscription::<UnitActiveState>(SystemdUnitOnBus {
             buses: buses.clone(),
             unit: self.unit.clone(),
         })
@@ -122,8 +122,7 @@ impl UnitSwitch {
     pub fn update(&mut self, message: UnitSwitchMessage, clock: Clock) -> Task<UnitSwitchMessage> {
         match message {
             UnitSwitchMessage::ActiveState(delivery) => {
-                self.active_state
-                    .receive_keeping_last_reading(delivery, clock);
+                self.active_state.receive(delivery, clock);
                 Task::none()
             }
             UnitSwitchMessage::Press => match self.activity() {
@@ -141,7 +140,9 @@ impl UnitSwitch {
                     before
                 };
                 if let Some(activity) = activity {
-                    self.active_state.assume(UnitActiveState { activity });
+                    self.active_state.apply_command(CommandOutcome::Applied {
+                        expected_snapshot: UnitActiveState { activity },
+                    });
                 }
                 Task::none()
             }
@@ -150,8 +151,10 @@ impl UnitSwitch {
 
     pub fn request(&mut self, change: UnitChange) -> Task<UnitSwitchMessage> {
         let before = self.activity();
-        self.active_state.assume(UnitActiveState {
-            activity: change.pending_activity(),
+        self.active_state.apply_command(CommandOutcome::Applied {
+            expected_snapshot: UnitActiveState {
+                activity: change.pending_activity(),
+            },
         });
         let control = UnitControl {
             per_user: self.unit.scope.per_user(),

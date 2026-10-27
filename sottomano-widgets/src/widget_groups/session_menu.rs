@@ -19,7 +19,7 @@ use crate::{
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
-            Freshness, Section, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
+            DeliveryTiming, Section, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
         },
         widget_group::{GroupContent, GroupEvent},
     },
@@ -119,7 +119,7 @@ impl SessionMenu {
                         })
                         .collect(),
                 })),
-                Freshness::Live,
+                DeliveryTiming::LivePush,
             ),
         }
     }

@@ -9,8 +9,8 @@ use super::{
     root_mount_facts::RootMount,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
-    polled_delivery_stream,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -37,17 +37,16 @@ impl RootFilesystem {
     }
 }
 
-impl ReadingSource for RootFilesystem {
+impl SnapshotSource for RootFilesystem {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "disk";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(60)).poll_deliveries(move || Self::poll(()))
     }
 }
 

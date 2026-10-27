@@ -13,12 +13,13 @@ use super::{
     title_case,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         spend_money::{Money, from_minor_units},
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendPacing, WorkingTime},
     },
+    delivery_cadence_drivers::PeriodicPolling,
 };
 
 #[derive(Deserialize)]
@@ -101,15 +102,19 @@ impl From<Organization> for ClaudeOrganization {
     }
 }
 
-impl ReadingSource for ClaudeOrganization {
+impl SnapshotSource for ClaudeOrganization {
     type Error = Error;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "claude-organization";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
 
-    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(inputs, LoginKind::Enterprise, Self::poll)
+    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        login_polls(
+            PeriodicPolling::every(Duration::from_mins(5)),
+            inputs,
+            LoginKind::Enterprise,
+            Self::poll,
+        )
     }
 }
 
@@ -121,20 +126,22 @@ impl ClaudeOrganization {
     }
 }
 
-impl ReadingSource for ClaudeEnterpriseSpend {
+impl SnapshotSource for ClaudeEnterpriseSpend {
     type Error = Error;
     type StreamInputs = ClaudeEnterpriseAccount;
 
     const NAME: &'static str = "claude-enterprise-spend";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(5));
 
     fn delivery_stream(
         account: ClaudeEnterpriseAccount,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let working_time = account.working_time;
-        login_polls(account.credentials, LoginKind::Enterprise, move |key| {
-            Self::poll(key, working_time.clone())
-        })
+        login_polls(
+            PeriodicPolling::every(Duration::from_mins(5)),
+            account.credentials,
+            LoginKind::Enterprise,
+            move |key| Self::poll(key, working_time.clone()),
+        )
     }
 }
 

@@ -18,9 +18,9 @@ use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::Panicked,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::Panicked,
+    delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::nix_store_provenance::Provenance, non_empty_text::non_empty,
-    polled_delivery_stream,
 };
 
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
@@ -255,17 +255,16 @@ fn forest(window: &CpuWindow, samples: &mut CpuSamples) -> Forest {
     Forest { roots }
 }
 
-impl ReadingSource for Process {
+impl SnapshotSource for Process {
     type Error = Error;
     type StreamInputs = Watched;
 
     const NAME: &'static str = "process scan";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SCAN_INTERVAL);
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(SCAN_INTERVAL).poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 
@@ -351,15 +350,14 @@ fn inspect(watched: &Watched) -> Option<Inspection> {
     })
 }
 
-impl ReadingSource for Inspection {
+impl SnapshotSource for Inspection {
     type Error = Error;
     type StreamInputs = Watched;
 
     const NAME: &'static str = "process inspection";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(watched: Watched) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(Self::read(watched)).map(SourceDelivery::Reading)
+    fn delivery_stream(watched: Watched) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        stream::once(Self::read(watched)).map(SnapshotDelivery::single_read)
     }
 }
 

@@ -5,13 +5,12 @@ use futures::{Stream, stream};
 
 use super::Error;
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         ccusage_cli_reports::{self, Agent, Period},
         usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
-    pushed_delivery_stream,
     stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
 };
 
@@ -32,24 +31,23 @@ impl CopilotCcusage {
     }
 }
 
-impl ReadingSource for CopilotCcusage {
+impl SnapshotSource for CopilotCcusage {
     type Error = Error;
     type StreamInputs = SpendBudget;
 
     const NAME: &'static str = "copilot-usage-ccusage";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(ccusage_cli_reports::installed()).while_held(
             move || {
                 let budget = budget.clone();
-                pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
+                SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                     ccusage_cli_reports::transcript_changes(Agent::CopilotCli),
                     move || Self::read(budget.clone()),
                     |_| ccusage_cli_reports::next_local_midnight(),
                 ))))
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

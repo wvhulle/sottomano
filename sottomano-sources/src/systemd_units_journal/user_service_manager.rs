@@ -3,9 +3,8 @@ use futures::{Stream, StreamExt};
 use zbus::proxy::CacheProperties;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::hostname1_os_identity::at_micros,
-    pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
     systemd_units_journal::{
@@ -20,15 +19,14 @@ pub struct UserServiceManager {
     pub started_at: Option<DateTime<Utc>>,
 }
 
-impl ReadingSource for UserServiceManager {
+impl SnapshotSource for UserServiceManager {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "user service manager";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(manager_state_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(manager_state_changes(buses))
     }
 }
 

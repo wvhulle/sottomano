@@ -13,7 +13,7 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{DeliveryTiming, KeyValue, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
@@ -99,7 +99,9 @@ impl NotificationGroup {
         clock: Clock,
     ) -> Tooltip {
         match target {
-            NotificationTarget::Status => Tooltip::sourced(status.tooltip(clock), Freshness::Live),
+            NotificationTarget::Status => {
+                Tooltip::sourced(status.tooltip(clock), DeliveryTiming::LivePush)
+            }
             NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_tooltip(clock),
         }
     }

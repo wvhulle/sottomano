@@ -7,7 +7,7 @@ use zbus::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{device_or_absent, interface, managed_objects_readings},
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, prop},
@@ -112,14 +112,13 @@ fn reading(objects: &ManagedObjects) -> Option<Bluetooth> {
     })
 }
 
-impl ReadingSource for Bluetooth {
+impl SnapshotSource for Bluetooth {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(system.clone(), SERVICE, move || {
             managed_objects_readings(system.clone(), SERVICE, ROOT, reading)

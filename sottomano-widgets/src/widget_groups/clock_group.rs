@@ -7,15 +7,15 @@ use std::time::Duration;
 use chrono_tz::Tz;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::SourceDelivery;
+use sottomano_sources::SnapshotDelivery;
 
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        continuous_reading::ContinuousReading,
+        latest_snapshot::LatestSnapshot,
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -38,17 +38,17 @@ impl From<ClockTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ClockGroup {
-    time: ContinuousReading<LocalTime>,
-    date: ContinuousReading<LocalDate>,
-    zone_times: Vec<(Tz, ContinuousReading<ZoneTime>)>,
+    time: LatestSnapshot<LocalTime>,
+    date: LatestSnapshot<LocalDate>,
+    zone_times: Vec<(Tz, LatestSnapshot<ZoneTime>)>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ClockMessage {
-    Time(SourceDelivery<LocalTime>),
-    Date(SourceDelivery<LocalDate>),
-    Zone(Tz, SourceDelivery<ZoneTime>),
+    Time(SnapshotDelivery<LocalTime>),
+    Date(SnapshotDelivery<LocalDate>),
+    Zone(Tz, SnapshotDelivery<ZoneTime>),
     Expansion(ExpansionMessage),
 }
 
@@ -59,10 +59,10 @@ impl ClockGroup {
 
     pub fn update(&mut self, msg: ClockMessage, clock: Clock) -> Task<ClockMessage> {
         match msg {
-            ClockMessage::Time(reading) => self.time.receive_delivery(reading, clock),
-            ClockMessage::Date(reading) => self.date.receive_delivery(reading, clock),
+            ClockMessage::Time(reading) => self.time.receive(reading, clock),
+            ClockMessage::Date(reading) => self.date.receive(reading, clock),
             ClockMessage::Zone(zone, reading) => {
-                self.zone_time_mut(zone).receive_delivery(reading, clock);
+                self.zone_time_mut(zone).receive(reading, clock);
             }
             ClockMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -73,14 +73,14 @@ impl ClockGroup {
 
     pub fn subscription(config: &Config) -> Subscription<ClockMessage> {
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
-            source_subscription::<ZoneTime>(*zone)
+            snapshot_subscription::<ZoneTime>(*zone)
                 .with(*zone)
                 .map(|(zone, reading)| ClockMessage::Zone(zone, reading))
         });
         Subscription::batch(
             [
-                source_subscription::<LocalTime>(()).map(ClockMessage::Time),
-                source_subscription::<LocalDate>(()).map(ClockMessage::Date),
+                snapshot_subscription::<LocalTime>(()).map(ClockMessage::Time),
+                snapshot_subscription::<LocalDate>(()).map(ClockMessage::Date),
             ]
             .into_iter()
             .chain(zones),
@@ -96,19 +96,19 @@ impl ClockGroup {
         }
     }
 
-    fn zone_time_mut(&mut self, zone: Tz) -> &mut ContinuousReading<ZoneTime> {
+    fn zone_time_mut(&mut self, zone: Tz) -> &mut LatestSnapshot<ZoneTime> {
         let position = self
             .zone_times
             .iter()
             .position(|(known, _)| *known == zone)
             .unwrap_or_else(|| {
-                self.zone_times.push((zone, ContinuousReading::default()));
+                self.zone_times.push((zone, LatestSnapshot::default()));
                 self.zone_times.len() - 1
             });
         &mut self.zone_times[position].1
     }
 
-    fn zone_time(&self, zone: Tz) -> Option<&ContinuousReading<ZoneTime>> {
+    fn zone_time(&self, zone: Tz) -> Option<&LatestSnapshot<ZoneTime>> {
         self.zone_times
             .iter()
             .find(|(known, _)| *known == zone)

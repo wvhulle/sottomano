@@ -13,14 +13,14 @@ use super::{
     root_mount_facts::{KernelDevice, RootMount},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
     cpu_memory_compute::{
         hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind},
         temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
     },
+    delivery_cadence_drivers::PeriodicPolling,
     host_machine_identity::udev_hardware_identity::DriveIdentity,
-    polled_delivery_stream,
 };
 
 const COMPOSITE_LABEL: &str = "Composite";
@@ -108,17 +108,17 @@ impl DriveTemperature {
     }
 }
 
-impl ReadingSource for DriveHealth {
+impl SnapshotSource for DriveHealth {
     type Error = Error;
     type StreamInputs = SensorConfig;
 
     const NAME: &'static str = "drive_health";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(60));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(60))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 

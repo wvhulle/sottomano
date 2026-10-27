@@ -73,3 +73,6 @@ zbus.workspace = true
 
 [features]
 test-support = []
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

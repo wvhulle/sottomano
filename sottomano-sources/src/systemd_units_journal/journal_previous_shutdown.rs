@@ -12,7 +12,7 @@ use sottomano_config::severity::Severity;
 use systemd::{id128::Id128, journal::OpenOptions};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
     system_protocol_clients::journal_follow::decode_record,
     systemd_units_journal::journal_record_fields::{MessageId, OwningUnit, SubjectUnit, either_of},
@@ -295,19 +295,18 @@ impl Display for ShutdownReadError {
     }
 }
 
-impl ReadingSource for LastShutdown {
+impl SnapshotSource for LastShutdown {
     type Error = ShutdownReadError;
     type StreamInputs = Duration;
 
     const NAME: &'static str = "last shutdown";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(slow_stop: Duration) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(slow_stop: Duration) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(blocking_poll(move || read_last_shutdown(slow_stop))).map(|read| match read {
             Err(ShutdownReadError::NoPreviousBoot | ShutdownReadError::NoShutdownRecorded) => {
-                SourceDelivery::Absent
+                SnapshotDelivery::SourceUnavailable
             }
-            read => SourceDelivery::Reading(read),
+            read => SnapshotDelivery::live_push(read),
         })
     }
 }

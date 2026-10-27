@@ -11,7 +11,7 @@ use sottomano_sources::caldav_tasks_events::{
 use crate::{
     clock::Clock,
     widget_groups::caldav_group::upcoming_events_reading::{
-        change_delivery_caption, linked_title, moment_cell, nextcloud_footer,
+        calendar_count_caption, linked_title, moment_cell, nextcloud_footer,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -142,7 +142,7 @@ impl BarWidget for OpenTasks<'_> {
                 format!(
                     "Open tasks with a deadline from all lists, earliest first. Overdue in red, \
                      high priority in yellow, low priority dimmed; {}",
-                    change_delivery_caption(self.0)
+                    calendar_count_caption(self.0)
                 ),
             )),
             nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app, hidden)

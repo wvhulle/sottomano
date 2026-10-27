@@ -1,6 +1,9 @@
+use std::time::Duration;
+
 use chrono::TimeDelta;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     network_connectivity::{
         network_manager_proxies::AddressBlock,
         network_manager_vpn_connections::{
@@ -33,12 +36,13 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 fn vpn_readings(clock: Clock) -> [VpnMessage; 2] {
     [
-        VpnMessage::NetworkManagerVpns(SourceDelivery::Reading(Ok(NetworkManagerVpns {
+        VpnMessage::NetworkManagerVpns(SnapshotDelivery::live_push(Ok(NetworkManagerVpns {
             connections: vec![company_globalprotect_vpn()],
         }))),
-        VpnMessage::Tailscale(SourceDelivery::Reading(Ok(Tailscale::Running(Box::new(
-            home_tailnet(clock),
-        ))))),
+        VpnMessage::Tailscale(SnapshotDelivery::fixture_delivered(
+            Ok(Tailscale::Running(Box::new(home_tailnet(clock)))),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(10))),
+        )),
     ]
 }
 

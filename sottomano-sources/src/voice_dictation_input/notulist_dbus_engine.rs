@@ -2,7 +2,7 @@ use futures::{Stream, StreamExt};
 use notulist_client::{DICTATION_BUS_NAME, EngineState, followed_engine_state};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Error, name_owned},
 };
@@ -12,18 +12,17 @@ pub struct NotulistEngine {
     pub engine: EngineState,
 }
 
-impl ReadingSource for NotulistEngine {
+impl SnapshotSource for NotulistEngine {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "notulist engine";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let session = buses.session;
         name_owned(session.clone(), DICTATION_BUS_NAME).while_held(
-            move || pushed_delivery_stream(engine_states(session.clone())),
-            SourceDelivery::Absent,
+            move || SnapshotDelivery::live_push_deliveries(engine_states(session.clone())),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

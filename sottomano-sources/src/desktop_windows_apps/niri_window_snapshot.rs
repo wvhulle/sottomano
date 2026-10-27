@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::{
         kitty_terminal_windows::WindowProcesses,
         window_title_labels::{IconCandidate, WindowLabel},
@@ -38,14 +38,13 @@ pub struct Snapshot {
     active: HashMap<String, u64>,
 }
 
-impl ReadingSource for Snapshot {
+impl SnapshotSource for Snapshot {
     type Error = Infallible;
     type StreamInputs = ();
 
     const NAME: &'static str = "niri";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         ReceiverStream::new(spawn_event_thread())
             .scan(EventStreamState::default(), |state, event| {
                 let _ = state.apply(event);
@@ -54,7 +53,7 @@ impl ReadingSource for Snapshot {
                     &WindowProcesses::default(),
                 ))))
             })
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

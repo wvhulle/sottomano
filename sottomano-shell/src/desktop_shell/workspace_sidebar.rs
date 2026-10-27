@@ -29,8 +29,7 @@ impl DesktopShell {
             .all_when_floating(self.panel_settings_group.float_offset_px());
         let framed_workspaces = (self.sidebar_settings_group.workspaces_placement()
             == WorkspacesPlacement::Sidebar)
-            .then(|| self.niri_snapshot.get())
-            .flatten()
+            .then_some(&self.niri_snapshot)
             .and_then(|snapshot| {
                 sidebar_column::vertical_view(
                     snapshot,

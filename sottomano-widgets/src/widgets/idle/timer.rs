@@ -14,7 +14,7 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
     },
 };
 
@@ -141,7 +141,7 @@ impl IdleTimer {
                 .into_iter()
                 .chain(overridden),
             ),
-            Freshness::Live,
+            DeliveryTiming::LivePush,
         )
     }
 

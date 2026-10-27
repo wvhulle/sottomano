@@ -8,7 +8,7 @@ use super::{
     state_changed_at,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, reread_on_trigger_or_deadline},
 };
 
@@ -46,21 +46,20 @@ pub struct SlowJobsWatch {
     pub slow_after: Duration,
 }
 
-impl ReadingSource for SlowJobs {
+impl SnapshotSource for SlowJobs {
     type Error = zbus::Error;
     type StreamInputs = SlowJobsWatch;
 
     const NAME: &'static str = "slow systemd jobs";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = watch.systemd.scope;
         connected_until_failure(watch_running_jobs(
             watch.systemd.connection(),
             watch.slow_after,
         ))
         .map(move |listed| listed.map(|jobs| SlowJobs { jobs, scope }))
-        .map(SourceDelivery::Reading)
+        .map(SnapshotDelivery::live_push)
         .distinct_until_changed()
     }
 }

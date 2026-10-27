@@ -123,9 +123,7 @@ impl DesktopShell {
     }
 
     fn reorder(&mut self, drag: ActiveDrag, to: usize) -> Task<Message> {
-        let Some(snapshot) = self.niri_snapshot.get() else {
-            return Task::none();
-        };
+        let snapshot = &self.niri_snapshot;
         match drag.item {
             DraggedBarSlot::Workspace(workspace) => {
                 let Some(index) = self
@@ -161,9 +159,7 @@ impl DesktopShell {
         let Some(configured) = &self.configured_workspaces else {
             return Task::none();
         };
-        let Some(snapshot) = self.niri_snapshot.get() else {
-            return Task::none();
-        };
+        let snapshot = &self.niri_snapshot;
         configured
             .restoring_moves(snapshot.workspaces_for_output(output))
             .into_iter()
@@ -200,9 +196,7 @@ impl DesktopShell {
         &mut self,
         reshape: impl FnOnce(niri_window_snapshot::Snapshot) -> niri_window_snapshot::Snapshot,
     ) {
-        if let Some(snapshot) = self.niri_snapshot.get().cloned() {
-            self.niri_snapshot.load(reshape(snapshot), self.clock);
-        }
+        self.niri_snapshot = reshape(mem::take(&mut self.niri_snapshot));
     }
 }
 

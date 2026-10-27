@@ -9,7 +9,7 @@ use std::{
 use futures::{Stream, stream};
 use tokio::task::spawn_blocking;
 
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery};
+use crate::{SnapshotDelivery, SnapshotSource};
 
 const GGUF_MAGIC: &[u8; 4] = b"GGUF";
 const OLDEST_READABLE_VERSION: u32 = 2;
@@ -258,21 +258,20 @@ pub fn read_model_card(model_file: &Path) -> Result<GgufModelCard, GgufHeaderErr
     Ok(model_card_from(&reader.general_metadata()?))
 }
 
-impl ReadingSource for GgufModelCard {
+impl SnapshotSource for GgufModelCard {
     type Error = GgufHeaderError;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "GGUF model card";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(model_file: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(model_file: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {
             let read = spawn_blocking(move || read_model_card(&model_file))
                 .await
                 .unwrap_or_else(|join_error| {
                     Err(GgufHeaderError::Unreadable(join_error.to_string()))
                 });
-            SourceDelivery::Reading(read)
+            SnapshotDelivery::single_read(read)
         })
     }
 }
