@@ -2,6 +2,7 @@ pub mod boot_timeline;
 pub mod failed_units;
 pub mod graphical_session_target;
 pub mod journal_coredumps;
+pub mod journal_device_kernel_errors;
 pub mod journal_kernel_errors;
 pub mod journal_oom_kills;
 pub mod journal_previous_shutdown;

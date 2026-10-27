@@ -277,6 +277,10 @@ pub enum TableRows {
         omitted_count: NonZeroUsize,
     },
     Continuing(Vec<RecordCells>),
+    Totalled {
+        shown_records: Vec<RecordCells>,
+        total_record: RecordCells,
+    },
 }
 
 impl TableRows {
@@ -296,7 +300,8 @@ impl TableRows {
         match self {
             TableRows::Complete(shown_records)
             | TableRows::Continuing(shown_records)
-            | TableRows::Truncated { shown_records, .. } => shown_records,
+            | TableRows::Truncated { shown_records, .. }
+            | TableRows::Totalled { shown_records, .. } => shown_records,
         }
     }
 }
@@ -528,6 +533,20 @@ impl Section {
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
             rows: TableRows::Continuing(SectionBody::table_records(rows)),
+        })
+    }
+
+    pub fn totalled_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
+        total: impl TableRow<COLUMNS>,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable {
+            columns: TableColumns::Headed(headings.into()),
+            rows: TableRows::Totalled {
+                shown_records: SectionBody::table_records(rows),
+                total_record: RecordCells::from(total.table_record()),
+            },
         })
     }
 

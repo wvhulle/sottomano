@@ -1,5 +1,9 @@
+pub mod accelerometer_report_rate;
+pub mod bluez_device_aliases;
 pub mod evdev_gamepad_devices;
 pub mod gamepad_input_machine;
 pub mod gamepad_input_stream;
+pub mod player_indicator_leds;
+pub mod playstation_player_leds;
 pub mod stick_motion_tracking;
 pub mod wlr_virtual_pointer_motion;

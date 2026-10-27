@@ -8,11 +8,11 @@ use sottomano_config::{
     },
 };
 use sottomano_sources::gamepad_controller_input::evdev_gamepad_devices::{
-    ConnectedGamepad, GamepadPower,
+    ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
 };
 
 use super::{
-    ControllerOwner,
+    CompositorControl,
     controller_button_labels::ControllerFamily,
     diagram_anchor_mapping::{button_anchor, stick_anchor},
 };
@@ -20,19 +20,18 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{DiagramCallout, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-const LOW_BATTERY_PERCENT: u8 = 15;
 const DIRECTION_ARROWS: &[char] = &['←', '→', '↑', '↓', ' '];
 
 pub struct ConnectedControllerReading<'a> {
     pub gamepad: &'a ConnectedGamepad,
     pub bindings: &'a GamepadBindingsConfig,
-    pub owner: ControllerOwner,
-    pub player_number: Option<usize>,
+    pub control: CompositorControl<'a>,
 }
 
 fn axis_label(
@@ -53,6 +52,31 @@ fn axis_label(
                 .collect();
             (!labels.is_empty()).then(|| labels.join(" / "))
         }
+    }
+}
+
+fn distinguishing_name(alias: &str, model_name: &str) -> String {
+    let alias_words: Vec<&str> = alias.split_whitespace().collect();
+    let model_words: Vec<&str> = model_name.split_whitespace().collect();
+    let shared_trailing_words = alias_words
+        .iter()
+        .rev()
+        .zip(model_words.iter().rev())
+        .take_while(|(alias_word, model_word)| alias_word == model_word)
+        .count();
+    let shared_leading_words = alias_words
+        .iter()
+        .zip(model_words.iter())
+        .take_while(|(alias_word, model_word)| alias_word == model_word)
+        .count();
+    let distinguishing_words = alias_words[..alias_words.len() - shared_trailing_words]
+        .iter()
+        .skip(shared_leading_words);
+    let distinguishing = distinguishing_words.copied().collect::<Vec<_>>().join(" ");
+    if distinguishing.is_empty() {
+        alias.to_owned()
+    } else {
+        distinguishing
     }
 }
 
@@ -83,57 +107,49 @@ impl ConnectedControllerReading<'_> {
         ControllerFamily::of_vendor(self.gamepad.vendor_id)
     }
 
-    fn battery_percent(&self) -> Option<u8> {
-        match self.gamepad.power {
-            GamepadPower::Discharging(percent) | GamepadPower::Charging(percent) => Some(percent),
-            GamepadPower::NoBattery | GamepadPower::Full => None,
+    fn control_description(&self) -> String {
+        match self.control {
+            CompositorControl::DrivingNiri => "niri, through the bindings below".to_owned(),
+            CompositorControl::PausedForFocusedApp(app_id) => {
+                format!("{app_id}, which has focus; niri bindings pause")
+            }
         }
     }
 
-    fn battery_description(&self) -> Option<String> {
-        match self.gamepad.power {
-            GamepadPower::NoBattery => None,
-            GamepadPower::Discharging(percent) => Some(format!("{percent}%")),
-            GamepadPower::Charging(percent) => Some(format!("{percent}%, charging")),
-            GamepadPower::Full => Some("full".to_owned()),
+    fn paired_alias(&self) -> Option<&str> {
+        match &self.gamepad.origin {
+            GamepadOrigin::Physical(PhysicalGamepadLink {
+                identity: ControllerIdentity::Addressed { alias, .. },
+                ..
+            }) if *alias != self.gamepad.name => Some(alias),
+            GamepadOrigin::Physical(_) | GamepadOrigin::Virtual => None,
         }
     }
 
-    fn owner_description(&self) -> &'static str {
-        match self.owner {
-            ControllerOwner::Shell => "the shell, except in Steam and games",
-            ControllerOwner::HandedOver => "Steam and games",
-        }
+    fn identity_section(&self) -> Section {
+        let named = self.paired_alias().map_or_else(
+            || vec![KeyValue::new("Controller", self.gamepad.name.clone())],
+            |alias| {
+                vec![
+                    KeyValue::new("Controller", alias),
+                    KeyValue::new("Model", self.gamepad.name.clone()),
+                ]
+            },
+        );
+        Section::dictionary(named)
     }
 
-    fn handover_chord_description(&self) -> String {
-        let family = self.family();
-        self.bindings
-            .handover_chord
-            .iter()
-            .map(|&button| family.button_label(button))
-            .collect::<Vec<_>>()
-            .join(" + ")
-    }
-
-    fn overview_section(&self) -> Section {
-        let controller = match self.battery_description() {
-            Some(battery) => format!("{} · {battery}", self.gamepad.name),
-            None => self.gamepad.name.clone(),
-        };
+    fn bindings_section(&self) -> Section {
         let shared_stick = self.bindings.sticks_conflict().then(|| {
             KeyValue::new("Sticks", "navigation and pointer share one stick")
                 .level(Severity::Warning)
         });
         Section::dictionary(
-            [
-                KeyValue::new("Controller", controller),
-                KeyValue::new("Buttons go to", self.owner_description()),
-                KeyValue::new("Hand over", self.handover_chord_description()),
-            ]
-            .into_iter()
-            .chain(shared_stick),
+            [KeyValue::new("Buttons go to", self.control_description())]
+                .into_iter()
+                .chain(shared_stick),
         )
+        .titled("Bindings")
     }
 
     fn stick_callouts(&self) -> impl Iterator<Item = DiagramCallout> {
@@ -174,29 +190,15 @@ impl ConnectedControllerReading<'_> {
     fn button_callouts(&self) -> impl Iterator<Item = DiagramCallout> {
         let conflicting = self.bindings.conflicting_buttons();
         let claimed: Vec<ClaimedButton<'_>> = self.bindings.claimed_buttons().collect();
-        let chord_only = self
-            .bindings
-            .handover_chord
-            .iter()
-            .filter(|button| !claimed.iter().any(|claim| claim.button == **button))
-            .map(|&button| DiagramCallout {
-                anchor: button_anchor(button),
-                label: "hand over".to_owned(),
-                level: Severity::Normal,
-            })
-            .collect::<Vec<_>>();
-        claimed
-            .into_iter()
-            .map(move |claim| DiagramCallout {
-                anchor: button_anchor(claim.button),
-                label: role_label(claim.role),
-                level: if conflicting.contains(&claim.button) {
-                    Severity::Warning
-                } else {
-                    Severity::Normal
-                },
-            })
-            .chain(chord_only)
+        claimed.into_iter().map(move |claim| DiagramCallout {
+            anchor: button_anchor(claim.button),
+            label: role_label(claim.role),
+            level: if conflicting.contains(&claim.button) {
+                Severity::Warning
+            } else {
+                Severity::Normal
+            },
+        })
     }
 }
 
@@ -206,31 +208,25 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn icon(&self) -> Glyph {
-        self.family().brand_glyph()
+        Phosphor::GameController(Weight::Regular).into()
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let battery = self.battery_percent().map(|percent| format!("{percent}%"));
-        match (self.player_number, battery) {
-            (Some(number), Some(battery)) => Some(format!("{number} · {battery}")),
-            (Some(number), None) => Some(number.to_string()),
-            (None, battery) => battery,
-        }
+        self.paired_alias()
+            .map(|alias| distinguishing_name(alias, &self.gamepad.name))
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
-        match (self.owner, self.gamepad.power) {
-            (_, GamepadPower::Discharging(percent)) if percent <= LOW_BATTERY_PERCENT => {
-                WidgetState::Warning
-            }
-            (ControllerOwner::HandedOver, _) => WidgetState::Off,
-            (ControllerOwner::Shell, _) => WidgetState::On,
+        match self.control {
+            CompositorControl::DrivingNiri => WidgetState::On,
+            CompositorControl::PausedForFocusedApp(_) => WidgetState::Off,
         }
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
-            self.overview_section(),
+            self.identity_section(),
+            self.bindings_section(),
             Section::controller_diagram(
                 self.family().controller_model(),
                 self.stick_callouts().chain(self.button_callouts()),
@@ -242,6 +238,24 @@ impl BarWidget for ConnectedControllerReading<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_shared_model_name_is_dropped_from_the_alias() {
+        let model = "DualSense Wireless Controller";
+        assert_eq!(
+            distinguishing_name("Blue DualSense Wireless Controller", model),
+            "Blue"
+        );
+        assert_eq!(
+            distinguishing_name(
+                "Blue DualSense Wireless Controller",
+                "Sony Interactive Entertainment DualSense Wireless Controller"
+            ),
+            "Blue"
+        );
+        assert_eq!(distinguishing_name(model, model), model);
+        assert_eq!(distinguishing_name("Couch pad", model), "Couch pad");
+    }
 
     #[test]
     fn matching_directions_share_one_axis_label() {

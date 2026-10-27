@@ -5,11 +5,16 @@ use std::{
     time::Duration,
 };
 
-use evdev::{AbsoluteAxisCode, Device, EventSummary, InputEvent, KeyCode};
+use evdev::{AbsoluteAxisCode, BusType, Device, EventSummary, InputEvent, KeyCode};
 use futures::{Stream, StreamExt, stream};
 use sottomano_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadStick};
 use tokio::time::sleep;
 
+use super::{
+    accelerometer_report_rate::{ReportRate, accelerometer_node_beside, report_rates},
+    bluez_device_aliases::bluetooth_aliases,
+    player_indicator_leds::PlayerIndicator,
+};
 use crate::{
     delivery_cadence_drivers::PeriodicPolling,
     stream_operators::{StreamOperators, read_once_then_per_burst},
@@ -21,7 +26,9 @@ use crate::{
 
 const INPUT_DEVICE_DIRECTORY: &str = "/dev/input";
 const PERMISSION_SETTLE_DELAY: Duration = Duration::from_millis(400);
-const BATTERY_REFRESH: Duration = Duration::from_mins(1);
+const HID_DEVICE_DIRECTORY: &str = "/sys/bus/hid/devices";
+const USB_HID_DEVICE_PREFIX: &str = "0003:";
+const ROSTER_REFRESH: Duration = Duration::from_secs(10);
 const STICK_DEADZONE: f32 = 0.12;
 const ANALOG_TRIGGER_ENGAGE: f32 = 0.5;
 const ANALOG_TRIGGER_RELEASE: f32 = 0.3;
@@ -52,12 +59,146 @@ impl GamepadPower {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UsbCableState {
+    Absent,
+    IgnoredByKernel,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GamepadTransport {
+    Bluetooth { usb_cable: UsbCableState },
+    Usb,
+    Other,
+}
+
+impl GamepadTransport {
+    fn of_bus(bus: BusType) -> Self {
+        match bus {
+            BusType::BUS_BLUETOOTH => GamepadTransport::Bluetooth {
+                usb_cable: UsbCableState::Absent,
+            },
+            BusType::BUS_USB => GamepadTransport::Usb,
+            _ => GamepadTransport::Other,
+        }
+    }
+
+    fn refreshed(self, identity: &ControllerIdentity) -> Self {
+        match (self, identity) {
+            (
+                GamepadTransport::Bluetooth { .. },
+                ControllerIdentity::Addressed {
+                    hardware_address, ..
+                },
+            ) => GamepadTransport::Bluetooth {
+                usb_cable: if has_unbound_usb_cable(hardware_address) {
+                    UsbCableState::IgnoredByKernel
+                } else {
+                    UsbCableState::Absent
+                },
+            },
+            (transport, _) => transport,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ControllerIdentity {
+    Addressed {
+        hardware_address: String,
+        alias: String,
+    },
+    Unaddressed,
+}
+
+impl ControllerIdentity {
+    fn of_device(device: &Device) -> Self {
+        match device.unique_name().filter(|unique| !unique.is_empty()) {
+            Some(hardware_address) => ControllerIdentity::Addressed {
+                hardware_address: hardware_address.to_owned(),
+                alias: device.name().unwrap_or(hardware_address).to_owned(),
+            },
+            None => ControllerIdentity::Unaddressed,
+        }
+    }
+
+    fn refreshed(&self, bluetooth_aliases: &HashMap<String, String>) -> Self {
+        match self {
+            ControllerIdentity::Addressed {
+                hardware_address,
+                alias,
+            } => ControllerIdentity::Addressed {
+                hardware_address: hardware_address.clone(),
+                alias: bluetooth_aliases
+                    .get(&hardware_address.to_lowercase())
+                    .unwrap_or(alias)
+                    .clone(),
+            },
+            ControllerIdentity::Unaddressed => ControllerIdentity::Unaddressed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PhysicalGamepadLink {
+    pub kernel_device: String,
+    pub transport: GamepadTransport,
+    pub identity: ControllerIdentity,
+    pub player_indicator: PlayerIndicator,
+}
+
+impl PhysicalGamepadLink {
+    fn refreshed(&self, slot: usize, bluetooth_aliases: &HashMap<String, String>) -> Self {
+        let identity = self.identity.refreshed(bluetooth_aliases);
+        PhysicalGamepadLink {
+            kernel_device: self.kernel_device.clone(),
+            transport: self.transport.refreshed(&identity),
+            identity,
+            player_indicator: PlayerIndicator::of_input_node(slot),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GamepadOrigin {
+    Physical(PhysicalGamepadLink),
+    Virtual,
+}
+
+impl GamepadOrigin {
+    fn of_input_node(slot: usize, device: &Device) -> Self {
+        kernel_device_of_input_node(slot).map_or(GamepadOrigin::Virtual, |kernel_device| {
+            GamepadOrigin::Physical(PhysicalGamepadLink {
+                kernel_device,
+                transport: GamepadTransport::of_bus(device.input_id().bus_type()),
+                identity: ControllerIdentity::of_device(device),
+                player_indicator: PlayerIndicator::of_input_node(slot),
+            })
+        })
+    }
+
+    #[must_use]
+    pub const fn is_virtual(&self) -> bool {
+        matches!(self, GamepadOrigin::Virtual)
+    }
+
+    fn refreshed(&self, slot: usize, bluetooth_aliases: &HashMap<String, String>) -> Self {
+        match self {
+            GamepadOrigin::Physical(link) => {
+                GamepadOrigin::Physical(link.refreshed(slot, bluetooth_aliases))
+            }
+            GamepadOrigin::Virtual => GamepadOrigin::Virtual,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectedGamepad {
     pub slot: usize,
     pub name: String,
     pub vendor_id: u16,
     pub power: GamepadPower,
+    pub origin: GamepadOrigin,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,6 +226,10 @@ pub enum RawGamepadEvent {
         stick: GamepadStick,
         axis: StickAxis,
         deflection: f32,
+    },
+    ReportRate {
+        slot: usize,
+        rate: ReportRate,
     },
 }
 
@@ -328,11 +473,50 @@ fn input_node_number(path: &Path) -> Option<usize> {
         .ok()
 }
 
+fn kernel_device_of_input_node(slot: usize) -> Option<String> {
+    let parent = Path::new(&format!("/sys/class/input/event{slot}/device/device"))
+        .canonicalize()
+        .ok()?;
+    let subsystem = parent.join("subsystem").canonicalize().ok()?;
+    Some(format!(
+        "+{}:{}",
+        subsystem.file_name()?.to_str()?,
+        parent.file_name()?.to_str()?
+    ))
+}
+
+fn uevent_field(uevent: &Path, field: &str) -> Option<String> {
+    sysfs_attribute_reads::read_trimmed(uevent)?
+        .lines()
+        .find_map(|line| {
+            line.strip_prefix(field)?
+                .strip_prefix('=')
+                .map(str::to_owned)
+        })
+}
+
+fn has_unbound_usb_cable(hardware_address: &str) -> bool {
+    sysfs_attribute_reads::list_dir(HID_DEVICE_DIRECTORY)
+        .into_iter()
+        .filter(|hid_device| {
+            hid_device
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(USB_HID_DEVICE_PREFIX))
+        })
+        .any(|hid_device| {
+            !hid_device.join("driver").exists()
+                && uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
+                    .is_some_and(|unique| unique.eq_ignore_ascii_case(hardware_address))
+        })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct DiscoveredGamepad {
     slot: usize,
     name: String,
     vendor_id: u16,
+    origin: GamepadOrigin,
 }
 
 impl DiscoveredGamepad {
@@ -340,27 +524,32 @@ impl DiscoveredGamepad {
         Path::new(INPUT_DEVICE_DIRECTORY).join(format!("event{}", self.slot))
     }
 
-    fn connected(&self) -> ConnectedGamepad {
+    fn connected(&self, bluetooth_aliases: &HashMap<String, String>) -> ConnectedGamepad {
         ConnectedGamepad {
             slot: self.slot,
             name: self.name.clone(),
             vendor_id: self.vendor_id,
             power: GamepadPower::of_input_node(self.slot),
+            origin: self.origin.refreshed(self.slot, bluetooth_aliases),
         }
     }
 }
 
 fn discovered_gamepads() -> Vec<DiscoveredGamepad> {
-    evdev::enumerate()
+    let mut gamepads: Vec<DiscoveredGamepad> = evdev::enumerate()
         .filter(|(_, device)| is_gamepad(device))
         .filter_map(|(path, device): (PathBuf, Device)| {
+            let slot = input_node_number(&path)?;
             Some(DiscoveredGamepad {
-                slot: input_node_number(&path)?,
+                slot,
                 name: device.name().unwrap_or("Game controller").to_owned(),
                 vendor_id: device.input_id().vendor(),
+                origin: GamepadOrigin::of_input_node(slot, &device),
             })
         })
-        .collect()
+        .collect();
+    gamepads.sort_by_key(|gamepad| (gamepad.origin.is_virtual(), gamepad.slot));
+    gamepads
 }
 
 fn gamepad_events(
@@ -386,25 +575,53 @@ fn gamepad_events(
     }
 }
 
-fn roster_with_battery_refresh(
+fn roster_with_refresh(
     gamepads: Vec<DiscoveredGamepad>,
 ) -> impl Stream<Item = RawGamepadEvent> + Send {
-    PeriodicPolling::every(BATTERY_REFRESH)
-        .poll_ticks()
-        .map(move |_| {
-            RawGamepadEvent::Roster(gamepads.iter().map(DiscoveredGamepad::connected).collect())
-        })
+    stream::once(async {
+        zbus::Connection::system()
+            .await
+            .inspect_err(|e| tracing::warn!("gamepad: no system bus for Bluetooth aliases: {e}"))
+            .ok()
+    })
+    .flat_map(move |system_bus| {
+        let gamepads = gamepads.clone();
+        PeriodicPolling::every(ROSTER_REFRESH)
+            .poll_ticks()
+            .then(move |_| {
+                let system_bus = system_bus.clone();
+                let gamepads = gamepads.clone();
+                async move {
+                    let aliases = match &system_bus {
+                        Some(connection) => bluetooth_aliases(connection).await,
+                        None => HashMap::new(),
+                    };
+                    RawGamepadEvent::Roster(
+                        gamepads
+                            .iter()
+                            .map(|gamepad| gamepad.connected(&aliases))
+                            .collect(),
+                    )
+                }
+            })
+    })
 }
 
 fn connected_gamepad_events(
     gamepads: Vec<DiscoveredGamepad>,
 ) -> impl Stream<Item = RawGamepadEvent> + Send {
-    let device_events = stream::select_all(
-        gamepads
-            .iter()
-            .map(|gamepad| gamepad_events(gamepad).boxed()),
-    );
-    stream::select(roster_with_battery_refresh(gamepads), device_events)
+    let physical_gamepads = gamepads
+        .iter()
+        .filter(|gamepad| !gamepad.origin.is_virtual());
+    let button_events = physical_gamepads
+        .clone()
+        .map(|gamepad| gamepad_events(gamepad).boxed());
+    let report_rate_events = physical_gamepads.filter_map(|gamepad| {
+        accelerometer_node_beside(gamepad.slot)
+            .map(|accelerometer| report_rates(gamepad.slot, &accelerometer).boxed())
+    });
+    let device_events = stream::select_all(button_events.chain(report_rate_events));
+    stream::select(roster_with_refresh(gamepads), device_events)
 }
 
 pub fn raw_gamepad_events() -> impl Stream<Item = RawGamepadEvent> + Send {

@@ -158,7 +158,6 @@ heavy_millimeters_per_hour = 4.0
 
 [widget_groups.gamepad]
 passive_app_id_prefixes = ["steam", "gamescope"]
-handover_chord = ["back", "start"]
 
 [widget_groups.gamepad.navigation]
 stick = "left"

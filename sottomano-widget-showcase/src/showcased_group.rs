@@ -319,11 +319,18 @@ impl ShowcasedGroup {
                 .group_content(config)
                 .map(ShowcaseMessage::Audio)
                 .view(config, position, clock),
-            ShowcasedGroup::Gamepad(gamepad) => gamepad
-                .group
-                .group_content(&gamepad.bindings)
-                .map(ShowcaseMessage::Gamepad)
-                .view(config, position, clock),
+            ShowcasedGroup::Gamepad(gamepad) => {
+                return gamepad
+                    .group
+                    .group_contents(&gamepad.bindings, None)
+                    .into_iter()
+                    .filter_map(|group| {
+                        group
+                            .map(ShowcaseMessage::Gamepad)
+                            .view(config, position, clock)
+                    })
+                    .collect();
+            }
             ShowcasedGroup::VoiceDictation(group) => group
                 .group_content()
                 .map(ShowcaseMessage::VoiceDictation)
@@ -573,7 +580,9 @@ impl ShowcasedGroup {
                 let HoverTarget::Gamepad(target) = target else {
                     return None;
                 };
-                gamepad.group.tooltip_for(*target, &gamepad.bindings, clock)
+                gamepad
+                    .group
+                    .tooltip_for(*target, &gamepad.bindings, None, clock)
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 let HoverTarget::VoiceDictation(target) = target else {

@@ -25,7 +25,10 @@ use sottomano_widgets::{
 };
 use tokio::time::sleep_until;
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{DesktopShell, focused_app_id},
+    shell_message::Message,
+};
 
 fn hide_tooltip_at(due: Instant) -> Task<Message> {
     Task::future(async move {
@@ -207,6 +210,7 @@ impl DesktopShell {
             HoverTarget::Gamepad(target) => self.gamepad_group.tooltip_for(
                 *target,
                 &self.config.widget_groups.gamepad,
+                focused_app_id(&self.niri),
                 self.clock,
             ),
             HoverTarget::ClaudeUsage(target) => {

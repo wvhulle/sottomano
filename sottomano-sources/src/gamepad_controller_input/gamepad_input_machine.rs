@@ -8,6 +8,7 @@ use sottomano_config::widget_groups::gamepad_bindings::{
 };
 
 use super::{
+    accelerometer_report_rate::ReportRate,
     evdev_gamepad_devices::{ButtonEdge, ConnectedGamepad, RawGamepadEvent, StickAxis},
     stick_motion_tracking::{
         FlickTracker, PointerDisplacement, StickPosition, pointer_displacement,
@@ -20,13 +21,12 @@ const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerGate {
     pub silenced_by_focus: bool,
-    pub handed_over_slots: BTreeSet<usize>,
 }
 
 impl PointerGate {
     #[must_use]
-    pub fn allows(&self, slot: usize) -> bool {
-        !self.silenced_by_focus && !self.handed_over_slots.contains(&slot)
+    pub const fn allows(&self) -> bool {
+        !self.silenced_by_focus
     }
 }
 
@@ -48,6 +48,10 @@ pub enum GamepadInput {
         slot: usize,
         stick: GamepadStick,
         direction: StickDirection,
+    },
+    ReportRate {
+        slot: usize,
+        rate: ReportRate,
     },
 }
 
@@ -134,7 +138,7 @@ impl GamepadMachine {
         let pointer_stick = self.pointer_stick();
         self.sticks
             .iter()
-            .filter(|&(&slot, _)| self.settings.gate.allows(slot))
+            .filter(|_| self.settings.gate.allows())
             .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position()))
             .filter(|position| position.is_deflected())
     }
@@ -178,6 +182,12 @@ impl GamepadMachine {
                 .map(MachineEffect::Deliver)
                 .into_iter()
                 .collect(),
+            MachineInput::Raw(RawGamepadEvent::ReportRate { slot, rate }) => {
+                vec![MachineEffect::Deliver(GamepadInput::ReportRate {
+                    slot,
+                    rate,
+                })]
+            }
             MachineInput::Tick => self
                 .due_flick_repeats(now)
                 .into_iter()
@@ -203,7 +213,7 @@ impl GamepadMachine {
         };
         let pressed = match edge {
             ButtonEdge::Pressed => {
-                self.settings.gate.allows(slot) && self.held_pointer_buttons.insert(held)
+                self.settings.gate.allows() && self.held_pointer_buttons.insert(held)
             }
             ButtonEdge::Released => {
                 return self
@@ -318,11 +328,10 @@ mod tests {
     }
 
     #[test]
-    fn a_handed_over_controller_leaves_the_pointer_alone() {
+    fn a_focused_game_leaves_the_pointer_alone() {
         let start = Instant::now();
         let mut machine = machine_with(PointerGate {
-            silenced_by_focus: false,
-            handed_over_slots: BTreeSet::from([31]),
+            silenced_by_focus: true,
         });
         machine.step(right_stick_right(31), start);
         assert_eq!(machine.next_deadline(), None);
