@@ -44,7 +44,7 @@ flowchart TB
   subgraph widgets_crate [sottomano-widgets]
     source_subscription["background_work::source_subscription"]
     widget_groups["widget groups<br>update, view"]
-    group_stores["group *_store modules<br>dark_mode_schedule_store, idle_timeouts_store,<br>focus_span_store, shell_settings_row, …"]
+    group_stores["group sqlite_* modules<br>sqlite_dark_mode_schedule, sqlite_idle_timeouts,<br>sqlite_focus_spans, sqlite_shell_settings_row, …"]
     niri_kdl_rules["niri_window_group::niri_kdl_rules"]
     widget_groups <-->|restore / persist| group_stores
     widget_groups <--> niri_kdl_rules
@@ -56,14 +56,14 @@ flowchart TB
     message_subscriptions["message_subscriptions::subscription"]
     shell_update["DesktopShell::update"]
     shell_view["DesktopShell::view"]
-    app_launch_store["desktop_shell::app_launch_store"]
+    sqlite_app_launches["desktop_shell::sqlite_app_launches"]
     layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, tooltips"]
     run_shell -->|startup load tasks| shell_update
     shell_message --> message_subscriptions
     message_subscriptions --> shell_update
     shell_update -->|state| shell_view
     shell_view --> layer_surfaces
-    shell_update <-->|restore / persist| app_launch_store
+    shell_update <-->|restore / persist| sqlite_app_launches
   end
 
   sqlite_state_store[("$XDG_STATE_HOME/sottomano/state.db<br>via sqlite_state_store")]
@@ -74,7 +74,7 @@ flowchart TB
   reading_sources -->|SourceDelivery| source_subscription
   source_subscription --> shell_message
   shell_update <-->|group messages and tasks| widget_groups
-  group_stores & app_launch_store <--> sqlite_state_store
+  group_stores & sqlite_app_launches <--> sqlite_state_store
   niri_kdl_rules <-->|read / rewrite| niri_kdl_file
 ```
 

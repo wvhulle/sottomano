@@ -5,7 +5,7 @@ use sottomano_sources::sqlite_state_store::Columns;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::shell_settings_row::{self, ShellSetting},
+    widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -36,7 +36,7 @@ impl Default for PanelLayout {
 }
 
 async fn load_panel_layout() -> PanelLayout {
-    shell_settings_row::load_stored_row(
+    sqlite_shell_settings_row::load_stored_row(
         "shell settings: load panel layout failed",
         PanelLayout::default(),
         panel_layout_from_columns,
@@ -218,18 +218,18 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 self.disconnected_groups = !self.disconnected_groups;
                 Action::Run(
-                    Task::future(shell_settings_row::save(ShellSetting::DisconnectedGroups(
-                        self.disconnected_groups,
-                    )))
+                    Task::future(sqlite_shell_settings_row::save(
+                        ShellSetting::DisconnectedGroups(self.disconnected_groups),
+                    ))
                     .discard(),
                 )
             }
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 self.auto_collapse_groups = !self.auto_collapse_groups;
                 Action::Run(
-                    Task::future(shell_settings_row::save(ShellSetting::AutoCollapseGroups(
-                        self.auto_collapse_groups,
-                    )))
+                    Task::future(sqlite_shell_settings_row::save(
+                        ShellSetting::AutoCollapseGroups(self.auto_collapse_groups),
+                    ))
                     .discard(),
                 )
             }
@@ -250,7 +250,7 @@ impl PanelSettingsGroup {
     fn update_float_offset(&mut self, control: ControlMessage) -> Action {
         let settled_before = self.float_offset.settled_value();
         let persisting = match self.float_offset.update(control) {
-            SliderAction::Commit(value) => Task::future(shell_settings_row::save(
+            SliderAction::Commit(value) => Task::future(sqlite_shell_settings_row::save(
                 ShellSetting::FloatOffset(value),
             ))
             .map(move |ok| {
@@ -311,7 +311,7 @@ mod tests {
     use sottomano_sources::sqlite_state_store::in_memory_connection;
 
     use super::{PanelLayout, PanelSettingsGroup, PanelSettingsMessage, panel_layout_from_columns};
-    use crate::widget_groups::shell_settings_row::{
+    use crate::widget_groups::sqlite_shell_settings_row::{
         CREATE_TABLE, ShellSetting, read_stored_row, write_setting,
     };
 

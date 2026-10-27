@@ -1,9 +1,9 @@
-mod layer_appearance_store;
+mod sqlite_layer_appearance;
 
 use iced::Task;
 use sottomano_config::Config;
 
-use self::layer_appearance_store::{AppearanceSetting, AppearanceValue};
+use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
@@ -136,7 +136,7 @@ impl LayerAppearanceControls {
 
     pub fn load(layer: ShellLayer) -> Task<AppearanceMessage> {
         Task::perform(
-            layer_appearance_store::load(layer),
+            sqlite_layer_appearance::load(layer),
             AppearanceMessage::Loaded,
         )
     }
@@ -268,7 +268,7 @@ impl LayerAppearanceControls {
         value: f32,
         on_control: fn(ControlMessage) -> AppearanceMessage,
     ) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance_store::save(
+        Task::future(sqlite_layer_appearance::save(
             self.layer,
             setting,
             AppearanceValue::Real(stored),
@@ -277,7 +277,7 @@ impl LayerAppearanceControls {
     }
 
     fn persist_switch(&self, setting: AppearanceSetting, enabled: bool) -> Task<AppearanceMessage> {
-        Task::future(layer_appearance_store::save(
+        Task::future(sqlite_layer_appearance::save(
             self.layer,
             setting,
             AppearanceValue::Flag(enabled),

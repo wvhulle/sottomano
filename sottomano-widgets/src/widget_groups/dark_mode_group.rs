@@ -1,6 +1,6 @@
 mod auto_switch_toggle;
-mod dark_mode_schedule_store;
 mod offset_slider;
+mod sqlite_dark_mode_schedule;
 mod umbra_dark_mode;
 
 use std::{ops::RangeInclusive, time::Duration};
@@ -22,8 +22,8 @@ use sottomano_sources::{
 use tokio::time::sleep;
 
 use self::{
-    dark_mode_schedule_store::DarkModeSchedule,
     offset_slider::{minutes_to_time_delta, new_offset_slider, time_delta_to_minutes},
+    sqlite_dark_mode_schedule::DarkModeSchedule,
 };
 use crate::{
     background_work::{first_delivery, source_subscription},
@@ -112,7 +112,7 @@ impl DarkModeGroup {
 impl DarkModeGroup {
     pub fn load() -> Task<DarkModeMessage> {
         Task::perform(
-            dark_mode_schedule_store::load(),
+            sqlite_dark_mode_schedule::load(),
             DarkModeMessage::ScheduleLoaded,
         )
     }
@@ -243,7 +243,7 @@ impl DarkModeGroup {
                     .sun_event_offsets
                     .with_offset_for_mode(edge, minutes_to_time_delta(value));
                 self.auto_switch_toggle.change_sun_event_offsets(offsets);
-                Task::future(dark_mode_schedule_store::save(
+                Task::future(sqlite_dark_mode_schedule::save(
                     self.auto_switch_toggle.saved_schedule,
                 ))
                 .map(move |ok| {
@@ -271,7 +271,7 @@ impl DarkModeGroup {
     }
 
     fn persist_saved_schedule(&self) -> Task<DarkModeMessage> {
-        Task::future(dark_mode_schedule_store::save(
+        Task::future(sqlite_dark_mode_schedule::save(
             self.auto_switch_toggle.saved_schedule,
         ))
         .discard()

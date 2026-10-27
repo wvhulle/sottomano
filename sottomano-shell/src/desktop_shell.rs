@@ -1,10 +1,10 @@
-mod app_launch_store;
 pub mod bottom_bar;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
 pub mod notification_updates;
 pub mod panel_bar;
 pub mod pointer_drag;
+mod sqlite_app_launches;
 pub mod tooltip_updates;
 pub mod top_bar;
 pub mod workspace_sidebar;
@@ -251,7 +251,7 @@ impl DesktopShell {
         let init = Task::batch([
             Task::done(Message::ConfigLoaded(loaded)),
             Task::perform(desktop_entry_changes::load(), Message::DesktopEntriesLoaded),
-            Task::perform(app_launch_store::load(), Message::TrackerLoaded),
+            Task::perform(sqlite_app_launches::load(), Message::TrackerLoaded),
             SessionFocusGroup::load(clock).map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
             IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
@@ -875,7 +875,7 @@ impl DesktopShell {
                 ));
             }
             if let Some(launch) = self.launch_tracker.observe(&event) {
-                tasks.push(Task::future(app_launch_store::record(launch)).discard());
+                tasks.push(Task::future(sqlite_app_launches::record(launch)).discard());
             }
             let _ = self.niri.apply(event);
         }

@@ -4,7 +4,7 @@ use sottomano_config::Config;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::shell_settings_row::{self, ShellSetting},
+    widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -79,7 +79,7 @@ impl OverlaySettingsGroup {
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
-                shell_settings_row::load_stored_flag(
+                sqlite_shell_settings_row::load_stored_flag(
                     "shell settings: load toast spatial layout failed",
                     "toast_spatial_layout",
                     true,
@@ -128,9 +128,9 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
                 self.toast_spatial_layout = !self.toast_spatial_layout;
                 Action::ReflowToasts(
-                    Task::future(shell_settings_row::save(ShellSetting::ToastSpatialLayout(
-                        self.toast_spatial_layout,
-                    )))
+                    Task::future(sqlite_shell_settings_row::save(
+                        ShellSetting::ToastSpatialLayout(self.toast_spatial_layout),
+                    ))
                     .discard(),
                 )
             }

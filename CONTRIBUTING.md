@@ -24,8 +24,9 @@ recordings are in [docs/development.md](docs/development.md).
   cause is shown only when the kernel publishes it.
 - Strict config/state separation: no field appears in both the TOML config
   (`sottomano-config/src/`) and the runtime state that widget groups persist
-  through `sqlite_state_store` (the `*_store` modules next to each group in
-  `sottomano-widgets/src/`).
+  through `sqlite_state_store` (the `sqlite_*` modules next to each group in
+  `sottomano-widgets/src/`). Like sources, those modules are named after their
+  mechanism and subject (`sqlite_idle_timeouts`, `sqlite_focus_spans`).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and

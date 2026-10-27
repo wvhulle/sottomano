@@ -15,7 +15,7 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-use crate::widget_groups::session_focus_group::focus_span_store;
+use crate::widget_groups::session_focus_group::sqlite_focus_spans;
 
 const LOADED_HISTORY: TimeDelta = TimeDelta::days(1);
 
@@ -51,7 +51,7 @@ impl FocusTracker {
     }
 
     pub async fn load(now: DateTime<Utc>) -> TrackerMessage {
-        TrackerMessage::Loaded(focus_span_store::load_since(now - LOADED_HISTORY, now).await)
+        TrackerMessage::Loaded(sqlite_focus_spans::load_since(now - LOADED_HISTORY, now).await)
     }
 
     pub fn idle_messages(
@@ -107,6 +107,6 @@ impl FocusTracker {
             }
             TrackerMessage::Signal(signal) => self.ledger.fold(signal, now, config),
         };
-        stream::iter(span_writes).for_each(focus_span_store::record)
+        stream::iter(span_writes).for_each(sqlite_focus_spans::record)
     }
 }

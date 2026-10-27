@@ -22,7 +22,7 @@ use crate::{
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
-        power_draw_regression_store,
+        sqlite_power_draw_regression,
     },
     widgets::{
         continuous_reading::ContinuousReading,
@@ -209,7 +209,7 @@ impl PowerProfileControl {
             .unwrap_or_else(|| RegressionState::seed(sample.draw))
             .observe(sample.conditions, sample.draw, since_previous);
         models.insert(sample.profile, next);
-        Task::future(power_draw_regression_store::save(
+        Task::future(sqlite_power_draw_regression::save(
             battery.serial.clone(),
             sample.profile,
             next,
@@ -222,7 +222,7 @@ impl PowerProfileControl {
             return Task::none();
         }
         self.load_started = true;
-        Task::future(power_draw_regression_store::load(serial.to_string()))
+        Task::future(sqlite_power_draw_regression::load(serial.to_string()))
             .map(PowerProfileMessage::Loaded)
     }
 

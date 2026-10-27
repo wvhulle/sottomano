@@ -6,7 +6,7 @@ use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
 
 use crate::{
     clock::Clock,
-    widget_groups::dark_mode_group::dark_mode_schedule_store::DarkModeSchedule,
+    widget_groups::dark_mode_group::sqlite_dark_mode_schedule::DarkModeSchedule,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_durations::duration_text,

@@ -5,7 +5,7 @@ use crate::{
     hover_tooltips::HoverTarget,
     widget_groups::{
         quiet_schedule_group::QuietScheduleTarget,
-        shell_settings_row::{self, ShellSetting},
+        sqlite_shell_settings_row::{self, ShellSetting},
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -76,7 +76,7 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
 impl NotificationGroup {
     pub fn load() -> Task<NotificationGroupMessage> {
         Task::perform(
-            shell_settings_row::load_stored_flag(
+            sqlite_shell_settings_row::load_stored_flag(
                 "shell settings: load sound failed",
                 "sound",
                 true,
@@ -116,7 +116,7 @@ impl NotificationGroup {
             NotificationGroupMessage::ToggleSound => {
                 self.alert_sound = !self.alert_sound;
                 Action::Run(
-                    Task::future(shell_settings_row::save(ShellSetting::Sound(
+                    Task::future(sqlite_shell_settings_row::save(ShellSetting::Sound(
                         self.alert_sound,
                     )))
                     .discard(),
