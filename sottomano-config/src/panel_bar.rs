@@ -12,6 +12,7 @@ use crate::layout::spacing::Spacing;
 )]
 pub struct PanelBarConfig<L = f32> {
     pub slider_width: L,
+    pub slider_stroke: L,
     pub indicator_thickness: L,
     pub frame_outline: L,
     pub drag_start_distance: L,
@@ -30,6 +31,7 @@ impl<L: From<f32>> Default for PanelBarConfig<L> {
     fn default() -> Self {
         Self {
             slider_width: L::from(60.0),
+            slider_stroke: L::from(2.0),
             indicator_thickness: L::from(2.4),
             frame_outline: L::from(1.0),
             drag_start_distance: L::from(6.0),
@@ -47,6 +49,7 @@ impl PanelBarConfig<Spacing> {
     pub fn resolve(self, em_px: f32) -> PanelBarConfig {
         PanelBarConfig {
             slider_width: self.slider_width.resolve(em_px),
+            slider_stroke: self.slider_stroke.resolve(em_px),
             indicator_thickness: self.indicator_thickness.resolve(em_px),
             frame_outline: self.frame_outline.resolve(em_px),
             drag_start_distance: self.drag_start_distance.resolve(em_px),

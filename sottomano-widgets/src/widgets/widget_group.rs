@@ -275,7 +275,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    pub(super) fn toast_requests_revealed_by(
+    fn toast_requests_revealed_by(
         &self,
         reveal_message: &M,
         locale: Locale,
@@ -295,10 +295,6 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 .filter_map(|item| item.level_reading(reveal_message.clone(), locale, clock))
                 .collect(),
         }
-    }
-
-    pub(super) fn has_expandable_handle(&self) -> bool {
-        self.handle.expand_message().is_some()
     }
 
     pub(super) fn highest_alert_severity(&self, clock: Clock) -> Severity {

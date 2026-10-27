@@ -19,7 +19,10 @@ use sottomano_config::{Config, screen_edges::Position};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{TooltipHost, TooltipMessage, tooltip_surfaces::TooltipSurfaceStyle},
+    hover_tooltips::{
+        HoverTarget, TooltipHost, TooltipMessage,
+        tooltip_surfaces::{HoverContent, TooltipSurfaceStyle},
+    },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
@@ -181,9 +184,10 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::TooltipHideElapsed => {
-                let departing = self
-                    .shown_tooltip()
-                    .and_then(|content| self.tooltip.departure(content));
+                let departing = self.shown_tooltip().and_then(|content| {
+                    self.tooltip
+                        .departure::<ShowcaseMessage>(HoverContent::Described(content))
+                });
                 self.tooltip.leave_elapsed(self.clock.instant, departing);
                 Task::none()
             }
@@ -312,27 +316,27 @@ impl ShowcaseState {
 
     fn tooltip_layer(&self) -> Option<Element<'_, ShowcaseMessage>> {
         let surface = self.tooltip.surface_on(SHOWCASE_OUTPUT)?;
-        self.tooltip
-            .view(
-                surface,
-                &self.config,
-                TooltipSurfaceStyle {
-                    overlay_appearance: ShellLayer::Overlays.default_appearance(),
-                    float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
-                },
-                WindowAssets {
-                    entries: &self.desktop_entries,
-                    favicons: &self.favicons,
-                    controller_artwork: &self.controller_artwork,
-                },
-                |target| {
+        self.tooltip.view(
+            surface,
+            &self.config,
+            TooltipSurfaceStyle {
+                overlay_appearance: ShellLayer::Overlays.default_appearance(),
+                float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
+            },
+            WindowAssets {
+                entries: &self.desktop_entries,
+                favicons: &self.favicons,
+                controller_artwork: &self.controller_artwork,
+            },
+            |target: &HoverTarget| {
+                HoverContent::Described(
                     self.group
                         .tooltip_for(target, &self.config, self.clock)
-                        .unwrap_or_else(Tooltip::empty)
-                },
-                self.clock,
-            )
-            .map(|popup| popup.map(ShowcaseMessage::from))
+                        .unwrap_or_else(Tooltip::empty),
+                )
+            },
+            self.clock,
+        )
     }
 }
 

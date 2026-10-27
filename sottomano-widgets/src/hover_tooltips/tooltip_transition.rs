@@ -19,15 +19,25 @@ pub struct Occupant {
     pub placement: Placement,
 }
 
+pub enum DepartedContent {
+    Described(Tooltip),
+    Interactive,
+}
+
 pub struct Departed {
-    pub content: Tooltip,
+    pub target: HoverTarget,
+    pub content: DepartedContent,
     pub placement: Placement,
 }
 
 impl Departed {
     #[must_use]
-    pub fn new(content: Tooltip, placement: Placement) -> Self {
-        Self { content, placement }
+    pub fn new(target: HoverTarget, content: DepartedContent, placement: Placement) -> Self {
+        Self {
+            target,
+            content,
+            placement,
+        }
     }
 }
 

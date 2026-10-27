@@ -4,7 +4,7 @@ use sottomano_widgets::{
     hover_tooltips::GroupHandle,
     widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
     widgets::{
-        group_drawer::{DrawerPlacement, GroupDrawer},
+        group_drawer::GroupDrawer,
         phosphor::{Phosphor, Weight},
         widget_group::GroupContent,
     },
@@ -28,20 +28,16 @@ impl DesktopShell {
         } = self.bottom_bar_groups();
         let view =
             |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
-        let sheet_appearance = self.overlay_settings_group.overlay_appearance();
-        let placement = DrawerPlacement {
-            drawers: &self.group_drawers,
-            output,
-            bar_position: Position::Bottom,
-            float_offset_px: self.panel_settings_group.float_offset_px(),
-            sheet_appearance,
-        };
         self.panel_bar(
             Position::Bottom,
-            [Some(settings_drawer.view(config, &placement, self.clock))]
-                .into_iter()
-                .chain(start.map(view))
-                .chain([self.inline_workspaces(output)]),
+            [Some(settings_drawer.handle_view(
+                config,
+                Position::Bottom,
+                self.clock,
+            ))]
+            .into_iter()
+            .chain(start.map(view))
+            .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
             end.map(view),
         )
@@ -55,12 +51,15 @@ impl DesktopShell {
         }
     }
 
+    pub(super) fn bar_drawers(&self) -> [GroupDrawer<'_, Message>; 1] {
+        [self.settings_drawer()]
+    }
+
     fn settings_drawer(&self) -> GroupDrawer<'_, Message> {
         let config = &self.config;
         GroupDrawer::new(
             GroupHandle::SettingsDrawer,
             Phosphor::SlidersHorizontal(Weight::Regular),
-            Message::Drawer,
             [
                 self.panel_settings_group
                     .group_content(config)

@@ -42,7 +42,7 @@ use sottomano_widgets::{
         wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
         window_group::WindowGroupMessage, workspaces_group::WorkspacesMessage,
     },
-    widgets::{group_drawer::DrawerMessage, widget_group::GroupEvent},
+    widgets::widget_group::GroupEvent,
 };
 
 #[derive(Debug, Clone)]
@@ -68,7 +68,6 @@ pub enum Message {
     Disk(DiskMessage),
     PanelSettings(PanelSettingsMessage),
     SidebarSettings(SidebarSettingsMessage),
-    Drawer(DrawerMessage),
     OverlaySettings(OverlaySettingsMessage),
     NiriWindow(NiriWindowMessage),
     Clock(ClockMessage),

@@ -56,6 +56,7 @@ row_spacing = "4px"
 
 [panel_bar]
 slider_width = "60px"
+slider_stroke = "2px"
 indicator_thickness = "2.4px"
 frame_outline = "1px"
 drag_start_distance = "6px"
