@@ -21,6 +21,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
@@ -114,11 +115,14 @@ impl BarWidget for Temperature {
         let summary = Section::dictionary(
             [
                 Some(KeyValue::new("Chips", chips.join(", "))),
-                Some(KeyValue::new("Samples", self.readings.len().to_string())),
+                Some(KeyValue::new(
+                    "Samples",
+                    Quantity::count(self.readings.len()),
+                )),
                 self.lowest()
-                    .map(|lowest| KeyValue::new("Min", celsius_text(lowest))),
-                Some(KeyValue::new("Avg", celsius_text(self.average()))),
-                Some(KeyValue::new("Max", celsius_text(self.hottest()))),
+                    .map(|lowest| KeyValue::new("Min", Quantity::temperature(lowest))),
+                Some(KeyValue::new("Avg", Quantity::temperature(self.average()))),
+                Some(KeyValue::new("Max", Quantity::temperature(self.hottest()))),
             ]
             .into_iter()
             .flatten(),
@@ -126,10 +130,10 @@ impl BarWidget for Temperature {
         let threshold_section = Section::dictionary(
             [
                 self.throttle_limit
-                    .map(|throttle| KeyValue::new("Throttles at", celsius_text(throttle))),
+                    .map(|throttle| KeyValue::new("Throttles at", Quantity::temperature(throttle))),
                 Some(KeyValue::new(
                     "Warns above",
-                    celsius_text(thresholds.warning),
+                    Quantity::temperature(thresholds.warning),
                 )),
                 Some(KeyValue::new("Critical above", thresholds.critical_text())),
             ]
@@ -155,7 +159,7 @@ impl ChipletLiveState<'_> {
                         .iter()
                         .map(|reading| reading.temperature)
                         .reduce(ThermodynamicTemperature::max)
-                        .map(|hottest| KeyValue::new("Hottest", celsius_text(hottest)))
+                        .map(|hottest| KeyValue::new("Hottest", Quantity::temperature(hottest)))
                         .into_iter()
                         .collect()
                 },

@@ -211,8 +211,8 @@ impl BarWidget for FailedUnits {
         units.sort_by_key(|unit| Reverse(unit.at));
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Reason").align_x(Horizontal::Left),
-                ColumnHeading::new("Failed"),
+                ColumnHeading::titled("Reason").align_x(Horizontal::Left),
+                ColumnHeading::titled("Failed"),
             ],
             units.iter(),
         )
@@ -279,9 +279,8 @@ mod tests {
             ],
             scope: SystemdUnitScope::SystemWide,
         };
-        let TooltipBody::Sections(sections) = units.tooltip(Clock::real()) else {
-            panic!("expected sections");
-        };
+        let body = units.tooltip(Clock::real());
+        let sections = body.listed_sections();
         assert_eq!(
             section_keys(&sections[0]),
             [

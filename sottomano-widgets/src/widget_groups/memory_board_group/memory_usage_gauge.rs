@@ -2,7 +2,6 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
     memory_usage::{Memory, MemoryProcesses},
-    temperature_thresholds::celsius_text,
 };
 use uom::si::f64::Ratio;
 
@@ -11,6 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -21,7 +21,10 @@ impl ReadingSections for MemoryModuleTemperatures {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.modules.iter().map(|module| {
-                KeyValue::new(module.bus_address.clone(), celsius_text(module.temperature))
+                KeyValue::new(
+                    module.bus_address.clone(),
+                    Quantity::temperature(module.temperature),
+                )
             }))
             .titled("Module temperatures"),
         ]
@@ -32,10 +35,7 @@ impl ReadingSections for MemoryProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
             Section::dictionary(self.processes.iter().map(|process| {
-                KeyValue::new(
-                    process.name.clone(),
-                    process.resident.display().iec().to_string(),
-                )
+                KeyValue::new(process.name.clone(), Quantity::size(process.resident))
             }))
             .titled("Processes"),
         ]
@@ -72,9 +72,9 @@ impl BarWidget for Memory {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Memory", format!("{}%", self.percent())),
-            KeyValue::new("Used", self.used.display().iec().to_string()),
-            KeyValue::new("Total", self.total.display().iec().to_string()),
+            KeyValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
+            KeyValue::new("Used", Quantity::size(self.used)),
+            KeyValue::new("Total", Quantity::size(self.total)),
         ])
     }
 }

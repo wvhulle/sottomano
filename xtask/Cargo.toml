@@ -11,3 +11,4 @@ workspace = true
 [dependencies]
 sottomano-config = { path = "../sottomano-config" }
 clap.workspace = true
+image.workspace = true

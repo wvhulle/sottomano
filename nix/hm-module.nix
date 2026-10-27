@@ -14,6 +14,7 @@ let
     surface = p.base00;
     surface_raised = p.base02;
     bar_foreground = p.base05;
+    secondary_foreground = p.base04;
     inactive = p.base04;
     dim = p.base03;
     frame_outline = p.base03;

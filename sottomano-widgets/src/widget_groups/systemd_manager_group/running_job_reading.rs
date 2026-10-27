@@ -115,8 +115,8 @@ impl BarWidget for SlowJobs {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Job").align_x(Horizontal::Left),
-                ColumnHeading::new("Since"),
+                ColumnHeading::titled("Job").align_x(Horizontal::Left),
+                ColumnHeading::titled("Since"),
             ],
             self.jobs.iter(),
         )

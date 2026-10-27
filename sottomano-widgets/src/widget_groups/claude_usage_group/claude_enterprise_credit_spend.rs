@@ -8,8 +8,9 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{percent_text, spend_text},
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
@@ -51,15 +52,15 @@ impl BarWidget for ClaudeEnterpriseSpend {
         };
         let limit_entries = self.limit.iter().flat_map(|limit| {
             [
-                KeyValue::new("Monthly Limit", limit.to_string()),
-                KeyValue::new("Percent Used", percent_text(self.used_share)),
+                KeyValue::new("Monthly Limit", Quantity::spend(*limit)),
+                KeyValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
             ]
         });
         TooltipBody::sections([Section::dictionary(
             [KeyValue::new("Status", status)]
                 .into_iter()
                 .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
-                .chain([KeyValue::new("Used This Month", self.used.to_string())])
+                .chain([KeyValue::new("Used This Month", Quantity::spend(self.used))])
                 .chain(limit_entries),
         )
         .titled("Usage Credits")])

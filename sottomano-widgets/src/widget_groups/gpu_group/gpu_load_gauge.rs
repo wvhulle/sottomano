@@ -5,7 +5,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        gauge::percent_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
         vendor_logo::VendorLogo,
@@ -32,6 +32,6 @@ impl BarWidget for GpuSnapshot {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("GPU", percent_text(self.load))])
+        TooltipBody::dictionary([KeyValue::new("GPU", Quantity::share(self.load))])
     }
 }

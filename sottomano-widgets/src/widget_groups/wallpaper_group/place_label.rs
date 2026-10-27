@@ -1,11 +1,11 @@
 use chrono::Locale;
 use sottomano_sources::wallpaper_place_article::{Position, Wallpaper};
-use uom::{fmt::DisplayStyle::Abbreviation, si::angle::degree};
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, TooltipBody},
     },
@@ -33,20 +33,8 @@ impl BarWidget for Place {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let coordinates = self.position.into_iter().flat_map(|position| {
             [
-                KeyValue::new(
-                    "Latitude",
-                    format!(
-                        "{:.5}",
-                        position.latitude.into_format_args(degree, Abbreviation)
-                    ),
-                ),
-                KeyValue::new(
-                    "Longitude",
-                    format!(
-                        "{:.5}",
-                        position.longitude.into_format_args(degree, Abbreviation)
-                    ),
-                ),
+                KeyValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),
+                KeyValue::new("Longitude", Quantity::angle(position.longitude).decimals(5)),
             ]
         });
         TooltipBody::dictionary(

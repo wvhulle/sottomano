@@ -10,6 +10,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         simple_icons::SimpleIcon,
         tooltip_body::{
             Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
@@ -70,7 +71,7 @@ fn relay_region_cell(path: &PeerPath) -> Option<Cell> {
 }
 
 fn transferred_bytes_cell(byte_count: u64) -> Option<Cell> {
-    (byte_count > 0).then(|| ByteSize::b(byte_count).display().iec().to_string().into())
+    (byte_count > 0).then(|| Quantity::size(ByteSize::b(byte_count)).into())
 }
 
 impl TableRow<6> for &Peer {
@@ -158,12 +159,12 @@ impl BarWidget for Tailscale {
         );
         let peer_table = Section::column_table(
             [
-                ColumnHeading::new("IP").align_x(Horizontal::Left),
-                ColumnHeading::new("OS").align_x(Horizontal::Left),
-                ColumnHeading::new("Path").align_x(Horizontal::Left),
-                ColumnHeading::new("Relay").align_x(Horizontal::Left),
-                ColumnHeading::new("Received"),
-                ColumnHeading::new("Sent"),
+                ColumnHeading::titled("IP").align_x(Horizontal::Left),
+                ColumnHeading::titled("OS").align_x(Horizontal::Left),
+                ColumnHeading::titled("Path").align_x(Horizontal::Left),
+                ColumnHeading::titled("Relay").align_x(Horizontal::Left),
+                ColumnHeading::titled("Received"),
+                ColumnHeading::titled("Sent"),
             ],
             &tailnet.online,
         );

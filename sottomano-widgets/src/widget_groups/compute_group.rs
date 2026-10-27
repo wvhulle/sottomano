@@ -260,16 +260,17 @@ impl ComputeGroup {
     pub fn tooltip_for(&self, target: ComputeTarget, clock: Clock) -> Option<Tooltip> {
         let live = self.live();
         match target {
-            ComputeTarget::CpuLoad => self.cpu_load.tooltip_with_sections(
+            ComputeTarget::CpuLoad => self.cpu_load.tooltip_with_groups(
                 [
                     self.cpu_busy_processes.sections(clock),
                     self.core_loads
                         .sections_described_by(|loads| live.core_load_sections(loads)),
                 ]
-                .concat(),
+                .into_iter()
+                .flatten(),
                 clock,
             ),
-            ComputeTarget::CpuClock => self.cpu_clock.tooltip_with_sections(
+            ComputeTarget::CpuClock => self.cpu_clock.tooltip_with_groups(
                 self.cpu_clock.sections_described_by(|cpu_clock| {
                     live.clock_sections(cpu_clock, self.core_loads.reading())
                 }),
@@ -282,7 +283,7 @@ impl ComputeGroup {
                 self.cpu_clock
                     .tooltip_with(limits.visible_in_bar().then(|| limits.tooltip(clock))?)
             }
-            ComputeTarget::CpuTemperature => self.cpu_temperature.tooltip_with_sections(
+            ComputeTarget::CpuTemperature => self.cpu_temperature.tooltip_with_groups(
                 self.core_temperatures
                     .sections_described_by(|temperatures| {
                         live.core_temperature_sections(temperatures)
@@ -297,7 +298,7 @@ impl ComputeGroup {
             }
             ComputeTarget::X3dCachePreference => {
                 self.x3d_cache_preference.tooltip(clock).map(|tooltip| {
-                    tooltip.with_sections(self.cpu_clock.sections_described_by(|clock| {
+                    tooltip.with_groups(self.cpu_clock.sections_described_by(|clock| {
                         ChipletRoles {
                             topology: &clock.topology,
                         }

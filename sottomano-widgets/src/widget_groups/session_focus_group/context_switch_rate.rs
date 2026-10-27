@@ -8,6 +8,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -44,12 +45,15 @@ impl ContextSwitchRate<'_> {
         let readings = Section::dictionary(
             [
                 Some(
-                    KeyValue::new("Switches in the last hour", self.per_hour(now).to_string())
-                        .level(self.severity(now)),
+                    KeyValue::new(
+                        "Switches in the last hour",
+                        Quantity::count(self.per_hour(now)),
+                    )
+                    .level(self.severity(now)),
                 ),
                 Some(KeyValue::new(
                     "Switches in the last 24 hours",
-                    switches_last_day.to_string(),
+                    Quantity::count(switches_last_day),
                 )),
                 average_span
                     .map(|span| KeyValue::new("Average time per window", Cell::duration(span))),
@@ -70,11 +74,19 @@ impl ContextSwitchRate<'_> {
         let thresholds = Section::dictionary([
             KeyValue::new(
                 "Warning above per hour",
-                format!("{}/h", self.accounting.config.switches_per_hour_warning),
+                Quantity::measured(
+                    f64::from(self.accounting.config.switches_per_hour_warning),
+                    DisplayUnit::PerHour,
+                    0,
+                ),
             ),
             KeyValue::new(
                 "Critical above per hour",
-                format!("{}/h", self.accounting.config.switches_per_hour_critical),
+                Quantity::measured(
+                    f64::from(self.accounting.config.switches_per_hour_critical),
+                    DisplayUnit::PerHour,
+                    0,
+                ),
             ),
         ])
         .titled("Switch alerts");

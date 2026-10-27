@@ -101,7 +101,7 @@ impl WindowGroup {
 
     #[must_use]
     pub fn inspect_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::sections(self.window_list.process_sections(clock))
+        Tooltip::grouped(self.window_list.process_sections(clock))
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {

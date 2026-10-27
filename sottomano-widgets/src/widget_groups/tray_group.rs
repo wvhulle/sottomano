@@ -29,7 +29,7 @@ use crate::{
         icon_handle::PixmapHandles,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, Tooltip, TooltipBody, TrayMenuBody, WholeBody},
+        tooltip_body::{Section, Tooltip, TooltipBody, TrayMenuBody},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
@@ -164,7 +164,7 @@ impl TrayGroup {
             .filter(|_| !item.menu.is_empty())
             .cloned();
         TooltipBody::from(match menu_path {
-            Some(menu_path) => WholeBody::TrayMenu(TrayMenuBody {
+            Some(menu_path) => Section::tray_menu(TrayMenuBody {
                 address: item.address.clone(),
                 menu_path,
                 title,
@@ -173,7 +173,7 @@ impl TrayGroup {
                 pixmap_handles: self.pixmap_handles.clone(),
                 open_submenus: self.open_submenus.clone(),
             }),
-            None => WholeBody::Text { title, body },
+            None => Section::note(title, body),
         })
     }
 

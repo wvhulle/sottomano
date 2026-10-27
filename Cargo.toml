@@ -38,10 +38,11 @@ chrono = { version = "0.4.45", default-features = false, features = [
 ] }
 chrono-tz = { version = "0.10.4", features = ["serde"] }
 clap = { version = "4.6.7", features = ["derive"] }
-fixed_decimal = "0.7.3"
+fixed_decimal = { version = "0.7.3", features = ["ryu"] }
 form_urlencoded = "1.2.2"
 futures = "0.3.34"
 humantime = "2.4.0"
+icu_decimal = { version = "2.4.0", features = ["alloc"] }
 icu_experimental = "0.7.0"
 jiff = { version = "0.2.38", default-features = false, features = ["std"] }
 icu_locale_core = "2.3.0"

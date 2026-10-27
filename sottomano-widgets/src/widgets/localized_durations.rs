@@ -30,7 +30,7 @@ impl LengthOfTime for TimeDelta {
     }
 }
 
-fn icu_locale(locale: Locale) -> icu_locale_core::Locale {
+pub(crate) fn icu_locale(locale: Locale) -> icu_locale_core::Locale {
     let tag = match locale {
         Locale::POSIX => "en".to_owned(),
         other => other.to_string().replace('_', "-"),

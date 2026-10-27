@@ -6,8 +6,9 @@ use sottomano_sources::ai_usage_spend::{
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{spend_text, token_count},
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
@@ -48,13 +49,16 @@ impl BarWidget for ClaudeCcusagePeriods {
         let period_section = |title: String, period: &Period, threshold: Option<KeyValue>| {
             let projected = period
                 .projected_cost(now, &self.budget)
-                .map(|cost| KeyValue::new("Projected Cost", cost.to_string()));
+                .map(|cost| KeyValue::new("Projected Cost", Quantity::spend(cost)));
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", period.usage.cost.to_string())),
+                    Some(KeyValue::new("Cost", Quantity::spend(period.usage.cost))),
                     projected,
                     threshold,
-                    Some(KeyValue::new("Tokens", token_count(period.usage.tokens))),
+                    Some(KeyValue::new(
+                        "Tokens",
+                        Quantity::compact_count(period.usage.tokens),
+                    )),
                     Some(KeyValue::new("Models", period.usage.models.to_string())),
                 ]
                 .into_iter()

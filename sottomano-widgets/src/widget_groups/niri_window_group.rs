@@ -19,7 +19,7 @@ use crate::{
         simple_icons::SimpleIcon,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Cell, KeyValue, Section, Tooltip},
+        tooltip_body::{Cell, Freshness, KeyValue, Section, SourcedSections, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -181,13 +181,17 @@ impl NiriWindowGroup {
             NiriWindowTarget::Xray => xray_toggle(self.xray).switch_tooltip(clock),
             NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_tooltip(clock),
         };
-        control.with_sections(self.rules_file.unreadable().map(|unreadable| {
-            Section::dictionary([KeyValue::new(
-                Cell::Path(unreadable.path.to_path_buf()),
-                unreadable.kind.to_string(),
+        control.with_groups(self.rules_file.unreadable().map(|unreadable| {
+            SourcedSections::settled(
+                Section::dictionary([KeyValue::new(
+                    Cell::Path(unreadable.path.to_path_buf()),
+                    unreadable.kind.to_string(),
+                )
+                .level(Severity::Critical)])
+                .titled("Changes are not saved")
+                .into(),
+                Freshness::Fixed,
             )
-            .level(Severity::Critical)])
-            .titled("Changes are not saved")
         }))
     }
 

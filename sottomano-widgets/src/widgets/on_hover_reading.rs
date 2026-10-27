@@ -9,7 +9,9 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    widgets::tooltip_body::{Freshness, Readiness, ReadingSections, Section},
+    widgets::tooltip_body::{
+        Freshness, Readiness, ReadingSections, Section, SourcedSections, TooltipBody,
+    },
 };
 
 #[derive(Debug)]
@@ -88,13 +90,14 @@ impl<S: ReadingSource> OnHoverReading<S> {
         }
     }
 
-    pub fn sections_described_by(&self, describe: impl Fn(&S) -> Vec<Section>) -> Vec<Section>
+    pub fn sections_described_by(
+        &self,
+        describe: impl Fn(&S) -> Vec<Section>,
+    ) -> Option<SourcedSections>
     where
         S::Error: Into<Section>,
     {
-        let Some(freshness) = self.freshness else {
-            return Vec::new();
-        };
+        let freshness = self.freshness?;
         let readiness = if self.latest.is_some() {
             Readiness::Settled
         } else {
@@ -105,15 +108,16 @@ impl<S: ReadingSource> OnHoverReading<S> {
             Some(Ok(reading)) => describe(reading),
             Some(Err(failure)) => vec![failure.clone().into()],
         };
-        unmarked
-            .into_iter()
-            .map(|section| section.stamped(readiness, freshness))
-            .collect()
+        Some(SourcedSections::new(
+            readiness,
+            freshness,
+            TooltipBody::sections(unmarked),
+        ))
     }
 }
 
 impl<S: ReadingSource<Error: Into<Section>> + ReadingSections> OnHoverReading<S> {
-    pub fn sections(&self, clock: Clock) -> Vec<Section> {
+    pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
         self.sections_described_by(|reading| reading.sections(clock))
     }
 }

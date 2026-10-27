@@ -1,11 +1,11 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::network_manager_proxies::AddressBlock;
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{f64::InformationRate, information_rate::megabit_per_second},
-};
+use uom::si::f64::InformationRate;
 
-use crate::widgets::tooltip_body::{KeyValue, Section};
+use crate::widgets::{
+    localized_quantities::Quantity,
+    tooltip_body::{KeyValue, Section},
+};
 
 pub fn signal_level(quality: i64) -> Severity {
     match quality {
@@ -56,15 +56,8 @@ pub fn link_stats_section(
     rate: InformationRate,
     mtu: u32,
 ) -> Section {
-    let rate_entry = (rate > InformationRate::default()).then(|| {
-        KeyValue::new(
-            rate_label,
-            format!(
-                "{:.0}",
-                rate.into_format_args(megabit_per_second, Abbreviation)
-            ),
-        )
-    });
-    let mtu_entry = (mtu > 0).then(|| KeyValue::new("Max Packet Size (MTU)", mtu.to_string()));
+    let rate_entry = (rate > InformationRate::default())
+        .then(|| KeyValue::new(rate_label, Quantity::link_rate(rate)));
+    let mtu_entry = (mtu > 0).then(|| KeyValue::new("Max Packet Size (MTU)", Quantity::count(mtu)));
     Section::dictionary(rate_entry.into_iter().chain(mtu_entry)).titled(key(title))
 }

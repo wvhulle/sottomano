@@ -10,6 +10,7 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -45,7 +46,7 @@ impl BarWidget for OpenRouterStrictBudget {
         TooltipBody::sections(
             [Section::dictionary([
                 remaining_entry(self.credits.remaining()),
-                KeyValue::new("Lifetime Purchased", self.credits.total.to_string()),
+                KeyValue::new("Lifetime Purchased", Quantity::spend(self.credits.total)),
             ])
             .titled("Credits")]
             .into_iter()
@@ -70,7 +71,7 @@ impl From<&KeyLimit> for Section {
         });
         Section::dictionary(
             [
-                Some(KeyValue::new("Limit", key_limit.limit.to_string())),
+                Some(KeyValue::new("Limit", Quantity::spend(key_limit.limit))),
                 Some(remaining_entry(key_limit.remaining)),
                 resets,
             ]
@@ -82,7 +83,7 @@ impl From<&KeyLimit> for Section {
 }
 
 fn remaining_entry(remaining: Money) -> KeyValue {
-    let entry = KeyValue::new("Remaining", remaining.to_string());
+    let entry = KeyValue::new("Remaining", Quantity::spend(remaining));
     if remaining.is_positive() {
         entry
     } else {

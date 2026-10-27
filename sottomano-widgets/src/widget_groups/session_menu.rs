@@ -19,7 +19,7 @@ use crate::{
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
-            Freshness, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody, WholeBody,
+            Freshness, Section, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
         },
         widget_group::{GroupContent, GroupEvent},
     },
@@ -107,7 +107,7 @@ impl SessionMenu {
     pub fn tooltip_for(&self, target: SessionTarget, timeouts: Timeouts) -> Tooltip {
         match target {
             SessionTarget::Menu => Tooltip::sourced(
-                TooltipBody::from(WholeBody::SessionMenu(SessionMenuBody {
+                TooltipBody::from(Section::session_menu(SessionMenuBody {
                     entries: self
                         .permissions
                         .allowed

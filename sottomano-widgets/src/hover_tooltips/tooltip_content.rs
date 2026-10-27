@@ -6,9 +6,7 @@ use iced::{
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
     widget::{
-        Column, Container, Space, Text, container, rich_text, row,
-        rule::{self, FillMode},
-        span, table,
+        Column, Container, Space, Text, container, rich_text, row, span,
         text::{Span, Wrapping},
     },
 };
@@ -27,6 +25,7 @@ use crate::{
     },
     widgets::{
         bar_widget::Glyph,
+        content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         localized_durations::{duration_text, relative_moment_text, signed_duration_text},
         palette_colors::PaletteColors,
@@ -36,8 +35,8 @@ use crate::{
         text::{FontFaces, LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, ControllerCallouts, Freshness, KeyValue, Readiness,
-            RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry, Tooltip,
-            TooltipBody, TrayMenuBody, WholeBody,
+            RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry, SourcedSections,
+            TableColumns, Tooltip, TrayMenuBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -47,20 +46,17 @@ use crate::{
 };
 
 const COLUMN_GAP_PX: f32 = 14.0;
-const FOOTER_GAP_PX: f32 = 6.0;
 const SECTION_GAP_PX: f32 = 8.0;
 const TRAY_MENU_WIDTH_PX: f32 = 250.0;
-const SECTION_SEPARATION_PX: f32 = 18.0;
-const DIVIDER_THICKNESS_PX: f32 = 1.0;
+const SECTION_SEPARATION_PX: f32 = 16.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
-const DIM_ALPHA: f32 = 0.7;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
-    right: 6.0,
+    right: 0.0,
     bottom: 2.0,
-    left: 6.0,
+    left: COLUMN_GAP_PX / 2.0,
 };
 
 #[derive(Clone, Copy)]
@@ -107,13 +103,67 @@ impl<'a> TooltipContent<'a> {
 
     #[must_use]
     pub fn view(self) -> Element<'static, PopupMessage> {
-        let press_hints = self.tooltip.press_hints;
-        let press_hint = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
-        container(
-            uniform_width_column(press_hint.into_iter().chain([self.grid()]))
-                .spacing(FOOTER_GAP_PX),
+        let groups: Vec<&SourcedSections> = self.tooltip.filled_groups().collect();
+        let Some((closing_group, leading_groups)) = groups.split_last() else {
+            return container(uniform_width_column([self.closing_row(None)]))
+                .padding(self.shell_padding())
+                .into();
+        };
+        let leading = leading_groups
+            .iter()
+            .map(|group| -> Element<'static, PopupMessage> {
+                uniform_width_column([
+                    self.group_sections(group),
+                    self.footer_row(None, Some(self.freshness(group.freshness()))),
+                ])
+                .spacing(self.config.layout.overlay.row_spacing)
+                .into()
+            });
+        let closing: Element<'static, PopupMessage> = uniform_width_column([
+            self.group_sections(closing_group),
+            self.closing_row(Some(closing_group.freshness())),
+        ])
+        .spacing(SECTION_SEPARATION_PX / 2.0)
+        .into();
+        container(uniform_width_column(leading.chain(once(closing))).spacing(SECTION_SEPARATION_PX))
+            .padding(self.shell_padding())
+            .into()
+    }
+
+    fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
+        let content = self.in_readiness(group.readiness());
+        uniform_width_column(
+            group
+                .filled_sections()
+                .map(|section| content.section(section)),
         )
-        .padding(self.shell_padding())
+        .spacing(SECTION_SEPARATION_PX)
+        .into()
+    }
+
+    fn closing_row(&self, closing_freshness: Option<Freshness>) -> Element<'static, PopupMessage> {
+        let press_hints = self.tooltip.press_hints;
+        let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
+        self.footer_row(
+            hints,
+            closing_freshness.map(|freshness| self.freshness(freshness)),
+        )
+    }
+
+    fn footer_row(
+        &self,
+        hints: Option<Element<'static, PopupMessage>>,
+        freshness: Option<Element<'static, PopupMessage>>,
+    ) -> Element<'static, PopupMessage> {
+        container(
+            row(hints
+                .into_iter()
+                .chain(once(Space::new().width(Length::Fill).into()))
+                .chain(freshness))
+            .spacing(COLUMN_GAP_PX)
+            .align_y(Vertical::Center),
+        )
+        .padding(self.footer_padding())
         .into()
     }
 
@@ -142,23 +192,20 @@ impl<'a> TooltipContent<'a> {
 
     fn gesture_hints(&self, press_hints: PressHints) -> Element<'static, PopupMessage> {
         let icon_size = self.config.theme.font.small_text_size_px;
-        let dim = self.dim();
-        container(
-            row(MouseGesture::ALL.into_iter().filter_map(|gesture| {
-                let does = press_hints.does(gesture)?;
-                Some(
-                    row([
-                        Glyph::from(gesture.glyph()).view(icon_size, dim),
-                        self.annotation(does.to_owned()).into(),
-                    ])
-                    .spacing(GESTURE_ICON_GAP_PX)
-                    .align_y(Vertical::Center)
-                    .into(),
-                )
-            }))
-            .spacing(COLUMN_GAP_PX),
-        )
-        .padding(self.footer_padding())
+        let secondary_foreground = self.secondary_foreground();
+        row(MouseGesture::ALL.into_iter().filter_map(|gesture| {
+            let does = press_hints.does(gesture)?;
+            Some(
+                row([
+                    Glyph::from(gesture.glyph()).view(icon_size, secondary_foreground),
+                    self.small_dim_text(does.to_owned()).into(),
+                ])
+                .spacing(GESTURE_ICON_GAP_PX)
+                .align_y(Vertical::Center)
+                .into(),
+            )
+        }))
+        .spacing(COLUMN_GAP_PX)
         .into()
     }
 
@@ -170,15 +217,12 @@ impl<'a> TooltipContent<'a> {
         PaletteColors::from(&self.config.theme.palette).success
     }
 
-    fn dim(&self) -> Color {
-        Color {
-            a: DIM_ALPHA,
-            ..PaletteColors::from(&self.config.theme.palette).bar_foreground
-        }
+    fn secondary_foreground(&self) -> Color {
+        PaletteColors::from(&self.config.theme.palette).secondary_foreground
     }
 
     fn freshness(&self, freshness: Freshness) -> Element<'static, PopupMessage> {
-        let dim = self.dim();
+        let secondary_foreground = self.secondary_foreground();
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
             row([label.into(), glyph])
@@ -186,7 +230,7 @@ impl<'a> TooltipContent<'a> {
                 .align_y(Vertical::Center)
                 .into()
         };
-        let shown = match freshness {
+        match freshness {
             Freshness::Polled { every, last } => pressable_text(
                 labelled(
                     self.small_dim_text(duration_text(every, self.config.calendar.locale)),
@@ -198,8 +242,8 @@ impl<'a> TooltipContent<'a> {
                         every,
                         self.clock.instant,
                         glyph_size,
-                        dim,
-                        dim.scale_alpha(REFRESH_TRACK_ALPHA),
+                        secondary_foreground,
+                        secondary_foreground.scale_alpha(REFRESH_TRACK_ALPHA),
                     )
                     .view(),
                 ),
@@ -210,48 +254,22 @@ impl<'a> TooltipContent<'a> {
                 Interaction::Pointer,
             ),
             Freshness::Live => labelled(
-                self.annotation("live".to_owned()),
-                Glyph::from(Phosphor::Pulse(Weight::Regular)).view(glyph_size, dim),
+                self.small_dim_text("live".to_owned()),
+                Glyph::from(Phosphor::Pulse(Weight::Regular))
+                    .view(glyph_size, secondary_foreground),
             ),
             Freshness::Fixed => labelled(
-                self.annotation("read once".to_owned()),
-                Glyph::from(Phosphor::PushPin(Weight::Regular)).view(glyph_size, dim),
+                self.small_dim_text("read once".to_owned()),
+                Glyph::from(Phosphor::PushPin(Weight::Regular))
+                    .view(glyph_size, secondary_foreground),
             ),
-        };
-        container(shown).align_right(Length::Fill).into()
+        }
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
         bar_text(&self.config.theme.font, text)
             .size(self.config.theme.font.small_text_size_px)
-            .color(self.dim())
-    }
-
-    fn annotation(&self, text: String) -> Text<'static> {
-        self.small_dim_text(text)
-            .font(FontFaces::from(&self.config.theme.font).italic)
-    }
-
-    fn grid(&self) -> Element<'static, PopupMessage> {
-        match &self.tooltip.body {
-            TooltipBody::Sections(sections) => self.sections(sections),
-            TooltipBody::Whole { body, freshness } => {
-                Column::with_children([self.whole(body), self.inset(self.freshness(*freshness))])
-                    .spacing(self.config.layout.overlay.row_spacing)
-                    .into()
-            }
-        }
-    }
-
-    fn whole(&self, body: &WholeBody) -> Element<'static, PopupMessage> {
-        match body {
-            WholeBody::Workspace(preview) => {
-                self.inset(WorkspaceSchematic::new(preview, self.config, self.assets).view())
-            }
-            WholeBody::Text { title, body } => self.inset(self.text(title, body.as_deref())),
-            WholeBody::TrayMenu(menu) => self.tray_menu(menu),
-            WholeBody::SessionMenu(menu) => self.session_menu(menu),
-        }
+            .color(self.secondary_foreground())
     }
 
     fn tray_menu(&self, menu: &TrayMenuBody) -> Element<'static, PopupMessage> {
@@ -344,7 +362,7 @@ impl<'a> TooltipContent<'a> {
             cell(
                 &self.config.theme.font,
                 body.to_owned(),
-                self.dim(),
+                self.secondary_foreground(),
                 max_width,
                 Wrapping::default(),
             )
@@ -355,39 +373,10 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
-    fn sections(&self, sections: &[Section]) -> Element<'static, PopupMessage> {
-        let filled = sections
-            .iter()
-            .filter(|section| !section.body().is_empty())
-            .map(|section| {
-                self.in_readiness(section.readiness())
-                    .section(section, self.freshness(section.freshness()))
-            });
-
-        let dim = PaletteColors::from(&self.config.theme.palette).dim;
-        let divider = move || {
-            rule::horizontal(DIVIDER_THICKNESS_PX)
-                .style(move |_| rule::Style {
-                    color: dim,
-                    radius: 0.0.into(),
-                    fill_mode: FillMode::Full,
-                    snap: false,
-                })
-                .into()
-        };
-        let with_dividers = filled.enumerate().flat_map(|(index, section)| {
-            (index > 0).then(divider).into_iter().chain(once(section))
-        });
-        uniform_width_column(with_dividers)
-            .spacing((SECTION_SEPARATION_PX - DIVIDER_THICKNESS_PX) / 2.0)
-            .into()
-    }
-
-    fn section(
-        &self,
-        section: &Section,
-        freshness: Element<'static, PopupMessage>,
-    ) -> Element<'static, PopupMessage> {
+    fn section(&self, section: &Section) -> Element<'static, PopupMessage> {
+        if let SectionBody::TrayMenu(_) | SectionBody::SessionMenu(_) = section.body() {
+            return self.body(section.body());
+        }
         let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
         let title = section.title().map(|title| {
             container(self.bold_title(title))
@@ -406,7 +395,7 @@ impl<'a> TooltipContent<'a> {
                 title
                     .into_iter()
                     .chain(caption)
-                    .chain([self.body(section.body()), freshness]),
+                    .chain(once(self.body(section.body()))),
             )
             .spacing(self.config.layout.overlay.row_spacing)
             .into(),
@@ -416,25 +405,32 @@ impl<'a> TooltipContent<'a> {
     fn body(&self, body: &SectionBody) -> Element<'static, PopupMessage> {
         match body {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
-            SectionBody::ColumnTable { headings, records } => self.column_table(headings, records),
+            SectionBody::ColumnTable { columns, records } => self.column_table(columns, records),
             SectionBody::CoreGrid(chiplets) => self.core_grid(chiplets),
             SectionBody::ControllerDiagram(diagram) => self.controller_diagram(diagram),
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
+            SectionBody::Note { title, body } => self.text(title, body.as_deref()),
+            SectionBody::Workspace(preview) => {
+                WorkspaceSchematic::new(preview, self.config, self.assets).view()
+            }
+            SectionBody::TrayMenu(menu) => self.tray_menu(menu),
+            SectionBody::SessionMenu(menu) => self.session_menu(menu),
         }
     }
 
     fn cell_view(&self) -> CellView {
         CellView {
-            font: self.config.theme.monospace_font.clone(),
+            figure_font: self.config.theme.monospace_font.clone(),
+            prose_font: self.config.theme.font.clone(),
             max_width: self.config.tooltips.value_width,
             wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
             now: self.clock.utc(),
             flash: self.flash(),
             link: PaletteColors::from(&self.config.theme.palette).info,
-            hint: self.dim(),
+            hint: self.secondary_foreground(),
             transition: self.transition(self.presence),
             copy_flash: self.config.tooltips.copy_flash,
         }
@@ -443,7 +439,7 @@ impl<'a> TooltipContent<'a> {
     fn dictionary(&self, entries: &[KeyValue]) -> Element<'static, PopupMessage> {
         let palette = PaletteColors::from(&self.config.theme.palette);
         let cell_view = self.cell_view();
-        let value_column = table::column(Space::new(), move |entry: KeyValue| {
+        let value_column = content_sized_column(Space::new(), move |entry: KeyValue| {
             cell_view.value(
                 entry.value().clone(),
                 WidgetState::from(entry.severity()).color(&palette),
@@ -459,7 +455,7 @@ impl<'a> TooltipContent<'a> {
         let palette = PaletteColors::from(&self.config.theme.palette);
         let font = &self.config.theme.font;
         let leader_style = DiagramStyle {
-            line: self.dim(),
+            line: self.secondary_foreground(),
             anchor: palette.info,
         };
         let row_height = LINE_HEIGHT.to_absolute(font.text_size_px.into()).0.ceil();
@@ -508,43 +504,56 @@ impl<'a> TooltipContent<'a> {
 
     fn column_table(
         &self,
-        headings: &[ColumnHeading],
+        columns: &TableColumns,
         records: &[RecordCells],
     ) -> Element<'static, PopupMessage> {
-        let heading_color = PaletteColors::from(&self.config.theme.palette).inactive;
-
+        let headings = match columns {
+            TableColumns::Headed(headings) => headings.clone(),
+            TableColumns::Unheaded(alignments) => alignments
+                .iter()
+                .map(|alignment| ColumnHeading::untitled().align_x(*alignment))
+                .collect(),
+        };
         self.keyed_table(
             records,
             RecordCells::key,
-            headings.iter().enumerate().map(|(position, heading)| {
-                let label = column_heading(&self.config.theme.font, heading.label(), heading_color);
-                self.record_column(position, label.into())
+            headings.into_iter().enumerate().map(|(position, heading)| {
+                self.record_column(position, self.column_heading_view(heading))
                     .align_x(heading.alignment())
             }),
         )
+    }
+
+    fn column_heading_view(&self, heading: ColumnHeading) -> Element<'static, PopupMessage> {
+        match heading {
+            ColumnHeading::Titled { label, .. } => {
+                column_heading(&self.config.theme.font, label, self.secondary_foreground()).into()
+            }
+            ColumnHeading::Untitled { .. } => Space::new().into(),
+        }
     }
 
     fn keyed_table<Entry: Clone + 'static>(
         &self,
         entries: &[Entry],
         key: fn(&Entry) -> &Cell,
-        values: impl IntoIterator<Item = table::Column<'static, 'static, Entry, PopupMessage>>,
+        values: impl IntoIterator<Item = ContentSizedColumn<'static, Entry, PopupMessage>>,
     ) -> Element<'static, PopupMessage> {
-        let dim = self.dim();
+        let key_foreground = self.foreground();
         let label_view = CellView {
-            font: self.config.theme.font.clone(),
+            figure_font: self.config.theme.font.clone(),
+            prose_font: self.config.theme.font.clone(),
             wrapping: Wrapping::None,
             transition: self.transition(TextPresence::Shown),
             ..self.cell_view()
         };
-        let key_column = table::column(Space::new(), move |entry: Entry| {
-            label_view.key(key(&entry).clone(), dim)
+        let key_column = content_sized_column(Space::new(), move |entry: Entry| {
+            label_view.key(key(&entry).clone(), key_foreground)
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
 
-        table::table(once(key_column).chain(values), entries.iter().cloned())
-            .separator(0.0)
+        content_sized_table(once(key_column).chain(values), entries.iter().cloned())
             .padding_x(COLUMN_GAP_PX / 2.0)
             .padding_y(self.config.layout.overlay.row_spacing / 2.0)
             .into()
@@ -554,11 +563,11 @@ impl<'a> TooltipContent<'a> {
         &self,
         position: usize,
         heading: Element<'static, PopupMessage>,
-    ) -> table::Column<'static, 'static, RecordCells, PopupMessage> {
+    ) -> ContentSizedColumn<'static, RecordCells, PopupMessage> {
         let palette = PaletteColors::from(&self.config.theme.palette);
         let cell_view = self.cell_view();
 
-        table::column(heading, move |record: RecordCells| {
+        content_sized_column(heading, move |record: RecordCells| {
             match record.cell(position) {
                 Some(value) => cell_view.value(
                     value.clone(),
@@ -573,7 +582,8 @@ impl<'a> TooltipContent<'a> {
 }
 
 struct CellView {
-    font: ResolvedFont,
+    figure_font: ResolvedFont,
+    prose_font: ResolvedFont,
     max_width: f32,
     wrapping: Wrapping,
     locale: Locale,
@@ -591,18 +601,26 @@ impl CellView {
         self.value(key, color, &row)
     }
 
-    fn text(&self, text: String, color: Color, row: &Cell) -> Element<'static, PopupMessage> {
+    fn face(&self, face: TypeFace) -> &ResolvedFont {
+        match face {
+            TypeFace::Prose => &self.prose_font,
+            TypeFace::Figures => &self.figure_font,
+        }
+    }
+
+    fn text(
+        &self,
+        text: String,
+        face: TypeFace,
+        color: Color,
+        row: &Cell,
+    ) -> Element<'static, PopupMessage> {
+        let font = self.face(face);
         TransitioningText::new(
-            cell(
-                &self.font,
-                text.clone(),
-                color,
-                self.max_width,
-                self.wrapping,
-            ),
+            cell(font, text.clone(), color, self.max_width, self.wrapping),
             text,
             self.transition,
-            &self.font,
+            font,
             color,
         )
         .identified_by(row)
@@ -611,12 +629,17 @@ impl CellView {
 
     fn path(&self, path: &Path, color: Color, row: &Cell) -> Element<'static, PopupMessage> {
         let text = path.display().to_string();
-        let unwrapped = bar_text(&self.font, text.clone())
+        let unwrapped = bar_text(&self.prose_font, text.clone())
             .color(color)
             .wrapping(Wrapping::None);
-        let value =
-            TransitioningText::new(unwrapped, text.clone(), self.transition, &self.font, color)
-                .identified_by(row);
+        let value = TransitioningText::new(
+            unwrapped,
+            text.clone(),
+            self.transition,
+            &self.prose_font,
+            color,
+        )
+        .identified_by(row);
         pressable_text(
             value,
             text,
@@ -630,23 +653,26 @@ impl CellView {
     fn value(&self, value: Cell, color: Color, row: &Cell) -> Element<'static, PopupMessage> {
         match value {
             Cell::Glyph(icon) => self.glyph(icon, color),
-            Cell::Text(text) => self.copyable_text(text, color, row),
+            Cell::Text(text) => self.copyable_text(text, TypeFace::Prose, color, row),
             Cell::Path(path) => self.path(&path, color, row),
             Cell::Time { at, format } => {
-                self.copyable_text(format.format(&at, self.locale), color, row)
+                self.copyable_figures(format.format(&at, self.locale), color, row)
             }
             Cell::Duration(length) => {
-                self.copyable_text(duration_text(length, self.locale), color, row)
+                self.copyable_figures(duration_text(length, self.locale), color, row)
             }
             Cell::RelativeMoment(at) => {
-                self.copyable_text(relative_moment_text(at, self.now, self.locale), color, row)
+                self.copyable_figures(relative_moment_text(at, self.now, self.locale), color, row)
             }
             Cell::SignedDuration(offset) => {
-                self.copyable_text(signed_duration_text(offset, self.locale), color, row)
+                self.copyable_figures(signed_duration_text(offset, self.locale), color, row)
             }
-            Cell::Readout(readout) => self.copyable_text(readout.text(self.locale), color, row),
+            Cell::Readout(readout) => self.copyable_figures(readout.text(self.locale), color, row),
+            Cell::Quantity(quantity) => {
+                self.copyable_figures(quantity.localized_text(self.locale), color, row)
+            }
             Cell::Link { label, url, glyph } => self.openable_link(label, url, glyph, color, row),
-            Cell::Hint(text) => self.text(text, self.hint, row),
+            Cell::Hint(text) => self.text(text, TypeFace::Prose, self.hint, row),
         }
     }
 
@@ -659,18 +685,19 @@ impl CellView {
         link_cell: &Cell,
     ) -> Element<'static, PopupMessage> {
         let underlined_label: Span<'static> = span(label.clone())
-            .font(FontFaces::from(&self.font).regular)
+            .font(FontFaces::from(&self.prose_font).regular)
             .color(color)
             .underline(true);
         let underlined = container(
             rich_text([underlined_label])
-                .size(self.font.text_size_px)
+                .size(self.prose_font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .wrapping(self.wrapping),
         )
         .max_width(self.max_width);
-        let value = TransitioningText::new(underlined, label, self.transition, &self.font, color)
-            .identified_by(link_cell);
+        let value =
+            TransitioningText::new(underlined, label, self.transition, &self.prose_font, color)
+                .identified_by(link_cell);
         let branded_value: Element<'static, PopupMessage> = match glyph {
             Some(brand_glyph) => row([self.glyph(brand_glyph, color), value.into()])
                 .spacing(GESTURE_ICON_GAP_PX)
@@ -689,16 +716,26 @@ impl CellView {
     }
 
     fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, PopupMessage> {
-        icon.view(self.font.text_size_px, color)
+        icon.view(self.prose_font.text_size_px, color)
     }
 
-    fn copyable_text(
+    fn copyable_figures(
         &self,
         text: String,
         color: Color,
         row: &Cell,
     ) -> Element<'static, PopupMessage> {
-        let value = self.text(text.clone(), color, row);
+        self.copyable_text(text, TypeFace::Figures, color, row)
+    }
+
+    fn copyable_text(
+        &self,
+        text: String,
+        face: TypeFace,
+        color: Color,
+        row: &Cell,
+    ) -> Element<'static, PopupMessage> {
+        let value = self.text(text.clone(), face, color, row);
         if text.trim().is_empty() {
             return value;
         }
@@ -711,6 +748,12 @@ impl CellView {
             Interaction::Copy,
         )
     }
+}
+
+#[derive(Clone, Copy)]
+enum TypeFace {
+    Prose,
+    Figures,
 }
 
 fn cell(

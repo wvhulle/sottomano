@@ -240,7 +240,7 @@ impl ClaudeUsageGroup {
             ClaudeUsageTarget::UsageWindows => self.usage_windows.tooltip(clock),
             ClaudeUsageTarget::EnterpriseSpend => self
                 .enterprise_spend
-                .tooltip_with_sections(self.organization.sections(clock), clock),
+                .tooltip_with_groups(self.organization.sections(clock), clock),
             ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(clock),
             ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(clock),
             ClaudeUsageTarget::MostUsedModel => self

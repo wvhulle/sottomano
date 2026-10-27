@@ -5,6 +5,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{KeyValue, TooltipBody, entry},
@@ -32,7 +33,7 @@ impl ComputeDevice<'_> {
                 "Threads",
                 Some(engine.inference_threads)
                     .filter(|threads| *threads > 0)
-                    .map(|threads| threads.to_string()),
+                    .map(Quantity::count),
             ),
             Some(KeyValue::new(
                 "Flash attention",
@@ -102,14 +103,14 @@ mod tests {
         assert_eq!(
             rows,
             [
-                ("Device", "CUDA0"),
-                ("GPU", "NVIDIA GeForce RTX 4090"),
-                ("Threads", "4"),
-                ("Flash attention", "off"),
-                ("Runtime", "whisper.cpp"),
-                ("Runtime version", "1.9.5-dev"),
+                ("Device", Cell::from("CUDA0")),
+                ("GPU", Cell::from("NVIDIA GeForce RTX 4090")),
+                ("Threads", Cell::Quantity(Quantity::count(4_u32))),
+                ("Flash attention", Cell::from("off")),
+                ("Runtime", Cell::from("whisper.cpp")),
+                ("Runtime version", Cell::from("1.9.5-dev")),
             ]
-            .map(|(key, value)| (Cell::from(key), Cell::from(value)))
+            .map(|(key, value)| (Cell::from(key), value))
             .to_vec()
         );
     }

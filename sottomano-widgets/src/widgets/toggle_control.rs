@@ -206,7 +206,7 @@ mod tests {
         );
         let hover_card = format!(
             "{:?}",
-            control.tooltip(Clock::real()).map(|tooltip| tooltip.body)
+            control.tooltip(Clock::real()).map(|tooltip| tooltip.groups)
         );
         assert!(hover_card.contains(&refused_write().to_string()));
     }

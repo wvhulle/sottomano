@@ -7,6 +7,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -104,7 +105,7 @@ impl ReadingSections for LlamaModelProps {
             Section::dictionary([
                 KeyValue::new("File", Cell::Path(self.path.clone())),
                 KeyValue::new("Quantization", self.quantization.clone()),
-                KeyValue::new("Slots", self.total_slots.to_string()),
+                KeyValue::new("Slots", Quantity::count(self.total_slots)),
                 KeyValue::new("Input", modalities),
                 KeyValue::new("Build", self.build.clone()),
             ])

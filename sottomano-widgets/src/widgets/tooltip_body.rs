@@ -31,7 +31,7 @@ use crate::{
     },
     widgets::{
         bar_widget::Glyph, icon_handle::PixmapHandles, localized_durations::LengthOfTime,
-        localized_time::LocalizedTimeFormat,
+        localized_quantities::Quantity, localized_time::LocalizedTimeFormat,
     },
 };
 
@@ -48,6 +48,7 @@ pub enum Cell {
     SignedDuration(TimeDelta),
     RelativeMoment(DateTime<Utc>),
     Readout(SliderReadout),
+    Quantity(Quantity),
     Link {
         label: String,
         url: String,
@@ -101,6 +102,12 @@ impl Cell {
 impl From<String> for Cell {
     fn from(text: String) -> Self {
         Cell::Text(text)
+    }
+}
+
+impl From<Quantity> for Cell {
+    fn from(quantity: Quantity) -> Self {
+        Cell::Quantity(quantity)
     }
 }
 
@@ -222,41 +229,59 @@ impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ColumnHeading {
-    label: &'static str,
-    align_x: Horizontal,
+pub enum ColumnHeading {
+    Titled {
+        label: &'static str,
+        align_x: Horizontal,
+    },
+    Untitled {
+        align_x: Horizontal,
+    },
 }
 
 impl ColumnHeading {
     #[must_use]
-    pub const fn new(label: &'static str) -> Self {
-        Self {
+    pub const fn titled(label: &'static str) -> Self {
+        ColumnHeading::Titled {
             label,
             align_x: Horizontal::Right,
         }
     }
 
     #[must_use]
+    pub const fn untitled() -> Self {
+        ColumnHeading::Untitled {
+            align_x: Horizontal::Right,
+        }
+    }
+
+    #[must_use]
     pub const fn align_x(self, align_x: Horizontal) -> Self {
-        Self { align_x, ..self }
+        match self {
+            ColumnHeading::Titled { label, .. } => ColumnHeading::Titled { label, align_x },
+            ColumnHeading::Untitled { .. } => ColumnHeading::Untitled { align_x },
+        }
     }
 
     #[must_use]
-    pub fn label(&self) -> &'static str {
-        self.label
+    pub const fn alignment(&self) -> Horizontal {
+        match self {
+            ColumnHeading::Titled { align_x, .. } | ColumnHeading::Untitled { align_x } => *align_x,
+        }
     }
+}
 
-    #[must_use]
-    pub fn alignment(&self) -> Horizontal {
-        self.align_x
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableColumns {
+    Headed(Vec<ColumnHeading>),
+    Unheaded(Vec<Horizontal>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
     Dictionary(Vec<KeyValue>),
     ColumnTable {
-        headings: Vec<ColumnHeading>,
+        columns: TableColumns,
         records: Vec<RecordCells>,
     },
     Tree {
@@ -265,6 +290,13 @@ pub enum SectionBody {
     },
     CoreGrid(Vec<ChipletCells>),
     ControllerDiagram(ControllerCallouts),
+    Note {
+        title: String,
+        body: Option<String>,
+    },
+    Workspace(WorkspacePreview),
+    TrayMenu(TrayMenuBody),
+    SessionMenu(SessionMenuBody),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -300,11 +332,11 @@ pub struct ThreadCell {
 
 impl SectionBody {
     fn column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
+        columns: TableColumns,
         rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
     ) -> Self {
         SectionBody::ColumnTable {
-            headings: headings.into(),
+            columns,
             records: rows
                 .into_iter()
                 .map(|row| RecordCells::from(row.table_record()))
@@ -317,9 +349,13 @@ impl SectionBody {
         match self {
             SectionBody::Dictionary(entries) => entries.is_empty(),
             SectionBody::ColumnTable { records, .. } => records.is_empty(),
-            SectionBody::Tree { .. } => false,
             SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
             SectionBody::ControllerDiagram(diagram) => diagram.callouts.is_empty(),
+            SectionBody::Workspace(preview) => {
+                preview.columns.is_empty() && preview.floating.is_empty()
+            }
+            SectionBody::SessionMenu(menu) => menu.entries.is_empty(),
+            SectionBody::Tree { .. } | SectionBody::Note { .. } | SectionBody::TrayMenu(_) => false,
         }
     }
 }
@@ -335,8 +371,6 @@ pub enum Readiness {
 pub struct Section {
     heading: Option<Heading>,
     body: SectionBody,
-    readiness: Readiness,
-    freshness: Freshness,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -374,28 +408,29 @@ impl Section {
         Self {
             heading: None,
             body,
-            readiness: Readiness::Settled,
-            freshness: Freshness::Live,
         }
     }
 
-    #[must_use]
-    pub(in crate::widgets) fn stamped(self, readiness: Readiness, freshness: Freshness) -> Self {
-        Self {
-            readiness,
-            freshness,
-            ..self
-        }
+    pub fn note(title: impl Into<String>, body: Option<String>) -> Self {
+        Self::untitled(SectionBody::Note {
+            title: title.into(),
+            body,
+        })
     }
 
     #[must_use]
-    pub fn readiness(&self) -> Readiness {
-        self.readiness
+    pub fn workspace(preview: WorkspacePreview) -> Self {
+        Self::untitled(SectionBody::Workspace(preview))
     }
 
     #[must_use]
-    pub fn freshness(&self) -> Freshness {
-        self.freshness
+    pub fn tray_menu(menu: TrayMenuBody) -> Self {
+        Self::untitled(SectionBody::TrayMenu(menu))
+    }
+
+    #[must_use]
+    pub fn session_menu(menu: SessionMenuBody) -> Self {
+        Self::untitled(SectionBody::SessionMenu(menu))
     }
 
     pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
@@ -424,7 +459,20 @@ impl Section {
         headings: [ColumnHeading; COLUMNS],
         rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
     ) -> Self {
-        Self::untitled(SectionBody::column_table(headings, rows))
+        Self::untitled(SectionBody::column_table(
+            TableColumns::Headed(headings.into()),
+            rows,
+        ))
+    }
+
+    pub fn unheaded_table<const COLUMNS: usize>(
+        alignments: [Horizontal; COLUMNS],
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
+    ) -> Self {
+        Self::untitled(SectionBody::column_table(
+            TableColumns::Unheaded(alignments.into()),
+            rows,
+        ))
     }
 
     pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
@@ -495,41 +543,8 @@ pub struct WorkspacePreview {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum WholeBody {
-    Text { title: String, body: Option<String> },
-    Workspace(WorkspacePreview),
-    TrayMenu(TrayMenuBody),
-    SessionMenu(SessionMenuBody),
-}
-
-impl WholeBody {
-    fn is_empty(&self) -> bool {
-        match self {
-            WholeBody::Workspace(preview) => {
-                preview.columns.is_empty() && preview.floating.is_empty()
-            }
-            WholeBody::SessionMenu(menu) => menu.entries.is_empty(),
-            WholeBody::Text { .. } | WholeBody::TrayMenu(_) => false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum TooltipBody {
-    Sections(Vec<Section>),
-    Whole {
-        body: WholeBody,
-        freshness: Freshness,
-    },
-}
-
-impl From<WholeBody> for TooltipBody {
-    fn from(body: WholeBody) -> Self {
-        TooltipBody::Whole {
-            body,
-            freshness: Freshness::Live,
-        }
-    }
+pub struct TooltipBody {
+    sections: Vec<Section>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -557,47 +572,74 @@ pub struct SessionMenuBody {
 
 impl TooltipBody {
     pub fn sections(sections: impl IntoIterator<Item = Section>) -> Self {
-        TooltipBody::Sections(sections.into_iter().collect())
+        Self {
+            sections: sections.into_iter().collect(),
+        }
     }
 
     pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
-        TooltipBody::Sections(vec![Section::dictionary(entries)])
+        Self::sections([Section::dictionary(entries)])
     }
 
     #[must_use]
-    pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
-        match self {
-            TooltipBody::Sections(mut sections) => {
-                sections.extend(extra);
-                TooltipBody::Sections(sections)
-            }
-            whole @ TooltipBody::Whole { .. } => whole,
+    pub fn with_sections(mut self, extra: impl IntoIterator<Item = Section>) -> Self {
+        self.sections.extend(extra);
+        self
+    }
+
+    #[must_use]
+    pub fn listed_sections(&self) -> &[Section] {
+        &self.sections
+    }
+}
+
+impl From<Section> for TooltipBody {
+    fn from(section: Section) -> Self {
+        Self::sections([section])
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SourcedSections {
+    readiness: Readiness,
+    freshness: Freshness,
+    sections: Vec<Section>,
+}
+
+impl SourcedSections {
+    #[must_use]
+    pub fn new(readiness: Readiness, freshness: Freshness, body: TooltipBody) -> Self {
+        Self {
+            readiness,
+            freshness,
+            sections: body.sections,
         }
     }
 
     #[must_use]
-    fn stamped(self, freshness: Freshness) -> Self {
-        match self {
-            TooltipBody::Sections(sections) => TooltipBody::Sections(
-                sections
-                    .into_iter()
-                    .map(|section| {
-                        let readiness = section.readiness;
-                        section.stamped(readiness, freshness)
-                    })
-                    .collect(),
-            ),
-            TooltipBody::Whole { body, .. } => TooltipBody::Whole { body, freshness },
-        }
+    pub fn settled(body: TooltipBody, freshness: Freshness) -> Self {
+        Self::new(Readiness::Settled, freshness, body)
     }
 
-    fn is_empty(&self) -> bool {
-        match self {
-            TooltipBody::Sections(sections) => {
-                sections.iter().all(|section| section.body.is_empty())
-            }
-            TooltipBody::Whole { body, .. } => body.is_empty(),
-        }
+    #[must_use]
+    pub fn readiness(&self) -> Readiness {
+        self.readiness
+    }
+
+    #[must_use]
+    pub fn freshness(&self) -> Freshness {
+        self.freshness
+    }
+
+    pub fn filled_sections(&self) -> impl Iterator<Item = &Section> {
+        self.sections
+            .iter()
+            .filter(|section| !section.body.is_empty())
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.filled_sections().next().is_none()
     }
 }
 
@@ -639,37 +681,36 @@ impl Freshness {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
-    pub body: TooltipBody,
+    pub groups: Vec<SourcedSections>,
     pub press_hints: PressHints,
 }
 
 impl Tooltip {
     #[must_use]
     pub fn empty() -> Self {
-        Self::sections([])
+        Self::grouped([])
     }
 
-    pub fn sections(sections: impl IntoIterator<Item = Section>) -> Self {
+    pub fn grouped(groups: impl IntoIterator<Item = SourcedSections>) -> Self {
         Self {
-            body: TooltipBody::sections(sections),
+            groups: groups.into_iter().collect(),
             press_hints: PressHints::default(),
         }
     }
 
     #[must_use]
     pub fn sourced(body: TooltipBody, freshness: Freshness) -> Self {
-        Self {
-            body: body.stamped(freshness),
-            press_hints: PressHints::default(),
-        }
+        Self::grouped([SourcedSections::settled(body, freshness)])
     }
 
     #[must_use]
-    pub fn with_sections(self, extra: impl IntoIterator<Item = Section>) -> Self {
-        Self {
-            body: self.body.with_sections(extra),
-            ..self
-        }
+    pub fn with_groups(mut self, extra: impl IntoIterator<Item = SourcedSections>) -> Self {
+        self.groups.extend(extra);
+        self
+    }
+
+    pub fn filled_groups(&self) -> impl Iterator<Item = &SourcedSections> {
+        self.groups.iter().filter(|group| !group.is_empty())
     }
 
     #[must_use]
@@ -680,7 +721,7 @@ impl Tooltip {
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.body.is_empty()
+        self.filled_groups().next().is_none()
     }
 }
 
@@ -718,12 +759,15 @@ mod tests {
         ];
         assert_eq!(
             Section::column_table(
-                [ColumnHeading::new("Moons"), ColumnHeading::new("")],
+                [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
                 &planets
             )
             .body(),
             &SectionBody::ColumnTable {
-                headings: vec![ColumnHeading::new("Moons"), ColumnHeading::new("")],
+                columns: TableColumns::Headed(vec![
+                    ColumnHeading::titled("Moons"),
+                    ColumnHeading::untitled()
+                ]),
                 records: vec![
                     TableRecord::new("Mars", [Some("2".into()), None]).into(),
                     TableRecord::new("Venus", [Some("0".into()), None])

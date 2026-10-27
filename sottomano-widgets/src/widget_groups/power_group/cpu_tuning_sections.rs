@@ -7,8 +7,8 @@ use crate::{
 };
 
 const HEADINGS: [ColumnHeading; 2] = [
-    ColumnHeading::new("Value"),
-    ColumnHeading::new("Meaning").align_x(Horizontal::Left),
+    ColumnHeading::titled("Value"),
+    ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
 ];
 
 fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> {

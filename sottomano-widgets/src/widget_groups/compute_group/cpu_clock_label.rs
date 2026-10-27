@@ -15,12 +15,13 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
     },
 };
 
-pub(super) fn frequency_text(frequency: Frequency) -> String {
+fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
@@ -39,7 +40,7 @@ impl BarWidget for CpuClock {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let frequency = |key, frequency: Option<Frequency>| {
-            frequency.map(|frequency| KeyValue::new(key, frequency_text(frequency)))
+            frequency.map(|frequency| KeyValue::new(key, Quantity::clock_gigahertz(frequency)))
         };
         let shared_causes = self.shared_causes();
         TooltipBody::sections([Section::dictionary(

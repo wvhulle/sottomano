@@ -1,20 +1,16 @@
 use sottomano_sources::battery_power_profiles::upower_battery_state::{
     Battery, ChargeStatus, ChargerSupply,
 };
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{
-        electric_current::ampere,
-        electric_potential::volt,
-        f64::{Power, Ratio},
-        power::watt,
-    },
+use uom::si::{
+    f64::{Power, Ratio},
+    power::watt,
 };
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -47,7 +43,7 @@ impl PowerDraw {
     fn breakdown_on_battery(&self) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([KeyValue::new(
             "Laptop",
-            power_text(self.power),
+            Quantity::power(self.power),
         )])
         .titled("Battery feeds")])
     }
@@ -55,11 +51,11 @@ impl PowerDraw {
     fn breakdown_on_ac(&self) -> TooltipBody {
         let laptop = self
             .expected_laptop
-            .map(|laptop| KeyValue::new("Laptop (estimated)", power_text(laptop)));
+            .map(|laptop| KeyValue::new("Laptop (estimated)", Quantity::power(laptop)));
         TooltipBody::sections([Section::dictionary(
             laptop
                 .into_iter()
-                .chain([KeyValue::new("Battery", power_text(self.power))]),
+                .chain([KeyValue::new("Battery", Quantity::power(self.power))]),
         )
         .titled("Charger feeds")])
     }
@@ -70,27 +66,14 @@ impl ReadingSections for ChargerSupply {
         vec![
             Section::dictionary(self.limit.iter().flat_map(|limit| {
                 [
-                    KeyValue::new("Limit", power_text(limit.power())),
-                    KeyValue::new(
-                        "Voltage",
-                        format!("{:.0}", limit.voltage.into_format_args(volt, Abbreviation)),
-                    ),
-                    KeyValue::new(
-                        "Current",
-                        format!(
-                            "{:.2}",
-                            limit.current.into_format_args(ampere, Abbreviation)
-                        ),
-                    ),
+                    KeyValue::new("Limit", Quantity::power(limit.power())),
+                    KeyValue::new("Voltage", Quantity::voltage(limit.voltage)),
+                    KeyValue::new("Current", Quantity::current(limit.current)),
                 ]
             }))
             .titled("Charger"),
         ]
     }
-}
-
-fn power_text(power: Power) -> String {
-    format!("{:.1}", power.into_format_args(watt, Abbreviation))
 }
 
 impl BarWidget for PowerDraw {
@@ -134,7 +117,11 @@ impl BarWidget for PowerDraw {
 #[cfg(test)]
 mod tests {
     use sottomano_sources::battery_power_profiles::upower_battery_state::ChargerLimit;
-    use uom::si::f64::{ElectricCurrent, ElectricPotential};
+    use uom::si::{
+        electric_current::ampere,
+        electric_potential::volt,
+        f64::{ElectricCurrent, ElectricPotential},
+    };
 
     use super::*;
 
@@ -157,17 +144,26 @@ mod tests {
         assert_eq!(
             charger.sections(Clock::real()),
             [Section::dictionary([
-                KeyValue::new("Limit", "65.0 W"),
-                KeyValue::new("Voltage", "20 V"),
-                KeyValue::new("Current", "3.25 A"),
+                KeyValue::new("Limit", Quantity::power(Power::new::<watt>(65.0))),
+                KeyValue::new(
+                    "Voltage",
+                    Quantity::voltage(ElectricPotential::new::<volt>(20.0))
+                ),
+                KeyValue::new(
+                    "Current",
+                    Quantity::current(ElectricCurrent::new::<ampere>(3.25))
+                ),
             ])
             .titled("Charger")]
         );
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
             TooltipBody::sections([Section::dictionary([
-                KeyValue::new("Laptop (estimated)", "8.9 W"),
-                KeyValue::new("Battery", "19.7 W"),
+                KeyValue::new(
+                    "Laptop (estimated)",
+                    Quantity::power(Power::new::<watt>(8.9))
+                ),
+                KeyValue::new("Battery", Quantity::power(Power::new::<watt>(19.7))),
             ])
             .titled("Charger feeds")])
         );
@@ -177,9 +173,11 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            TooltipBody::sections([
-                Section::dictionary([KeyValue::new("Laptop", "19.7 W")]).titled("Battery feeds"),
-            ])
+            TooltipBody::sections([Section::dictionary([KeyValue::new(
+                "Laptop",
+                Quantity::power(Power::new::<watt>(19.7))
+            )])
+            .titled("Battery feeds"),])
         );
     }
 }

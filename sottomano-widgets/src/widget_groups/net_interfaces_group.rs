@@ -164,10 +164,10 @@ impl NetInterfacesGroup {
             NetInterfaceTarget::Bluetooth => self.bluetooth.tooltip(clock),
             NetInterfaceTarget::Ethernet => self
                 .ethernet
-                .tooltip_with_sections(self.ethernet_details.sections(clock), clock),
+                .tooltip_with_groups(self.ethernet_details.sections(clock), clock),
             NetInterfaceTarget::Wifi => self
                 .wifi
-                .tooltip_with_sections(self.wifi_details.sections(clock), clock),
+                .tooltip_with_groups(self.wifi_details.sections(clock), clock),
             NetInterfaceTarget::Mobile => self.mobile.tooltip(clock),
         }
     }

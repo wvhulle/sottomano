@@ -1,3 +1,5 @@
+mod recording_embed_widths;
+
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
 use clap::{Parser, Subcommand};
@@ -20,6 +22,15 @@ enum MaintenanceTask {
         #[arg(
             long,
             help = "Fail when the section is stale instead of rewriting the file."
+        )]
+        check: bool,
+    },
+    #[command(about = "Set the width of every recording embedded in README.md and \
+                       docs/showcase.md to its logical width.")]
+    UpdateRecordingEmbeds {
+        #[arg(
+            long,
+            help = "Fail when an embed width is stale instead of rewriting the documents."
         )]
         check: bool,
     },
@@ -126,5 +137,8 @@ fn update_config_docs(check: bool) -> Result<ExitCode, Box<dyn Error>> {
 fn main() -> Result<ExitCode, Box<dyn Error>> {
     match XtaskCommandLine::parse().task {
         MaintenanceTask::UpdateConfigDocs { check } => update_config_docs(check),
+        MaintenanceTask::UpdateRecordingEmbeds { check } => {
+            recording_embed_widths::update_recording_embeds(Path::new(WORKSPACE_ROOT), check)
+        }
     }
 }

@@ -1,14 +1,12 @@
 use chrono::Locale;
 use sottomano_sources::weather::open_meteo_wind::Wind;
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{angle::degree, f64::Velocity, velocity::kilometer_per_hour},
-};
+use uom::si::angle::degree;
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         tooltip_body::{KeyValue, TooltipBody},
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
@@ -16,13 +14,6 @@ use crate::{
 };
 
 const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-
-fn speed_text(speed: Velocity) -> String {
-    format!(
-        "{:.0}",
-        speed.into_format_args(kilometer_per_hour, Abbreviation)
-    )
-}
 
 impl BarWidget for Wind {
     fn name(&self) -> &'static str {
@@ -53,20 +44,14 @@ impl BarWidget for Wind {
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let sector = (self.direction.get::<degree>().rem_euclid(360.0) / 45.0).round() as usize;
         TooltipBody::dictionary([
-            KeyValue::new("Speed", speed_text(self.speed)),
-            KeyValue::new("Beaufort", self.beaufort().to_string()),
-            KeyValue::new("Gusts", speed_text(self.gusts)),
+            KeyValue::new("Speed", Quantity::wind_speed(self.speed)),
+            KeyValue::new("Beaufort", Quantity::count(self.beaufort())),
+            KeyValue::new("Gusts", Quantity::wind_speed(self.gusts)),
             KeyValue::new(
                 "From",
                 COMPASS_POINTS[sector % COMPASS_POINTS.len()].to_owned(),
             ),
-            KeyValue::new(
-                "Bearing",
-                format!(
-                    "{:.0}",
-                    self.direction.into_format_args(degree, Abbreviation)
-                ),
-            ),
+            KeyValue::new("Bearing", Quantity::angle(self.direction)),
         ])
     }
 }

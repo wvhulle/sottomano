@@ -10,6 +10,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -57,27 +58,24 @@ impl BarWidget for Bluetooth {
             );
         };
         let overview = Section::dictionary([
-            KeyValue::new("Connected", radio.connected.len().to_string()),
-            KeyValue::new("Paired", radio.paired.to_string()),
+            KeyValue::new("Connected", Quantity::count(radio.connected.len())),
+            KeyValue::new("Paired", Quantity::count(radio.paired)),
         ])
         .titled("Bluetooth");
-        let devices = radio.connected.iter().map(|device| {
-            Section::dictionary(
-                [KeyValue::new("Address", device.address.as_str())]
-                    .into_iter()
-                    .chain(
-                        device
-                            .signal
-                            .map(|signal| KeyValue::new("Signal", format!("{signal}%"))),
-                    )
-                    .chain(
-                        device
-                            .battery
-                            .map(|battery| KeyValue::new("Battery", format!("{battery}%"))),
-                    ),
-            )
-            .titled(device.name.clone())
-        });
+        let devices =
+            radio.connected.iter().map(|device| {
+                Section::dictionary(
+                    [KeyValue::new("Address", device.address.as_str())]
+                        .into_iter()
+                        .chain(device.signal.map(|signal| {
+                            KeyValue::new("Signal", Quantity::share(percent_fill(signal)))
+                        }))
+                        .chain(device.battery.map(|battery| {
+                            KeyValue::new("Battery", Quantity::whole_percent(battery))
+                        })),
+                )
+                .titled(device.name.clone())
+            });
         TooltipBody::sections(once(overview).chain(devices).chain(hardware))
     }
 }

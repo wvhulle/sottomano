@@ -15,6 +15,7 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
@@ -129,10 +130,10 @@ impl BarWidget for OpenTasks<'_> {
         TooltipBody::sections([
             Section::column_table(
                 [
-                    ColumnHeading::new("Due"),
-                    ColumnHeading::new("Priority"),
-                    ColumnHeading::new("Progress"),
-                    ColumnHeading::new("List").align_x(Horizontal::Left),
+                    ColumnHeading::titled("Due"),
+                    ColumnHeading::titled("Priority"),
+                    ColumnHeading::titled("Progress"),
+                    ColumnHeading::titled("List").align_x(Horizontal::Left),
                 ],
                 rows,
             )
@@ -146,8 +147,9 @@ impl BarWidget for OpenTasks<'_> {
             )),
             nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app, hidden)
                 .with_entries(
-                    (without_deadline > 0)
-                        .then(|| KeyValue::new("Without deadline", without_deadline.to_string())),
+                    (without_deadline > 0).then(|| {
+                        KeyValue::new("Without deadline", Quantity::count(without_deadline))
+                    }),
                 ),
         ])
     }

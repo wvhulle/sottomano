@@ -36,6 +36,7 @@ info = "#59c2ff"
 dim = "#3e4b59"
 surface_raised = "#202229"
 frame_outline = "#3e4b59"
+secondary_foreground = "#bfbdb6"
 
 [theme.font]
 text_size = "14px"
@@ -132,6 +133,7 @@ daily_warning_usd = 5
 
 [widget_groups.focus_time]
 idle_detection_delay = "30s"
+shortest_counted_focus = "1s"
 idle_after = "3m"
 session_warning = "45m"
 session_critical = "1h 30m"

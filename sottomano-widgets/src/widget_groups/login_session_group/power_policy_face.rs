@@ -5,6 +5,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -76,8 +77,8 @@ impl ReadingSections for PowerPolicy {
                 })
         };
         let lock_headings = [
-            ColumnHeading::new("Holds").align_x(Horizontal::Left),
-            ColumnHeading::new("Why").align_x(Horizontal::Left),
+            ColumnHeading::titled("Holds").align_x(Horizontal::Left),
+            ColumnHeading::titled("Why").align_x(Horizontal::Left),
         ];
         let scheduled = self.scheduled_shutdown.as_ref().map(|shutdown| {
             let key = match shutdown.kind.as_str() {
@@ -124,7 +125,7 @@ impl ReadingSections for PowerPolicy {
                         "External power",
                         yes_no(self.chassis.on_external_power),
                     )),
-                    Some(KeyValue::new("Sessions", self.sessions.to_string())),
+                    Some(KeyValue::new("Sessions", Quantity::count(self.sessions))),
                     scheduled,
                     self.preparing_for_shutdown
                         .then(|| KeyValue::new("Preparing for shutdown", "yes")),

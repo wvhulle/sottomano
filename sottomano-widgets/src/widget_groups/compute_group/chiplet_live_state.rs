@@ -3,7 +3,12 @@ use sottomano_sources::cpu_memory_compute::{
     cpu_temperature::Temperature, cpu_topology::CoreGroup, temperature_thresholds::celsius_text,
 };
 
-use crate::widgets::{gauge::percent_text, tooltip_body::KeyValue};
+use crate::widgets::{
+    localized_quantities::{DisplayUnit, Quantity},
+    tooltip_body::KeyValue,
+};
+
+const LOOKUPS_PER_MILLION: f64 = 1_000_000.0;
 
 pub struct ChipletLiveState<'a> {
     pub clock: Option<&'a CpuClock>,
@@ -59,10 +64,14 @@ impl ChipletLiveState<'_> {
             .filter(|cache| group.contains(cache.counted_on_cpu))
             .flat_map(|cache| {
                 [
-                    KeyValue::new("L3 hits", percent_text(cache.hit_rate)),
+                    KeyValue::new("L3 hits", Quantity::share(cache.hit_rate)),
                     KeyValue::new(
                         "L3 lookups",
-                        format!("{:.0} M/s", cache.lookups_per_second / 1_000_000.0),
+                        Quantity::measured(
+                            cache.lookups_per_second / LOOKUPS_PER_MILLION,
+                            DisplayUnit::MillionsPerSecond,
+                            0,
+                        ),
                     ),
                 ]
             })

@@ -8,7 +8,9 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
-        tooltip_body::{Freshness, Readiness, ReadingSections, Section, Tooltip, TooltipBody},
+        tooltip_body::{
+            Freshness, ReadingSections, Section, SourcedSections, Tooltip, TooltipBody,
+        },
         widget_state::WidgetState,
     },
 };
@@ -82,14 +84,17 @@ impl<S: ReadingSource> ContinuousReading<S> {
         Some(Tooltip::sourced(body, self.freshness()?))
     }
 
-    pub fn sections_described_by(&self, describe: impl FnOnce(&S) -> Vec<Section>) -> Vec<Section> {
+    pub fn sections_described_by(
+        &self,
+        describe: impl FnOnce(&S) -> Vec<Section>,
+    ) -> Option<SourcedSections> {
         let ContinuousReading::Read { data, freshness } = self else {
-            return Vec::new();
+            return None;
         };
-        describe(data)
-            .into_iter()
-            .map(|section| section.stamped(Readiness::Settled, *freshness))
-            .collect()
+        Some(SourcedSections::settled(
+            TooltipBody::sections(describe(data)),
+            *freshness,
+        ))
     }
 
     fn kept(self, delivery: SourceDelivery<S>, freshness: Freshness) -> Self {
@@ -122,7 +127,7 @@ impl<S: ReadingSource> ContinuousReading<S> {
 }
 
 impl<S: ReadingSource + ReadingSections> ContinuousReading<S> {
-    pub fn sections(&self, clock: Clock) -> Vec<Section> {
+    pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
         self.sections_described_by(|reading| reading.sections(clock))
     }
 }
@@ -227,12 +232,12 @@ impl<S: ReadingSource<Error: Into<Section>> + BarWidget> ContinuousReading<S> {
         self.tooltip_with(self.display()?.tooltip(clock))
     }
 
-    pub fn tooltip_with_sections(
+    pub fn tooltip_with_groups(
         &self,
-        extra: impl IntoIterator<Item = Section>,
+        extra: impl IntoIterator<Item = SourcedSections>,
         clock: Clock,
     ) -> Option<Tooltip> {
         let own = self.tooltip_with(self.display()?.tooltip(clock))?;
-        Some(own.with_sections(extra))
+        Some(own.with_groups(extra))
     }
 }

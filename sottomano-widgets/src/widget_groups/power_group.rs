@@ -188,7 +188,7 @@ impl PowerGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: PowerTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            PowerTarget::Battery => self.battery.tooltip_with_sections(
+            PowerTarget::Battery => self.battery.tooltip_with_groups(
                 self.battery
                     .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
                 clock,
@@ -196,14 +196,14 @@ impl PowerGroup {
             PowerTarget::Draw => {
                 let draw = self.draw()?;
                 let charger = if draw.on_battery() {
-                    Vec::new()
+                    None
                 } else {
                     self.charger.sections(clock)
                 };
                 Some(
                     self.battery
                         .tooltip_with(draw.tooltip(clock))?
-                        .with_sections(charger),
+                        .with_groups(charger),
                 )
             }
             PowerTarget::BatteryTime => self
@@ -212,7 +212,7 @@ impl PowerGroup {
             PowerTarget::Profile => self
                 .power_profile
                 .tooltip(clock)
-                .map(|tooltip| tooltip.with_sections(self.cpu_tuning.sections(clock))),
+                .map(|tooltip| tooltip.with_groups(self.cpu_tuning.sections(clock))),
         }
     }
 

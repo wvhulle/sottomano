@@ -8,8 +8,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{percent_text, two_decimals},
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
@@ -52,10 +52,16 @@ impl BarWidget for CopilotMetered {
             ),
             Section::dictionary(
                 [
-                    KeyValue::new("Used", two_decimals(self.used)),
-                    KeyValue::new("Used Share", percent_text(self.used_share)),
-                    KeyValue::new("Remaining", two_decimals(self.remaining)),
-                    KeyValue::new("Limit", self.limit.to_string()),
+                    KeyValue::new(
+                        "Used",
+                        Quantity::measured(self.used, DisplayUnit::Unitless, 2),
+                    ),
+                    KeyValue::new("Used Share", Quantity::share(self.used_share).decimals(2)),
+                    KeyValue::new(
+                        "Remaining",
+                        Quantity::measured(self.remaining, DisplayUnit::Unitless, 2),
+                    ),
+                    KeyValue::new("Limit", Quantity::count(self.limit)),
                 ]
                 .into_iter()
                 .chain(self.reset.map(|at| {

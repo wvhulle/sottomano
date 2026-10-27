@@ -11,8 +11,8 @@ use crate::{
 };
 
 const HOLD_HEADINGS: [ColumnHeading; 2] = [
-    ColumnHeading::new("Profile"),
-    ColumnHeading::new("Reason").align_x(Horizontal::Left),
+    ColumnHeading::titled("Profile"),
+    ColumnHeading::titled("Reason").align_x(Horizontal::Left),
 ];
 
 impl TableRow<2> for &ProfileHold {

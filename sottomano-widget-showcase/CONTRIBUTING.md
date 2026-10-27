@@ -53,9 +53,11 @@ which switches between presets and records interactions as `.ice` scenarios.
 Scenarios saved in `tests/ice/` run with `cargo test` (and so in CI); `expect`
 sees plain text widgets, not rich text such as toast bodies.
 
-The full run also checks the embeds. Each recording appears once, either in
+Each recording appears once, either in
 the root `README.md` (a few highlights, as `<img src="recordings/<name>.webp"
 width="<w>">`) or in `docs/showcase.md` (the rest, as `<img
 src="../recordings/<name>.webp" width="<w>">`). `<w>` is the recording's cropped
-width in logical pixels, so all demos show at the same scale. The check prints
-the expected tag when one is missing or off.
+width in logical pixels, so all demos show at the same scale. After rendering,
+`cargo xtask update-recording-embeds` rewrites `<w>` from the files in
+`recordings/`; it fails with the expected tag only when a recording is embedded
+nowhere. CI runs it right after the render.

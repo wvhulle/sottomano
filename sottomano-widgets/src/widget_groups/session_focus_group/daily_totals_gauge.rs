@@ -97,14 +97,14 @@ impl UnitSpendRecord {
         } else if records.iter().any(|record| record.budget_status.is_some()) {
             Some(Section::column_table(
                 [
-                    ColumnHeading::new("Active (24h)"),
-                    ColumnHeading::new("Daily budget"),
+                    ColumnHeading::titled("Active (24h)"),
+                    ColumnHeading::titled("Daily budget"),
                 ],
                 records.iter().map(|record| record.budgeted_record()),
             ))
         } else {
             Some(Section::column_table(
-                [ColumnHeading::new("Active (24h)")],
+                [ColumnHeading::titled("Active (24h)")],
                 records.iter().map(|record| record.plain_record()),
             ))
         }

@@ -9,6 +9,7 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
@@ -55,15 +56,15 @@ impl BarWidget for GpuTemperatureLabel {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
-            Section::dictionary([KeyValue::new("GPU", celsius_text(self.current))]),
+            Section::dictionary([KeyValue::new("GPU", Quantity::temperature(self.current))]),
             Section::dictionary(
                 [
-                    self.limits
-                        .target_max
-                        .map(|target| KeyValue::new("Target maximum", celsius_text(target))),
-                    self.limits
-                        .slowdown
-                        .map(|slowdown| KeyValue::new("Slows down at", celsius_text(slowdown))),
+                    self.limits.target_max.map(|target| {
+                        KeyValue::new("Target maximum", Quantity::temperature(target))
+                    }),
+                    self.limits.slowdown.map(|slowdown| {
+                        KeyValue::new("Slows down at", Quantity::temperature(slowdown))
+                    }),
                 ]
                 .into_iter()
                 .flatten(),

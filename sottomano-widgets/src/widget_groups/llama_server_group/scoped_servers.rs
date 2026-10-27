@@ -22,7 +22,7 @@ use crate::{
         bar_widget::BarWidget,
         continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        tooltip_body::{Cell, KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{Cell, KeyValue, Section, SourcedSections, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
 };
@@ -153,7 +153,7 @@ impl ScopedLlamaServers {
     pub fn tooltip_for(
         &self,
         target: &LlamaServerTarget,
-        model_props: Vec<Section>,
+        model_props: Option<SourcedSections>,
         clock: Clock,
     ) -> Option<Tooltip> {
         let readings = self.servers.get(&target.unit)?;
@@ -189,7 +189,7 @@ impl ScopedLlamaServers {
                 Some(
                     reading
                         .tooltip_with(TooltipBody::sections([status_and_web_ui, available_models]))?
-                        .with_sections(model_props),
+                        .with_groups(model_props),
                 )
             }
             LlamaServerReading::GenerationRate => {

@@ -15,8 +15,8 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        rate_text::per_second_text,
         tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
@@ -91,15 +91,15 @@ impl BarWidget for Throughput {
         };
         TooltipBody::dictionary(
             [
-                KeyValue::new(rate_label, per_second_text(self.rate)),
-                KeyValue::new("Peak", per_second_text(self.peak_rate)),
+                KeyValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+                KeyValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
                 KeyValue::new("Interfaces", self.interfaces.join(", ")),
             ]
             .into_iter()
             .chain(connectivity)
             .chain([KeyValue::new(
                 "Capacity",
-                per_second_text(InformationRate::new::<megabyte_per_second>(
+                Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
                     SCALE_END_MB_PER_S,
                 )),
             )]),
@@ -122,8 +122,8 @@ impl BarWidget for InterfaceThroughput {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Down", per_second_text(self.down.rate)),
-            KeyValue::new("Up", per_second_text(self.up.rate)),
+            KeyValue::new("Down", Quantity::transfer_rate(self.down.rate)),
+            KeyValue::new("Up", Quantity::transfer_rate(self.up.rate)),
         ])
     }
 }

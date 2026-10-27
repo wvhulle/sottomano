@@ -14,6 +14,7 @@ pub struct PaletteColors {
     pub dim: Color,
     pub surface_raised: Color,
     pub frame_outline: Color,
+    pub secondary_foreground: Color,
 }
 
 impl From<&Palette> for PaletteColors {
@@ -30,6 +31,7 @@ impl From<&Palette> for PaletteColors {
             dim: Color::from(palette.dim.components),
             surface_raised: Color::from(palette.surface_raised.components),
             frame_outline: Color::from(palette.frame_outline.components),
+            secondary_foreground: Color::from(palette.secondary_foreground.components),
         }
     }
 }

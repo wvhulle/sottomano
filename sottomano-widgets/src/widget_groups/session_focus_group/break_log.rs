@@ -17,9 +17,9 @@ use crate::{
 const LISTED_BREAKS_LIMIT: usize = 12;
 
 const BREAK_TABLE_HEADINGS: [ColumnHeading; 3] = [
-    ColumnHeading::new("Ended"),
-    ColumnHeading::new("Lasted"),
-    ColumnHeading::new("Counted because").align_x(Horizontal::Left),
+    ColumnHeading::titled("Ended"),
+    ColumnHeading::titled("Lasted"),
+    ColumnHeading::titled("Counted because").align_x(Horizontal::Left),
 ];
 
 pub struct BreakLog<'a> {

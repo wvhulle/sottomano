@@ -11,6 +11,7 @@ use crate::{
     widgets::{
         amount_text::{percent_text, spend_text},
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
@@ -73,12 +74,12 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                     .sum());
                 unlisted
                     .is_positive()
-                    .then(|| Cell::from(unlisted.to_string()))
+                    .then(|| Cell::from(Quantity::spend(unlisted)))
             }),
         );
         TooltipBody::sections([Section::column_table(
             self.narrowest_to_widest
-                .map(|span| ColumnHeading::new(span.heading)),
+                .map(|span| ColumnHeading::titled(span.heading)),
             listed
                 .iter()
                 .map(|model| {
@@ -87,7 +88,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                         self.narrowest_to_widest.map(|span| {
                             span.models
                                 .cost_of(model)
-                                .map(|cost| cost.to_string().into())
+                                .map(|cost| Quantity::spend(cost).into())
                         }),
                     )
                 })

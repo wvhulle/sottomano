@@ -172,14 +172,8 @@
           VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader ];
           doInstallCargoArtifacts = false;
-          buildPhaseCargoCommand = ''
-            mkdir -p recordings
-            cargoWithProfile run $cargoExtraArgs
-          '';
-          installPhaseCommand = ''
-            mkdir -p $out
-            cp recordings/*.webp $out/
-          '';
+          buildPhaseCargoCommand = "cargoWithProfile run $cargoExtraArgs -- --output $out";
+          installPhaseCommand = "";
         }
       );
 

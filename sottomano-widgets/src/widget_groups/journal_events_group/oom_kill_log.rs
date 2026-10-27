@@ -75,8 +75,8 @@ impl BarWidget for Vec<OomKillEntry> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::column_table(
             [
-                ColumnHeading::new("Unit").align_x(Horizontal::Left),
-                ColumnHeading::new("Killed by").align_x(Horizontal::Left),
+                ColumnHeading::titled("Unit").align_x(Horizontal::Left),
+                ColumnHeading::titled("Killed by").align_x(Horizontal::Left),
             ],
             self.iter(),
         )

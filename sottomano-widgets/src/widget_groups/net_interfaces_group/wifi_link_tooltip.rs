@@ -1,8 +1,5 @@
 use sottomano_sources::network_connectivity::wifi_connection::{Wifi, WifiDetails};
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{f64::Ratio, frequency::megahertz},
-};
+use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
@@ -12,6 +9,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
         widget_state::WidgetState,
@@ -55,15 +53,12 @@ impl BarWidget for Wifi {
                 .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
                 .into_iter()
                 .chain([
-                    KeyValue::new("Signal Strength", format!("{}%", link.signal)),
-                    KeyValue::new("Security Type", link.security.as_str()),
                     KeyValue::new(
-                        "Frequency Band",
-                        format!(
-                            "{:.0}",
-                            link.frequency.into_format_args(megahertz, Abbreviation)
-                        ),
+                        "Signal Strength",
+                        Quantity::share(percent_fill(link.signal)),
                     ),
+                    KeyValue::new("Security Type", link.security.as_str()),
+                    KeyValue::new("Frequency Band", Quantity::clock_megahertz(link.frequency)),
                     KeyValue::new("Interface Name", self.device.as_str()),
                 ]),
         )

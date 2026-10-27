@@ -1,19 +1,13 @@
 use chrono::Locale;
 use situo_client::{BeaconDbEstimate, FixOrigin, GeoCoordinates, NearestPlace};
 use sottomano_sources::weather::situo_location_fix::Location;
-use uom::{
-    fmt::DisplayStyle::Abbreviation,
-    si::{
-        angle::degree,
-        f64::Length,
-        length::{kilometer, meter},
-    },
-};
+use uom::si::length::kilometer;
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, TooltipBody},
@@ -89,20 +83,8 @@ impl BarWidget for Location {
         };
         let position = self.geo.position;
         let position_section = Section::dictionary([
-            KeyValue::new(
-                "Latitude",
-                format!(
-                    "{:.4}",
-                    position.latitude.into_format_args(degree, Abbreviation)
-                ),
-            ),
-            KeyValue::new(
-                "Longitude",
-                format!(
-                    "{:.4}",
-                    position.longitude.into_format_args(degree, Abbreviation)
-                ),
-            ),
+            KeyValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
+            KeyValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
             KeyValue::new("Source", self.geo.origin.to_string()),
         ])
         .titled("Position");
@@ -122,10 +104,7 @@ fn place_section(place: Option<&NearestPlace>) -> Section {
             KeyValue::new("Country", place.country.as_str()),
             KeyValue::new(
                 "Distance",
-                format!(
-                    "{:.2}",
-                    place.distance.into_format_args(kilometer, Abbreviation)
-                ),
+                Quantity::measured(place.distance.get::<kilometer>(), DisplayUnit::Kilometer, 2),
             ),
         ]
     }))
@@ -136,7 +115,7 @@ fn estimate_section(estimate: Option<&BeaconDbEstimate>) -> Section {
     Section::dictionary(estimate.into_iter().flat_map(|estimate| {
         let observations = estimate.observations;
         [
-            KeyValue::new("Accuracy", accuracy(estimate.accuracy)),
+            KeyValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
             KeyValue::new(
                 "Access points",
                 format!(
@@ -170,12 +149,4 @@ fn map_section(position: GeoCoordinates) -> Section {
         )
     }))
     .titled("Map")
-}
-
-fn accuracy(accuracy: Length) -> String {
-    if accuracy < Length::new::<kilometer>(1.0) {
-        format!("{:.0}", accuracy.into_format_args(meter, Abbreviation))
-    } else {
-        format!("{:.1}", accuracy.into_format_args(kilometer, Abbreviation))
-    }
 }
