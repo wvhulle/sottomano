@@ -328,9 +328,7 @@ pub enum SectionBody {
         title: String,
         body: Option<String>,
     },
-    PendingLines {
-        line_count: NonZeroUsize,
-    },
+    SectionSeeding,
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
     SessionMenu(SessionMenuBody),
@@ -399,7 +397,7 @@ impl SectionBody {
             SectionBody::SessionMenu(menu) => menu.entries.is_empty(),
             SectionBody::Tree { .. }
             | SectionBody::Note { .. }
-            | SectionBody::PendingLines { .. }
+            | SectionBody::SectionSeeding
             | SectionBody::TrayMenu(_) => false,
         }
     }
@@ -456,8 +454,8 @@ impl Section {
     }
 
     #[must_use]
-    pub fn pending_lines(line_count: NonZeroUsize) -> Self {
-        Self::untitled(SectionBody::PendingLines { line_count })
+    pub fn section_seeding() -> Self {
+        Self::untitled(SectionBody::SectionSeeding)
     }
 
     pub fn note(title: impl Into<String>, body: Option<String>) -> Self {
@@ -906,6 +904,15 @@ mod tests {
         };
         assert_eq!(shown_records.len(), 2);
         assert_eq!(omitted_count.get(), 2);
+    }
+
+    #[test]
+    fn a_seeding_section_keeps_its_group_visible() {
+        let tooltip =
+            Tooltip::grouped([SourcedSections::awaiting_delivery(TooltipBody::sections([
+                Section::section_seeding(),
+            ]))]);
+        assert_eq!(tooltip.filled_groups().count(), 1);
     }
 
     #[test]

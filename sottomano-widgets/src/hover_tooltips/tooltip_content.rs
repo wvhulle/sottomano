@@ -58,8 +58,6 @@ const SECTION_SEPARATION_PX: f32 = 16.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
-const PENDING_LINE_FILLER: &str = "0";
-const PENDING_LINE_CHARACTERS: [usize; 3] = [28, 22, 16];
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 0.0,
@@ -436,27 +434,19 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
-    fn pending_lines(&self, line_count: NonZeroUsize) -> Element<'static, PopupMessage> {
+    fn section_seeding(&self) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
         let color = self.secondary_foreground();
-        Column::with_children(
-            PENDING_LINE_CHARACTERS
-                .iter()
-                .cycle()
-                .take(line_count.get())
-                .map(|&character_count| {
-                    let filler = PENDING_LINE_FILLER.repeat(character_count);
-                    TransitioningText::new(
-                        bar_text(font, filler.clone()).color(color),
-                        filler,
-                        self.transition(TextPresence::Placeholder),
-                        font,
-                        color,
-                    )
-                    .into()
-                }),
+        let line_height_px = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
+        TransitioningText::new(
+            container(Space::new())
+                .width(self.config.tooltips.value_width)
+                .height(line_height_px),
+            String::new(),
+            self.transition(TextPresence::Placeholder),
+            font,
+            color,
         )
-        .spacing(self.config.layout.overlay.row_spacing)
         .into()
     }
 
@@ -499,7 +489,7 @@ impl<'a> TooltipContent<'a> {
                 ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
             SectionBody::Note { title, body } => self.text(title, body.as_deref()),
-            SectionBody::PendingLines { line_count } => self.pending_lines(*line_count),
+            SectionBody::SectionSeeding => self.section_seeding(),
             SectionBody::Workspace(preview) => {
                 WorkspaceSchematic::new(preview, self.config, self.assets).view()
             }
