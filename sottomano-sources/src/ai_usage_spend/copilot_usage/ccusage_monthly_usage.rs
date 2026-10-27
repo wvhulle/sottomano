@@ -35,7 +35,7 @@ impl SnapshotSource for CopilotCcusage {
     type Error = Error;
     type StreamInputs = SpendBudget;
 
-    const NAME: &'static str = "copilot-usage-ccusage";
+    const NAME: &'static str = "Copilot local usage";
 
     fn delivery_stream(budget: SpendBudget) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(ccusage_cli_reports::installed()).while_held(

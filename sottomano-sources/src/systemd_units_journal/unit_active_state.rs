@@ -75,7 +75,7 @@ impl SnapshotSource for UnitActiveState {
     type Error = zbus::Error;
     type StreamInputs = SystemdUnitOnBus;
 
-    const NAME: &'static str = "systemd unit activity";
+    const NAME: &'static str = "Systemd unit activity";
 
     fn delivery_stream(
         unit: SystemdUnitOnBus,

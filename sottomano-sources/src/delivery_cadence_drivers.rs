@@ -315,7 +315,7 @@ mod tests {
         type Error = NeverFails;
         type StreamInputs = ();
 
-        const NAME: &'static str = "counted-snapshot";
+        const NAME: &'static str = "Counted snapshot";
 
         fn delivery_stream(_inputs: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
             stream::empty()

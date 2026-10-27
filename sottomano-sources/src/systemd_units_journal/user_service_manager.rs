@@ -3,7 +3,7 @@ use futures::{Stream, StreamExt};
 use zbus::proxy::CacheProperties;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery, SnapshotSource, SourceCaption,
     host_machine_identity::hostname1_os_identity::at_micros,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
@@ -23,7 +23,10 @@ impl SnapshotSource for UserServiceManager {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "user service manager";
+    const NAME: &'static str = "Your systemd instance right now";
+    const CAPTION: SourceCaption = SourceCaption::Captioned(
+        "One instance per user; it outlives this login and stops at your last logout.",
+    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(manager_state_changes(buses))

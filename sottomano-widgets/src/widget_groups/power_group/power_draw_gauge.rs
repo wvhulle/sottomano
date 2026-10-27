@@ -63,16 +63,13 @@ impl PowerDraw {
 
 impl ReadingSections for ChargerSupply {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.limit.iter().flat_map(|limit| {
-                [
-                    KeyValue::new("Limit", Quantity::power(limit.power())),
-                    KeyValue::new("Voltage", Quantity::voltage(limit.voltage)),
-                    KeyValue::new("Current", Quantity::current(limit.current)),
-                ]
-            }))
-            .titled("Charger"),
-        ]
+        vec![Section::dictionary(self.limit.iter().flat_map(|limit| {
+            [
+                KeyValue::new("Limit", Quantity::power(limit.power())),
+                KeyValue::new("Voltage", Quantity::voltage(limit.voltage)),
+                KeyValue::new("Current", Quantity::current(limit.current)),
+            ]
+        }))]
     }
 }
 
@@ -116,7 +113,9 @@ impl BarWidget for PowerDraw {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::battery_power_profiles::upower_battery_state::ChargerLimit;
+    use sottomano_sources::{
+        SnapshotSource, battery_power_profiles::upower_battery_state::ChargerLimit,
+    };
     use uom::si::{
         electric_current::ampere,
         electric_potential::volt,
@@ -153,9 +152,9 @@ mod tests {
                     "Current",
                     Quantity::current(ElectricCurrent::new::<ampere>(3.25))
                 ),
-            ])
-            .titled("Charger")]
+            ])]
         );
+        assert_eq!(ChargerSupply::NAME, "Charger");
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
             TooltipBody::sections([Section::dictionary([

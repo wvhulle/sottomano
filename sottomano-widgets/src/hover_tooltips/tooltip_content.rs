@@ -138,13 +138,23 @@ impl<'a> TooltipContent<'a> {
 
     fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
         let content = self.in_delivery_state(group.delivery_state());
-        uniform_width_column(
+        let source_heading = group.source_heading().map(|heading| {
+            self.inset(
+                Column::with_children(self.heading_rows(Some(heading.title()), heading.caption()))
+                    .spacing(self.config.layout.overlay.row_spacing)
+                    .into(),
+            )
+        });
+        let sections: Element<'static, PopupMessage> = uniform_width_column(
             group
                 .filled_sections()
                 .map(|section| content.section(section)),
         )
         .spacing(SECTION_SEPARATION_PX)
-        .into()
+        .into();
+        uniform_width_column(source_heading.into_iter().chain(once(sections)))
+            .spacing(self.config.layout.overlay.row_spacing)
+            .into()
     }
 
     fn closing_row(
@@ -454,29 +464,34 @@ impl<'a> TooltipContent<'a> {
         if let SectionBody::TrayMenu(_) | SectionBody::SessionMenu(_) = section.body() {
             return self.body(section.body());
         }
-        let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
-        let title = section.title().map(|title| {
-            container(self.bold_title(title))
-                .padding(title_padding)
-                .into()
-        });
-        let caption = section.caption().map(|caption| {
-            container(self.small_dim_text(caption.to_owned()))
-                .max_width(self.config.tooltips.value_width)
-                .padding(title_padding)
-                .into()
-        });
-
         self.inset(
             Column::with_children(
-                title
-                    .into_iter()
-                    .chain(caption)
+                self.heading_rows(section.title(), section.caption())
                     .chain(once(self.body(section.body()))),
             )
             .spacing(self.config.layout.overlay.row_spacing)
             .into(),
         )
+    }
+
+    fn heading_rows(
+        &self,
+        title: Option<&str>,
+        caption: Option<&str>,
+    ) -> impl Iterator<Item = Element<'static, PopupMessage>> {
+        let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
+        let title = title.map(|title| {
+            container(self.bold_title(title))
+                .padding(title_padding)
+                .into()
+        });
+        let caption = caption.map(|caption| {
+            container(self.small_dim_text(caption.to_owned()))
+                .max_width(self.config.tooltips.value_width)
+                .padding(title_padding)
+                .into()
+        });
+        title.into_iter().chain(caption)
     }
 
     fn body(&self, body: &SectionBody) -> Element<'static, PopupMessage> {

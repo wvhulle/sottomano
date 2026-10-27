@@ -43,7 +43,7 @@ impl SnapshotSource for DiskActivity {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "disk activity";
+    const NAME: &'static str = "Disk activity";
 
     fn delivery_stream(
         (): Self::StreamInputs,

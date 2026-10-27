@@ -41,7 +41,7 @@ impl SnapshotSource for ClaudeCcusagePeriods {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
-    const NAME: &'static str = "claude-ccusage-periods";
+    const NAME: &'static str = "Claude Code local usage";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, false, |logs| {
@@ -72,7 +72,7 @@ impl SnapshotSource for ClaudeCcusageBlock {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
-    const NAME: &'static str = "claude-ccusage-block";
+    const NAME: &'static str = "Claude Code billing block";
 
     fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, true, |_| {

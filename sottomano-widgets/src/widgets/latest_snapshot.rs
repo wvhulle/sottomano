@@ -310,7 +310,17 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
 
 impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy> {
     pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
-        self.sections_described_by(|held_snapshot| held_snapshot.sections(clock))
+        let LatestSnapshot::SnapshotHeld {
+            held_snapshot,
+            delivery_timing,
+        } = self
+        else {
+            return None;
+        };
+        Some(SourcedSections::source_delivered::<S>(
+            TooltipBody::sections(held_snapshot.sections(clock)),
+            *delivery_timing,
+        ))
     }
 }
 
@@ -386,7 +396,7 @@ mod tests {
         type Error = CountingFailure;
         type StreamInputs = ();
 
-        const NAME: &'static str = "counted-snapshot";
+        const NAME: &'static str = "Counted snapshot";
 
         fn delivery_stream(_inputs: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
             stream::empty()

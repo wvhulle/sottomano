@@ -163,14 +163,7 @@ impl ChipletLiveState<'_> {
                         .into_iter()
                         .collect()
                 },
-            )
-            .titled((
-                "Chiplets".to_owned(),
-                "Each square is one physical core in core-number order, not die position, split \
-                 into its hardware threads; bar height shows the core's sensor against the \
-                 critical threshold."
-                    .to_owned(),
-            )),
+            ),
         ]
     }
 }

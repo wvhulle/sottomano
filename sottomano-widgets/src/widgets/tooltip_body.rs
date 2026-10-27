@@ -14,7 +14,7 @@ use iced::{Size, alignment::Horizontal};
 use iced_controller_diagram::{ControllerModel, DiagramAnchor};
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery, SnapshotSource, SourceCaption,
     delivery_cadence_drivers::DeliveryCadence,
     desktop_windows_apps::{
         process_tree_inspection::Process, status_notifier_tray::MenuNode,
@@ -154,10 +154,6 @@ impl KeyValue {
     pub fn severity(&self) -> Severity {
         self.level
     }
-}
-
-pub fn entry(key: &'static str, value: Option<impl Into<Cell>>) -> Option<KeyValue> {
-    value.map(|value| KeyValue::new(key, value))
 }
 
 pub trait ReadingSections {
@@ -421,6 +417,28 @@ pub struct Heading {
     caption: Option<String>,
 }
 
+impl Heading {
+    fn of_source<S: SnapshotSource>() -> Self {
+        Self {
+            title: S::NAME.to_owned(),
+            caption: match S::CAPTION {
+                SourceCaption::Captioned(caption) => Some(caption.to_owned()),
+                SourceCaption::Uncaptioned => None,
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+
+    #[must_use]
+    pub fn caption(&self) -> Option<&str> {
+        self.caption.as_deref()
+    }
+}
+
 impl From<&str> for Heading {
     fn from(title: &str) -> Self {
         title.to_owned().into()
@@ -668,7 +686,14 @@ impl From<Section> for TooltipBody {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+enum GroupHeading {
+    Unheaded,
+    Source(Heading),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct SourcedSections {
+    heading: GroupHeading,
     delivery_state: SectionsDeliveryState,
     sections: Vec<Section>,
 }
@@ -677,16 +702,38 @@ impl SourcedSections {
     #[must_use]
     pub fn delivered(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
         Self {
+            heading: GroupHeading::Unheaded,
             delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
             sections: body.sections,
         }
     }
 
     #[must_use]
-    pub fn awaiting_delivery(body: TooltipBody) -> Self {
+    pub fn source_delivered<S: SnapshotSource>(
+        body: TooltipBody,
+        delivery_timing: DeliveryTiming,
+    ) -> Self {
         Self {
+            heading: GroupHeading::Source(Heading::of_source::<S>()),
+            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
+            sections: body.sections,
+        }
+    }
+
+    #[must_use]
+    pub fn source_awaiting_delivery<S: SnapshotSource>(body: TooltipBody) -> Self {
+        Self {
+            heading: GroupHeading::Source(Heading::of_source::<S>()),
             delivery_state: SectionsDeliveryState::AwaitingDelivery,
             sections: body.sections,
+        }
+    }
+
+    #[must_use]
+    pub fn source_heading(&self) -> Option<&Heading> {
+        match &self.heading {
+            GroupHeading::Source(heading) => Some(heading),
+            GroupHeading::Unheaded => None,
         }
     }
 
@@ -828,6 +875,8 @@ impl Tooltip {
 
 #[cfg(test)]
 mod tests {
+    use sottomano_sources::cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses;
+
     use super::*;
 
     struct Planet {
@@ -908,11 +957,26 @@ mod tests {
 
     #[test]
     fn a_seeding_section_keeps_its_group_visible() {
-        let tooltip =
-            Tooltip::grouped([SourcedSections::awaiting_delivery(TooltipBody::sections([
-                Section::section_seeding(),
-            ]))]);
+        let tooltip = Tooltip::grouped([SourcedSections::source_awaiting_delivery::<
+            CpuBusyProcesses,
+        >(TooltipBody::sections([
+            Section::section_seeding(),
+        ]))]);
         assert_eq!(tooltip.filled_groups().count(), 1);
+    }
+
+    #[test]
+    fn a_source_group_carries_its_source_title_and_caption() {
+        let headed = SourcedSections::source_delivered::<CpuBusyProcesses>(
+            TooltipBody::sections([]),
+            DeliveryTiming::LivePush,
+        );
+        let heading = headed.source_heading().unwrap();
+        assert_eq!(heading.title(), CpuBusyProcesses::NAME);
+        assert!(heading.caption().is_some());
+        let unheaded =
+            SourcedSections::delivered(TooltipBody::sections([]), DeliveryTiming::LivePush);
+        assert!(unheaded.source_heading().is_none());
     }
 
     #[test]

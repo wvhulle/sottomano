@@ -20,7 +20,7 @@ impl SnapshotSource for Location {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "location";
+    const NAME: &'static str = "Location";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         location_fix_updates()

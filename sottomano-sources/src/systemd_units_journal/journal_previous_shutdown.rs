@@ -299,7 +299,7 @@ impl SnapshotSource for LastShutdown {
     type Error = ShutdownReadError;
     type StreamInputs = Duration;
 
-    const NAME: &'static str = "last shutdown";
+    const NAME: &'static str = "Last shutdown";
 
     fn delivery_stream(slow_stop: Duration) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(blocking_poll(move || read_last_shutdown(slow_stop))).map(|read| match read {

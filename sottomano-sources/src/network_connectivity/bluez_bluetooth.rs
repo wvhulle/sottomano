@@ -13,8 +13,6 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, prop},
 };
 
-pub const NAME: &str = "bluetooth";
-
 const SERVICE: &str = "org.bluez";
 const ROOT: &str = "/";
 const ADAPTER: &str = "org.bluez.Adapter1";
@@ -116,7 +114,7 @@ impl SnapshotSource for Bluetooth {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "Bluetooth";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

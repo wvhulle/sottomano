@@ -80,7 +80,7 @@ impl SnapshotSource for OperatingSystemIdentity {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "hostnamed";
+    const NAME: &'static str = "Operating system";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(identity_changes(buses))

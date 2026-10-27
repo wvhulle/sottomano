@@ -185,7 +185,7 @@ impl SnapshotSource for Tailscale {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "tailscale";
+    const NAME: &'static str = "Tailscale";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("tailscale")).while_held(

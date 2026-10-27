@@ -141,7 +141,7 @@ impl SnapshotSource for Conditions {
     type Error = sysfs_attribute_reads::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "power-conditions";
+    const NAME: &'static str = "Power conditions";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.system.clone(), DAEMON_SERVICE).while_held(
@@ -189,7 +189,7 @@ impl SnapshotSource for ProfileStatus {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "power profile";
+    const NAME: &'static str = "Power profile";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

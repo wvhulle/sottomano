@@ -285,7 +285,7 @@ impl SnapshotSource for Vec<TrayItem> {
     type Error = Arc<TrayHostError>;
     type StreamInputs = ();
 
-    const NAME: &'static str = "tray";
+    const NAME: &'static str = "Tray";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         updates()

@@ -22,7 +22,7 @@ impl SnapshotSource for Vec<OomKillEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
-    const NAME: &'static str = OomKillEntry::NAME;
+    const NAME: &'static str = "OOM kills";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<OomKillEntry>()

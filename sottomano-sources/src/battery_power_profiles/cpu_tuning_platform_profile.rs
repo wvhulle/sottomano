@@ -59,7 +59,7 @@ impl SnapshotSource for CpuTuning {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "cpu-tuning";
+    const NAME: &'static str = "CPU tuning";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(

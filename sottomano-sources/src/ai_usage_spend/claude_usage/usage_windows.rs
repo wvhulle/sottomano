@@ -148,7 +148,7 @@ impl SnapshotSource for ClaudeUsageWindows {
     type Error = Error;
     type StreamInputs = PathBuf;
 
-    const NAME: &'static str = "claude-usage-windows";
+    const NAME: &'static str = "Claude usage windows";
 
     fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         login_polls(

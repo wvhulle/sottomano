@@ -15,7 +15,7 @@ impl SnapshotSource for Vec<KernelOccurrence> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
-    const NAME: &'static str = KernelEntry::NAME;
+    const NAME: &'static str = "Kernel errors";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<KernelEntry>()

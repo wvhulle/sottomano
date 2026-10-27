@@ -32,7 +32,7 @@ impl SnapshotSource for CpuPower {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "cpu power";
+    const NAME: &'static str = "CPU power";
 
     fn delivery_stream(
         (): Self::StreamInputs,

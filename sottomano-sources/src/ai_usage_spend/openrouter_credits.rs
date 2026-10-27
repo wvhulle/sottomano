@@ -161,7 +161,7 @@ impl SnapshotSource for OpenRouterSpend {
     type Error = Error;
     type StreamInputs = OpenRouterAccount;
 
-    const NAME: &'static str = "openrouter-spend";
+    const NAME: &'static str = "OpenRouter spend";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
@@ -263,7 +263,7 @@ impl SnapshotSource for OpenRouterStrictBudget {
     type Error = Error;
     type StreamInputs = PathBuf;
 
-    const NAME: &'static str = "openrouter-strict-budget";
+    const NAME: &'static str = "OpenRouter strict budget";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

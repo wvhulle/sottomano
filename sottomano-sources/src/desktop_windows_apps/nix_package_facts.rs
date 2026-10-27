@@ -164,7 +164,7 @@ impl SnapshotSource for NixPackageFacts {
     type Error = Error;
     type StreamInputs = PackageWatch;
 
-    const NAME: &'static str = "nix store";
+    const NAME: &'static str = "Nix";
 
     fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("nix")).while_held(

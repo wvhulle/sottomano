@@ -112,7 +112,7 @@ impl SnapshotSource for DriveHealth {
     type Error = Error;
     type StreamInputs = SensorConfig;
 
-    const NAME: &'static str = "drive_health";
+    const NAME: &'static str = "Drive health";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

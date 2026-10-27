@@ -19,26 +19,20 @@ use crate::{
 
 impl ReadingSections for MemoryModuleTemperatures {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.modules.iter().map(|module| {
-                KeyValue::new(
-                    module.bus_address.clone(),
-                    Quantity::temperature(module.temperature),
-                )
-            }))
-            .titled("Module temperatures"),
-        ]
+        vec![Section::dictionary(self.modules.iter().map(|module| {
+            KeyValue::new(
+                module.bus_address.clone(),
+                Quantity::temperature(module.temperature),
+            )
+        }))]
     }
 }
 
 impl ReadingSections for MemoryProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().map(|process| {
-                KeyValue::new(process.name.clone(), Quantity::size(process.resident))
-            }))
-            .titled("Processes"),
-        ]
+        vec![Section::dictionary(self.processes.iter().map(|process| {
+            KeyValue::new(process.name.clone(), Quantity::size(process.resident))
+        }))]
     }
 }
 

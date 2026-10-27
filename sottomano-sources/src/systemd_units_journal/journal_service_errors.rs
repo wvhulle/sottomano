@@ -17,7 +17,7 @@ impl SnapshotSource for ServiceErrors {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
-    const NAME: &'static str = ServiceErrorEntry::NAME;
+    const NAME: &'static str = "Service errors";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<ServiceErrorEntry>()

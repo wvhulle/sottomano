@@ -24,7 +24,7 @@ impl SnapshotSource for ClaudeCcusageModels {
     type Error = Error;
     type StreamInputs = Option<PathBuf>;
 
-    const NAME: &'static str = "claude-ccusage-models";
+    const NAME: &'static str = "Claude Code models";
 
     fn delivery_stream(
         credentials: Option<PathBuf>,

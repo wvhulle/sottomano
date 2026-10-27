@@ -36,7 +36,7 @@ impl SnapshotSource for HuggingFaceModelCard {
     type Error = http_json_client::Error;
     type StreamInputs = String;
 
-    const NAME: &'static str = "Hugging Face model card";
+    const NAME: &'static str = "On Hugging Face";
 
     fn delivery_stream(repository: String) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {

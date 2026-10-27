@@ -127,7 +127,7 @@ impl SnapshotSource for CpuClock {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "cpu-clock";
+    const NAME: &'static str = "CPU clock";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async {

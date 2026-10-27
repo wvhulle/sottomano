@@ -25,7 +25,7 @@ impl SnapshotSource for Vec<CoredumpEntry> {
     type Error = JournalFollowError;
     type StreamInputs = ();
 
-    const NAME: &'static str = CoredumpEntry::NAME;
+    const NAME: &'static str = "Coredumps";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         journal_windows::<CoredumpEntry>().map(SnapshotDelivery::live_push)

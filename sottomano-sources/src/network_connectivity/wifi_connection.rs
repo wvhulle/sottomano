@@ -18,8 +18,6 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-pub const NAME: &str = "wifi";
-
 #[derive(Debug, Clone)]
 pub struct Link {
     access_point: OwnedObjectPath,
@@ -123,7 +121,7 @@ impl SnapshotSource for Wifi {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "Wi-Fi";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
@@ -188,7 +186,7 @@ impl SnapshotSource for WifiDetails {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "wifi details";
+    const NAME: &'static str = "Wi-Fi details";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

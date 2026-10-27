@@ -56,7 +56,7 @@ impl SnapshotSource for ServiceCommands {
     type Error = zbus::Error;
     type StreamInputs = SystemdOnBus;
 
-    const NAME: &'static str = "systemd service commands";
+    const NAME: &'static str = "Systemd service commands";
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         connected_until_failure(watch_service_commands(systemd.connection()))

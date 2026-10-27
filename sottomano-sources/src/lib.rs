@@ -32,11 +32,18 @@ use futures::Stream;
 
 use crate::delivery_cadence_drivers::StampedCadence;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceCaption {
+    Uncaptioned,
+    Captioned(&'static str),
+}
+
 pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
     type Error: Clone + Debug + Display + Send + 'static;
     type StreamInputs: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
+    const CAPTION: SourceCaption = SourceCaption::Uncaptioned;
 
     fn delivery_stream(
         key: Self::StreamInputs,

@@ -259,7 +259,7 @@ impl SnapshotSource for Process {
     type Error = Error;
     type StreamInputs = Watched;
 
-    const NAME: &'static str = "process scan";
+    const NAME: &'static str = "Process";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
@@ -354,7 +354,7 @@ impl SnapshotSource for Inspection {
     type Error = Error;
     type StreamInputs = Watched;
 
-    const NAME: &'static str = "process inspection";
+    const NAME: &'static str = "Package";
 
     fn delivery_stream(watched: Watched) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::read(watched)).map(SnapshotDelivery::single_read)

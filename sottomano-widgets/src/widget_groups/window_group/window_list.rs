@@ -164,7 +164,7 @@ impl WindowList {
                             .window_processes
                             .of_window(*window)
                             .map_or_else(|| tree.clone(), |kept| tree.pruned_to(kept));
-                        vec![Section::tree(Some(&kept), &self.folding).titled("Process")]
+                        vec![Section::tree(Some(&kept), &self.folding)]
                     }),
                 ]
                 .into_iter()

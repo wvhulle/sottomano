@@ -105,7 +105,7 @@ impl SnapshotSource for PrecipitationModel {
     type Error = Error;
     type StreamInputs = GeoCoordinates;
 
-    const NAME: &'static str = "weather-precipitation-model";
+    const NAME: &'static str = "Precipitation model";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

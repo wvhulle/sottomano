@@ -89,7 +89,7 @@ impl SnapshotSource for Vec<FirmwareUpgrade> {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "firmware upgrades";
+    const NAME: &'static str = "Firmware upgrades";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

@@ -50,7 +50,7 @@ impl SnapshotSource for SlowJobs {
     type Error = zbus::Error;
     type StreamInputs = SlowJobsWatch;
 
-    const NAME: &'static str = "slow systemd jobs";
+    const NAME: &'static str = "Slow systemd jobs";
 
     fn delivery_stream(watch: SlowJobsWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = watch.systemd.scope;

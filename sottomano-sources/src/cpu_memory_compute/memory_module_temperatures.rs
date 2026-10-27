@@ -27,7 +27,7 @@ impl SnapshotSource for MemoryModuleTemperatures {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "memory module temperatures";
+    const NAME: &'static str = "Module temperatures";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries_after_setup(

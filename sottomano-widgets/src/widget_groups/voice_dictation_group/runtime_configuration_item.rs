@@ -8,7 +8,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -19,30 +19,26 @@ impl RuntimeConfiguration<'_> {
     fn configuration_rows(&self) -> impl Iterator<Item = KeyValue> {
         let engine = self.0;
         [
-            entry(
-                "Threads",
-                Some(engine.inference_threads)
-                    .filter(|threads| *threads > 0)
-                    .map(Quantity::count),
-            ),
+            Some(engine.inference_threads)
+                .filter(|threads| *threads > 0)
+                .map(Quantity::count)
+                .map(|thread_count| KeyValue::new("Threads", thread_count)),
             Some(KeyValue::new(
                 "Flash attention",
                 if engine.flash_attention { "on" } else { "off" },
             )),
-            entry(
-                "Re-transcribe every",
-                Some(engine.retranscribe_interval_secs)
-                    .filter(|interval_secs| interval_secs.is_finite() && *interval_secs > 0.0)
-                    .map(|interval_secs| Cell::Duration(Duration::from_secs_f64(interval_secs))),
-            ),
-            entry(
-                "Sample rate",
-                Some(engine.sample_rate_hz)
-                    .filter(|sample_rate| *sample_rate > 0)
-                    .map(|sample_rate| {
-                        Quantity::measured(f64::from(sample_rate), DisplayUnit::Hertz, 0)
-                    }),
-            ),
+            Some(engine.retranscribe_interval_secs)
+                .filter(|interval_secs| interval_secs.is_finite() && *interval_secs > 0.0)
+                .map(|interval_secs| Cell::Duration(Duration::from_secs_f64(interval_secs)))
+                .map(|retranscribe_interval| {
+                    KeyValue::new("Re-transcribe every", retranscribe_interval)
+                }),
+            Some(engine.sample_rate_hz)
+                .filter(|sample_rate| *sample_rate > 0)
+                .map(|sample_rate| {
+                    Quantity::measured(f64::from(sample_rate), DisplayUnit::Hertz, 0)
+                })
+                .map(|sample_rate| KeyValue::new("Sample rate", sample_rate)),
         ]
         .into_iter()
         .flatten()

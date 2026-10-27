@@ -62,7 +62,7 @@ impl SnapshotSource for Vec<Backlight> {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "backlight";
+    const NAME: &'static str = "Backlight";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

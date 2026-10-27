@@ -10,7 +10,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
     },
 };
 
@@ -65,25 +65,24 @@ impl ReadingSections for GraphicalSession {
             .session_desktop
             .clone()
             .filter(|session| Some(session) != self.current_desktop.as_ref());
-        vec![
-            Section::dictionary(
-                [
-                    Some(KeyValue::new("Runs", self.compositor_version.clone())),
-                    Some(KeyValue::new(
-                        "Wayland apps connect to",
-                        self.wayland_display.clone(),
-                    )),
-                    entry("X11 apps connect to", self.x11_display.clone()),
-                    entry("Desktop name", self.current_desktop.clone()),
-                    entry("Session desktop name", distinct_session_desktop),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled((
-                "Where apps connect to it",
-                "Apps find the compositor through these sockets.",
-            )),
-        ]
+        vec![Section::dictionary(
+            [
+                Some(KeyValue::new("Runs", self.compositor_version.clone())),
+                Some(KeyValue::new(
+                    "Wayland apps connect to",
+                    self.wayland_display.clone(),
+                )),
+                self.x11_display
+                    .clone()
+                    .map(|x11_display| KeyValue::new("X11 apps connect to", x11_display)),
+                self.current_desktop
+                    .clone()
+                    .map(|desktop_name| KeyValue::new("Desktop name", desktop_name)),
+                distinct_session_desktop
+                    .map(|session_desktop| KeyValue::new("Session desktop name", session_desktop)),
+            ]
+            .into_iter()
+            .flatten(),
+        )]
     }
 }

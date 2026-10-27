@@ -13,8 +13,6 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-pub const NAME: &str = "ethernet";
-
 #[derive(Debug, Clone)]
 pub struct Link {
     pub connection: Option<String>,
@@ -140,7 +138,7 @@ impl SnapshotSource for Ethernet {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "Ethernet";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
@@ -162,7 +160,7 @@ impl SnapshotSource for EthernetDetails {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "ethernet details";
+    const NAME: &'static str = "Ethernet details";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

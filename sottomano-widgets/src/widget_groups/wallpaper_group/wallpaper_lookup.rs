@@ -67,7 +67,7 @@ impl SnapshotSource for Lookup {
     type Error = Failure;
     type StreamInputs = PathBuf;
 
-    const NAME: &'static str = "wallpaper lookup";
+    const NAME: &'static str = "Wallpaper lookup";
 
     fn delivery_stream(unsplash_key: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(wallpaper_place_article::daemon_installed()).while_held(

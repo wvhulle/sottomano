@@ -7,7 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -63,14 +63,12 @@ impl BarWidget for NotulistEngine {
 
 fn model_rows(engine: &DictationEngine) -> impl Iterator<Item = KeyValue> {
     [
-        entry("Model", non_empty(&engine.model)),
-        entry("Size", non_empty(&engine.model_size)),
+        non_empty(&engine.model).map(|speech_model| KeyValue::new("Model", speech_model)),
+        non_empty(&engine.model_size).map(|model_size| KeyValue::new("Size", model_size)),
         Some(KeyValue::new("Languages", spoken_languages(engine))),
-        entry(
-            "Speech detection",
-            non_empty(&engine.speech_detection_model),
-        ),
-        entry("File", non_empty(&engine.model_path)),
+        non_empty(&engine.speech_detection_model)
+            .map(|detection_model| KeyValue::new("Speech detection", detection_model)),
+        non_empty(&engine.model_path).map(|model_file| KeyValue::new("File", model_file)),
         non_empty(&engine.model_repository).map(|repository| {
             KeyValue::new(
                 "Repository",
@@ -81,8 +79,10 @@ fn model_rows(engine: &DictationEngine) -> impl Iterator<Item = KeyValue> {
                 },
             )
         }),
-        entry("License", non_empty(&engine.model_license)),
-        entry("Quantization", non_empty(&engine.model_quantization)),
+        non_empty(&engine.model_license)
+            .map(|model_license| KeyValue::new("License", model_license)),
+        non_empty(&engine.model_quantization)
+            .map(|model_quantization| KeyValue::new("Quantization", model_quantization)),
     ]
     .into_iter()
     .flatten()

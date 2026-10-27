@@ -431,7 +431,7 @@ impl SnapshotSource for Vec<Media> {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "mpris";
+    const NAME: &'static str = "Media players";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         connected_until_failure(connect(buses.session)).map(SnapshotDelivery::live_push)

@@ -56,7 +56,7 @@ impl SnapshotSource for TunnelAddress {
     type Error = shell_command_output::Error;
     type StreamInputs = TunnelOnBus;
 
-    const NAME: &'static str = "wireguard tunnel address";
+    const NAME: &'static str = "Tunnel address";
 
     fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(address_changes(watched))
@@ -112,7 +112,7 @@ impl SnapshotSource for Wireguard {
     type Error = shell_command_output::Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "wireguard";
+    const NAME: &'static str = "WireGuard";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("wg")).while_held(

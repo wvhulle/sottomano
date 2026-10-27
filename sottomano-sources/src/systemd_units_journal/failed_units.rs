@@ -93,7 +93,7 @@ impl SnapshotSource for FailedUnits {
     type Error = zbus::Error;
     type StreamInputs = SystemdOnBus;
 
-    const NAME: &'static str = "failed systemd units";
+    const NAME: &'static str = "Failed systemd units";
 
     fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let scope = systemd.scope;
