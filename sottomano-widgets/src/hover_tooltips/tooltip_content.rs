@@ -1,12 +1,13 @@
 use std::{
     iter::once,
+    num::NonZeroUsize,
     path::Path,
     time::{Duration, SystemTime},
 };
 
 use chrono::{DateTime, Locale, Utc};
 use iced::{
-    Color, Element, Length, Padding,
+    Color, Element, Length, Padding, Pixels,
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
     widget::{
@@ -31,6 +32,7 @@ use crate::{
         bar_widget::Glyph,
         content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
+        ellipsis_rule::ellipsis_rule,
         localized_durations::{duration_text, relative_moment_text, signed_duration_text},
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
@@ -39,8 +41,8 @@ use crate::{
         text::{FontFaces, LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, ControllerCallouts, DeliveryTiming, KeyValue,
-            Readiness, RecordCells, Section, SectionBody, SessionMenuBody, SessionMenuEntry,
-            SourcedSections, TableColumns, Tooltip, TrayMenuBody,
+            RecordCells, Section, SectionBody, SectionsDeliveryState, SessionMenuBody,
+            SessionMenuEntry, SourcedSections, TableColumns, TableRows, Tooltip, TrayMenuBody,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -56,6 +58,8 @@ const SECTION_SEPARATION_PX: f32 = 16.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
+const PENDING_LINE_FILLER: &str = "0";
+const PENDING_LINE_CHARACTERS: [usize; 3] = [28, 22, 16];
 const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 0.0,
@@ -89,10 +93,10 @@ impl<'a> TooltipContent<'a> {
         }
     }
 
-    fn in_readiness(self, readiness: Readiness) -> Self {
-        let presence = match readiness {
-            Readiness::Settled => TextPresence::Shown,
-            Readiness::Estimated => TextPresence::Placeholder,
+    fn in_delivery_state(self, delivery_state: SectionsDeliveryState) -> Self {
+        let presence = match delivery_state {
+            SectionsDeliveryState::Delivered { .. } => TextPresence::Shown,
+            SectionsDeliveryState::AwaitingDelivery => TextPresence::Placeholder,
         };
         Self { presence, ..self }
     }
@@ -118,14 +122,14 @@ impl<'a> TooltipContent<'a> {
             .map(|group| -> Element<'static, PopupMessage> {
                 uniform_width_column([
                     self.group_sections(group),
-                    self.footer_row(None, Some(self.delivery_timing(group.delivery_timing()))),
+                    self.footer_row(None, Some(self.delivery_state_view(group.delivery_state()))),
                 ])
                 .spacing(self.config.layout.overlay.row_spacing)
                 .into()
             });
         let closing: Element<'static, PopupMessage> = uniform_width_column([
             self.group_sections(closing_group),
-            self.closing_row(Some(closing_group.delivery_timing())),
+            self.closing_row(Some(closing_group.delivery_state())),
         ])
         .spacing(SECTION_SEPARATION_PX / 2.0)
         .into();
@@ -135,7 +139,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
-        let content = self.in_readiness(group.readiness());
+        let content = self.in_delivery_state(group.delivery_state());
         uniform_width_column(
             group
                 .filled_sections()
@@ -147,14 +151,35 @@ impl<'a> TooltipContent<'a> {
 
     fn closing_row(
         &self,
-        closing_freshness: Option<DeliveryTiming>,
+        closing_delivery_state: Option<SectionsDeliveryState>,
     ) -> Element<'static, PopupMessage> {
         let press_hints = self.tooltip.press_hints;
         let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,
-            closing_freshness.map(|delivery_timing| self.delivery_timing(delivery_timing)),
+            closing_delivery_state.map(|delivery_state| self.delivery_state_view(delivery_state)),
         )
+    }
+
+    fn delivery_state_view(
+        &self,
+        delivery_state: SectionsDeliveryState,
+    ) -> Element<'static, PopupMessage> {
+        match delivery_state {
+            SectionsDeliveryState::Delivered { delivery_timing } => {
+                self.delivery_timing(delivery_timing)
+            }
+            SectionsDeliveryState::AwaitingDelivery => row([
+                self.small_dim_text("loading".to_owned()).into(),
+                Glyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
+                    self.config.theme.font.small_text_size_px,
+                    self.secondary_foreground(),
+                ),
+            ])
+            .spacing(GESTURE_ICON_GAP_PX)
+            .align_y(Vertical::Center)
+            .into(),
+        }
     }
 
     fn footer_row(
@@ -411,6 +436,30 @@ impl<'a> TooltipContent<'a> {
             .into()
     }
 
+    fn pending_lines(&self, line_count: NonZeroUsize) -> Element<'static, PopupMessage> {
+        let font = &self.config.theme.font;
+        let color = self.secondary_foreground();
+        Column::with_children(
+            PENDING_LINE_CHARACTERS
+                .iter()
+                .cycle()
+                .take(line_count.get())
+                .map(|&character_count| {
+                    let filler = PENDING_LINE_FILLER.repeat(character_count);
+                    TransitioningText::new(
+                        bar_text(font, filler.clone()).color(color),
+                        filler,
+                        self.transition(TextPresence::Placeholder),
+                        font,
+                        color,
+                    )
+                    .into()
+                }),
+        )
+        .spacing(self.config.layout.overlay.row_spacing)
+        .into()
+    }
+
     fn section(&self, section: &Section) -> Element<'static, PopupMessage> {
         if let SectionBody::TrayMenu(_) | SectionBody::SessionMenu(_) = section.body() {
             return self.body(section.body());
@@ -443,13 +492,14 @@ impl<'a> TooltipContent<'a> {
     fn body(&self, body: &SectionBody) -> Element<'static, PopupMessage> {
         match body {
             SectionBody::Dictionary(entries) => self.dictionary(entries),
-            SectionBody::ColumnTable { columns, records } => self.column_table(columns, records),
+            SectionBody::ColumnTable { columns, rows } => self.column_table(columns, rows),
             SectionBody::CoreGrid(chiplets) => self.core_grid(chiplets),
             SectionBody::ControllerDiagram(diagram) => self.controller_diagram(diagram),
             SectionBody::Tree { root, folding } => {
                 ProcessTree::new(root, folding, self.config, self.transition(self.presence)).view()
             }
             SectionBody::Note { title, body } => self.text(title, body.as_deref()),
+            SectionBody::PendingLines { line_count } => self.pending_lines(*line_count),
             SectionBody::Workspace(preview) => {
                 WorkspaceSchematic::new(preview, self.config, self.assets).view()
             }
@@ -543,7 +593,7 @@ impl<'a> TooltipContent<'a> {
     fn column_table(
         &self,
         columns: &TableColumns,
-        records: &[RecordCells],
+        rows: &TableRows,
     ) -> Element<'static, PopupMessage> {
         let headings = match columns {
             TableColumns::Headed(headings) => headings.clone(),
@@ -552,14 +602,35 @@ impl<'a> TooltipContent<'a> {
                 .map(|alignment| ColumnHeading::untitled().align_x(*alignment))
                 .collect(),
         };
-        self.keyed_table(
-            records,
-            RecordCells::key,
-            headings.into_iter().enumerate().map(|(position, heading)| {
-                self.record_column(position, self.column_heading_view(heading))
-                    .align_x(heading.alignment())
-            }),
-        )
+        let key_foreground = self.foreground();
+        let palette = PaletteColors::from(&self.config.theme.palette);
+        let key_view = CellView {
+            figure_font: self.config.theme.font.clone(),
+            prose_font: self.config.theme.font.clone(),
+            wrapping: Wrapping::None,
+            transition: self.transition(TextPresence::Shown),
+            ..self.cell_view()
+        };
+        let line_height_px = LINE_HEIGHT
+            .to_absolute(Pixels(self.config.theme.font.text_size_px))
+            .0;
+        let key_column = content_sized_column(Space::new(), move |entry: TableEntry| match entry {
+            TableEntry::Record(record) => key_view.key(record.key().clone(), key_foreground),
+            TableEntry::OmittedRecords { omitted_count } => {
+                key_view.key(Cell::from(format!("{omitted_count} more")), palette.dim)
+            }
+            TableEntry::ContinuationMarker => ellipsis_rule(palette.dim, line_height_px).into(),
+        })
+        .align_x(Horizontal::Right)
+        .align_y(Vertical::Top);
+        let value_columns = headings.into_iter().enumerate().map(|(position, heading)| {
+            self.record_column(position, self.column_heading_view(heading))
+                .align_x(heading.alignment())
+        });
+        content_sized_table(once(key_column).chain(value_columns), table_entries(rows))
+            .padding_x(COLUMN_GAP_PX / 2.0)
+            .padding_y(self.config.layout.overlay.row_spacing / 2.0)
+            .into()
     }
 
     fn column_heading_view(&self, heading: ColumnHeading) -> Element<'static, PopupMessage> {
@@ -601,21 +672,56 @@ impl<'a> TooltipContent<'a> {
         &self,
         position: usize,
         heading: Element<'static, PopupMessage>,
-    ) -> ContentSizedColumn<'static, RecordCells, PopupMessage> {
+    ) -> ContentSizedColumn<'static, TableEntry, PopupMessage> {
         let palette = PaletteColors::from(&self.config.theme.palette);
         let cell_view = self.cell_view();
-
-        content_sized_column(heading, move |record: RecordCells| {
-            match record.cell(position) {
-                Some(value) => cell_view.value(
-                    value.clone(),
-                    WidgetState::from(record.severity()).color(&palette),
-                    record.key(),
-                ),
-                None => Space::new().into(),
+        let record_cell = move |record: &RecordCells, color: Color| match record.cell(position) {
+            Some(value) => cell_view.value(value.clone(), color, record.key()),
+            None => Space::new().into(),
+        };
+        let line_height_px = LINE_HEIGHT
+            .to_absolute(Pixels(self.config.theme.font.text_size_px))
+            .0;
+        content_sized_column(heading, move |entry: TableEntry| match entry {
+            TableEntry::Record(record) => {
+                let severity_color = WidgetState::from(record.severity()).color(&palette);
+                record_cell(&record, severity_color)
+            }
+            TableEntry::OmittedRecords { .. } | TableEntry::ContinuationMarker => {
+                ellipsis_rule(palette.dim, line_height_px).into()
             }
         })
         .align_y(Vertical::Top)
+    }
+}
+
+#[derive(Clone)]
+enum TableEntry {
+    Record(RecordCells),
+    OmittedRecords { omitted_count: NonZeroUsize },
+    ContinuationMarker,
+}
+
+fn table_entries(rows: &TableRows) -> Vec<TableEntry> {
+    match rows {
+        TableRows::Complete(records) => records.iter().cloned().map(TableEntry::Record).collect(),
+        TableRows::Continuing(records) => records
+            .iter()
+            .cloned()
+            .map(TableEntry::Record)
+            .chain(once(TableEntry::ContinuationMarker))
+            .collect(),
+        TableRows::Truncated {
+            shown_records,
+            omitted_count,
+        } => shown_records
+            .iter()
+            .cloned()
+            .map(TableEntry::Record)
+            .chain(once(TableEntry::OmittedRecords {
+                omitted_count: *omitted_count,
+            }))
+            .collect(),
     }
 }
 

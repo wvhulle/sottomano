@@ -135,10 +135,11 @@ mod tests {
         );
         let body = errors.tooltip(Clock::real());
         let sections = body.listed_sections();
-        let SectionBody::ColumnTable { records, .. } = sections[0].body() else {
+        let SectionBody::ColumnTable { rows, .. } = sections[0].body() else {
             panic!("expected column table");
         };
-        let values: Vec<Cell> = records
+        let values: Vec<Cell> = rows
+            .shown_records()
             .iter()
             .filter_map(|record| record.cell(1).cloned())
             .collect();

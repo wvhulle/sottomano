@@ -16,7 +16,6 @@ use crate::{
         weather_icons::WeatherIcon,
     },
 };
-
 const MODEL_QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
 
 const MODEL_SCHEDULE_HEADINGS: [ColumnHeading; 3] = [
@@ -77,7 +76,7 @@ impl BarWidget for PrecipitationModel {
                 KeyValue::new("Rain", Quantity::precipitation_rate(self.current.intensity)),
             ])
             .titled("Open-Meteo model"),
-            Section::column_table(
+            Section::continuing_column_table(
                 MODEL_SCHEDULE_HEADINGS,
                 quarters_not_yet_over(self, clock.utc()),
             )

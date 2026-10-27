@@ -9,6 +9,7 @@ pub mod confirm_button;
 pub mod content_sized_table;
 pub mod context_menu;
 pub mod device_setting;
+pub mod ellipsis_rule;
 pub mod expand_animation;
 pub mod favicon;
 pub mod focus_indicator;

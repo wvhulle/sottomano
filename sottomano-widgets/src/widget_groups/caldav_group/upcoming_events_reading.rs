@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_sources::caldav_tasks_events::{
@@ -21,7 +23,7 @@ use crate::{
     },
 };
 
-const LISTED_EVENTS: usize = 10;
+const LISTED_EVENTS: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 const LABEL_CHARACTERS: usize = 28;
 
 struct EventRow<'a> {
@@ -77,25 +79,17 @@ pub(super) fn nextcloud_footer(
     app_label: &str,
     provider: &CaldavProvider,
     app_url: fn(&NextcloudWebRoot) -> String,
-    hidden: usize,
 ) -> Section {
-    Section::dictionary(
-        [
-            (hidden > 0).then(|| KeyValue::new("Not shown", format!("{hidden} more"))),
-            provider.nextcloud_web_root().map(|nextcloud| {
-                KeyValue::new(
-                    "Nextcloud",
-                    Cell::Link {
-                        label: app_label.to_owned(),
-                        url: app_url(nextcloud),
-                        glyph: Some(SimpleIcon::Nextcloud.into()),
-                    },
-                )
-            }),
-        ]
-        .into_iter()
-        .flatten(),
-    )
+    Section::dictionary(provider.nextcloud_web_root().map(|nextcloud| {
+        KeyValue::new(
+            "Nextcloud",
+            Cell::Link {
+                label: app_label.to_owned(),
+                url: app_url(nextcloud),
+                glyph: Some(SimpleIcon::Nextcloud.into()),
+            },
+        )
+    }))
 }
 
 fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> String {
@@ -141,34 +135,29 @@ impl BarWidget for CaldavAgenda {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let upcoming: Vec<&UpcomingEvent> = self
+        let rows = self
             .events
             .iter()
             .filter(|event| !event.has_ended(now))
-            .collect();
-        let hidden = upcoming.len().saturating_sub(LISTED_EVENTS);
-        let rows = upcoming
-            .into_iter()
-            .take(LISTED_EVENTS)
             .map(|event| EventRow {
                 event,
                 provider: &self.provider,
             });
         TooltipBody::sections([
-            Section::column_table(
+            Section::truncated_column_table(
                 [
                     ColumnHeading::titled("Starts"),
                     ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
                     ColumnHeading::titled("Location").align_x(Horizontal::Left),
                 ],
                 rows,
+                LISTED_EVENTS,
             )
             .titled(("Upcoming events", calendar_count_caption(self))),
             nextcloud_footer(
                 "open Calendar",
                 &self.provider,
                 NextcloudWebRoot::calendar_app,
-                hidden,
             ),
         ])
     }

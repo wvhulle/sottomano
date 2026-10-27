@@ -104,13 +104,14 @@ impl PowerGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: Option<&DesktopBuses>,
+        clock: Clock,
     ) -> Task<PowerMessage> {
         self.charger.stop();
         self.cpu_tuning.stop();
         match hovered {
             Some(HoverTarget::Power(PowerTarget::Draw)) => {
                 self.charger
-                    .start_hover_fetch((), PowerMessage::ChargerFetched, config)
+                    .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock)
             }
             Some(HoverTarget::Power(PowerTarget::Profile)) => {
                 buses.map_or_else(Task::none, |buses| {
@@ -118,6 +119,7 @@ impl PowerGroup {
                         buses.clone(),
                         PowerMessage::CpuTuningFetched,
                         config,
+                        clock,
                     )
                 })
             }

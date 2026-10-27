@@ -110,6 +110,7 @@ impl LlamaServerGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<LlamaServerMessage> {
         self.model_props.stop();
         self.gguf_card.stop();
@@ -132,16 +133,21 @@ impl LlamaServerGroup {
                 instance,
                 LlamaServerMessage::ModelPropsFetched,
                 config,
+                clock,
             )
         });
         let card_read = servers.resident_model_file(&target.unit).map(|model_file| {
-            self.gguf_card
-                .start_hover_fetch(model_file, LlamaServerMessage::GgufCardRead, config)
+            self.gguf_card.start_hover_fetch(
+                model_file,
+                LlamaServerMessage::GgufCardRead,
+                config,
+                clock,
+            )
         });
         Task::batch(props_fetch.into_iter().chain(card_read))
     }
 
-    fn fetch_base_model_card(&mut self, config: &Config) -> Task<LlamaServerMessage> {
+    fn fetch_base_model_card(&mut self, config: &Config, clock: Clock) -> Task<LlamaServerMessage> {
         if !self.gguf_card.is_hovered() {
             return Task::none();
         }
@@ -157,6 +163,7 @@ impl LlamaServerGroup {
             repository,
             LlamaServerMessage::BaseModelCardFetched,
             config,
+            clock,
         )
     }
 
@@ -181,7 +188,7 @@ impl LlamaServerGroup {
             }
             LlamaServerMessage::GgufCardRead(delivery) => {
                 self.gguf_card.receive(delivery, clock);
-                self.fetch_base_model_card(config)
+                self.fetch_base_model_card(config, clock)
             }
             LlamaServerMessage::BaseModelCardFetched(delivery) => {
                 self.base_model_card.receive(delivery, clock);

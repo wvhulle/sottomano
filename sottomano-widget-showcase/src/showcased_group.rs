@@ -388,7 +388,7 @@ impl ShowcasedGroup {
     pub fn hover(&mut self, target: &HoverTarget, config: &Config, clock: Clock) {
         match self {
             ShowcasedGroup::Compute(group) => {
-                let _ = group.hover(Some(target), config);
+                let _ = group.hover(Some(target), config, clock);
                 if let HoverTarget::Compute(target) = target {
                     compute::on_hover(*target).into_iter().for_each(|reading| {
                         let _ = group.update(reading, clock);
@@ -396,7 +396,7 @@ impl ShowcasedGroup {
                 }
             }
             ShowcasedGroup::MemoryBoard(group) => {
-                let _ = group.hover(Some(target), config);
+                let _ = group.hover(Some(target), config, clock);
                 if let HoverTarget::MemoryBoard(target) = target {
                     memory_board::on_hover(*target)
                         .into_iter()
@@ -406,10 +406,10 @@ impl ShowcasedGroup {
                 }
             }
             ShowcasedGroup::ClaudeUsage(group) => {
-                let _ = group.hover(Some(target), config);
+                let _ = group.hover(Some(target), config, clock);
             }
             ShowcasedGroup::VoiceDictation(group) => {
-                let _ = group.hover(Some(target), config);
+                let _ = group.hover(Some(target), config, clock);
                 if let HoverTarget::VoiceDictation(target) = target {
                     voice_dictation::on_hover(*target)
                         .into_iter()
@@ -421,7 +421,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 let _ = session
                     .window_group
-                    .hover(&session.niri, Some(target), config);
+                    .hover(&session.niri, Some(target), config, clock);
                 niri_session::on_hover(target)
                     .into_iter()
                     .for_each(|reading| {

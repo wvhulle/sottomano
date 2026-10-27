@@ -134,6 +134,7 @@ impl NetInterfacesGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
+        clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         self.wifi_details.stop();
         self.ethernet_details.stop();
@@ -143,6 +144,7 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
@@ -150,6 +152,7 @@ impl NetInterfacesGroup {
                     buses.clone(),
                     NetInterfacesMessage::EthernetDetailsFetched,
                     config,
+                    clock,
                 )
             }
             _ => Task::none(),

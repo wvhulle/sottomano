@@ -105,6 +105,7 @@ impl ComputeGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<ComputeMessage> {
         self.core_loads.stop();
         self.cpu_busy_processes.stop();
@@ -112,27 +113,34 @@ impl ComputeGroup {
         self.cache_traffic.stop();
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::CpuLoad)) => Task::batch([
-                self.core_loads
-                    .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
+                self.core_loads.start_hover_fetch(
+                    (),
+                    ComputeMessage::CoreLoadsFetched,
+                    config,
+                    clock,
+                ),
                 self.cpu_busy_processes.start_hover_fetch(
                     (),
                     ComputeMessage::CpuBusyProcessesFetched,
                     config,
+                    clock,
                 ),
                 self.cache_traffic.start_hover_fetch(
                     (),
                     ComputeMessage::CacheTrafficFetched,
                     config,
+                    clock,
                 ),
             ]),
             Some(HoverTarget::Compute(ComputeTarget::CpuClock)) => self
                 .core_loads
-                .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
+                .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config, clock),
             Some(HoverTarget::Compute(ComputeTarget::CpuTemperature)) => {
                 self.core_temperatures.start_hover_fetch(
                     config.widget_groups.temperature_sensors.cpu.overrides(),
                     ComputeMessage::CoreTemperaturesFetched,
                     config,
+                    clock,
                 )
             }
             _ => Task::none(),

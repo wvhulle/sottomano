@@ -58,11 +58,11 @@ impl BarWidget for Temperature {
             ])
             .titled("Temperature"),
             Section::column_table(HOURLY_HEADINGS, self.hourly.earlier.iter()).titled("Earlier"),
-            Section::column_table(HOURLY_HEADINGS, self.hourly.later.iter()).titled("Later"),
+            Section::continuing_column_table(HOURLY_HEADINGS, self.hourly.later.iter())
+                .titled("Later"),
         ])
     }
 }
-
 const HOURLY_HEADINGS: [ColumnHeading; 4] = [
     ColumnHeading::titled("Temp"),
     ColumnHeading::untitled(),

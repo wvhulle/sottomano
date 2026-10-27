@@ -182,7 +182,7 @@ impl NiriWindowGroup {
             NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_tooltip(clock),
         };
         control.with_groups(self.rules_file.unreadable().map(|unreadable| {
-            SourcedSections::settled(
+            SourcedSections::delivered(
                 Section::dictionary([KeyValue::new(
                     Cell::Path(unreadable.path.to_path_buf()),
                     unreadable.kind.to_string(),

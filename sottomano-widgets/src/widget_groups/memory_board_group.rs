@@ -66,6 +66,7 @@ impl MemoryBoardGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<MemoryBoardMessage> {
         self.memory_processes.stop();
         self.module_temperatures.stop();
@@ -75,11 +76,13 @@ impl MemoryBoardGroup {
                     (),
                     MemoryBoardMessage::MemoryProcessesFetched,
                     config,
+                    clock,
                 ),
                 self.module_temperatures.start_hover_fetch(
                     (),
                     MemoryBoardMessage::ModuleTemperaturesFetched,
                     config,
+                    clock,
                 ),
             ]),
             _ => Task::none(),

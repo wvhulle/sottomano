@@ -50,7 +50,6 @@ fn current_intensity_cell(intensity: Velocity) -> Cell {
         Quantity::precipitation_rate(intensity).into()
     }
 }
-
 const MET_OFFICE_MODERATE_RAIN_FROM_MILLIMETERS_PER_HOUR: f64 = 0.5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -299,7 +298,7 @@ impl BarWidget for RainForecast<'_> {
                     .chain(turn_entry),
             )
             .titled("Buienradar radar"),
-            Section::column_table(
+            Section::continuing_column_table(
                 SCHEDULE_HEADINGS,
                 self.remaining_frames(clock.local())
                     .iter()
