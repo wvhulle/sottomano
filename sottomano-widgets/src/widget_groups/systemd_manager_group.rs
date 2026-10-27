@@ -279,7 +279,7 @@ impl SystemdManagerGroup {
             .flatten(),
         )
         .face(HandleFace::IconColoredBy {
-            glyph: Phosphor::Heartbeat(Weight::Regular).into(),
+            glyph: Phosphor::Speedometer(Weight::Regular).into(),
             reading: self,
             handle: GroupHandle::Systemd,
         })
@@ -309,7 +309,7 @@ impl BarWidget for SystemdManagerGroup {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Heartbeat(Weight::Regular).into()
+        Phosphor::Speedometer(Weight::Regular).into()
     }
 
     fn state(&self, clock: Clock) -> WidgetState {

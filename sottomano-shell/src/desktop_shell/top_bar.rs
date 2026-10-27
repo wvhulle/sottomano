@@ -4,7 +4,10 @@ use sottomano_widgets::{
     widget_groups::notification_group::NotificationStatus, widgets::widget_group::GroupContent,
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{DesktopShell, focused_app_id},
+    shell_message::Message,
+};
 
 pub(super) struct TopBarGroups<'a> {
     pub start: Vec<GroupContent<'a, Message>>,
@@ -89,19 +92,23 @@ impl DesktopShell {
             .media_group
             .group_contents(config, self.clock)
             .map(|group| group.map(Message::Media));
+        let gamepad_groups = self
+            .gamepad_group
+            .group_contents(&config.widget_groups.gamepad, focused_app_id(&self.niri))
+            .into_iter()
+            .map(|group| group.map(Message::Gamepad));
         media_groups
             .chain([
                 self.audio_group.group_content(config).map(Message::Audio),
                 self.voice_dictation_group
                     .group_content()
                     .map(Message::VoiceDictation),
-                self.gamepad_group
-                    .group_content(&config.widget_groups.gamepad)
-                    .map(Message::Gamepad),
-                self.session_menu
-                    .group_content(config)
-                    .map(Message::Session),
             ])
+            .chain(gamepad_groups)
+            .chain([self
+                .session_menu
+                .group_content(config)
+                .map(Message::Session)])
             .collect()
     }
 }

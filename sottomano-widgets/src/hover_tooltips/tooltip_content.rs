@@ -26,6 +26,7 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
+        activity_line::activity_line,
         bar_widget::Glyph,
         content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         ellipsis_rule::ellipsis_rule,
@@ -537,6 +538,7 @@ impl<'a> TooltipContent<'a> {
                 key_view.key(Cell::from(format!("{omitted_count} more")), palette.dim)
             }
             TableEntry::ContinuationMarker => ellipsis_rule(palette.dim, line_height_px).into(),
+            TableEntry::TotalRule => total_rule(palette.dim),
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
@@ -607,6 +609,7 @@ impl<'a> TooltipContent<'a> {
             TableEntry::OmittedRecords { .. } | TableEntry::ContinuationMarker => {
                 ellipsis_rule(palette.dim, line_height_px).into()
             }
+            TableEntry::TotalRule => total_rule(palette.dim),
         })
         .align_y(Vertical::Top)
     }
@@ -617,27 +620,41 @@ enum TableEntry {
     Record(RecordCells),
     OmittedRecords { omitted_count: NonZeroUsize },
     ContinuationMarker,
+    TotalRule,
+}
+
+const TOTAL_RULE_THICKNESS_PX: f32 = 1.0;
+
+fn total_rule(color: Color) -> Element<'static, PopupMessage> {
+    activity_line(color, 1.0, TOTAL_RULE_THICKNESS_PX)
+}
+
+fn record_entries(records: &[RecordCells]) -> impl Iterator<Item = TableEntry> + '_ {
+    records.iter().cloned().map(TableEntry::Record)
 }
 
 fn table_entries(rows: &TableRows) -> Vec<TableEntry> {
     match rows {
-        TableRows::Complete(records) => records.iter().cloned().map(TableEntry::Record).collect(),
-        TableRows::Continuing(records) => records
-            .iter()
-            .cloned()
-            .map(TableEntry::Record)
+        TableRows::Complete(records) => record_entries(records).collect(),
+        TableRows::Continuing(records) => record_entries(records)
             .chain(once(TableEntry::ContinuationMarker))
             .collect(),
         TableRows::Truncated {
             shown_records,
             omitted_count,
-        } => shown_records
-            .iter()
-            .cloned()
-            .map(TableEntry::Record)
+        } => record_entries(shown_records)
             .chain(once(TableEntry::OmittedRecords {
                 omitted_count: *omitted_count,
             }))
+            .collect(),
+        TableRows::Totalled {
+            shown_records,
+            total_record,
+        } => record_entries(shown_records)
+            .chain([
+                TableEntry::TotalRule,
+                TableEntry::Record(total_record.clone()),
+            ])
             .collect(),
     }
 }

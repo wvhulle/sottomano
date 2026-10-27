@@ -341,7 +341,6 @@ pub struct ClaimedButton<'a> {
 #[serde(default, deny_unknown_fields)]
 pub struct GamepadBindingsConfig {
     pub passive_app_id_prefixes: Vec<String>,
-    pub handover_chord: Vec<GamepadButton>,
     pub navigation: StickNavigationConfig,
     pub pointer: PointerSteeringConfig,
     pub typed_keys: BTreeMap<GamepadButton, String>,
@@ -429,16 +428,6 @@ impl GamepadBindingsConfig {
     }
 
     #[must_use]
-    pub fn completes_handover_chord(
-        &self,
-        pressed: GamepadButton,
-        held: impl Fn(GamepadButton) -> bool,
-    ) -> bool {
-        self.handover_chord.contains(&pressed)
-            && self.handover_chord.iter().all(|&button| held(button))
-    }
-
-    #[must_use]
     pub fn acts_while_focused(&self, app_id: Option<&str>) -> bool {
         app_id.is_none_or(|app_id| {
             !self
@@ -453,7 +442,6 @@ impl Default for GamepadBindingsConfig {
     fn default() -> Self {
         Self {
             passive_app_id_prefixes: ["steam", "gamescope"].map(String::from).to_vec(),
-            handover_chord: vec![GamepadButton::Back, GamepadButton::Start],
             navigation: StickNavigationConfig::default(),
             pointer: PointerSteeringConfig::default(),
             typed_keys: BTreeMap::from([
@@ -499,14 +487,18 @@ mod tests {
     #[test]
     fn playstation_and_xbox_names_select_the_same_buttons() {
         let config: GamepadBindingsConfig = toml::from_str(
-            "handover_chord = [\"create\", \"menu\"]\n[typed_keys]\ncross = \"Return\"\nb = \
-             \"Escape\"\n[compositor_actions]\nl1 = \"move_column_left\"\nps = \
+            "[typed_keys]\ncross = \"Return\"\nb = \"Escape\"\ncreate = \"Tab\"\nmenu = \
+             \"space\"\n[compositor_actions]\nl1 = \"move_column_left\"\nps = \
              \"toggle_overview\"\n",
         )
         .unwrap();
         assert_eq!(
-            config.handover_chord,
-            [GamepadButton::Back, GamepadButton::Start]
+            config.role_of(GamepadButton::Back),
+            Some(ButtonRole::TypedKey("Tab"))
+        );
+        assert_eq!(
+            config.role_of(GamepadButton::Start),
+            Some(ButtonRole::TypedKey("space"))
         );
         assert_eq!(
             config.role_of(GamepadButton::South),
@@ -593,19 +585,5 @@ mod tests {
         assert!(!config.acts_while_focused(Some("steam")));
         assert!(config.acts_while_focused(Some("kitty")));
         assert!(config.acts_while_focused(None));
-    }
-
-    #[test]
-    fn the_handover_chord_completes_only_when_every_button_is_held() {
-        let config = GamepadBindingsConfig::default();
-        let start_and_select_held =
-            |button| matches!(button, GamepadButton::Back | GamepadButton::Start);
-        assert!(config.completes_handover_chord(GamepadButton::Start, start_and_select_held));
-        assert!(
-            !config.completes_handover_chord(GamepadButton::Start, |button| {
-                button == GamepadButton::Start
-            })
-        );
-        assert!(!config.completes_handover_chord(GamepadButton::South, start_and_select_held));
     }
 }

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{iter::once, time::Duration};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
@@ -37,6 +37,16 @@ fn timeline_record(
     .level(comparison.map_or(Severity::Normal, |comparison| comparison.severity))
 }
 
+fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
+    TableRecord::new(
+        stage.to_owned(),
+        [
+            Some(Cell::duration(took)),
+            Some(Cell::Hint(meaning.to_owned())),
+        ],
+    )
+}
+
 impl BarWidget for BootTimeline {
     fn name(&self) -> &'static str {
         "Boot timeline"
@@ -73,40 +83,35 @@ impl BarWidget for BootTimeline {
             .as_ref()
             .map(|user| user.started_at.saturating_sub(self.system_startup.finish));
         let session = self.user_startup.as_ref().map(|user| user.duration);
-        let timeline_records = self
-            .phases
-            .present()
-            .into_iter()
-            .map(|phase| {
-                timeline_record(
-                    phase.stage.name(),
-                    phase.duration,
-                    comparison.and_then(|comparison| comparison.stage(phase.stage)),
-                    phase.stage.meaning(),
-                )
-            })
-            .chain([timeline_record(
-                "OS startup",
-                self.phases.os_startup().total(),
-                comparison.map(|comparison| &comparison.os_startup),
-                "kernel, initrd and userspace together",
-            )])
-            .chain(login_gap.map(|gap| {
-                timeline_record(
-                    "login",
-                    gap,
-                    None,
-                    "waiting for the first user session manager",
-                )
-            }))
-            .chain(session.map(|duration| {
-                timeline_record(
+        let stage_records = self.phases.present().into_iter().map(|phase| {
+            timeline_record(
+                phase.stage.name(),
+                phase.duration,
+                comparison.and_then(|comparison| comparison.stage(phase.stage)),
+                phase.stage.meaning(),
+            )
+        });
+        let os_startup_total = timeline_record(
+            "OS startup",
+            self.phases.os_startup().total(),
+            comparison.map(|comparison| &comparison.os_startup),
+            "kernel, initrd and userspace together, shown on the bar",
+        );
+        let login_records: Vec<TableRecord<2>> = [
+            login_gap.map(|gap| {
+                login_record("login", gap, "waiting for the first user session manager")
+            }),
+            session.map(|duration| {
+                login_record(
                     "user session",
                     duration,
-                    None,
                     "user systemd starting units until the default target",
                 )
-            }));
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
         let caption = match comparison {
             Some(_) => {
                 "Difference is this boot against the previous one in the journal. Firmware and \
@@ -116,16 +121,28 @@ impl BarWidget for BootTimeline {
             }
             None => "No previous boot in the journal to compare with.",
         };
-        TooltipBody::sections([Section::column_table(
+        let stages_section = Section::totalled_column_table(
             [
                 ColumnHeading::titled("Took"),
                 ColumnHeading::titled("Previous"),
                 ColumnHeading::titled("Difference"),
                 ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
             ],
-            timeline_records,
+            stage_records,
+            os_startup_total,
         )
-        .titled(("Boot stages", caption))])
+        .titled(("Boot stages", caption));
+        let login_section = (!login_records.is_empty()).then(|| {
+            Section::column_table(
+                [
+                    ColumnHeading::titled("Took"),
+                    ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
+                ],
+                login_records,
+            )
+            .titled("After boot")
+        });
+        TooltipBody::sections(once(stages_section).chain(login_section))
     }
 }
 
