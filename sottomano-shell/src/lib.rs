@@ -10,7 +10,6 @@ use command_line::CommandLine;
 use desktop_shell::DesktopShell;
 use iced_exwlshell::{
     build_pattern::daemon,
-    redraw::Scope,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use sottomano_config::{Config, ConfigFile, SecretPaths};
@@ -82,7 +81,6 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     .style(DesktopShell::style)
     .theme(DesktopShell::theme)
     .subscription(message_subscriptions::subscription)
-    .redraw_scope(|_| Scope::None)
     .wl_settings(wl_settings)
     .default_font(default_font)
     .antialiasing(true)

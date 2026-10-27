@@ -209,24 +209,6 @@ impl TooltipHost {
     }
 
     #[must_use]
-    pub fn seq(&self) -> u64 {
-        self.transition.seq()
-    }
-
-    #[must_use]
-    pub fn surfaces_to_redraw(&self, seq_before_update: u64) -> Vec<Id> {
-        if self.transition.seq() != seq_before_update {
-            return self.surfaces.values().copied().collect();
-        }
-        self.transition
-            .placement()
-            .and_then(|placement| self.surfaces.get(&placement.output))
-            .copied()
-            .into_iter()
-            .collect()
-    }
-
-    #[must_use]
     pub fn surface_on(&self, output: &str) -> Option<Id> {
         self.surfaces.get(output).copied()
     }
