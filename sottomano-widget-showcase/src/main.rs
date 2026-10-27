@@ -1,9 +1,10 @@
-use std::{error::Error, path::PathBuf};
+use std::{error::Error, path::PathBuf, time::Instant};
 
 use clap::Parser;
 use sottomano_config::Config;
 use sottomano_widget_showcase::{
-    WORKSPACE_ROOT, animation_recording,
+    WORKSPACE_ROOT,
+    animation_recording::RecordingSession,
     demo_script::DEMOS,
     showcase_program::{ShowcaseProgram, booting_clock},
 };
@@ -38,9 +39,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let start = booting_clock();
     let only = command_line.demo.as_deref();
-    DEMOS
+    let selected_demos: Vec<_> = DEMOS
         .iter()
         .filter(|demo| only.is_none_or(|name| name == demo.name))
-        .for_each(|demo| animation_recording::record(demo, start, &command_line.output));
+        .collect();
+    let mut recording_session = RecordingSession::open(start);
+    let run_started = Instant::now();
+    selected_demos
+        .iter()
+        .enumerate()
+        .for_each(|(demo_position, demo)| {
+            let demo_started = Instant::now();
+            recording_session.record(demo, start, &command_line.output);
+            eprintln!(
+                "[{}/{}] {} recorded in {:.1}s",
+                demo_position + 1,
+                selected_demos.len(),
+                demo.name,
+                demo_started.elapsed().as_secs_f32()
+            );
+        });
+    eprintln!(
+        "recorded {} demos in {:.0}s",
+        selected_demos.len(),
+        run_started.elapsed().as_secs_f32()
+    );
     Ok(())
 }

@@ -105,7 +105,7 @@
 
       workspaceArtifacts = craneLib.buildDepsOnly workspaceArgs;
 
-      showcaseArtifacts = craneLib.buildDepsOnly showcaseArgs;
+      showcaseArtifacts = craneLib.buildDepsOnly (showcaseArgs // showcaseFonts);
 
       gsettingsRuntime = {
         binPath = "${pkgs.glib.bin}/bin";
@@ -176,7 +176,11 @@
           VK_ICD_FILENAMES = "${pkgs.mesa}/share/vulkan/icd.d/lvp_icd.x86_64.json";
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader ];
           doInstallCargoArtifacts = false;
-          buildPhaseCargoCommand = "cargoWithProfile run $cargoExtraArgs -- --output $out";
+          preBuild = ''
+            export HOME=$TMPDIR
+            export XDG_CACHE_HOME=$TMPDIR/cache
+          '';
+          buildPhaseCargoCommand = "cargoWithProfile run --quiet $cargoExtraArgs -- --output $out";
           installPhaseCommand = "";
         }
       );
