@@ -1,6 +1,8 @@
 use std::{borrow::Cow, time::Duration};
 
-use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
+use sottomano_sources::{
+    login_session_presence::idle_session_actions::IdleAction, weather::open_meteo_pollen::Allergen,
+};
 use sottomano_widgets::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
@@ -172,7 +174,9 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         script: &[
             Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Pollen)),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::Allergen(
+                Allergen::Grass,
+            ))),
         ],
     },
     Demo {
