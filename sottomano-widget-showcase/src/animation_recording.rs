@@ -57,19 +57,24 @@ struct CapturedFrame {
     captured_at: Instant,
 }
 
-struct DemoRecorder {
+struct DemoRecorder<'session> {
     demo: &'static Demo,
     program: ShowcaseProgram,
     emulator: Emulator<ShowcaseProgram>,
     events: Receiver<Event<ShowcaseProgram>>,
-    layout_renderer: iced::Renderer,
+    layout_renderer: &'session mut iced::Renderer,
     pointer: Point,
     background: [u8; 4],
     clock: Clock,
 }
 
-impl DemoRecorder {
-    fn start(demo: &'static Demo, config: &Config, clock: Clock) -> Self {
+impl<'session> DemoRecorder<'session> {
+    fn start(
+        demo: &'static Demo,
+        config: &Config,
+        clock: Clock,
+        layout_renderer: &'session mut iced::Renderer,
+    ) -> Self {
         let program = ShowcaseProgram::scripted(config, clock);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
         let mut emulator = Emulator::with_preset(
@@ -79,13 +84,6 @@ impl DemoRecorder {
             CANVAS,
             Some(program.preset(demo)),
         );
-        let settings = program.settings();
-        let layout_renderer = block_on(iced::Renderer::new(
-            settings.default_font,
-            settings.default_text_size,
-            None,
-        ))
-        .expect("a headless renderer is available");
         let theme = emulator
             .theme(&program)
             .expect("the showcase program always sets a theme");
@@ -148,18 +146,18 @@ impl DemoRecorder {
             self.emulator.view(&self.program),
             CANVAS,
             Cache::default(),
-            &mut self.layout_renderer,
+            self.layout_renderer,
         );
         let wanted = selector.description();
         let mut finder = selector.find_all();
-        interface.operate(&self.layout_renderer, &mut black_box(&mut finder));
+        interface.operate(self.layout_renderer, &mut black_box(&mut finder));
         if let Outcome::Some(matches) = finder.finish()
             && let Some(last_laid_out) = matches.last()
         {
             return last_laid_out.center();
         }
         let mut shown = AnyHoveredWidget.find_all();
-        interface.operate(&self.layout_renderer, &mut black_box(&mut shown));
+        interface.operate(self.layout_renderer, &mut black_box(&mut shown));
         let shown = match shown.finish() {
             Outcome::Some(targets) => targets,
             _ => Vec::new(),
@@ -509,28 +507,52 @@ fn encode_animation(frames: &[CapturedFrame], crop: &ContentCrop, animation: &Pa
     fs::write(animation, &*webp_bytes).expect("recordings directory is writable");
 }
 
-pub fn record(demo: &'static Demo, start: Clock, output_root: &Path) {
-    let config = Config::default();
-    register_font(&config);
-    let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
-    let mut recorder = DemoRecorder::start(demo, &config, start);
-    let opening = recorder.rest();
-    let scripted: Vec<CapturedFrame> = demo
-        .script
-        .iter()
-        .flat_map(|step| recorder.perform(step))
-        .collect();
-    let closing = recorder.rest();
-    let frames: Vec<CapturedFrame> = opening.into_iter().chain(scripted).chain(closing).collect();
-    let crop = ContentCrop::around_content(
-        &frames,
-        FrameSize::of_canvas(),
-        recorder.background,
-        margin_pixels,
-    );
-    drop(recorder);
-    let recordings_directory = output_root.join(RECORDINGS_DIRECTORY);
-    fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
-    let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
-    encode_animation(&frames, &crop, &animation);
+pub struct RecordingSession {
+    config: Config,
+    layout_renderer: iced::Renderer,
+}
+
+impl RecordingSession {
+    #[must_use]
+    pub fn open(start: Clock) -> Self {
+        let config = Config::default();
+        register_font(&config);
+        let settings = ShowcaseProgram::scripted(&config, start).settings();
+        let layout_renderer = block_on(iced::Renderer::new(
+            settings.default_font,
+            settings.default_text_size,
+            None,
+        ))
+        .expect("a headless renderer is available");
+        RecordingSession {
+            config,
+            layout_renderer,
+        }
+    }
+
+    pub fn record(&mut self, demo: &'static Demo, start: Clock, output_root: &Path) {
+        let margin_pixels = (self.config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
+        let mut recorder =
+            DemoRecorder::start(demo, &self.config, start, &mut self.layout_renderer);
+        let opening = recorder.rest();
+        let scripted: Vec<CapturedFrame> = demo
+            .script
+            .iter()
+            .flat_map(|step| recorder.perform(step))
+            .collect();
+        let closing = recorder.rest();
+        let frames: Vec<CapturedFrame> =
+            opening.into_iter().chain(scripted).chain(closing).collect();
+        let crop = ContentCrop::around_content(
+            &frames,
+            FrameSize::of_canvas(),
+            recorder.background,
+            margin_pixels,
+        );
+        drop(recorder);
+        let recordings_directory = output_root.join(RECORDINGS_DIRECTORY);
+        fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
+        let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
+        encode_animation(&frames, &crop, &animation);
+    }
 }
