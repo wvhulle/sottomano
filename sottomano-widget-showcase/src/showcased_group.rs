@@ -40,7 +40,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    fixtures::{compute, memory_board, niri_session},
+    fixtures::{compute, memory_board, niri_session, voice_dictation},
     showcase_message::ShowcaseMessage,
 };
 
@@ -414,6 +414,16 @@ impl ShowcasedGroup {
             ShowcasedGroup::ClaudeUsage(group) => {
                 let _ = group.hover(Some(target), config, clock);
             }
+            ShowcasedGroup::VoiceDictation(group) => {
+                let _ = group.hover(Some(target), config, clock);
+                if let HoverTarget::VoiceDictation(target) = target {
+                    voice_dictation::on_hover(*target)
+                        .into_iter()
+                        .for_each(|reading| {
+                            let _ = group.update(reading, clock);
+                        });
+                }
+            }
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 let _ = session
                     .window_group
@@ -430,7 +440,6 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Wallpaper(_)
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
-            | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::LoginSession(_)

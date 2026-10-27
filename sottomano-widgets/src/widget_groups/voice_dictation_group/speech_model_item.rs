@@ -6,10 +6,13 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody, entry},
+        simple_icons::SimpleIcon,
+        tooltip_body::{Cell, KeyValue, TooltipBody, entry},
         widget_state::WidgetState,
     },
 };
+
+const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 
 impl BarWidget for NotulistEngine {
     fn name(&self) -> &'static str {
@@ -17,7 +20,14 @@ impl BarWidget for NotulistEngine {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Brain(Weight::Regular).into()
+        match &self.engine {
+            EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
+                SimpleIcon::HuggingFace.into()
+            }
+            EngineState::SpeechModelReady(_)
+            | EngineState::LoadingSpeechModel
+            | EngineState::SpeechModelUnavailable(_) => Phosphor::Brain(Weight::Regular).into(),
+        }
     }
 
     fn fallback_icon() -> Glyph {
@@ -61,6 +71,18 @@ fn model_rows(engine: &DictationEngine) -> impl Iterator<Item = KeyValue> {
             non_empty(&engine.speech_detection_model),
         ),
         entry("File", non_empty(&engine.model_path)),
+        non_empty(&engine.model_repository).map(|repository| {
+            KeyValue::new(
+                "Repository",
+                Cell::Link {
+                    label: repository.to_owned(),
+                    url: format!("{HUGGING_FACE_SITE}/{repository}"),
+                    glyph: Some(SimpleIcon::HuggingFace.into()),
+                },
+            )
+        }),
+        entry("License", non_empty(&engine.model_license)),
+        entry("Quantization", non_empty(&engine.model_quantization)),
     ]
     .into_iter()
     .flatten()
@@ -171,6 +193,33 @@ mod tests {
             keys(model_rows(&engine)),
             ["Model", "Size", "Languages"].map(Cell::from).to_vec()
         );
+    }
+
+    #[test]
+    fn catalogued_models_link_their_repository_and_show_the_hugging_face_logo() {
+        let engine = DictationEngine {
+            model: "large-v3-turbo".to_owned(),
+            model_repository: "ggerganov/whisper.cpp".to_owned(),
+            model_license: "MIT".to_owned(),
+            model_quantization: "q5_0".to_owned(),
+            ..DictationEngine::default()
+        };
+        assert_eq!(
+            keys(model_rows(&engine)),
+            [
+                "Model",
+                "Languages",
+                "Repository",
+                "License",
+                "Quantization"
+            ]
+            .map(Cell::from)
+            .to_vec()
+        );
+        let ready = NotulistEngine {
+            engine: EngineState::SpeechModelReady(engine),
+        };
+        assert_eq!(ready.icon(), SimpleIcon::HuggingFace.into());
     }
 
     #[test]

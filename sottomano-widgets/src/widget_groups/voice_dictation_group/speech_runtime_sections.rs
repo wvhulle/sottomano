@@ -1,0 +1,68 @@
+use notulist_client::DictationEngine;
+
+use super::speech_model_item::non_empty;
+use crate::widgets::{
+    bar_widget::Glyph,
+    phosphor::{Phosphor, Weight},
+    simple_icons::SimpleIcon,
+    tooltip_body::{Section, entry},
+};
+
+const ONNX_RUNTIME_NAME: &str = "ONNX Runtime";
+
+#[must_use]
+pub fn idle_runtime_glyph() -> Glyph {
+    Phosphor::Engine(Weight::Regular).into()
+}
+
+pub struct SpeechRuntime<'a>(pub &'a DictationEngine);
+
+impl SpeechRuntime<'_> {
+    #[must_use]
+    pub fn glyph(&self) -> Glyph {
+        if self.0.inference_runtime == ONNX_RUNTIME_NAME {
+            SimpleIcon::ONNX.into()
+        } else {
+            idle_runtime_glyph()
+        }
+    }
+
+    #[must_use]
+    pub fn sections(&self) -> Vec<Section> {
+        vec![
+            Section::dictionary(
+                [
+                    entry("Runtime", non_empty(&self.0.inference_runtime)),
+                    entry("Version", non_empty(&self.0.inference_runtime_version)),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .titled("Inference runtime"),
+        ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn engine_running(inference_runtime: &str) -> DictationEngine {
+        DictationEngine {
+            inference_runtime: inference_runtime.to_owned(),
+            ..DictationEngine::default()
+        }
+    }
+
+    #[test]
+    fn onnx_runtime_shows_the_onnx_logo_and_whisper_the_engine_glyph() {
+        assert_eq!(
+            SpeechRuntime(&engine_running("ONNX Runtime")).glyph(),
+            SimpleIcon::ONNX.into()
+        );
+        assert_eq!(
+            SpeechRuntime(&engine_running("whisper.cpp")).glyph(),
+            idle_runtime_glyph()
+        );
+    }
+}

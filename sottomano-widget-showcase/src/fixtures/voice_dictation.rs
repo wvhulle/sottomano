@@ -1,14 +1,19 @@
+use chrono::{TimeZone, Utc};
 use notulist_client::{DictationEngine, DictationPhase, EngineState};
 use sottomano_sources::{
     SourceDelivery,
     systemd_units_journal::unit_active_state::{UnitActiveState, UnitActivity},
     voice_dictation_input::{
-        notulist_dbus_dictation::NotulistDictation, notulist_dbus_engine::NotulistEngine,
+        huggingface_model_card::{HuggingFaceModelCard, ModelCardData},
+        notulist_dbus_dictation::NotulistDictation,
+        notulist_dbus_engine::NotulistEngine,
     },
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::voice_dictation_group::{VoiceDictationGroup, VoiceDictationMessage},
+    widget_groups::voice_dictation_group::{
+        VoiceDictationGroup, VoiceDictationMessage, VoiceDictationTarget,
+    },
     widgets::unit_switch::UnitSwitchMessage,
 };
 
@@ -26,11 +31,11 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 fn dictation_readings() -> [VoiceDictationMessage; 3] {
     [
-        VoiceDictationMessage::Daemon(UnitSwitchMessage::ActiveState(SourceDelivery::Reading(Ok(
-            UnitActiveState {
+        VoiceDictationMessage::Runtime(UnitSwitchMessage::ActiveState(SourceDelivery::Reading(
+            Ok(UnitActiveState {
                 activity: UnitActivity::Running,
-            },
-        )))),
+            }),
+        ))),
         VoiceDictationMessage::Dictation(SourceDelivery::Reading(Ok(NotulistDictation {
             phase: DictationPhase::Idle,
         }))),
@@ -45,6 +50,9 @@ fn loaded_whisper_engine() -> DictationEngine {
         model: "large-v3-turbo".to_owned(),
         model_path: "~/.local/share/notulist/ggml-large-v3-turbo-q5_0.bin".to_owned(),
         model_size: "547 MiB".to_owned(),
+        model_repository: "ggerganov/whisper.cpp".to_owned(),
+        model_license: "MIT".to_owned(),
+        model_quantization: "q5_0".to_owned(),
         multilingual: true,
         languages: vec!["en".to_owned(), "nl".to_owned(), "it".to_owned()],
         speech_detection_model: "silero-v5".to_owned(),
@@ -57,5 +65,34 @@ fn loaded_whisper_engine() -> DictationEngine {
         inference_runtime_version: "1.8.2".to_owned(),
         sample_rate_hz: 16_000,
         retranscribe_interval_secs: 0.5,
+    }
+}
+
+pub fn on_hover(target: VoiceDictationTarget) -> Vec<VoiceDictationMessage> {
+    match target {
+        VoiceDictationTarget::SpeechModel => vec![VoiceDictationMessage::ModelCardFetched(
+            SourceDelivery::Reading(Ok(whisper_model_card())),
+        )],
+        VoiceDictationTarget::Dictation
+        | VoiceDictationTarget::Pipeline
+        | VoiceDictationTarget::Runtime
+        | VoiceDictationTarget::RuntimeConfiguration
+        | VoiceDictationTarget::InferenceHardware
+        | VoiceDictationTarget::TypingOutput => Vec::new(),
+    }
+}
+
+fn whisper_model_card() -> HuggingFaceModelCard {
+    HuggingFaceModelCard {
+        likes: 1668,
+        pipeline_tag: "automatic-speech-recognition".to_owned(),
+        library_name: String::new(),
+        last_modified: Utc
+            .with_ymd_and_hms(2024, 10, 29, 18, 25, 17)
+            .single()
+            .expect("the fixture timestamp is unambiguous"),
+        card_data: ModelCardData {
+            license: "mit".to_owned(),
+        },
     }
 }
