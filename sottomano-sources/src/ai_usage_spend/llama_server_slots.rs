@@ -81,6 +81,7 @@ pub struct LlamaModel {
     pub id: String,
     pub status: LlamaModelStatus,
     pub instance: Option<ModelInstance>,
+    pub model_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -197,10 +198,12 @@ impl From<ListedModel> for LlamaModel {
         )
         .then(|| listed.status.instance())
         .flatten();
+        let model_file = listed.status.argument("--model").map(PathBuf::from);
         Self {
             id: listed.id,
             status: listed.status.value,
             instance,
+            model_file,
         }
     }
 }
@@ -347,13 +350,18 @@ mod tests {
         let listed: ModelList = serde_json::from_str(
             r#"{"data":[
                 {"id":"Qwen3.6","status":{"value":"unloaded","args":["llama-server","--host","127.0.0.1","--port","0"]}},
-                {"id":"Qwen3.8","status":{"value":"loaded","args":["llama-server","--host","127.0.0.1","--port","57883","--ctx-size","32768"]}}
+                {"id":"Qwen3.8","status":{"value":"loaded","args":["llama-server","--host","127.0.0.1","--port","57883","--ctx-size","32768","--model","/models/Qwen3.8-27B.gguf"]}}
             ]}"#,
         )
         .unwrap();
         let models: Vec<LlamaModel> = listed.data.into_iter().map(LlamaModel::from).collect();
         assert_eq!(models[0].status, LlamaModelStatus::Unloaded);
         assert_eq!(models[0].instance, None);
+        assert_eq!(models[0].model_file, None);
+        assert_eq!(
+            models[1].model_file,
+            Some(PathBuf::from("/models/Qwen3.8-27B.gguf"))
+        );
         assert_eq!(
             models[1].instance,
             Some(ModelInstance {

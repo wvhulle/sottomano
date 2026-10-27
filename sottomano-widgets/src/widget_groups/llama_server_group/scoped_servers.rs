@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, mem::take};
+use std::{collections::BTreeMap, mem::take, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_sources::{
@@ -150,10 +150,20 @@ impl ScopedLlamaServers {
             .clone()
     }
 
+    pub fn resident_model_file(&self, unit: &str) -> Option<PathBuf> {
+        self.servers
+            .get(unit)?
+            .server
+            .get()?
+            .resident_model()?
+            .model_file
+            .clone()
+    }
+
     pub fn tooltip_for(
         &self,
         target: &LlamaServerTarget,
-        model_props: Option<SourcedSections>,
+        model_groups: Vec<SourcedSections>,
         clock: Clock,
     ) -> Option<Tooltip> {
         let readings = self.servers.get(&target.unit)?;
@@ -189,7 +199,7 @@ impl ScopedLlamaServers {
                 Some(
                     reading
                         .tooltip_with(TooltipBody::sections([status_and_web_ui, available_models]))?
-                        .with_groups(model_props),
+                        .with_groups(model_groups),
                 )
             }
             LlamaServerReading::GenerationRate => {

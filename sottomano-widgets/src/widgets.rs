@@ -16,6 +16,7 @@ pub mod focus_indicator;
 pub mod gauge;
 pub mod group_item;
 pub mod hardware_section;
+pub mod huggingface_hub_sections;
 pub mod icon_handle;
 pub mod idle;
 pub mod inline_slider;
