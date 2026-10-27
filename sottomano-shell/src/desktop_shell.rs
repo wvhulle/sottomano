@@ -279,7 +279,6 @@ impl DesktopShell {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
         self.clock = Clock::real();
-        let tooltip_seq = self.tooltip.seq();
         let hovered_before = self.tooltip.target().cloned();
         let reheat_due = reheats_switch_heat(&message);
         let dispatched = self.dispatch_message(message);
@@ -312,23 +311,7 @@ impl DesktopShell {
                 self.clock,
             ),
         );
-        Task::batch([
-            dispatched,
-            reheated,
-            hover_readings,
-            widget_toasts,
-            self.redraw_content(tooltip_seq),
-        ])
-    }
-
-    fn redraw_content(&self, tooltip_seq_before_update: u64) -> Task<Message> {
-        Task::batch(
-            self.panels()
-                .chain(self.notification_toast_surfaces())
-                .map(|(surface, _)| surface)
-                .chain(self.tooltip.surfaces_to_redraw(tooltip_seq_before_update))
-                .map(|surface| Task::done(Message::RedrawWindow(surface))),
-        )
+        Task::batch([dispatched, reheated, hover_readings, widget_toasts])
     }
 
     #[allow(clippy::too_many_lines)]
