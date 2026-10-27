@@ -5,7 +5,7 @@ use sottomano_widget_showcase::showcase_program::ShowcaseProgram;
 fn toast_scenarios_play_through() {
     let scenarios = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/ice");
     if let Err(failure) =
-        iced_test::run(ShowcaseProgram::interactive(&Config::fallback()), scenarios)
+        iced_test::run(ShowcaseProgram::interactive(&Config::default()), scenarios)
     {
         panic!("{failure:?}");
     }

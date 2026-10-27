@@ -510,7 +510,7 @@ fn encode_animation(frames: &[CapturedFrame], crop: &ContentCrop, animation: &Pa
 }
 
 pub fn record(demo: &'static Demo, start: Clock, output_root: &Path) {
-    let config = Config::fallback();
+    let config = Config::default();
     register_font(&config);
     let margin_pixels = (config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
     let mut recorder = DemoRecorder::start(demo, &config, start);
