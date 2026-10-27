@@ -42,20 +42,13 @@ async fn read_shown(conn: &turso::Connection) -> Result<bool, StoreError> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::{flag, upsert_column};
+    use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, upsert_column};
 
     use super::{CREATE_TABLE, read_shown};
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
-
     #[tokio::test]
     async fn borders_show_until_turned_off() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         assert!(read_shown(&conn).await.unwrap());
         upsert_column(&conn, "switch_heat_borders", "shown", flag(false))
             .await

@@ -19,24 +19,35 @@ const SELECT_SHELL_SETTINGS: &str = "SELECT float_offset_px, disconnected_groups
     FROM shell_settings WHERE id = 0";
 
 #[derive(Debug, Clone, Copy)]
-enum Setting {
-    FloatOffset,
-    DisconnectedGroups,
-    AutoCollapseGroups,
-    Sound,
-    ToastSpatialLayout,
-    WorkspacesInSidebar,
+pub enum ShellSetting {
+    FloatOffset(f32),
+    DisconnectedGroups(bool),
+    AutoCollapseGroups(bool),
+    Sound(bool),
+    ToastSpatialLayout(bool),
+    WorkspacesPlacement(WorkspacesPlacement),
 }
 
-impl Setting {
+impl ShellSetting {
     fn column(self) -> &'static str {
         match self {
-            Self::FloatOffset => "float_offset_px",
-            Self::DisconnectedGroups => "disconnected_groups",
-            Self::AutoCollapseGroups => "auto_collapse_groups",
-            Self::Sound => "sound",
-            Self::ToastSpatialLayout => "toast_spatial_layout",
-            Self::WorkspacesInSidebar => "workspaces_in_sidebar",
+            Self::FloatOffset(_) => "float_offset_px",
+            Self::DisconnectedGroups(_) => "disconnected_groups",
+            Self::AutoCollapseGroups(_) => "auto_collapse_groups",
+            Self::Sound(_) => "sound",
+            Self::ToastSpatialLayout(_) => "toast_spatial_layout",
+            Self::WorkspacesPlacement(_) => "workspaces_in_sidebar",
+        }
+    }
+
+    fn stored_value(self) -> turso::Value {
+        match self {
+            Self::FloatOffset(offset) => real(offset),
+            Self::DisconnectedGroups(enabled)
+            | Self::AutoCollapseGroups(enabled)
+            | Self::Sound(enabled)
+            | Self::ToastSpatialLayout(enabled) => flag(enabled),
+            Self::WorkspacesPlacement(placement) => flag(placement == WorkspacesPlacement::Sidebar),
         }
     }
 }
@@ -57,50 +68,24 @@ pub async fn load() -> ShellSettings {
     }
 }
 
-pub async fn save_float_offset(offset: f32) -> bool {
-    put(Setting::FloatOffset, real(offset)).await
-}
-
-pub async fn save_disconnected_groups(disconnected: bool) {
-    put(Setting::DisconnectedGroups, flag(disconnected)).await;
-}
-
-pub async fn save_auto_collapse_groups(collapse: bool) {
-    put(Setting::AutoCollapseGroups, flag(collapse)).await;
-}
-
-pub async fn save_workspaces_placement(placement: WorkspacesPlacement) {
-    put(
-        Setting::WorkspacesInSidebar,
-        flag(placement == WorkspacesPlacement::Sidebar),
-    )
-    .await;
-}
-
-pub async fn save_sound(sound: bool) {
-    put(Setting::Sound, flag(sound)).await;
-}
-
-pub async fn save_toast_spatial_layout(spatial: bool) {
-    put(Setting::ToastSpatialLayout, flag(spatial)).await;
-}
-
-async fn put(setting: Setting, value: turso::Value) -> bool {
+pub async fn save(setting: ShellSetting) -> bool {
     with_table(
         &format!("shell settings: save {} failed", setting.column()),
         &[CREATE_TABLE],
-        async |conn| write_setting(conn, setting, value).await,
+        async |conn| write_setting(conn, setting).await,
     )
     .await
     .is_some()
 }
 
-async fn write_setting(
-    conn: &turso::Connection,
-    setting: Setting,
-    value: turso::Value,
-) -> Result<(), StoreError> {
-    upsert_column(conn, "shell_settings", setting.column(), value).await
+async fn write_setting(conn: &turso::Connection, setting: ShellSetting) -> Result<(), StoreError> {
+    upsert_column(
+        conn,
+        "shell_settings",
+        setting.column(),
+        setting.stored_value(),
+    )
+    .await
 }
 
 async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, StoreError> {
@@ -139,28 +124,23 @@ async fn read_shell_settings(conn: &turso::Connection) -> Result<ShellSettings, 
 
 #[cfg(test)]
 mod tests {
-    use super::{CREATE_TABLE, Setting, flag, read_shell_settings, real, write_setting};
-    use crate::WorkspacesPlacement;
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
+    use super::{CREATE_TABLE, ShellSetting, read_shell_settings, write_setting};
+    use crate::WorkspacesPlacement;
 
     #[tokio::test]
     async fn every_setting_round_trips_to_its_own_column() {
-        let conn = connection().await;
-        for (setting, value) in [
-            (Setting::FloatOffset, real(3.25)),
-            (Setting::DisconnectedGroups, flag(true)),
-            (Setting::AutoCollapseGroups, flag(false)),
-            (Setting::Sound, flag(false)),
-            (Setting::ToastSpatialLayout, flag(false)),
-            (Setting::WorkspacesInSidebar, flag(false)),
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        for setting in [
+            ShellSetting::FloatOffset(3.25),
+            ShellSetting::DisconnectedGroups(true),
+            ShellSetting::AutoCollapseGroups(false),
+            ShellSetting::Sound(false),
+            ShellSetting::ToastSpatialLayout(false),
+            ShellSetting::WorkspacesPlacement(WorkspacesPlacement::BottomPanel),
         ] {
-            write_setting(&conn, setting, value).await.unwrap();
+            write_setting(&conn, setting).await.unwrap();
         }
 
         let shell_settings = read_shell_settings(&conn).await.unwrap();
@@ -178,8 +158,8 @@ mod tests {
 
     #[tokio::test]
     async fn unwritten_columns_keep_their_defaults() {
-        let conn = connection().await;
-        write_setting(&conn, Setting::Sound, flag(false))
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
+        write_setting(&conn, ShellSetting::Sound(false))
             .await
             .unwrap();
 

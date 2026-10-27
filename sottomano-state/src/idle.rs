@@ -109,20 +109,16 @@ async fn write_timeouts(conn: &turso::Connection, timeouts: Timeouts) -> Result<
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::login_session_presence::session_power_actions::SessionAction;
+    use sottomano_sources::{
+        login_session_presence::session_power_actions::SessionAction,
+        sqlite_state_store::in_memory_connection,
+    };
 
     use super::{CREATE_TABLE, ScheduledAfterIdle, Timeouts, read_timeouts, write_timeouts};
 
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
-
     #[tokio::test]
     async fn timeouts_survive_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         let timeouts = Timeouts {
             lock_user: Some(Duration::from_secs(60)),
             screen_off: None,

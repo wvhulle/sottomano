@@ -18,6 +18,7 @@ pub enum WatchTarget {
     EntriesOf(PathBuf),
     NamesIn(PathBuf),
     File(PathBuf),
+    WrittenFile(PathBuf),
     OneLevelTree(PathBuf),
 }
 
@@ -27,7 +28,9 @@ impl WatchTarget {
             WatchTarget::EntriesOf(directory)
             | WatchTarget::NamesIn(directory)
             | WatchTarget::OneLevelTree(directory) => directory.clone(),
-            WatchTarget::File(file) => file.parent().unwrap_or(Path::new("/")).to_path_buf(),
+            WatchTarget::File(file) | WatchTarget::WrittenFile(file) => {
+                file.parent().unwrap_or(Path::new("/")).to_path_buf()
+            }
         }
     }
 
@@ -36,13 +39,18 @@ impl WatchTarget {
             WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) | WatchTarget::OneLevelTree(_) => {
                 None
             }
-            WatchTarget::File(file) => file.file_name().map(OsString::from),
+            WatchTarget::File(file) | WatchTarget::WrittenFile(file) => {
+                file.file_name().map(OsString::from)
+            }
         }
     }
 
     fn watched_events(&self) -> WatchMask {
         match self {
             WatchTarget::NamesIn(_) => relinking_events(),
+            WatchTarget::WrittenFile(_) => {
+                WatchMask::CREATE | WatchMask::MOVED_TO | WatchMask::CLOSE_WRITE
+            }
             WatchTarget::EntriesOf(_) | WatchTarget::File(_) | WatchTarget::OneLevelTree(_) => {
                 entry_events()
             }
@@ -58,9 +66,10 @@ impl WatchTarget {
                 .map(|entry| entry.path())
                 .filter(|path| path.is_dir())
                 .collect(),
-            WatchTarget::EntriesOf(_) | WatchTarget::NamesIn(_) | WatchTarget::File(_) => {
-                Vec::new()
-            }
+            WatchTarget::EntriesOf(_)
+            | WatchTarget::NamesIn(_)
+            | WatchTarget::File(_)
+            | WatchTarget::WrittenFile(_) => Vec::new(),
         }
     }
 }
@@ -200,5 +209,55 @@ fn symlink_steps(path: &Path, steps: &mut Vec<NamedEntry>) {
         if let Ok(target) = fs::read_link(ancestor) {
             symlink_steps(&parent.join(target), steps);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{env, fs, os::unix::fs::symlink, path::PathBuf, pin::pin, process, time::Duration};
+
+    use futures::StreamExt;
+    use tokio::time::timeout;
+
+    use super::{WatchTarget, watch};
+
+    fn scratch_directory(test: &str) -> PathBuf {
+        let directory = env::temp_dir().join(format!("sottomano-{test}-{}", process::id()));
+        fs::create_dir_all(&directory).unwrap();
+        directory
+    }
+
+    #[tokio::test]
+    async fn swapping_the_symlink_like_umbra_is_seen() {
+        let directory = scratch_directory("symlink-swap");
+        fs::write(directory.join("dark-sottomano.toml"), "").unwrap();
+        fs::write(directory.join("light-sottomano.toml"), "").unwrap();
+        let config = directory.join("sottomano.toml");
+        symlink("dark-sottomano.toml", &config).unwrap();
+        let mut changes = pin!(watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
+
+        let staged = directory.join("sottomano.toml.staged");
+        symlink("light-sottomano.toml", &staged).unwrap();
+        fs::rename(&staged, &config).unwrap();
+
+        let change = timeout(Duration::from_secs(2), changes.next()).await;
+        fs::remove_dir_all(&directory).unwrap();
+        assert_eq!(change, Ok(Some(())));
+    }
+
+    #[tokio::test]
+    async fn editing_a_sibling_file_is_ignored() {
+        let directory = scratch_directory("sibling-edit");
+        let config = directory.join("sottomano.toml");
+        let mut changes = pin!(watch(&[WatchTarget::WrittenFile(config.clone())]).unwrap());
+
+        fs::write(directory.join("other.toml"), "").unwrap();
+        let after_sibling = timeout(Duration::from_millis(200), changes.next()).await;
+        fs::write(&config, "").unwrap();
+        let after_config = timeout(Duration::from_secs(2), changes.next()).await;
+
+        fs::remove_dir_all(&directory).unwrap();
+        assert!(after_sibling.is_err());
+        assert_eq!(after_config, Ok(Some(())));
     }
 }

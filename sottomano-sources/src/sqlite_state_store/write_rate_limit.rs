@@ -122,13 +122,7 @@ pub fn now_unix() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{Backoff, CREATE_TABLE, read_backoff, write_backoff};
-
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
-        conn
-    }
+    use crate::sqlite_state_store::in_memory_connection;
 
     fn backoff() -> Backoff {
         Backoff {
@@ -141,7 +135,7 @@ mod tests {
 
     #[tokio::test]
     async fn backoff_survives_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         write_backoff(&conn, "claude", &backoff()).await.unwrap();
 
         assert_eq!(read_backoff(&conn, "claude").await.unwrap(), backoff());

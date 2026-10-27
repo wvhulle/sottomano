@@ -1,6 +1,9 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{LayerAppearance, ShellLayer, ShellLayout, shell_settings};
+use sottomano_state::{
+    LayerAppearance, ShellLayer, ShellLayout,
+    shell_settings::{self, ShellSetting},
+};
 
 use crate::{
     clock::Clock,
@@ -150,18 +153,18 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 shell_layout.disconnected_groups = !shell_layout.disconnected_groups;
                 Action::Run(
-                    Task::future(shell_settings::save_disconnected_groups(
+                    Task::future(shell_settings::save(ShellSetting::DisconnectedGroups(
                         shell_layout.disconnected_groups,
-                    ))
+                    )))
                     .discard(),
                 )
             }
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 shell_layout.auto_collapse_groups = !shell_layout.auto_collapse_groups;
                 Action::Run(
-                    Task::future(shell_settings::save_auto_collapse_groups(
+                    Task::future(shell_settings::save(ShellSetting::AutoCollapseGroups(
                         shell_layout.auto_collapse_groups,
-                    ))
+                    )))
                     .discard(),
                 )
             }
@@ -170,13 +173,15 @@ impl PanelSettingsGroup {
                     return Action::Run(Task::none());
                 };
                 shell_layout.float_offset_px = value;
-                Action::Reflow(Task::future(shell_settings::save_float_offset(value)).map(
-                    move |ok| {
-                        Message::PanelSettings(PanelSettingsMessage::FloatOffset(
-                            ControlMessage::Persisted { value, ok },
-                        ))
-                    },
-                ))
+                Action::Reflow(
+                    Task::future(shell_settings::save(ShellSetting::FloatOffset(value))).map(
+                        move |ok| {
+                            Message::PanelSettings(PanelSettingsMessage::FloatOffset(
+                                ControlMessage::Persisted { value, ok },
+                            ))
+                        },
+                    ),
+                )
             }
             PanelSettingsMessage::Appearance(msg) => Action::Run(
                 self.appearance

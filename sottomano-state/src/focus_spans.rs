@@ -201,18 +201,12 @@ mod tests {
     use std::path::PathBuf;
 
     use chrono::TimeDelta;
-    use sottomano_sources::login_session_presence::focus_time_ledger::Presence;
+    use sottomano_sources::{
+        login_session_presence::focus_time_ledger::Presence,
+        sqlite_state_store::in_memory_connection,
+    };
 
     use super::*;
-
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        for statement in SCHEMA {
-            conn.execute(statement, ()).await.unwrap();
-        }
-        conn
-    }
 
     fn at(minutes: i64) -> DateTime<Utc> {
         "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
@@ -238,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn recording_a_span_again_keeps_its_latest_end_in_any_order() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         let presence = PresenceSpan {
             state: Presence::ScreenOff,
             started_at: at(0),
@@ -280,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn spans_starting_within_the_same_second_stay_distinct() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         let first = focus_span(0);
         let second = FocusSpan {
             window: 43,
@@ -302,7 +296,7 @@ mod tests {
 
     #[tokio::test]
     async fn loading_skips_spans_that_ended_before_the_window() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         recorded(
             &conn,
             &[
@@ -318,7 +312,7 @@ mod tests {
 
     #[tokio::test]
     async fn forgetting_old_spans_takes_their_facets_along() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         recorded(&conn, &[SpanWrite::RecordWindowFocusSpan(focus_span(-30))]).await;
         forget_before(&conn, at(0)).await.unwrap();
         let mut rows = conn

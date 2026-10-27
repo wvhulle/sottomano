@@ -1,4 +1,4 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
 
 use crate::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
 
@@ -38,6 +38,21 @@ impl AppearanceSetting {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum AppearanceValue {
+    Real(f32),
+    Flag(bool),
+}
+
+impl From<AppearanceValue> for turso::Value {
+    fn from(value: AppearanceValue) -> Self {
+        match value {
+            AppearanceValue::Real(number) => real(number),
+            AppearanceValue::Flag(enabled) => flag(enabled),
+        }
+    }
+}
+
 impl ShellLayer {
     fn key(self) -> &'static str {
         match self {
@@ -48,7 +63,7 @@ impl ShellLayer {
     }
 }
 
-pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: turso::Value) -> bool {
+pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: AppearanceValue) -> bool {
     with_table(
         &format!(
             "layer appearance: save {} {} failed",
@@ -56,7 +71,7 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: turso::V
             setting.column()
         ),
         &[CREATE_TABLE],
-        async |conn| write_setting(conn, layer, setting, value).await,
+        async |conn| write_setting(conn, layer, setting, value.into()).await,
     )
     .await
     .is_some()
@@ -137,16 +152,14 @@ async fn read_layer_appearance(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::{flag, real};
+    use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
     use super::{AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_setting};
     use crate::{LayerAppearance, ShellLayer};
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        conn.execute(CREATE_TABLE, ()).await.unwrap();
+        let conn = in_memory_connection(&[CREATE_TABLE]).await;
         for (setting, value) in [
             (AppearanceSetting::Opacity, real(0.4)),
             (AppearanceSetting::CornerRadius, real(9.0)),

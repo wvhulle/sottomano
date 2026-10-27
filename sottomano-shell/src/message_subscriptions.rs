@@ -1,5 +1,3 @@
-use std::future::ready;
-
 use iced::{
     Subscription,
     event::listen_with,
@@ -17,7 +15,7 @@ use sottomano_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
-        inotify_config_file_changes,
+        inotify_directory_changes::{WatchTarget, changes},
     },
 };
 use sottomano_widgets::{
@@ -66,10 +64,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
 
     Subscription::batch([
         outputs(state.wayland.as_ref()),
-        Subscription::run_with(
-            state.config_file.clone(),
-            inotify_config_file_changes::file_changes,
-        )
+        Subscription::run_with(state.config_file.clone(), |config_file| {
+            changes(vec![WatchTarget::WrittenFile(
+                config_file.path().to_path_buf(),
+            )])
+        })
         .map(|()| Message::ConfigFileChanged),
         state.weather_group.subscription().map(Message::Weather),
         state.wallpaper_group.subscription().map(Message::Wallpaper),
@@ -189,16 +188,19 @@ fn niri_subscription() -> Subscription<Message> {
 }
 
 fn notifications_subscription() -> Subscription<Message> {
-    use iced::futures::{StreamExt, TryFutureExt, TryStreamExt};
+    use iced::futures::{StreamExt, stream};
     Subscription::run(|| {
-        served_notifications()
-            .try_flatten_stream()
-            .inspect_err(|e| tracing::error!("notifications: server failed to start: {e}"))
-            .filter_map(|message| ready(message.ok()))
+        stream::once(served_notifications()).flat_map(|served| match served {
+            Ok(messages) => messages.left_stream(),
+            Err(startup_failure) => {
+                tracing::error!("notifications: server failed to start: {startup_failure}");
+                stream::empty().right_stream()
+            }
+        })
     })
 }
 
-async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<Message>>> {
+async fn served_notifications() -> zbus::Result<impl Stream<Item = Message>> {
     use iced::futures::{StreamExt, stream};
     let (event_tx, event_rx) = mpsc::channel::<ServerEvent>(256);
     let (outbound_tx, outbound_rx) = mpsc::channel::<Outbound>(256);
@@ -207,5 +209,5 @@ async fn served_notifications() -> zbus::Result<impl Stream<Item = zbus::Result<
     let served = ReceiverStream::new(event_rx).map(NotificationMessage::from);
     Ok(stream::iter([connected])
         .chain(served)
-        .map(|message| Ok(Message::Notification(message))))
+        .map(Message::Notification))
 }

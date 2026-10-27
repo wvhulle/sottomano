@@ -1,6 +1,9 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_state::{LayerAppearance, NotificationSettings, ShellLayer, shell_settings};
+use sottomano_state::{
+    LayerAppearance, NotificationSettings, ShellLayer,
+    shell_settings::{self, ShellSetting},
+};
 
 use crate::{
     clock::Clock,
@@ -117,9 +120,9 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
                 notifications.toast_spatial_layout = !notifications.toast_spatial_layout;
                 Action::ReflowToasts(
-                    Task::future(shell_settings::save_toast_spatial_layout(
+                    Task::future(shell_settings::save(ShellSetting::ToastSpatialLayout(
                         notifications.toast_spatial_layout,
-                    ))
+                    )))
                     .discard(),
                 )
             }

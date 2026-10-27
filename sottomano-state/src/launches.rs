@@ -73,17 +73,9 @@ async fn write_launch(conn: &turso::Connection, launch: &Launch) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
+    use sottomano_sources::sqlite_state_store::in_memory_connection;
 
     use super::{Launch, SCHEMA, read_launches, write_launch};
-
-    async fn connection() -> turso::Connection {
-        let database = turso::Builder::new_local(":memory:").build().await.unwrap();
-        let conn = database.connect().unwrap();
-        for statement in SCHEMA {
-            conn.execute(statement, ()).await.unwrap();
-        }
-        conn
-    }
 
     fn firefox_on_web(minutes_ago: i64) -> Launch {
         Launch {
@@ -95,7 +87,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_launch_survives_a_round_trip() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         let launch = firefox_on_web(0);
         write_launch(&conn, &launch).await.unwrap();
 
@@ -104,7 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn repeated_launches_accumulate() {
-        let conn = connection().await;
+        let conn = in_memory_connection(&SCHEMA).await;
         write_launch(&conn, &firefox_on_web(5)).await.unwrap();
         write_launch(&conn, &firefox_on_web(0)).await.unwrap();
 
