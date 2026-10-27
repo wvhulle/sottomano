@@ -41,7 +41,7 @@ impl SnapshotSource for RootFilesystem {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "disk";
+    const NAME: &'static str = "Root filesystem";
 
     fn delivery_stream(
         (): Self::StreamInputs,

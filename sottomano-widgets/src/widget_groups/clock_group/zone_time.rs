@@ -25,7 +25,7 @@ impl SnapshotSource for ZoneTime {
     type Error = Infallible;
     type StreamInputs = Tz;
 
-    const NAME: &'static str = "zone time";
+    const NAME: &'static str = "Zone time";
 
     fn delivery_stream(zone: Tz) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(TICK).boundary_aligned_deliveries(move || ZoneTime(zone))

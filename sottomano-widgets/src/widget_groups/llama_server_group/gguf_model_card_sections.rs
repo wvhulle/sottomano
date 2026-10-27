@@ -6,7 +6,7 @@ use crate::{
     clock::Clock,
     widgets::{
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, entry},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section},
     },
 };
 
@@ -54,12 +54,16 @@ fn license_cell(card: &GgufModelCard) -> Option<Cell> {
 impl ReadingSections for GgufModelCard {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         let identity_rows = [
-            entry("Name", filled_text(&self.name)),
-            entry("Parameters", filled_text(&self.size_label)),
-            entry("License", license_cell(self)),
-            entry("Quantized by", filled_text(&self.quantized_by)),
-            entry("GGUF repository", repository_link(&self.repository_url)),
-            entry("Source", repository_link(&self.source_url)),
+            filled_text(&self.name).map(|model_name| KeyValue::new("Name", model_name)),
+            filled_text(&self.size_label)
+                .map(|parameter_count| KeyValue::new("Parameters", parameter_count)),
+            license_cell(self).map(|license_cell| KeyValue::new("License", license_cell)),
+            filled_text(&self.quantized_by)
+                .map(|quantizer_name| KeyValue::new("Quantized by", quantizer_name)),
+            repository_link(&self.repository_url)
+                .map(|repository_link| KeyValue::new("GGUF repository", repository_link)),
+            repository_link(&self.source_url)
+                .map(|source_link| KeyValue::new("Source", source_link)),
         ]
         .into_iter()
         .flatten();
@@ -67,15 +71,12 @@ impl ReadingSections for GgufModelCard {
         let tags = (!self.tags.is_empty()).then(|| KeyValue::new("Tags", self.tags.join(", ")));
         let description = filled_text(&self.description)
             .map(|description| KeyValue::new("Description", Cell::Hint(description.to_owned())));
-        vec![
-            Section::dictionary(
-                identity_rows
-                    .chain(lineage_rows)
-                    .chain(tags)
-                    .chain(description),
-            )
-            .titled("Model card"),
-        ]
+        vec![Section::dictionary(
+            identity_rows
+                .chain(lineage_rows)
+                .chain(tags)
+                .chain(description),
+        )]
     }
 }
 

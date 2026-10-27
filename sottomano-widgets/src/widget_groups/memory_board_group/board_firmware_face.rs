@@ -10,7 +10,7 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, Section, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         vendor_logo::{PciVendorId, VendorLogo},
     },
 };
@@ -56,10 +56,14 @@ impl BarWidget for MachineInfo {
         });
         TooltipBody::sections([Section::dictionary(
             [
-                entry("Vendor", self.hardware_vendor.clone()),
-                entry("Model", self.hardware_model.clone()),
-                entry("Firmware", firmware),
-                entry("Firmware date", firmware_date),
+                self.hardware_vendor
+                    .clone()
+                    .map(|hardware_vendor| KeyValue::new("Vendor", hardware_vendor)),
+                self.hardware_model
+                    .clone()
+                    .map(|hardware_model| KeyValue::new("Model", hardware_model)),
+                firmware.map(|firmware_version| KeyValue::new("Firmware", firmware_version)),
+                firmware_date.map(|firmware_date| KeyValue::new("Firmware date", firmware_date)),
             ]
             .into_iter()
             .flatten(),

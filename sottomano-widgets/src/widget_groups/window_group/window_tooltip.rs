@@ -78,7 +78,7 @@ impl ReadingSections for Inspection {
                     .map(|referenced| versioned("Referenced", referenced)),
             )
             .chain(profile);
-        vec![Section::dictionary(packages.chain(command(self))).titled("Package")]
+        vec![Section::dictionary(packages.chain(command(self)))]
     }
 }
 
@@ -120,7 +120,7 @@ impl ReadingSections for NixPackageFacts {
             nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
             self.upstream.as_ref().and_then(upstream_entry),
         ];
-        vec![Section::dictionary(rows.into_iter().flatten()).titled("Nix")]
+        vec![Section::dictionary(rows.into_iter().flatten())]
     }
 }
 

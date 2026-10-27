@@ -5,7 +5,7 @@ use futures::{Stream, StreamExt, stream};
 use tokio::task::spawn_blocking;
 
 use crate::{
-    SnapshotDelivery, SnapshotSource,
+    SnapshotDelivery, SnapshotSource, SourceCaption,
     desktop_windows_apps::niri_output_facts,
     host_machine_identity::hostname1_os_identity::at_micros,
     non_empty_text::non_empty,
@@ -34,7 +34,9 @@ impl SnapshotSource for GraphicalSession {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "graphical session";
+    const NAME: &'static str = "Where apps connect to it";
+    const CAPTION: SourceCaption =
+        SourceCaption::Captioned("Apps find the compositor through these sockets.");
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::read()).map(SnapshotDelivery::single_read)
@@ -65,7 +67,10 @@ impl SnapshotSource for GraphicalSessionTarget {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "graphical session target";
+    const NAME: &'static str = "Desktop startup progress";
+    const CAPTION: SourceCaption = SourceCaption::Captioned(
+        "graphical-session.target is reached once the compositor is ready for services.",
+    );
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(target_changes(buses))

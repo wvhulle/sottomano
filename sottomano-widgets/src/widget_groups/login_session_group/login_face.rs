@@ -10,7 +10,7 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
     },
 };
 
@@ -53,7 +53,12 @@ impl BarWidget for LoginFace<'_> {
 impl ReadingSections for SessionInfo {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![
-            Section::dictionary(entry("Greeter", self.greeter.clone())).titled((
+            Section::dictionary(
+                self.greeter
+                    .clone()
+                    .map(|greeter_name| KeyValue::new("Greeter", greeter_name)),
+            )
+            .titled((
                 "Login screen shown before this session",
                 "Drew the password prompt in its own short session, closed once you logged in.",
             )),
@@ -87,7 +92,9 @@ impl ReadingSections for SessionInfo {
             )),
             Section::dictionary(
                 [
-                    entry("Started by", self.leader_name.clone()),
+                    self.leader_name
+                        .clone()
+                        .map(|leader_name| KeyValue::new("Started by", leader_name)),
                     Some(KeyValue::new("Starter process id", self.leader.to_string())),
                     Some(KeyValue::new("Processes kept in", self.scope.clone())),
                 ]

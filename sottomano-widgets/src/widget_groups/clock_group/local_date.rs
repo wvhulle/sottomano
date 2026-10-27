@@ -24,7 +24,7 @@ impl SnapshotSource for LocalDate {
     type Error = Infallible;
     type StreamInputs = ();
 
-    const NAME: &'static str = "local date";
+    const NAME: &'static str = "Local date";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(TICK).boundary_aligned_deliveries(|| LocalDate)

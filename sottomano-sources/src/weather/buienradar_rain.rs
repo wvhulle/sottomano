@@ -139,7 +139,7 @@ impl SnapshotSource for Rain {
     type Error = Error;
     type StreamInputs = GeoCoordinates;
 
-    const NAME: &'static str = "weather-rain";
+    const NAME: &'static str = "Rain radar";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

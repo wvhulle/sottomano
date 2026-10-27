@@ -9,7 +9,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
         vendor_logo::{DistributionIds, VendorLogo},
     },
 };
@@ -39,7 +39,10 @@ impl BarWidget for KernelFace<'_> {
                 Some(KeyValue::new("Host", self.system.hostname.clone())),
                 Some(KeyValue::new("Kernel", self.system.kernel.clone())),
                 Some(KeyValue::new("OS", self.system.operating_system.clone())),
-                entry("Chassis", self.system.chassis.map(Chassis::stored_name)),
+                self.system
+                    .chassis
+                    .map(Chassis::stored_name)
+                    .map(|chassis_kind| KeyValue::new("Chassis", chassis_kind)),
                 Some(KeyValue::new(
                     "Wiki",
                     Cell::Link {

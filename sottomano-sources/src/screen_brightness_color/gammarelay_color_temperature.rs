@@ -43,7 +43,7 @@ impl SnapshotSource for ColorTemperature {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "gamma";
+    const NAME: &'static str = "Color temperature";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.session.clone(), RELAY_SERVICE).while_held(

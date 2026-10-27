@@ -232,7 +232,7 @@ impl SnapshotSource for AudioState {
     type Error = AudioConnectError;
     type StreamInputs = ();
 
-    const NAME: &'static str = "audio";
+    const NAME: &'static str = "Audio";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         socket_present().while_held(

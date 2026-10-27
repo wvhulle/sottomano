@@ -106,7 +106,7 @@ impl SnapshotSource for ClaudeOrganization {
     type Error = Error;
     type StreamInputs = PathBuf;
 
-    const NAME: &'static str = "claude-organization";
+    const NAME: &'static str = "Claude organization";
 
     fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         login_polls(
@@ -130,7 +130,7 @@ impl SnapshotSource for ClaudeEnterpriseSpend {
     type Error = Error;
     type StreamInputs = ClaudeEnterpriseAccount;
 
-    const NAME: &'static str = "claude-enterprise-spend";
+    const NAME: &'static str = "Claude enterprise spend";
 
     fn delivery_stream(
         account: ClaudeEnterpriseAccount,

@@ -262,7 +262,7 @@ impl SnapshotSource for GgufModelCard {
     type Error = GgufHeaderError;
     type StreamInputs = PathBuf;
 
-    const NAME: &'static str = "GGUF model card";
+    const NAME: &'static str = "Model card";
 
     fn delivery_stream(model_file: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {

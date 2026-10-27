@@ -277,7 +277,7 @@ impl SnapshotSource for Temperature {
     type Error = Error;
     type StreamInputs = GeoCoordinates;
 
-    const NAME: &'static str = "weather-temp";
+    const NAME: &'static str = "Weather temperature";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

@@ -9,7 +9,7 @@ use super::{
     cpu_topology::CpuTopology,
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    SnapshotDelivery, SnapshotSource, SourceCaption, blocking_background_work::blocking_poll,
     delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
@@ -40,7 +40,7 @@ impl SnapshotSource for CpuUsage {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "cpu";
+    const NAME: &'static str = "CPU usage";
 
     fn delivery_stream(
         (): Self::StreamInputs,
@@ -59,7 +59,11 @@ impl SnapshotSource for CpuCoreLoads {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "cpu cores";
+    const NAME: &'static str = "CPU load per chiplet";
+    const CAPTION: SourceCaption = SourceCaption::Captioned(
+        "Each square is one physical core in core-number order, not die position, split into its \
+         hardware threads; bar height shows how busy each thread was over the last sample.",
+    );
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         PeriodicPolling::every(Duration::from_secs(3))

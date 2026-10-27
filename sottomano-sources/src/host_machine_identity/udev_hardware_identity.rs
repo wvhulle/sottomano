@@ -303,7 +303,7 @@ impl SnapshotSource for HostHardware {
     type Error = HostHardwareError;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "host hardware";
+    const NAME: &'static str = "Host hardware";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::read(buses)).map(SnapshotDelivery::single_read)

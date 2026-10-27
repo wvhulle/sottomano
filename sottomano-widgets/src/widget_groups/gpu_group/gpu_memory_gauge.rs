@@ -82,8 +82,8 @@ fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
 
 impl ReadingSections for GpuProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().filter_map(|process| {
+        vec![Section::dictionary(self.processes.iter().filter_map(
+            |process| {
                 Some(KeyValue::new(
                     process
                         .name
@@ -91,8 +91,7 @@ impl ReadingSections for GpuProcesses {
                         .unwrap_or_else(|| process.pid.to_string()),
                     Quantity::size(process.resident_memory?),
                 ))
-            }))
-            .titled("Processes"),
-        ]
+            },
+        ))]
     }
 }

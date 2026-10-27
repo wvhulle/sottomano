@@ -16,7 +16,7 @@ impl SnapshotSource for CopilotFree {
     type Error = Error;
     type StreamInputs = CopilotAccount;
 
-    const NAME: &'static str = "copilot-usage-free";
+    const NAME: &'static str = "Copilot free quota";
 
     fn delivery_stream(
         inputs: CopilotAccount,

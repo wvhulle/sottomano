@@ -117,7 +117,7 @@ impl SnapshotSource for ChargerSupply {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "charger";
+    const NAME: &'static str = "Charger";
 
     fn delivery_stream(
         (): Self::StreamInputs,
@@ -209,7 +209,7 @@ impl SnapshotSource for Battery {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "battery";
+    const NAME: &'static str = "Battery";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

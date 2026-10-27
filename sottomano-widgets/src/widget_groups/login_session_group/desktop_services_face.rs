@@ -49,9 +49,6 @@ impl ReadingSections for GraphicalSessionTarget {
         ]
         .into_iter()
         .flatten();
-        vec![Section::dictionary(entries).titled((
-            "Desktop startup progress",
-            "graphical-session.target is reached once the compositor is ready for services.",
-        ))]
+        vec![Section::dictionary(entries)]
     }
 }

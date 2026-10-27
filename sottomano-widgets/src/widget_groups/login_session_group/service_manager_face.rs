@@ -43,28 +43,22 @@ impl BarWidget for ServiceManagerFace {
 
 impl ReadingSections for UserServiceManager {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(
-                [
-                    Some(KeyValue::new("systemd version", self.version.clone())),
-                    Some(KeyValue::new("State", self.state.clone())),
-                    self.started_at.map(|at| {
-                        KeyValue::new(
-                            "Running since",
-                            Cell::Time {
-                                at,
-                                format: LocalizedTimeFormat::DateAndTime,
-                            },
-                        )
-                    }),
-                ]
-                .into_iter()
-                .flatten(),
-            )
-            .titled((
-                "Your systemd instance right now",
-                "One instance per user; it outlives this login and stops at your last logout.",
-            )),
-        ]
+        vec![Section::dictionary(
+            [
+                Some(KeyValue::new("systemd version", self.version.clone())),
+                Some(KeyValue::new("State", self.state.clone())),
+                self.started_at.map(|at| {
+                    KeyValue::new(
+                        "Running since",
+                        Cell::Time {
+                            at,
+                            format: LocalizedTimeFormat::DateAndTime,
+                        },
+                    )
+                }),
+            ]
+            .into_iter()
+            .flatten(),
+        )]
     }
 }

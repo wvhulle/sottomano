@@ -128,7 +128,7 @@ impl SnapshotSource for Pollen {
     type Error = Error;
     type StreamInputs = GeoCoordinates;
 
-    const NAME: &'static str = "pollen";
+    const NAME: &'static str = "Pollen";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

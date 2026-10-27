@@ -91,7 +91,7 @@ impl SnapshotSource for GpuDiscovery {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "gpu discovery";
+    const NAME: &'static str = "GPU discovery";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::bound_to_known_drivers())
@@ -122,7 +122,7 @@ impl SnapshotSource for GpuRuntimePower {
     type Error = sysfs_attribute_reads::Error;
     type StreamInputs = PciBusId;
 
-    const NAME: &'static str = "gpu runtime power";
+    const NAME: &'static str = "GPU runtime power";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
@@ -266,7 +266,7 @@ impl SnapshotSource for GpuSnapshot {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
-    const NAME: &'static str = "gpu";
+    const NAME: &'static str = "GPU";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
@@ -289,7 +289,7 @@ impl SnapshotSource for GpuClocks {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
-    const NAME: &'static str = "gpu clocks";
+    const NAME: &'static str = "Clocks";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
@@ -312,7 +312,7 @@ impl SnapshotSource for GpuProcesses {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
-    const NAME: &'static str = "gpu processes";
+    const NAME: &'static str = "Processes";
 
     fn delivery_stream(
         inputs: Self::StreamInputs,

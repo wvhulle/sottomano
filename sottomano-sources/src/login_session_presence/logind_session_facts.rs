@@ -72,7 +72,7 @@ impl SnapshotSource for SessionIdentity {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "logind session identity";
+    const NAME: &'static str = "Session identity";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(identity_changes(buses))
@@ -206,7 +206,7 @@ impl SnapshotSource for SessionInfo {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "logind session";
+    const NAME: &'static str = "Login session";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(session_changes(buses))
@@ -260,7 +260,7 @@ impl SnapshotSource for PowerPolicy {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "logind power policy";
+    const NAME: &'static str = "Power policy";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         SnapshotDelivery::live_push_deliveries(power_changes(buses))

@@ -284,7 +284,7 @@ impl SnapshotSource for LlamaServer {
     type Error = http_json_client::Error;
     type StreamInputs = LlamaServerOnBus;
 
-    const NAME: &'static str = PROGRAM_NAME;
+    const NAME: &'static str = "Llama server";
 
     fn delivery_stream(
         watch: LlamaServerOnBus,
@@ -348,7 +348,7 @@ impl SnapshotSource for LlamaModelProps {
     type Error = http_json_client::Error;
     type StreamInputs = ModelInstance;
 
-    const NAME: &'static str = "llama-server model";
+    const NAME: &'static str = "Model";
 
     fn delivery_stream(
         instance: ModelInstance,

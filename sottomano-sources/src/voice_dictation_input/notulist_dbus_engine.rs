@@ -16,7 +16,7 @@ impl SnapshotSource for NotulistEngine {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "notulist engine";
+    const NAME: &'static str = "Notulist engine";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let session = buses.session;

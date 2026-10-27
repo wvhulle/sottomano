@@ -6,7 +6,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody, entry},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -62,11 +62,12 @@ fn output_problem_section(problem: &OutputProblem) -> Section {
             exit_code,
             stderr,
         }) => vec![
-            entry("Exit code", exit_code.map(|code| code.to_string())),
-            entry(
-                "Stderr",
-                Some(stderr.trim()).filter(|text| !text.is_empty()),
-            ),
+            exit_code
+                .map(|code| code.to_string())
+                .map(|exit_code| KeyValue::new("Exit code", exit_code)),
+            Some(stderr.trim())
+                .filter(|text| !text.is_empty())
+                .map(|stderr_text| KeyValue::new("Stderr", stderr_text)),
         ],
         OutputProblem::TextFieldTypingUnavailable(_)
         | OutputProblem::AnotherInputMethodOwnsSeat

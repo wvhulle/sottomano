@@ -7,7 +7,7 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{KeyValue, TooltipBody, entry},
+        tooltip_body::{KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -28,12 +28,12 @@ impl InferenceHardware<'_> {
     fn hardware_rows(&self) -> impl Iterator<Item = KeyValue> {
         let engine = self.0;
         [
-            entry("Device", non_empty(&engine.compute_device)),
-            entry("GPU", non_empty(&engine.compute_device_name)),
-            entry(
-                "Accelerators",
-                Some(engine.available_accelerators.join(", ")).filter(|joined| !joined.is_empty()),
-            ),
+            non_empty(&engine.compute_device)
+                .map(|compute_device| KeyValue::new("Device", compute_device)),
+            non_empty(&engine.compute_device_name).map(|gpu_name| KeyValue::new("GPU", gpu_name)),
+            Some(engine.available_accelerators.join(", "))
+                .filter(|joined| !joined.is_empty())
+                .map(|accelerator_list| KeyValue::new("Accelerators", accelerator_list)),
         ]
         .into_iter()
         .flatten()

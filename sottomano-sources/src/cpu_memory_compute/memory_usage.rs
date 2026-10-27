@@ -32,7 +32,7 @@ impl SnapshotSource for Memory {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "memory";
+    const NAME: &'static str = "Memory";
 
     fn delivery_stream(
         (): Self::StreamInputs,
@@ -73,7 +73,7 @@ impl SnapshotSource for MemoryProcesses {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "memory processes";
+    const NAME: &'static str = "Processes";
 
     fn delivery_stream(
         (): Self::StreamInputs,

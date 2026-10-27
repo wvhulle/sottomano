@@ -16,7 +16,7 @@ impl SnapshotSource for NotulistPipeline {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "notulist pipeline";
+    const NAME: &'static str = "Notulist pipeline";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let session = buses.session;

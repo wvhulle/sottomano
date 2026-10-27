@@ -246,22 +246,24 @@ where
         match progress {
             HoverFetchProgress::ServingRemembered => {
                 let remembered = remembered?;
-                Some(SourcedSections::delivered(
+                Some(SourcedSections::source_delivered::<S>(
                     TooltipBody::sections(describe(&remembered.remembered_snapshot)),
                     remembered.delivery_timing,
                 ))
             }
-            HoverFetchProgress::AwaitingFirstDelivery => Some(SourcedSections::awaiting_delivery(
-                TooltipBody::sections(remembered.map_or_else(
-                    || vec![Section::section_seeding()],
-                    |remembered| describe(&remembered.remembered_snapshot),
-                )),
-            )),
+            HoverFetchProgress::AwaitingFirstDelivery => {
+                Some(SourcedSections::source_awaiting_delivery::<S>(
+                    TooltipBody::sections(remembered.map_or_else(
+                        || vec![Section::section_seeding()],
+                        |remembered| describe(&remembered.remembered_snapshot),
+                    )),
+                ))
+            }
             HoverFetchProgress::SourceUnavailable => None,
             HoverFetchProgress::Delivered {
                 snapshot_fetch,
                 delivery_timing,
-            } => Some(SourcedSections::delivered(
+            } => Some(SourcedSections::source_delivered::<S>(
                 TooltipBody::sections(match snapshot_fetch {
                     Ok(delivered_snapshot) => describe(delivered_snapshot),
                     Err(failure) => vec![failure.clone().into()],
@@ -292,7 +294,7 @@ mod tests {
     use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
-    use crate::widgets::tooltip_body::{SectionBody, SectionsDeliveryState};
+    use crate::widgets::tooltip_body::{Heading, SectionBody, SectionsDeliveryState};
 
     #[derive(Debug, Clone, PartialEq)]
     struct CountedSnapshot(u32);
@@ -316,7 +318,7 @@ mod tests {
         type Error = CountingFailure;
         type StreamInputs = u32;
 
-        const NAME: &'static str = "counted-snapshot";
+        const NAME: &'static str = "Counted snapshot";
 
         fn delivery_stream(_inputs: u32) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
             stream::empty()
@@ -362,6 +364,10 @@ mod tests {
         let seeded = hover.sections_described_by(|_| Vec::new()).unwrap();
         let sections: Vec<&SectionBody> = seeded.filled_sections().map(Section::body).collect();
         assert_eq!(sections, [&SectionBody::SectionSeeding]);
+        assert_eq!(
+            seeded.source_heading().map(Heading::title),
+            Some("Counted snapshot")
+        );
     }
 
     #[test]

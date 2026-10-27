@@ -140,7 +140,7 @@ impl SnapshotSource for CaldavAgenda {
     type Error = Error;
     type StreamInputs = CaldavAccount;
 
-    const NAME: &'static str = "caldav-agenda";
+    const NAME: &'static str = "CalDAV agenda";
 
     fn delivery_stream(
         account: CaldavAccount,

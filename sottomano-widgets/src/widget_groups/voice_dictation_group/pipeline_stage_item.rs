@@ -8,7 +8,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody, entry},
+        tooltip_body::{Cell, KeyValue, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -18,22 +18,18 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = KeyValue> {
     let decoded_tick = last_tick.filter(|report| report.decode.ran);
     [
         Some(KeyValue::new("Stage", stage_text(activity.stage))),
-        entry(
-            "Language",
-            decoded_tick.map(|report| report.language.chosen_language.clone()),
-        ),
-        entry(
-            "Decode time",
-            decoded_tick.and_then(|report| seconds_cell(report.whisper_secs())),
-        ),
-        entry(
-            "Audio length",
-            decoded_tick.and_then(|report| seconds_cell(report.decode.audio_secs)),
-        ),
-        entry(
-            "Gate",
-            last_tick.and_then(|report| gate_text(report.gate.verdict)),
-        ),
+        decoded_tick
+            .map(|report| report.language.chosen_language.clone())
+            .map(|chosen_language| KeyValue::new("Language", chosen_language)),
+        decoded_tick
+            .and_then(|report| seconds_cell(report.whisper_secs()))
+            .map(|decode_time| KeyValue::new("Decode time", decode_time)),
+        decoded_tick
+            .and_then(|report| seconds_cell(report.decode.audio_secs))
+            .map(|audio_length| KeyValue::new("Audio length", audio_length)),
+        last_tick
+            .and_then(|report| gate_text(report.gate.verdict))
+            .map(|gate_verdict| KeyValue::new("Gate", gate_verdict)),
     ]
     .into_iter()
     .flatten()

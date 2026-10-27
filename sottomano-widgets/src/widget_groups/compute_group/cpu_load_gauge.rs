@@ -63,39 +63,29 @@ impl ChipletLiveState<'_> {
             topology: &loads.topology,
             readings: &readings,
         };
-        vec![
-            grid.section(
-                |group| self.title(group),
-                |group, members| {
-                    let mean = |share: fn(&CoreReading) -> Ratio| {
-                        mean_share(members.iter().map(|reading| share(reading)))
-                    };
-                    let load = mean(|reading| reading.busy).map(|busy| {
-                        KeyValue::new("Load", Quantity::share(busy)).level(busy_level(busy))
-                    });
-                    let user = mean(|reading| reading.split.user)
-                        .map(|user| KeyValue::new("User", Quantity::share(user)));
-                    let kernel = mean(|reading| reading.split.system)
-                        .map(|system| KeyValue::new("Kernel", Quantity::share(system)));
-                    let deep_idle =
-                        mean_share(members.iter().filter_map(|reading| reading.deep_idle))
-                            .map(|idle| KeyValue::new("Deep sleep", Quantity::share(idle)));
-                    load.into_iter()
-                        .chain(user)
-                        .chain(kernel)
-                        .chain(deep_idle)
-                        .chain(self.cache_traffic_facts(group))
-                        .collect()
-                },
-            )
-            .titled((
-                "CPU load per chiplet".to_owned(),
-                "Each square is one physical core in core-number order, not die position, split \
-                 into its hardware threads; bar height shows how busy each thread was over the \
-                 last sample."
-                    .to_owned(),
-            )),
-        ]
+        vec![grid.section(
+            |group| self.title(group),
+            |group, members| {
+                let mean = |share: fn(&CoreReading) -> Ratio| {
+                    mean_share(members.iter().map(|reading| share(reading)))
+                };
+                let load = mean(|reading| reading.busy).map(|busy| {
+                    KeyValue::new("Load", Quantity::share(busy)).level(busy_level(busy))
+                });
+                let user = mean(|reading| reading.split.user)
+                    .map(|user| KeyValue::new("User", Quantity::share(user)));
+                let kernel = mean(|reading| reading.split.system)
+                    .map(|system| KeyValue::new("Kernel", Quantity::share(system)));
+                let deep_idle = mean_share(members.iter().filter_map(|reading| reading.deep_idle))
+                    .map(|idle| KeyValue::new("Deep sleep", Quantity::share(idle)));
+                load.into_iter()
+                    .chain(user)
+                    .chain(kernel)
+                    .chain(deep_idle)
+                    .chain(self.cache_traffic_facts(group))
+                    .collect()
+            },
+        )]
     }
 }
 
@@ -136,16 +126,9 @@ impl BarWidget for CpuUsage {
 
 impl ReadingSections for CpuBusyProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        vec![
-            Section::dictionary(self.processes.iter().map(|process| {
-                KeyValue::new(process.name.clone(), Quantity::share(process.busy))
-                    .level(busy_level(process.busy))
-            }))
-            .titled((
-                "CPU load per process".to_owned(),
-                "Share of all CPU threads each process kept busy over the last half second."
-                    .to_owned(),
-            )),
-        ]
+        vec![Section::dictionary(self.processes.iter().map(|process| {
+            KeyValue::new(process.name.clone(), Quantity::share(process.busy))
+                .level(busy_level(process.busy))
+        }))]
     }
 }

@@ -101,15 +101,12 @@ impl ReadingSections for LlamaModelProps {
         .filter_map(|(modality, supported)| supported.then_some(modality))
         .collect::<Vec<_>>()
         .join(", ");
-        vec![
-            Section::dictionary([
-                KeyValue::new("File", Cell::Path(self.path.clone())),
-                KeyValue::new("Quantization", self.quantization.clone()),
-                KeyValue::new("Slots", Quantity::count(self.total_slots)),
-                KeyValue::new("Input", modalities),
-                KeyValue::new("Build", self.build.clone()),
-            ])
-            .titled("Model"),
-        ]
+        vec![Section::dictionary([
+            KeyValue::new("File", Cell::Path(self.path.clone())),
+            KeyValue::new("Quantization", self.quantization.clone()),
+            KeyValue::new("Slots", Quantity::count(self.total_slots)),
+            KeyValue::new("Input", modalities),
+            KeyValue::new("Build", self.build.clone()),
+        ])]
     }
 }

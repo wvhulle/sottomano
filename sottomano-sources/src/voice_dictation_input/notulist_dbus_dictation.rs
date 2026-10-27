@@ -19,7 +19,7 @@ impl SnapshotSource for NotulistDictation {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = "notulist";
+    const NAME: &'static str = "Notulist dictation";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let session = buses.session;

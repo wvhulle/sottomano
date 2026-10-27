@@ -42,7 +42,7 @@ impl SnapshotSource for Snapshot {
     type Error = Infallible;
     type StreamInputs = ();
 
-    const NAME: &'static str = "niri";
+    const NAME: &'static str = "Niri windows";
 
     fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         ReceiverStream::new(spawn_event_thread())

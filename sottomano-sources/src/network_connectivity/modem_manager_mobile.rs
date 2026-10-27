@@ -16,8 +16,6 @@ use crate::{
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, Properties, prop},
 };
 
-pub const NAME: &str = "mobile-broadband";
-
 const SERVICE: &str = "org.freedesktop.ModemManager1";
 const ROOT: &str = "/org/freedesktop/ModemManager1";
 const MODEM: &str = "org.freedesktop.ModemManager1.Modem";
@@ -253,7 +251,7 @@ impl SnapshotSource for Mobile {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
-    const NAME: &'static str = NAME;
+    const NAME: &'static str = "Mobile broadband";
 
     fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;

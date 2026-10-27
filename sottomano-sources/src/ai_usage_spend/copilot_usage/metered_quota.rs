@@ -37,7 +37,7 @@ impl SnapshotSource for CopilotMetered {
     type Error = Error;
     type StreamInputs = CopilotAccount;
 
-    const NAME: &'static str = "copilot-usage-metered";
+    const NAME: &'static str = "Copilot metered quota";
 
     fn delivery_stream(
         inputs: CopilotAccount,

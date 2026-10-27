@@ -37,7 +37,7 @@ impl SnapshotSource for L3CacheTraffic {
     type Error = Error;
     type StreamInputs = ();
 
-    const NAME: &'static str = "l3 cache traffic";
+    const NAME: &'static str = "L3 cache traffic";
 
     fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let countable = async {

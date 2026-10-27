@@ -156,7 +156,7 @@ impl SnapshotSource for BootTimeline {
     type Error = zbus::Error;
     type StreamInputs = BootTimelineWatch;
 
-    const NAME: &'static str = "boot timeline";
+    const NAME: &'static str = "Boot timeline";
 
     fn delivery_stream(
         watch: BootTimelineWatch,
