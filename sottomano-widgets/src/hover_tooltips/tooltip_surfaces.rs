@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
-    widget::{container, mouse_area},
+    widget::{Column, container, mouse_area},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -226,7 +226,7 @@ impl TooltipHost {
         let current = self.transition.current()?;
         let departed_content = match content.with_press_hints(current.press_hints) {
             HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
-            HoverContent::Interactive(_) => DepartedContent::Interactive,
+            HoverContent::Interactive { .. } => DepartedContent::Interactive,
         };
         Some(Departed::new(
             current.target.clone(),
@@ -244,12 +244,16 @@ impl TooltipHost {
         content_of: impl Fn(&HoverTarget) -> HoverContent<'a, Message>,
         clock: Clock,
     ) -> Option<Element<'a, Message>> {
+        let describe = move |tooltip: &Tooltip| -> Element<'a, Message> {
+            Element::from(TooltipContent::new(tooltip, config, assets, clock).view())
+                .map(Message::from)
+        };
         let render = |content: HoverContent<'a, Message>| match content {
-            HoverContent::Described(tooltip) => {
-                Element::from(TooltipContent::new(&tooltip, config, assets, clock).view())
-                    .map(Message::from)
-            }
-            HoverContent::Interactive(panel) => panel,
+            HoverContent::Described(tooltip) => describe(&tooltip),
+            HoverContent::Interactive { described, panel } => Column::new()
+                .extend((!described.is_empty()).then(|| describe(&described)))
+                .push(panel)
+                .into(),
         };
         if !self.hosts(surface) {
             return None;
@@ -299,7 +303,10 @@ impl TooltipHost {
 
 pub enum HoverContent<'a, Message> {
     Described(Tooltip),
-    Interactive(Element<'a, Message>),
+    Interactive {
+        described: Tooltip,
+        panel: Element<'a, Message>,
+    },
 }
 
 impl<Message> HoverContent<'_, Message> {
@@ -309,7 +316,10 @@ impl<Message> HoverContent<'_, Message> {
             HoverContent::Described(tooltip) => {
                 HoverContent::Described(tooltip.with_press_hints(press_hints))
             }
-            interactive @ HoverContent::Interactive(_) => interactive,
+            HoverContent::Interactive { described, panel } => HoverContent::Interactive {
+                described: described.with_press_hints(press_hints),
+                panel,
+            },
         }
     }
 
@@ -317,7 +327,7 @@ impl<Message> HoverContent<'_, Message> {
     pub fn shows_anything(&self, press_hints: PressHints) -> bool {
         match self {
             HoverContent::Described(tooltip) => !tooltip.is_empty() || !press_hints.is_empty(),
-            HoverContent::Interactive(_) => true,
+            HoverContent::Interactive { .. } => true,
         }
     }
 }

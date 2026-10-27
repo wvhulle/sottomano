@@ -39,10 +39,9 @@ use crate::{
         power_group::PowerTarget,
         quiet_schedule_group::QuietScheduleTarget,
         session_focus_group::SessionFocusTarget,
-        session_menu::{SessionMessage, SessionTarget},
+        session_menu::SessionTarget,
         sidebar_settings_group::SidebarSettingsTarget,
         systemd_manager_group::SystemdTarget,
-        tray_group::TrayMessage,
         voice_dictation_group::VoiceDictationTarget,
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
@@ -229,8 +228,6 @@ pub enum PopupMessage {
     OpenUrl(String),
     FocusWindow(u64),
     RefreshHoveredReading,
-    Tray(TrayMessage),
-    Session(SessionMessage),
     WindowGroup(WindowGroupMessage),
 }
 

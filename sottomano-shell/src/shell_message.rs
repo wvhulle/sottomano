@@ -149,8 +149,6 @@ impl From<PopupMessage> for Message {
             PopupMessage::OpenUrl(url) => Message::OpenUrl(url),
             PopupMessage::FocusWindow(window) => Message::FocusWindow(window),
             PopupMessage::RefreshHoveredReading => Message::RefreshHoveredReading,
-            PopupMessage::Tray(tray) => Message::Tray(tray),
-            PopupMessage::Session(session) => Message::Session(session),
             PopupMessage::WindowGroup(window_group) => Message::WindowGroup(window_group),
         }
     }

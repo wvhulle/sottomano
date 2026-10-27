@@ -22,16 +22,12 @@ use crate::{
     clock::Clock,
     hover_tooltips::{MouseGesture, PopupMessage, PressHints, core_grid::CoreCellGrid},
     widget_groups::{
-        idle_timeouts_group::ScheduledAfterIdle,
-        session_menu::{SessionMessage, session_action_icon},
-        tray_group::{TrayMessage, menu_lines::TrayMenuLines},
         window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
         bar_widget::Glyph,
         content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
-        context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         ellipsis_rule::ellipsis_rule,
         localized_durations::{duration_text, relative_moment_text, signed_duration_text},
         palette_colors::PaletteColors,
@@ -41,8 +37,8 @@ use crate::{
         text::{FontFaces, LINE_HEIGHT, bar_text, column_heading},
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, ControllerCallouts, DeliveryTiming, KeyValue,
-            RecordCells, Section, SectionBody, SectionsDeliveryState, SessionMenuBody,
-            SessionMenuEntry, SourcedSections, TableColumns, TableRows, Tooltip, TrayMenuBody,
+            RecordCells, Section, SectionBody, SectionsDeliveryState, SourcedSections,
+            TableColumns, TableRows, Tooltip,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -52,8 +48,6 @@ use crate::{
 };
 
 const COLUMN_GAP_PX: f32 = 14.0;
-const SECTION_GAP_PX: f32 = 8.0;
-const TRAY_MENU_WIDTH_PX: f32 = 250.0;
 const SECTION_SEPARATION_PX: f32 = 16.0;
 const REFRESH_TRACK_ALPHA: f32 = 0.2;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
@@ -343,83 +337,6 @@ impl<'a> TooltipContent<'a> {
             .color(self.secondary_foreground())
     }
 
-    fn tray_menu(&self, menu: &TrayMenuBody) -> Element<'static, PopupMessage> {
-        let address = menu.address.clone();
-        let menu_path = menu.menu_path.clone();
-        let on_activate = move |id| {
-            PopupMessage::Tray(TrayMessage::MenuItemClicked {
-                address: address.clone(),
-                menu_path: menu_path.clone(),
-                id,
-            })
-        };
-        let on_toggle = |id| PopupMessage::Tray(TrayMessage::ToggleSubmenu(id));
-        let lines = TrayMenuLines {
-            config: self.config,
-            pixmap_handles: &menu.pixmap_handles,
-            open: &menu.open_submenus,
-            on_activate: &on_activate,
-            on_toggle: &on_toggle,
-        }
-        .lines(&menu.nodes);
-        let entries = context_menu(self.config, lines);
-        Column::new()
-            .spacing(SECTION_GAP_PX)
-            .push(
-                container(self.text(&menu.title, menu.body.as_deref()))
-                    .padding(self.content_inset())
-                    .width(TRAY_MENU_WIDTH_PX),
-            )
-            .push(container(entries).width(TRAY_MENU_WIDTH_PX))
-            .into()
-    }
-
-    fn session_menu(&self, menu: &SessionMenuBody) -> Element<'static, PopupMessage> {
-        let lines = menu
-            .entries
-            .iter()
-            .scan(None, |previous_family, entry| {
-                let family = entry.action.family();
-                let divider = previous_family.is_some_and(|previous| previous != family);
-                *previous_family = Some(family);
-                Some(
-                    divider
-                        .then_some(MenuLine::Divider)
-                        .into_iter()
-                        .chain(once(self.session_menu_row(*entry))),
-                )
-            })
-            .flatten();
-        container(context_menu(self.config, lines))
-            .width(TRAY_MENU_WIDTH_PX)
-            .into()
-    }
-
-    fn session_menu_row(&self, entry: SessionMenuEntry) -> MenuLine<'static, PopupMessage> {
-        let icon_size = self.config.theme.font.icon_size_px;
-        let note = match entry.idle {
-            ScheduledAfterIdle::After(after) => Trailing::Note(format!(
-                "after {} idle",
-                duration_text(after, self.config.calendar.locale)
-            )),
-            ScheduledAfterIdle::Disabled => Trailing::Note("idle: disabled".to_owned()),
-            ScheduledAfterIdle::Never if entry.needs_authorisation => {
-                Trailing::Note("asks for authorisation".to_owned())
-            }
-            ScheduledAfterIdle::Never => Trailing::Nothing,
-        };
-        MenuLine::Row(MenuRow {
-            leading: Some(
-                Glyph::from(session_action_icon(entry.action)).view(icon_size, self.foreground()),
-            ),
-            label: Some(entry.action.verb().to_owned()),
-            trailing: note,
-            enabled: true,
-            depth: 0,
-            on_press: Some(PopupMessage::Session(SessionMessage::Press(entry.action))),
-        })
-    }
-
     fn bold_title(&self, title: &str) -> Text<'static> {
         bar_text(&self.config.theme.font, title.to_owned())
             .font(FontFaces::from(&self.config.theme.font).bold)
@@ -461,9 +378,6 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn section(&self, section: &Section) -> Element<'static, PopupMessage> {
-        if let SectionBody::TrayMenu(_) | SectionBody::SessionMenu(_) = section.body() {
-            return self.body(section.body());
-        }
         self.inset(
             Column::with_children(
                 self.heading_rows(section.title(), section.caption())
@@ -508,8 +422,6 @@ impl<'a> TooltipContent<'a> {
             SectionBody::Workspace(preview) => {
                 WorkspaceSchematic::new(preview, self.config, self.assets).view()
             }
-            SectionBody::TrayMenu(menu) => self.tray_menu(menu),
-            SectionBody::SessionMenu(menu) => self.session_menu(menu),
         }
     }
 
