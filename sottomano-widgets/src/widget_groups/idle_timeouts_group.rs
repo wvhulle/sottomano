@@ -1,4 +1,4 @@
-mod idle_timeouts_store;
+mod sqlite_idle_timeouts;
 
 use std::{convert::identity, time::Duration};
 
@@ -12,7 +12,7 @@ use sottomano_sources::login_session_presence::{
     focus_time_ledger::ScreenEdge, idle_session_actions::IdleAction, wayland_idle_notify::IdleEdge,
 };
 
-pub use self::idle_timeouts_store::{ScheduledAfterIdle, Timeouts};
+pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     clock::Clock,
     hover_tooltips::GroupHandle,
@@ -79,7 +79,7 @@ impl Default for IdleTimeoutsGroup {
 
 impl IdleTimeoutsGroup {
     pub fn load() -> Task<IdleTimeoutsMessage> {
-        Task::perform(idle_timeouts_store::load(), IdleTimeoutsMessage::Loaded)
+        Task::perform(sqlite_idle_timeouts::load(), IdleTimeoutsMessage::Loaded)
     }
 
     fn timer_mut(&mut self, kind: IdleAction) -> &mut IdleTimer {
@@ -147,7 +147,7 @@ impl IdleTimeoutsGroup {
                 }
                 TimerChange::Persist(value) => {
                     let persist =
-                        Task::future(idle_timeouts_store::save(self.timeouts())).map(move |ok| {
+                        Task::future(sqlite_idle_timeouts::save(self.timeouts())).map(move |ok| {
                             IdleTimeoutsMessage::Timer(
                                 kind,
                                 ControlMessage::Persisted { value, ok },

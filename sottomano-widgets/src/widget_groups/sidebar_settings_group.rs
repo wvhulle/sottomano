@@ -5,7 +5,7 @@ use sottomano_sources::sqlite_state_store::Columns;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::shell_settings_row::{self, ShellSetting},
+    widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -34,7 +34,7 @@ impl WorkspacesPlacement {
 }
 
 async fn load_workspaces_placement() -> WorkspacesPlacement {
-    shell_settings_row::load_stored_row(
+    sqlite_shell_settings_row::load_stored_row(
         "shell settings: load workspaces placement failed",
         WorkspacesPlacement::Sidebar,
         workspaces_placement_from_columns,
@@ -152,9 +152,9 @@ impl SidebarSettingsGroup {
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
                 self.workspaces_placement = self.workspaces_placement.toggled();
-                Task::future(shell_settings_row::save(ShellSetting::WorkspacesPlacement(
-                    self.workspaces_placement,
-                )))
+                Task::future(sqlite_shell_settings_row::save(
+                    ShellSetting::WorkspacesPlacement(self.workspaces_placement),
+                ))
                 .discard()
             }
             SidebarSettingsMessage::Appearance(msg) => self
@@ -207,7 +207,7 @@ mod tests {
         SidebarSettingsGroup, SidebarSettingsMessage, WorkspacesPlacement,
         workspaces_placement_from_columns,
     };
-    use crate::widget_groups::shell_settings_row::{
+    use crate::widget_groups::sqlite_shell_settings_row::{
         CREATE_TABLE, ShellSetting, read_stored_row, write_setting,
     };
 

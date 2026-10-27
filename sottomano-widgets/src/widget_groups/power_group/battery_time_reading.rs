@@ -15,8 +15,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     widget_groups::power_group::{
-        charge_power_curve_store,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
+        sqlite_charge_power_curve,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
@@ -58,7 +58,7 @@ impl BatteryTimeReading {
             .clone()
             .observe(sample.state_of_charge, sample.power, since_previous);
         self.curve = Some(curve.clone());
-        Task::future(charge_power_curve_store::save(
+        Task::future(sqlite_charge_power_curve::save(
             battery.serial.clone(),
             bin_of(sample.state_of_charge),
             curve,
@@ -75,7 +75,7 @@ impl BatteryTimeReading {
             return Task::none();
         }
         self.load_started = true;
-        Task::future(charge_power_curve_store::load(serial.to_string())).map(CurveLoaded)
+        Task::future(sqlite_charge_power_curve::load(serial.to_string())).map(CurveLoaded)
     }
 
     pub(super) fn time_for(

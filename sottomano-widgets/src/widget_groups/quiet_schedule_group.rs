@@ -1,7 +1,7 @@
 mod clock_slider;
-mod quiet_hours_store;
 pub mod quiet_window;
-mod working_days_store;
+mod sqlite_quiet_hours;
+mod sqlite_working_days;
 
 use std::{ops::RangeInclusive, time::Duration};
 
@@ -16,8 +16,8 @@ use tokio::time::sleep;
 
 use self::{
     clock_slider::{clock_at, clock_minutes, new_clock_slider},
-    quiet_hours_store::QuietHoursSchedule,
-    working_days_store::{MONDAY_TO_FRIDAY, with_day_toggled},
+    sqlite_quiet_hours::QuietHoursSchedule,
+    sqlite_working_days::{MONDAY_TO_FRIDAY, with_day_toggled},
 };
 use crate::{
     clock::Clock,
@@ -154,11 +154,11 @@ impl QuietScheduleGroup {
     pub fn load() -> Task<QuietScheduleMessage> {
         Task::batch([
             Task::perform(
-                quiet_hours_store::load(),
+                sqlite_quiet_hours::load(),
                 QuietScheduleMessage::ScheduleLoaded,
             ),
             Task::perform(
-                working_days_store::load(),
+                sqlite_working_days::load(),
                 QuietScheduleMessage::WorkingDaysLoaded,
             ),
         ])
@@ -286,7 +286,7 @@ impl QuietScheduleGroup {
             }
             QuietScheduleMessage::ToggleWorkingDay(day) => {
                 self.working_days = with_day_toggled(self.working_days, day);
-                Task::future(working_days_store::save(self.working_days)).discard()
+                Task::future(sqlite_working_days::save(self.working_days)).discard()
             }
             QuietScheduleMessage::EdgeDue => {
                 let now = clock.local();
@@ -302,7 +302,7 @@ impl QuietScheduleGroup {
             QuietScheduleMessage::ToggleFollowsSchedule => {
                 self.follows_schedule = !self.follows_schedule;
                 self.manual = None;
-                Task::future(quiet_hours_store::save(self.requested_schedule())).discard()
+                Task::future(sqlite_quiet_hours::save(self.requested_schedule())).discard()
             }
             QuietScheduleMessage::Slider(slider, control) => self.update_slider(slider, control),
             QuietScheduleMessage::Expansion(m) => {
@@ -342,7 +342,7 @@ impl QuietScheduleGroup {
                     self.screen_off_slider
                         .update(ControlMessage::Disabled(timeout_at(value).is_none()));
                 }
-                Task::future(quiet_hours_store::save(self.requested_schedule())).map(move |ok| {
+                Task::future(sqlite_quiet_hours::save(self.requested_schedule())).map(move |ok| {
                     QuietScheduleMessage::Slider(slider, ControlMessage::Persisted { value, ok })
                 })
             }
@@ -545,7 +545,7 @@ mod tests {
 
     use super::{QuietChange, QuietScheduleGroup};
     use crate::widget_groups::quiet_schedule_group::{
-        quiet_hours_store::QuietHoursSchedule, quiet_window::Phase,
+        quiet_window::Phase, sqlite_quiet_hours::QuietHoursSchedule,
     };
 
     fn group_in_phase(phase: Phase, screen_off: Option<Duration>) -> QuietScheduleGroup {

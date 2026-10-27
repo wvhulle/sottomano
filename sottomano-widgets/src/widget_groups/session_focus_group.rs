@@ -2,9 +2,9 @@ mod break_log;
 mod context_switch_rate;
 mod daily_totals_gauge;
 mod focus_run_reading;
-mod focus_span_store;
 mod focus_tracker;
 mod session_face;
+mod sqlite_focus_spans;
 mod window_usage;
 
 use chrono::{DateTime, Utc};
