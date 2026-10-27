@@ -111,8 +111,8 @@ impl BarWidget for BootTimeline {
             Some(_) => {
                 "Difference is this boot against the previous one in the journal. Firmware and \
                  loader are not recorded per boot. Amber and red crossed \
-                 slower_boot_warning_percent and slower_boot_critical_percent and took at least \
-                 a second longer."
+                 slower_boot_warning_percent and slower_boot_critical_percent and took at least a \
+                 second longer."
             }
             None => "No previous boot in the journal to compare with.",
         };

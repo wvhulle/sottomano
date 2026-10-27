@@ -91,8 +91,9 @@ use sottomano_widgets::{
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
-        app_window_focus::AppWindowFocus, favicon::Favicons, palette_colors::PaletteColors,
-        text::FontFaces, tooltip_body::Tooltip, window_icon::WindowAssets,
+        app_window_focus::AppWindowFocus, favicon::Favicons, group_drawer::GroupDrawers,
+        palette_colors::PaletteColors, text::FontFaces, tooltip_body::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
@@ -121,6 +122,7 @@ pub struct DesktopShell {
     pub disk_group: DiskGroup,
     pub panel_settings_group: PanelSettingsGroup,
     pub sidebar_settings_group: SidebarSettingsGroup,
+    pub group_drawers: GroupDrawers,
     pub overlay_settings_group: OverlaySettingsGroup,
     pub niri_window_group: NiriWindowGroup,
     pub clock_group: ClockGroup,
@@ -191,6 +193,7 @@ impl DesktopShell {
             disk_group: DiskGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
             sidebar_settings_group: SidebarSettingsGroup::default(),
+            group_drawers: GroupDrawers::default(),
             overlay_settings_group: OverlaySettingsGroup::default(),
             niri_window_group: NiriWindowGroup::new(niri_rules),
             clock_group: ClockGroup::default(),
@@ -373,6 +376,10 @@ impl DesktopShell {
                 .sidebar_settings_group
                 .update(msg)
                 .map(Message::SidebarSettings),
+            Message::Drawer(msg) => self
+                .group_drawers
+                .update(msg, self.clock.instant)
+                .map(Message::Drawer),
             Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
             Message::NiriWindow(msg) => self.niri_window_group.update(msg).map(Message::NiriWindow),
             Message::Clock(msg) => self.clock_group.update(msg, self.clock).map(Message::Clock),
@@ -787,6 +794,7 @@ impl DesktopShell {
     }
 
     fn collapse_groups(&mut self) {
+        self.group_drawers.collapse();
         if !self.panel_settings_group.groups_auto_collapse() {
             return;
         }

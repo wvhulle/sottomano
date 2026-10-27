@@ -304,28 +304,28 @@ impl SnapshotSource for BootTimeline {
             slow_unit,
             slowdown_thresholds,
         ))
-            .map_ok(move |boot| {
-                let with_user_startup =
-                    stream::once(finished_startup(buses.session.clone(), slow_unit))
-                        .filter_map(|startup| {
-                            ready(
-                                startup
-                                    .inspect_err(|e| tracing::warn!("systemd user startup: {e}"))
-                                    .ok()
-                                    .and_then(UserStartup::of),
-                            )
-                        })
-                        .map({
-                            let boot = boot.clone();
-                            move |user_startup| BootTimeline {
-                                user_startup: Some(user_startup),
-                                ..boot.clone()
-                            }
-                        });
-                stream::iter([boot]).chain(with_user_startup).map(Ok)
-            })
-            .try_flatten()
-            .map(SnapshotDelivery::live_push)
+        .map_ok(move |boot| {
+            let with_user_startup =
+                stream::once(finished_startup(buses.session.clone(), slow_unit))
+                    .filter_map(|startup| {
+                        ready(
+                            startup
+                                .inspect_err(|e| tracing::warn!("systemd user startup: {e}"))
+                                .ok()
+                                .and_then(UserStartup::of),
+                        )
+                    })
+                    .map({
+                        let boot = boot.clone();
+                        move |user_startup| BootTimeline {
+                            user_startup: Some(user_startup),
+                            ..boot.clone()
+                        }
+                    });
+            stream::iter([boot]).chain(with_user_startup).map(Ok)
+        })
+        .try_flatten()
+        .map(SnapshotDelivery::live_push)
     }
 }
 
@@ -555,8 +555,8 @@ mod tests {
         assert_eq!(graded(12.5).severity, Severity::Warning);
         assert_eq!(graded(15.9).severity, Severity::Warning);
         assert_eq!(graded(16.0).severity, Severity::Critical);
-        let tiny = DurationComparison::of(seconds(0.9), seconds(0.5), THRESHOLDS)
-            .expect("a comparison");
+        let tiny =
+            DurationComparison::of(seconds(0.9), seconds(0.5), THRESHOLDS).expect("a comparison");
         assert_whole_percent(tiny.change, 80.0);
         assert_eq!(tiny.severity, Severity::Normal);
         assert_eq!(

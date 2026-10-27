@@ -8,6 +8,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
+        aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
@@ -323,34 +324,42 @@ impl LayerAppearanceControls {
         [
             GroupItem::slider(&self.opacity, config, move |control| {
                 lift(AppearanceMessage::Opacity(control))
-            }),
+            })
+            .aligned_as(AlignedQuantity::Opacity),
             GroupItem::slider(&self.corner_radius, config, move |control| {
                 lift(AppearanceMessage::CornerRadius(control))
-            }),
+            })
+            .aligned_as(AlignedQuantity::CornerRadius),
             GroupItem::toggle(
                 blur_toggle(self.blurred),
                 hover(AppearanceTarget::Blur),
                 lift(AppearanceMessage::ToggleBlur),
-            ),
+            )
+            .aligned_as(AlignedQuantity::Blur),
             GroupItem::toggle(
                 shadow_toggle(self.shadow_cast),
                 hover(AppearanceTarget::DropShadow),
                 lift(AppearanceMessage::ToggleShadow),
-            ),
+            )
+            .aligned_as(AlignedQuantity::ShadowCast),
             GroupItem::slider(&self.shadow_softness, config, move |control| {
                 lift(AppearanceMessage::ShadowSoftness(control))
-            }),
+            })
+            .aligned_as(AlignedQuantity::ShadowSoftness),
             GroupItem::slider(&self.shadow_opacity, config, move |control| {
                 lift(AppearanceMessage::ShadowOpacity(control))
-            }),
+            })
+            .aligned_as(AlignedQuantity::ShadowOpacity),
             GroupItem::toggle(
                 outline_toggle(self.outline_drawn),
                 hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
-            ),
+            )
+            .aligned_as(AlignedQuantity::Outline),
             GroupItem::slider(&self.outline_opacity, config, move |control| {
                 lift(AppearanceMessage::OutlineOpacity(control))
-            }),
+            })
+            .aligned_as(AlignedQuantity::OutlineOpacity),
         ]
     }
 }

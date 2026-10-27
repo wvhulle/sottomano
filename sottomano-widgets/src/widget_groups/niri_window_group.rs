@@ -14,6 +14,7 @@ use crate::{
         switch_heat_borders::SwitchHeatBorders,
     },
     widgets::{
+        aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -249,7 +250,8 @@ impl NiriWindowGroup {
             &self.expansion,
             NiriWindowMessage::Expansion,
             [
-                GroupItem::slider(&self.corner_radius, config, NiriWindowMessage::CornerRadius),
+                GroupItem::slider(&self.corner_radius, config, NiriWindowMessage::CornerRadius)
+                    .aligned_as(AlignedQuantity::CornerRadius),
                 GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
                 GroupItem::toggle(
                     xray_toggle(self.xray),

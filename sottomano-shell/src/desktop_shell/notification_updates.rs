@@ -21,6 +21,7 @@ impl DesktopShell {
         let locale = self.config.calendar.locale;
         let TopBarGroups { start, center, end } = self.top_bar_groups();
         let BottomBarGroups {
+            settings_drawer,
             start: bottom_start,
             end: bottom_end,
         } = self.bottom_bar_groups();
@@ -31,6 +32,7 @@ impl DesktopShell {
             .chain(&bottom_start)
             .chain(&bottom_end)
             .map(|group| group.toast_requests(locale, self.clock))
+            .chain([settings_drawer.toast_requests(locale, self.clock)])
             .collect()
     }
 

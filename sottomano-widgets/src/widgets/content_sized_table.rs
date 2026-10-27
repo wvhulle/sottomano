@@ -8,6 +8,7 @@ use iced::{
     },
     alignment::{Horizontal, Vertical},
     mouse::{Cursor, Interaction},
+    widget::Space,
 };
 
 pub struct ContentSizedColumn<'a, Row, Message> {
@@ -86,6 +87,32 @@ pub fn content_sized_table<'a, Row: Clone, Message>(
     ContentSizedTable {
         cells: headers.into_iter().chain(body_cells).collect(),
         alignments,
+        padding_x: 0.0,
+        padding_y: 0.0,
+    }
+}
+
+pub fn content_sized_grid<'a, Message: 'a>(
+    column_alignments: Vec<Horizontal>,
+    rows: impl IntoIterator<Item = Vec<Element<'a, Message>>>,
+) -> ContentSizedTable<'a, Message> {
+    let column_count = column_alignments.len();
+    let cells = rows
+        .into_iter()
+        .flat_map(|mut row| {
+            row.resize_with(column_count, || Space::new().into());
+            row
+        })
+        .collect();
+    ContentSizedTable {
+        cells,
+        alignments: column_alignments
+            .into_iter()
+            .map(|align_x| CellAlignment {
+                align_x,
+                align_y: Vertical::Center,
+            })
+            .collect(),
         padding_x: 0.0,
         padding_y: 0.0,
     }
