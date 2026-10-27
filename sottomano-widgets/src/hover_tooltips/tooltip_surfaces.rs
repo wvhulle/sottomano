@@ -15,7 +15,7 @@ use crate::{
     hover_tooltips::{
         HoverTarget, PopupMessage, PressHints, TooltipMessage,
         tooltip_content::TooltipContent,
-        tooltip_transition::{Departed, Occupant, Placement, TooltipTransition},
+        tooltip_transition::{Departed, DepartedContent, Occupant, Placement, TooltipTransition},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
@@ -222,23 +222,35 @@ impl TooltipHost {
         self.transition.current().map(|current| &current.target)
     }
     #[must_use]
-    pub fn departure(&self, content: Tooltip) -> Option<Departed> {
+    pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
         let current = self.transition.current()?;
+        let departed_content = match content.with_press_hints(current.press_hints) {
+            HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
+            HoverContent::Interactive(_) => DepartedContent::Interactive,
+        };
         Some(Departed::new(
-            content.with_press_hints(current.press_hints),
+            current.target.clone(),
+            departed_content,
             current.placement.clone(),
         ))
     }
 
-    pub fn view<'a>(
+    pub fn view<'a, Message: From<PopupMessage> + Clone + 'a>(
         &self,
         surface: Id,
         config: &'a Config,
         surface_style: TooltipSurfaceStyle,
         assets: WindowAssets<'a>,
-        content: impl Fn(&HoverTarget) -> Tooltip,
+        content_of: impl Fn(&HoverTarget) -> HoverContent<'a, Message>,
         clock: Clock,
-    ) -> Option<Element<'a, PopupMessage>> {
+    ) -> Option<Element<'a, Message>> {
+        let render = |content: HoverContent<'a, Message>| match content {
+            HoverContent::Described(tooltip) => {
+                Element::from(TooltipContent::new(&tooltip, config, assets, clock).view())
+                    .map(Message::from)
+            }
+            HoverContent::Interactive(panel) => panel,
+        };
         if !self.hosts(surface) {
             return None;
         }
@@ -259,20 +271,16 @@ impl TooltipHost {
 
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
-            renderings.push(Rendering::outgoing(
-                TooltipContent::new(&previous.content, config, assets, clock).view(),
-            ));
+            let departed = match &previous.content {
+                DepartedContent::Described(tooltip) => HoverContent::Described(tooltip.clone()),
+                DepartedContent::Interactive => content_of(&previous.target),
+            };
+            renderings.push(Rendering::outgoing(render(departed)));
         }
         if let Some(current) = self.transition.current() {
-            renderings.push(Rendering::incoming(hoverable_content(
-                TooltipContent::new(
-                    &content(&current.target).with_press_hints(current.press_hints),
-                    config,
-                    assets,
-                    clock,
-                )
-                .view(),
-            )));
+            renderings.push(Rendering::incoming(hoverable_content(render(
+                content_of(&current.target).with_press_hints(current.press_hints),
+            ))));
         }
         Some(
             container(anchored_popup(
@@ -289,16 +297,47 @@ impl TooltipHost {
     }
 }
 
+pub enum HoverContent<'a, Message> {
+    Described(Tooltip),
+    Interactive(Element<'a, Message>),
+}
+
+impl<Message> HoverContent<'_, Message> {
+    #[must_use]
+    pub fn with_press_hints(self, press_hints: PressHints) -> Self {
+        match self {
+            HoverContent::Described(tooltip) => {
+                HoverContent::Described(tooltip.with_press_hints(press_hints))
+            }
+            interactive @ HoverContent::Interactive(_) => interactive,
+        }
+    }
+
+    #[must_use]
+    pub fn shows_anything(&self, press_hints: PressHints) -> bool {
+        match self {
+            HoverContent::Described(tooltip) => !tooltip.is_empty() || !press_hints.is_empty(),
+            HoverContent::Interactive(_) => true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct TooltipSurfaceStyle {
     pub overlay_appearance: LayerAppearance,
     pub float_offset_px: f32,
 }
 
-fn hoverable_content(content: Element<'_, PopupMessage>) -> Element<'_, PopupMessage> {
+fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
+    content: Element<'a, Message>,
+) -> Element<'a, Message> {
     mouse_area(content)
-        .on_enter(PopupMessage::Tooltip(TooltipMessage::EnterTooltip))
-        .on_exit(PopupMessage::Tooltip(TooltipMessage::ExitTooltip))
+        .on_enter(Message::from(PopupMessage::Tooltip(
+            TooltipMessage::EnterTooltip,
+        )))
+        .on_exit(Message::from(PopupMessage::Tooltip(
+            TooltipMessage::ExitTooltip,
+        )))
         .into()
 }
 

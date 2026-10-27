@@ -2,7 +2,6 @@ pub mod activity_line;
 pub mod aligned_quantity;
 pub mod amount_text;
 pub mod anchored_popup;
-pub mod anchored_sheet;
 pub mod announced_level;
 pub mod app_window_focus;
 pub mod bar_widget;

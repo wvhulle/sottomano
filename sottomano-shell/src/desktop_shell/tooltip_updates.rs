@@ -48,8 +48,8 @@ impl DesktopShell {
                     return Task::none();
                 }
                 let Some(host) = self.surfaces.get(&surface).filter(|_| {
-                    self.tooltip_for(&target)
-                        .is_some_and(|tooltip| !tooltip.is_empty() || !press_hints.is_empty())
+                    self.hover_content(&target)
+                        .is_some_and(|content| content.shows_anything(press_hints))
                 }) else {
                     return Task::none();
                 };
@@ -92,7 +92,7 @@ impl DesktopShell {
         let content = self
             .tooltip
             .target()
-            .and_then(|target| self.tooltip_for(target))?;
+            .and_then(|target| self.hover_content(target))?;
         self.tooltip.departure(content)
     }
 

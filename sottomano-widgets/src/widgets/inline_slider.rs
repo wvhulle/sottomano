@@ -1,18 +1,20 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Color, Element, Point, Rectangle, Renderer, Size, Theme,
-    mouse::{Cursor, ScrollDelta},
-    widget::{Slider, canvas, mouse_area, slider, stack},
+    Color, Element, Event, Point, Rectangle, Renderer, Theme,
+    mouse::{self, Cursor, ScrollDelta},
+    widget::{
+        Slider,
+        canvas::{self, LineCap, Path, Stroke},
+        mouse_area, slider, stack,
+    },
 };
 use sottomano_config::{Config, severity::Severity};
 
 use crate::widgets::{palette_colors::PaletteColors, widget_state::WidgetState};
 
-const KNOB_RADIUS: f32 = 5.0;
-const KNOB_RADIUS_DRAG: f32 = 7.0;
-const EDGE_INSET: f32 = KNOB_RADIUS_DRAG;
-const RAIL_WIDTH: f32 = 4.0;
+const RESTING_KNOB_PER_GLYPH: f32 = 0.17;
+const ENGAGED_KNOB_GROWTH: f32 = 1.25;
 
 #[allow(clippy::too_many_arguments)]
 pub fn inline_slider<'a, Message: Clone + 'a>(
@@ -26,20 +28,35 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     on_release: Message,
     on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
-    let accent = match level {
-        Severity::Normal => PaletteColors::from(&config.theme.palette).focus,
-        _ => WidgetState::from(level).color(&PaletteColors::from(&config.theme.palette)),
+    let palette = PaletteColors::from(&config.theme.palette);
+    let accents = if level == Severity::Normal {
+        InteractionAccents {
+            resting: palette.bar_foreground,
+            engaged: palette.focus,
+        }
+    } else {
+        let severity_color = WidgetState::from(level).color(&palette);
+        InteractionAccents {
+            resting: severity_color,
+            engaged: severity_color,
+        }
     };
+    let geometry = FaceGeometry::from_sizes(
+        config.theme.font.icon_size_px,
+        config.panel_bar.slider_stroke,
+    );
     let face = SliderFace {
         range: range.clone(),
         value,
         lagging_value,
-        accent,
-        track: PaletteColors::from(&config.theme.palette).surface_raised,
+        accents,
+        track: palette.frame_outline,
+        knob_hollow: palette.surface,
+        geometry,
     };
     mouse_area(stack![
-        interaction_slider(config, range, value, step, on_change, on_release),
-        canvas(face)
+        interaction_slider(config, geometry, range, value, step, on_change, on_release),
+        canvas::Canvas::new(face)
             .width(config.panel_bar.slider_width)
             .height(Slider::<f32, Message>::DEFAULT_HEIGHT)
     ])
@@ -49,6 +66,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 
 fn interaction_slider<'a, Message: Clone + 'a>(
     config: &Config,
+    geometry: FaceGeometry,
     range: RangeInclusive<f32>,
     value: f32,
     step: f32,
@@ -59,15 +77,15 @@ fn interaction_slider<'a, Message: Clone + 'a>(
         .step(step)
         .on_release(on_release)
         .width(config.panel_bar.slider_width)
-        .style(|_theme, _status| slider::Style {
+        .style(move |_theme, _status| slider::Style {
             rail: slider::Rail {
                 backgrounds: (Color::TRANSPARENT.into(), Color::TRANSPARENT.into()),
-                width: RAIL_WIDTH,
+                width: geometry.stroke_width,
                 border: iced::Border::default(),
             },
             handle: slider::Handle {
                 shape: slider::HandleShape::Circle {
-                    radius: KNOB_RADIUS,
+                    radius: geometry.edge_inset(),
                 },
                 background: Color::TRANSPARENT.into(),
                 border_color: Color::TRANSPARENT,
@@ -76,84 +94,187 @@ fn interaction_slider<'a, Message: Clone + 'a>(
         })
 }
 
+#[derive(Debug, Clone, Copy)]
+struct FaceGeometry {
+    stroke_width: f32,
+    resting_knob_radius: f32,
+    engaged_knob_radius: f32,
+}
+
+impl FaceGeometry {
+    fn from_sizes(icon_size_px: f32, stroke_width: f32) -> Self {
+        let resting_knob_radius = icon_size_px * RESTING_KNOB_PER_GLYPH;
+        Self {
+            stroke_width,
+            resting_knob_radius,
+            engaged_knob_radius: resting_knob_radius * ENGAGED_KNOB_GROWTH,
+        }
+    }
+
+    fn edge_inset(self) -> f32 {
+        self.engaged_knob_radius + self.stroke_width / 2.0
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InteractionAccents {
+    resting: Color,
+    engaged: Color,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct PointerEngagement {
+    hovered: bool,
+    dragging: bool,
+}
+
+impl PointerEngagement {
+    fn after_event(self, event: &Event, bounds: Rectangle, cursor: Cursor) -> Self {
+        let hovered = cursor.is_over(bounds);
+        match event {
+            Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => Self {
+                hovered,
+                dragging: hovered,
+            },
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => Self {
+                hovered,
+                dragging: false,
+            },
+            Event::Mouse(_) => Self { hovered, ..self },
+            _ => self,
+        }
+    }
+
+    fn engaged(self) -> bool {
+        self.hovered || self.dragging
+    }
+}
+
 struct SliderFace {
     range: RangeInclusive<f32>,
     value: f32,
     lagging_value: Option<f32>,
-    accent: Color,
+    accents: InteractionAccents,
     track: Color,
+    knob_hollow: Color,
+    geometry: FaceGeometry,
 }
 
 impl<Message> canvas::Program<Message> for SliderFace {
-    type State = ();
+    type State = PointerEngagement;
+
+    fn update(
+        &self,
+        engagement: &mut Self::State,
+        event: &Event,
+        bounds: Rectangle,
+        cursor: Cursor,
+    ) -> Option<canvas::Action<Message>> {
+        let next_engagement = engagement.after_event(event, bounds, cursor);
+        (next_engagement != *engagement).then(|| {
+            *engagement = next_engagement;
+            canvas::Action::request_redraw()
+        })
+    }
 
     fn draw(
         &self,
-        (): &Self::State,
+        engagement: &Self::State,
         renderer: &Renderer,
         _theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
-        let (start, end) = (*self.range.start(), *self.range.end());
-        let span = end - start;
-        let centre = |v: f32| {
+        let geometry = self.geometry;
+        let (range_start, range_end) = (*self.range.start(), *self.range.end());
+        let span = range_end - range_start;
+        let edge_inset = geometry.edge_inset();
+        let centre_of = |position: f32| {
             let fraction = if span > 0.0 {
-                ((v - start) / span).clamp(0.0, 1.0)
+                ((position - range_start) / span).clamp(0.0, 1.0)
             } else {
                 0.0
             };
-            (bounds.width - 2.0 * EDGE_INSET) * fraction + EDGE_INSET
+            (bounds.width - 2.0 * edge_inset) * fraction + edge_inset
+        };
+
+        let engaged = engagement.engaged() || self.lagging_value.is_some();
+        let accent = if engaged {
+            self.accents.engaged
+        } else {
+            self.accents.resting
+        };
+        let knob_radius = if engaged {
+            geometry.engaged_knob_radius
+        } else {
+            geometry.resting_knob_radius
         };
 
         let rail_y = bounds.height / 2.0;
-        let handle_x = centre(self.value);
-        let gap = self
-            .lagging_value
-            .map(|at| (centre(at) - KNOB_RADIUS, centre(at) + KNOB_RADIUS));
+        let handle_x = centre_of(self.value);
+        let lagging_gap = self.lagging_value.map(|lagging| {
+            let lagging_x = centre_of(lagging);
+            (
+                lagging_x - geometry.resting_knob_radius,
+                lagging_x + geometry.resting_knob_radius,
+            )
+        });
+        let line_stroke = |color: Color| {
+            Stroke::default()
+                .with_width(geometry.stroke_width)
+                .with_color(color)
+                .with_line_cap(LineCap::Round)
+        };
 
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
         [
-            (0.0, handle_x, self.accent),
-            (handle_x, bounds.width, self.track),
+            (edge_inset, bounds.width - edge_inset, self.track),
+            (edge_inset, handle_x, accent),
         ]
         .into_iter()
-        .flat_map(|(from, to, color)| without_gap(from, to, gap).map(move |(a, b)| (a, b, color)))
-        .for_each(|(a, b, color)| {
-            frame.fill_rectangle(
-                Point::new(a, rail_y - RAIL_WIDTH / 2.0),
-                Size::new(b - a, RAIL_WIDTH),
-                color,
+        .flat_map(|(segment_start, segment_end, color)| {
+            without_gap(segment_start, segment_end, lagging_gap)
+                .map(move |(piece_start, piece_end)| (piece_start, piece_end, color))
+        })
+        .for_each(|(piece_start, piece_end, color)| {
+            frame.stroke(
+                &Path::line(
+                    Point::new(piece_start, rail_y),
+                    Point::new(piece_end, rail_y),
+                ),
+                line_stroke(color),
             );
         });
 
         if let Some(lagging_value) = self.lagging_value {
             frame.stroke(
-                &canvas::Path::circle(Point::new(centre(lagging_value), rail_y), KNOB_RADIUS),
-                canvas::Stroke::default()
-                    .with_width(1.5)
-                    .with_color(self.accent),
+                &Path::circle(
+                    Point::new(centre_of(lagging_value), rail_y),
+                    geometry.resting_knob_radius,
+                ),
+                line_stroke(accent),
             );
         }
 
-        let handle_radius = if self.lagging_value.is_some() {
-            KNOB_RADIUS_DRAG
-        } else {
-            KNOB_RADIUS
-        };
-        frame.fill(
-            &canvas::Path::circle(Point::new(handle_x, rail_y), handle_radius),
-            self.accent,
-        );
+        let knob = Path::circle(Point::new(handle_x, rail_y), knob_radius);
+        frame.fill(&knob, self.knob_hollow);
+        frame.stroke(&knob, line_stroke(accent));
 
         vec![frame.into_geometry()]
     }
 }
 
-fn without_gap(from: f32, to: f32, gap: Option<(f32, f32)>) -> impl Iterator<Item = (f32, f32)> {
-    let (g0, g1) = gap.unwrap_or((f32::INFINITY, f32::INFINITY));
-    [(from, to.min(g0)), (from.max(g1), to)]
-        .into_iter()
-        .filter(|(a, b)| b > a)
+fn without_gap(
+    segment_start: f32,
+    segment_end: f32,
+    gap: Option<(f32, f32)>,
+) -> impl Iterator<Item = (f32, f32)> {
+    let (gap_start, gap_end) = gap.unwrap_or((f32::INFINITY, f32::INFINITY));
+    [
+        (segment_start, segment_end.min(gap_start)),
+        (segment_start.max(gap_end), segment_end),
+    ]
+    .into_iter()
+    .filter(|(piece_start, piece_end)| piece_end > piece_start)
 }

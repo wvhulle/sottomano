@@ -69,69 +69,11 @@ pub fn anchored_popup<'a, Message: 'a>(
     config: &Config,
     overlay_appearance: LayerAppearance,
 ) -> Element<'a, Message> {
-    Element::new(popup_frame(
-        renderings,
-        anchor,
-        position,
-        seq,
-        config,
-        overlay_appearance,
-    ))
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SheetPresence {
-    Arriving,
-    Departing,
-}
-
-impl SheetPresence {
-    fn seq(self) -> u64 {
-        match self {
-            SheetPresence::Arriving => 1,
-            SheetPresence::Departing => 2,
-        }
-    }
-
-    fn rendering<Message>(self, content: Element<'_, Message>) -> Rendering<'_, Message> {
-        match self {
-            SheetPresence::Arriving => Rendering::incoming(content),
-            SheetPresence::Departing => Rendering::outgoing(content),
-        }
-    }
-}
-
-#[must_use]
-pub fn reanchored_sheet<'a, Message: 'a>(
-    content: Element<'a, Message>,
-    presence: SheetPresence,
-    position: Position,
-    config: &Config,
-    overlay_appearance: LayerAppearance,
-) -> AnchoredPopup<'a, Message> {
-    popup_frame(
-        vec![presence.rendering(content)],
-        Rectangle::default(),
-        position,
-        presence.seq(),
-        config,
-        overlay_appearance,
-    )
-}
-
-fn popup_frame<'a, Message: 'a>(
-    renderings: Vec<Rendering<'a, Message>>,
-    anchor: Rectangle,
-    position: Position,
-    seq: u64,
-    config: &Config,
-    overlay_appearance: LayerAppearance,
-) -> AnchoredPopup<'a, Message> {
     let background = PaletteColors::from(&config.theme.palette)
         .surface
         .scale_alpha(overlay_appearance.opacity);
     let overlay_frame = LayerFrameStyle::new(&overlay_appearance, config);
-    AnchoredPopup {
+    Element::new(AnchoredPopup {
         renderings,
         anchor,
         edge_inset: config.layout.panel.height + config.layout.overlay.panel_gap,
@@ -145,10 +87,10 @@ fn popup_frame<'a, Message: 'a>(
         blurred: overlay_appearance.blurred,
         shadow: overlay_frame.lifted_drop_shadow(),
         outline: overlay_frame.outline_border(),
-    }
+    })
 }
 
-pub struct AnchoredPopup<'a, Message> {
+struct AnchoredPopup<'a, Message> {
     renderings: Vec<Rendering<'a, Message>>,
     anchor: Rectangle,
     edge_inset: f32,
@@ -222,15 +164,6 @@ fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
 }
 
 impl<'a, Message> AnchoredPopup<'a, Message> {
-    pub(super) fn reanchor(&mut self, anchor: Rectangle) {
-        self.anchor = anchor;
-    }
-
-    pub(super) fn popup_bounds(tree: &Tree, layout: Layout<'_>) -> Rectangle {
-        let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        tree.state.downcast_ref::<MorphState>().current + origin
-    }
-
     fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
     }
