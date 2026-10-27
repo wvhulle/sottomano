@@ -11,7 +11,7 @@ use sottomano_sources::{
 };
 
 use crate::{
-    hover_tooltips::{HoverTarget, pressable_card},
+    hover_tooltips::{HoverTarget, PressHints, hoverable},
     widget_groups::idle_timeouts_group::Timeouts,
     widgets::{
         bar_widget::Glyph,
@@ -129,7 +129,7 @@ impl SessionMenu {
         let glyph = Glyph::from(Phosphor::Power(Weight::Regular));
         GroupContent::single((!self.permissions.allowed.is_empty()).then(|| {
             GroupItem::element(move |reveal| {
-                pressable_card(
+                hoverable(
                     glyph.view(
                         config.theme.font.icon_size_px,
                         PaletteColors::from(&config.theme.palette)
@@ -137,6 +137,7 @@ impl SessionMenu {
                             .scale_alpha(reveal),
                     ),
                     SessionTarget::Menu.into(),
+                    PressHints::default(),
                     GroupEvent::Tooltip,
                 )
             })

@@ -8,10 +8,7 @@ use iced::{Rectangle, window::Id};
 use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
-pub use crate::hover_tooltips::{
-    hover_area::{hoverable, pressable_card},
-    tooltip_surfaces::TooltipHost,
-};
+pub use crate::hover_tooltips::{hover_area::hoverable, tooltip_surfaces::TooltipHost};
 use crate::{
     widget_groups::{
         audio_group::AudioTarget,
