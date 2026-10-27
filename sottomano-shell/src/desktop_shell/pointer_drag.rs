@@ -23,7 +23,7 @@ pub type ShellDrag = PointerDrag<SlotClick>;
 impl DesktopShell {
     #[must_use]
     pub fn drag_view(&self) -> DragView {
-        let dragging_sidebar_workspace = self.shell_settings.layout.workspaces_placement
+        let dragging_sidebar_workspace = self.sidebar_settings_group.workspaces_placement()
             == WorkspacesPlacement::Sidebar
             && matches!(
                 self.pointer_drag,
@@ -33,13 +33,13 @@ impl DesktopShell {
                 })
             );
         let ghost_layer = if dragging_sidebar_workspace {
-            &self.shell_settings.sidebar
+            self.sidebar_settings_group.sidebar_appearance()
         } else {
-            &self.shell_settings.panels
+            self.panel_settings_group.panel_appearance()
         };
         DragView::new(
             &self.pointer_drag,
-            &LayerFrameStyle::new(ghost_layer, &self.config).container_style(),
+            &LayerFrameStyle::new(&ghost_layer, &self.config).container_style(),
         )
     }
 

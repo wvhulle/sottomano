@@ -43,16 +43,12 @@ use sottomano_sources::{
     },
     voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
-use sottomano_state::{
-    ShellSettings, launches,
-    niri_rules::{NiriRulesFile, StoredRules},
-    shell_settings,
-};
+use sottomano_state::{NotificationSettings, launches, niri_rules::NiriRulesFile};
 use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::TooltipHost,
+    hover_tooltips::{TooltipHost, tooltip_surfaces::TooltipSurfaceStyle},
     notification_toasts::{NotificationLayer, ToastContext},
     widget_groups::{
         audio_group::AudioGroup,
@@ -116,7 +112,6 @@ pub struct DesktopShell {
     pub clock: Clock,
     pub config: Config,
     pub theme: iced::Theme,
-    pub shell_settings: ShellSettings,
     pub weather_group: WeatherGroup,
     pub wallpaper_group: WallpaperGroup,
     pub caldav_group: CaldavGroup,
@@ -125,7 +120,6 @@ pub struct DesktopShell {
     pub memory_board_group: MemoryBoardGroup,
     pub gpu_group: GpuGroup,
     pub disk_group: DiskGroup,
-    pub niri_rules: NiriRulesFile,
     pub panel_settings_group: PanelSettingsGroup,
     pub sidebar_settings_group: SidebarSettingsGroup,
     pub overlay_settings_group: OverlaySettingsGroup,
@@ -196,11 +190,10 @@ impl DesktopShell {
             memory_board_group: MemoryBoardGroup::default(),
             gpu_group: GpuGroup::default(),
             disk_group: DiskGroup::default(),
-            niri_rules,
             panel_settings_group: PanelSettingsGroup::default(),
             sidebar_settings_group: SidebarSettingsGroup::default(),
             overlay_settings_group: OverlaySettingsGroup::default(),
-            niri_window_group: NiriWindowGroup::default(),
+            niri_window_group: NiriWindowGroup::new(niri_rules),
             clock_group: ClockGroup::default(),
             notification_group: NotificationGroup::default(),
             quiet_schedule_group: QuietScheduleGroup::default(),
@@ -248,7 +241,6 @@ impl DesktopShell {
             spring_load: None,
             niri_config,
             configured_workspaces: None,
-            shell_settings: ShellSettings::default(),
             theme: iced::Theme::from(&PaletteColors::from(&config.theme.palette)),
             wayland,
             desktop_buses: None,
@@ -263,9 +255,12 @@ impl DesktopShell {
             SessionFocusGroup::load().map(Message::SessionFocus),
             SessionMenu::load().map(Message::Session),
             IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
-            Task::perform(shell_settings::load(), Message::ShellSettingsLoaded),
-            Task::perform(shell.niri_rules.read(), Message::NiriRulesLoaded),
-            NiriWindowGroup::load().map(Message::NiriWindow),
+            PanelSettingsGroup::load().map(Message::PanelSettings),
+            SidebarSettingsGroup::load().map(Message::SidebarSettings),
+            OverlaySettingsGroup::load().map(Message::OverlaySettings),
+            NotificationGroup::load().map(Message::NotificationGroup),
+            QuietScheduleGroup::load().map(Message::QuietSchedule),
+            shell.niri_window_group.load().map(Message::NiriWindow),
             Task::perform(shell.niri_config.read_workspaces(), Message::NiriConfigRead),
             Task::perform(
                 blocking("sound theme", SoundTheme::read_session),
@@ -292,7 +287,7 @@ impl DesktopShell {
             .refresh_daily_totals(&self.config.widget_groups.focus_time, self.clock);
         let reheated = self
             .niri_window_group
-            .reheat(reheat_due, &mut self.niri_rules, &self.config, || {
+            .reheat(reheat_due, &self.config, || {
                 self.session_focus_group
                     .heated_windows(&self.niri, &self.config, self.clock)
             })
@@ -309,7 +304,7 @@ impl DesktopShell {
                 &self.niri,
                 self.desktop_entries.get(),
                 &self.config,
-                &self.shell_settings,
+                self.notification_settings(),
                 self.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
@@ -390,18 +385,10 @@ impl DesktopShell {
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::SidebarSettings(msg) => self
                 .sidebar_settings_group
-                .update(
-                    msg,
-                    &mut self.shell_settings.layout,
-                    &mut self.shell_settings.sidebar,
-                )
+                .update(msg)
                 .map(Message::SidebarSettings),
             Message::OverlaySettings(msg) => self.update_overlay_settings(msg),
-            Message::NiriWindow(msg) => self
-                .niri_window_group
-                .update(msg, &mut self.niri_rules)
-                .map(Message::NiriWindow),
-            Message::NiriRulesLoaded(stored) => self.adopt_niri_rules(stored),
+            Message::NiriWindow(msg) => self.niri_window_group.update(msg).map(Message::NiriWindow),
             Message::Clock(msg) => self.clock_group.update(msg, self.clock).map(Message::Clock),
             Message::NotificationGroup(msg) => self.update_notification_group(msg),
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
@@ -457,9 +444,6 @@ impl DesktopShell {
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
-            }
-            Message::ShellSettingsLoaded(shell_settings) => {
-                self.apply_saved_shell_settings(shell_settings)
             }
             Message::ConfigFileChanged => self.reload_config(),
             Message::ConfigLoaded(Ok(config)) => self.adopt_config(*config),
@@ -522,7 +506,7 @@ impl DesktopShell {
                         &self.niri,
                         self.desktop_entries.get(),
                         &self.config,
-                        &self.shell_settings,
+                        self.notification_settings(),
                         self.quiet_schedule_group.is_quiet(),
                         self.clock,
                     ),
@@ -582,11 +566,7 @@ impl DesktopShell {
     }
 
     fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
-        match self.overlay_settings_group.update(
-            msg,
-            &mut self.shell_settings.notifications,
-            &mut self.shell_settings.overlays,
-        ) {
+        match self.overlay_settings_group.update(msg) {
             overlay_settings_group::Action::Run(task) => task.map(Message::OverlaySettings),
             overlay_settings_group::Action::ReflowToasts(task) => {
                 Task::batch([self.reflow_toasts(), task.map(Message::OverlaySettings)])
@@ -618,7 +598,7 @@ impl DesktopShell {
         self.notifications.on_niri_changed(
             &placement,
             &self.config,
-            self.shell_settings.notifications,
+            self.notification_settings(),
             self.clock.instant,
         )
     }
@@ -702,22 +682,20 @@ impl DesktopShell {
         niri_action(niri_ipc::Action::FocusWindow { id: window })
     }
 
-    fn apply_saved_shell_settings(&mut self, shell_settings: ShellSettings) -> Task<Message> {
-        self.shell_settings = shell_settings;
-        self.panel_settings_group
-            .adopt(&self.shell_settings.layout, &self.shell_settings.panels);
-        self.sidebar_settings_group
-            .adopt(&self.shell_settings.sidebar);
-        self.overlay_settings_group
-            .adopt(&self.shell_settings.overlays);
-        self.reserve()
+    #[must_use]
+    pub fn notification_settings(&self) -> NotificationSettings {
+        NotificationSettings {
+            sound: self.notification_group.alert_sound_enabled(),
+            toast_spatial_layout: self.overlay_settings_group.toast_spatial_layout(),
+        }
     }
 
-    fn adopt_niri_rules(&mut self, stored: StoredRules) -> Task<Message> {
-        let written = self.niri_rules.adopt(stored);
-        self.niri_window_group
-            .adopt(self.niri_rules.styling().layout);
-        Task::future(written).discard()
+    #[must_use]
+    pub fn tooltip_surface_style(&self) -> TooltipSurfaceStyle {
+        TooltipSurfaceStyle {
+            overlay_appearance: self.overlay_settings_group.overlay_appearance(),
+            float_offset_px: self.panel_settings_group.float_offset_px(),
+        }
     }
 
     fn reload_config(&self) -> Task<Message> {
@@ -789,7 +767,7 @@ impl DesktopShell {
                 &self.niri,
                 self.desktop_entries.get(),
                 &self.config,
-                &self.shell_settings,
+                self.notification_settings(),
                 self.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
@@ -818,7 +796,7 @@ impl DesktopShell {
                 &self.niri,
                 self.desktop_entries.get(),
                 &self.config,
-                &self.shell_settings,
+                self.notification_settings(),
                 self.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
@@ -826,7 +804,7 @@ impl DesktopShell {
     }
 
     fn collapse_groups(&mut self) {
-        if !self.shell_settings.layout.auto_collapse_groups {
+        if !self.panel_settings_group.groups_auto_collapse() {
             return;
         }
         self.panel_settings_group.collapse();
@@ -956,11 +934,7 @@ impl DesktopShell {
     }
 
     fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
-        match self.panel_settings_group.update(
-            msg,
-            &mut self.shell_settings.layout,
-            &mut self.shell_settings.panels,
-        ) {
+        match self.panel_settings_group.update(msg) {
             panel_settings_group::Action::Run(task) => task.map(Message::PanelSettings),
             panel_settings_group::Action::Reflow(task) => {
                 Task::batch([self.reserve(), task.map(Message::PanelSettings)])
@@ -982,7 +956,7 @@ impl DesktopShell {
         if let Some(tooltip) = self.tooltip.view(
             window,
             &self.config,
-            &self.shell_settings,
+            self.tooltip_surface_style(),
             self.window_assets(),
             |target| self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
             self.clock,
@@ -1007,7 +981,7 @@ impl DesktopShell {
                 output,
                 &self.config,
                 &self.theme,
-                &self.shell_settings,
+                self.overlay_settings_group.overlay_appearance(),
                 self.bar_clearance(output),
                 self.clock,
             ))
@@ -1041,10 +1015,6 @@ pub(crate) fn focused_app_id(niri: &EventStreamState) -> Option<&str> {
 fn reheat_due_after(message: &Message) -> ReheatDue {
     ReheatDue(matches!(
         message,
-        Message::Niri(_)
-            | Message::SessionFocus(_)
-            | Message::NiriWindow(_)
-            | Message::NiriRulesLoaded(_)
-            | Message::Clock(_)
+        Message::Niri(_) | Message::SessionFocus(_) | Message::NiriWindow(_) | Message::Clock(_)
     ))
 }

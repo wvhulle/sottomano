@@ -1,11 +1,7 @@
-use std::{convert::Infallible, time::Duration};
+use std::time::Duration;
 
 use chrono::{NaiveTime, TimeDelta, Timelike};
-use futures::{Stream, StreamExt, stream};
-use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    sqlite_state_store::{Columns, StoreError, with_table},
-};
+use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS quiet_hours (
     id INTEGER PRIMARY KEY CHECK (id = 0),
@@ -34,19 +30,7 @@ impl Default for QuietHoursSchedule {
     }
 }
 
-impl ReadingSource for QuietHoursSchedule {
-    type Error = Infallible;
-    type StreamInputs = ();
-
-    const NAME: &'static str = "quiet hours schedule";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
-
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        stream::once(load()).map(Ok).map(SourceDelivery::Reading)
-    }
-}
-
-async fn load() -> QuietHoursSchedule {
+pub async fn load() -> QuietHoursSchedule {
     with_table(
         "quiet hours schedule: load failed",
         &[CREATE_TABLE],

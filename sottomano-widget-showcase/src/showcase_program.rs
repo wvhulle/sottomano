@@ -13,11 +13,11 @@ use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, screen_edges::Position};
-use sottomano_state::ShellSettings;
+use sottomano_state::{NotificationSettings, ShellLayer};
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{TooltipHost, TooltipMessage},
+    hover_tooltips::{TooltipHost, TooltipMessage, tooltip_surfaces::TooltipSurfaceStyle},
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, ToastContext},
     toast_messages::NotificationMessage,
@@ -39,6 +39,8 @@ use crate::{
     showcase_message::ShowcaseMessage,
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
 };
+
+const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
 
 #[must_use]
 pub fn booting_clock() -> Clock {
@@ -99,7 +101,7 @@ impl ShowcaseProgram {
 pub struct ShowcaseState {
     demo: &'static Demo,
     config: Config,
-    shell_settings: ShellSettings,
+    notification_settings: NotificationSettings,
     desktop_entries: DesktopIndex,
     favicons: Favicons,
     controller_artwork: ControllerArtwork,
@@ -117,8 +119,10 @@ impl ShowcaseState {
         FontFaces::point_generic_families_at(&config.theme);
         let mut tooltip = TooltipHost::default();
         let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
-        let mut shell_settings = ShellSettings::default();
-        shell_settings.notifications.sound = false;
+        let notification_settings = NotificationSettings {
+            sound: false,
+            ..NotificationSettings::default()
+        };
         let group = (demo.group)(clock);
         let opening_toasts = Task::batch(group.opening_toasts().iter().map(|toast| {
             Task::done(ShowcaseMessage::Notification(NotificationMessage::Served(
@@ -128,7 +132,7 @@ impl ShowcaseState {
         let state = ShowcaseState {
             demo,
             config: config.clone(),
-            shell_settings,
+            notification_settings,
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
@@ -211,7 +215,7 @@ impl ShowcaseState {
             SHOWCASE_OUTPUT,
             &self.config,
             &self.theme,
-            &self.shell_settings,
+            ShellLayer::Overlays.default_appearance(),
             Padding::ZERO,
             self.clock,
         ))
@@ -224,7 +228,7 @@ impl ShowcaseState {
             self.group.niri().unwrap_or(&unplaced),
             self.desktop_entries.get(),
             &self.config,
-            &self.shell_settings,
+            self.notification_settings,
             false,
             self.clock,
         );
@@ -248,12 +252,13 @@ impl ShowcaseState {
         let panel = &self.config.layout.panel;
         let position = self.group.position();
         let layer = match position {
-            Position::Left => &self.shell_settings.sidebar,
-            Position::Top | Position::Bottom => &self.shell_settings.panels,
-        };
-        let frame_style = LayerFrameStyle::new(layer, &self.config).container_style();
+            Position::Left => ShellLayer::Sidebar,
+            Position::Top | Position::Bottom => ShellLayer::Panels,
+        }
+        .default_appearance();
+        let frame_style = LayerFrameStyle::new(&layer, &self.config).container_style();
         let outlined_sides =
-            OutlinedSides::inward_of(position).all_when_floating(&self.shell_settings.layout);
+            OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self
             .group
             .panel_groups(&self.config, self.clock)
@@ -286,7 +291,10 @@ impl ShowcaseState {
             .view(
                 surface,
                 &self.config,
-                &self.shell_settings,
+                TooltipSurfaceStyle {
+                    overlay_appearance: ShellLayer::Overlays.default_appearance(),
+                    float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
+                },
                 WindowAssets {
                     entries: &self.desktop_entries,
                     favicons: &self.favicons,

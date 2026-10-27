@@ -1,7 +1,7 @@
 use iced::Task;
 use sottomano_config::Config;
 use sottomano_state::{
-    LayerAppearance, ShellLayer, ShellLayout, WorkspacesPlacement,
+    LayerAppearance, ShellLayer, WorkspacesPlacement,
     shell_settings::{self, ShellSetting},
 };
 
@@ -18,11 +18,11 @@ use crate::{
     },
 };
 
-fn workspaces_sidebar_toggle(shell_layout: &ShellLayout) -> IconToggle {
+fn workspaces_sidebar_toggle(placement: WorkspacesPlacement) -> IconToggle {
     IconToggle::new(
         "Workspaces sidebar",
         Phosphor::SidebarSimple(Weight::Regular),
-        shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar,
+        placement == WorkspacesPlacement::Sidebar,
         SwitchPresses {
             turning_on: "move workspaces to a sidebar on the left edge",
             turning_off: "move workspaces inline into the bottom panel",
@@ -47,10 +47,12 @@ pub enum SidebarSettingsMessage {
     Expansion(ExpansionMessage),
     ToggleWorkspacesPlacement,
     Appearance(AppearanceMessage),
+    PlacementLoaded(WorkspacesPlacement),
 }
 
 pub struct SidebarSettingsGroup {
     expansion: GroupExpansion,
+    workspaces_placement: WorkspacesPlacement,
     appearance: LayerAppearanceControls,
 }
 
@@ -58,6 +60,7 @@ impl Default for SidebarSettingsGroup {
     fn default() -> Self {
         Self {
             expansion: GroupExpansion::default(),
+            workspaces_placement: WorkspacesPlacement::Sidebar,
             appearance: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
                 SidebarSettingsTarget::Appearance(target).into()
             }),
@@ -66,21 +69,34 @@ impl Default for SidebarSettingsGroup {
 }
 
 impl SidebarSettingsGroup {
+    pub fn load() -> Task<SidebarSettingsMessage> {
+        Task::batch([
+            Task::perform(
+                shell_settings::load_workspaces_placement(),
+                SidebarSettingsMessage::PlacementLoaded,
+            ),
+            LayerAppearanceControls::load(ShellLayer::Sidebar)
+                .map(SidebarSettingsMessage::Appearance),
+        ])
+    }
+
     #[must_use]
-    pub fn tooltip_for(
-        &self,
-        target: SidebarSettingsTarget,
-        shell_layout: &ShellLayout,
-        sidebar: &LayerAppearance,
-        clock: Clock,
-    ) -> Tooltip {
+    pub fn workspaces_placement(&self) -> WorkspacesPlacement {
+        self.workspaces_placement
+    }
+
+    #[must_use]
+    pub fn sidebar_appearance(&self) -> LayerAppearance {
+        self.appearance.appearance()
+    }
+
+    #[must_use]
+    pub fn tooltip_for(&self, target: SidebarSettingsTarget, clock: Clock) -> Tooltip {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(shell_layout).switch_tooltip(clock)
+                workspaces_sidebar_toggle(self.workspaces_placement).switch_tooltip(clock)
             }
-            SidebarSettingsTarget::Appearance(target) => {
-                self.appearance.tooltip_for(target, sidebar, clock)
-            }
+            SidebarSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, clock),
         }
     }
 
@@ -90,16 +106,7 @@ impl SidebarSettingsGroup {
         }
     }
 
-    pub fn adopt(&mut self, sidebar: &LayerAppearance) {
-        self.appearance.adopt(sidebar);
-    }
-
-    pub fn update(
-        &mut self,
-        msg: SidebarSettingsMessage,
-        shell_layout: &mut ShellLayout,
-        sidebar: &mut LayerAppearance,
-    ) -> Task<SidebarSettingsMessage> {
+    pub fn update(&mut self, msg: SidebarSettingsMessage) -> Task<SidebarSettingsMessage> {
         match msg {
             SidebarSettingsMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -108,31 +115,33 @@ impl SidebarSettingsGroup {
                 Task::none()
             }
             SidebarSettingsMessage::ToggleWorkspacesPlacement => {
-                shell_layout.workspaces_placement = shell_layout.workspaces_placement.toggled();
+                self.workspaces_placement = self.workspaces_placement.toggled();
                 Task::future(shell_settings::save(ShellSetting::WorkspacesPlacement(
-                    shell_layout.workspaces_placement,
+                    self.workspaces_placement,
                 )))
                 .discard()
             }
             SidebarSettingsMessage::Appearance(msg) => self
                 .appearance
-                .update(msg, sidebar)
+                .update(msg)
                 .map(SidebarSettingsMessage::Appearance),
+            SidebarSettingsMessage::PlacementLoaded(placement) => {
+                self.workspaces_placement = placement;
+                Task::none()
+            }
         }
     }
 
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-        shell_layout: &ShellLayout,
-        sidebar: &LayerAppearance,
     ) -> GroupContent<'a, SidebarSettingsMessage> {
-        let sidebar_shown = shell_layout.workspaces_placement == WorkspacesPlacement::Sidebar;
+        let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
         GroupContent::new(
             &self.expansion,
             SidebarSettingsMessage::Expansion,
             [GroupItem::toggle(
-                workspaces_sidebar_toggle(shell_layout),
+                workspaces_sidebar_toggle(self.workspaces_placement),
                 SidebarSettingsTarget::WorkspacesPlacement,
                 SidebarSettingsMessage::ToggleWorkspacesPlacement,
             )]
@@ -141,7 +150,7 @@ impl SidebarSettingsGroup {
                 sidebar_shown
                     .then(|| {
                         self.appearance
-                            .items(config, sidebar, SidebarSettingsMessage::Appearance)
+                            .items(config, SidebarSettingsMessage::Appearance)
                     })
                     .into_iter()
                     .flatten(),
@@ -151,5 +160,24 @@ impl SidebarSettingsGroup {
             glyph: Phosphor::SidebarSimple(Weight::Regular).into(),
             handle: GroupHandle::SidebarSettings,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_state::WorkspacesPlacement;
+
+    use super::{SidebarSettingsGroup, SidebarSettingsMessage};
+
+    #[test]
+    fn a_loaded_placement_reads_back_unchanged() {
+        let mut sidebar_settings_group = SidebarSettingsGroup::default();
+        let _ = sidebar_settings_group.update(SidebarSettingsMessage::PlacementLoaded(
+            WorkspacesPlacement::BottomPanel,
+        ));
+        assert_eq!(
+            sidebar_settings_group.workspaces_placement(),
+            WorkspacesPlacement::BottomPanel
+        );
     }
 }

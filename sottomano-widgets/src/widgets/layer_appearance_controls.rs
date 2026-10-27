@@ -1,7 +1,7 @@
 use iced::Task;
 use sottomano_config::Config;
 use sottomano_state::{
-    LayerAppearance, ShellLayer,
+    LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
     layer_appearance::{self, AppearanceSetting, AppearanceValue},
 };
 
@@ -37,13 +37,14 @@ pub enum AppearanceMessage {
     ToggleBlur,
     ToggleShadow,
     ToggleOutline,
+    Loaded(LayerAppearance),
 }
 
-fn blur_toggle(appearance: &LayerAppearance) -> IconToggle {
+fn blur_toggle(switched_on: bool) -> IconToggle {
     IconToggle::new(
         "Blur background",
         Phosphor::Snowflake(Weight::Regular),
-        appearance.blurred,
+        switched_on,
         SwitchPresses {
             turning_on: "frost the background behind this layer",
             turning_off: "stop blurring behind this layer",
@@ -51,11 +52,11 @@ fn blur_toggle(appearance: &LayerAppearance) -> IconToggle {
     )
 }
 
-fn shadow_toggle(appearance: &LayerAppearance) -> IconToggle {
+fn shadow_toggle(switched_on: bool) -> IconToggle {
     IconToggle::new(
         "Drop shadow",
         Phosphor::SelectionBackground(Weight::Regular),
-        appearance.shadow.cast,
+        switched_on,
         SwitchPresses {
             turning_on: "cast a drop shadow under this layer",
             turning_off: "remove the drop shadow",
@@ -63,11 +64,11 @@ fn shadow_toggle(appearance: &LayerAppearance) -> IconToggle {
     )
 }
 
-fn outline_toggle(appearance: &LayerAppearance) -> IconToggle {
+fn outline_toggle(switched_on: bool) -> IconToggle {
     IconToggle::new(
         "Outline",
         Phosphor::Rectangle(Weight::Regular),
-        appearance.outline.drawn,
+        switched_on,
         SwitchPresses {
             turning_on: "trace the edges facing the screen interior",
             turning_off: "remove the edge outline",
@@ -82,13 +83,20 @@ pub struct LayerAppearanceControls {
     corner_radius: SliderControl,
     shadow_softness: SliderControl,
     shadow_opacity: SliderControl,
+    blurred: bool,
+    shadow_cast: bool,
+    outline_drawn: bool,
 }
 
 impl LayerAppearanceControls {
     pub fn new(layer: ShellLayer, hover: fn(AppearanceTarget) -> HoverTarget) -> Self {
-        Self {
+        let defaults = layer.default_appearance();
+        let mut appearance_controls = Self {
             layer,
             hover,
+            blurred: defaults.blurred,
+            shadow_cast: defaults.shadow.cast,
+            outline_drawn: defaults.outline.drawn,
             opacity: SliderControl::new(
                 "Opacity",
                 0.0..=100.0,
@@ -121,10 +129,36 @@ impl LayerAppearanceControls {
             )
             .readout(|value, _| format!("{} %", value.round()))
             .icon_only(),
+        };
+        appearance_controls.adopt_loaded(defaults);
+        appearance_controls
+    }
+
+    pub fn load(layer: ShellLayer) -> Task<AppearanceMessage> {
+        Task::perform(layer_appearance::load(layer), AppearanceMessage::Loaded)
+    }
+
+    #[must_use]
+    pub fn appearance(&self) -> LayerAppearance {
+        LayerAppearance {
+            opacity: self.opacity.settled_value() / 100.0,
+            corner_radius_px: self.corner_radius.settled_value(),
+            blurred: self.blurred,
+            shadow: ShadowStyle {
+                cast: self.shadow_cast,
+                softness_px: self.shadow_softness.settled_value(),
+                opacity: self.shadow_opacity.settled_value() / 100.0,
+            },
+            outline: OutlineStyle {
+                drawn: self.outline_drawn,
+            },
         }
     }
 
-    pub fn adopt(&mut self, appearance: &LayerAppearance) {
+    fn adopt_loaded(&mut self, appearance: LayerAppearance) {
+        self.blurred = appearance.blurred;
+        self.shadow_cast = appearance.shadow.cast;
+        self.outline_drawn = appearance.outline.drawn;
         self.opacity
             .update(ControlMessage::Reading(appearance.opacity * 100.0));
         self.corner_radius
@@ -143,41 +177,31 @@ impl LayerAppearanceControls {
     }
 
     #[must_use]
-    pub fn tooltip_for(
-        &self,
-        target: AppearanceTarget,
-        appearance: &LayerAppearance,
-        clock: Clock,
-    ) -> Tooltip {
+    pub fn tooltip_for(&self, target: AppearanceTarget, clock: Clock) -> Tooltip {
         match target {
             AppearanceTarget::Opacity => self.opacity.readout_tooltip("Opacity"),
             AppearanceTarget::CornerRadius => self.corner_radius.readout_tooltip("Corner radius"),
-            AppearanceTarget::Blur => blur_toggle(appearance).switch_tooltip(clock),
-            AppearanceTarget::DropShadow => shadow_toggle(appearance).switch_tooltip(clock),
+            AppearanceTarget::Blur => blur_toggle(self.blurred).switch_tooltip(clock),
+            AppearanceTarget::DropShadow => shadow_toggle(self.shadow_cast).switch_tooltip(clock),
             AppearanceTarget::ShadowSoftness => {
                 self.shadow_softness.readout_tooltip("Shadow softness")
             }
             AppearanceTarget::ShadowOpacity => {
                 self.shadow_opacity.readout_tooltip("Shadow opacity")
             }
-            AppearanceTarget::Outline => outline_toggle(appearance).switch_tooltip(clock),
+            AppearanceTarget::Outline => outline_toggle(self.outline_drawn).switch_tooltip(clock),
         }
     }
 
-    pub fn update(
-        &mut self,
-        msg: AppearanceMessage,
-        appearance: &mut LayerAppearance,
-    ) -> Task<AppearanceMessage> {
+    pub fn update(&mut self, msg: AppearanceMessage) -> Task<AppearanceMessage> {
         match msg {
             AppearanceMessage::Opacity(control) => {
                 let SliderAction::Commit(value) = self.opacity.update(control) else {
                     return Task::none();
                 };
-                appearance.opacity = value / 100.0;
                 self.persist_slider(
                     AppearanceSetting::Opacity,
-                    appearance.opacity,
+                    value / 100.0,
                     value,
                     AppearanceMessage::Opacity,
                 )
@@ -186,7 +210,6 @@ impl LayerAppearanceControls {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
-                appearance.corner_radius_px = value;
                 self.persist_slider(
                     AppearanceSetting::CornerRadius,
                     value,
@@ -198,7 +221,6 @@ impl LayerAppearanceControls {
                 let SliderAction::Commit(value) = self.shadow_softness.update(control) else {
                     return Task::none();
                 };
-                appearance.shadow.softness_px = value;
                 self.persist_slider(
                     AppearanceSetting::ShadowSoftness,
                     value,
@@ -210,25 +232,28 @@ impl LayerAppearanceControls {
                 let SliderAction::Commit(value) = self.shadow_opacity.update(control) else {
                     return Task::none();
                 };
-                appearance.shadow.opacity = value / 100.0;
                 self.persist_slider(
                     AppearanceSetting::ShadowOpacity,
-                    appearance.shadow.opacity,
+                    value / 100.0,
                     value,
                     AppearanceMessage::ShadowOpacity,
                 )
             }
             AppearanceMessage::ToggleBlur => {
-                appearance.blurred = !appearance.blurred;
-                self.persist_switch(AppearanceSetting::Blurred, appearance.blurred)
+                self.blurred = !self.blurred;
+                self.persist_switch(AppearanceSetting::Blurred, self.blurred)
             }
             AppearanceMessage::ToggleShadow => {
-                appearance.shadow.cast = !appearance.shadow.cast;
-                self.persist_switch(AppearanceSetting::DropShadow, appearance.shadow.cast)
+                self.shadow_cast = !self.shadow_cast;
+                self.persist_switch(AppearanceSetting::DropShadow, self.shadow_cast)
             }
             AppearanceMessage::ToggleOutline => {
-                appearance.outline.drawn = !appearance.outline.drawn;
-                self.persist_switch(AppearanceSetting::Outline, appearance.outline.drawn)
+                self.outline_drawn = !self.outline_drawn;
+                self.persist_switch(AppearanceSetting::Outline, self.outline_drawn)
+            }
+            AppearanceMessage::Loaded(appearance) => {
+                self.adopt_loaded(appearance);
+                Task::none()
             }
         }
     }
@@ -260,7 +285,6 @@ impl LayerAppearanceControls {
     pub fn items<'a, M: Clone + 'a>(
         &'a self,
         config: &'a Config,
-        appearance: &LayerAppearance,
         lift: fn(AppearanceMessage) -> M,
     ) -> [GroupItem<'a, M>; 7] {
         let hover = self.hover;
@@ -272,12 +296,12 @@ impl LayerAppearanceControls {
                 lift(AppearanceMessage::CornerRadius(control))
             }),
             GroupItem::toggle(
-                blur_toggle(appearance),
+                blur_toggle(self.blurred),
                 hover(AppearanceTarget::Blur),
                 lift(AppearanceMessage::ToggleBlur),
             ),
             GroupItem::toggle(
-                shadow_toggle(appearance),
+                shadow_toggle(self.shadow_cast),
                 hover(AppearanceTarget::DropShadow),
                 lift(AppearanceMessage::ToggleShadow),
             ),
@@ -288,10 +312,81 @@ impl LayerAppearanceControls {
                 lift(AppearanceMessage::ShadowOpacity(control))
             }),
             GroupItem::toggle(
-                outline_toggle(appearance),
+                outline_toggle(self.outline_drawn),
                 hover(AppearanceTarget::Outline),
                 lift(AppearanceMessage::ToggleOutline),
             ),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_state::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer};
+
+    use super::{AppearanceMessage, LayerAppearanceControls};
+    use crate::{
+        hover_tooltips::HoverTarget, widget_groups::panel_settings_group::PanelSettingsTarget,
+        widgets::slider_control::ControlMessage,
+    };
+
+    fn panel_controls() -> LayerAppearanceControls {
+        LayerAppearanceControls::new(ShellLayer::Panels, |target| {
+            HoverTarget::from(PanelSettingsTarget::Appearance(target))
+        })
+    }
+
+    #[test]
+    fn a_fresh_layer_reads_its_default_appearance() {
+        let overlays = LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
+            HoverTarget::from(PanelSettingsTarget::Appearance(target))
+        });
+        assert_eq!(
+            overlays.appearance(),
+            ShellLayer::Overlays.default_appearance()
+        );
+    }
+
+    #[test]
+    fn a_loaded_appearance_reads_back_unchanged() {
+        let loaded = LayerAppearance {
+            opacity: 0.5,
+            corner_radius_px: 3.0,
+            blurred: false,
+            shadow: ShadowStyle {
+                cast: false,
+                softness_px: 12.0,
+                opacity: 0.25,
+            },
+            outline: OutlineStyle { drawn: false },
+        };
+        let mut appearance_controls = panel_controls();
+        let _ = appearance_controls.update(AppearanceMessage::Loaded(loaded));
+        assert_eq!(appearance_controls.appearance(), loaded);
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_settled_corner_radius() {
+        let mut appearance_controls = panel_controls();
+        let settled = appearance_controls.appearance().corner_radius_px;
+        let _ =
+            appearance_controls.update(AppearanceMessage::CornerRadius(ControlMessage::Set(2.0)));
+        let _ =
+            appearance_controls.update(AppearanceMessage::CornerRadius(ControlMessage::Release));
+        assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
+        let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
+            ControlMessage::Persisted {
+                value: 2.0,
+                ok: false,
+            },
+        ));
+        assert!((appearance_controls.appearance().corner_radius_px - settled).abs() < f32::EPSILON);
+        let _ = appearance_controls.update(AppearanceMessage::CornerRadius(
+            ControlMessage::Persisted {
+                value: 2.0,
+                ok: true,
+            },
+        ));
+        assert!((appearance_controls.appearance().corner_radius_px - 2.0).abs() < f32::EPSILON);
     }
 }

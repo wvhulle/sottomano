@@ -2,7 +2,9 @@ mod switch_heat_borders;
 
 use iced::Task;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_state::niri_rules::{HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling};
+use sottomano_state::niri_rules::{
+    AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+};
 
 pub use self::switch_heat_borders::ReheatDue;
 use crate::{
@@ -20,11 +22,11 @@ use crate::{
     },
 };
 
-fn xray_toggle(styling: NiriStyling) -> IconToggle {
+fn xray_toggle(xray: bool) -> IconToggle {
     IconToggle::new(
         "X-ray",
         Phosphor::Eye(Weight::Regular),
-        styling.xray,
+        xray,
         SwitchPresses {
             turning_on: "blur only the wallpaper, hiding windows behind the shell",
             turning_off: "blur the windows behind the shell too",
@@ -54,19 +56,26 @@ pub enum NiriWindowMessage {
     ToggleXray,
     ToggleSwitchHeat,
     SwitchHeatLoaded(bool),
+    RulesLoaded(StoredRules),
 }
 
 pub struct NiriWindowGroup {
     expansion: GroupExpansion,
+    rules_file: NiriRulesFile,
+    xray: bool,
     corner_radius: SliderControl,
     gaps: SliderControl,
     switch_heat: SwitchHeatBorders,
 }
 
-impl Default for NiriWindowGroup {
-    fn default() -> Self {
-        Self {
+impl NiriWindowGroup {
+    #[must_use]
+    pub fn new(rules_file: NiriRulesFile) -> Self {
+        let defaults = NiriStyling::default();
+        let mut niri_window_group = Self {
             expansion: GroupExpansion::default(),
+            rules_file,
+            xray: defaults.xray,
             corner_radius: SliderControl::new(
                 "Window corner radius",
                 0.0..=24.0,
@@ -84,48 +93,95 @@ impl Default for NiriWindowGroup {
             .icon_only()
             .readout(|value, _| format!("{} px", value.round())),
             switch_heat: SwitchHeatBorders::default(),
-        }
-    }
-}
-
-impl NiriWindowGroup {
-    pub fn load() -> Task<NiriWindowMessage> {
-        SwitchHeatBorders::load()
+        };
+        niri_window_group.adopt_styling(defaults);
+        niri_window_group
     }
 
-    pub fn reheat(
-        &self,
-        due: ReheatDue,
-        rules: &mut NiriRulesFile,
-        config: &Config,
-        heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
-    ) -> Task<NiriWindowMessage> {
-        self.switch_heat
-            .reheat(due, rules, &config.theme.palette, heated_windows)
-    }
-
-    pub fn adopt(&mut self, windows: NiriLayout) {
-        self.corner_radius
-            .update(ControlMessage::Reading(windows.window_corner_radius_px));
-        self.gaps.update(ControlMessage::Reading(windows.gaps_px));
+    pub fn load(&self) -> Task<NiriWindowMessage> {
+        Task::batch([
+            SwitchHeatBorders::load(),
+            Task::perform(self.rules_file.read(), NiriWindowMessage::RulesLoaded),
+        ])
     }
 
     #[must_use]
-    pub fn tooltip_for(
-        &self,
-        target: NiriWindowTarget,
-        rules: &NiriRulesFile,
-        clock: Clock,
-    ) -> Tooltip {
+    pub fn niri_layout(&self) -> NiriLayout {
+        NiriLayout {
+            window_corner_radius_px: self.corner_radius.settled_value(),
+            gaps_px: self.gaps.settled_value(),
+        }
+    }
+
+    #[must_use]
+    pub fn niri_styling(&self) -> NiriStyling {
+        NiriStyling {
+            xray: self.xray,
+            layout: self.niri_layout(),
+        }
+    }
+
+    fn requested_styling(&self) -> NiriStyling {
+        NiriStyling {
+            xray: self.xray,
+            layout: NiriLayout {
+                window_corner_radius_px: self.corner_radius.current(),
+                gaps_px: self.gaps.current(),
+            },
+        }
+    }
+
+    pub fn reheat(
+        &mut self,
+        due: ReheatDue,
+        config: &Config,
+        heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
+    ) -> Task<NiriWindowMessage> {
+        let styling = self.requested_styling();
+        self.switch_heat.reheat(
+            due,
+            &mut self.rules_file,
+            styling,
+            &config.theme.palette,
+            heated_windows,
+        )
+    }
+
+    fn adopt_styling(&mut self, styling: NiriStyling) {
+        self.xray = styling.xray;
+        self.corner_radius.update(ControlMessage::Reading(
+            styling.layout.window_corner_radius_px,
+        ));
+        self.gaps
+            .update(ControlMessage::Reading(styling.layout.gaps_px));
+    }
+
+    fn adopt_rules(&mut self, stored: StoredRules) -> Task<NiriWindowMessage> {
+        let AdoptedRules { styling, rewrite } =
+            self.rules_file.adopt(stored, self.requested_styling());
+        self.adopt_styling(styling);
+        Task::future(rewrite).discard()
+    }
+
+    fn persist_styling(
+        &mut self,
+        on_persisted: impl FnOnce(bool) -> NiriWindowMessage + Send + 'static,
+    ) -> Task<NiriWindowMessage> {
+        let styling = self.requested_styling();
+        Task::perform(self.rules_file.write_styling(styling), on_persisted)
+    }
+
+    #[must_use]
+    pub fn tooltip_for(&self, target: NiriWindowTarget, clock: Clock) -> Tooltip {
         let control = match target {
             NiriWindowTarget::CornerRadius => {
                 self.corner_radius.readout_tooltip("Window corner radius")
             }
             NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
-            NiriWindowTarget::Xray => xray_toggle(rules.styling()).switch_tooltip(clock),
+            NiriWindowTarget::Xray => xray_toggle(self.xray).switch_tooltip(clock),
             NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_tooltip(clock),
         };
-        control.with_sections(rules.unreadable().map(|unreadable| {
+        control.with_sections(self.rules_file.unreadable().map(|unreadable| {
             Section::dictionary([KeyValue::new(
                 Cell::Path(unreadable.path.to_path_buf()),
                 unreadable.kind.to_string(),
@@ -146,11 +202,7 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn update(
-        &mut self,
-        msg: NiriWindowMessage,
-        rules: &mut NiriRulesFile,
-    ) -> Task<NiriWindowMessage> {
+    pub fn update(&mut self, msg: NiriWindowMessage) -> Task<NiriWindowMessage> {
         match msg {
             NiriWindowMessage::Expansion(menu) => {
                 if self.expansion.update(menu) {
@@ -162,38 +214,33 @@ impl NiriWindowGroup {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
-                Task::perform(
-                    rules.restyle(move |styling| styling.layout.window_corner_radius_px = value),
-                    move |ok| {
-                        NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
-                    },
-                )
+                self.persist_styling(move |ok| {
+                    NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
+                })
             }
             NiriWindowMessage::Gaps(control) => {
                 let SliderAction::Commit(value) = self.gaps.update(control) else {
                     return Task::none();
                 };
-                Task::perform(
-                    rules.restyle(move |styling| styling.layout.gaps_px = value),
-                    move |ok| NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok }),
-                )
+                self.persist_styling(move |ok| {
+                    NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok })
+                })
             }
             NiriWindowMessage::ToggleXray => {
-                Task::future(rules.restyle(move |styling| styling.xray = !styling.xray)).discard()
+                self.xray = !self.xray;
+                let styling = self.requested_styling();
+                Task::future(self.rules_file.write_styling(styling)).discard()
             }
             NiriWindowMessage::ToggleSwitchHeat => self.switch_heat.flip(),
             NiriWindowMessage::SwitchHeatLoaded(shown) => {
                 self.switch_heat.adopt_loaded(shown);
                 Task::none()
             }
+            NiriWindowMessage::RulesLoaded(stored) => self.adopt_rules(stored),
         }
     }
 
-    pub fn group_content<'a>(
-        &'a self,
-        config: &'a Config,
-        styling: NiriStyling,
-    ) -> GroupContent<'a, NiriWindowMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
         GroupContent::new(
             &self.expansion,
             NiriWindowMessage::Expansion,
@@ -201,7 +248,7 @@ impl NiriWindowGroup {
                 GroupItem::slider(&self.corner_radius, config, NiriWindowMessage::CornerRadius),
                 GroupItem::slider(&self.gaps, config, NiriWindowMessage::Gaps),
                 GroupItem::toggle(
-                    xray_toggle(styling),
+                    xray_toggle(self.xray),
                     NiriWindowTarget::Xray,
                     NiriWindowMessage::ToggleXray,
                 ),
@@ -216,5 +263,57 @@ impl NiriWindowGroup {
             glyph: SimpleIcon::niri.into(),
             handle: GroupHandle::NiriWindow,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use sottomano_state::niri_rules::{NiriLayout, NiriRulesFile, NiriStyling, StoredRules};
+
+    use super::{NiriWindowGroup, NiriWindowMessage};
+
+    const STORED_RULES: &str = r#"layer-rule {
+    match namespace="^sottomano-panel$"
+    background-effect {
+        blur true
+        xray true
+    }
+}
+layout {
+    gaps 5.0
+}
+window-rule {
+    geometry-corner-radius 7.0
+    clip-to-geometry true
+}
+"#;
+
+    fn unloaded_group() -> NiriWindowGroup {
+        NiriWindowGroup::new(NiriRulesFile::in_config_home(Path::new("/nonexistent")))
+    }
+
+    #[test]
+    fn an_unloaded_group_reads_the_default_styling() {
+        assert_eq!(unloaded_group().niri_styling(), NiriStyling::default());
+    }
+
+    #[test]
+    fn loaded_rules_read_back_as_the_group_styling() {
+        let mut niri_window_group = unloaded_group();
+        let _ = niri_window_group.update(NiriWindowMessage::RulesLoaded(StoredRules::Text(
+            STORED_RULES.to_owned(),
+        )));
+        assert_eq!(
+            niri_window_group.niri_styling(),
+            NiriStyling {
+                xray: true,
+                layout: NiriLayout {
+                    window_corner_radius_px: 7.0,
+                    gaps_px: 5.0,
+                },
+            }
+        );
     }
 }

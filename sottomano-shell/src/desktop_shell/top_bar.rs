@@ -72,10 +72,7 @@ impl DesktopShell {
                 .map(Message::Weather),
             self.caldav_group.group_content().map(Message::Caldav),
             self.notification_group
-                .group_content(
-                    self.shell_settings.notifications,
-                    self.notification_status(),
-                )
+                .group_content(self.notification_status())
                 .map(Message::NotificationGroup),
             self.quiet_schedule_group
                 .group_content(config)
