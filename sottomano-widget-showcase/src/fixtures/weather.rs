@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use chrono::{DurationRound, TimeDelta};
 use jiff::Timestamp;
 use situo_client::{
@@ -5,7 +7,8 @@ use situo_client::{
     ObservationCounts,
 };
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     weather::{
         open_meteo_temperature::{
             Daylight, HourlyForecast, HourlyTemperature, Temperature, WeatherCondition,
@@ -62,39 +65,42 @@ fn hourly(
 
 fn readings(clock: Clock) -> [WeatherMessage; 2] {
     [
-        WeatherMessage::Temp(SourceDelivery::Reading(Ok(Temperature {
-            condition: Some(WeatherCondition::PartlyCloudy),
-            daylight: Daylight::Day,
-            temp: celsius(18.0),
-            feels: celsius(17.0),
-            temp_min: celsius(12.0),
-            temp_max: celsius(21.0),
-            humidity: Ratio::new::<percent>(64.0),
-            hourly: HourlyForecast {
-                earlier: vec![
-                    hourly(-2, 15.0, WeatherCondition::Overcast, Daylight::Day, clock),
-                    hourly(
-                        -1,
-                        17.0,
-                        WeatherCondition::PartlyCloudy,
-                        Daylight::Day,
-                        clock,
-                    ),
-                ],
-                later: vec![
-                    hourly(1, 19.0, WeatherCondition::MainlyClear, Daylight::Day, clock),
-                    hourly(
-                        2,
-                        16.0,
-                        WeatherCondition::PartlyCloudy,
-                        Daylight::Night,
-                        clock,
-                    ),
-                    hourly(3, 14.0, WeatherCondition::Clear, Daylight::Night, clock),
-                ],
-            },
-        }))),
-        WeatherMessage::Location(SourceDelivery::Reading(Ok(Location {
+        WeatherMessage::Temp(SnapshotDelivery::fixture_delivered(
+            Ok(Temperature {
+                condition: Some(WeatherCondition::PartlyCloudy),
+                daylight: Daylight::Day,
+                temp: celsius(18.0),
+                feels: celsius(17.0),
+                temp_min: celsius(12.0),
+                temp_max: celsius(21.0),
+                humidity: Ratio::new::<percent>(64.0),
+                hourly: HourlyForecast {
+                    earlier: vec![
+                        hourly(-2, 15.0, WeatherCondition::Overcast, Daylight::Day, clock),
+                        hourly(
+                            -1,
+                            17.0,
+                            WeatherCondition::PartlyCloudy,
+                            Daylight::Day,
+                            clock,
+                        ),
+                    ],
+                    later: vec![
+                        hourly(1, 19.0, WeatherCondition::MainlyClear, Daylight::Day, clock),
+                        hourly(
+                            2,
+                            16.0,
+                            WeatherCondition::PartlyCloudy,
+                            Daylight::Night,
+                            clock,
+                        ),
+                        hourly(3, 14.0, WeatherCondition::Clear, Daylight::Night, clock),
+                    ],
+                },
+            }),
+            DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(300))),
+        )),
+        WeatherMessage::Location(SnapshotDelivery::live_push(Ok(Location {
             geo: LocationFix {
                 position: GeoCoordinates {
                     latitude: Angle::new::<degree>(51.0533),

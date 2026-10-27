@@ -4,9 +4,7 @@ use futures::{Stream, StreamExt, stream};
 use tokio::select;
 
 use super::{ManagerProxy, SystemdUnitOnBus, UnitProxy, connect};
-use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::connected_until_failure,
-};
+use crate::{SnapshotDelivery, SnapshotSource, stream_operators::connected_until_failure};
 
 const JOB_DONE: &str = "done";
 
@@ -73,16 +71,17 @@ pub struct UnitActiveState {
     pub activity: UnitActivity,
 }
 
-impl ReadingSource for UnitActiveState {
+impl SnapshotSource for UnitActiveState {
     type Error = zbus::Error;
     type StreamInputs = SystemdUnitOnBus;
 
     const NAME: &'static str = "systemd unit activity";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(unit: SystemdUnitOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        unit: SystemdUnitOnBus,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         unit_activity(unit).map(|activity| {
-            SourceDelivery::Reading(activity.map(|activity| UnitActiveState { activity }))
+            SnapshotDelivery::live_push(activity.map(|activity| UnitActiveState { activity }))
         })
     }
 }

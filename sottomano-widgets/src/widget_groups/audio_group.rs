@@ -5,7 +5,7 @@ use std::{collections::HashMap, env, ops::RangeInclusive, thread, time::Duration
 use iced::{Function, Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     blocking_background_work::blocking,
     media_playback_audio::pipewire_audio::{
         self, AudioConnectError, AudioEvent, AudioState, Commands, Peaks, Target, WindowAudio,
@@ -17,8 +17,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
@@ -76,7 +76,7 @@ impl ControlKind {
 }
 
 pub struct AudioGroup {
-    state: ContinuousReading<AudioState>,
+    state: LatestSnapshot<AudioState>,
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
@@ -86,7 +86,7 @@ pub struct AudioGroup {
 impl Default for AudioGroup {
     fn default() -> Self {
         Self {
-            state: ContinuousReading::default(),
+            state: LatestSnapshot::default(),
             commands: None,
             expansion: GroupExpansion::default(),
             sink_control: SliderControl::new(
@@ -160,20 +160,22 @@ impl AudioGroup {
             }
             AudioMessage::Disconnected => {
                 self.commands = None;
-                self.state.receive_delivery(SourceDelivery::Absent, clock);
+                self.state
+                    .receive(SnapshotDelivery::SourceUnavailable, clock);
                 Task::none()
             }
             AudioMessage::ConnectFailed(failure) => {
                 self.commands = None;
                 self.state
-                    .receive_delivery(SourceDelivery::Reading(Err(failure)), clock);
+                    .receive(SnapshotDelivery::live_push(Err(failure)), clock);
                 Task::none()
             }
             AudioMessage::State(state) => {
                 feed(&mut self.sink_control, state.sink.as_ref());
                 feed(&mut self.source_control, state.source.as_ref());
                 self.sink_control.set_icon(audio_output_icon(&state));
-                self.state.load(state, clock);
+                self.state
+                    .receive(SnapshotDelivery::live_push(Ok(state)), clock);
                 Task::none()
             }
             AudioMessage::Peaks(peaks) => {

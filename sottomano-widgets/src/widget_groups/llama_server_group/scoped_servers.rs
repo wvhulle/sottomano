@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, mem::take, path::PathBuf};
 
 use iced::{Subscription, Task};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     ai_usage_spend::llama_server_slots::{
         LlamaServer, LlamaServerOnBus, LlamaServerUnit, ModelInstance,
     },
@@ -16,12 +16,12 @@ use super::{
     slot_occupancy_gauge::SlotOccupancy,
 };
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{Cell, KeyValue, Section, SourcedSections, Tooltip, TooltipBody},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
@@ -30,7 +30,7 @@ use crate::{
 struct ServerReadings {
     discovered: LlamaServerUnit,
     switch: UnitSwitch,
-    server: ContinuousReading<LlamaServer>,
+    server: LatestSnapshot<LlamaServer, HidesFetchFailures>,
 }
 
 impl ServerReadings {
@@ -38,29 +38,29 @@ impl ServerReadings {
         Self {
             switch: UnitSwitch::new(discovered.unit.clone(), SERVER_SWITCH),
             discovered,
-            server: ContinuousReading::default(),
+            server: LatestSnapshot::default(),
         }
     }
 }
 
 pub struct ScopedLlamaServers {
     scope: SystemdUnitScope,
-    services: ContinuousReading<ServiceCommands>,
+    services: LatestSnapshot<ServiceCommands, HidesFetchFailures>,
     servers: BTreeMap<String, ServerReadings>,
 }
 
 #[derive(Debug, Clone)]
 pub enum ScopedServersMessage {
-    Services(SourceDelivery<ServiceCommands>),
+    Services(SnapshotDelivery<ServiceCommands>),
     Switch(String, UnitSwitchMessage),
-    Server(String, SourceDelivery<LlamaServer>),
+    Server(String, SnapshotDelivery<LlamaServer>),
 }
 
 impl ScopedLlamaServers {
     pub fn new(scope: SystemdUnitScope) -> Self {
         Self {
             scope,
-            services: ContinuousReading::default(),
+            services: LatestSnapshot::default(),
             servers: BTreeMap::new(),
         }
     }
@@ -71,25 +71,28 @@ impl ScopedLlamaServers {
             scope: self.scope,
         };
         Subscription::batch(
-            [source_subscription::<ServiceCommands>(systemd).map(ScopedServersMessage::Services)]
-                .into_iter()
-                .chain(self.servers.values().flat_map(|readings| {
-                    let unit = readings.discovered.unit.unit_name.clone();
-                    let server = LlamaServerOnBus {
-                        buses: buses.clone(),
-                        server: readings.discovered.clone(),
-                    };
-                    [
-                        readings
-                            .switch
-                            .subscription(buses)
-                            .with(unit.clone())
-                            .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
-                        source_subscription::<LlamaServer>(server)
-                            .with(unit)
-                            .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
-                    ]
-                })),
+            [
+                snapshot_subscription::<ServiceCommands>(systemd)
+                    .map(ScopedServersMessage::Services),
+            ]
+            .into_iter()
+            .chain(self.servers.values().flat_map(|readings| {
+                let unit = readings.discovered.unit.unit_name.clone();
+                let server = LlamaServerOnBus {
+                    buses: buses.clone(),
+                    server: readings.discovered.clone(),
+                };
+                [
+                    readings
+                        .switch
+                        .subscription(buses)
+                        .with(unit.clone())
+                        .map(|(unit, message)| ScopedServersMessage::Switch(unit, message)),
+                    snapshot_subscription::<LlamaServer>(server)
+                        .with(unit)
+                        .map(|(unit, delivery)| ScopedServersMessage::Server(unit, delivery)),
+                ]
+            })),
         )
     }
 
@@ -118,7 +121,7 @@ impl ScopedLlamaServers {
     ) -> Task<ScopedServersMessage> {
         match message {
             ScopedServersMessage::Services(delivery) => {
-                self.services.receive_keeping_last_reading(delivery, clock);
+                self.services.receive(delivery, clock);
                 self.adopt_discovered();
                 Task::none()
             }
@@ -131,9 +134,7 @@ impl ScopedLlamaServers {
             },
             ScopedServersMessage::Server(unit, delivery) => {
                 if let Some(readings) = self.servers.get_mut(&unit) {
-                    readings
-                        .server
-                        .receive_keeping_last_reading(delivery, clock);
+                    readings.server.receive(delivery, clock);
                 }
                 Task::none()
             }

@@ -5,7 +5,7 @@ use uom::si::{f64::ThermodynamicTemperature, thermodynamic_temperature};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::StreamOperators,
     system_protocol_clients::{
         dbus_desktop_buses,
@@ -39,17 +39,16 @@ pub struct ColorTemperature {
     pub temperature: ThermodynamicTemperature,
 }
 
-impl ReadingSource for ColorTemperature {
+impl SnapshotSource for ColorTemperature {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "gamma";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.session.clone(), RELAY_SERVICE).while_held(
-            move || pushed_delivery_stream(relay_changes(buses.clone())),
-            SourceDelivery::Absent,
+            move || SnapshotDelivery::live_push_deliveries(relay_changes(buses.clone())),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

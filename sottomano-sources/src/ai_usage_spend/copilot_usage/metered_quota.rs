@@ -2,11 +2,8 @@ use chrono::{DateTime, Utc};
 use futures::Stream;
 use uom::si::{f64::Ratio, ratio::percent};
 
-use super::{
-    CopilotAccount, Error, QuotaSnapshot, USER_POLL_INTERVAL, UserInfo, plan_polls, quota_reset,
-    user_info,
-};
-use crate::{DeliveryCadence, ReadingSource, SourceDelivery, ai_usage_spend::usage_quota::Quota};
+use super::{CopilotAccount, Error, QuotaSnapshot, UserInfo, plan_polls, quota_reset, user_info};
+use crate::{SnapshotDelivery, SnapshotSource, ai_usage_spend::usage_quota::Quota};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CopilotMetered {
@@ -36,14 +33,15 @@ impl CopilotMetered {
     }
 }
 
-impl ReadingSource for CopilotMetered {
+impl SnapshotSource for CopilotMetered {
     type Error = Error;
     type StreamInputs = CopilotAccount;
 
     const NAME: &'static str = "copilot-usage-metered";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(USER_POLL_INTERVAL);
 
-    fn delivery_stream(inputs: CopilotAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        inputs: CopilotAccount,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         plan_polls(inputs, UserInfo::metered_plan, Self::poll)
     }
 }

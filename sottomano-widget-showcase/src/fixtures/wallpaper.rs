@@ -1,6 +1,6 @@
 use sottomano_config::SecretPaths;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
 };
 use sottomano_widgets::{
@@ -14,7 +14,9 @@ use crate::showcased_group::ShowcasedGroup;
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = WallpaperGroup::new(&SecretPaths::default());
     let _ = group.update(
-        WallpaperMessage::Lookup(Box::new(SourceDelivery::Reading(Ok(Lookup::of(&milos()))))),
+        WallpaperMessage::Lookup(Box::new(SnapshotDelivery::live_push(Ok(Lookup::of(
+            &milos(),
+        ))))),
         clock,
     );
     ShowcasedGroup::Wallpaper(Box::new(group))

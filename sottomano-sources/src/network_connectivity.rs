@@ -19,7 +19,7 @@ use zbus::{
 };
 
 use crate::{
-    ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{Properties, name_owned},
 };
@@ -34,20 +34,20 @@ pub fn device_or_absent<S, R>(
     system: zbus::Connection,
     service: &'static str,
     mut readings: impl FnMut() -> R + Send,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
+) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: ReadingSource<Error = zbus::Error>,
+    S: SnapshotSource<Error = zbus::Error>,
     R: Stream<Item = zbus::Result<Option<S>>> + Send,
 {
     name_owned(system, service).while_held(
         move || {
             readings().map(|device| match device {
-                Ok(Some(device)) => SourceDelivery::Reading(Ok(device)),
-                Ok(None) => SourceDelivery::Absent,
-                Err(failure) => SourceDelivery::Reading(Err(failure)),
+                Ok(Some(device)) => SnapshotDelivery::live_push(Ok(device)),
+                Ok(None) => SnapshotDelivery::SourceUnavailable,
+                Err(failure) => SnapshotDelivery::live_push(Err(failure)),
             })
         },
-        SourceDelivery::Absent,
+        SnapshotDelivery::SourceUnavailable,
     )
 }
 

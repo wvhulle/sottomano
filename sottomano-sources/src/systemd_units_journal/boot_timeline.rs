@@ -10,8 +10,7 @@ use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    SnapshotDelivery, SnapshotSource, system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 const SLOWEST_UNIT_COUNT: usize = 10;
@@ -153,16 +152,15 @@ pub struct BootTimelineWatch {
     pub slow_unit: Duration,
 }
 
-impl ReadingSource for BootTimeline {
+impl SnapshotSource for BootTimeline {
     type Error = zbus::Error;
     type StreamInputs = BootTimelineWatch;
 
     const NAME: &'static str = "boot timeline";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
     fn delivery_stream(
         watch: BootTimelineWatch,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let BootTimelineWatch { buses, slow_unit } = watch;
         stream::once(system_boot(buses.system.clone(), slow_unit))
             .map_ok(move |boot| {
@@ -186,7 +184,7 @@ impl ReadingSource for BootTimeline {
                 stream::iter([boot]).chain(with_user_startup).map(Ok)
             })
             .try_flatten()
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

@@ -4,7 +4,7 @@ mod memory_usage_gauge;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::MemoryModuleTemperatures,
         memory_usage::{Memory, MemoryProcesses},
@@ -14,14 +14,14 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -41,19 +41,19 @@ impl From<MemoryBoardTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct MemoryBoardGroup {
-    memory: ContinuousReading<Memory>,
-    hardware: ContinuousReading<HostHardware>,
-    memory_processes: OnHoverReading<MemoryProcesses>,
-    module_temperatures: OnHoverReading<MemoryModuleTemperatures>,
+    memory: LatestSnapshot<Memory>,
+    hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
+    memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
+    module_temperatures: HoverFetchedSnapshot<MemoryModuleTemperatures>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum MemoryBoardMessage {
-    Hardware(Box<SourceDelivery<HostHardware>>),
-    Memory(SourceDelivery<Memory>),
-    MemoryProcessesFetched(SourceDelivery<MemoryProcesses>),
-    ModuleTemperaturesFetched(SourceDelivery<MemoryModuleTemperatures>),
+    Hardware(Box<SnapshotDelivery<HostHardware>>),
+    Memory(SnapshotDelivery<Memory>),
+    MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
+    ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
     Expansion(ExpansionMessage),
 }
 
@@ -66,7 +66,6 @@ impl MemoryBoardGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        clock: Clock,
     ) -> Task<MemoryBoardMessage> {
         self.memory_processes.stop();
         self.module_temperatures.stop();
@@ -76,13 +75,11 @@ impl MemoryBoardGroup {
                     (),
                     MemoryBoardMessage::MemoryProcessesFetched,
                     config,
-                    clock,
                 ),
                 self.module_temperatures.start_hover_fetch(
                     (),
                     MemoryBoardMessage::ModuleTemperaturesFetched,
                     config,
-                    clock,
                 ),
             ]),
             _ => Task::none(),
@@ -90,20 +87,20 @@ impl MemoryBoardGroup {
     }
 
     pub fn subscription() -> Subscription<MemoryBoardMessage> {
-        source_subscription::<Memory>(()).map(MemoryBoardMessage::Memory)
+        snapshot_subscription::<Memory>(()).map(MemoryBoardMessage::Memory)
     }
 
     pub fn update(&mut self, msg: MemoryBoardMessage, clock: Clock) -> Task<MemoryBoardMessage> {
         match msg {
             MemoryBoardMessage::Hardware(delivery) => {
-                self.hardware.receive_keeping_last_reading(*delivery, clock);
+                self.hardware.receive(*delivery, clock);
             }
-            MemoryBoardMessage::Memory(reading) => self.memory.receive_delivery(reading, clock),
+            MemoryBoardMessage::Memory(reading) => self.memory.receive(reading, clock),
             MemoryBoardMessage::MemoryProcessesFetched(fetched) => {
-                self.memory_processes.receive_delivery(fetched, clock);
+                self.memory_processes.receive(fetched, clock);
             }
             MemoryBoardMessage::ModuleTemperaturesFetched(fetched) => {
-                self.module_temperatures.receive_delivery(fetched, clock);
+                self.module_temperatures.receive(fetched, clock);
             }
             MemoryBoardMessage::Expansion(m) => {
                 self.expansion.update(m);

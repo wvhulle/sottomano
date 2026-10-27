@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     screen_brightness_color::gammarelay_color_temperature::{self, ColorTemperature},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{ScopedSystemdUnit, SystemdUnitScope, unit_active_state::UnitChange},
@@ -15,12 +15,12 @@ use sun_follow_toggle::SUN_FOLLOW;
 use uom::si::thermodynamic_temperature::kelvin;
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{KeyValue, Tooltip, TooltipBody},
@@ -48,7 +48,7 @@ impl From<ColorTemperatureTarget> for HoverTarget {
 }
 
 pub struct ColorTemperatureGroup {
-    gamma: ContinuousReading<ColorTemperature>,
+    gamma: LatestSnapshot<ColorTemperature>,
     dim: SliderControl,
     warmth: SliderControl,
     auto: UnitSwitch,
@@ -58,7 +58,7 @@ pub struct ColorTemperatureGroup {
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
     Expansion(ExpansionMessage),
-    ColorTemperature(SourceDelivery<ColorTemperature>),
+    ColorTemperature(SnapshotDelivery<ColorTemperature>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Auto(UnitSwitchMessage),
@@ -68,7 +68,7 @@ impl ColorTemperatureGroup {
     #[must_use]
     pub fn new(unit: String) -> Self {
         Self {
-            gamma: ContinuousReading::default(),
+            gamma: LatestSnapshot::default(),
             dim: SliderControl::new(
                 "Screen dimming",
                 PERCENT,
@@ -100,7 +100,7 @@ impl ColorTemperatureGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<ColorTemperatureMessage> {
         Subscription::batch([
-            source_subscription::<ColorTemperature>(buses.clone())
+            snapshot_subscription::<ColorTemperature>(buses.clone())
                 .map(ColorTemperatureMessage::ColorTemperature),
             self.auto
                 .subscription(buses)
@@ -151,7 +151,7 @@ impl ColorTemperatureGroup {
                 Task::none()
             }
             ColorTemperatureMessage::ColorTemperature(reading) => {
-                self.gamma.receive_delivery(reading, clock);
+                self.gamma.receive(reading, clock);
                 if let Some(gamma) = self.gamma.get() {
                     self.dim
                         .update(ControlMessage::Reading(percent_f(gamma.brightness)));

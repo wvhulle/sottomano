@@ -23,10 +23,10 @@ use super::{
     hwmon_temperature_sensors::{ChosenSensors, HwmonChip, LimitKind, TemperatureSensor},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
     cpu_memory_compute::temperature_thresholds::{TemperatureThresholds, ThresholdBasis, celsius},
-    polled_delivery_after_setup,
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::{Error, list_dir, read_trimmed},
 };
@@ -38,6 +38,8 @@ const UNREPORTED_CRITICAL_CELSIUS: f64 = 85.0;
 const CPU_PACKAGE_CHIPS: [&str; 3] = ["coretemp", "k10temp", "zenpower"];
 const SOC_THERMAL_ZONE_MARKERS: [&str; 2] = ["cpu", "soc"];
 const PACKAGE_FALLBACK_LABELS: [&str; 3] = ["Tdie", "Tctl", "Package id 0"];
+
+const TEMPERATURE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(5));
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TempReading {
@@ -69,17 +71,16 @@ pub struct CpuCoreTemperatures {
     pub topology: CpuTopology,
 }
 
-impl ReadingSource for CpuCoreTemperatures {
+impl SnapshotSource for CpuCoreTemperatures {
     type Error = Error;
     type StreamInputs = ThresholdOverrides;
 
     const NAME: &'static str = "cpu core temperatures";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(
         overrides: ThresholdOverrides,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_after_setup(
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        TEMPERATURE_POLLING.poll_deliveries_after_setup(
             blocking_poll(move || {
                 Ok(CoreSensorLayout {
                     overrides,
@@ -176,14 +177,13 @@ impl Temperature {
     }
 }
 
-impl ReadingSource for Temperature {
+impl SnapshotSource for Temperature {
     type Error = Error;
     type StreamInputs = SensorConfig;
 
     const NAME: &'static str = "temperature";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(config: SensorConfig) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(config: SensorConfig) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let choice = config.sensor.clone();
         let exposed = async move {
             spawn_blocking(move || cpu_sensors(&choice))
@@ -193,7 +193,7 @@ impl ReadingSource for Temperature {
         holding_earliest_critical(stream::once(exposed).while_held(
             move || {
                 let config = config.clone();
-                polled_delivery_after_setup(
+                TEMPERATURE_POLLING.poll_deliveries_after_setup(
                     blocking_poll(move || {
                         Ok(TemperatureProbe {
                             sensors: cpu_sensors(&config.sensor),
@@ -203,7 +203,7 @@ impl ReadingSource for Temperature {
                     Self::poll,
                 )
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         ))
     }
 }
@@ -221,18 +221,24 @@ impl Temperature {
 }
 
 fn holding_earliest_critical(
-    deliveries: impl Stream<Item = SourceDelivery<Temperature>>,
-) -> impl Stream<Item = SourceDelivery<Temperature>> {
+    deliveries: impl Stream<Item = SnapshotDelivery<Temperature>>,
+) -> impl Stream<Item = SnapshotDelivery<Temperature>> {
     deliveries.scan(None, |held, delivery| {
         let delivery = match delivery {
-            SourceDelivery::Reading(Ok(reading)) => {
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Ok(reading),
+                stamped_cadence,
+            } => {
                 *held = reading.critical_since.map(|now| held.unwrap_or(now));
-                SourceDelivery::Reading(Ok(Temperature {
-                    critical_since: *held,
-                    ..reading
-                }))
+                SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Ok(Temperature {
+                        critical_since: *held,
+                        ..reading
+                    }),
+                    stamped_cadence,
+                }
             }
-            SourceDelivery::Unchanged => SourceDelivery::Unchanged,
+            SnapshotDelivery::SnapshotUnchanged => SnapshotDelivery::SnapshotUnchanged,
             interrupted => {
                 *held = None;
                 interrupted
@@ -404,6 +410,7 @@ mod tests {
     use futures::executor::block_on;
 
     use super::*;
+    use crate::delivery_cadence_drivers::DeliveryCadence;
 
     fn reading_critical_since(critical_since: Option<SystemTime>) -> Temperature {
         Temperature {
@@ -419,17 +426,26 @@ mod tests {
         let first = SystemTime::UNIX_EPOCH + Duration::from_secs(10);
         let second = first + Duration::from_secs(5);
         let third = first + Duration::from_secs(15);
-        let deliveries = stream::iter(
-            [Some(first), Some(second), None, Some(third)]
-                .map(|since| SourceDelivery::Reading(Ok(reading_critical_since(since)))),
-        );
+        let deliveries =
+            stream::iter([Some(first), Some(second), None, Some(third)].map(|since| {
+                SnapshotDelivery::fixture_delivered(
+                    Ok(reading_critical_since(since)),
+                    DeliveryCadence::PeriodicPolling(TEMPERATURE_POLLING),
+                )
+            }));
         let held: Vec<Option<SystemTime>> = block_on(
             holding_earliest_critical(deliveries)
                 .map(|delivery| match delivery {
-                    SourceDelivery::Reading(Ok(reading)) => reading.critical_since,
-                    SourceDelivery::Reading(Err(_))
-                    | SourceDelivery::Absent
-                    | SourceDelivery::Unchanged => None,
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(reading),
+                        ..
+                    } => reading.critical_since,
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(_),
+                        ..
+                    }
+                    | SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::SnapshotUnchanged => None,
                 })
                 .collect(),
         );

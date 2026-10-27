@@ -4,7 +4,7 @@ use chrono::{DateTime, Locale, Offset, TimeDelta};
 use chrono_tz::Tz;
 use iced::futures::Stream;
 use sottomano_sources::{
-    DeliveryCadence, ReadingSource, SourceDelivery, stream_operators::ticked_at_boundaries,
+    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
 
 use crate::{
@@ -21,15 +21,14 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ZoneTime(pub Tz);
 
-impl ReadingSource for ZoneTime {
+impl SnapshotSource for ZoneTime {
     type Error = Infallible;
     type StreamInputs = Tz;
 
     const NAME: &'static str = "zone time";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(TICK);
 
-    fn delivery_stream(zone: Tz) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        ticked_at_boundaries(TICK, move || ZoneTime(zone))
+    fn delivery_stream(zone: Tz) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(TICK).boundary_aligned_deliveries(move || ZoneTime(zone))
     }
 }
 

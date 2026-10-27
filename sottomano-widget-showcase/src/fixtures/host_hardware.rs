@@ -1,7 +1,7 @@
 use bytesize::ByteSize;
 use chrono::{TimeZone, Utc};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     host_machine_identity::{
         hostname1_os_identity::MachineInfo,
         udev_hardware_identity::{
@@ -14,8 +14,8 @@ use sottomano_sources::{
 
 const ASUS_PCI_VENDOR: u16 = 0x1043;
 
-pub fn ryzen_workstation_delivery() -> Box<SourceDelivery<HostHardware>> {
-    Box::new(SourceDelivery::Reading(Ok(ryzen_workstation())))
+pub fn ryzen_workstation_delivery() -> Box<SnapshotDelivery<HostHardware>> {
+    Box::new(SnapshotDelivery::single_read(Ok(ryzen_workstation())))
 }
 
 fn ryzen_workstation() -> HostHardware {

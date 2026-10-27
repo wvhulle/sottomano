@@ -23,7 +23,7 @@ use tokio::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries, non_empty_text::non_empty,
 };
 
@@ -281,14 +281,13 @@ pub fn updates() -> impl Stream<Item = TrayUpdate> + Send {
     stream::select(received, hosting)
 }
 
-impl ReadingSource for Vec<TrayItem> {
+impl SnapshotSource for Vec<TrayItem> {
     type Error = Arc<TrayHostError>;
     type StreamInputs = ();
 
     const NAME: &'static str = "tray";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         updates()
             .filter_map(|update| {
                 ready(match update {
@@ -297,7 +296,7 @@ impl ReadingSource for Vec<TrayItem> {
                     TrayUpdate::Connected(_) => None,
                 })
             })
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

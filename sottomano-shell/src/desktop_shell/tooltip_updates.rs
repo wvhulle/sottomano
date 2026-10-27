@@ -21,7 +21,7 @@ use sottomano_widgets::{
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
-    widgets::tooltip_body::{Freshness, Tooltip, TooltipBody},
+    widgets::tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
 };
 use tokio::time::sleep_until;
 
@@ -126,16 +126,17 @@ impl DesktopShell {
                 self.clock,
             )),
             HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::tooltip_for(app_id)),
-            HoverTarget::GroupHandle(_) => {
-                Some(Tooltip::sourced(TooltipBody::sections([]), Freshness::Live))
-            }
+            HoverTarget::GroupHandle(_) => Some(Tooltip::sourced(
+                TooltipBody::sections([]),
+                DeliveryTiming::LivePush,
+            )),
             HoverTarget::Session(target) => Some(
                 self.session_menu
                     .tooltip_for(*target, self.idle_timeouts_group.timeouts()),
             ),
             HoverTarget::Tray(address) => self.tray_group.tooltip_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_tooltip(&self.niri, &self.niri_snapshot, *window, self.clock)
+                WindowGroup::pick_tooltip(&self.niri, *window, self.clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip(self.clock))
@@ -343,45 +344,45 @@ impl DesktopShell {
         let buses = self.desktop_buses.as_ref();
         Task::batch([
             self.window_group
-                .hover(&self.niri, hovered, &self.config, self.clock)
+                .hover(&self.niri, hovered, &self.config)
                 .map(Message::WindowGroup),
             self.gpu_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::Gpu),
             self.desktop_buses
                 .as_ref()
                 .map_or_else(Task::none, |buses| {
                     self.net_interfaces_group
-                        .hover(hovered, &self.config, buses, self.clock)
+                        .hover(hovered, &self.config, buses)
                         .map(Message::NetInterfaces)
                 }),
             self.vpn_group
-                .hover(hovered, &self.config, buses, self.clock)
+                .hover(hovered, &self.config, buses)
                 .map(Message::Vpn),
             self.compute_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::Compute),
             self.memory_board_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::MemoryBoard),
             self.power_group
-                .hover(hovered, &self.config, buses, self.clock)
+                .hover(hovered, &self.config, buses)
                 .map(Message::Power),
             self.claude_usage_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::ClaudeUsage),
             self.desktop_buses
                 .as_ref()
                 .map_or_else(Task::none, |buses| {
                     self.login_session_group
-                        .hover(hovered, &self.config, buses, self.clock)
+                        .hover(hovered, &self.config, buses)
                         .map(Message::LoginSession)
                 }),
             self.llama_server_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::LlamaServer),
             self.voice_dictation_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config)
                 .map(Message::VoiceDictation),
         ])
     }

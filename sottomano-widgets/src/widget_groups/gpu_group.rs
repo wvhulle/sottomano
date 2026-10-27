@@ -11,7 +11,7 @@ use gpu_temperature_label::GpuTemperatureLabel;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
         self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
         GpuRuntimePower, GpuSnapshot, PciBusId,
@@ -19,15 +19,17 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
-        tooltip_body::{ReadingSections, Section, SourcedSections, Tooltip, TooltipBody},
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{FailedSnapshotFetch, HidesFetchFailures, LatestSnapshot},
+        tooltip_body::{
+            DeliveryTiming, ReadingSections, Section, SourcedSections, Tooltip, TooltipBody,
+        },
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -59,10 +61,19 @@ impl From<GpuTarget> for HoverTarget {
     }
 }
 
+enum GpuDeviceAccess {
+    Readable {
+        handle: GpuHandle,
+        snapshot: LatestSnapshot<GpuSnapshot>,
+    },
+    Unreadable {
+        handle_failure: FailedSnapshotFetch<GpuSnapshot>,
+    },
+}
+
 struct GpuDevice {
     model: GpuModel,
-    handle: Option<GpuHandle>,
-    snapshot: ContinuousReading<GpuSnapshot>,
+    access: GpuDeviceAccess,
     runtime_power: Option<GpuRuntimePower>,
     expansion: GroupExpansion,
 }
@@ -72,26 +83,40 @@ impl GpuDevice {
         self.runtime_power == Some(GpuRuntimePower::Awake)
     }
 
+    fn readable_handle(&self) -> Option<&GpuHandle> {
+        match &self.access {
+            GpuDeviceAccess::Readable { handle, .. } => Some(handle),
+            GpuDeviceAccess::Unreadable { .. } => None,
+        }
+    }
+
+    fn latest_snapshot(&self) -> Option<&GpuSnapshot> {
+        match &self.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => snapshot.get(),
+            GpuDeviceAccess::Unreadable { .. } => None,
+        }
+    }
+
     fn clock_label(&self) -> Option<GpuClockLabel> {
         Some(GpuClockLabel {
-            current: self.snapshot.get()?.graphics_clock?,
+            current: self.latest_snapshot()?.graphics_clock?,
         })
     }
 
     fn memory(&self) -> Option<GpuMemory> {
-        Some(self.snapshot.get()?.memory.clone())
+        Some(self.latest_snapshot()?.memory.clone())
     }
 
     fn temperature_label(&self) -> Option<GpuTemperatureLabel> {
         Some(GpuTemperatureLabel {
-            current: self.snapshot.get()?.temperature?,
+            current: self.latest_snapshot()?.temperature?,
             limits: self.model.temperature_limits,
         })
     }
 
     fn power_label(&self) -> Option<GpuPowerDraw> {
         Some(GpuPowerDraw {
-            draw: self.snapshot.get()?.power_draw?,
+            draw: self.latest_snapshot()?.power_draw?,
             limit: self.model.power_limit,
         })
     }
@@ -99,20 +124,20 @@ impl GpuDevice {
 
 #[derive(Default)]
 pub struct GpuGroup {
-    discovery: ContinuousReading<GpuDiscovery>,
+    discovery: LatestSnapshot<GpuDiscovery, HidesFetchFailures>,
     devices: BTreeMap<PciBusId, GpuDevice>,
     hovered_bus: Option<PciBusId>,
-    clocks: OnHoverReading<GpuClocks>,
-    processes: OnHoverReading<GpuProcesses>,
+    clocks: HoverFetchedSnapshot<GpuClocks>,
+    processes: HoverFetchedSnapshot<GpuProcesses>,
 }
 
 #[derive(Debug, Clone)]
 pub enum GpuMessage {
-    Discovered(SourceDelivery<GpuDiscovery>),
-    RuntimePower(PciBusId, SourceDelivery<GpuRuntimePower>),
-    Snapshot(PciBusId, SourceDelivery<GpuSnapshot>),
-    ClocksFetched(SourceDelivery<GpuClocks>),
-    ProcessesFetched(SourceDelivery<GpuProcesses>),
+    Discovered(SnapshotDelivery<GpuDiscovery>),
+    RuntimePower(PciBusId, SnapshotDelivery<GpuRuntimePower>),
+    Snapshot(PciBusId, SnapshotDelivery<GpuSnapshot>),
+    ClocksFetched(SnapshotDelivery<GpuClocks>),
+    ProcessesFetched(SnapshotDelivery<GpuProcesses>),
     Expansion(PciBusId, ExpansionMessage),
 }
 
@@ -125,7 +150,7 @@ impl GpuGroup {
 
     pub fn subscription(&self) -> Subscription<GpuMessage> {
         let runtime_powers = self.devices.keys().map(|bus| {
-            source_subscription::<GpuRuntimePower>(bus.clone())
+            snapshot_subscription::<GpuRuntimePower>(bus.clone())
                 .with(bus.clone())
                 .map(|(bus, reading)| GpuMessage::RuntimePower(bus, reading))
         });
@@ -135,25 +160,20 @@ impl GpuGroup {
             .filter(|(_, device)| device.is_awake())
             .filter_map(|(bus, device)| {
                 Some(
-                    source_subscription::<GpuSnapshot>(device.handle.clone()?)
+                    snapshot_subscription::<GpuSnapshot>(device.readable_handle()?.clone())
                         .with(bus.clone())
                         .map(|(bus, reading)| GpuMessage::Snapshot(bus, reading)),
                 )
             });
         Subscription::batch(
-            [source_subscription::<GpuDiscovery>(()).map(GpuMessage::Discovered)]
+            [snapshot_subscription::<GpuDiscovery>(()).map(GpuMessage::Discovered)]
                 .into_iter()
                 .chain(runtime_powers)
                 .chain(snapshots),
         )
     }
 
-    pub fn hover(
-        &mut self,
-        hovered: Option<&HoverTarget>,
-        config: &Config,
-        clock: Clock,
-    ) -> Task<GpuMessage> {
+    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<GpuMessage> {
         self.clocks.stop();
         self.processes.stop();
         let Some(HoverTarget::Gpu(target)) = hovered else {
@@ -164,21 +184,19 @@ impl GpuGroup {
         let Some(handle) = self
             .devices
             .get(&target.bus)
-            .and_then(|device| device.handle.clone())
+            .and_then(|device| device.readable_handle().cloned())
         else {
             return Task::none();
         };
         match target.reading {
             GpuReading::Clock => {
                 self.clocks
-                    .start_hover_fetch(handle, GpuMessage::ClocksFetched, config, clock)
+                    .start_hover_fetch(handle, GpuMessage::ClocksFetched, config)
             }
-            GpuReading::Memory => self.processes.start_hover_fetch(
-                handle,
-                GpuMessage::ProcessesFetched,
-                config,
-                clock,
-            ),
+            GpuReading::Memory => {
+                self.processes
+                    .start_hover_fetch(handle, GpuMessage::ProcessesFetched, config)
+            }
             GpuReading::Load | GpuReading::Temperature | GpuReading::Power => Task::none(),
         }
     }
@@ -198,7 +216,7 @@ impl GpuGroup {
     pub fn update(&mut self, msg: GpuMessage, clock: Clock) -> Task<GpuMessage> {
         match msg {
             GpuMessage::Discovered(reading) => {
-                self.discovery.receive_keeping_last_reading(reading, clock);
+                self.discovery.receive(reading, clock);
                 let Some(discovery) = self.discovery.get() else {
                     return Task::none();
                 };
@@ -206,17 +224,20 @@ impl GpuGroup {
                     .gpus
                     .iter()
                     .map(|gpu| {
-                        let mut snapshot = ContinuousReading::default();
-                        if let Err(failure) = &gpu.handle {
-                            snapshot.receive_delivery(
-                                SourceDelivery::Reading(Err(failure.clone())),
-                                clock,
-                            );
-                        }
+                        let access = match &gpu.handle {
+                            Ok(handle) => GpuDeviceAccess::Readable {
+                                handle: handle.clone(),
+                                snapshot: LatestSnapshot::default(),
+                            },
+                            Err(failure) => GpuDeviceAccess::Unreadable {
+                                handle_failure: FailedSnapshotFetch::from_fetch_error(
+                                    failure.clone(),
+                                ),
+                            },
+                        };
                         let device = GpuDevice {
                             model: gpu.model.clone(),
-                            handle: gpu.handle.clone().ok(),
-                            snapshot,
+                            access,
                             runtime_power: None,
                             expansion: GroupExpansion::default(),
                         };
@@ -224,20 +245,30 @@ impl GpuGroup {
                     })
                     .collect();
             }
-            GpuMessage::RuntimePower(bus, SourceDelivery::Reading(Ok(power))) => {
+            GpuMessage::RuntimePower(
+                bus,
+                SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Ok(power),
+                    ..
+                },
+            ) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
                     device.runtime_power = Some(power);
                 }
             }
             GpuMessage::RuntimePower(..) => {}
             GpuMessage::Snapshot(bus, reading) => {
-                if let Some(device) = self.devices.get_mut(&bus) {
-                    device.snapshot.receive_delivery(reading, clock);
+                if let Some(GpuDevice {
+                    access: GpuDeviceAccess::Readable { snapshot, .. },
+                    ..
+                }) = self.devices.get_mut(&bus)
+                {
+                    snapshot.receive(reading, clock);
                 }
             }
-            GpuMessage::ClocksFetched(fetched) => self.clocks.receive_delivery(fetched, clock),
+            GpuMessage::ClocksFetched(fetched) => self.clocks.receive(fetched, clock),
             GpuMessage::ProcessesFetched(fetched) => {
-                self.processes.receive_delivery(fetched, clock);
+                self.processes.receive(fetched, clock);
             }
             GpuMessage::Expansion(bus, m) => {
                 if let Some(device) = self.devices.get_mut(&bus) {
@@ -259,7 +290,14 @@ impl GpuGroup {
                     reading,
                 };
                 let items = [
-                    device.snapshot.group_item(target(GpuReading::Load)),
+                    match &device.access {
+                        GpuDeviceAccess::Readable { snapshot, .. } => {
+                            snapshot.group_item(target(GpuReading::Load))
+                        }
+                        GpuDeviceAccess::Unreadable { handle_failure } => {
+                            Some(GroupItem::reading(handle_failure, target(GpuReading::Load)))
+                        }
+                    },
                     device
                         .clock_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Clock))),
@@ -288,7 +326,7 @@ impl GpuGroup {
         if !device.is_awake() {
             return Task::none();
         }
-        let Some(handle) = device.handle.clone() else {
+        let Some(handle) = device.readable_handle().cloned() else {
             return first_delivery::<GpuDiscovery>(()).map(GpuMessage::Discovered);
         };
         let bus = target.bus.clone();
@@ -299,13 +337,20 @@ impl GpuGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: &GpuTarget, clock: Clock) -> Option<Tooltip> {
         let device = self.devices.get(&target.bus)?;
-        let snapshot = &device.snapshot;
+        let model_sections = self
+            .discovery
+            .sections_described_by(|_| vec![Section::from(&device.model)]);
+        let snapshot = match &device.access {
+            GpuDeviceAccess::Readable { snapshot, .. } => snapshot,
+            GpuDeviceAccess::Unreadable { handle_failure } => {
+                return Some(
+                    Tooltip::sourced(handle_failure.tooltip(clock), DeliveryTiming::SingleRead)
+                        .with_groups(model_sections),
+                );
+            }
+        };
         match target.reading {
-            GpuReading::Load => snapshot.tooltip_with_groups(
-                self.discovery
-                    .sections_described_by(|_| vec![Section::from(&device.model)]),
-                clock,
-            ),
+            GpuReading::Load => snapshot.tooltip_with_groups(model_sections, clock),
             GpuReading::Clock => Some(
                 snapshot
                     .tooltip_with(device.clock_label()?.tooltip(clock))?

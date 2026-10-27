@@ -1,12 +1,15 @@
+use std::time::Duration;
+
 use chrono::TimeDelta;
 use rust_decimal::Decimal;
 use rusty_money::iso;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     ai_usage_spend::{
         claude_usage::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
         spend_money::Money,
     },
+    delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
 use sottomano_widgets::{
     clock::Clock,
@@ -30,9 +33,10 @@ pub fn live(clock: Clock) -> Vec<ShowcaseMessage> {
 }
 
 fn usage_windows_delivered(tick: u32, clock: Clock) -> ClaudeUsageMessage {
-    ClaudeUsageMessage::UsageWindows(Box::new(SourceDelivery::Reading(Ok(usage_windows(
-        tick, clock,
-    )))))
+    ClaudeUsageMessage::UsageWindows(Box::new(SnapshotDelivery::fixture_delivered(
+        Ok(usage_windows(tick, clock)),
+        DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_mins(1))),
+    )))
 }
 
 fn window(utilization_percent: f64, resets_in: TimeDelta, clock: Clock) -> WindowUsage {

@@ -9,7 +9,7 @@ use chrono::WeekdaySet;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     ai_usage_spend::{
         claude_usage::{
             self, ClaudeCcusageBlock, ClaudeCcusageModels, ClaudeCcusagePeriods,
@@ -21,15 +21,15 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
-        on_hover_reading::OnHoverReading,
         simple_icons::SimpleIcon,
         tooltip_body::{Cell, KeyValue, Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -66,24 +66,24 @@ impl From<ClaudeUsageTarget> for HoverTarget {
 }
 
 pub struct ClaudeUsageGroup {
-    usage_windows: ContinuousReading<ClaudeUsageWindows>,
-    enterprise_spend: ContinuousReading<ClaudeEnterpriseSpend>,
-    ccusage_periods: ContinuousReading<ClaudeCcusagePeriods>,
-    ccusage_block: ContinuousReading<ClaudeCcusageBlock>,
-    ccusage_models: ContinuousReading<ClaudeCcusageModels>,
+    usage_windows: LatestSnapshot<ClaudeUsageWindows>,
+    enterprise_spend: LatestSnapshot<ClaudeEnterpriseSpend>,
+    ccusage_periods: LatestSnapshot<ClaudeCcusagePeriods>,
+    ccusage_block: LatestSnapshot<ClaudeCcusageBlock>,
+    ccusage_models: LatestSnapshot<ClaudeCcusageModels, HidesFetchFailures>,
     oauth_credentials: Option<PathBuf>,
-    organization: OnHoverReading<ClaudeOrganization>,
+    organization: HoverFetchedSnapshot<ClaudeOrganization>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ClaudeUsageMessage {
-    UsageWindows(Box<SourceDelivery<ClaudeUsageWindows>>),
-    EnterpriseSpend(SourceDelivery<ClaudeEnterpriseSpend>),
-    OrganizationFetched(SourceDelivery<ClaudeOrganization>),
-    CcusagePeriods(SourceDelivery<ClaudeCcusagePeriods>),
-    CcusageBlock(SourceDelivery<ClaudeCcusageBlock>),
-    CcusageModels(SourceDelivery<ClaudeCcusageModels>),
+    UsageWindows(Box<SnapshotDelivery<ClaudeUsageWindows>>),
+    EnterpriseSpend(SnapshotDelivery<ClaudeEnterpriseSpend>),
+    OrganizationFetched(SnapshotDelivery<ClaudeOrganization>),
+    CcusagePeriods(SnapshotDelivery<ClaudeCcusagePeriods>),
+    CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
+    CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
     Expansion(ExpansionMessage),
 }
 
@@ -95,13 +95,13 @@ impl ClaudeUsageGroup {
     #[must_use]
     pub fn new(oauth_credentials: Option<PathBuf>) -> Self {
         Self {
-            usage_windows: ContinuousReading::default(),
-            enterprise_spend: ContinuousReading::default(),
-            ccusage_periods: ContinuousReading::default(),
-            ccusage_block: ContinuousReading::default(),
-            ccusage_models: ContinuousReading::default(),
+            usage_windows: LatestSnapshot::default(),
+            enterprise_spend: LatestSnapshot::default(),
+            ccusage_periods: LatestSnapshot::default(),
+            ccusage_block: LatestSnapshot::default(),
+            ccusage_models: LatestSnapshot::default(),
             oauth_credentials,
-            organization: OnHoverReading::default(),
+            organization: HoverFetchedSnapshot::default(),
             expansion: GroupExpansion::default(),
         }
     }
@@ -110,7 +110,6 @@ impl ClaudeUsageGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
         self.organization.stop();
         let Some(HoverTarget::ClaudeUsage(ClaudeUsageTarget::EnterpriseSpend)) = hovered else {
@@ -123,7 +122,6 @@ impl ClaudeUsageGroup {
             credentials,
             ClaudeUsageMessage::OrganizationFetched,
             config,
-            clock,
         )
     }
 
@@ -179,9 +177,9 @@ impl ClaudeUsageGroup {
     ) -> Subscription<ClaudeUsageMessage> {
         let account = self.oauth_credentials.clone().into_iter().flat_map(|key| {
             [
-                source_subscription::<ClaudeUsageWindows>(key.clone())
+                snapshot_subscription::<ClaudeUsageWindows>(key.clone())
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
-                source_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
+                snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
                     key,
                     config,
                     working_days,
@@ -192,11 +190,11 @@ impl ClaudeUsageGroup {
         let local_logs = self.local_logs(config);
         Subscription::batch(
             account.chain([
-                source_subscription::<ClaudeCcusageBlock>(local_logs.clone())
+                snapshot_subscription::<ClaudeCcusageBlock>(local_logs.clone())
                     .map(ClaudeUsageMessage::CcusageBlock),
-                source_subscription::<ClaudeCcusagePeriods>(local_logs)
+                snapshot_subscription::<ClaudeCcusagePeriods>(local_logs)
                     .map(ClaudeUsageMessage::CcusagePeriods),
-                source_subscription::<ClaudeCcusageModels>(self.oauth_credentials.clone())
+                snapshot_subscription::<ClaudeCcusageModels>(self.oauth_credentials.clone())
                     .map(ClaudeUsageMessage::CcusageModels),
             ]),
         )
@@ -209,23 +207,22 @@ impl ClaudeUsageGroup {
     ) -> Task<ClaudeUsageMessage> {
         match message {
             ClaudeUsageMessage::UsageWindows(reading) => {
-                self.usage_windows.receive_delivery(*reading, clock);
+                self.usage_windows.receive(*reading, clock);
             }
             ClaudeUsageMessage::EnterpriseSpend(reading) => {
-                self.enterprise_spend.receive_delivery(reading, clock);
+                self.enterprise_spend.receive(reading, clock);
             }
             ClaudeUsageMessage::OrganizationFetched(fetched) => {
-                self.organization.receive_delivery(fetched, clock);
+                self.organization.receive(fetched, clock);
             }
             ClaudeUsageMessage::CcusagePeriods(reading) => {
-                self.ccusage_periods.receive_delivery(reading, clock);
+                self.ccusage_periods.receive(reading, clock);
             }
             ClaudeUsageMessage::CcusageBlock(reading) => {
-                self.ccusage_block.receive_delivery(reading, clock);
+                self.ccusage_block.receive(reading, clock);
             }
             ClaudeUsageMessage::CcusageModels(reading) => {
-                self.ccusage_models
-                    .receive_keeping_last_reading(reading, clock);
+                self.ccusage_models.receive(reading, clock);
             }
             ClaudeUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);

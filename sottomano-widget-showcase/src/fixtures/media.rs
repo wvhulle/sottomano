@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use reqwest::Url;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     media_playback_audio::mpris_players::{
         Capabilities, LoopMode, Media, Progress, SeekMode, Status,
     },
@@ -21,7 +21,7 @@ pub const SPOTIFY_BUS: &str = "org.mpris.MediaPlayer2.spotify";
 pub fn group(clock: Clock) -> ShowcasedGroup {
     let mut group = MediaGroup::default();
     let _ = group.update(
-        MediaMessage::Reading(SourceDelivery::Reading(Ok(vec![
+        MediaMessage::Reading(SnapshotDelivery::live_push(Ok(vec![
             now_playing(clock),
             paused_video(clock),
         ]))),

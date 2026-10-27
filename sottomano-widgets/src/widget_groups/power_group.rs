@@ -14,7 +14,7 @@ use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     battery_power_profiles::{
         cpu_tuning_platform_profile::CpuTuning,
         upower_battery_state::{Battery, ChargerSupply},
@@ -24,14 +24,14 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::LatestSnapshot,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, Tooltip},
@@ -55,20 +55,20 @@ impl From<PowerTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct PowerGroup {
-    battery: ContinuousReading<Battery>,
+    battery: LatestSnapshot<Battery>,
     time: Option<BatteryTime>,
     time_reading: BatteryTimeReading,
     power_profile: PowerProfileControl,
-    charger: OnHoverReading<ChargerSupply>,
-    cpu_tuning: OnHoverReading<CpuTuning>,
+    charger: HoverFetchedSnapshot<ChargerSupply>,
+    cpu_tuning: HoverFetchedSnapshot<CpuTuning>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum PowerMessage {
-    Battery(SourceDelivery<Battery>),
-    ChargerFetched(SourceDelivery<ChargerSupply>),
-    CpuTuningFetched(SourceDelivery<CpuTuning>),
+    Battery(SnapshotDelivery<Battery>),
+    ChargerFetched(SnapshotDelivery<ChargerSupply>),
+    CpuTuningFetched(SnapshotDelivery<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
     Expansion(ExpansionMessage),
@@ -84,7 +84,7 @@ impl PowerGroup {
     pub fn subscription(buses: &DesktopBuses) -> Subscription<PowerMessage> {
         Subscription::batch([
             PowerProfileControl::subscription(buses).map(PowerMessage::PowerProfile),
-            source_subscription::<Battery>(buses.clone()).map(PowerMessage::Battery),
+            snapshot_subscription::<Battery>(buses.clone()).map(PowerMessage::Battery),
         ])
     }
 
@@ -104,14 +104,13 @@ impl PowerGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: Option<&DesktopBuses>,
-        clock: Clock,
     ) -> Task<PowerMessage> {
         self.charger.stop();
         self.cpu_tuning.stop();
         match hovered {
             Some(HoverTarget::Power(PowerTarget::Draw)) => {
                 self.charger
-                    .start_hover_fetch((), PowerMessage::ChargerFetched, config, clock)
+                    .start_hover_fetch((), PowerMessage::ChargerFetched, config)
             }
             Some(HoverTarget::Power(PowerTarget::Profile)) => {
                 buses.map_or_else(Task::none, |buses| {
@@ -119,7 +118,6 @@ impl PowerGroup {
                         buses.clone(),
                         PowerMessage::CpuTuningFetched,
                         config,
-                        clock,
                     )
                 })
             }
@@ -130,15 +128,15 @@ impl PowerGroup {
     pub fn update(&mut self, msg: PowerMessage, clock: Clock) -> Task<PowerMessage> {
         let task = match msg {
             PowerMessage::Battery(reading) => {
-                self.battery.receive_delivery(reading, clock);
+                self.battery.receive(reading, clock);
                 self.observe_battery(clock)
             }
             PowerMessage::ChargerFetched(fetched) => {
-                self.charger.receive_delivery(fetched, clock);
+                self.charger.receive(fetched, clock);
                 Task::none()
             }
             PowerMessage::CpuTuningFetched(fetched) => {
-                self.cpu_tuning.receive_delivery(fetched, clock);
+                self.cpu_tuning.receive(fetched, clock);
                 Task::none()
             }
             PowerMessage::ChargeCurveLoaded(curve) => {

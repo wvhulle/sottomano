@@ -4,11 +4,11 @@ use futures::{Stream, StreamExt, stream};
 use zbus::{blocking::Connection, proxy};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
     cpu_memory_compute::cpu_core_loads,
+    delivery_cadence_drivers::PeriodicPolling,
     non_empty_text::non_empty,
-    polled_delivery_stream,
     screen_brightness_color::clightd_backlight,
     stream_operators::{StreamOperators, connected_until_failure},
     system_protocol_clients::{
@@ -137,17 +137,20 @@ impl Conditions {
     }
 }
 
-impl ReadingSource for Conditions {
+impl SnapshotSource for Conditions {
     type Error = sysfs_attribute_reads::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power-conditions";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.system.clone(), DAEMON_SERVICE).while_held(
-            move || polled_delivery_stream(buses.clone(), Self::poll),
-            SourceDelivery::Absent,
+            move || {
+                let buses = buses.clone();
+                PeriodicPolling::every(Duration::from_secs(5))
+                    .poll_deliveries(move || Self::poll(buses.clone()))
+            },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -182,20 +185,20 @@ pub struct ProfileStatus {
     pub degraded: Option<String>,
 }
 
-impl ReadingSource for ProfileStatus {
+impl SnapshotSource for ProfileStatus {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "power profile";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         name_owned(system.clone(), DAEMON_SERVICE).while_held(
             move || {
-                connected_until_failure(status_changes(system.clone())).map(SourceDelivery::Reading)
+                connected_until_failure(status_changes(system.clone()))
+                    .map(SnapshotDelivery::live_push)
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

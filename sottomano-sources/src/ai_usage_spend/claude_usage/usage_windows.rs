@@ -12,11 +12,12 @@ use super::{
     oauth_usage_api::{self, PlanReply},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         spend_money::{Money, from_minor_units},
         usage_quota::Quota,
     },
+    delivery_cadence_drivers::PeriodicPolling,
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -143,15 +144,19 @@ impl ClaudeUsageWindows {
     }
 }
 
-impl ReadingSource for ClaudeUsageWindows {
+impl SnapshotSource for ClaudeUsageWindows {
     type Error = Error;
     type StreamInputs = PathBuf;
 
     const NAME: &'static str = "claude-usage-windows";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_mins(1));
 
-    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        login_polls(inputs, LoginKind::Subscription, Self::poll)
+    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        login_polls(
+            PeriodicPolling::every(Duration::from_mins(1)),
+            inputs,
+            LoginKind::Subscription,
+            Self::poll,
+        )
     }
 }
 

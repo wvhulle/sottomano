@@ -21,7 +21,7 @@ use zbus::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
     stream_operators::{connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{
@@ -427,15 +427,14 @@ pub async fn load_art(url: &str) -> Option<RgbaImage> {
     None
 }
 
-impl ReadingSource for Vec<Media> {
+impl SnapshotSource for Vec<Media> {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "mpris";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        connected_until_failure(connect(buses.session)).map(SourceDelivery::Reading)
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        connected_until_failure(connect(buses.session)).map(SnapshotDelivery::live_push)
     }
 }
 

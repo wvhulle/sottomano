@@ -1,16 +1,16 @@
 use iced::{Subscription, Task};
-use sottomano_sources::{ReadingSource, SourceDelivery, blocking_background_work::blocking};
+use sottomano_sources::{SnapshotDelivery, SnapshotSource, blocking_background_work::blocking};
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{CommandOutcome, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Freshness, Section, Tooltip, TooltipBody},
+        tooltip_body::{DeliveryTiming, Section, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -51,7 +51,7 @@ impl IconToggle {
 
     #[must_use]
     pub fn switch_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::sourced(self.tooltip(clock), Freshness::Live)
+        Tooltip::sourced(self.tooltip(clock), DeliveryTiming::LivePush)
     }
 }
 
@@ -73,28 +73,28 @@ impl BarWidget for IconToggle {
     }
 }
 
-pub trait ToggleableSource: ReadingSource<Error: Into<Section>> + BarWidget {
+pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + BarWidget {
     #[must_use]
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> Result<(), Self::Error>;
     fn press_action_text(&self) -> &'static str;
 }
 
-pub struct ToggleControl<S: ReadingSource> {
-    reading: ContinuousReading<S>,
+pub struct ToggleControl<S: ToggleableSource> {
+    reading: LatestSnapshot<S>,
 }
 
-impl<S: ReadingSource> Default for ToggleControl<S> {
+impl<S: ToggleableSource> Default for ToggleControl<S> {
     fn default() -> Self {
         Self {
-            reading: ContinuousReading::default(),
+            reading: LatestSnapshot::default(),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum ToggleMessage<S: ToggleableSource> {
-    Reading(SourceDelivery<S>),
+    Reading(SnapshotDelivery<S>),
     Press,
     Applied,
     Refused(S::Error),
@@ -102,7 +102,7 @@ pub enum ToggleMessage<S: ToggleableSource> {
 
 impl<S: ToggleableSource> ToggleControl<S> {
     pub fn subscription(inputs: S::StreamInputs) -> Subscription<ToggleMessage<S>> {
-        source_subscription::<S>(inputs).map(ToggleMessage::Reading)
+        snapshot_subscription::<S>(inputs).map(ToggleMessage::Reading)
     }
 
     pub fn refresh(inputs: S::StreamInputs) -> Task<ToggleMessage<S>> {
@@ -112,12 +112,14 @@ impl<S: ToggleableSource> ToggleControl<S> {
     pub fn update(&mut self, message: ToggleMessage<S>, clock: Clock) -> Task<ToggleMessage<S>> {
         match message {
             ToggleMessage::Reading(reading) => {
-                self.reading.receive_delivery(reading, clock);
+                self.reading.receive(reading, clock);
                 Task::none()
             }
             ToggleMessage::Press => match self.reading.get().cloned() {
                 Some(current) => {
-                    self.assume(current.toggled_value());
+                    self.reading.apply_command(CommandOutcome::Applied {
+                        expected_snapshot: current.toggled_value(),
+                    });
                     Task::future(blocking(S::NAME, move || current.apply_toggle().err())).map(
                         |refusal| refusal.map_or(ToggleMessage::Applied, ToggleMessage::Refused),
                     )
@@ -127,14 +129,14 @@ impl<S: ToggleableSource> ToggleControl<S> {
             ToggleMessage::Applied => Task::none(),
             ToggleMessage::Refused(refusal) => {
                 self.reading
-                    .receive_delivery(SourceDelivery::Reading(Err(refusal)), clock);
+                    .apply_command(CommandOutcome::Refused { refusal });
                 Task::none()
             }
         }
     }
 
-    pub fn assume(&mut self, value: S) {
-        self.reading.assume(value);
+    pub fn apply_command(&mut self, command_outcome: CommandOutcome<S>) {
+        self.reading.apply_command(command_outcome);
     }
 
     pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
@@ -183,10 +185,13 @@ mod tests {
     #[test]
     fn a_refused_write_shows_the_refusal_instead_of_the_assumed_value() {
         let mut control = ToggleControl::<X3dCachePreference>::default();
-        control
-            .reading
-            .load(X3dCachePreference::Frequency, Clock::real());
-        control.assume(X3dCachePreference::Cache);
+        control.reading.receive(
+            SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
+            Clock::real(),
+        );
+        control.apply_command(CommandOutcome::Applied {
+            expected_snapshot: X3dCachePreference::Cache,
+        });
 
         let _ = control.update(ToggleMessage::Refused(refused_write()), Clock::real());
 
@@ -214,10 +219,13 @@ mod tests {
     #[test]
     fn an_accepted_write_keeps_the_assumed_value() {
         let mut control = ToggleControl::<X3dCachePreference>::default();
-        control
-            .reading
-            .load(X3dCachePreference::Frequency, Clock::real());
-        control.assume(X3dCachePreference::Cache);
+        control.reading.receive(
+            SnapshotDelivery::single_read(Ok(X3dCachePreference::Frequency)),
+            Clock::real(),
+        );
+        control.apply_command(CommandOutcome::Applied {
+            expected_snapshot: X3dCachePreference::Cache,
+        });
 
         let _ = control.update(ToggleMessage::Applied, Clock::real());
 

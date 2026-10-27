@@ -4,32 +4,17 @@ use std::{
     future::{Future, ready},
     pin::Pin,
     task::{Context, Poll, ready},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
-use chrono::{DateTime, Local};
 use futures::{
     Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::time::{MissedTickBehavior, Sleep, interval, sleep, sleep_until};
-use tokio_stream::wrappers::IntervalStream;
+use tokio::time::{Sleep, sleep_until};
 
-use crate::{ReadingSource, SourceDelivery};
-
-pub fn ticked<T, F>(
-    every: Duration,
-    work: impl Fn() -> F + Send + Clone + 'static,
-) -> impl Stream<Item = T>
-where
-    T: Send + 'static,
-    F: Future<Output = T> + Send,
-{
-    let mut timer = interval(every);
-    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
-    IntervalStream::new(timer).then(move |_| work())
-}
+use crate::{SnapshotDelivery, SnapshotSource};
 
 pub fn read_once_then_per_burst<T, F>(
     triggers: impl Stream<Item = ()> + Send + 'static,
@@ -186,18 +171,24 @@ pub trait StreamOperators: Stream + Sized {
         .filter_map(ready)
     }
 
-    fn repeats_as_unchanged<S>(self) -> impl Stream<Item = SourceDelivery<S>> + Send
+    fn repeats_as_unchanged<S>(self) -> impl Stream<Item = SnapshotDelivery<S>> + Send
     where
-        Self: Stream<Item = SourceDelivery<S>> + Send,
-        S: ReadingSource + PartialEq,
+        Self: Stream<Item = SnapshotDelivery<S>> + Send,
+        S: SnapshotSource + PartialEq,
     {
         self.scan(
             None,
-            |previous: &mut Option<SourceDelivery<S>>, delivery| {
-                let repeated = previous.as_ref() == Some(&delivery);
+            |previous: &mut Option<SnapshotDelivery<S>>, delivery| {
+                let repeated_snapshot = matches!(
+                    delivery,
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(_),
+                        ..
+                    }
+                ) && previous.as_ref() == Some(&delivery);
                 *previous = Some(delivery.clone());
-                ready(Some(if repeated {
-                    SourceDelivery::Unchanged
+                ready(Some(if repeated_snapshot {
+                    SnapshotDelivery::SnapshotUnchanged
                 } else {
                     delivery
                 }))
@@ -278,59 +269,5 @@ where
             }
             polled => polled,
         }
-    }
-}
-
-pub fn ticked_at_boundaries<S: ReadingSource>(
-    period: Duration,
-    reading: impl Fn() -> S + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send {
-    stream::repeat_with(move || {
-        let reading = reading.clone();
-        async move {
-            sleep(until_next_boundary(Local::now(), period)).await;
-            reading()
-        }
-    })
-    .then(identity)
-    .map(|reading| SourceDelivery::Reading(Ok(reading)))
-}
-
-fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
-    let secs_into = now
-        .timestamp()
-        .rem_euclid(period.as_secs().cast_signed())
-        .cast_unsigned();
-    let subsec_ns = u64::from(now.timestamp_subsec_nanos()) % 1_000_000_000;
-    Duration::from_secs(period.as_secs() - secs_into)
-        .saturating_sub(Duration::from_nanos(subsec_ns))
-}
-
-#[cfg(test)]
-mod boundary_tests {
-    use chrono::TimeZone;
-
-    use super::*;
-
-    #[test]
-    fn boundary_delay_completes_the_period() {
-        let now = Local.timestamp_opt(1_000, 250_000_000).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_millis(750)
-        );
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(60)),
-            Duration::from_millis(19750)
-        );
-    }
-
-    #[test]
-    fn exact_boundary_waits_a_full_period() {
-        let now = Local.timestamp_opt(1_000, 0).unwrap();
-        assert_eq!(
-            until_next_boundary(now, Duration::from_secs(1)),
-            Duration::from_secs(1)
-        );
     }
 }

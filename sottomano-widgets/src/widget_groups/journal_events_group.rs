@@ -9,7 +9,7 @@ mod service_error_log;
 
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     system_protocol_clients::journal_follow::JournalFollowError,
     systemd_units_journal::{
         journal_coredumps::CoredumpEntry, journal_kernel_errors::KernelOccurrence,
@@ -18,14 +18,14 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
         tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
@@ -59,19 +59,19 @@ impl From<JournalTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct JournalEventsGroup {
-    kernel: ContinuousReading<Vec<KernelOccurrence>>,
-    service_errors: ContinuousReading<ServiceErrors>,
-    coredumps: ContinuousReading<Vec<CoredumpEntry>>,
-    oom_kills: ContinuousReading<Vec<OomKillEntry>>,
+    kernel: LatestSnapshot<Vec<KernelOccurrence>>,
+    service_errors: LatestSnapshot<ServiceErrors>,
+    coredumps: LatestSnapshot<Vec<CoredumpEntry>>,
+    oom_kills: LatestSnapshot<Vec<OomKillEntry>>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum JournalEventsMessage {
-    Kernel(SourceDelivery<Vec<KernelOccurrence>>),
-    ServiceErrors(SourceDelivery<ServiceErrors>),
-    Coredumps(SourceDelivery<Vec<CoredumpEntry>>),
-    OomKills(SourceDelivery<Vec<OomKillEntry>>),
+    Kernel(SnapshotDelivery<Vec<KernelOccurrence>>),
+    ServiceErrors(SnapshotDelivery<ServiceErrors>),
+    Coredumps(SnapshotDelivery<Vec<CoredumpEntry>>),
+    OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     Expansion(ExpansionMessage),
 }
@@ -83,10 +83,10 @@ impl JournalEventsGroup {
 
     pub fn subscription() -> Subscription<JournalEventsMessage> {
         Subscription::batch([
-            source_subscription::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
-            source_subscription::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
-            source_subscription::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
-            source_subscription::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
+            snapshot_subscription::<Vec<KernelOccurrence>>(()).map(JournalEventsMessage::Kernel),
+            snapshot_subscription::<ServiceErrors>(()).map(JournalEventsMessage::ServiceErrors),
+            snapshot_subscription::<Vec<CoredumpEntry>>(()).map(JournalEventsMessage::Coredumps),
+            snapshot_subscription::<Vec<OomKillEntry>>(()).map(JournalEventsMessage::OomKills),
         ])
     }
 
@@ -97,16 +97,16 @@ impl JournalEventsGroup {
     ) -> Task<JournalEventsMessage> {
         match msg {
             JournalEventsMessage::Kernel(delivery) => {
-                self.kernel.receive_delivery(delivery, clock);
+                self.kernel.receive(delivery, clock);
             }
             JournalEventsMessage::ServiceErrors(delivery) => {
-                self.service_errors.receive_delivery(delivery, clock);
+                self.service_errors.receive(delivery, clock);
             }
             JournalEventsMessage::Coredumps(delivery) => {
-                self.coredumps.receive_delivery(delivery, clock);
+                self.coredumps.receive(delivery, clock);
             }
             JournalEventsMessage::OomKills(delivery) => {
-                self.oom_kills.receive_delivery(delivery, clock);
+                self.oom_kills.receive(delivery, clock);
             }
             JournalEventsMessage::OpenLog(journal) => return journal.open(),
             JournalEventsMessage::Expansion(msg) => {

@@ -9,13 +9,13 @@ use futures::{Stream, StreamExt, stream};
 use serde::Deserialize;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
+    delivery_cadence_drivers::PeriodicPolling,
     desktop_windows_apps::{
         nix_store_provenance::{Provenance, StorePackage, below_derivation},
         process_tree_inspection::{Watched, launch},
     },
-    polled_delivery_after_setup,
     stream_operators::StreamOperators,
     system_protocol_clients::shell_command_output,
 };
@@ -160,24 +160,23 @@ struct EvaluatedVersion {
     version: String,
 }
 
-impl ReadingSource for NixPackageFacts {
+impl SnapshotSource for NixPackageFacts {
     type Error = Error;
     type StreamInputs = PackageWatch;
 
     const NAME: &'static str = "nix store";
-    const DELIVERY_CADENCE: DeliveryCadence =
-        DeliveryCadence::PolledEvery(Duration::from_secs(600));
 
-    fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(inputs: PackageWatch) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("nix")).while_held(
             move || {
-                polled_delivery_after_setup(
-                    InstalledPackage::read(inputs.clone()),
-                    Self::poll_upstream,
-                )
-                .map(absent_outside_store)
+                PeriodicPolling::every(Duration::from_secs(600))
+                    .poll_deliveries_after_setup(
+                        InstalledPackage::read(inputs.clone()),
+                        Self::poll_upstream,
+                    )
+                    .map(absent_outside_store)
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -239,10 +238,13 @@ impl NixPackageFacts {
 }
 
 fn absent_outside_store(
-    delivery: SourceDelivery<NixPackageFacts>,
-) -> SourceDelivery<NixPackageFacts> {
+    delivery: SnapshotDelivery<NixPackageFacts>,
+) -> SnapshotDelivery<NixPackageFacts> {
     match delivery {
-        SourceDelivery::Reading(Err(Error::OutsideStore)) => SourceDelivery::Absent,
+        SnapshotDelivery::SnapshotDelivered {
+            snapshot_fetch: Err(Error::OutsideStore),
+            ..
+        } => SnapshotDelivery::SourceUnavailable,
         delivered => delivered,
     }
 }

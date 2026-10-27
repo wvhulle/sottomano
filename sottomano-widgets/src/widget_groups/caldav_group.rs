@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use iced::{Subscription, Task};
 use sottomano_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     caldav_tasks_events::{
         caldav_agenda::{self, CaldavAccount, CaldavAgenda},
         caldav_server_provider::CaldavProvider,
@@ -15,13 +15,13 @@ use sottomano_sources::{
 
 use self::open_tasks_reading::OpenTasks;
 use crate::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
@@ -48,14 +48,14 @@ impl From<caldav_agenda::Error> for Section {
 }
 
 pub struct CaldavGroup {
-    agenda: ContinuousReading<CaldavAgenda>,
+    agenda: LatestSnapshot<CaldavAgenda>,
     password: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum CaldavMessage {
-    Agenda(Box<SourceDelivery<CaldavAgenda>>),
+    Agenda(Box<SnapshotDelivery<CaldavAgenda>>),
     Expansion(ExpansionMessage),
 }
 
@@ -67,7 +67,7 @@ impl CaldavGroup {
     #[must_use]
     pub fn new(secrets: &SecretPaths) -> Self {
         Self {
-            agenda: ContinuousReading::default(),
+            agenda: LatestSnapshot::default(),
             password: secrets.caldav_password.clone(),
             expansion: GroupExpansion::default(),
         }
@@ -87,7 +87,7 @@ impl CaldavGroup {
 
     pub fn subscription(&self, config: &CaldavAccountConfig) -> Subscription<CaldavMessage> {
         match self.account(config) {
-            Some(account) => source_subscription::<CaldavAgenda>(account)
+            Some(account) => snapshot_subscription::<CaldavAgenda>(account)
                 .map(|delivery| CaldavMessage::Agenda(Box::new(delivery))),
             None => Subscription::none(),
         }
@@ -95,7 +95,7 @@ impl CaldavGroup {
 
     pub fn update(&mut self, message: CaldavMessage, clock: Clock) -> Task<CaldavMessage> {
         match message {
-            CaldavMessage::Agenda(delivery) => self.agenda.receive_delivery(*delivery, clock),
+            CaldavMessage::Agenda(delivery) => self.agenda.receive(*delivery, clock),
             CaldavMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }

@@ -10,7 +10,7 @@ mod service_manager_face;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
     login_session_presence::logind_session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -21,7 +21,7 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::login_session_group::{
@@ -32,9 +32,9 @@ use crate::{
     },
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
@@ -61,25 +61,25 @@ impl From<LoginSessionTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct LoginSessionGroup {
-    system: ContinuousReading<OperatingSystemIdentity>,
-    identity: ContinuousReading<SessionIdentity>,
-    session: OnHoverReading<SessionInfo>,
-    service_manager: OnHoverReading<UserServiceManager>,
-    graphical: OnHoverReading<GraphicalSession>,
-    graphical_target: OnHoverReading<GraphicalSessionTarget>,
-    power: OnHoverReading<PowerPolicy>,
+    system: LatestSnapshot<OperatingSystemIdentity, HidesFetchFailures>,
+    identity: LatestSnapshot<SessionIdentity, HidesFetchFailures>,
+    session: HoverFetchedSnapshot<SessionInfo>,
+    service_manager: HoverFetchedSnapshot<UserServiceManager>,
+    graphical: HoverFetchedSnapshot<GraphicalSession>,
+    graphical_target: HoverFetchedSnapshot<GraphicalSessionTarget>,
+    power: HoverFetchedSnapshot<PowerPolicy>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum LoginSessionMessage {
-    SystemFetched(SourceDelivery<OperatingSystemIdentity>),
-    IdentityFetched(SourceDelivery<SessionIdentity>),
-    SessionFetched(Box<SourceDelivery<SessionInfo>>),
-    ServiceManagerFetched(SourceDelivery<UserServiceManager>),
-    GraphicalFetched(SourceDelivery<GraphicalSession>),
-    GraphicalTargetFetched(SourceDelivery<GraphicalSessionTarget>),
-    PowerFetched(Box<SourceDelivery<PowerPolicy>>),
+    SystemFetched(SnapshotDelivery<OperatingSystemIdentity>),
+    IdentityFetched(SnapshotDelivery<SessionIdentity>),
+    SessionFetched(Box<SnapshotDelivery<SessionInfo>>),
+    ServiceManagerFetched(SnapshotDelivery<UserServiceManager>),
+    GraphicalFetched(SnapshotDelivery<GraphicalSession>),
+    GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
+    PowerFetched(Box<SnapshotDelivery<PowerPolicy>>),
     Expansion(ExpansionMessage),
 }
 
@@ -90,9 +90,9 @@ impl LoginSessionGroup {
 
     pub fn subscription(buses: &DesktopBuses) -> Subscription<LoginSessionMessage> {
         Subscription::batch([
-            source_subscription::<OperatingSystemIdentity>(buses.clone())
+            snapshot_subscription::<OperatingSystemIdentity>(buses.clone())
                 .map(LoginSessionMessage::SystemFetched),
-            source_subscription::<SessionIdentity>(buses.clone())
+            snapshot_subscription::<SessionIdentity>(buses.clone())
                 .map(LoginSessionMessage::IdentityFetched),
         ])
     }
@@ -102,7 +102,6 @@ impl LoginSessionGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
-        clock: Clock,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
         self.service_manager.stop();
@@ -115,7 +114,6 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                     config,
-                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => {
@@ -123,18 +121,16 @@ impl LoginSessionGroup {
                     buses.clone(),
                     LoginSessionMessage::ServiceManagerFetched,
                     config,
-                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
                 .graphical
-                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config, clock),
+                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config),
             Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => {
                 self.graphical_target.start_hover_fetch(
                     buses.clone(),
                     LoginSessionMessage::GraphicalTargetFetched,
                     config,
-                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
@@ -142,7 +138,6 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
                     config,
-                    clock,
                 )
             }
             _ => Task::none(),
@@ -156,25 +151,25 @@ impl LoginSessionGroup {
     ) -> Task<LoginSessionMessage> {
         match message {
             LoginSessionMessage::SystemFetched(delivery) => {
-                self.system.receive_keeping_last_reading(delivery, clock);
+                self.system.receive(delivery, clock);
             }
             LoginSessionMessage::IdentityFetched(delivery) => {
-                self.identity.receive_keeping_last_reading(delivery, clock);
+                self.identity.receive(delivery, clock);
             }
             LoginSessionMessage::SessionFetched(delivery) => {
-                self.session.receive_delivery(*delivery, clock);
+                self.session.receive(*delivery, clock);
             }
             LoginSessionMessage::ServiceManagerFetched(delivery) => {
-                self.service_manager.receive_delivery(delivery, clock);
+                self.service_manager.receive(delivery, clock);
             }
             LoginSessionMessage::GraphicalFetched(delivery) => {
-                self.graphical.receive_delivery(delivery, clock);
+                self.graphical.receive(delivery, clock);
             }
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
-                self.graphical_target.receive_delivery(delivery, clock);
+                self.graphical_target.receive(delivery, clock);
             }
             LoginSessionMessage::PowerFetched(delivery) => {
-                self.power.receive_delivery(*delivery, clock);
+                self.power.receive(*delivery, clock);
             }
             LoginSessionMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);

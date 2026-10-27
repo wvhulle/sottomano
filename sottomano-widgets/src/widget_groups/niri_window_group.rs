@@ -19,7 +19,7 @@ use crate::{
         simple_icons::SimpleIcon,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Cell, Freshness, KeyValue, Section, SourcedSections, Tooltip},
+        tooltip_body::{Cell, DeliveryTiming, KeyValue, Section, SourcedSections, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -190,7 +190,7 @@ impl NiriWindowGroup {
                 .level(Severity::Critical)])
                 .titled("Changes are not saved")
                 .into(),
-                Freshness::Fixed,
+                DeliveryTiming::SingleRead,
             )
         }))
     }

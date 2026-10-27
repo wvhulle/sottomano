@@ -7,7 +7,7 @@ use futures::Stream;
 use zbus::{blocking::Connection, proxy, proxy::CacheProperties};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
     screen_brightness_color::clightd_backlight,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
@@ -45,17 +45,16 @@ pub struct AutoBrightness {
     pub auto: bool,
 }
 
-impl ReadingSource for AutoBrightness {
+impl SnapshotSource for AutoBrightness {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "clight";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         name_owned(buses.session.clone(), CLIGHT_SERVICE).while_held(
-            move || pushed_delivery_stream(calibration_changes(buses.clone())),
-            SourceDelivery::Absent,
+            move || SnapshotDelivery::live_push_deliveries(calibration_changes(buses.clone())),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

@@ -4,7 +4,7 @@ use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
 use sottomano_config::{Config, LoadError};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     desktop_notifications::alert_sound_player::SoundTheme,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries,
@@ -63,7 +63,7 @@ pub enum Message {
     Compute(ComputeMessage),
     MemoryBoard(MemoryBoardMessage),
     Gamepad(GamepadMessage),
-    HostHardware(Box<SourceDelivery<HostHardware>>),
+    HostHardware(Box<SnapshotDelivery<HostHardware>>),
     Gpu(GpuMessage),
     Disk(DiskMessage),
     PanelSettings(PanelSettingsMessage),

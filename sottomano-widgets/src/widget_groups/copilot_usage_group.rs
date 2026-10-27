@@ -8,7 +8,7 @@ use chrono::WeekdaySet;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     ai_usage_spend::{
         copilot_usage::{self, CopilotAccount, CopilotCcusage, CopilotFree, CopilotMetered},
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
@@ -17,13 +17,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
@@ -56,18 +56,18 @@ impl From<CopilotUsageTarget> for HoverTarget {
 }
 
 pub struct CopilotUsageGroup {
-    metered: ContinuousReading<CopilotMetered>,
-    free: ContinuousReading<CopilotFree>,
-    cli: ContinuousReading<CopilotCcusage>,
+    metered: LatestSnapshot<CopilotMetered>,
+    free: LatestSnapshot<CopilotFree>,
+    cli: LatestSnapshot<CopilotCcusage>,
     gh_auth_token: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum CopilotUsageMessage {
-    Metered(SourceDelivery<CopilotMetered>),
-    Free(SourceDelivery<CopilotFree>),
-    Cli(SourceDelivery<CopilotCcusage>),
+    Metered(SnapshotDelivery<CopilotMetered>),
+    Free(SnapshotDelivery<CopilotFree>),
+    Cli(SnapshotDelivery<CopilotCcusage>),
     Expansion(ExpansionMessage),
 }
 
@@ -79,9 +79,9 @@ impl CopilotUsageGroup {
     #[must_use]
     pub fn new(gh_auth_token: Option<PathBuf>) -> Self {
         Self {
-            metered: ContinuousReading::default(),
-            free: ContinuousReading::default(),
-            cli: ContinuousReading::default(),
+            metered: LatestSnapshot::default(),
+            free: LatestSnapshot::default(),
+            cli: LatestSnapshot::default(),
             gh_auth_token,
             expansion: GroupExpansion::default(),
         }
@@ -122,16 +122,16 @@ impl CopilotUsageGroup {
         config: &Config,
         working_days: WeekdaySet,
     ) -> Subscription<CopilotUsageMessage> {
-        source_subscription::<CopilotCcusage>(cli_budget(config, working_days))
+        snapshot_subscription::<CopilotCcusage>(cli_budget(config, working_days))
             .map(CopilotUsageMessage::Cli)
     }
 
     pub fn account_subscription(&self, buses: &DesktopBuses) -> Subscription<CopilotUsageMessage> {
         Subscription::batch(self.account(buses).into_iter().flat_map(|account| {
             [
-                source_subscription::<CopilotMetered>(account.clone())
+                snapshot_subscription::<CopilotMetered>(account.clone())
                     .map(CopilotUsageMessage::Metered),
-                source_subscription::<CopilotFree>(account).map(CopilotUsageMessage::Free),
+                snapshot_subscription::<CopilotFree>(account).map(CopilotUsageMessage::Free),
             ]
         }))
     }
@@ -142,9 +142,9 @@ impl CopilotUsageGroup {
         clock: Clock,
     ) -> Task<CopilotUsageMessage> {
         match message {
-            CopilotUsageMessage::Metered(reading) => self.metered.receive_delivery(reading, clock),
-            CopilotUsageMessage::Free(reading) => self.free.receive_delivery(reading, clock),
-            CopilotUsageMessage::Cli(reading) => self.cli.receive_delivery(reading, clock),
+            CopilotUsageMessage::Metered(reading) => self.metered.receive(reading, clock),
+            CopilotUsageMessage::Free(reading) => self.free.receive(reading, clock),
+            CopilotUsageMessage::Cli(reading) => self.cli.receive(reading, clock),
             CopilotUsageMessage::Expansion(menu) => {
                 self.expansion.update(menu);
             }

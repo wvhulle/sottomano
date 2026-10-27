@@ -5,7 +5,7 @@ use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use super::{ManagerProxy, SystemdOnBus, manager_signal, signals_matching};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
 };
 
@@ -52,17 +52,16 @@ pub struct ServiceCommands {
     pub services: Vec<ServiceCommand>,
 }
 
-impl ReadingSource for ServiceCommands {
+impl SnapshotSource for ServiceCommands {
     type Error = zbus::Error;
     type StreamInputs = SystemdOnBus;
 
     const NAME: &'static str = "systemd service commands";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(systemd: SystemdOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         connected_until_failure(watch_service_commands(systemd.connection()))
             .map(|listed| listed.map(|services| Self { services }))
-            .map(SourceDelivery::Reading)
+            .map(SnapshotDelivery::live_push)
     }
 }
 

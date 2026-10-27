@@ -14,14 +14,14 @@ use std::{
 use chrono::{DateTime, Local};
 use fast_dav_rs::CalendarObject;
 use futures::{
-    Stream, StreamExt,
+    Stream,
     future::{join_all, try_join_all},
 };
 use icalendar::Calendar;
 use tokio::sync::Mutex;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     caldav_tasks_events::{
         caldav_calendar_discovery::{
             CaldavLogin, CalendarCollection, CalendarHome, ChangeTracking, connect_calendar_home,
@@ -33,12 +33,10 @@ use crate::{
         nextcloud_notify_push::{PushLogin, activity_pings},
         webcal_feed_expansion::download_feed_events,
     },
+    delivery_cadence_drivers::{AdaptiveCadence, PeriodicPolling, TriggeredRereadCadence},
     secret_file_reads::read_secret,
-    stream_operators::{StreamOperators, reread_on_trigger_or_deadline},
+    stream_operators::StreamOperators,
 };
-
-const DEFAULT_POLL_INTERVAL: Duration = Duration::from_mins(1);
-const SHORTEST_POLL_INTERVAL: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone)]
 pub enum Error {
@@ -115,46 +113,11 @@ pub struct CaldavAccount {
     pub subscription_download_interval: Duration,
 }
 
-impl CaldavAccount {
-    fn current_change_delivery(&self, push_live: &AtomicBool) -> ChangeDelivery {
-        if push_live.load(Ordering::Relaxed) {
-            ChangeDelivery::NextcloudNotifyPush {
-                safety_recheck_every: self
-                    .push_safety_recheck_interval
-                    .max(SHORTEST_POLL_INTERVAL),
-            }
-        } else {
-            ChangeDelivery::ChangeTokenPolling {
-                poll_every: self.change_poll_interval.max(SHORTEST_POLL_INTERVAL),
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChangeDelivery {
-    NextcloudNotifyPush { safety_recheck_every: Duration },
-    ChangeTokenPolling { poll_every: Duration },
-}
-
-impl ChangeDelivery {
-    #[must_use]
-    pub fn recheck_interval(self) -> Duration {
-        match self {
-            ChangeDelivery::NextcloudNotifyPush {
-                safety_recheck_every,
-            } => safety_recheck_every,
-            ChangeDelivery::ChangeTokenPolling { poll_every } => poll_every,
-        }
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CaldavAgenda {
     pub events: Vec<UpcomingEvent>,
     pub tasks: Vec<OpenTask>,
     pub calendar_count: usize,
-    pub change_delivery: ChangeDelivery,
     pub provider: CaldavProvider,
 }
 
@@ -173,42 +136,39 @@ impl CaldavAgenda {
     }
 }
 
-impl ReadingSource for CaldavAgenda {
+impl SnapshotSource for CaldavAgenda {
     type Error = Error;
     type StreamInputs = CaldavAccount;
 
     const NAME: &'static str = "caldav-agenda";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(DEFAULT_POLL_INTERVAL);
 
-    fn delivery_stream(account: CaldavAccount) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        account: CaldavAccount,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let push_live = Arc::new(AtomicBool::new(false));
         let push_login = PushLogin {
             server_url: account.server_url.clone(),
             user: account.user.clone(),
             password: account.password.clone(),
         };
-        let recheck_account = account.clone();
-        let recheck_live = push_live.clone();
-        let poller = Arc::new(Mutex::new(AgendaPoller::new(account, push_live.clone())));
-        reread_on_trigger_or_deadline(
-            activity_pings(push_login, push_live),
-            move || {
-                let poller = poller.clone();
-                async move { poller.lock().await.poll().await }
+        let change_polling = PeriodicPolling::every(account.change_poll_interval);
+        let push_recheck = PeriodicPolling::every(account.push_safety_recheck_interval);
+        let cadence_live = push_live.clone();
+        let poller = Arc::new(Mutex::new(AgendaPoller::new(account)));
+        AdaptiveCadence {
+            current_cadence: move || {
+                if cadence_live.load(Ordering::Relaxed) {
+                    TriggeredRereadCadence::LivePushWithRecheck(push_recheck)
+                } else {
+                    TriggeredRereadCadence::PeriodicPolling(change_polling)
+                }
             },
-            move |_| {
-                let recheck = recheck_account
-                    .current_change_delivery(&recheck_live)
-                    .recheck_interval();
-                Some(Instant::now() + recheck)
-            },
-        )
-        .map(SourceDelivery::Reading)
+        }
+        .triggered_deliveries(activity_pings(push_login, push_live), move || {
+            let poller = poller.clone();
+            async move { poller.lock().await.poll().await }
+        })
         .repeats_as_unchanged()
-    }
-
-    fn delivery_cadence(&self) -> DeliveryCadence {
-        DeliveryCadence::PolledEvery(self.change_delivery.recheck_interval())
     }
 }
 
@@ -321,7 +281,6 @@ async fn downloaded_or_logged(
 
 struct AgendaPoller {
     account: CaldavAccount,
-    push_live: Arc<AtomicBool>,
     http_client: reqwest::Client,
     connection: HomeConnection,
     fetched_calendars: HashMap<String, FetchedCalendar>,
@@ -329,10 +288,9 @@ struct AgendaPoller {
 }
 
 impl AgendaPoller {
-    fn new(account: CaldavAccount, push_live: Arc<AtomicBool>) -> Self {
+    fn new(account: CaldavAccount) -> Self {
         Self {
             account,
-            push_live,
             http_client: reqwest::Client::new(),
             connection: HomeConnection::Disconnected,
             fetched_calendars: HashMap::new(),
@@ -397,10 +355,8 @@ impl AgendaPoller {
         let fetched_calendars = try_join_all(calendar_fetches).await?;
         let mut previous_subscriptions = mem::take(&mut self.fetched_subscriptions);
         let http_client = &self.http_client;
-        let refresh_interval = self
-            .account
-            .subscription_download_interval
-            .max(SHORTEST_POLL_INTERVAL);
+        let refresh_interval =
+            PeriodicPolling::every(self.account.subscription_download_interval).poll_period();
         let subscription_downloads = listing.subscribed_calendars.iter().map(|subscription| {
             let cached = previous_subscriptions.remove(&subscription.href);
             async move {
@@ -449,7 +405,6 @@ impl AgendaPoller {
             events,
             tasks,
             calendar_count: self.fetched_calendars.len() + self.fetched_subscriptions.len(),
-            change_delivery: self.account.current_change_delivery(&self.push_live),
             provider: CaldavProvider::detected(
                 &self.account.server_url,
                 self.fetched_calendars.keys().map(String::as_str),

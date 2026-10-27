@@ -17,9 +17,9 @@ use super::{
     qmlib_gpu_sampler::{self, DrmGpuWorker},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
-    polled_delivery_stream,
+    delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::{self, read_trimmed},
 };
 
@@ -87,16 +87,15 @@ pub struct GpuDiscovery {
     pub gpus: Vec<DiscoveredGpu>,
 }
 
-impl ReadingSource for GpuDiscovery {
+impl SnapshotSource for GpuDiscovery {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "gpu discovery";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(Self::bound_to_known_drivers())
-            .map(|discovered| SourceDelivery::Reading(Ok(discovered)))
+            .map(|discovered| SnapshotDelivery::single_read(Ok(discovered)))
     }
 }
 
@@ -119,17 +118,17 @@ pub enum GpuRuntimePower {
     Asleep,
 }
 
-impl ReadingSource for GpuRuntimePower {
+impl SnapshotSource for GpuRuntimePower {
     type Error = sysfs_attribute_reads::Error;
     type StreamInputs = PciBusId;
 
     const NAME: &'static str = "gpu runtime power";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 
@@ -263,17 +262,17 @@ pub struct GpuProcesses {
     pub processes: Vec<GpuProcess>,
 }
 
-impl ReadingSource for GpuSnapshot {
+impl SnapshotSource for GpuSnapshot {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
     const NAME: &'static str = "gpu";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 
@@ -286,17 +285,17 @@ impl GpuSnapshot {
     }
 }
 
-impl ReadingSource for GpuClocks {
+impl SnapshotSource for GpuClocks {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
     const NAME: &'static str = "gpu clocks";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 
@@ -309,17 +308,17 @@ impl GpuClocks {
     }
 }
 
-impl ReadingSource for GpuProcesses {
+impl SnapshotSource for GpuProcesses {
     type Error = Error;
     type StreamInputs = GpuHandle;
 
     const NAME: &'static str = "gpu processes";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
         inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .poll_deliveries(move || Self::poll(inputs.clone()))
     }
 }
 

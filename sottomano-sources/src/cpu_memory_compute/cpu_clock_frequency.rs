@@ -11,8 +11,8 @@ use super::{
     kernel_frequency_limit_causes::{CoreLimitCauses, FrequencyLimitCause, core_limit_causes},
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
-    polled_delivery_after_setup, stream_operators::StreamOperators,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling, stream_operators::StreamOperators,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -123,14 +123,13 @@ impl CpuClock {
     }
 }
 
-impl ReadingSource for CpuClock {
+impl SnapshotSource for CpuClock {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "cpu-clock";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let exposed = async {
             spawn_blocking(core_freqs)
                 .await
@@ -138,7 +137,7 @@ impl ReadingSource for CpuClock {
         };
         stream::once(exposed).while_held(
             move || {
-                polled_delivery_after_setup(
+                PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries_after_setup(
                     blocking_poll(|| {
                         Ok(ClockProbe {
                             topology: CpuTopology::detect(),
@@ -148,7 +147,7 @@ impl ReadingSource for CpuClock {
                     Self::poll,
                 )
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

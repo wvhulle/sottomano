@@ -5,7 +5,7 @@ mod drive_health_indicator;
 use iced::{Subscription, Task};
 use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     disk_storage::{
         self, disk_io_activity::DiskActivity, drive_temperature_health::DriveHealth,
         root_filesystem_usage::RootFilesystem,
@@ -13,13 +13,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -47,17 +47,17 @@ impl From<DiskTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct DiskGroup {
-    usage: ContinuousReading<RootFilesystem>,
-    activity: ContinuousReading<DiskActivity>,
-    drive_health: ContinuousReading<DriveHealth>,
+    usage: LatestSnapshot<RootFilesystem>,
+    activity: LatestSnapshot<DiskActivity>,
+    drive_health: LatestSnapshot<DriveHealth>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum DiskMessage {
-    Usage(SourceDelivery<RootFilesystem>),
-    DiskActivity(SourceDelivery<DiskActivity>),
-    DriveHealth(SourceDelivery<DriveHealth>),
+    Usage(SnapshotDelivery<RootFilesystem>),
+    DiskActivity(SnapshotDelivery<DiskActivity>),
+    DriveHealth(SnapshotDelivery<DriveHealth>),
     Expansion(ExpansionMessage),
 }
 
@@ -68,9 +68,10 @@ impl DiskGroup {
 
     pub fn subscription(drive_sensor: &SensorConfig) -> Subscription<DiskMessage> {
         Subscription::batch([
-            source_subscription::<RootFilesystem>(()).map(DiskMessage::Usage),
-            source_subscription::<DiskActivity>(()).map(DiskMessage::DiskActivity),
-            source_subscription::<DriveHealth>(drive_sensor.clone()).map(DiskMessage::DriveHealth),
+            snapshot_subscription::<RootFilesystem>(()).map(DiskMessage::Usage),
+            snapshot_subscription::<DiskActivity>(()).map(DiskMessage::DiskActivity),
+            snapshot_subscription::<DriveHealth>(drive_sensor.clone())
+                .map(DiskMessage::DriveHealth),
         ])
     }
 
@@ -88,9 +89,9 @@ impl DiskGroup {
 
     pub fn update(&mut self, msg: DiskMessage, clock: Clock) -> Task<DiskMessage> {
         match msg {
-            DiskMessage::Usage(reading) => self.usage.receive_delivery(reading, clock),
-            DiskMessage::DiskActivity(reading) => self.activity.receive_delivery(reading, clock),
-            DiskMessage::DriveHealth(reading) => self.drive_health.receive_delivery(reading, clock),
+            DiskMessage::Usage(reading) => self.usage.receive(reading, clock),
+            DiskMessage::DiskActivity(reading) => self.activity.receive(reading, clock),
+            DiskMessage::DriveHealth(reading) => self.drive_health.receive(reading, clock),
             DiskMessage::Expansion(m) => {
                 self.expansion.update(m);
             }

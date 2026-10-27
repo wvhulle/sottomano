@@ -9,8 +9,6 @@ use futures::{
     Stream, StreamExt,
     stream::{self, select},
 };
-use tokio::time::{MissedTickBehavior, interval};
-use tokio_stream::wrappers::IntervalStream;
 use uom::si::{
     electric_charge::microampere_hour,
     electric_current::microampere,
@@ -23,10 +21,10 @@ use uom::si::{
 use zbus::{Connection, proxy, zvariant::OwnedObjectPath};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
     host_machine_identity::udev_hardware_identity::PowerSupplyIdentity,
-    polled_delivery_stream,
     stream_operators::{StreamOperators, connected_until_failure, restarting},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
@@ -115,17 +113,16 @@ pub struct ChargerSupply {
     pub limit: Option<ChargerLimit>,
 }
 
-impl ReadingSource for ChargerSupply {
+impl SnapshotSource for ChargerSupply {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "charger";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(5)).poll_deliveries(move || Self::poll(()))
     }
 }
 
@@ -208,25 +205,24 @@ impl Battery {
     }
 }
 
-impl ReadingSource for Battery {
+impl SnapshotSource for Battery {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "battery";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(BATTERY_POLL_INTERVAL);
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         present(system.clone()).while_held(
             move || {
-                let mut ticks = interval(BATTERY_POLL_INTERVAL);
-                ticks.set_missed_tick_behavior(MissedTickBehavior::Skip);
-                let ticks = IntervalStream::new(ticks).map(|_| ());
-                select(ticks, supply_state_changes(system.clone()))
-                    .then(|()| blocking_poll(read_battery))
-                    .map(SourceDelivery::Reading)
+                TriggeredRereadCadence::LivePushWithRecheck(PeriodicPolling::every(
+                    BATTERY_POLL_INTERVAL,
+                ))
+                .triggered_deliveries(supply_state_changes(system.clone()), || {
+                    blocking_poll(read_battery)
+                })
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

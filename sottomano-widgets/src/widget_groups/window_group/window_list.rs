@@ -6,7 +6,7 @@ use iced::{
 };
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     desktop_windows_apps::{
         kde_job_view_progress::{self, JobProgress},
         kitty_terminal_windows::{self, WindowProcesses},
@@ -30,7 +30,7 @@ use crate::{
         activity_line::activity_line,
         bar_widget::Glyph,
         focus_indicator::focus_indicator,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
         pager_slot::PagerSlot,
         palette_colors::PaletteColors,
         panel_frame::panel_frame,
@@ -58,9 +58,9 @@ pub struct WindowList {
     window_processes: WindowProcesses,
     folding: Folding,
     hovered_window: Option<u64>,
-    process_tree: OnHoverReading<Process>,
-    inspection: OnHoverReading<Inspection>,
-    package_facts: OnHoverReading<NixPackageFacts>,
+    process_tree: HoverFetchedSnapshot<Process>,
+    inspection: HoverFetchedSnapshot<Inspection>,
+    package_facts: HoverFetchedSnapshot<NixPackageFacts>,
 }
 
 #[derive(Debug, Clone)]
@@ -69,11 +69,11 @@ pub enum WindowListMessage {
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(JobProgress),
     Tooltip(TooltipMessage),
-    ProcessTreeScanned(SourceDelivery<Process>),
+    ProcessTreeScanned(SnapshotDelivery<Process>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
-    ProcessInspected(Box<SourceDelivery<Inspection>>),
-    PackageFactsRead(Box<SourceDelivery<NixPackageFacts>>),
+    ProcessInspected(Box<SnapshotDelivery<Inspection>>),
+    PackageFactsRead(Box<SnapshotDelivery<NixPackageFacts>>),
     Scrolled(f32),
     MetricsChanged(Metrics),
     Drag(DragMessage),
@@ -111,7 +111,6 @@ impl WindowList {
         &mut self,
         watched: Option<Watched>,
         config: &Config,
-        clock: Clock,
     ) -> Task<WindowListMessage> {
         let Some(watched) = watched else {
             self.hovered_window = None;
@@ -126,13 +125,11 @@ impl WindowList {
                 watched.clone(),
                 WindowListMessage::ProcessTreeScanned,
                 config,
-                clock,
             ),
             self.inspection.start_hover_fetch(
                 watched.clone(),
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
-                clock,
             ),
             self.package_facts.start_hover_fetch(
                 PackageWatch {
@@ -141,7 +138,6 @@ impl WindowList {
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,
-                clock,
             ),
         ])
     }
@@ -186,7 +182,7 @@ impl WindowList {
             }
             WindowListMessage::Tooltip(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
-                self.process_tree.receive_delivery(fetched, clock);
+                self.process_tree.receive(fetched, clock);
                 Action::None
             }
             WindowListMessage::WindowProcessesPaired(window_processes) => {
@@ -198,11 +194,11 @@ impl WindowList {
                 Action::None
             }
             WindowListMessage::ProcessInspected(fetched) => {
-                self.inspection.receive_delivery(*fetched, clock);
+                self.inspection.receive(*fetched, clock);
                 Action::None
             }
             WindowListMessage::PackageFactsRead(fetched) => {
-                self.package_facts.receive_delivery(*fetched, clock);
+                self.package_facts.receive(*fetched, clock);
                 Action::None
             }
             WindowListMessage::Scrolled(offset) => {

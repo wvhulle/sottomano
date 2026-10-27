@@ -4,7 +4,7 @@ use sottomano_config::severity::Severity;
 use zbus::proxy;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{
         self, DesktopBuses, Properties, name_owned, prop, service_absent,
@@ -85,18 +85,17 @@ impl FirmwareUpgrade {
 
 pub type PendingUpgrades = Result<Vec<FirmwareUpgrade>, dbus_desktop_buses::Error>;
 
-impl ReadingSource for Vec<FirmwareUpgrade> {
+impl SnapshotSource for Vec<FirmwareUpgrade> {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "firmware upgrades";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         name_owned(system.clone(), FWUPD_SERVICE).while_held(
-            move || signalled_upgrades(system.clone()).map(SourceDelivery::Reading),
-            SourceDelivery::Absent,
+            move || signalled_upgrades(system.clone()).map(SnapshotDelivery::live_push),
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

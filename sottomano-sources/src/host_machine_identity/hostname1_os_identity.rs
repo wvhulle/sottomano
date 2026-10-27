@@ -5,10 +5,9 @@ use futures::{Stream, StreamExt, stream};
 use zbus::proxy;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::host_bridge_subsystem_vendor,
     non_empty_text::non_empty,
-    pushed_delivery_stream,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
@@ -77,15 +76,14 @@ fn current_distribution_ids() -> Vec<String> {
         .unwrap_or_default()
 }
 
-impl ReadingSource for OperatingSystemIdentity {
+impl SnapshotSource for OperatingSystemIdentity {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "hostnamed";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(identity_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(identity_changes(buses))
     }
 }
 

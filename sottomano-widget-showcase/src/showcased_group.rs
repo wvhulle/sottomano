@@ -34,8 +34,8 @@ use sottomano_widgets::{
         workspaces_group::{inline_strip, sidebar_column, workspace_tooltip},
     },
     widgets::{
-        continuous_reading::ContinuousReading, favicon::Favicons, palette_colors::PaletteColors,
-        pointer_drag::DragView, tooltip_body::Tooltip, window_icon::WindowAssets,
+        favicon::Favicons, palette_colors::PaletteColors, pointer_drag::DragView,
+        tooltip_body::Tooltip, window_icon::WindowAssets,
     },
 };
 
@@ -129,7 +129,7 @@ pub struct ShowcasedMedia {
 pub struct ShowcasedNiriSession {
     pub window_group: WindowGroup,
     pub niri: EventStreamState,
-    pub snapshot: ContinuousReading<Snapshot>,
+    pub snapshot: Snapshot,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
@@ -141,21 +141,17 @@ impl ShowcasedNiriSession {
         config: &'a Config,
         clock: Clock,
     ) -> Vec<Element<'a, ShowcaseMessage>> {
-        self.snapshot
-            .get()
-            .and_then(|snapshot| {
-                sidebar_column::vertical_view(
-                    snapshot,
-                    SHOWCASE_OUTPUT,
-                    config,
-                    &undragged(),
-                    Some(&configured_in_fixture_order(snapshot)),
-                    clock,
-                )
-            })
-            .map(|workspaces| workspaces.map(ShowcaseMessage::from))
-            .into_iter()
-            .collect()
+        sidebar_column::vertical_view(
+            &self.snapshot,
+            SHOWCASE_OUTPUT,
+            config,
+            &undragged(),
+            Some(&configured_in_fixture_order(&self.snapshot)),
+            clock,
+        )
+        .map(|workspaces| workspaces.map(ShowcaseMessage::from))
+        .into_iter()
+        .collect()
     }
 
     fn bottom_bar_groups<'a>(
@@ -163,9 +159,7 @@ impl ShowcasedNiriSession {
         config: &'a Config,
         clock: Clock,
     ) -> Vec<Element<'a, ShowcaseMessage>> {
-        let Some(snapshot) = self.snapshot.get() else {
-            return Vec::new();
-        };
+        let snapshot = &self.snapshot;
         let workspaces = inline_strip::inline_view(
             snapshot,
             SHOWCASE_OUTPUT,
@@ -201,7 +195,7 @@ impl ShowcasedNiriSession {
     fn tooltip_for(&self, target: &HoverTarget, clock: Clock) -> Option<Tooltip> {
         match target {
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_tooltip(&self.niri, &self.snapshot, *window, clock)
+                WindowGroup::pick_tooltip(&self.niri, *window, clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
                 Some(self.window_group.inspect_tooltip(clock))
@@ -394,7 +388,7 @@ impl ShowcasedGroup {
     pub fn hover(&mut self, target: &HoverTarget, config: &Config, clock: Clock) {
         match self {
             ShowcasedGroup::Compute(group) => {
-                let _ = group.hover(Some(target), config, clock);
+                let _ = group.hover(Some(target), config);
                 if let HoverTarget::Compute(target) = target {
                     compute::on_hover(*target).into_iter().for_each(|reading| {
                         let _ = group.update(reading, clock);
@@ -402,7 +396,7 @@ impl ShowcasedGroup {
                 }
             }
             ShowcasedGroup::MemoryBoard(group) => {
-                let _ = group.hover(Some(target), config, clock);
+                let _ = group.hover(Some(target), config);
                 if let HoverTarget::MemoryBoard(target) = target {
                     memory_board::on_hover(*target)
                         .into_iter()
@@ -412,10 +406,10 @@ impl ShowcasedGroup {
                 }
             }
             ShowcasedGroup::ClaudeUsage(group) => {
-                let _ = group.hover(Some(target), config, clock);
+                let _ = group.hover(Some(target), config);
             }
             ShowcasedGroup::VoiceDictation(group) => {
-                let _ = group.hover(Some(target), config, clock);
+                let _ = group.hover(Some(target), config);
                 if let HoverTarget::VoiceDictation(target) = target {
                     voice_dictation::on_hover(*target)
                         .into_iter()
@@ -427,7 +421,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 let _ = session
                     .window_group
-                    .hover(&session.niri, Some(target), config, clock);
+                    .hover(&session.niri, Some(target), config);
                 niri_session::on_hover(target)
                     .into_iter()
                     .for_each(|reading| {

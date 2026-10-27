@@ -3,11 +3,10 @@ use std::{future::ready, path::Path};
 use futures::Stream;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     battery_power_profiles::power_profiles_daemon::active_profile_changes,
     blocking_background_work::blocking_poll,
     cpu_memory_compute::CPU_FREQ,
-    pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses,
@@ -56,15 +55,14 @@ fn read_cpu_tuning() -> Result<CpuTuning, Error> {
     })
 }
 
-impl ReadingSource for CpuTuning {
+impl SnapshotSource for CpuTuning {
     type Error = Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "cpu-tuning";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(ready(Ok(read_once_then_per_burst(
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
             active_profile_changes(buses.system),
             || blocking_poll(read_cpu_tuning),
         ))))

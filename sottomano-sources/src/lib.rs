@@ -3,6 +3,7 @@ pub mod battery_power_profiles;
 pub mod blocking_background_work;
 pub mod caldav_tasks_events;
 pub mod cpu_memory_compute;
+pub mod delivery_cadence_drivers;
 pub mod desktop_notifications;
 pub mod desktop_windows_apps;
 pub mod disk_storage;
@@ -24,99 +25,57 @@ pub mod weather;
 
 use std::{
     fmt::{Debug, Display},
-    future::{Future, ready},
     hash::Hash,
-    time::Duration,
 };
 
-use futures::{Stream, StreamExt, stream};
+use futures::Stream;
 
-use crate::stream_operators::{StreamOperators, connected_until_failure, ticked};
+use crate::delivery_cadence_drivers::StampedCadence;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeliveryCadence {
-    PolledEvery(Duration),
-    PushedLive,
-    ReadOnce,
-}
-
-pub trait ReadingSource: Clone + Debug + Sized + Send + 'static {
+pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
     type Error: Clone + Debug + Display + Send + 'static;
     type StreamInputs: Clone + Hash + Send + Sync + 'static;
 
     const NAME: &'static str;
-    const DELIVERY_CADENCE: DeliveryCadence;
 
-    fn delivery_stream(key: Self::StreamInputs) -> impl Stream<Item = SourceDelivery<Self>> + Send;
-
-    fn delivery_cadence(&self) -> DeliveryCadence {
-        Self::DELIVERY_CADENCE
-    }
+    fn delivery_stream(
+        key: Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send;
 }
 
 #[derive(Debug, Clone)]
-pub enum SourceDelivery<S: ReadingSource> {
-    Absent,
-    Reading(Result<S, S::Error>),
-    Unchanged,
+pub enum SnapshotDelivery<S: SnapshotSource> {
+    SourceUnavailable,
+    SnapshotDelivered {
+        snapshot_fetch: Result<S, S::Error>,
+        stamped_cadence: StampedCadence,
+    },
+    SnapshotUnchanged,
 }
 
-pub fn polled_delivery_stream<S, I, F>(
-    inputs: I,
-    poll: impl Fn(I) -> F + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
-where
-    S: ReadingSource + PartialEq,
-    I: Clone + Send + 'static,
-    F: Future<Output = Result<S, S::Error>> + Send,
-{
-    let DeliveryCadence::PolledEvery(every) = S::DELIVERY_CADENCE else {
-        return stream::once(poll(inputs))
-            .map(SourceDelivery::Reading)
-            .left_stream();
-    };
-    ticked(every, move || poll(inputs.clone()))
-        .map(SourceDelivery::Reading)
-        .repeats_as_unchanged()
-        .right_stream()
-}
-
-pub fn polled_delivery_after_setup<S, P, F>(
-    setup: impl Future<Output = Result<P, S::Error>> + Send,
-    poll: impl Fn(P) -> F + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
-where
-    S: ReadingSource + PartialEq,
-    P: Clone + Send + 'static,
-    F: Future<Output = Result<S, S::Error>> + Send,
-{
-    stream::once(setup).flat_map(move |prepared| match prepared {
-        Ok(prepared) => polled_delivery_stream(prepared, poll.clone()).left_stream(),
-        Err(failure) => stream::once(ready(SourceDelivery::Reading(Err(failure)))).right_stream(),
-    })
-}
-
-pub fn pushed_delivery_stream<S, R>(
-    connect: impl Future<Output = Result<R, S::Error>> + Send,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
-where
-    S: ReadingSource + PartialEq,
-    R: Stream<Item = Result<S, S::Error>> + Send,
-{
-    connected_until_failure(connect)
-        .map(SourceDelivery::Reading)
-        .distinct_until_changed()
-}
-
-impl<S: ReadingSource + PartialEq> PartialEq for SourceDelivery<S> {
+impl<S: SnapshotSource + PartialEq> PartialEq for SnapshotDelivery<S> {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            SourceDelivery::Absent => matches!(other, SourceDelivery::Absent),
-            SourceDelivery::Reading(Ok(value)) => {
-                matches!(other, SourceDelivery::Reading(Ok(known)) if known == value)
+            SnapshotDelivery::SourceUnavailable => {
+                matches!(other, SnapshotDelivery::SourceUnavailable)
             }
-            SourceDelivery::Reading(Err(_)) => false,
-            SourceDelivery::Unchanged => matches!(other, SourceDelivery::Unchanged),
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Ok(snapshot),
+                stamped_cadence,
+            } => matches!(
+                other,
+                SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Ok(known_snapshot),
+                    stamped_cadence: known_cadence,
+                } if known_snapshot == snapshot && known_cadence == stamped_cadence
+            ),
+            SnapshotDelivery::SnapshotDelivered {
+                snapshot_fetch: Err(_),
+                ..
+            } => false,
+            SnapshotDelivery::SnapshotUnchanged => {
+                matches!(other, SnapshotDelivery::SnapshotUnchanged)
+            }
         }
     }
 }

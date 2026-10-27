@@ -9,7 +9,7 @@ use uom::si::f64::{Frequency, InformationRate};
 use zbus::{Connection, zvariant::OwnedObjectPath};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
         ReadingError, device_or_absent, device_readings, network_manager_proxies, nm_readings,
@@ -119,14 +119,13 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     })
 }
 
-impl ReadingSource for Wifi {
+impl SnapshotSource for Wifi {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(
             system.clone(),
@@ -185,14 +184,13 @@ impl Wifi {
     }
 }
 
-impl ReadingSource for WifiDetails {
+impl SnapshotSource for WifiDetails {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "wifi details";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let system = buses.system;
         device_or_absent(
             system.clone(),

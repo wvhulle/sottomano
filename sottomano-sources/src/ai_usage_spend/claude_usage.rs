@@ -22,9 +22,9 @@ pub use self::{
     usage_windows::{ClaudeUsageWindows, ExtraStatus, ExtraUsage, WindowUsage},
 };
 use crate::{
-    ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
-    polled_delivery_stream,
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
@@ -131,19 +131,24 @@ fn logins(credentials: PathBuf) -> impl Stream<Item = Option<LoginKind>> + Send 
 }
 
 fn login_polls<S, F>(
+    polling: PeriodicPolling,
     credentials: PathBuf,
     wanted: LoginKind,
     poll: impl Fn(PathBuf) -> F + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
+) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: ReadingSource + PartialEq,
+    S: SnapshotSource + PartialEq,
     F: Future<Output = Result<S, S::Error>> + Send + 'static,
 {
     logins(credentials.clone())
         .map(move |kind| kind == Some(wanted))
         .while_held(
-            move || polled_delivery_stream(credentials.clone(), poll.clone()),
-            SourceDelivery::Absent,
+            move || {
+                let credentials = credentials.clone();
+                let poll = poll.clone();
+                polling.poll_deliveries(move || poll(credentials.clone()))
+            },
+            SnapshotDelivery::SourceUnavailable,
         )
 }
 
@@ -151,10 +156,10 @@ fn local_log_readings<S, R>(
     logs: ClaudeLocalLogs,
     metered_by_subscription: bool,
     readings: impl Fn(ClaudeLocalLogs) -> R + Send + Clone + 'static,
-) -> impl Stream<Item = SourceDelivery<S>> + Send
+) -> impl Stream<Item = SnapshotDelivery<S>> + Send
 where
-    S: ReadingSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
-    R: Stream<Item = SourceDelivery<S>> + Send,
+    S: SnapshotSource<StreamInputs = ClaudeLocalLogs> + PartialEq,
+    R: Stream<Item = SnapshotDelivery<S>> + Send,
 {
     stream::once(ccusage_cli_reports::installed()).while_held(
         move || {
@@ -168,9 +173,12 @@ where
             };
             let logs = logs.clone();
             let readings = readings.clone();
-            login_matches.while_held(move || readings(logs.clone()), SourceDelivery::Absent)
+            login_matches.while_held(
+                move || readings(logs.clone()),
+                SnapshotDelivery::SourceUnavailable,
+            )
         },
-        SourceDelivery::Absent,
+        SnapshotDelivery::SourceUnavailable,
     )
 }
 

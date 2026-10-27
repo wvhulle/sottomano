@@ -9,7 +9,8 @@ use futures::{Stream, stream};
 use serde::Deserialize;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, polled_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
     stream_operators::StreamOperators,
     system_protocol_clients::{shell_command_output, shell_command_output::blocking::run},
 };
@@ -180,17 +181,19 @@ impl TryFrom<&Node> for Peer {
     }
 }
 
-impl ReadingSource for Tailscale {
+impl SnapshotSource for Tailscale {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "tailscale";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("tailscale")).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
-            SourceDelivery::Absent,
+            move || {
+                PeriodicPolling::every(Duration::from_secs(10))
+                    .poll_deliveries(move || Self::poll(()))
+            },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

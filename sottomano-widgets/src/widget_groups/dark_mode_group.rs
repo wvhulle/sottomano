@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use iced::{Function, Subscription, Task, task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     blocking_background_work::blocking,
     login_session_presence::logind_manager,
     screen_brightness_color::{
@@ -26,7 +26,7 @@ use self::{
     sqlite_dark_mode_schedule::DarkModeSchedule,
 };
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::dark_mode_group::auto_switch_toggle::{
@@ -35,6 +35,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
+        latest_snapshot::CommandOutcome,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -79,7 +80,7 @@ struct ArmedSwitch {
 #[derive(Debug, Clone)]
 pub enum DarkModeMessage {
     ScheduleLoaded(DarkModeSchedule),
-    LocationFix(SourceDelivery<Location>),
+    LocationFix(SnapshotDelivery<Location>),
     SwitchDue,
     ModeToggle(ToggleMessage<DarkMode>),
     ToggleAutoSwitch,
@@ -120,7 +121,7 @@ impl DarkModeGroup {
     pub fn subscription() -> Subscription<DarkModeMessage> {
         Subscription::batch([
             ToggleControl::<DarkMode>::subscription(()).map(DarkModeMessage::ModeToggle),
-            source_subscription::<Location>(()).map(DarkModeMessage::LocationFix),
+            snapshot_subscription::<Location>(()).map(DarkModeMessage::LocationFix),
         ])
     }
 
@@ -200,7 +201,11 @@ impl DarkModeGroup {
                 Task::none()
             }
             DarkModeMessage::LocationFix(delivery) => {
-                if let SourceDelivery::Reading(Ok(location)) = delivery {
+                if let SnapshotDelivery::SnapshotDelivered {
+                    snapshot_fetch: Ok(location),
+                    ..
+                } = delivery
+                {
                     self.auto_switch_toggle.update_location(location.position());
                 }
                 Task::none()
@@ -264,8 +269,10 @@ impl DarkModeGroup {
     }
 
     fn apply_color_mode(&mut self, mode: ColorMode) -> Task<DarkModeMessage> {
-        self.mode_toggle.assume(DarkMode {
-            dark: mode == ColorMode::Dark,
+        self.mode_toggle.apply_command(CommandOutcome::Applied {
+            expected_snapshot: DarkMode {
+                dark: mode == ColorMode::Dark,
+            },
         });
         Task::future(blocking("umbra set", move || set_mode(mode))).discard()
     }

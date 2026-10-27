@@ -5,13 +5,12 @@ use futures::Stream;
 
 use super::{Error, local_log_readings};
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     ai_usage_spend::{
         ccusage_cli_reports::{self, Agent, BillingBlock, RecentUsage},
         usage_quota::Quota,
         working_time_forecast::SpendBudget,
     },
-    pushed_delivery_stream,
     stream_operators::reread_on_trigger_or_deadline,
 };
 
@@ -38,16 +37,15 @@ impl ClaudeCcusagePeriods {
     }
 }
 
-impl ReadingSource for ClaudeCcusagePeriods {
+impl SnapshotSource for ClaudeCcusagePeriods {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-periods";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, false, |logs| {
-            pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
+            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 move || Self::read(logs.clone()),
                 |_| ccusage_cli_reports::next_local_midnight(),
@@ -70,16 +68,15 @@ pub struct ClaudeCcusageBlock {
     pub active: Option<BillingBlock>,
 }
 
-impl ReadingSource for ClaudeCcusageBlock {
+impl SnapshotSource for ClaudeCcusageBlock {
     type Error = Error;
     type StreamInputs = ClaudeLocalLogs;
 
     const NAME: &'static str = "claude-ccusage-block";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(logs: ClaudeLocalLogs) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         local_log_readings(logs, true, |_| {
-            pushed_delivery_stream(ready(Ok(reread_on_trigger_or_deadline(
+            SnapshotDelivery::live_push_deliveries(ready(Ok(reread_on_trigger_or_deadline(
                 ccusage_cli_reports::transcript_changes(Agent::ClaudeCode),
                 Self::read,
                 |block| {

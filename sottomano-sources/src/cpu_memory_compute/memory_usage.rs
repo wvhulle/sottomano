@@ -5,8 +5,9 @@ use futures::Stream;
 use procfs::{WithCurrentSystemInfo, process::all_processes};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
-    desktop_windows_apps::process_tree_inspection::binary_name, polled_delivery_stream,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
+    desktop_windows_apps::process_tree_inspection::binary_name,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -27,17 +28,16 @@ impl Memory {
     }
 }
 
-impl ReadingSource for Memory {
+impl SnapshotSource for Memory {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "memory";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(5));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(5)).poll_deliveries(move || Self::poll(()))
     }
 }
 
@@ -69,17 +69,16 @@ pub struct MemoryProcesses {
     pub processes: Vec<MemoryProcess>,
 }
 
-impl ReadingSource for MemoryProcesses {
+impl SnapshotSource for MemoryProcesses {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "memory processes";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
     }
 }
 

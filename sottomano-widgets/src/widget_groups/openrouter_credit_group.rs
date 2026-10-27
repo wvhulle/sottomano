@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     ai_usage_spend::{
         openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
         working_time_forecast::{SpendBudget, SpendPacing},
@@ -14,13 +14,13 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::LatestSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, Tooltip},
@@ -52,16 +52,16 @@ impl From<OpenRouterCreditTarget> for HoverTarget {
 }
 
 pub struct OpenRouterCreditGroup {
-    spend: ContinuousReading<OpenRouterSpend>,
-    strict_budget: ContinuousReading<OpenRouterStrictBudget>,
+    spend: LatestSnapshot<OpenRouterSpend>,
+    strict_budget: LatestSnapshot<OpenRouterStrictBudget>,
     management_key: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum OpenRouterCreditMessage {
-    SoftBudget(SourceDelivery<OpenRouterSpend>),
-    StrictBudget(SourceDelivery<OpenRouterStrictBudget>),
+    SoftBudget(SnapshotDelivery<OpenRouterSpend>),
+    StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     Expansion(ExpansionMessage),
 }
 
@@ -73,8 +73,8 @@ impl OpenRouterCreditGroup {
     #[must_use]
     pub fn new(management_key: Option<PathBuf>) -> Self {
         Self {
-            spend: ContinuousReading::default(),
-            strict_budget: ContinuousReading::default(),
+            spend: LatestSnapshot::default(),
+            strict_budget: LatestSnapshot::default(),
             management_key,
             expansion: GroupExpansion::default(),
         }
@@ -103,9 +103,9 @@ impl OpenRouterCreditGroup {
     pub fn subscription(&self, config: &Config) -> Subscription<OpenRouterCreditMessage> {
         Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
             [
-                source_subscription::<OpenRouterSpend>(account(key.clone(), config))
+                snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config))
                     .map(OpenRouterCreditMessage::SoftBudget),
-                source_subscription::<OpenRouterStrictBudget>(key)
+                snapshot_subscription::<OpenRouterStrictBudget>(key)
                     .map(OpenRouterCreditMessage::StrictBudget),
             ]
         }))
@@ -118,10 +118,10 @@ impl OpenRouterCreditGroup {
     ) -> Task<OpenRouterCreditMessage> {
         match message {
             OpenRouterCreditMessage::SoftBudget(reading) => {
-                self.spend.receive_delivery(reading, clock);
+                self.spend.receive(reading, clock);
             }
             OpenRouterCreditMessage::StrictBudget(reading) => {
-                self.strict_budget.receive_delivery(reading, clock);
+                self.strict_budget.receive(reading, clock);
             }
             OpenRouterCreditMessage::Expansion(menu) => {
                 self.expansion.update(menu);

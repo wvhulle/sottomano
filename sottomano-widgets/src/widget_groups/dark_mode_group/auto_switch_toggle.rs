@@ -12,7 +12,7 @@ use crate::{
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, Freshness, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
         widget_state::WidgetState,
     },
 };
@@ -53,7 +53,7 @@ impl AutoSwitchToggle {
     }
 
     pub fn schedule_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::sourced(self.tooltip(clock), Freshness::Live)
+        Tooltip::sourced(self.tooltip(clock), DeliveryTiming::LivePush)
     }
 
     pub fn press_does(&self) -> &'static str {

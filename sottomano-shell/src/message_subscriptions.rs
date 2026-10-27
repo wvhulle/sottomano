@@ -19,7 +19,7 @@ use sottomano_sources::{
     },
 };
 use sottomano_widgets::{
-    background_work::source_subscription,
+    background_work::snapshot_subscription,
     toast_messages::NotificationMessage,
     widget_groups::{
         audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
@@ -162,7 +162,7 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
         QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
         SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
         WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
-        source_subscription::<HostHardware>(buses.clone())
+        snapshot_subscription::<HostHardware>(buses.clone())
             .map(|delivery| Message::HostHardware(Box::new(delivery))),
         state
             .copilot_usage_group

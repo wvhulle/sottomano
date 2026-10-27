@@ -9,14 +9,13 @@ use procfs::process::Process as Proc;
 use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         greetd_greeter_program::greeter_program,
         logind_manager::{InhibitorRow, ManagerProxy, session_id},
     },
     non_empty_text::non_empty,
-    pushed_delivery_stream,
     stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
@@ -69,15 +68,14 @@ pub struct SessionIdentity {
     pub session_type: String,
 }
 
-impl ReadingSource for SessionIdentity {
+impl SnapshotSource for SessionIdentity {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session identity";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(identity_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(identity_changes(buses))
     }
 }
 
@@ -204,15 +202,14 @@ pub struct ScheduledShutdown {
     pub at: Option<DateTime<Utc>>,
 }
 
-impl ReadingSource for SessionInfo {
+impl SnapshotSource for SessionInfo {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind session";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(session_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(session_changes(buses))
     }
 }
 
@@ -259,15 +256,14 @@ async fn session_changes(
     }))
 }
 
-impl ReadingSource for PowerPolicy {
+impl SnapshotSource for PowerPolicy {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "logind power policy";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(power_changes(buses))
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(power_changes(buses))
     }
 }
 

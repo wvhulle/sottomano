@@ -9,7 +9,7 @@ mod temperature_forecast;
 mod wind_speed;
 
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     weather::{
         self,
         buienradar_rain::Rain,
@@ -22,14 +22,14 @@ use sottomano_sources::{
 };
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::weather_group::rain_intensity::RainForecast,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
+        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -63,23 +63,23 @@ impl From<WeatherTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct WeatherGroup {
-    temp: ContinuousReading<Temperature>,
-    wind: ContinuousReading<Wind>,
-    rain: ContinuousReading<Rain>,
-    precipitation_model: ContinuousReading<PrecipitationModel>,
-    pollen: ContinuousReading<Pollen>,
-    location: ContinuousReading<Location>,
+    temp: LatestSnapshot<Temperature>,
+    wind: LatestSnapshot<Wind>,
+    rain: LatestSnapshot<Rain, HidesFailuresAfterSuccess>,
+    precipitation_model: LatestSnapshot<PrecipitationModel, HidesFailuresAfterSuccess>,
+    pollen: LatestSnapshot<Pollen>,
+    location: LatestSnapshot<Location, HidesFailuresAfterSuccess>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(SourceDelivery<Temperature>),
-    Wind(SourceDelivery<Wind>),
-    Rain(SourceDelivery<Rain>),
-    PrecipitationModel(SourceDelivery<PrecipitationModel>),
-    Pollen(SourceDelivery<Pollen>),
-    Location(SourceDelivery<Location>),
+    Temp(SnapshotDelivery<Temperature>),
+    Wind(SnapshotDelivery<Wind>),
+    Rain(SnapshotDelivery<Rain>),
+    PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
+    Pollen(SnapshotDelivery<Pollen>),
+    Location(SnapshotDelivery<Location>),
     Expansion(ExpansionMessage),
 }
 
@@ -89,33 +89,34 @@ impl WeatherGroup {
     }
 
     pub fn subscription(&self) -> Subscription<WeatherMessage> {
-        let location = source_subscription::<Location>(()).map(WeatherMessage::Location);
+        let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
         let Some(here) = self.location.get().map(Location::position) else {
             return location;
         };
         Subscription::batch([
             location,
-            source_subscription::<Temperature>(here).map(WeatherMessage::Temp),
-            source_subscription::<Rain>(here).map(WeatherMessage::Rain),
-            source_subscription::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
+            snapshot_subscription::<Temperature>(here).map(WeatherMessage::Temp),
+            snapshot_subscription::<Rain>(here).map(WeatherMessage::Rain),
+            snapshot_subscription::<PrecipitationModel>(here)
+                .map(WeatherMessage::PrecipitationModel),
             self.expansion
-                .while_expanded(source_subscription::<Wind>(here).map(WeatherMessage::Wind)),
+                .while_expanded(snapshot_subscription::<Wind>(here).map(WeatherMessage::Wind)),
             self.expansion
-                .while_expanded(source_subscription::<Pollen>(here).map(WeatherMessage::Pollen)),
+                .while_expanded(snapshot_subscription::<Pollen>(here).map(WeatherMessage::Pollen)),
         ])
     }
 
     pub fn update(&mut self, msg: WeatherMessage, clock: Clock) -> Task<WeatherMessage> {
         match msg {
-            WeatherMessage::Temp(reading) => self.temp.receive_delivery(reading, clock),
-            WeatherMessage::Wind(reading) => self.wind.receive_delivery(reading, clock),
-            WeatherMessage::Rain(reading) => self.rain.receive_keeping_last_success(reading, clock),
-            WeatherMessage::PrecipitationModel(reading) => self
-                .precipitation_model
-                .receive_keeping_last_success(reading, clock),
-            WeatherMessage::Pollen(reading) => self.pollen.receive_delivery(reading, clock),
+            WeatherMessage::Temp(reading) => self.temp.receive(reading, clock),
+            WeatherMessage::Wind(reading) => self.wind.receive(reading, clock),
+            WeatherMessage::Rain(reading) => self.rain.receive(reading, clock),
+            WeatherMessage::PrecipitationModel(reading) => {
+                self.precipitation_model.receive(reading, clock);
+            }
+            WeatherMessage::Pollen(reading) => self.pollen.receive(reading, clock),
             WeatherMessage::Location(reading) => {
-                self.location.receive_keeping_last_success(reading, clock);
+                self.location.receive(reading, clock);
             }
             WeatherMessage::Expansion(m) => {
                 self.expansion.update(m);
@@ -224,23 +225,32 @@ impl WeatherGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::weather::buienradar_rain::{
-        Downpour, precipitation::millimeter_per_hour,
+    use std::time::Duration;
+
+    use sottomano_sources::{
+        delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+        weather::buienradar_rain::{Downpour, precipitation::millimeter_per_hour},
     };
     use uom::si::f64::Velocity;
 
     use super::*;
 
-    fn delivered_rain(clock: Clock) -> SourceDelivery<Rain> {
-        SourceDelivery::Reading(Ok(Rain::from_forecast(vec![Downpour {
-            intensity: Velocity::new::<millimeter_per_hour>(3.0),
-            at: clock.local(),
-        }])
-        .unwrap()))
+    const RAIN_CADENCE: DeliveryCadence =
+        DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(60)));
+
+    fn delivered_rain(clock: Clock) -> SnapshotDelivery<Rain> {
+        SnapshotDelivery::fixture_delivered(
+            Ok(Rain::from_forecast(vec![Downpour {
+                intensity: Velocity::new::<millimeter_per_hour>(3.0),
+                at: clock.local(),
+            }])
+            .unwrap()),
+            RAIN_CADENCE,
+        )
     }
 
-    fn failed_rain(error: weather::Error) -> SourceDelivery<Rain> {
-        SourceDelivery::Reading(Err(error))
+    fn failed_rain(error: weather::Error) -> SnapshotDelivery<Rain> {
+        SnapshotDelivery::fixture_delivered(Err(error), RAIN_CADENCE)
     }
 
     #[test]

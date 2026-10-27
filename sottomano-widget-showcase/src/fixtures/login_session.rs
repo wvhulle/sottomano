@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::{Chassis, OperatingSystemIdentity},
     login_session_presence::logind_session_facts::SessionIdentity,
 };
@@ -24,14 +24,16 @@ pub fn group(clock: Clock) -> ShowcasedGroup {
 
 fn session_readings() -> [LoginSessionMessage; 2] {
     [
-        LoginSessionMessage::SystemFetched(SourceDelivery::Reading(Ok(OperatingSystemIdentity {
-            hostname: "workstation".to_owned(),
-            kernel: "6.18.2".to_owned(),
-            operating_system: "NixOS 26.05 (Yarara)".to_owned(),
-            distribution_ids: vec!["nixos".to_owned()],
-            chassis: Some(Chassis::Desktop),
-        }))),
-        LoginSessionMessage::IdentityFetched(SourceDelivery::Reading(Ok(SessionIdentity {
+        LoginSessionMessage::SystemFetched(SnapshotDelivery::live_push(Ok(
+            OperatingSystemIdentity {
+                hostname: "workstation".to_owned(),
+                kernel: "6.18.2".to_owned(),
+                operating_system: "NixOS 26.05 (Yarara)".to_owned(),
+                distribution_ids: vec!["nixos".to_owned()],
+                chassis: Some(Chassis::Desktop),
+            },
+        ))),
+        LoginSessionMessage::IdentityFetched(SnapshotDelivery::live_push(Ok(SessionIdentity {
             user: "demo".to_owned(),
             uid: 1000,
             seat: "seat0".to_owned(),

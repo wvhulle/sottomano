@@ -3,7 +3,7 @@ use std::{env, future::ready, path::PathBuf};
 use futures::{Stream, stream};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, pushed_delivery_stream,
+    SnapshotDelivery, SnapshotSource,
     screen_brightness_color::solar_switch_schedule::ColorMode,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
@@ -17,22 +17,21 @@ pub struct DarkMode {
     pub dark: bool,
 }
 
-impl ReadingSource for DarkMode {
+impl SnapshotSource for DarkMode {
     type Error = shell_command_output::Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "umbra";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("umbra")).while_held(
             || {
-                pushed_delivery_stream(ready(Ok(read_once_then_per_burst(
+                SnapshotDelivery::live_push_deliveries(ready(Ok(read_once_then_per_burst(
                     changes(mode_file().map(WatchTarget::File).into_iter().collect()),
                     Self::read,
                 ))))
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

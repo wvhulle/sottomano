@@ -102,7 +102,7 @@ impl DesktopShell {
         match self.sidebar_settings_group.workspaces_placement() {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
-                self.niri_snapshot.get()?,
+                &self.niri_snapshot,
                 output,
                 &self.config,
                 Position::Bottom,
@@ -117,7 +117,7 @@ impl DesktopShell {
     fn window_group_view<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
         self.window_group
             .view(
-                self.niri_snapshot.get()?,
+                &self.niri_snapshot,
                 self.window_assets(),
                 self.audio_group.window_audio(),
                 output,

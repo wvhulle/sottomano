@@ -9,8 +9,8 @@ use super::{
     cpu_topology::CpuTopology,
 };
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, blocking_background_work::blocking_poll,
-    polled_delivery_after_setup, polled_delivery_stream,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
+    delivery_cadence_drivers::PeriodicPolling,
     system_protocol_clients::sysfs_attribute_reads::Error,
 };
 
@@ -36,17 +36,16 @@ pub struct CpuCoreLoads {
     pub topology: CpuTopology,
 }
 
-impl ReadingSource for CpuUsage {
+impl SnapshotSource for CpuUsage {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "cpu";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
-    ) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_stream(inputs, Self::poll)
+        (): Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3)).poll_deliveries(move || Self::poll(()))
     }
 }
 
@@ -56,15 +55,15 @@ impl CpuUsage {
     }
 }
 
-impl ReadingSource for CpuCoreLoads {
+impl SnapshotSource for CpuCoreLoads {
     type Error = Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "cpu cores";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(3));
 
-    fn delivery_stream((): ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        polled_delivery_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        PeriodicPolling::every(Duration::from_secs(3))
+            .poll_deliveries_after_setup(blocking_poll(|| Ok(CpuTopology::detect())), Self::poll)
     }
 }
 

@@ -2,7 +2,7 @@ use std::convert::identity;
 
 use iced::{Subscription, Task, futures::StreamExt};
 use sottomano_sources::{
-    ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
     desktop_windows_apps::{clipboard_copy, niri_action_requests},
 };
@@ -22,9 +22,9 @@ struct SubscribedSource<I> {
     inputs: I,
 }
 
-pub fn source_subscription<S: ReadingSource>(
+pub fn snapshot_subscription<S: SnapshotSource>(
     inputs: S::StreamInputs,
-) -> Subscription<SourceDelivery<S>> {
+) -> Subscription<SnapshotDelivery<S>> {
     Subscription::run_with(
         SubscribedSource {
             name: S::NAME,
@@ -34,7 +34,7 @@ pub fn source_subscription<S: ReadingSource>(
     )
 }
 
-pub fn first_delivery<S: ReadingSource>(inputs: S::StreamInputs) -> Task<SourceDelivery<S>> {
+pub fn first_delivery<S: SnapshotSource>(inputs: S::StreamInputs) -> Task<SnapshotDelivery<S>> {
     Task::run(S::delivery_stream(inputs).take(1), identity)
 }
 

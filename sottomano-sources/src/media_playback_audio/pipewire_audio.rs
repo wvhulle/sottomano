@@ -42,7 +42,7 @@ use tokio::sync::{oneshot, watch};
 use tokio_stream::{self as stream, StreamExt as _, wrappers::WatchStream};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
     stream_operators::{StreamOperators, connected_until_failure},
     system_protocol_clients::inotify_file_presence::path_present,
 };
@@ -228,23 +228,22 @@ fn socket_present() -> impl Stream<Item = bool> + Send {
     stream::iter(socket).flat_map(path_present)
 }
 
-impl ReadingSource for AudioState {
+impl SnapshotSource for AudioState {
     type Error = AudioConnectError;
     type StreamInputs = ();
 
     const NAME: &'static str = "audio";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(_key: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(_key: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         socket_present().while_held(
             || {
                 connected_until_failure(connect()).filter_map(|event| match event {
-                    Ok(AudioEvent::State(state)) => Some(SourceDelivery::Reading(Ok(state))),
+                    Ok(AudioEvent::State(state)) => Some(SnapshotDelivery::live_push(Ok(state))),
                     Ok(AudioEvent::Connected(_) | AudioEvent::Peaks(_)) => None,
-                    Err(e) => Some(SourceDelivery::Reading(Err(e))),
+                    Err(e) => Some(SnapshotDelivery::live_push(Err(e))),
                 })
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

@@ -37,7 +37,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         ongoing_toast::OngoingToastActionButton,
-        tooltip_body::{Freshness, Tooltip},
+        tooltip_body::{DeliveryTiming, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -243,7 +243,7 @@ impl SessionFocusGroup {
                 .accounted(&config.widget_groups.focus_time),
             window,
         };
-        Tooltip::sourced(usage.body(clock.utc()), Freshness::Live)
+        Tooltip::sourced(usage.body(clock.utc()), DeliveryTiming::LivePush)
     }
 
     pub fn group_content<'a>(
@@ -285,6 +285,6 @@ impl SessionFocusGroup {
             SessionFocusTarget::DailyTotals => self.daily_totals.tooltip(clock),
             SessionFocusTarget::ContextSwitches => self.context_switch_rate(config).tooltip(clock),
         };
-        Tooltip::sourced(body, Freshness::Live)
+        Tooltip::sourced(body, DeliveryTiming::LivePush)
     }
 }

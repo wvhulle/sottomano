@@ -2,9 +2,7 @@ use chrono::{DateTime, Utc};
 use futures::{Stream, stream};
 use serde::Deserialize;
 
-use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery, system_protocol_clients::http_json_client,
-};
+use crate::{SnapshotDelivery, SnapshotSource, system_protocol_clients::http_json_client};
 
 const FETCH_TIMEOUT_SECS: u64 = 5;
 const HUGGING_FACE_MODELS_API: &str = "https://huggingface.co/api/models";
@@ -34,16 +32,15 @@ pub fn model_card_url(repository: &str) -> String {
     format!("{HUGGING_FACE_MODELS_API}/{repository}")
 }
 
-impl ReadingSource for HuggingFaceModelCard {
+impl SnapshotSource for HuggingFaceModelCard {
     type Error = http_json_client::Error;
     type StreamInputs = String;
 
     const NAME: &'static str = "Hugging Face model card";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(repository: String) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(repository: String) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {
-            SourceDelivery::Reading(
+            SnapshotDelivery::single_read(
                 http_json_client::get_json(&model_card_url(&repository), &[], FETCH_TIMEOUT_SECS)
                     .await,
             )

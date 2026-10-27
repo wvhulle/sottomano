@@ -5,9 +5,9 @@ use futures::{Stream, StreamExt, stream};
 use serde_json::Value as Json;
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
     network_connectivity::network_manager_proxies,
-    polled_delivery_stream, pushed_delivery_stream,
     stream_operators::{StreamOperators, read_once_then_per_burst},
     system_protocol_clients::{
         dbus_desktop_buses::DesktopBuses, shell_command_output, shell_command_output::blocking::run,
@@ -52,15 +52,14 @@ pub struct TunnelOnBus {
     pub tunnel: String,
 }
 
-impl ReadingSource for TunnelAddress {
+impl SnapshotSource for TunnelAddress {
     type Error = shell_command_output::Error;
     type StreamInputs = TunnelOnBus;
 
     const NAME: &'static str = "wireguard tunnel address";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PushedLive;
 
-    fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
-        pushed_delivery_stream(address_changes(watched))
+    fn delivery_stream(watched: TunnelOnBus) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        SnapshotDelivery::live_push_deliveries(address_changes(watched))
     }
 }
 
@@ -109,17 +108,19 @@ pub struct Wireguard {
     pub tunnels: Vec<Tunnel>,
 }
 
-impl ReadingSource for Wireguard {
+impl SnapshotSource for Wireguard {
     type Error = shell_command_output::Error;
     type StreamInputs = ();
 
     const NAME: &'static str = "wireguard";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(Duration::from_secs(10));
 
-    fn delivery_stream(inputs: ()) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream((): ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(shell_command_output::exists("wg")).while_held(
-            move || polled_delivery_stream(inputs, Self::poll),
-            SourceDelivery::Absent,
+            move || {
+                PeriodicPolling::every(Duration::from_secs(10))
+                    .poll_deliveries(move || Self::poll(()))
+            },
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }

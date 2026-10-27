@@ -9,8 +9,9 @@ use serde::Deserialize;
 use uom::si::{f64::Frequency, frequency::hertz};
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
-    stream_operators::{StreamOperators, ticked},
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::{PeriodicPolling, PollTick},
+    stream_operators::StreamOperators,
     system_protocol_clients::{dbus_desktop_buses::DesktopBuses, http_json_client},
     systemd_units_journal::{
         ScopedSystemdUnit, SystemdUnitOnBus, SystemdUnitScope, service_commands::ServiceCommand,
@@ -274,14 +275,20 @@ async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::E
     })
 }
 
-impl ReadingSource for LlamaServer {
+struct PolledServerFetch {
+    poll_tick: PollTick,
+    fetched_server: Result<LlamaServer, http_json_client::Error>,
+}
+
+impl SnapshotSource for LlamaServer {
     type Error = http_json_client::Error;
     type StreamInputs = LlamaServerOnBus;
 
     const NAME: &'static str = PROGRAM_NAME;
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(POLL_INTERVAL);
 
-    fn delivery_stream(watch: LlamaServerOnBus) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        watch: LlamaServerOnBus,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let LlamaServerOnBus { buses, server } = watch;
         let running = unit_running(SystemdUnitOnBus {
             buses,
@@ -290,19 +297,31 @@ impl ReadingSource for LlamaServer {
         running.while_held(
             move || {
                 let endpoint = server.endpoint.clone();
-                ticked(POLL_INTERVAL, move || {
-                    let endpoint = endpoint.clone();
-                    async move { fetch_server(&endpoint).await }
-                })
-                .scan(None, |previous: &mut Option<Self>, fetched| {
-                    let rated = fetched.map(|server| server.rated_since(previous.as_ref()));
-                    if let Ok(server) = &rated {
-                        *previous = Some(server.clone());
-                    }
-                    ready(Some(SourceDelivery::Reading(rated)))
-                })
+                PeriodicPolling::every(POLL_INTERVAL)
+                    .poll_ticks()
+                    .then(move |poll_tick| {
+                        let endpoint = endpoint.clone();
+                        async move {
+                            PolledServerFetch {
+                                poll_tick,
+                                fetched_server: fetch_server(&endpoint).await,
+                            }
+                        }
+                    })
+                    .scan(
+                        None,
+                        |previous: &mut Option<Self>, polled: PolledServerFetch| {
+                            let rated = polled
+                                .fetched_server
+                                .map(|server| server.rated_since(previous.as_ref()));
+                            if let Ok(server) = &rated {
+                                *previous = Some(server.clone());
+                            }
+                            ready(Some(polled.poll_tick.stamped(rated)))
+                        },
+                    )
             },
-            SourceDelivery::Absent,
+            SnapshotDelivery::SourceUnavailable,
         )
     }
 }
@@ -325,16 +344,17 @@ pub struct LlamaModelProps {
     pub modalities: Modalities,
 }
 
-impl ReadingSource for LlamaModelProps {
+impl SnapshotSource for LlamaModelProps {
     type Error = http_json_client::Error;
     type StreamInputs = ModelInstance;
 
     const NAME: &'static str = "llama-server model";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::ReadOnce;
 
-    fn delivery_stream(instance: ModelInstance) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(
+        instance: ModelInstance,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {
-            SourceDelivery::Reading(
+            SnapshotDelivery::single_read(
                 http_json_client::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await,
             )
         })

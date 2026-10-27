@@ -14,7 +14,7 @@ use cpu_clock_limit_causes::ClockLimitCauses;
 use iced::{Subscription, Task};
 use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
 use sottomano_sources::{
-    SourceDelivery,
+    SnapshotDelivery,
     cpu_memory_compute::{
         amd_l3_pmu_cache_traffic::L3CacheTraffic,
         amd_x3d_cache_preference::X3dCachePreference,
@@ -29,14 +29,14 @@ use sottomano_sources::{
 use x3d_cache_preference_toggle::ChipletRoles;
 
 use crate::{
-    background_work::{first_delivery, source_subscription},
+    background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
         bar_widget::BarWidget,
-        continuous_reading::ContinuousReading,
         group_item::GroupItem,
-        on_hover_reading::OnHoverReading,
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{Section, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -68,31 +68,31 @@ impl From<ComputeTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct ComputeGroup {
-    cpu_load: ContinuousReading<CpuUsage>,
-    cpu_clock: ContinuousReading<CpuClock>,
-    cpu_temperature: ContinuousReading<Temperature>,
-    cpu_power_draw: ContinuousReading<CpuPower>,
-    host_hardware: ContinuousReading<HostHardware>,
+    cpu_load: LatestSnapshot<CpuUsage>,
+    cpu_clock: LatestSnapshot<CpuClock>,
+    cpu_temperature: LatestSnapshot<Temperature>,
+    cpu_power_draw: LatestSnapshot<CpuPower>,
+    host_hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
     x3d_cache_preference: ToggleControl<X3dCachePreference>,
-    core_loads: OnHoverReading<CpuCoreLoads>,
-    cpu_busy_processes: OnHoverReading<CpuBusyProcesses>,
-    core_temperatures: OnHoverReading<CpuCoreTemperatures>,
-    cache_traffic: OnHoverReading<L3CacheTraffic>,
+    core_loads: HoverFetchedSnapshot<CpuCoreLoads>,
+    cpu_busy_processes: HoverFetchedSnapshot<CpuBusyProcesses>,
+    core_temperatures: HoverFetchedSnapshot<CpuCoreTemperatures>,
+    cache_traffic: HoverFetchedSnapshot<L3CacheTraffic>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ComputeMessage {
-    HostHardware(Box<SourceDelivery<HostHardware>>),
-    CpuLoad(SourceDelivery<CpuUsage>),
-    CpuClock(SourceDelivery<CpuClock>),
-    CpuTemperature(SourceDelivery<Temperature>),
-    CpuPowerDraw(SourceDelivery<CpuPower>),
+    HostHardware(Box<SnapshotDelivery<HostHardware>>),
+    CpuLoad(SnapshotDelivery<CpuUsage>),
+    CpuClock(SnapshotDelivery<CpuClock>),
+    CpuTemperature(SnapshotDelivery<Temperature>),
+    CpuPowerDraw(SnapshotDelivery<CpuPower>),
     X3dCachePreference(ToggleMessage<X3dCachePreference>),
-    CoreLoadsFetched(SourceDelivery<CpuCoreLoads>),
-    CpuBusyProcessesFetched(SourceDelivery<CpuBusyProcesses>),
-    CoreTemperaturesFetched(SourceDelivery<CpuCoreTemperatures>),
-    CacheTrafficFetched(SourceDelivery<L3CacheTraffic>),
+    CoreLoadsFetched(SnapshotDelivery<CpuCoreLoads>),
+    CpuBusyProcessesFetched(SnapshotDelivery<CpuBusyProcesses>),
+    CoreTemperaturesFetched(SnapshotDelivery<CpuCoreTemperatures>),
+    CacheTrafficFetched(SnapshotDelivery<L3CacheTraffic>),
     Expansion(ExpansionMessage),
 }
 
@@ -105,7 +105,6 @@ impl ComputeGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        clock: Clock,
     ) -> Task<ComputeMessage> {
         self.core_loads.stop();
         self.cpu_busy_processes.stop();
@@ -113,34 +112,27 @@ impl ComputeGroup {
         self.cache_traffic.stop();
         match hovered {
             Some(HoverTarget::Compute(ComputeTarget::CpuLoad)) => Task::batch([
-                self.core_loads.start_hover_fetch(
-                    (),
-                    ComputeMessage::CoreLoadsFetched,
-                    config,
-                    clock,
-                ),
+                self.core_loads
+                    .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
                 self.cpu_busy_processes.start_hover_fetch(
                     (),
                     ComputeMessage::CpuBusyProcessesFetched,
                     config,
-                    clock,
                 ),
                 self.cache_traffic.start_hover_fetch(
                     (),
                     ComputeMessage::CacheTrafficFetched,
                     config,
-                    clock,
                 ),
             ]),
             Some(HoverTarget::Compute(ComputeTarget::CpuClock)) => self
                 .core_loads
-                .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config, clock),
+                .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config),
             Some(HoverTarget::Compute(ComputeTarget::CpuTemperature)) => {
                 self.core_temperatures.start_hover_fetch(
                     config.widget_groups.temperature_sensors.cpu.overrides(),
                     ComputeMessage::CoreTemperaturesFetched,
                     config,
-                    clock,
                 )
             }
             _ => Task::none(),
@@ -157,10 +149,11 @@ impl ComputeGroup {
 
     pub fn subscription(sensor: &SensorConfig) -> Subscription<ComputeMessage> {
         Subscription::batch([
-            source_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
-            source_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
-            source_subscription::<Temperature>(sensor.clone()).map(ComputeMessage::CpuTemperature),
-            source_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
+            snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
+            snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
+            snapshot_subscription::<Temperature>(sensor.clone())
+                .map(ComputeMessage::CpuTemperature),
+            snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
             ToggleControl::<X3dCachePreference>::subscription(())
                 .map(ComputeMessage::X3dCachePreference),
         ])
@@ -169,8 +162,7 @@ impl ComputeGroup {
     pub fn update(&mut self, msg: ComputeMessage, clock: Clock) -> Task<ComputeMessage> {
         match msg {
             ComputeMessage::HostHardware(delivery) => {
-                self.host_hardware
-                    .receive_keeping_last_reading(*delivery, clock);
+                self.host_hardware.receive(*delivery, clock);
             }
             ComputeMessage::X3dCachePreference(m) => {
                 return self
@@ -179,24 +171,24 @@ impl ComputeGroup {
                     .map(ComputeMessage::X3dCachePreference);
             }
             ComputeMessage::CoreLoadsFetched(fetched) => {
-                self.core_loads.receive_delivery(fetched, clock);
+                self.core_loads.receive(fetched, clock);
             }
             ComputeMessage::CpuBusyProcessesFetched(fetched) => {
-                self.cpu_busy_processes.receive_delivery(fetched, clock);
+                self.cpu_busy_processes.receive(fetched, clock);
             }
             ComputeMessage::CoreTemperaturesFetched(fetched) => {
-                self.core_temperatures.receive_delivery(fetched, clock);
+                self.core_temperatures.receive(fetched, clock);
             }
             ComputeMessage::CacheTrafficFetched(fetched) => {
-                self.cache_traffic.receive_delivery(fetched, clock);
+                self.cache_traffic.receive(fetched, clock);
             }
-            ComputeMessage::CpuLoad(reading) => self.cpu_load.receive_delivery(reading, clock),
-            ComputeMessage::CpuClock(reading) => self.cpu_clock.receive_delivery(reading, clock),
+            ComputeMessage::CpuLoad(reading) => self.cpu_load.receive(reading, clock),
+            ComputeMessage::CpuClock(reading) => self.cpu_clock.receive(reading, clock),
             ComputeMessage::CpuTemperature(reading) => {
-                self.cpu_temperature.receive_delivery(reading, clock);
+                self.cpu_temperature.receive(reading, clock);
             }
             ComputeMessage::CpuPowerDraw(reading) => {
-                self.cpu_power_draw.receive_delivery(reading, clock);
+                self.cpu_power_draw.receive(reading, clock);
             }
             ComputeMessage::Expansion(m) => {
                 self.expansion.update(m);

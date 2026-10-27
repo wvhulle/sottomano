@@ -19,16 +19,17 @@ use uom::si::{
 };
 
 use crate::{
-    DeliveryCadence, ReadingSource, SourceDelivery,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::{PeriodicPolling, PollTick},
     network_connectivity::{
         network_manager_proxies::{self, Connectivity},
         nm_readings,
     },
-    stream_operators::{StreamOperators, ticked},
+    stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-const SAMPLE_INTERVAL: Duration = Duration::from_secs(2);
+const SAMPLE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(2));
 const BACKGROUND_CHATTER_KB_PER_S: f64 = 10.0;
 const SCALE_START_KB_PER_S: f64 = 100.0;
 pub const SCALE_END_MB_PER_S: f64 = 125.0;
@@ -91,14 +92,13 @@ pub struct InterfaceThroughput {
     pub up: Throughput,
 }
 
-impl ReadingSource for InterfaceThroughput {
+impl SnapshotSource for InterfaceThroughput {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
     const NAME: &'static str = "throughput";
-    const DELIVERY_CADENCE: DeliveryCadence = DeliveryCadence::PolledEvery(SAMPLE_INTERVAL);
 
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SourceDelivery<Self>> + Send {
+    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         let uplink_changes = nm_readings(
             buses.system,
             network_manager_proxies::UPLINK_PROPERTIES,
@@ -108,20 +108,23 @@ impl ReadingSource for InterfaceThroughput {
             Ok(uplink) => ThroughputEvent::UplinkChanged(uplink),
             Err(failure) => ThroughputEvent::UplinkUnreadable(failure),
         });
-        let ticks = ticked(SAMPLE_INTERVAL, || ready(ThroughputEvent::Tick));
+        let ticks = SAMPLE_POLLING.poll_ticks().map(ThroughputEvent::Tick);
         select(uplink_changes, ticks)
             .scan(ThroughputSampler::default(), |sampler, event| {
                 let delivered = match event {
                     ThroughputEvent::UplinkUnreadable(failure) => {
-                        Some(SourceDelivery::Reading(Err(failure)))
+                        Some(SnapshotDelivery::live_push(Err(failure)))
                     }
-                    sampling => {
-                        let sampled = matches!(sampling, ThroughputEvent::Tick);
-                        *sampler = mem::take(sampler).observed(sampling);
-                        sampled
-                            .then(|| sampler.readings())
-                            .flatten()
-                            .map(|readings| SourceDelivery::Reading(Ok(readings)))
+                    ThroughputEvent::Tick(poll_tick) => {
+                        *sampler = mem::take(sampler).observed(ThroughputEvent::Tick(poll_tick));
+                        sampler
+                            .readings()
+                            .map(|readings| poll_tick.stamped(Ok(readings)))
+                    }
+                    ThroughputEvent::UplinkChanged(uplink) => {
+                        *sampler =
+                            mem::take(sampler).observed(ThroughputEvent::UplinkChanged(uplink));
+                        None
                     }
                 };
                 ready(Some(delivered))
@@ -134,7 +137,7 @@ impl ReadingSource for InterfaceThroughput {
 enum ThroughputEvent {
     UplinkChanged(Option<network_manager_proxies::Uplink>),
     UplinkUnreadable(zbus::Error),
-    Tick,
+    Tick(PollTick),
 }
 
 #[derive(Default)]
@@ -157,7 +160,7 @@ impl ThroughputSampler {
                 connectivity: uplink.and_then(|uplink| uplink.connectivity),
                 ..self
             },
-            ThroughputEvent::Tick => {
+            ThroughputEvent::Tick(_) => {
                 let current = capture(&self.interfaces);
                 let rates = self
                     .latest

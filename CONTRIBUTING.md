@@ -13,7 +13,7 @@ recordings are in [docs/development.md](docs/development.md).
   its subject and the mechanism behind it (`journal_oom_kills`,
   `gammarelay_color_temperature`, `upower_battery_state`).
   `system_protocol_clients/` holds the D-Bus, HTTP, shell, inotify, sysfs and
-  journal access that names no daemon and implements no `ReadingSource`.
+  journal access that names no daemon and implements no `SnapshotSource`.
   Consumers spell out the new module path rather than aliasing it back to a
   short name.
 - A source that only works with one vendor's driver carries that vendor in its
