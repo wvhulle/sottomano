@@ -64,6 +64,24 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        name: "compute_clock",
+        group: compute::group,
+        live: compute::live,
+        script: &[
+            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuClock)),
+        ],
+    },
+    Demo {
+        name: "compute_cache_preference",
+        group: compute::group,
+        live: compute::live,
+        script: &[
+            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::X3dCachePreference)),
+        ],
+    },
+    Demo {
         name: "memory_board_memory",
         group: memory_board::group,
         live: memory_board::live,
@@ -101,6 +119,19 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        name: "vpn_wireguard",
+        group: vpn::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
+                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
+            ))),
+            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
+                vpn::LAB_TUNNEL_NAME,
+            )))),
+        ],
+    },
+    Demo {
         name: "weather_conditions",
         group: weather::group,
         live: unchanging,
@@ -115,6 +146,33 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Location)),
+        ],
+    },
+    Demo {
+        name: "weather_wind",
+        group: weather::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::Wind)),
+        ],
+    },
+    Demo {
+        name: "weather_precipitation",
+        group: weather::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::PrecipitationType)),
+        ],
+    },
+    Demo {
+        name: "weather_pollen",
+        group: weather::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::Pollen)),
         ],
     },
     Demo {
@@ -134,6 +192,24 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+        ],
+    },
+    Demo {
+        name: "ai_usage_block",
+        group: claude_usage::group,
+        live: claude_usage::live,
+        script: &[
+            Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusageBlock)),
+        ],
+    },
+    Demo {
+        name: "ai_usage_periods",
+        group: claude_usage::group,
+        live: claude_usage::live,
+        script: &[
+            Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusagePeriods)),
         ],
     },
     Demo {
@@ -222,6 +298,15 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
+        name: "voice_dictation_pipeline",
+        group: voice_dictation::group,
+        live: unchanging,
+        script: &[
+            Step::Press(HoverTarget::VoiceDictation(VoiceDictationTarget::Dictation)),
+            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Pipeline)),
+        ],
+    },
+    Demo {
         name: "login_session_kernel",
         group: login_session::group,
         live: unchanging,
@@ -270,8 +355,9 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         script: &[
             Step::Hover(HoverTarget::Workspace(1)),
-            Step::Hover(HoverTarget::Workspace(2)),
-            Step::Hover(HoverTarget::Workspace(3)),
+            Step::Hover(HoverTarget::Workspace(4)),
+            Step::Hover(HoverTarget::Workspace(6)),
+            Step::Hover(HoverTarget::Workspace(9)),
         ],
     },
     Demo {

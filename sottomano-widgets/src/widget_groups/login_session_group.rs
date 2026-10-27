@@ -101,7 +101,7 @@ impl LoginSessionGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
-        buses: &DesktopBuses,
+        buses: Option<&DesktopBuses>,
         clock: Clock,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
@@ -109,43 +109,49 @@ impl LoginSessionGroup {
         self.graphical.stop();
         self.graphical_target.stop();
         self.power.stop();
-        match hovered {
-            Some(HoverTarget::LoginSession(LoginSessionTarget::Login)) => {
-                self.session.start_hover_fetch(
-                    buses.clone(),
-                    |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
-                    config,
-                    clock,
-                )
-            }
-            Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => {
-                self.service_manager.start_hover_fetch(
-                    buses.clone(),
-                    LoginSessionMessage::ServiceManagerFetched,
-                    config,
-                    clock,
-                )
-            }
-            Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
-                .graphical
-                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config, clock),
-            Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => {
-                self.graphical_target.start_hover_fetch(
-                    buses.clone(),
-                    LoginSessionMessage::GraphicalTargetFetched,
-                    config,
-                    clock,
-                )
-            }
-            Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
-                self.power.start_hover_fetch(
-                    buses.clone(),
-                    |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
-                    config,
-                    clock,
-                )
-            }
-            _ => Task::none(),
+        let Some(HoverTarget::LoginSession(target)) = hovered else {
+            return Task::none();
+        };
+        if let LoginSessionTarget::Compositor = target {
+            return self.graphical.start_hover_fetch(
+                (),
+                LoginSessionMessage::GraphicalFetched,
+                config,
+                clock,
+            );
+        }
+        let Some(buses) = buses else {
+            return Task::none();
+        };
+        match target {
+            LoginSessionTarget::Login => self.session.start_hover_fetch(
+                buses.clone(),
+                |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
+                config,
+                clock,
+            ),
+            LoginSessionTarget::ServiceManager => self.service_manager.start_hover_fetch(
+                buses.clone(),
+                LoginSessionMessage::ServiceManagerFetched,
+                config,
+                clock,
+            ),
+            LoginSessionTarget::DesktopServices => self.graphical_target.start_hover_fetch(
+                buses.clone(),
+                LoginSessionMessage::GraphicalTargetFetched,
+                config,
+                clock,
+            ),
+            LoginSessionTarget::PowerPolicy => self.power.start_hover_fetch(
+                buses.clone(),
+                |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
+                config,
+                clock,
+            ),
+            LoginSessionTarget::Kernel
+            | LoginSessionTarget::Seat
+            | LoginSessionTarget::Account
+            | LoginSessionTarget::Compositor => Task::none(),
         }
     }
 

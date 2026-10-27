@@ -74,7 +74,7 @@ fn nextcloud_agenda(clock: Clock) -> CaldavAgenda {
         events: vec![
             timed_event("Standup", -15, 15, ""),
             timed_event("Design review", 120, 180, "Room 2.14"),
-            timed_event("Climbing", 480, 600, "Boulderhal Gent"),
+            timed_event("Book club", 480, 600, "City library"),
         ],
         tasks: vec![
             open_task(

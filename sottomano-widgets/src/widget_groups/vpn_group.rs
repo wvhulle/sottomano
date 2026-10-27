@@ -36,7 +36,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VpnTarget {
     NetworkManagerVpn(Cow<'static, str>),
-    Wireguard(String),
+    Wireguard(Cow<'static, str>),
     Tailscale,
 }
 
@@ -146,7 +146,7 @@ impl VpnGroup {
         self.tunnel_address.start_hover_fetch(
             TunnelOnBus {
                 buses: buses.clone(),
-                tunnel: tunnel.clone(),
+                tunnel: tunnel.to_string(),
             },
             VpnMessage::TunnelAddressFetched,
             config,
@@ -174,7 +174,7 @@ impl VpnGroup {
                     .get()?
                     .tunnels
                     .iter()
-                    .find(|tunnel| &tunnel.name == name)?;
+                    .find(|tunnel| tunnel.name == name.as_ref())?;
                 Some(
                     self.wireguard
                         .tooltip_with(tunnel.tooltip(clock))?
@@ -234,11 +234,14 @@ impl VpnGroup {
                     )
                 })
                 .chain(tunnels.iter().map(|tunnel| {
-                    GroupItem::reading(tunnel, VpnTarget::Wireguard(tunnel.name.clone()))
-                        .on_right_press(
-                            "disconnect the tunnel",
-                            VpnMessage::DisconnectWireguard(tunnel.name.clone()),
-                        )
+                    GroupItem::reading(
+                        tunnel,
+                        VpnTarget::Wireguard(Cow::Owned(tunnel.name.clone())),
+                    )
+                    .on_right_press(
+                        "disconnect the tunnel",
+                        VpnMessage::DisconnectWireguard(tunnel.name.clone()),
+                    )
                 }))
                 .chain(self.tailscale.display().map(|tailscale| {
                     let mut item = GroupItem::reading(tailscale, VpnTarget::Tailscale)

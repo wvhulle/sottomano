@@ -14,13 +14,45 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     fixtures::sample,
     showcase_message::ShowcaseMessage,
-    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts},
+    showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup, ShowcasedToasts, TerminalLine},
 };
 
 const DESK_WORKSPACE: u64 = 1;
 const EDITOR_WINDOW: u64 = 1;
 const EDITOR_PID: i32 = 5100;
 const EDITOR_POSITION_IN_VIEW: (f64, f64) = (24.0, 120.0);
+const EDITOR_WINDOW_SIZE: (i32, i32) = (660, 300);
+const PROJECT_DIRECTORY: &str = "~/projects/weather-station";
+const BUILD_SCROLLBACK: &[TerminalLine] = &[
+    TerminalLine::Prompt {
+        directory: PROJECT_DIRECTORY,
+        command: " $ cargo build --release",
+    },
+    TerminalLine::Status {
+        verb: "   Compiling",
+        detail: " serde v1.0.228",
+    },
+    TerminalLine::Status {
+        verb: "   Compiling",
+        detail: " tokio v1.48.0",
+    },
+    TerminalLine::Status {
+        verb: "   Compiling",
+        detail: " rumqttc v0.25.0",
+    },
+    TerminalLine::Status {
+        verb: "   Compiling",
+        detail: " weather-station v0.4.1",
+    },
+    TerminalLine::Status {
+        verb: "    Finished",
+        detail: " `release` profile [optimized] in 42.06s",
+    },
+    TerminalLine::Prompt {
+        directory: PROJECT_DIRECTORY,
+        command: " $",
+    },
+];
 const ARRIVAL_TOAST: u32 = 1;
 const PROGRESS_TOAST: u32 = 2;
 const ACTIONS_TOAST: u32 = 3;
@@ -131,6 +163,7 @@ fn desk(opening: NotificationData, _clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::Toasts(Box::new(ShowcasedToasts {
         niri,
         opening: vec![opening],
+        terminal_scrollback: BUILD_SCROLLBACK,
     }))
 }
 
@@ -153,7 +186,7 @@ fn windows(editor_view: Option<(f64, f64)>) -> Event {
     Event::WindowsChanged {
         windows: vec![Window {
             id: EDITOR_WINDOW,
-            title: Some("~/Code/sottomano".to_owned()),
+            title: Some(PROJECT_DIRECTORY.to_owned()),
             app_id: Some("foot".to_owned()),
             pid: Some(EDITOR_PID),
             workspace_id: Some(DESK_WORKSPACE),
@@ -162,8 +195,11 @@ fn windows(editor_view: Option<(f64, f64)>) -> Event {
             is_urgent: false,
             layout: WindowLayout {
                 pos_in_scrolling_layout: Some((1, 1)),
-                tile_size: (360.0, 420.0),
-                window_size: (360, 420),
+                tile_size: (
+                    f64::from(EDITOR_WINDOW_SIZE.0),
+                    f64::from(EDITOR_WINDOW_SIZE.1),
+                ),
+                window_size: EDITOR_WINDOW_SIZE,
                 tile_pos_in_workspace_view: editor_view,
                 window_offset_in_tile: (0.0, 0.0),
             },

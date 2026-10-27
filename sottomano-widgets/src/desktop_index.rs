@@ -26,6 +26,14 @@ pub struct DesktopIndex {
 
 impl DesktopIndex {
     #[must_use]
+    pub fn with_app_icons(app_icons: impl IntoIterator<Item = (String, PathBuf)>) -> Self {
+        Self {
+            app_icons: app_icons.into_iter().collect(),
+            ..Self::default()
+        }
+    }
+
+    #[must_use]
     pub fn get(&self) -> Option<&DesktopEntries> {
         self.entries.as_deref()
     }

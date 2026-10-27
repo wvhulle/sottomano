@@ -24,6 +24,18 @@ The hottest sensor, and the chip it is read from.
 
 <img src="../recordings/compute_temperature.webp" width="477" alt="Hovering temperature in the expanded compute group">
 
+### Compute: Clock
+
+Each thread's clock per chiplet, with the cores the scheduler prefers starred.
+
+<img src="../recordings/compute_clock.webp" width="400" alt="Hovering the CPU clock in the expanded compute group">
+
+### Compute: Cache preference
+
+On dual-chiplet X3D parts, which chiplet the scheduler fills first; a click flips it.
+
+<img src="../recordings/compute_cache_preference.webp" width="400" alt="Hovering the X3D cache preference in the expanded compute group">
+
 ### Memory and board: Memory
 
 Memory use, the processes holding the most and the installed modules.
@@ -41,6 +53,36 @@ The board with its maker's logo, model and firmware.
 How rough the location fix is and which source produced it.
 
 <img src="../recordings/weather_location.webp" width="412" alt="Hovering the location in the weather group">
+
+### Weather: Wind
+
+Wind speed, gusts and direction, with the Beaufort force in the panel.
+
+<img src="../recordings/weather_wind.webp" width="400" alt="Hovering the wind in the weather group">
+
+### Weather: Precipitation
+
+What falls in the coming quarter-hours, from the forecast model.
+
+<img src="../recordings/weather_precipitation.webp" width="400" alt="Hovering the precipitation type in the weather group">
+
+### Weather: Pollen
+
+Today's pollen per allergen, so hay fever has a forecast too.
+
+<img src="../recordings/weather_pollen.webp" width="400" alt="Hovering the pollen in the weather group">
+
+### VPN: WireGuard
+
+A WireGuard tunnel with its peers, their last handshake and traffic.
+
+<img src="../recordings/vpn_wireguard.webp" width="400" alt="Expanding the VPN group and hovering a WireGuard tunnel">
+
+### Dictation: Pipeline
+
+What the dictation daemon is doing right now and how fast the last pass decoded.
+
+<img src="../recordings/voice_dictation_pipeline.webp" width="400" alt="Expanding the dictation group and hovering the pipeline">
 
 ### Agenda: Events and tasks
 
@@ -123,6 +165,18 @@ The lock timer, next to the screen-off timer so the two read together.
 How much of each subscription window is used, and where it is heading by reset.
 
 <img src="../recordings/ai_usage_windows.webp" width="293" alt="Expanding the AI usage group and hovering the Claude usage windows">
+
+### AI usage: Billing block
+
+The current five-hour block: spend so far, burn rate and where it will end.
+
+<img src="../recordings/ai_usage_block.webp" width="400" alt="Expanding the AI usage group and hovering the billing block">
+
+### AI usage: Periods
+
+Spend today, this week and this month against the monthly budget.
+
+<img src="../recordings/ai_usage_periods.webp" width="400" alt="Expanding the AI usage group and hovering the spend periods">
 
 ### Login session: Kernel and compositor
 

@@ -69,6 +69,16 @@ pub struct Chiplet {
 
 impl CoreGroup {
     #[must_use]
+    pub fn new(role: CoreRole, physical_cores: Vec<PhysicalCore>, chiplets: Vec<Chiplet>) -> Self {
+        CoreGroup {
+            role,
+            physical_cores,
+            chiplets,
+        }
+        .ordered()
+    }
+
+    #[must_use]
     pub fn title(&self) -> String {
         self.role.title()
     }
@@ -101,6 +111,11 @@ impl CoreGroup {
 }
 
 impl CpuTopology {
+    #[must_use]
+    pub fn from_core_groups(core_groups: Vec<CoreGroup>) -> Self {
+        CpuTopology { core_groups }
+    }
+
     #[must_use]
     pub fn core_groups(&self) -> &[CoreGroup] {
         &self.core_groups
