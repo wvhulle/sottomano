@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     convert::Infallible,
     fmt::Display,
     hash::{Hash, Hasher},
@@ -16,11 +15,7 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::{
     SnapshotDelivery, SnapshotSource, SourceCaption,
     delivery_cadence_drivers::DeliveryCadence,
-    desktop_windows_apps::{
-        process_tree_inspection::Process, status_notifier_tray::MenuNode,
-        window_title_labels::WindowLabel,
-    },
-    login_session_presence::session_power_actions::SessionAction,
+    desktop_windows_apps::{process_tree_inspection::Process, window_title_labels::WindowLabel},
 };
 use uom::si::f64::Ratio;
 
@@ -28,12 +23,11 @@ use crate::{
     clock::Clock,
     hover_tooltips::PressHints,
     widget_groups::{
-        idle_timeouts_group::ScheduledAfterIdle, niri_window_group::niri_kdl_rules::NiriLayout,
-        window_group::process_tree::Folding,
+        niri_window_group::niri_kdl_rules::NiriLayout, window_group::process_tree::Folding,
     },
     widgets::{
-        bar_widget::Glyph, icon_handle::PixmapHandles, localized_durations::LengthOfTime,
-        localized_quantities::Quantity, localized_time::LocalizedTimeFormat,
+        bar_widget::Glyph, localized_durations::LengthOfTime, localized_quantities::Quantity,
+        localized_time::LocalizedTimeFormat,
     },
 };
 
@@ -326,8 +320,6 @@ pub enum SectionBody {
     },
     SectionSeeding,
     Workspace(WorkspacePreview),
-    TrayMenu(TrayMenuBody),
-    SessionMenu(SessionMenuBody),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -390,11 +382,9 @@ impl SectionBody {
             SectionBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
             }
-            SectionBody::SessionMenu(menu) => menu.entries.is_empty(),
-            SectionBody::Tree { .. }
-            | SectionBody::Note { .. }
-            | SectionBody::SectionSeeding
-            | SectionBody::TrayMenu(_) => false,
+            SectionBody::Tree { .. } | SectionBody::Note { .. } | SectionBody::SectionSeeding => {
+                false
+            }
         }
     }
 }
@@ -486,16 +476,6 @@ impl Section {
     #[must_use]
     pub fn workspace(preview: WorkspacePreview) -> Self {
         Self::untitled(SectionBody::Workspace(preview))
-    }
-
-    #[must_use]
-    pub fn tray_menu(menu: TrayMenuBody) -> Self {
-        Self::untitled(SectionBody::TrayMenu(menu))
-    }
-
-    #[must_use]
-    pub fn session_menu(menu: SessionMenuBody) -> Self {
-        Self::untitled(SectionBody::SessionMenu(menu))
     }
 
     pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
@@ -631,29 +611,6 @@ pub struct WorkspacePreview {
 #[derive(Debug, Clone, PartialEq)]
 pub struct TooltipBody {
     sections: Vec<Section>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct TrayMenuBody {
-    pub address: String,
-    pub menu_path: String,
-    pub title: String,
-    pub body: Option<String>,
-    pub nodes: Vec<MenuNode>,
-    pub pixmap_handles: PixmapHandles,
-    pub open_submenus: HashSet<i32>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SessionMenuEntry {
-    pub action: SessionAction,
-    pub needs_authorisation: bool,
-    pub idle: ScheduledAfterIdle,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SessionMenuBody {
-    pub entries: Vec<SessionMenuEntry>,
 }
 
 impl TooltipBody {

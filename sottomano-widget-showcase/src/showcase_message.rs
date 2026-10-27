@@ -67,9 +67,7 @@ impl From<PopupMessage> for ShowcaseMessage {
             PopupMessage::CopyText(_)
             | PopupMessage::OpenUrl(_)
             | PopupMessage::FocusWindow(_)
-            | PopupMessage::RefreshHoveredReading
-            | PopupMessage::Tray(_)
-            | PopupMessage::Session(_) => ShowcaseMessage::OutsideShowcase,
+            | PopupMessage::RefreshHoveredReading => ShowcaseMessage::OutsideShowcase,
         }
     }
 }

@@ -130,10 +130,7 @@ impl DesktopShell {
                 TooltipBody::sections([]),
                 DeliveryTiming::LivePush,
             )),
-            HoverTarget::Session(target) => Some(
-                self.session_menu
-                    .tooltip_for(*target, self.idle_timeouts_group.timeouts()),
-            ),
+            HoverTarget::Session(target) => Some(self.session_menu.tooltip_for(*target)),
             HoverTarget::Tray(address) => self.tray_group.tooltip_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
                 WindowGroup::pick_tooltip(&self.niri, *window, self.clock)

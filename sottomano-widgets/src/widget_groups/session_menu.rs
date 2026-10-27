@@ -1,6 +1,6 @@
-use std::{thread, time::Duration};
+use std::{iter::once, thread, time::Duration};
 
-use iced::Task;
+use iced::{Element, Task, widget::container};
 use sottomano_config::Config;
 use sottomano_sources::{
     blocking_background_work::blocking,
@@ -12,20 +12,55 @@ use sottomano_sources::{
 
 use crate::{
     hover_tooltips::{HoverTarget, PressHints, hoverable},
-    widget_groups::idle_timeouts_group::Timeouts,
+    widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
         bar_widget::Glyph,
+        context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         group_item::GroupItem,
+        localized_durations::duration_text,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{
-            DeliveryTiming, Section, SessionMenuBody, SessionMenuEntry, Tooltip, TooltipBody,
-        },
+        tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
         widget_group::{GroupContent, GroupEvent},
     },
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
+const SESSION_MENU_WIDTH_PX: f32 = 250.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SessionMenuEntry {
+    action: SessionAction,
+    needs_authorisation: bool,
+    idle: ScheduledAfterIdle,
+}
+
+impl SessionMenuEntry {
+    fn menu_row<'a>(self, config: &Config) -> MenuLine<'a, SessionMessage> {
+        let note = match self.idle {
+            ScheduledAfterIdle::After(after) => Trailing::Note(format!(
+                "after {} idle",
+                duration_text(after, config.calendar.locale)
+            )),
+            ScheduledAfterIdle::Disabled => Trailing::Note("idle: disabled".to_owned()),
+            ScheduledAfterIdle::Never if self.needs_authorisation => {
+                Trailing::Note("asks for authorisation".to_owned())
+            }
+            ScheduledAfterIdle::Never => Trailing::Nothing,
+        };
+        MenuLine::Row(MenuRow {
+            leading: Some(Glyph::from(session_action_icon(self.action)).view(
+                config.theme.font.icon_size_px,
+                PaletteColors::from(&config.theme.palette).bar_foreground,
+            )),
+            label: Some(self.action.verb().to_owned()),
+            trailing: note,
+            enabled: true,
+            depth: 0,
+            on_press: Some(SessionMessage::Press(self.action)),
+        })
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SessionTarget {
@@ -104,24 +139,45 @@ impl SessionMenu {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: SessionTarget, timeouts: Timeouts) -> Tooltip {
+    pub fn tooltip_for(&self, target: SessionTarget) -> Tooltip {
         match target {
-            SessionTarget::Menu => Tooltip::sourced(
-                TooltipBody::from(Section::session_menu(SessionMenuBody {
-                    entries: self
-                        .permissions
-                        .allowed
-                        .iter()
-                        .map(|allowed| SessionMenuEntry {
-                            action: allowed.action,
-                            needs_authorisation: allowed.needs_authorisation,
-                            idle: timeouts.scheduled(allowed.action),
-                        })
-                        .collect(),
-                })),
-                DeliveryTiming::LivePush,
-            ),
+            SessionTarget::Menu => {
+                Tooltip::sourced(TooltipBody::sections([]), DeliveryTiming::LivePush)
+            }
         }
+    }
+
+    #[must_use]
+    pub fn menu_panel<'a>(
+        &self,
+        config: &'a Config,
+        timeouts: Timeouts,
+    ) -> Element<'a, SessionMessage> {
+        let lines = self
+            .permissions
+            .allowed
+            .iter()
+            .map(|allowed| SessionMenuEntry {
+                action: allowed.action,
+                needs_authorisation: allowed.needs_authorisation,
+                idle: timeouts.scheduled(allowed.action),
+            })
+            .scan(None, |previous_family, entry| {
+                let family = entry.action.family();
+                let divider = previous_family.is_some_and(|previous| previous != family);
+                *previous_family = Some(family);
+                Some(
+                    divider
+                        .then_some(MenuLine::Divider)
+                        .into_iter()
+                        .chain(once(entry.menu_row(config))),
+                )
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+        container(context_menu(config, lines))
+            .width(SESSION_MENU_WIDTH_PX)
+            .into()
     }
 
     #[must_use]

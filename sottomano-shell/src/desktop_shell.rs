@@ -922,19 +922,33 @@ impl DesktopShell {
     }
 
     pub(super) fn hover_content(&self, target: &HoverTarget) -> Option<HoverContent<'_, Message>> {
-        self.drawer_sheet(target)
-            .map(HoverContent::Interactive)
-            .or_else(|| self.tooltip_for(target).map(HoverContent::Described))
+        match self.interactive_panel(target) {
+            Some(panel) => Some(HoverContent::Interactive {
+                described: self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
+                panel,
+            }),
+            None => self.tooltip_for(target).map(HoverContent::Described),
+        }
     }
 
-    fn drawer_sheet(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
-        let HoverTarget::GroupHandle(handle) = target else {
-            return None;
-        };
-        self.bar_drawers()
-            .into_iter()
-            .find(|drawer| drawer.drawer() == *handle)?
-            .sheet(&self.config, self.clock)
+    fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
+        match target {
+            HoverTarget::GroupHandle(handle) => self
+                .bar_drawers()
+                .into_iter()
+                .find(|drawer| drawer.drawer() == *handle)?
+                .sheet(&self.config, self.clock),
+            HoverTarget::Tray(address) => self
+                .tray_group
+                .menu_panel(address, &self.config)
+                .map(|panel| panel.map(Message::Tray)),
+            HoverTarget::Session(session_menu::SessionTarget::Menu) => Some(
+                self.session_menu
+                    .menu_panel(&self.config, self.idle_timeouts_group.timeouts())
+                    .map(Message::Session),
+            ),
+            _ => None,
+        }
     }
 
     #[must_use]
