@@ -3,6 +3,7 @@ use std::{
     convert::Infallible,
     fmt::Display,
     hash::{Hash, Hasher},
+    num::NonZeroUsize,
     path::PathBuf,
     ptr::fn_addr_eq,
     time::{Duration, SystemTime},
@@ -278,12 +279,44 @@ pub enum TableColumns {
     Unheaded(Vec<Horizontal>),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableRows {
+    Complete(Vec<RecordCells>),
+    Truncated {
+        shown_records: Vec<RecordCells>,
+        omitted_count: NonZeroUsize,
+    },
+    Continuing(Vec<RecordCells>),
+}
+
+impl TableRows {
+    fn first_rows(records: Vec<RecordCells>, row_limit: NonZeroUsize) -> Self {
+        let Some(omitted_count) = NonZeroUsize::new(records.len().saturating_sub(row_limit.get()))
+        else {
+            return TableRows::Complete(records);
+        };
+        TableRows::Truncated {
+            shown_records: records.into_iter().take(row_limit.get()).collect(),
+            omitted_count,
+        }
+    }
+
+    #[must_use]
+    pub fn shown_records(&self) -> &[RecordCells] {
+        match self {
+            TableRows::Complete(shown_records)
+            | TableRows::Continuing(shown_records)
+            | TableRows::Truncated { shown_records, .. } => shown_records,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
     Dictionary(Vec<KeyValue>),
     ColumnTable {
         columns: TableColumns,
-        records: Vec<RecordCells>,
+        rows: TableRows,
     },
     Tree {
         root: Process,
@@ -294,6 +327,9 @@ pub enum SectionBody {
     Note {
         title: String,
         body: Option<String>,
+    },
+    PendingLines {
+        line_count: NonZeroUsize,
     },
     Workspace(WorkspacePreview),
     TrayMenu(TrayMenuBody),
@@ -332,16 +368,21 @@ pub struct ThreadCell {
 }
 
 impl SectionBody {
+    fn table_records<const COLUMNS: usize>(
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
+    ) -> Vec<RecordCells> {
+        rows.into_iter()
+            .map(|row| RecordCells::from(row.table_record()))
+            .collect()
+    }
+
     fn column_table<const COLUMNS: usize>(
         columns: TableColumns,
         rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
     ) -> Self {
         SectionBody::ColumnTable {
             columns,
-            records: rows
-                .into_iter()
-                .map(|row| RecordCells::from(row.table_record()))
-                .collect(),
+            rows: TableRows::Complete(Self::table_records(rows)),
         }
     }
 
@@ -349,23 +390,25 @@ impl SectionBody {
     pub fn is_empty(&self) -> bool {
         match self {
             SectionBody::Dictionary(entries) => entries.is_empty(),
-            SectionBody::ColumnTable { records, .. } => records.is_empty(),
+            SectionBody::ColumnTable { rows, .. } => rows.shown_records().is_empty(),
             SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
             SectionBody::ControllerDiagram(diagram) => diagram.callouts.is_empty(),
             SectionBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
             }
             SectionBody::SessionMenu(menu) => menu.entries.is_empty(),
-            SectionBody::Tree { .. } | SectionBody::Note { .. } | SectionBody::TrayMenu(_) => false,
+            SectionBody::Tree { .. }
+            | SectionBody::Note { .. }
+            | SectionBody::PendingLines { .. }
+            | SectionBody::TrayMenu(_) => false,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Readiness {
-    #[default]
-    Settled,
-    Estimated,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionsDeliveryState {
+    Delivered { delivery_timing: DeliveryTiming },
+    AwaitingDelivery,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -410,6 +453,11 @@ impl Section {
             heading: None,
             body,
         }
+    }
+
+    #[must_use]
+    pub fn pending_lines(line_count: NonZeroUsize) -> Self {
+        Self::untitled(SectionBody::PendingLines { line_count })
     }
 
     pub fn note(title: impl Into<String>, body: Option<String>) -> Self {
@@ -464,6 +512,27 @@ impl Section {
             TableColumns::Headed(headings.into()),
             rows,
         ))
+    }
+
+    pub fn truncated_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
+        row_limit: NonZeroUsize,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable {
+            columns: TableColumns::Headed(headings.into()),
+            rows: TableRows::first_rows(SectionBody::table_records(rows), row_limit),
+        })
+    }
+
+    pub fn continuing_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable {
+            columns: TableColumns::Headed(headings.into()),
+            rows: TableRows::Continuing(SectionBody::table_records(rows)),
+        })
     }
 
     pub fn unheaded_table<const COLUMNS: usize>(
@@ -602,34 +671,30 @@ impl From<Section> for TooltipBody {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SourcedSections {
-    readiness: Readiness,
-    delivery_timing: DeliveryTiming,
+    delivery_state: SectionsDeliveryState,
     sections: Vec<Section>,
 }
 
 impl SourcedSections {
     #[must_use]
-    pub fn new(readiness: Readiness, delivery_timing: DeliveryTiming, body: TooltipBody) -> Self {
+    pub fn delivered(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
         Self {
-            readiness,
-            delivery_timing,
+            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
             sections: body.sections,
         }
     }
 
     #[must_use]
-    pub fn settled(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
-        Self::new(Readiness::Settled, delivery_timing, body)
+    pub fn awaiting_delivery(body: TooltipBody) -> Self {
+        Self {
+            delivery_state: SectionsDeliveryState::AwaitingDelivery,
+            sections: body.sections,
+        }
     }
 
     #[must_use]
-    pub fn readiness(&self) -> Readiness {
-        self.readiness
-    }
-
-    #[must_use]
-    pub fn delivery_timing(&self) -> DeliveryTiming {
-        self.delivery_timing
+    pub fn delivery_state(&self) -> SectionsDeliveryState {
+        self.delivery_state
     }
 
     pub fn filled_sections(&self) -> impl Iterator<Item = &Section> {
@@ -738,7 +803,7 @@ impl Tooltip {
 
     #[must_use]
     pub fn sourced(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
-        Self::grouped([SourcedSections::settled(body, delivery_timing)])
+        Self::grouped([SourcedSections::delivered(body, delivery_timing)])
     }
 
     #[must_use]
@@ -806,13 +871,73 @@ mod tests {
                     ColumnHeading::titled("Moons"),
                     ColumnHeading::untitled()
                 ]),
-                records: vec![
+                rows: TableRows::Complete(vec![
                     TableRecord::new("Mars", [Some("2".into()), None]).into(),
                     TableRecord::new("Venus", [Some("0".into()), None])
                         .level(Severity::Warning)
                         .into(),
-                ],
+                ]),
             }
         );
+    }
+
+    fn planets(names: &[&'static str]) -> Vec<Planet> {
+        names.iter().map(|name| Planet { name, moons: 1 }).collect()
+    }
+
+    #[test]
+    fn a_truncated_table_keeps_its_first_rows_and_counts_the_rest() {
+        let solar_system = planets(&["Mercury", "Venus", "Earth", "Mars"]);
+        let section = Section::truncated_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            &solar_system,
+            NonZeroUsize::new(2).unwrap(),
+        );
+        let SectionBody::ColumnTable {
+            rows:
+                TableRows::Truncated {
+                    shown_records,
+                    omitted_count,
+                },
+            ..
+        } = section.body()
+        else {
+            panic!("expected a truncated table");
+        };
+        assert_eq!(shown_records.len(), 2);
+        assert_eq!(omitted_count.get(), 2);
+    }
+
+    #[test]
+    fn a_continuing_table_keeps_every_row() {
+        let solar_system = planets(&["Mercury", "Venus", "Earth"]);
+        let section = Section::continuing_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            &solar_system,
+        );
+        assert!(matches!(
+            section.body(),
+            SectionBody::ColumnTable {
+                rows: TableRows::Continuing(records),
+                ..
+            } if records.len() == 3
+        ));
+    }
+
+    #[test]
+    fn a_table_within_its_limit_is_complete() {
+        let inner_planets = planets(&["Mercury", "Venus"]);
+        let section = Section::truncated_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            &inner_planets,
+            NonZeroUsize::new(2).unwrap(),
+        );
+        assert!(matches!(
+            section.body(),
+            SectionBody::ColumnTable {
+                rows: TableRows::Complete(records),
+                ..
+            } if records.len() == 2
+        ));
     }
 }

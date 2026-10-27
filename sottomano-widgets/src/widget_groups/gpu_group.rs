@@ -173,7 +173,12 @@ impl GpuGroup {
         )
     }
 
-    pub fn hover(&mut self, hovered: Option<&HoverTarget>, config: &Config) -> Task<GpuMessage> {
+    pub fn hover(
+        &mut self,
+        hovered: Option<&HoverTarget>,
+        config: &Config,
+        clock: Clock,
+    ) -> Task<GpuMessage> {
         self.clocks.stop();
         self.processes.stop();
         let Some(HoverTarget::Gpu(target)) = hovered else {
@@ -191,12 +196,14 @@ impl GpuGroup {
         match target.reading {
             GpuReading::Clock => {
                 self.clocks
-                    .start_hover_fetch(handle, GpuMessage::ClocksFetched, config)
+                    .start_hover_fetch(handle, GpuMessage::ClocksFetched, config, clock)
             }
-            GpuReading::Memory => {
-                self.processes
-                    .start_hover_fetch(handle, GpuMessage::ProcessesFetched, config)
-            }
+            GpuReading::Memory => self.processes.start_hover_fetch(
+                handle,
+                GpuMessage::ProcessesFetched,
+                config,
+                clock,
+            ),
             GpuReading::Load | GpuReading::Temperature | GpuReading::Power => Task::none(),
         }
     }

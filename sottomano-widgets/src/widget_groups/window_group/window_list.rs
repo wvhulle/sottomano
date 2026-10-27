@@ -111,6 +111,7 @@ impl WindowList {
         &mut self,
         watched: Option<Watched>,
         config: &Config,
+        clock: Clock,
     ) -> Task<WindowListMessage> {
         let Some(watched) = watched else {
             self.hovered_window = None;
@@ -125,11 +126,13 @@ impl WindowList {
                 watched.clone(),
                 WindowListMessage::ProcessTreeScanned,
                 config,
+                clock,
             ),
             self.inspection.start_hover_fetch(
                 watched.clone(),
                 |fetched| WindowListMessage::ProcessInspected(Box::new(fetched)),
                 config,
+                clock,
             ),
             self.package_facts.start_hover_fetch(
                 PackageWatch {
@@ -138,6 +141,7 @@ impl WindowList {
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,
+                clock,
             ),
         ])
     }

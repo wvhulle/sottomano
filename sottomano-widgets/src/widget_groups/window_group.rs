@@ -78,6 +78,7 @@ impl WindowGroup {
         niri_state: &EventStreamState,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<WindowGroupMessage> {
         let watched = match hovered {
             Some(HoverTarget::Window(WindowTarget::Inspect(window))) => {
@@ -86,7 +87,7 @@ impl WindowGroup {
             _ => None,
         };
         self.window_list
-            .hover_process(watched, config)
+            .hover_process(watched, config, clock)
             .map(WindowGroupMessage::WindowList)
     }
 

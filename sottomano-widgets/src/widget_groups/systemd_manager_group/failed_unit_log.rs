@@ -260,10 +260,13 @@ mod tests {
     }
 
     fn section_keys(section: &Section) -> Vec<Cell> {
-        let SectionBody::ColumnTable { records, .. } = section.body() else {
+        let SectionBody::ColumnTable { rows, .. } = section.body() else {
             panic!("expected a table");
         };
-        records.iter().map(|record| record.key().clone()).collect()
+        rows.shown_records()
+            .iter()
+            .map(|record| record.key().clone())
+            .collect()
     }
 
     #[test]

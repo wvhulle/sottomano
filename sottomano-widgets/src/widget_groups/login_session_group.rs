@@ -102,6 +102,7 @@ impl LoginSessionGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: &DesktopBuses,
+        clock: Clock,
     ) -> Task<LoginSessionMessage> {
         self.session.stop();
         self.service_manager.stop();
@@ -114,6 +115,7 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::SessionFetched(Box::new(delivery)),
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::ServiceManager)) => {
@@ -121,16 +123,18 @@ impl LoginSessionGroup {
                     buses.clone(),
                     LoginSessionMessage::ServiceManagerFetched,
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::Compositor)) => self
                 .graphical
-                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config),
+                .start_hover_fetch((), LoginSessionMessage::GraphicalFetched, config, clock),
             Some(HoverTarget::LoginSession(LoginSessionTarget::DesktopServices)) => {
                 self.graphical_target.start_hover_fetch(
                     buses.clone(),
                     LoginSessionMessage::GraphicalTargetFetched,
                     config,
+                    clock,
                 )
             }
             Some(HoverTarget::LoginSession(LoginSessionTarget::PowerPolicy)) => {
@@ -138,6 +142,7 @@ impl LoginSessionGroup {
                     buses.clone(),
                     |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
                     config,
+                    clock,
                 )
             }
             _ => Task::none(),

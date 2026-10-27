@@ -146,6 +146,22 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
                     .fold(0.0, f32::max)
             })
             .collect();
+        self.cells
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(&mut nodes)
+            .enumerate()
+            .filter(|(_, ((cell, _), _))| cell.as_widget().size().width.is_fill())
+            .for_each(|(position, ((cell, cell_tree), node))| {
+                let column_width = column_widths[position % column_count];
+                let column_limits = Limits::new(
+                    Size::new(column_width, 0.0),
+                    Size::new(column_width, limits.max().height),
+                );
+                *node = cell
+                    .as_widget_mut()
+                    .layout(cell_tree, renderer, &column_limits);
+            });
         let row_heights: Vec<f32> = (0..row_count)
             .map(|row| {
                 nodes

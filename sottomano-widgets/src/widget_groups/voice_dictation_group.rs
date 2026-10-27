@@ -161,6 +161,7 @@ impl VoiceDictationGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<VoiceDictationMessage> {
         self.model_card.stop();
         let Some(HoverTarget::VoiceDictation(VoiceDictationTarget::SpeechModel)) = hovered else {
@@ -177,6 +178,7 @@ impl VoiceDictationGroup {
             repository,
             VoiceDictationMessage::ModelCardFetched,
             config,
+            clock,
         )
     }
 

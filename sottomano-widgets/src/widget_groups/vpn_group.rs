@@ -134,6 +134,7 @@ impl VpnGroup {
         hovered: Option<&HoverTarget>,
         config: &Config,
         buses: Option<&DesktopBuses>,
+        clock: Clock,
     ) -> Task<VpnMessage> {
         self.tunnel_address.stop();
         let Some(HoverTarget::Vpn(VpnTarget::Wireguard(tunnel))) = hovered else {
@@ -149,6 +150,7 @@ impl VpnGroup {
             },
             VpnMessage::TunnelAddressFetched,
             config,
+            clock,
         )
     }
 

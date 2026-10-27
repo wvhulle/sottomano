@@ -292,7 +292,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
         else {
             return None;
         };
-        Some(SourcedSections::settled(
+        Some(SourcedSections::delivered(
             TooltipBody::sections(describe(held_snapshot)),
             *delivery_timing,
         ))

@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use chrono::{DateTime, Local, Locale};
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
@@ -24,7 +26,7 @@ use crate::{
     },
 };
 
-const LISTED_TASKS: usize = 16;
+const LISTED_TASKS: NonZeroUsize = NonZeroUsize::new(16).unwrap();
 
 pub struct OpenTasks<'a>(pub &'a CaldavAgenda);
 
@@ -118,17 +120,13 @@ impl BarWidget for OpenTasks<'_> {
             .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
             .collect();
         let without_deadline = self.0.tasks.len() - with_deadline.len();
-        let hidden = with_deadline.len().saturating_sub(LISTED_TASKS);
-        let rows = with_deadline
-            .into_iter()
-            .take(LISTED_TASKS)
-            .map(|task| TaskRow {
-                task,
-                now,
-                provider,
-            });
+        let rows = with_deadline.into_iter().map(|task| TaskRow {
+            task,
+            now,
+            provider,
+        });
         TooltipBody::sections([
-            Section::column_table(
+            Section::truncated_column_table(
                 [
                     ColumnHeading::titled("Due"),
                     ColumnHeading::titled("Priority"),
@@ -136,6 +134,7 @@ impl BarWidget for OpenTasks<'_> {
                     ColumnHeading::titled("List").align_x(Horizontal::Left),
                 ],
                 rows,
+                LISTED_TASKS,
             )
             .titled((
                 "Open tasks",
@@ -145,12 +144,10 @@ impl BarWidget for OpenTasks<'_> {
                     calendar_count_caption(self.0)
                 ),
             )),
-            nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app, hidden)
-                .with_entries(
-                    (without_deadline > 0).then(|| {
-                        KeyValue::new("Without deadline", Quantity::count(without_deadline))
-                    }),
-                ),
+            nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app).with_entries(
+                (without_deadline > 0)
+                    .then(|| KeyValue::new("Without deadline", Quantity::count(without_deadline))),
+            ),
         ])
     }
 }

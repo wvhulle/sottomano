@@ -110,6 +110,7 @@ impl ClaudeUsageGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
         self.organization.stop();
         let Some(HoverTarget::ClaudeUsage(ClaudeUsageTarget::EnterpriseSpend)) = hovered else {
@@ -122,6 +123,7 @@ impl ClaudeUsageGroup {
             credentials,
             ClaudeUsageMessage::OrganizationFetched,
             config,
+            clock,
         )
     }
 

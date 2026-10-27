@@ -344,45 +344,45 @@ impl DesktopShell {
         let buses = self.desktop_buses.as_ref();
         Task::batch([
             self.window_group
-                .hover(&self.niri, hovered, &self.config)
+                .hover(&self.niri, hovered, &self.config, self.clock)
                 .map(Message::WindowGroup),
             self.gpu_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::Gpu),
             self.desktop_buses
                 .as_ref()
                 .map_or_else(Task::none, |buses| {
                     self.net_interfaces_group
-                        .hover(hovered, &self.config, buses)
+                        .hover(hovered, &self.config, buses, self.clock)
                         .map(Message::NetInterfaces)
                 }),
             self.vpn_group
-                .hover(hovered, &self.config, buses)
+                .hover(hovered, &self.config, buses, self.clock)
                 .map(Message::Vpn),
             self.compute_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::Compute),
             self.memory_board_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::MemoryBoard),
             self.power_group
-                .hover(hovered, &self.config, buses)
+                .hover(hovered, &self.config, buses, self.clock)
                 .map(Message::Power),
             self.claude_usage_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::ClaudeUsage),
             self.desktop_buses
                 .as_ref()
                 .map_or_else(Task::none, |buses| {
                     self.login_session_group
-                        .hover(hovered, &self.config, buses)
+                        .hover(hovered, &self.config, buses, self.clock)
                         .map(Message::LoginSession)
                 }),
             self.llama_server_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::LlamaServer),
             self.voice_dictation_group
-                .hover(hovered, &self.config)
+                .hover(hovered, &self.config, self.clock)
                 .map(Message::VoiceDictation),
         ])
     }
