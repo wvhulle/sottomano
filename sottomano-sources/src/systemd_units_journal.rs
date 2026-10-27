@@ -7,6 +7,7 @@ pub mod journal_oom_kills;
 pub mod journal_previous_shutdown;
 pub mod journal_record_fields;
 pub mod journal_service_errors;
+pub mod journal_startup_history;
 pub mod service_commands;
 pub mod slow_running_jobs;
 pub mod unit_active_state;

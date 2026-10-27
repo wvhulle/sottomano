@@ -52,6 +52,7 @@ pub struct Measurement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DisplayUnit {
     Percent,
+    SignedPercent,
     DegreeCelsius,
     Kelvin,
     Watt,
@@ -79,7 +80,7 @@ pub enum DisplayUnit {
 impl DisplayUnit {
     fn symbol(self) -> &'static str {
         match self {
-            DisplayUnit::Percent => "%",
+            DisplayUnit::Percent | DisplayUnit::SignedPercent => "%",
             DisplayUnit::DegreeCelsius => "°C",
             DisplayUnit::Kelvin => "K",
             DisplayUnit::Watt => "W",
@@ -127,6 +128,12 @@ impl Measurement {
                 DisplayUnit::Kilometer.symbol()
             ),
             DisplayUnit::Unitless => localized_decimal(self.magnitude(), self.decimals, locale),
+            DisplayUnit::SignedPercent => format!(
+                "{}{} {}",
+                if self.magnitude() < 0.0 { '−' } else { '+' },
+                localized_decimal(self.magnitude().abs(), self.decimals, locale),
+                self.unit.symbol()
+            ),
             DisplayUnit::Degree | DisplayUnit::PerHour => format!(
                 "{}{}",
                 localized_decimal(self.magnitude(), self.decimals, locale),
@@ -165,6 +172,11 @@ impl Quantity {
     #[must_use]
     pub fn share(share: Ratio) -> Self {
         Self::measured(share.get::<percent>(), DisplayUnit::Percent, 0)
+    }
+
+    #[must_use]
+    pub fn signed_share(change: Ratio) -> Self {
+        Self::measured(change.get::<percent>(), DisplayUnit::SignedPercent, 0)
     }
 
     #[must_use]
@@ -350,6 +362,18 @@ pub fn localized_decimal(magnitude: f64, decimals: u8, locale: Locale) -> String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn signed_shares_always_carry_a_sign() {
+        assert_eq!(
+            Quantity::signed_share(Ratio::new::<percent>(24.4)).localized_text(Locale::en_US),
+            "+24 %"
+        );
+        assert_eq!(
+            Quantity::signed_share(Ratio::new::<percent>(-5.2)).localized_text(Locale::en_US),
+            "−5 %"
+        );
+    }
 
     #[test]
     fn shares_round_to_whole_percent_with_a_space() {

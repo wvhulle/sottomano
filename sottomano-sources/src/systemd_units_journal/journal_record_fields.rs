@@ -17,6 +17,7 @@ impl MessageId {
     pub const KERNEL_OOM_KILL: Self = Self(0xfe6f_aa94_e777_4663_a0da_5271_7891_d8ef);
     pub const OOMD_KILL: Self = Self(0xd989_611b_15e4_4c9d_bf31_e3c8_1256_e4ed);
     pub const SHUTDOWN: Self = Self(0x9826_8866_d1d5_4a49_9c4e_9892_1d93_bc40);
+    pub const STARTUP_FINISHED: Self = Self(0xb07a_249c_d024_414a_82dd_00cd_1813_78ff);
     pub const UNIT_STOPPING: Self = Self(0xde5b_426a_63be_47a7_b6ac_3eaa_c82e_2f6f);
     pub const UNIT_STOPPED: Self = Self(0x9d1a_aa27_d601_40bd_9636_5438_aad2_0286);
 

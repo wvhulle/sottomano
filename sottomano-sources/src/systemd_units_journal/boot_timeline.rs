@@ -6,11 +6,17 @@ use futures::{
     stream,
 };
 use sottomano_config::severity::Severity;
+use uom::si::{
+    f64::{Ratio, Time},
+    ratio::{percent, ratio},
+};
 use zbus::proxy::CacheProperties;
 
 use super::{ManagerProxy, UnitRow, manager_signal, signals_matching, unit_proxy};
 use crate::{
-    SnapshotDelivery, SnapshotSource, system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    SnapshotDelivery, SnapshotSource, blocking_background_work::blocking,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+    systemd_units_journal::journal_startup_history::read_previous_os_startup,
 };
 
 const SLOWEST_UNIT_COUNT: usize = 10;
@@ -102,6 +108,131 @@ impl BootPhases {
     pub fn total(&self) -> Duration {
         self.present().iter().map(|phase| phase.duration).sum()
     }
+
+    #[must_use]
+    pub fn os_startup(&self) -> OsStartupPhases {
+        OsStartupPhases {
+            kernel: self.kernel,
+            initrd: self.initrd,
+            userspace: self.userspace,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OsStartupPhases {
+    pub kernel: Duration,
+    pub initrd: Option<Duration>,
+    pub userspace: Duration,
+}
+
+impl OsStartupPhases {
+    #[must_use]
+    pub fn total(&self) -> Duration {
+        self.kernel + self.initrd.unwrap_or_default() + self.userspace
+    }
+
+    fn stage_duration(&self, stage: BootStage) -> Option<Duration> {
+        match stage {
+            BootStage::Firmware | BootStage::Loader => None,
+            BootStage::Kernel => Some(self.kernel),
+            BootStage::Initrd => self.initrd,
+            BootStage::Userspace => Some(self.userspace),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StartupSlowdownThresholds {
+    pub warning_percent: u32,
+    pub critical_percent: u32,
+}
+
+const SHORTEST_NOTICEABLE_SLOWDOWN: Duration = Duration::from_secs(1);
+
+impl StartupSlowdownThresholds {
+    fn severity(self, slowdown: Duration, change: Ratio) -> Severity {
+        if slowdown < SHORTEST_NOTICEABLE_SLOWDOWN {
+            Severity::Normal
+        } else if change >= Ratio::new::<percent>(f64::from(self.critical_percent)) {
+            Severity::Critical
+        } else if change >= Ratio::new::<percent>(f64::from(self.warning_percent)) {
+            Severity::Warning
+        } else {
+            Severity::Normal
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DurationComparison {
+    pub previous: Duration,
+    pub change: Ratio,
+    pub severity: Severity,
+}
+
+impl DurationComparison {
+    fn of(
+        current: Duration,
+        previous: Duration,
+        thresholds: StartupSlowdownThresholds,
+    ) -> Option<Self> {
+        let previous_time = Time::try_from(previous).ok()?;
+        let current_time = Time::try_from(current).ok()?;
+        let change: Ratio = current_time / previous_time;
+        let change = Some(change - Ratio::new::<ratio>(1.0)).filter(|change| change.is_finite())?;
+        Some(Self {
+            previous,
+            change,
+            severity: thresholds.severity(current.saturating_sub(previous), change),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StageComparison {
+    pub stage: BootStage,
+    pub comparison: DurationComparison,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StartupComparison {
+    pub os_startup: DurationComparison,
+    pub stages: Vec<StageComparison>,
+}
+
+impl StartupComparison {
+    fn of(
+        current: OsStartupPhases,
+        previous: OsStartupPhases,
+        thresholds: StartupSlowdownThresholds,
+    ) -> Option<Self> {
+        let stages = [BootStage::Kernel, BootStage::Initrd, BootStage::Userspace]
+            .into_iter()
+            .filter_map(|stage| {
+                Some(StageComparison {
+                    stage,
+                    comparison: DurationComparison::of(
+                        current.stage_duration(stage)?,
+                        previous.stage_duration(stage)?,
+                        thresholds,
+                    )?,
+                })
+            })
+            .collect();
+        Some(Self {
+            os_startup: DurationComparison::of(current.total(), previous.total(), thresholds)?,
+            stages,
+        })
+    }
+
+    #[must_use]
+    pub fn stage(&self, stage: BootStage) -> Option<&DurationComparison> {
+        self.stages
+            .iter()
+            .find(|stage_comparison| stage_comparison.stage == stage)
+            .map(|stage_comparison| &stage_comparison.comparison)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,17 +270,19 @@ pub struct UserStartup {
     pub slowest_units: RankedActivations,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BootTimeline {
     pub phases: BootPhases,
     pub system_startup: SystemStartup,
     pub user_startup: Option<UserStartup>,
+    pub startup_comparison: Option<StartupComparison>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BootTimelineWatch {
     pub buses: DesktopBuses,
     pub slow_unit: Duration,
+    pub slowdown_thresholds: StartupSlowdownThresholds,
 }
 
 impl SnapshotSource for BootTimeline {
@@ -161,8 +294,16 @@ impl SnapshotSource for BootTimeline {
     fn delivery_stream(
         watch: BootTimelineWatch,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let BootTimelineWatch { buses, slow_unit } = watch;
-        stream::once(system_boot(buses.system.clone(), slow_unit))
+        let BootTimelineWatch {
+            buses,
+            slow_unit,
+            slowdown_thresholds,
+        } = watch;
+        stream::once(system_boot(
+            buses.system.clone(),
+            slow_unit,
+            slowdown_thresholds,
+        ))
             .map_ok(move |boot| {
                 let with_user_startup =
                     stream::once(finished_startup(buses.session.clone(), slow_unit))
@@ -188,11 +329,24 @@ impl SnapshotSource for BootTimeline {
     }
 }
 
-async fn system_boot(system: zbus::Connection, slow_unit: Duration) -> zbus::Result<BootTimeline> {
+async fn system_boot(
+    system: zbus::Connection,
+    slow_unit: Duration,
+    slowdown_thresholds: StartupSlowdownThresholds,
+) -> zbus::Result<BootTimeline> {
     let startup = finished_startup(system, slow_unit).await?;
     let phases = BootPhases::of_timestamps(&startup.timestamps, startup.finish)
         .ok_or_else(|| zbus::Error::Failure("systemd reports no userspace start".to_owned()))?;
+    let previous_os_startup = blocking("systemd startup history", || {
+        read_previous_os_startup()
+            .inspect_err(|e| tracing::warn!("systemd startup history: {e}"))
+            .unwrap_or_default()
+    })
+    .await;
     Ok(BootTimeline {
+        startup_comparison: previous_os_startup.and_then(|previous| {
+            StartupComparison::of(phases.os_startup(), previous, slowdown_thresholds)
+        }),
         phases,
         system_startup: SystemStartup {
             finish: startup.finish,
@@ -347,6 +501,68 @@ mod tests {
 
     fn seconds(seconds: f64) -> Duration {
         Duration::from_secs_f64(seconds)
+    }
+
+    const THRESHOLDS: StartupSlowdownThresholds = StartupSlowdownThresholds {
+        warning_percent: 25,
+        critical_percent: 60,
+    };
+
+    fn assert_whole_percent(change: Ratio, expected_percent: f64) {
+        assert!(
+            (change.get::<percent>() - expected_percent).abs() < 0.5,
+            "{} % is not about {expected_percent} %",
+            change.get::<percent>()
+        );
+    }
+
+    fn os_phases(kernel: f64, initrd: Option<f64>, userspace: f64) -> OsStartupPhases {
+        OsStartupPhases {
+            kernel: seconds(kernel),
+            initrd: initrd.map(seconds),
+            userspace: seconds(userspace),
+        }
+    }
+
+    #[test]
+    fn startup_compares_only_stages_both_boots_had() {
+        let comparison = StartupComparison::of(
+            os_phases(0.5, Some(6.0), 12.0),
+            os_phases(0.6, None, 10.0),
+            THRESHOLDS,
+        )
+        .expect("a comparison");
+        assert_eq!(comparison.os_startup.previous.as_millis(), 10_600);
+        assert_whole_percent(comparison.os_startup.change, 74.5);
+        assert_eq!(comparison.os_startup.severity, Severity::Critical);
+        assert_eq!(comparison.stage(BootStage::Initrd), None);
+        assert_eq!(comparison.stage(BootStage::Firmware), None);
+        let userspace = comparison
+            .stage(BootStage::Userspace)
+            .expect("userspace compared");
+        assert_whole_percent(userspace.change, 20.0);
+        assert_eq!(userspace.severity, Severity::Normal);
+    }
+
+    #[test]
+    fn comparison_grades_by_thresholds_and_ignores_sub_second_slowdowns() {
+        let graded = |current: f64| {
+            DurationComparison::of(seconds(current), seconds(10.0), THRESHOLDS)
+                .expect("a comparison")
+        };
+        assert_whole_percent(graded(9.0).change, -10.0);
+        assert_eq!(graded(12.4).severity, Severity::Normal);
+        assert_eq!(graded(12.5).severity, Severity::Warning);
+        assert_eq!(graded(15.9).severity, Severity::Warning);
+        assert_eq!(graded(16.0).severity, Severity::Critical);
+        let tiny = DurationComparison::of(seconds(0.9), seconds(0.5), THRESHOLDS)
+            .expect("a comparison");
+        assert_whole_percent(tiny.change, 80.0);
+        assert_eq!(tiny.severity, Severity::Normal);
+        assert_eq!(
+            DurationComparison::of(seconds(1.0), Duration::ZERO, THRESHOLDS),
+            None
+        );
     }
 
     #[test]
