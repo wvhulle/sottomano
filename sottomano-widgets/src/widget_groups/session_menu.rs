@@ -1,6 +1,6 @@
 use std::{iter::once, thread, time::Duration};
 
-use iced::{Element, Task, widget::container};
+use iced::{Element, Task};
 use sottomano_config::Config;
 use sottomano_sources::{
     blocking_background_work::blocking,
@@ -26,7 +26,6 @@ use crate::{
 };
 
 const PRESS_SETTLE_DELAY: Duration = Duration::from_millis(600);
-const SESSION_MENU_WIDTH_PX: f32 = 250.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SessionMenuEntry {
@@ -175,9 +174,7 @@ impl SessionMenu {
             })
             .flatten()
             .collect::<Vec<_>>();
-        container(context_menu(config, lines))
-            .width(SESSION_MENU_WIDTH_PX)
-            .into()
+        context_menu(config, lines)
     }
 
     #[must_use]

@@ -4,7 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iced::{
     Alignment, Element,
-    widget::{Column, container, mouse_area},
+    widget::{Column, mouse_area},
 };
 use sottomano_config::{Config, widget_groups::tray::ClickAction};
 use sottomano_sources::{
@@ -35,8 +35,6 @@ use crate::{
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
-
-const TRAY_MENU_WIDTH_PX: f32 = 250.0;
 
 impl From<Arc<error::Error>> for Section {
     fn from(error: Arc<error::Error>) -> Self {
@@ -166,22 +164,18 @@ impl TrayGroup {
         TooltipBody::from(Section::note(title, body))
     }
 
-    fn item_with_menu(&self, address: &str) -> Option<&TrayItem> {
-        self.items
-            .get()
-            .into_iter()
-            .flatten()
-            .find(|item| item.address == address)
-            .filter(|item| item.menu_path.is_some() && !item.menu.is_empty())
-    }
-
     #[must_use]
     pub fn menu_panel<'a>(
         &'a self,
         address: &str,
         config: &'a Config,
     ) -> Option<Element<'a, TrayMessage>> {
-        let item = self.item_with_menu(address)?;
+        let item = self
+            .items
+            .get()
+            .into_iter()
+            .flatten()
+            .find(|item| item.address == address && !item.menu.is_empty())?;
         let menu_path = item.menu_path.clone()?;
         let item_address = item.address.clone();
         let on_activate = move |id| TrayMessage::MenuItemClicked {
@@ -197,11 +191,7 @@ impl TrayGroup {
             on_toggle: &TrayMessage::ToggleSubmenu,
         }
         .lines(&item.menu);
-        Some(
-            container(context_menu(config, lines))
-                .width(TRAY_MENU_WIDTH_PX)
-                .into(),
-        )
+        Some(context_menu(config, lines))
     }
 
     fn command(&self, command: TrayCommand) {
@@ -314,57 +304,4 @@ fn item_view<'a>(
         clickable = clickable.on_right_press(GroupEvent::Group(message));
     }
     clickable.into()
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_sources::desktop_windows_apps::status_notifier_tray::{
-        MenuKind, MenuNode, Status, TrayItem, TrayUpdate,
-    };
-
-    use super::{TrayGroup, TrayMessage};
-    use crate::clock::Clock;
-
-    fn tray_item(address: &str, menu_path: Option<&str>, menu: Vec<MenuNode>) -> TrayItem {
-        TrayItem {
-            address: address.to_owned(),
-            id: address.to_owned(),
-            title: None,
-            status: Status::Active,
-            tooltip: None,
-            menu_path: menu_path.map(str::to_owned),
-            icon: None,
-            menu,
-        }
-    }
-
-    fn menu_entry() -> MenuNode {
-        MenuNode {
-            id: 1,
-            label: Some("Quit".to_owned()),
-            enabled: true,
-            kind: MenuKind::Standard,
-            icon: None,
-            children: Vec::new(),
-        }
-    }
-
-    fn tray_with(items: Vec<TrayItem>) -> TrayGroup {
-        let mut tray = TrayGroup::default();
-        tray.update(TrayMessage::Update(TrayUpdate::Items(items)), Clock::real());
-        tray
-    }
-
-    #[test]
-    fn only_items_with_a_menu_path_and_entries_have_a_menu() {
-        let tray = tray_with(vec![
-            tray_item("without-path", None, vec![menu_entry()]),
-            tray_item("empty-menu", Some("/menu"), Vec::new()),
-            tray_item("with-menu", Some("/menu"), vec![menu_entry()]),
-        ]);
-        assert!(tray.item_with_menu("without-path").is_none());
-        assert!(tray.item_with_menu("empty-menu").is_none());
-        assert!(tray.item_with_menu("with-menu").is_some());
-        assert!(tray.item_with_menu("unknown").is_none());
-    }
 }

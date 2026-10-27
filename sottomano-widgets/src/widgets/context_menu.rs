@@ -37,6 +37,8 @@ pub enum MenuLine<'a, M> {
     Divider,
 }
 
+const CONTEXT_MENU_WIDTH_PX: f32 = 250.0;
+
 pub fn context_menu<'a, M: Clone + 'a>(
     config: &Config,
     lines: impl IntoIterator<Item = MenuLine<'a, M>>,
@@ -50,7 +52,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
             }),
     )
     .spacing(config.layout.overlay.row_spacing)
-    .width(Length::Fill)
+    .width(CONTEXT_MENU_WIDTH_PX)
     .into()
 }
 
