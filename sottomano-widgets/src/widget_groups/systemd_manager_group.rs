@@ -16,7 +16,7 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
         SystemdOnBus, SystemdUnitScope,
-        boot_timeline::{BootTimeline, BootTimelineWatch},
+        boot_timeline::{BootTimeline, BootTimelineWatch, StartupSlowdownThresholds},
         failed_units::{FailedUnitRestart, FailedUnits},
         journal_previous_shutdown::LastShutdown,
         slow_running_jobs::{SlowJobs, SlowJobsWatch},
@@ -140,6 +140,10 @@ impl SystemdManagerGroup {
             snapshot_subscription::<BootTimeline>(BootTimelineWatch {
                 buses: buses.clone(),
                 slow_unit: config.slow_boot_unit,
+                slowdown_thresholds: StartupSlowdownThresholds {
+                    warning_percent: config.slower_boot_warning_percent,
+                    critical_percent: config.slower_boot_critical_percent,
+                },
             })
             .map(SystemdManagerMessage::Boot),
             snapshot_subscription::<FailedUnits>(systemd(SystemdUnitScope::SystemWide))

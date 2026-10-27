@@ -2,27 +2,39 @@ use std::time::Duration;
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_sources::systemd_units_journal::boot_timeline::{BootTimeline, RankedActivations};
+use sottomano_config::severity::Severity;
+use sottomano_sources::systemd_units_journal::boot_timeline::{
+    BootTimeline, DurationComparison, RankedActivations,
+};
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_durations::duration_text,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-fn timeline_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
+fn timeline_record(
+    stage: &str,
+    took: Duration,
+    comparison: Option<&DurationComparison>,
+    meaning: &str,
+) -> TableRecord<4> {
     TableRecord::new(
         stage.to_owned(),
         [
             Some(Cell::duration(took)),
+            comparison.map(|comparison| Cell::duration(comparison.previous)),
+            comparison.map(|comparison| Quantity::signed_share(comparison.change).into()),
             Some(Cell::Hint(meaning.to_owned())),
         ],
     )
+    .level(comparison.map_or(Severity::Normal, |comparison| comparison.severity))
 }
 
 impl BarWidget for BootTimeline {
@@ -35,10 +47,27 @@ impl BarWidget for BootTimeline {
     }
 
     fn label(&self, _clock: Clock, locale: Locale) -> Option<String> {
-        Some(duration_text(self.phases.total(), locale))
+        Some(match &self.startup_comparison {
+            Some(comparison) => {
+                Quantity::signed_share(comparison.os_startup.change).localized_text(locale)
+            }
+            None => duration_text(
+                Duration::from_secs(self.phases.os_startup().total().as_secs()),
+                locale,
+            ),
+        })
+    }
+
+    fn state(&self, _clock: Clock) -> WidgetState {
+        self.startup_comparison
+            .as_ref()
+            .map(|comparison| comparison.os_startup.severity)
+            .unwrap_or_default()
+            .into()
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        let comparison = self.startup_comparison.as_ref();
         let login_gap = self
             .user_startup
             .as_ref()
@@ -48,24 +77,55 @@ impl BarWidget for BootTimeline {
             .phases
             .present()
             .into_iter()
-            .map(|phase| timeline_record(phase.stage.name(), phase.duration, phase.stage.meaning()))
+            .map(|phase| {
+                timeline_record(
+                    phase.stage.name(),
+                    phase.duration,
+                    comparison.and_then(|comparison| comparison.stage(phase.stage)),
+                    phase.stage.meaning(),
+                )
+            })
+            .chain([timeline_record(
+                "OS startup",
+                self.phases.os_startup().total(),
+                comparison.map(|comparison| &comparison.os_startup),
+                "kernel, initrd and userspace together",
+            )])
             .chain(login_gap.map(|gap| {
-                timeline_record("login", gap, "waiting for the first user session manager")
+                timeline_record(
+                    "login",
+                    gap,
+                    None,
+                    "waiting for the first user session manager",
+                )
             }))
             .chain(session.map(|duration| {
                 timeline_record(
                     "user session",
                     duration,
+                    None,
                     "user systemd starting units until the default target",
                 )
             }));
+        let caption = match comparison {
+            Some(_) => {
+                "Difference is this boot against the previous one in the journal. Firmware and \
+                 loader are not recorded per boot. Amber and red crossed \
+                 slower_boot_warning_percent and slower_boot_critical_percent and took at least \
+                 a second longer."
+            }
+            None => "No previous boot in the journal to compare with.",
+        };
         TooltipBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Took"),
+                ColumnHeading::titled("Previous"),
+                ColumnHeading::titled("Difference"),
                 ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
             ],
             timeline_records,
-        )])
+        )
+        .titled(("Boot stages", caption))])
     }
 }
 
