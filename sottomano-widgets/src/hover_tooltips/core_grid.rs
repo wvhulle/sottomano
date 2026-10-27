@@ -1,6 +1,6 @@
 use iced::{
     Border, Color, Element, Length,
-    widget::{Row, Space, container},
+    widget::{Row, container, progress_bar},
 };
 use sottomano_config::Config;
 use uom::si::ratio::ratio;
@@ -64,18 +64,15 @@ impl<'a> CoreCellGrid<'a> {
     fn thread_column(&self, thread: ThreadCell, height: f32) -> Element<'static, Message> {
         let ink: Color =
             WidgetState::from(thread.level).color(&PaletteColors::from(&self.config.theme.palette));
-        let fill = thread.fill.get::<ratio>().clamp(0.0, 1.0) as f32;
-        container(
-            container(Space::new().width(Length::Fill).height(height * fill)).style(move |_| {
-                container::Style {
-                    background: Some(ink.into()),
-                    ..container::Style::default()
-                }
-            }),
-        )
-        .width(Length::Fill)
-        .height(height)
-        .align_bottom(height)
-        .into()
+        progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)
+            .vertical()
+            .length(height)
+            .girth(Length::Fill)
+            .style(move |_| progress_bar::Style {
+                background: Color::TRANSPARENT.into(),
+                bar: ink.into(),
+                border: Border::default(),
+            })
+            .into()
     }
 }

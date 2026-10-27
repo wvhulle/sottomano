@@ -1,7 +1,7 @@
 use iced::{
     Background, Color, Element, Length, Padding,
     alignment::Vertical,
-    widget::{Column, Row, Space, button},
+    widget::{Column, Row, button, space},
 };
 use sottomano_config::Config;
 
@@ -74,7 +74,7 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
     match row.trailing {
         Trailing::Nothing => {}
         Trailing::Note(note) => {
-            content = content.push(Space::new().width(Length::Fill)).push(
+            content = content.push(space::horizontal()).push(
                 bar_text(&config.theme.font, note)
                     .size(config.theme.font.small_text_size_px)
                     .color(PaletteColors::from(&config.theme.palette).dim),
@@ -87,7 +87,7 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
                 Phosphor::CaretRight(Weight::Regular)
             };
             content = content
-                .push(Space::new().width(Length::Fill))
+                .push(space::horizontal())
                 .push(Glyph::from(chevron).view(icon_size, color));
         }
     }

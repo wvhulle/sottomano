@@ -82,8 +82,7 @@ pub(super) fn sidebar_row<'a>(
     .height(config.layout.panel.height)
     .align_y(Alignment::Center);
     container(label_with_edge)
-        .width(Length::Fill)
-        .align_x(Alignment::End)
+        .align_right(Length::Fill)
         .style(drop_tint(config, p, drag))
         .into()
 }

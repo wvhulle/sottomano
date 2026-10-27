@@ -120,12 +120,12 @@ impl<'a> TooltipContent<'a> {
 
     fn content_inset(&self) -> Padding {
         let inset = self.config.layout.overlay.content_inset;
-        Padding::ZERO.left(inset).right(inset)
+        Padding::ZERO.horizontal(inset)
     }
 
     fn shell_padding(&self) -> Padding {
         let inset = self.config.layout.overlay.content_inset;
-        Padding::ZERO.top(inset).bottom(inset)
+        Padding::ZERO.vertical(inset)
     }
 
     fn footer_padding(&self) -> Padding {

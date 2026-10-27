@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use iced::{
-    Element, Rectangle, Task,
+    Element, Rectangle, Task, task,
     time::{Duration, Instant},
     widget::{container, mouse_area},
     window::Id,
 };
+use tokio::time::sleep;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_state::{ShellSettings, niri_rules::StyledSurface};
@@ -34,12 +35,7 @@ pub struct PendingSwitch {
     pub target: HoverTarget,
     pub anchor: Rectangle,
     pub press_hints: PressHints,
-    seq: u64,
-}
-
-pub struct DeferredSwitch {
-    pub seq: u64,
-    pub after: Duration,
+    _intent_timer: task::Handle,
 }
 
 #[derive(Default)]
@@ -47,7 +43,6 @@ pub struct TooltipHost {
     surfaces: HashMap<String, Id>,
     transition: TooltipTransition,
     pending_switch: Option<PendingSwitch>,
-    switch_seq: u64,
     hide_due: Option<Instant>,
 }
 
@@ -71,7 +66,7 @@ impl TooltipHost {
             }
             TooltipMessage::Enter { .. }
             | TooltipMessage::EnterAnchor { .. }
-            | TooltipMessage::SwitchIntentElapsed { .. } => None,
+            | TooltipMessage::SwitchIntentElapsed => None,
         }
     }
 
@@ -86,29 +81,27 @@ impl TooltipHost {
         target: &HoverTarget,
         anchor: Rectangle,
         press_hints: PressHints,
-    ) -> Option<DeferredSwitch> {
+    ) -> Option<Task<Message>> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
             return None;
         }
         self.transition.cancel_leave();
-        self.switch_seq += 1;
-        let seq = self.switch_seq;
+        let (intent_elapsed, handle) = Task::future(sleep(SWITCH_INTENT))
+            .map(|()| Message::Tooltip(TooltipMessage::SwitchIntentElapsed))
+            .abortable();
         self.pending_switch = Some(PendingSwitch {
             parent: parent.clone(),
             target: target.clone(),
             anchor,
             press_hints,
-            seq,
+            _intent_timer: handle.abort_on_drop(),
         });
-        Some(DeferredSwitch {
-            seq,
-            after: SWITCH_INTENT,
-        })
+        Some(intent_elapsed)
     }
 
-    pub fn take_pending_switch(&mut self, seq: u64) -> Option<PendingSwitch> {
-        self.pending_switch.take_if(|pending| pending.seq == seq)
+    pub fn take_pending_switch(&mut self) -> Option<PendingSwitch> {
+        self.pending_switch.take()
     }
 
     pub fn open(

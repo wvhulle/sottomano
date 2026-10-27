@@ -46,9 +46,9 @@ impl<'a, Message: 'a> PagerSlot<'a, Message> {
         } = self;
         let half_gap = gap_to_neighbours / 2.0;
         let share_of_gap = if position.is_vertical() {
-            Padding::ZERO.top(half_gap).bottom(half_gap)
+            Padding::ZERO.vertical(half_gap)
         } else {
-            Padding::ZERO.left(half_gap).right(half_gap)
+            Padding::ZERO.horizontal(half_gap)
         };
         match position {
             Position::Bottom => stacked([
