@@ -71,3 +71,12 @@ pub fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
 pub fn read_i64(path: impl AsRef<Path>) -> Option<i64> {
     read_trimmed(path)?.parse().ok()
 }
+
+#[must_use]
+pub fn uevent_field(uevent: &Path, field: &str) -> Option<String> {
+    read_trimmed(uevent)?.lines().find_map(|line| {
+        line.strip_prefix(field)?
+            .strip_prefix('=')
+            .map(str::to_owned)
+    })
+}

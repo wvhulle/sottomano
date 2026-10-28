@@ -1,6 +1,5 @@
 use iced::{Subscription, Task};
 
-mod bluetooth_devices_tooltip;
 mod ethernet_link_tooltip;
 mod interface_sections;
 mod mobile_modem_tooltip;
@@ -10,7 +9,6 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        bluez_bluetooth::{Bluetooth, toggle_bluetooth_power},
         ethernet_connection::{Ethernet, EthernetDetails, toggle_ethernet_ports},
         modem_manager_mobile::{Mobile, ModemState, toggle_mobile_radio},
         wifi_connection::{Wifi, WifiDetails, toggle_wifi_radio},
@@ -36,7 +34,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetInterfaceTarget {
-    Bluetooth,
     Ethernet,
     Wifi,
     Mobile,
@@ -50,7 +47,6 @@ impl From<NetInterfaceTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NetInterfacesGroup {
-    bluetooth: LatestSnapshot<Bluetooth>,
     ethernet: LatestSnapshot<Ethernet>,
     wifi: LatestSnapshot<Wifi>,
     mobile: LatestSnapshot<Mobile>,
@@ -61,7 +57,6 @@ pub struct NetInterfacesGroup {
 
 #[derive(Debug, Clone)]
 pub enum NetInterfacesMessage {
-    Bluetooth(SnapshotDelivery<Bluetooth>),
     Ethernet(SnapshotDelivery<Ethernet>),
     Wifi(SnapshotDelivery<Wifi>),
     Mobile(Box<SnapshotDelivery<Mobile>>),
@@ -79,10 +74,6 @@ impl NetInterfacesGroup {
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
             self.expansion.while_expanded(
-                snapshot_subscription::<Bluetooth>(buses.clone())
-                    .map(NetInterfacesMessage::Bluetooth),
-            ),
-            self.expansion.while_expanded(
                 snapshot_subscription::<Ethernet>(buses.clone())
                     .map(NetInterfacesMessage::Ethernet),
             ),
@@ -98,9 +89,6 @@ impl NetInterfacesGroup {
         clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         match msg {
-            NetInterfacesMessage::Bluetooth(delivery) => {
-                self.bluetooth.receive(delivery, clock);
-            }
             NetInterfacesMessage::Ethernet(delivery) => {
                 self.ethernet.receive(delivery, clock);
             }
@@ -162,7 +150,6 @@ impl NetInterfacesGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: NetInterfaceTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            NetInterfaceTarget::Bluetooth => self.bluetooth.tooltip(clock),
             NetInterfaceTarget::Ethernet => self
                 .ethernet
                 .tooltip_with_groups(self.ethernet_details.sections(clock), clock),
@@ -175,10 +162,6 @@ impl NetInterfacesGroup {
 
     fn radio_on(&self, target: NetInterfaceTarget) -> bool {
         match target {
-            NetInterfaceTarget::Bluetooth => self
-                .bluetooth
-                .get()
-                .is_some_and(|bluetooth| bluetooth.radio.is_some()),
             NetInterfaceTarget::Ethernet => self
                 .ethernet
                 .get()
@@ -208,8 +191,6 @@ impl NetInterfacesGroup {
     fn press_does(&self, target: NetInterfaceTarget) -> &'static str {
         let radio_on = self.radio_on(target);
         match target {
-            NetInterfaceTarget::Bluetooth if radio_on => "turn Bluetooth off",
-            NetInterfaceTarget::Bluetooth => "turn Bluetooth on",
             NetInterfaceTarget::Ethernet if radio_on => "disconnect Ethernet",
             NetInterfaceTarget::Ethernet => "connect Ethernet",
             NetInterfaceTarget::Wifi if radio_on => "turn Wi-Fi off",
@@ -233,7 +214,6 @@ impl NetInterfacesGroup {
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [
-                self.radio_item(self.bluetooth.display(), NetInterfaceTarget::Bluetooth),
                 self.radio_item(self.ethernet.display(), NetInterfaceTarget::Ethernet),
                 self.radio_item(self.wifi.display(), NetInterfaceTarget::Wifi)
                     .map(|item| item.previewed_on_handle_if(wifi_is_uplink)),
@@ -256,7 +236,6 @@ fn shows_uplink_signal(widget: &dyn BarWidget, clock: Clock) -> bool {
 
 async fn toggle_radio(target: NetInterfaceTarget) -> zbus::Result<()> {
     match target {
-        NetInterfaceTarget::Bluetooth => toggle_bluetooth_power().await,
         NetInterfaceTarget::Ethernet => toggle_ethernet_ports().await,
         NetInterfaceTarget::Wifi => toggle_wifi_radio().await,
         NetInterfaceTarget::Mobile => toggle_mobile_radio().await,

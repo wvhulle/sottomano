@@ -38,6 +38,7 @@ use sottomano_sources::{
         niri_kdl_config::{ConfiguredWorkspaces, NiriConfigFile},
         niri_output_facts, niri_window_placement, niri_window_snapshot,
     },
+    network_connectivity::bluez_bluetooth::disconnect_bluetooth_address,
     system_protocol_clients::{
         dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
         shell_command_output::blocking::run,
@@ -55,6 +56,7 @@ use sottomano_widgets::{
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     widget_groups::{
         audio_group::AudioGroup,
+        bluetooth_adapters_group::BluetoothAdaptersGroup,
         caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
         clock_group::ClockGroup,
@@ -136,6 +138,7 @@ pub struct DesktopShell {
     pub internet_group: InternetGroup,
     pub vpn_group: VpnGroup,
     pub net_interfaces_group: NetInterfacesGroup,
+    pub bluetooth_adapters_group: BluetoothAdaptersGroup,
     pub monitor_group: MonitorGroup,
     pub color_temperature_group: ColorTemperatureGroup,
     pub dark_mode_group: DarkModeGroup,
@@ -206,6 +209,7 @@ impl DesktopShell {
             internet_group: InternetGroup::default(),
             vpn_group: VpnGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
+            bluetooth_adapters_group: BluetoothAdaptersGroup::default(),
             monitor_group: MonitorGroup::default(),
             color_temperature_group: ColorTemperatureGroup::new(
                 config.launched_programs.color_temperature_service.clone(),
@@ -398,6 +402,10 @@ impl DesktopShell {
                 .net_interfaces_group
                 .update(msg, self.clock)
                 .map(Message::NetInterfaces),
+            Message::BluetoothAdapters(msg) => self
+                .bluetooth_adapters_group
+                .update(msg, self.clock)
+                .map(Message::BluetoothAdapters),
             Message::Internet(msg) => {
                 self.internet_group.update(msg, self.clock);
                 Task::none()
@@ -627,6 +635,14 @@ impl DesktopShell {
             gamepad_group::Action::Dictation(command) => {
                 Task::future(send_logged_dictation_command(command)).discard()
             }
+            gamepad_group::Action::DisconnectBluetooth { hardware_address } => {
+                Task::future(async move {
+                    if let Err(bus_error) = disconnect_bluetooth_address(hardware_address).await {
+                        tracing::warn!("disconnect Bluetooth controller: {bus_error}");
+                    }
+                })
+                .discard()
+            }
         }
     }
 
@@ -817,6 +833,7 @@ impl DesktopShell {
         self.internet_group.collapse();
         self.vpn_group.collapse();
         self.net_interfaces_group.collapse();
+        self.bluetooth_adapters_group.collapse();
         self.window_group.collapse();
         self.tray_group.collapse();
         self.claude_usage_group.collapse();
