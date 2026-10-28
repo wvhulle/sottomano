@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use chrono::{DateTime, Local, Locale};
+use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::caldav_tasks_events::{
@@ -13,7 +13,7 @@ use sottomano_sources::caldav_tasks_events::{
 use crate::{
     clock::Clock,
     widget_groups::caldav_group::upcoming_events_reading::{
-        calendar_count_caption, linked_title, moment_cell, nextcloud_footer,
+        calendar_count_caption, event_date_cell, event_time_cell, linked_title, nextcloud_footer,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -36,8 +36,17 @@ struct TaskRow<'a> {
     provider: &'a CaldavProvider,
 }
 
-impl TableRow<4> for TaskRow<'_> {
-    fn table_record(self) -> TableRecord<4> {
+impl TaskRow<'_> {
+    fn due_on(&self) -> Option<NaiveDate> {
+        self.task
+            .deadline
+            .due_moment()
+            .map(|due| due.starts_at().date_naive())
+    }
+}
+
+impl TableRow<5> for &TaskRow<'_> {
+    fn table_record(self) -> TableRecord<5> {
         let details_link = self
             .provider
             .nextcloud_web_root()
@@ -49,7 +58,8 @@ impl TableRow<4> for TaskRow<'_> {
         TableRecord::new(
             title,
             [
-                self.task.deadline.due_moment().map(moment_cell),
+                self.task.deadline.due_moment().map(event_date_cell),
+                self.task.deadline.due_moment().and_then(event_time_cell),
                 self.task
                     .priority
                     .band()
@@ -120,20 +130,24 @@ impl BarWidget for OpenTasks<'_> {
             .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
             .collect();
         let without_deadline = self.0.tasks.len() - with_deadline.len();
-        let rows = with_deadline.into_iter().map(|task| TaskRow {
-            task,
-            now,
-            provider,
-        });
+        let rows: Vec<TaskRow> = with_deadline
+            .into_iter()
+            .map(|task| TaskRow {
+                task,
+                now,
+                provider,
+            })
+            .collect();
         TooltipBody::sections([
-            Section::truncated_column_table(
+            Section::grouped_truncated_column_table(
                 [
-                    ColumnHeading::titled("Due"),
+                    ColumnHeading::titled("Day"),
+                    ColumnHeading::titled("Time"),
                     ColumnHeading::titled("Priority"),
                     ColumnHeading::titled("Progress"),
                     ColumnHeading::titled("List").align_x(Horizontal::Left),
                 ],
-                rows,
+                rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
                 LISTED_TASKS,
             )
             .titled((

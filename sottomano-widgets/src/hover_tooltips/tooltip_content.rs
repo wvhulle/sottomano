@@ -28,7 +28,10 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         bar_widget::Glyph,
-        content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
+        content_sized_table::{
+            ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
+            content_sized_table,
+        },
         ellipsis_rule::ellipsis_rule,
         localized_durations::{duration_text, relative_moment_text, signed_duration_text},
         palette_colors::PaletteColors,
@@ -39,7 +42,7 @@ use crate::{
         tooltip_body::{
             Cell, ChipletCells, ColumnHeading, ControllerCallouts, DeliveryTiming, KeyValue,
             RecordCells, Section, SectionBody, SectionsDeliveryState, SourcedSections,
-            TableColumns, TableRows, Tooltip,
+            TableColumns, TableLine, TableRows, Tooltip,
         },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
@@ -538,8 +541,6 @@ impl<'a> TooltipContent<'a> {
                 key_view.key(Cell::from(format!("{omitted_count} more")), palette.dim)
             }
             TableEntry::ContinuationMarker => ellipsis_rule(palette.dim, line_height_px).into(),
-            TableEntry::TotalRule => total_rule(palette.dim),
-            TableEntry::GroupRule => group_rule(palette.dim),
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
@@ -547,10 +548,13 @@ impl<'a> TooltipContent<'a> {
             self.record_column(position, self.column_heading_view(heading))
                 .align_x(heading.alignment())
         });
-        content_sized_table(once(key_column).chain(value_columns), table_entries(rows))
-            .padding_x(COLUMN_GAP_PX / 2.0)
-            .padding_y(self.config.layout.overlay.row_spacing / 2.0)
-            .into()
+        content_sized_spanning_table(
+            once(key_column).chain(value_columns),
+            table_entries(rows, palette.dim),
+        )
+        .padding_x(COLUMN_GAP_PX / 2.0)
+        .padding_y(self.config.layout.overlay.row_spacing / 2.0)
+        .into()
     }
 
     fn column_heading_view(&self, heading: ColumnHeading) -> Element<'static, PopupMessage> {
@@ -610,8 +614,6 @@ impl<'a> TooltipContent<'a> {
             TableEntry::OmittedRecords { .. } | TableEntry::ContinuationMarker => {
                 ellipsis_rule(palette.dim, line_height_px).into()
             }
-            TableEntry::TotalRule => total_rule(palette.dim),
-            TableEntry::GroupRule => group_rule(palette.dim),
         })
         .align_y(Vertical::Top)
     }
@@ -622,8 +624,6 @@ enum TableEntry {
     Record(RecordCells),
     OmittedRecords { omitted_count: NonZeroUsize },
     ContinuationMarker,
-    TotalRule,
-    GroupRule,
 }
 
 const TOTAL_RULE_THICKNESS_PX: f32 = 1.0;
@@ -632,58 +632,42 @@ fn total_rule(color: Color) -> Element<'static, PopupMessage> {
     activity_line(color, 1.0, TOTAL_RULE_THICKNESS_PX)
 }
 
-const GROUP_RULE_OPACITY: f32 = 0.4;
+const GROUP_SEPARATOR_OPACITY: f32 = 0.4;
 
-fn group_rule(color: Color) -> Element<'static, PopupMessage> {
-    activity_line(color, GROUP_RULE_OPACITY, TOTAL_RULE_THICKNESS_PX)
+fn group_separator(color: Color) -> Element<'static, PopupMessage> {
+    activity_line(color, GROUP_SEPARATOR_OPACITY, TOTAL_RULE_THICKNESS_PX)
 }
 
-fn grouped_record_entries(records: &[RecordCells], group_starts: &[usize]) -> Vec<TableEntry> {
-    records
-        .iter()
-        .enumerate()
-        .flat_map(|(position, record)| {
-            group_starts
-                .contains(&position)
-                .then_some(TableEntry::GroupRule)
-                .into_iter()
-                .chain(once(TableEntry::Record(record.clone())))
-        })
-        .collect()
+type TableEntryRow = SpannableRow<'static, TableEntry, PopupMessage>;
+
+fn line_rows(lines: &[TableLine], rule_color: Color) -> impl Iterator<Item = TableEntryRow> + '_ {
+    lines.iter().map(move |line| match line {
+        TableLine::Record(record) => SpannableRow::Columned(TableEntry::Record(record.clone())),
+        TableLine::GroupSeparator => SpannableRow::FullWidth(group_separator(rule_color)),
+    })
 }
 
-fn record_entries(records: &[RecordCells]) -> impl Iterator<Item = TableEntry> + '_ {
-    records.iter().cloned().map(TableEntry::Record)
-}
-
-fn table_entries(rows: &TableRows) -> Vec<TableEntry> {
+fn table_entries(rows: &TableRows, rule_color: Color) -> Vec<TableEntryRow> {
     match rows {
-        TableRows::Complete(records) => record_entries(records).collect(),
-        TableRows::Continuing(records) => record_entries(records)
-            .chain(once(TableEntry::ContinuationMarker))
-            .collect(),
-        TableRows::ContinuingGroups {
-            records,
-            group_starts,
-        } => grouped_record_entries(records, group_starts)
-            .into_iter()
-            .chain(once(TableEntry::ContinuationMarker))
+        TableRows::Complete(lines) => line_rows(lines, rule_color).collect(),
+        TableRows::Continuing(lines) => line_rows(lines, rule_color)
+            .chain(once(SpannableRow::Columned(TableEntry::ContinuationMarker)))
             .collect(),
         TableRows::Truncated {
-            shown_records,
+            shown_lines,
             omitted_count,
-        } => record_entries(shown_records)
-            .chain(once(TableEntry::OmittedRecords {
+        } => line_rows(shown_lines, rule_color)
+            .chain(once(SpannableRow::Columned(TableEntry::OmittedRecords {
                 omitted_count: *omitted_count,
-            }))
+            })))
             .collect(),
         TableRows::Totalled {
-            shown_records,
+            shown_lines,
             total_record,
-        } => record_entries(shown_records)
+        } => line_rows(shown_lines, rule_color)
             .chain([
-                TableEntry::TotalRule,
-                TableEntry::Record(total_record.clone()),
+                SpannableRow::FullWidth(total_rule(rule_color)),
+                SpannableRow::Columned(TableEntry::Record(total_record.clone())),
             ])
             .collect(),
     }
