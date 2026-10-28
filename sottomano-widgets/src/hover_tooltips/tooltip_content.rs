@@ -539,6 +539,7 @@ impl<'a> TooltipContent<'a> {
             }
             TableEntry::ContinuationMarker => ellipsis_rule(palette.dim, line_height_px).into(),
             TableEntry::TotalRule => total_rule(palette.dim),
+            TableEntry::GroupRule => group_rule(palette.dim),
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top);
@@ -610,6 +611,7 @@ impl<'a> TooltipContent<'a> {
                 ellipsis_rule(palette.dim, line_height_px).into()
             }
             TableEntry::TotalRule => total_rule(palette.dim),
+            TableEntry::GroupRule => group_rule(palette.dim),
         })
         .align_y(Vertical::Top)
     }
@@ -621,12 +623,33 @@ enum TableEntry {
     OmittedRecords { omitted_count: NonZeroUsize },
     ContinuationMarker,
     TotalRule,
+    GroupRule,
 }
 
 const TOTAL_RULE_THICKNESS_PX: f32 = 1.0;
 
 fn total_rule(color: Color) -> Element<'static, PopupMessage> {
     activity_line(color, 1.0, TOTAL_RULE_THICKNESS_PX)
+}
+
+const GROUP_RULE_OPACITY: f32 = 0.4;
+
+fn group_rule(color: Color) -> Element<'static, PopupMessage> {
+    activity_line(color, GROUP_RULE_OPACITY, TOTAL_RULE_THICKNESS_PX)
+}
+
+fn grouped_record_entries(records: &[RecordCells], group_starts: &[usize]) -> Vec<TableEntry> {
+    records
+        .iter()
+        .enumerate()
+        .flat_map(|(position, record)| {
+            group_starts
+                .contains(&position)
+                .then_some(TableEntry::GroupRule)
+                .into_iter()
+                .chain(once(TableEntry::Record(record.clone())))
+        })
+        .collect()
 }
 
 fn record_entries(records: &[RecordCells]) -> impl Iterator<Item = TableEntry> + '_ {
@@ -637,6 +660,13 @@ fn table_entries(rows: &TableRows) -> Vec<TableEntry> {
     match rows {
         TableRows::Complete(records) => record_entries(records).collect(),
         TableRows::Continuing(records) => record_entries(records)
+            .chain(once(TableEntry::ContinuationMarker))
+            .collect(),
+        TableRows::ContinuingGroups {
+            records,
+            group_starts,
+        } => grouped_record_entries(records, group_starts)
+            .into_iter()
             .chain(once(TableEntry::ContinuationMarker))
             .collect(),
         TableRows::Truncated {

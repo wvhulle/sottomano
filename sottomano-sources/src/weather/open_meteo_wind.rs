@@ -19,6 +19,10 @@ const BEAUFORT_LOWER_BOUNDS_KM_PER_H: [f64; 12] = [
     1.0, 6.0, 12.0, 20.0, 29.0, 39.0, 50.0, 62.0, 75.0, 89.0, 103.0, 118.0,
 ];
 
+const COMPASS_POINTS: [&str; 8] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+const COMPASS_SECTOR_DEGREES: f64 = 45.0;
+
 fn kilometres_per_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Velocity, D::Error> {
     Ok(Velocity::new::<kilometer_per_hour>(f64::deserialize(
         deserializer,
@@ -51,6 +55,14 @@ impl Wind {
             .iter()
             .take_while(|&&bound| self.speed >= Velocity::new::<kilometer_per_hour>(bound))
             .count()
+    }
+
+    #[must_use]
+    pub fn compass_point(&self) -> &'static str {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let sector = (self.direction.get::<degree>().rem_euclid(360.0) / COMPASS_SECTOR_DEGREES)
+            .round() as usize;
+        COMPASS_POINTS[sector % COMPASS_POINTS.len()]
     }
 }
 

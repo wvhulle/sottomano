@@ -277,6 +277,10 @@ pub enum TableRows {
         omitted_count: NonZeroUsize,
     },
     Continuing(Vec<RecordCells>),
+    ContinuingGroups {
+        records: Vec<RecordCells>,
+        group_starts: Vec<usize>,
+    },
     Totalled {
         shown_records: Vec<RecordCells>,
         total_record: RecordCells,
@@ -300,6 +304,10 @@ impl TableRows {
         match self {
             TableRows::Complete(shown_records)
             | TableRows::Continuing(shown_records)
+            | TableRows::ContinuingGroups {
+                records: shown_records,
+                ..
+            }
             | TableRows::Truncated { shown_records, .. }
             | TableRows::Totalled { shown_records, .. } => shown_records,
         }
@@ -533,6 +541,28 @@ impl Section {
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
             rows: TableRows::Continuing(SectionBody::table_records(rows)),
+        })
+    }
+
+    pub fn grouped_continuing_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
+    ) -> Self {
+        let mut records = Vec::new();
+        let mut group_starts = Vec::new();
+        for group in groups {
+            let group_start = records.len();
+            records.extend(SectionBody::table_records(group));
+            if records.len() > group_start && group_start > 0 {
+                group_starts.push(group_start);
+            }
+        }
+        Self::untitled(SectionBody::ColumnTable {
+            columns: TableColumns::Headed(headings.into()),
+            rows: TableRows::ContinuingGroups {
+                records,
+                group_starts,
+            },
         })
     }
 
@@ -968,6 +998,24 @@ mod tests {
                 rows: TableRows::Continuing(records),
                 ..
             } if records.len() == 3
+        ));
+    }
+
+    #[test]
+    fn a_grouped_table_keeps_every_row_and_starts_groups_after_the_first() {
+        let inner_planets = planets(&["Mercury", "Venus"]);
+        let no_planets = planets(&[]);
+        let outer_planets = planets(&["Jupiter", "Saturn", "Uranus"]);
+        let section = Section::grouped_continuing_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            [&inner_planets, &no_planets, &outer_planets],
+        );
+        assert!(matches!(
+            section.body(),
+            SectionBody::ColumnTable {
+                rows: TableRows::ContinuingGroups { records, group_starts },
+                ..
+            } if records.len() == 5 && group_starts == &[2]
         ));
     }
 
