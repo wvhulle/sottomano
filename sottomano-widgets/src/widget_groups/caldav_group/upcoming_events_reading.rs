@@ -31,8 +31,8 @@ struct EventRow<'a> {
     provider: &'a CaldavProvider,
 }
 
-impl TableRow<3> for EventRow<'_> {
-    fn table_record(self) -> TableRecord<3> {
+impl TableRow<4> for EventRow<'_> {
+    fn table_record(self) -> TableRecord<4> {
         let details_link = self
             .provider
             .nextcloud_web_root()
@@ -44,12 +44,27 @@ impl TableRow<3> for EventRow<'_> {
         TableRecord::new(
             title,
             [
-                Some(moment_cell(self.event.start)),
+                Some(event_date_cell(self.event.start)),
+                event_time_cell(self.event.start),
                 Some(Cell::Hint(self.event.calendar.clone())),
                 (!self.event.location.is_empty()).then(|| Cell::from(self.event.location.clone())),
             ],
         )
     }
+}
+
+fn event_date_cell(start: AgendaMoment) -> Cell {
+    Cell::Time {
+        at: start.starts_at().to_utc(),
+        format: LocalizedTimeFormat::WeekdayDate,
+    }
+}
+
+fn event_time_cell(start: AgendaMoment) -> Option<Cell> {
+    (!start.is_all_day()).then(|| Cell::Time {
+        at: start.starts_at().to_utc(),
+        format: LocalizedTimeFormat::HourAndMinute,
+    })
 }
 
 pub(super) fn linked_title(title: &str, url: String) -> Cell {
@@ -146,7 +161,8 @@ impl BarWidget for CaldavAgenda {
         TooltipBody::sections([
             Section::truncated_column_table(
                 [
-                    ColumnHeading::titled("Starts"),
+                    ColumnHeading::titled("Date"),
+                    ColumnHeading::titled("Time"),
                     ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
                     ColumnHeading::titled("Location").align_x(Horizontal::Left),
                 ],
