@@ -1,10 +1,11 @@
+mod bluetooth_link_reading;
 mod connected_controller_reading;
 mod controller_battery_reading;
 pub mod controller_button_labels;
 mod controller_link_reading;
-mod controller_transport_reading;
 mod diagram_anchor_mapping;
 mod player_number_reading;
+mod usb_cable_reading;
 
 use std::collections::BTreeMap;
 
@@ -18,7 +19,7 @@ use sottomano_sources::{
         accelerometer_report_rate::ReportRate,
         evdev_gamepad_devices::{
             ButtonEdge, ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower,
-            GamepadTransport, PhysicalGamepadLink,
+            GamepadTransport, PhysicalGamepadLink, UsbCableState,
         },
         gamepad_input_machine::{GamepadInput, GamepadStreamSettings, PointerGate},
         gamepad_input_stream::gamepad_inputs,
@@ -30,11 +31,12 @@ use sottomano_sources::{
 };
 
 use self::{
+    bluetooth_link_reading::BluetoothLinkReading,
     connected_controller_reading::ConnectedControllerReading,
     controller_battery_reading::ControllerBatteryReading,
     controller_link_reading::{ControllerLinkReading, MeasuredReportRate},
-    controller_transport_reading::ControllerTransportReading,
     player_number_reading::PlayerNumberReading,
+    usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
     clock::Clock,
@@ -53,7 +55,8 @@ pub enum GamepadTarget {
     Player { slot: usize },
     Battery { slot: usize },
     Link { slot: usize },
-    Transport { slot: usize },
+    Bluetooth { slot: usize },
+    UsbCable { slot: usize },
 }
 
 impl From<GamepadTarget> for HoverTarget {
@@ -332,14 +335,14 @@ impl GamepadGroup {
             GamepadTarget::Link { slot } => self
                 .link_reading(slot, self.physical_link(slot)?)
                 .tooltip(clock),
-            GamepadTarget::Transport { slot } => {
+            GamepadTarget::Bluetooth { slot } => {
                 let link = self.physical_link(slot)?;
-                ControllerTransportReading {
-                    transport: link.transport,
-                    identity: &link.identity,
-                }
-                .tooltip(clock)
+                bluetooth_reading(link)?.tooltip(clock)
             }
+            GamepadTarget::UsbCable { slot } => UsbCableReading {
+                role: usb_cable_role(self.physical_link(slot)?.transport)?,
+            }
+            .tooltip(clock),
         })
     }
 
@@ -385,20 +388,19 @@ impl GamepadGroup {
             GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
                 .previewed_on_handle_if(battery_low)
         });
-        let transport_reading = ControllerTransportReading {
-            transport: link.transport,
-            identity: &link.identity,
-        };
-        let cable_ignored = transport_reading.cable_ignored();
-        let transport = GroupItem::reading(transport_reading, GamepadTarget::Transport { slot });
-        let transport = if cable_ignored {
-            transport.on_press(
-                "disconnect Bluetooth so the cable can take over",
-                GamepadMessage::DisconnectBluetooth { slot },
-            )
-        } else {
-            transport
-        };
+        let bluetooth = bluetooth_reading(link)
+            .map(|reading| GroupItem::reading(reading, GamepadTarget::Bluetooth { slot }));
+        let usb_cable = usb_cable_role(link.transport).map(|role| {
+            let item =
+                GroupItem::reading(UsbCableReading { role }, GamepadTarget::UsbCable { slot });
+            match role {
+                UsbCableRole::ChargingOnly => item.on_press(
+                    "disconnect Bluetooth so the cable can take over",
+                    GamepadMessage::DisconnectBluetooth { slot },
+                ),
+                UsbCableRole::InputAndCharging => item,
+            }
+        });
         Some(GroupContent::new(
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
@@ -407,7 +409,8 @@ impl GamepadGroup {
                 player,
                 Some(connection),
                 battery,
-                Some(transport),
+                bluetooth,
+                usb_cable,
             ]
             .into_iter()
             .flatten(),
@@ -426,6 +429,28 @@ impl GamepadGroup {
                 self.controller_group(gamepad, link, bindings, focused_app_id)
             })
             .collect()
+    }
+}
+
+fn bluetooth_reading(link: &PhysicalGamepadLink) -> Option<BluetoothLinkReading<'_>> {
+    match link.transport {
+        GamepadTransport::Bluetooth { .. } => Some(BluetoothLinkReading {
+            identity: &link.identity,
+        }),
+        GamepadTransport::Usb | GamepadTransport::Other => None,
+    }
+}
+
+fn usb_cable_role(transport: GamepadTransport) -> Option<UsbCableRole> {
+    match transport {
+        GamepadTransport::Usb => Some(UsbCableRole::InputAndCharging),
+        GamepadTransport::Bluetooth {
+            usb_cable: UsbCableState::IgnoredByKernel,
+        } => Some(UsbCableRole::ChargingOnly),
+        GamepadTransport::Bluetooth {
+            usb_cable: UsbCableState::Absent,
+        }
+        | GamepadTransport::Other => None,
     }
 }
 
@@ -487,9 +512,7 @@ fn niri_request(action: CompositorAction) -> niri_ipc::Action {
 #[cfg(test)]
 mod tests {
     use sottomano_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
-    use sottomano_sources::gamepad_controller_input::{
-        evdev_gamepad_devices::UsbCableState, player_indicator_leds::LitPlayer,
-    };
+    use sottomano_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
 
     use super::*;
 
