@@ -9,7 +9,10 @@ use zbus::Connection;
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
-    network_connectivity::{ReadingError, device_or_absent, network_manager_proxies, nm_readings},
+    network_connectivity::{
+        ReadingError, device_or_absent, network_manager_proxies, nm_readings,
+        sysfs_interface_faults::InterfaceFaultCounters,
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -22,6 +25,7 @@ pub struct Link {
     pub dns: Vec<String>,
     pub speed: InformationRate,
     pub mtu: u32,
+    pub fault_counters: InterfaceFaultCounters,
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +100,7 @@ async fn link(
         dns: ip.dns,
         speed,
         mtu,
+        fault_counters: InterfaceFaultCounters::of_interface(&device.interface),
     })
 }
 

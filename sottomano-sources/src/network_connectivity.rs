@@ -1,10 +1,14 @@
 pub mod bluez_bluetooth;
 pub mod ethernet_connection;
 pub mod hid_sysfs_bluetooth_peripherals;
+pub mod icmp_uplink_latency;
 pub mod interface_throughput;
 pub mod modem_manager_mobile;
 pub mod network_manager_proxies;
 pub mod network_manager_vpn_connections;
+pub mod nm_uplink_connectivity;
+pub mod proc_tcp_retransmissions;
+pub mod sysfs_interface_faults;
 pub mod tailscale_status;
 pub mod wifi_connection;
 pub mod wireguard_tunnels;

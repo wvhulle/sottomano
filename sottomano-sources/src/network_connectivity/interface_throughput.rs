@@ -21,10 +21,7 @@ use uom::si::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{PeriodicPolling, PollTick},
-    network_connectivity::{
-        network_manager_proxies::{self, Connectivity},
-        nm_readings,
-    },
+    network_connectivity::{network_manager_proxies, nm_readings},
     stream_operators::StreamOperators,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -45,7 +42,6 @@ pub struct Throughput {
     pub interfaces: Vec<String>,
     pub rate: InformationRate,
     pub peak_rate: InformationRate,
-    pub connectivity: Option<Connectivity>,
     pub direction: NetworkTrafficDirection,
 }
 
@@ -90,6 +86,8 @@ impl Throughput {
 pub struct InterfaceThroughput {
     pub down: Throughput,
     pub up: Throughput,
+    pub metered: bool,
+    pub cumulative_counters: BTreeMap<String, InterfaceByteCounters>,
 }
 
 impl SnapshotSource for InterfaceThroughput {
@@ -143,7 +141,7 @@ enum ThroughputEvent {
 #[derive(Default)]
 struct ThroughputSampler {
     interfaces: Vec<String>,
-    connectivity: Option<Connectivity>,
+    metered: bool,
     latest: Option<Sample>,
     rates: Rates,
     peak: Rates,
@@ -157,7 +155,7 @@ impl ThroughputSampler {
                     .as_ref()
                     .map(|uplink| physical(&uplink.activated_interfaces))
                     .unwrap_or_default(),
-                connectivity: uplink.and_then(|uplink| uplink.connectivity),
+                metered: uplink.is_some_and(|uplink| uplink.metered),
                 ..self
             },
             ThroughputEvent::Tick(_) => {
@@ -180,18 +178,18 @@ impl ThroughputSampler {
     fn readings(&self) -> Option<InterfaceThroughput> {
         self.latest
             .as_ref()
-            .map(|latest| readings(latest, self.rates, self.peak, self.connectivity))
+            .map(|latest| readings(latest, self.rates, self.peak, self.metered))
     }
 }
 
-#[derive(Default, Clone, Copy)]
-struct Counters {
-    rx: ByteSize,
-    tx: ByteSize,
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct InterfaceByteCounters {
+    pub received: ByteSize,
+    pub sent: ByteSize,
 }
 
 struct Sample {
-    counters: BTreeMap<String, Counters>,
+    counters: BTreeMap<String, InterfaceByteCounters>,
     at: Instant,
 }
 
@@ -246,35 +244,30 @@ impl Sample {
             .iter()
             .filter_map(|(interface, now)| Some((now, previous.counters.get(interface)?)))
             .map(|(now, was)| Rates {
-                rx: per_second(now.rx, was.rx, elapsed),
-                tx: per_second(now.tx, was.tx, elapsed),
+                rx: per_second(now.received, was.received, elapsed),
+                tx: per_second(now.sent, was.sent, elapsed),
             })
             .fold(Rates::default(), Add::add)
     }
 }
 
-fn readings(
-    current: &Sample,
-    rates: Rates,
-    peak: Rates,
-    connectivity: Option<Connectivity>,
-) -> InterfaceThroughput {
+fn readings(current: &Sample, rates: Rates, peak: Rates, metered: bool) -> InterfaceThroughput {
     let interfaces: Vec<String> = current.counters.keys().cloned().collect();
     InterfaceThroughput {
         down: Throughput {
             interfaces: interfaces.clone(),
             rate: rates.rx,
             peak_rate: peak.rx,
-            connectivity,
             direction: NetworkTrafficDirection::Download,
         },
         up: Throughput {
             interfaces,
             rate: rates.tx,
             peak_rate: peak.tx,
-            connectivity,
             direction: NetworkTrafficDirection::Upload,
         },
+        metered,
+        cumulative_counters: current.counters.clone(),
     }
 }
 
@@ -283,16 +276,16 @@ fn per_second(now: ByteSize, was: ByteSize, elapsed: Duration) -> InformationRat
     (transferred / Time::new::<second>(elapsed.as_secs_f64())).into()
 }
 
-fn read_counters(interface: &str) -> Counters {
+fn read_counters(interface: &str) -> InterfaceByteCounters {
     let counter = |file: &str| {
         fs::read_to_string(format!("/sys/class/net/{interface}/statistics/{file}"))
             .ok()
             .and_then(|value| value.trim().parse().ok())
             .map_or(ByteSize::default(), ByteSize::b)
     };
-    Counters {
-        rx: counter("rx_bytes"),
-        tx: counter("tx_bytes"),
+    InterfaceByteCounters {
+        received: counter("rx_bytes"),
+        sent: counter("tx_bytes"),
     }
 }
 

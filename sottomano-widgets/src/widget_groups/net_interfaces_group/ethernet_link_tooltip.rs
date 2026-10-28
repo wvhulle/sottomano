@@ -81,7 +81,14 @@ fn link_sections(port: &Port, link: &Link, prefixed: bool) -> Vec<Section> {
         address_section(&key, "IPv4", link.ipv4.as_ref()),
         address_section(&key, "IPv6", link.ipv6.as_ref()),
         dns_section(&key, &link.dns),
-        link_stats_section(&key, "Link", "Link Speed", link.speed, link.mtu),
+        link_stats_section(
+            &key,
+            "Link",
+            "Link Speed",
+            link.speed,
+            link.mtu,
+            link.fault_counters,
+        ),
     ]
     .into_iter()
     .chain(

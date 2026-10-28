@@ -68,7 +68,6 @@ use sottomano_widgets::{
         gamepad_group::{self, GamepadGroup, GamepadMessage},
         gpu_group::GpuGroup,
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
-        internet_group::InternetGroup,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
         login_session_group::LoginSessionGroup,
@@ -84,6 +83,7 @@ use sottomano_widgets::{
         pending_upgrades_group::PendingUpgradesGroup,
         power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup,
+        reachability_group::ReachabilityGroup,
         session_focus_group::SessionFocusGroup,
         session_menu::{self, SessionMenu, SessionMessage},
         sidebar_settings_group::SidebarSettingsGroup,
@@ -135,7 +135,7 @@ pub struct DesktopShell {
     pub systemd_manager_group: SystemdManagerGroup,
     pub journal_events_group: JournalEventsGroup,
     pub pending_upgrades_group: PendingUpgradesGroup,
-    pub internet_group: InternetGroup,
+    pub reachability_group: ReachabilityGroup,
     pub vpn_group: VpnGroup,
     pub net_interfaces_group: NetInterfacesGroup,
     pub bluetooth_adapters_group: BluetoothAdaptersGroup,
@@ -206,7 +206,7 @@ impl DesktopShell {
             systemd_manager_group: SystemdManagerGroup::default(),
             journal_events_group: JournalEventsGroup::default(),
             pending_upgrades_group: PendingUpgradesGroup::default(),
-            internet_group: InternetGroup::default(),
+            reachability_group: ReachabilityGroup::default(),
             vpn_group: VpnGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
             bluetooth_adapters_group: BluetoothAdaptersGroup::default(),
@@ -406,10 +406,10 @@ impl DesktopShell {
                 .bluetooth_adapters_group
                 .update(msg, self.clock)
                 .map(Message::BluetoothAdapters),
-            Message::Internet(msg) => {
-                self.internet_group.update(msg, self.clock);
-                Task::none()
-            }
+            Message::Reachability(msg) => self
+                .reachability_group
+                .update(msg, &self.config.widget_groups.reachability, self.clock)
+                .map(Message::Reachability),
             Message::Vpn(msg) => self.vpn_group.update(msg, self.clock).map(Message::Vpn),
             Message::Monitor(msg) => self
                 .monitor_group
@@ -830,7 +830,7 @@ impl DesktopShell {
         self.gpu_group.collapse();
         self.disk_group.collapse();
         self.media_group.collapse();
-        self.internet_group.collapse();
+        self.reachability_group.collapse();
         self.vpn_group.collapse();
         self.net_interfaces_group.collapse();
         self.bluetooth_adapters_group.collapse();

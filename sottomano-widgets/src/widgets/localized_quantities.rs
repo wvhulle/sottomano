@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, time::Duration};
 
 use bytesize::ByteSize;
 use chrono::Locale;
@@ -73,6 +73,8 @@ pub enum DisplayUnit {
     MegatransfersPerSecond,
     MillionsPerSecond,
     PerHour,
+    PerSecond,
+    Millisecond,
     GrainsPerCubicMeter,
     Unitless,
 }
@@ -101,6 +103,8 @@ impl DisplayUnit {
             DisplayUnit::MegatransfersPerSecond => "MT/s",
             DisplayUnit::MillionsPerSecond => "M/s",
             DisplayUnit::PerHour => "/h",
+            DisplayUnit::PerSecond => "/s",
+            DisplayUnit::Millisecond => "ms",
             DisplayUnit::GrainsPerCubicMeter => "grains/m³",
             DisplayUnit::Unitless => "",
         }
@@ -134,7 +138,7 @@ impl Measurement {
                 localized_decimal(self.magnitude().abs(), self.decimals, locale),
                 self.unit.symbol()
             ),
-            DisplayUnit::Degree | DisplayUnit::PerHour => format!(
+            DisplayUnit::Degree | DisplayUnit::PerHour | DisplayUnit::PerSecond => format!(
                 "{}{}",
                 localized_decimal(self.magnitude(), self.decimals, locale),
                 self.unit.symbol()
@@ -249,6 +253,20 @@ impl Quantity {
             DisplayUnit::MegabitPerSecond,
             0,
         )
+    }
+
+    #[must_use]
+    pub fn round_trip(round_trip: Duration) -> Self {
+        Self::measured(
+            round_trip.as_secs_f64() * 1_000.0,
+            DisplayUnit::Millisecond,
+            0,
+        )
+    }
+
+    #[must_use]
+    pub fn per_second(events_per_second: f64) -> Self {
+        Self::measured(events_per_second, DisplayUnit::PerSecond, 1)
     }
 
     #[must_use]
