@@ -270,47 +270,70 @@ pub enum TableColumns {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TableLine {
+    Record(RecordCells),
+    GroupSeparator,
+}
+
+impl TableLine {
+    fn record(&self) -> Option<&RecordCells> {
+        match self {
+            TableLine::Record(record) => Some(record),
+            TableLine::GroupSeparator => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TableRows {
-    Complete(Vec<RecordCells>),
+    Complete(Vec<TableLine>),
     Truncated {
-        shown_records: Vec<RecordCells>,
+        shown_lines: Vec<TableLine>,
         omitted_count: NonZeroUsize,
     },
-    Continuing(Vec<RecordCells>),
-    ContinuingGroups {
-        records: Vec<RecordCells>,
-        group_starts: Vec<usize>,
-    },
+    Continuing(Vec<TableLine>),
     Totalled {
-        shown_records: Vec<RecordCells>,
+        shown_lines: Vec<TableLine>,
         total_record: RecordCells,
     },
 }
 
 impl TableRows {
-    fn first_rows(records: Vec<RecordCells>, row_limit: NonZeroUsize) -> Self {
-        let Some(omitted_count) = NonZeroUsize::new(records.len().saturating_sub(row_limit.get()))
+    fn first_rows(lines: Vec<TableLine>, row_limit: NonZeroUsize) -> Self {
+        let record_count = lines.iter().filter_map(TableLine::record).count();
+        let Some(omitted_count) = NonZeroUsize::new(record_count.saturating_sub(row_limit.get()))
         else {
-            return TableRows::Complete(records);
+            return TableRows::Complete(lines);
         };
+        let mut kept_records = 0;
+        let shown_lines = lines
+            .into_iter()
+            .take_while(|line| match line {
+                TableLine::Record(_) => {
+                    kept_records += 1;
+                    kept_records <= row_limit.get()
+                }
+                TableLine::GroupSeparator => kept_records < row_limit.get(),
+            })
+            .collect();
         TableRows::Truncated {
-            shown_records: records.into_iter().take(row_limit.get()).collect(),
+            shown_lines,
             omitted_count,
         }
     }
 
     #[must_use]
-    pub fn shown_records(&self) -> &[RecordCells] {
+    pub fn shown_lines(&self) -> &[TableLine] {
         match self {
-            TableRows::Complete(shown_records)
-            | TableRows::Continuing(shown_records)
-            | TableRows::ContinuingGroups {
-                records: shown_records,
-                ..
-            }
-            | TableRows::Truncated { shown_records, .. }
-            | TableRows::Totalled { shown_records, .. } => shown_records,
+            TableRows::Complete(shown_lines)
+            | TableRows::Continuing(shown_lines)
+            | TableRows::Truncated { shown_lines, .. }
+            | TableRows::Totalled { shown_lines, .. } => shown_lines,
         }
+    }
+
+    pub fn shown_records(&self) -> impl Iterator<Item = &RecordCells> {
+        self.shown_lines().iter().filter_map(TableLine::record)
     }
 }
 
@@ -367,12 +390,28 @@ pub struct ThreadCell {
 }
 
 impl SectionBody {
-    fn table_records<const COLUMNS: usize>(
+    fn table_lines<const COLUMNS: usize>(
         rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Vec<RecordCells> {
+    ) -> Vec<TableLine> {
         rows.into_iter()
-            .map(|row| RecordCells::from(row.table_record()))
+            .map(|row| TableLine::Record(RecordCells::from(row.table_record())))
             .collect()
+    }
+
+    fn grouped_table_lines<const COLUMNS: usize>(
+        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
+    ) -> Vec<TableLine> {
+        groups
+            .into_iter()
+            .map(Self::table_lines)
+            .filter(|group_lines| !group_lines.is_empty())
+            .fold(Vec::new(), |mut lines, group_lines| {
+                if !lines.is_empty() {
+                    lines.push(TableLine::GroupSeparator);
+                }
+                lines.extend(group_lines);
+                lines
+            })
     }
 
     fn column_table<const COLUMNS: usize>(
@@ -381,7 +420,7 @@ impl SectionBody {
     ) -> Self {
         SectionBody::ColumnTable {
             columns,
-            rows: TableRows::Complete(Self::table_records(rows)),
+            rows: TableRows::Complete(Self::table_lines(rows)),
         }
     }
 
@@ -389,7 +428,7 @@ impl SectionBody {
     pub fn is_empty(&self) -> bool {
         match self {
             SectionBody::Dictionary(entries) => entries.is_empty(),
-            SectionBody::ColumnTable { rows, .. } => rows.shown_records().is_empty(),
+            SectionBody::ColumnTable { rows, .. } => rows.shown_lines().is_empty(),
             SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
             SectionBody::ControllerDiagram(diagram) => diagram.callouts.is_empty(),
             SectionBody::Workspace(preview) => {
@@ -530,7 +569,7 @@ impl Section {
     ) -> Self {
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::first_rows(SectionBody::table_records(rows), row_limit),
+            rows: TableRows::first_rows(SectionBody::table_lines(rows), row_limit),
         })
     }
 
@@ -540,7 +579,7 @@ impl Section {
     ) -> Self {
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::Continuing(SectionBody::table_records(rows)),
+            rows: TableRows::Continuing(SectionBody::table_lines(rows)),
         })
     }
 
@@ -548,21 +587,20 @@ impl Section {
         headings: [ColumnHeading; COLUMNS],
         groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
     ) -> Self {
-        let mut records = Vec::new();
-        let mut group_starts = Vec::new();
-        for group in groups {
-            let group_start = records.len();
-            records.extend(SectionBody::table_records(group));
-            if records.len() > group_start && group_start > 0 {
-                group_starts.push(group_start);
-            }
-        }
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::ContinuingGroups {
-                records,
-                group_starts,
-            },
+            rows: TableRows::Continuing(SectionBody::grouped_table_lines(groups)),
+        })
+    }
+
+    pub fn grouped_truncated_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
+        row_limit: NonZeroUsize,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable {
+            columns: TableColumns::Headed(headings.into()),
+            rows: TableRows::first_rows(SectionBody::grouped_table_lines(groups), row_limit),
         })
     }
 
@@ -574,7 +612,7 @@ impl Section {
         Self::untitled(SectionBody::ColumnTable {
             columns: TableColumns::Headed(headings.into()),
             rows: TableRows::Totalled {
-                shown_records: SectionBody::table_records(rows),
+                shown_lines: SectionBody::table_lines(rows),
                 total_record: RecordCells::from(total.table_record()),
             },
         })
@@ -925,10 +963,12 @@ mod tests {
                     ColumnHeading::untitled()
                 ]),
                 rows: TableRows::Complete(vec![
-                    TableRecord::new("Mars", [Some("2".into()), None]).into(),
-                    TableRecord::new("Venus", [Some("0".into()), None])
-                        .level(Severity::Warning)
-                        .into(),
+                    TableLine::Record(TableRecord::new("Mars", [Some("2".into()), None]).into()),
+                    TableLine::Record(
+                        TableRecord::new("Venus", [Some("0".into()), None])
+                            .level(Severity::Warning)
+                            .into()
+                    ),
                 ]),
             }
         );
@@ -949,7 +989,7 @@ mod tests {
         let SectionBody::ColumnTable {
             rows:
                 TableRows::Truncated {
-                    shown_records,
+                    shown_lines,
                     omitted_count,
                 },
             ..
@@ -957,7 +997,7 @@ mod tests {
         else {
             panic!("expected a truncated table");
         };
-        assert_eq!(shown_records.len(), 2);
+        assert_eq!(shown_lines.len(), 2);
         assert_eq!(omitted_count.get(), 2);
     }
 
@@ -995,28 +1035,66 @@ mod tests {
         assert!(matches!(
             section.body(),
             SectionBody::ColumnTable {
-                rows: TableRows::Continuing(records),
+                rows: TableRows::Continuing(lines),
                 ..
-            } if records.len() == 3
+            } if lines.len() == 3
         ));
     }
 
+    fn line_shapes(section: &Section) -> Vec<&'static str> {
+        let SectionBody::ColumnTable { rows, .. } = section.body() else {
+            panic!("expected a table");
+        };
+        rows.shown_lines()
+            .iter()
+            .map(|line| match line {
+                TableLine::Record(_) => "record",
+                TableLine::GroupSeparator => "separator",
+            })
+            .collect()
+    }
+
     #[test]
-    fn a_grouped_table_keeps_every_row_and_starts_groups_after_the_first() {
+    fn separators_fall_only_between_non_empty_groups() {
         let inner_planets = planets(&["Mercury", "Venus"]);
         let no_planets = planets(&[]);
-        let outer_planets = planets(&["Jupiter", "Saturn", "Uranus"]);
+        let outer_planets = planets(&["Jupiter", "Saturn"]);
         let section = Section::grouped_continuing_column_table(
             [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            [&inner_planets, &no_planets, &outer_planets],
+            [
+                &no_planets,
+                &inner_planets,
+                &no_planets,
+                &outer_planets,
+                &no_planets,
+            ],
         );
-        assert!(matches!(
-            section.body(),
-            SectionBody::ColumnTable {
-                rows: TableRows::ContinuingGroups { records, group_starts },
-                ..
-            } if records.len() == 5 && group_starts == &[2]
-        ));
+        assert_eq!(
+            line_shapes(&section),
+            ["record", "record", "separator", "record", "record"]
+        );
+    }
+
+    #[test]
+    fn truncation_counts_records_and_never_ends_on_a_separator() {
+        let inner_planets = planets(&["Mercury", "Venus"]);
+        let outer_planets = planets(&["Jupiter", "Saturn", "Uranus"]);
+        let groups = [&inner_planets, &outer_planets];
+        let cut_inside_a_group = Section::grouped_truncated_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            groups,
+            NonZeroUsize::new(3).unwrap(),
+        );
+        assert_eq!(
+            line_shapes(&cut_inside_a_group),
+            ["record", "record", "separator", "record"]
+        );
+        let cut_at_a_group_end = Section::grouped_truncated_column_table(
+            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
+            groups,
+            NonZeroUsize::new(2).unwrap(),
+        );
+        assert_eq!(line_shapes(&cut_at_a_group_end), ["record", "record"]);
     }
 
     #[test]
@@ -1030,9 +1108,9 @@ mod tests {
         assert!(matches!(
             section.body(),
             SectionBody::ColumnTable {
-                rows: TableRows::Complete(records),
+                rows: TableRows::Complete(lines),
                 ..
-            } if records.len() == 2
+            } if lines.len() == 2
         ));
     }
 }

@@ -140,7 +140,6 @@ mod tests {
         };
         let values: Vec<Cell> = rows
             .shown_records()
-            .iter()
             .filter_map(|record| record.cell(1).cloned())
             .collect();
         let expected: Vec<Cell> = once("2 earlier not shown".to_string())

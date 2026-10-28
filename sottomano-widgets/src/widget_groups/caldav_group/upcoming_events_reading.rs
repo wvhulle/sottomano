@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use chrono::{DateTime, Local, Locale};
+use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_sources::caldav_tasks_events::{
     agenda_moment_zones::AgendaMoment, caldav_agenda::CaldavAgenda,
@@ -31,7 +31,13 @@ struct EventRow<'a> {
     provider: &'a CaldavProvider,
 }
 
-impl TableRow<4> for EventRow<'_> {
+impl EventRow<'_> {
+    fn starts_on(&self) -> NaiveDate {
+        self.event.start.starts_at().date_naive()
+    }
+}
+
+impl TableRow<4> for &EventRow<'_> {
     fn table_record(self) -> TableRecord<4> {
         let details_link = self
             .provider
@@ -53,14 +59,14 @@ impl TableRow<4> for EventRow<'_> {
     }
 }
 
-fn event_date_cell(start: AgendaMoment) -> Cell {
+pub(super) fn event_date_cell(start: AgendaMoment) -> Cell {
     Cell::Time {
         at: start.starts_at().to_utc(),
         format: LocalizedTimeFormat::WeekdayDate,
     }
 }
 
-fn event_time_cell(start: AgendaMoment) -> Option<Cell> {
+pub(super) fn event_time_cell(start: AgendaMoment) -> Option<Cell> {
     (!start.is_all_day()).then(|| Cell::Time {
         at: start.starts_at().to_utc(),
         format: LocalizedTimeFormat::HourAndMinute,
@@ -72,17 +78,6 @@ pub(super) fn linked_title(title: &str, url: String) -> Cell {
         label: title.to_owned(),
         url,
         glyph: None,
-    }
-}
-
-pub(super) fn moment_cell(moment: AgendaMoment) -> Cell {
-    Cell::Time {
-        at: moment.starts_at().to_utc(),
-        format: if moment.is_all_day() {
-            LocalizedTimeFormat::WeekdayDate
-        } else {
-            LocalizedTimeFormat::WeekdayDateAndMinute
-        },
     }
 }
 
@@ -150,23 +145,24 @@ impl BarWidget for CaldavAgenda {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let rows = self
+        let rows: Vec<EventRow> = self
             .events
             .iter()
             .filter(|event| !event.has_ended(now))
             .map(|event| EventRow {
                 event,
                 provider: &self.provider,
-            });
+            })
+            .collect();
         TooltipBody::sections([
-            Section::truncated_column_table(
+            Section::grouped_truncated_column_table(
                 [
                     ColumnHeading::titled("Date"),
                     ColumnHeading::titled("Time"),
                     ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
                     ColumnHeading::titled("Location").align_x(Horizontal::Left),
                 ],
-                rows,
+                rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
                 LISTED_EVENTS,
             )
             .titled(("Upcoming events", calendar_count_caption(self))),

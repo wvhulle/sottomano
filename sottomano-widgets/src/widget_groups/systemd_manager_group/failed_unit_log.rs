@@ -264,7 +264,6 @@ mod tests {
             panic!("expected a table");
         };
         rows.shown_records()
-            .iter()
             .map(|record| record.key().clone())
             .collect()
     }
