@@ -13,7 +13,8 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -52,15 +53,18 @@ impl BarWidget for ClaudeEnterpriseSpend {
         };
         let limit_entries = self.limit.iter().flat_map(|limit| {
             [
-                KeyValue::new("Monthly Limit", Quantity::spend(*limit)),
-                KeyValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
+                LabeledValue::new("Monthly Limit", Quantity::spend(*limit)),
+                LabeledValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
             ]
         });
         TooltipBody::sections([Section::dictionary(
-            [KeyValue::new("Status", status)]
+            [LabeledValue::new("Status", status)]
                 .into_iter()
-                .chain(reason.map(|reason| KeyValue::new("Reason", reason)))
-                .chain([KeyValue::new("Used This Month", Quantity::spend(self.used))])
+                .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))
+                .chain([LabeledValue::new(
+                    "Used This Month",
+                    Quantity::spend(self.used),
+                )])
                 .chain(limit_entries),
         )
         .titled("Usage Credits")])
@@ -78,9 +82,9 @@ impl BarWidget for ClaudeEnterpriseSpend {
 impl ReadingSections for ClaudeOrganization {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary([
-            KeyValue::new("Organization", self.organization.as_str()),
-            KeyValue::new("Seat Tier", self.seat_tier.as_str()),
-            KeyValue::new("Subscription Status", self.subscription_status.as_str()),
+            LabeledValue::new("Organization", self.organization.as_str()),
+            LabeledValue::new("Seat Tier", self.seat_tier.as_str()),
+            LabeledValue::new("Subscription Status", self.subscription_status.as_str()),
         ])]
     }
 }

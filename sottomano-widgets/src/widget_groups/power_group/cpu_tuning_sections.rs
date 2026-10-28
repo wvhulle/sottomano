@@ -3,7 +3,11 @@ use sottomano_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuT
 
 use crate::{
     clock::Clock,
-    widgets::tooltip_body::{Cell, ColumnHeading, ReadingSections, Section, TableRecord},
+    widgets::{
+        keyed_record_table::{ColumnHeading, TableRecord},
+        tooltip_body::{ReadingSections, Section},
+        value_cells::ValueCell,
+    },
 };
 
 const HEADINGS: [ColumnHeading; 2] = [
@@ -12,10 +16,7 @@ const HEADINGS: [ColumnHeading; 2] = [
 ];
 
 fn explained_setting(key: &str, value: String, meaning: &str) -> TableRecord<2> {
-    TableRecord::new(
-        key,
-        [Some(value.into()), Some(Cell::Hint(meaning.to_owned()))],
-    )
+    TableRecord::new(key, [value.into(), ValueCell::Hint(meaning.to_owned())])
 }
 
 impl ReadingSections for CpuTuning {

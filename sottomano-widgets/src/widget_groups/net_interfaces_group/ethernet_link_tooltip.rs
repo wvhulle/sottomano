@@ -10,7 +10,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -33,7 +34,7 @@ impl BarWidget for Ethernet {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(self.ports.iter().map(|port| {
-            KeyValue::new(
+            LabeledValue::new(
                 port.name.as_str(),
                 if port.switching {
                     "switching"
@@ -69,13 +70,13 @@ fn link_sections(port: &Port, link: &Link, prefixed: bool) -> Vec<Section> {
     let profile = link
         .connection
         .as_deref()
-        .map(|profile| KeyValue::new("Network Profile", profile));
+        .map(|profile| LabeledValue::new("Network Profile", profile));
     [
         Section::dictionary(
-            [KeyValue::new("Interface Name", port.name.as_str())]
+            [LabeledValue::new("Interface Name", port.name.as_str())]
                 .into_iter()
                 .chain(profile)
-                .chain([KeyValue::new("MAC Address", link.mac.as_str())]),
+                .chain([LabeledValue::new("MAC Address", link.mac.as_str())]),
         )
         .titled(key("Identity")),
         address_section(&key, "IPv4", link.ipv4.as_ref()),

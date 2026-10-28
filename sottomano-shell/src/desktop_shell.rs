@@ -97,7 +97,7 @@ use sottomano_widgets::{
     },
     widgets::{
         app_window_focus::AppWindowFocus, favicon::Favicons, palette_colors::PaletteColors,
-        text::FontFaces, tooltip_body::Tooltip, window_icon::WindowAssets,
+        text::FontFaces, tooltip_body::tooltip_source_delivery::Tooltip, window_icon::WindowAssets,
     },
 };
 

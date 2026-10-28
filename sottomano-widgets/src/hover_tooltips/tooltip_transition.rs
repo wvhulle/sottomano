@@ -3,7 +3,7 @@ use sottomano_config::screen_edges::Position;
 
 use crate::{
     hover_tooltips::{HoverTarget, PressHints},
-    widgets::tooltip_body::Tooltip,
+    widgets::tooltip_body::tooltip_source_delivery::Tooltip,
 };
 
 #[derive(Debug, Clone)]

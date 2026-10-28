@@ -8,7 +8,8 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section},
+        tooltip_body::Section,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -87,22 +88,25 @@ fn path_segment(value: &str) -> String {
 pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
     let source = media.url.as_ref().and_then(|url| {
         let label = url.host_str()?.to_owned();
-        let platform = SearchPlatform::hosting(url);
-        Some(KeyValue::new(
-            "Source",
-            Cell::Link {
+        let link = match SearchPlatform::hosting(url) {
+            Some(spotify @ SearchPlatform::Spotify) => ValueCell::BrandedLink {
                 label,
-                url: match platform {
-                    Some(spotify @ SearchPlatform::Spotify) => {
-                        spotify.spotify_link(url.path(), index)
-                    }
-                    Some(SearchPlatform::YouTubeMusic | SearchPlatform::Bandcamp) | None => {
-                        url.to_string()
-                    }
-                },
-                glyph: platform.map(SearchPlatform::glyph),
+                url: spotify.spotify_link(url.path(), index),
+                glyph: spotify.glyph(),
             },
-        ))
+            Some(platform @ (SearchPlatform::YouTubeMusic | SearchPlatform::Bandcamp)) => {
+                ValueCell::BrandedLink {
+                    label,
+                    url: url.to_string(),
+                    glyph: platform.glyph(),
+                }
+            }
+            None => ValueCell::Link {
+                label,
+                url: url.to_string(),
+            },
+        };
+        Some(LabeledValue::new("Source", link))
     });
     Section::dictionary(
         [
@@ -111,7 +115,7 @@ pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
             ("Album", &media.album),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?)))
+        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)))
         .chain(source),
     )
     .titled("Track")
@@ -121,12 +125,12 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
     let progress = media.progress;
     let status = media.status;
     let duration = |key, duration: Option<Duration>| {
-        duration.map(|duration| KeyValue::new(key, Cell::duration(duration)))
+        duration.map(|duration| LabeledValue::new(key, ValueCell::duration(duration)))
     };
     Section::dictionary(
         [
-            KeyValue::new("Player", media.identity.as_str()),
-            KeyValue::new("State", status.label()),
+            LabeledValue::new("Player", media.identity.as_str()),
+            LabeledValue::new("State", status.label()),
         ]
         .into_iter()
         .chain(
@@ -155,12 +159,12 @@ pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
             .into_iter()
             .filter(move |platform| Some(*platform) != playing_on)
             .map(move |platform| {
-                KeyValue::new(
+                LabeledValue::new(
                     platform.name(),
-                    Cell::Link {
+                    ValueCell::BrandedLink {
                         label: query.clone(),
                         url: platform.url(&query, index),
-                        glyph: Some(platform.glyph()),
+                        glyph: platform.glyph(),
                     },
                 )
             })

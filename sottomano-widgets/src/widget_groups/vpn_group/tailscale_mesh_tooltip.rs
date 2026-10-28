@@ -10,11 +10,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
-        },
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -32,25 +32,26 @@ fn tailnet_needs_attention(tailnet: &Tailnet, now: DateTime<Utc>) -> bool {
     !tailnet.health_warnings.is_empty() || key_expires_soon(tailnet.key_expiry, now)
 }
 
-fn key_expiry_entry(key_expiry: KeyExpiry, now: DateTime<Utc>) -> KeyValue {
+fn key_expiry_entry(key_expiry: KeyExpiry, now: DateTime<Utc>) -> LabeledValue {
     match key_expiry {
-        KeyExpiry::Disabled => KeyValue::new("Key expires", "never"),
+        KeyExpiry::Disabled => LabeledValue::new("Key expires", "never"),
         KeyExpiry::At(expires_at) => {
             let expiry_severity = if key_expires_soon(key_expiry, now) {
                 Severity::Warning
             } else {
                 Severity::Normal
             };
-            KeyValue::new("Key expires", Cell::RelativeMoment(expires_at)).level(expiry_severity)
+            LabeledValue::new("Key expires", ValueCell::RelativeMoment(expires_at))
+                .level(expiry_severity)
         }
     }
 }
 
-fn exit_node_entry(exit_routing: &ExitRouting) -> Option<KeyValue> {
+fn exit_node_entry(exit_routing: &ExitRouting) -> Option<LabeledValue> {
     match exit_routing {
         ExitRouting::Local => None,
         ExitRouting::ThroughPeer { peer_name } => {
-            Some(KeyValue::new("Exit node", peer_name.as_str()))
+            Some(LabeledValue::new("Exit node", peer_name.as_str()))
         }
     }
 }
@@ -63,25 +64,28 @@ fn peer_path_text(path: &PeerPath) -> &'static str {
     }
 }
 
-fn relay_region_cell(path: &PeerPath) -> Option<Cell> {
+fn relay_region_cell(path: &PeerPath) -> ValueCell {
     match path {
-        PeerPath::Relayed { region } => Some(region.as_str().into()),
-        PeerPath::Direct | PeerPath::Idle => None,
+        PeerPath::Relayed { region } => region.as_str().into(),
+        PeerPath::Direct | PeerPath::Idle => ValueCell::Blank,
     }
 }
 
-fn transferred_bytes_cell(byte_count: u64) -> Option<Cell> {
-    (byte_count > 0).then(|| Quantity::size(ByteSize::b(byte_count)).into())
+fn transferred_bytes_cell(byte_count: u64) -> ValueCell {
+    if byte_count == 0 {
+        return ValueCell::Blank;
+    }
+    Quantity::size(ByteSize::b(byte_count)).into()
 }
 
-impl TableRow<6> for &Peer {
-    fn table_record(self) -> TableRecord<6> {
+impl IntoTableRecord<6> for &Peer {
+    fn into_table_record(self) -> TableRecord<6> {
         TableRecord::new(
             self.name.as_str(),
             [
-                Some(self.ip.as_str().into()),
-                Some(self.os.as_str().into()),
-                Some(peer_path_text(&self.path).into()),
+                self.ip.as_str().into(),
+                self.os.as_str().into(),
+                peer_path_text(&self.path).into(),
                 relay_region_cell(&self.path),
                 transferred_bytes_cell(self.received_bytes),
                 transferred_bytes_cell(self.sent_bytes),
@@ -123,31 +127,31 @@ impl BarWidget for Tailscale {
         let tailnet = match self {
             Tailscale::Running(tailnet) => tailnet,
             Tailscale::Starting => {
-                return TooltipBody::dictionary([KeyValue::new("Tailscale", "starting")]);
+                return TooltipBody::dictionary([LabeledValue::new("Tailscale", "starting")]);
             }
             Tailscale::Stopped => {
-                return TooltipBody::dictionary([KeyValue::new("Tailscale", "disconnected")]);
+                return TooltipBody::dictionary([LabeledValue::new("Tailscale", "disconnected")]);
             }
         };
         let health_entries = tailnet
             .health_warnings
             .iter()
-            .map(|warning| KeyValue::new("Health", warning.as_str()).level(Severity::Warning));
+            .map(|warning| LabeledValue::new("Health", warning.as_str()).level(Severity::Warning));
         let summary_section = Section::dictionary(
             [
-                KeyValue::new("Tailscale", "connected"),
-                KeyValue::new("Tailnet", tailnet.tailnet_name.as_str()),
-                KeyValue::new(
+                LabeledValue::new("Tailscale", "connected"),
+                LabeledValue::new("Tailnet", tailnet.tailnet_name.as_str()),
+                LabeledValue::new(
                     "Dashboard",
-                    Cell::Link {
+                    ValueCell::BrandedLink {
                         label: "Admin console".to_owned(),
                         url: ADMIN_CONSOLE_URL.to_owned(),
-                        glyph: Some(SimpleIcon::Tailscale.into()),
+                        glyph: SimpleIcon::Tailscale.into(),
                     },
                 ),
-                KeyValue::new("Self", tailnet.own_node.name.as_str()),
-                KeyValue::new("IP", tailnet.own_node.ip.as_str()),
-                KeyValue::new(
+                LabeledValue::new("Self", tailnet.own_node.name.as_str()),
+                LabeledValue::new("IP", tailnet.own_node.ip.as_str()),
+                LabeledValue::new(
                     "Peers",
                     format!("{}/{} online", tailnet.online.len(), tailnet.total_peers),
                 ),

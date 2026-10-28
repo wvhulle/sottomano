@@ -8,7 +8,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -35,13 +36,13 @@ impl BarWidget for SeatFace<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let seat = Section::dictionary([
-            KeyValue::new("Hardware seat", self.seat.to_owned()),
-            KeyValue::new(
+            LabeledValue::new("Hardware seat", self.seat.to_owned()),
+            LabeledValue::new(
                 "Wiki",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: "Multiseat".to_owned(),
                     url: "https://wiki.archlinux.org/title/Multiseat".to_owned(),
-                    glyph: Some(SimpleIcon::ArchLinux.into()),
+                    glyph: SimpleIcon::ArchLinux.into(),
                 },
             ),
         ])
@@ -51,14 +52,14 @@ impl BarWidget for SeatFace<'_> {
         ));
         let console = self.virtual_terminal.map(|vt| {
             Section::dictionary([
-                KeyValue::new("Virtual console", format!("tty{vt}")),
-                KeyValue::new("Switch with", format!("Ctrl+Alt+F{vt}")),
-                KeyValue::new(
+                LabeledValue::new("Virtual console", format!("tty{vt}")),
+                LabeledValue::new("Switch with", format!("Ctrl+Alt+F{vt}")),
+                LabeledValue::new(
                     "Wiki",
-                    Cell::Link {
+                    ValueCell::BrandedLink {
                         label: "Linux console".to_owned(),
                         url: "https://wiki.archlinux.org/title/Linux_console".to_owned(),
-                        glyph: Some(SimpleIcon::ArchLinux.into()),
+                        glyph: SimpleIcon::ArchLinux.into(),
                     },
                 ),
             ])

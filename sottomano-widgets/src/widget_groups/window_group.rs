@@ -24,7 +24,7 @@ use crate::{
     hover_tooltips::HoverTarget,
     widgets::{
         pointer_drag::DragView,
-        tooltip_body::{DeliveryTiming, Tooltip},
+        tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::GroupEvent,
         window_icon::WindowAssets,
     },

@@ -10,7 +10,8 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -33,13 +34,13 @@ impl BarWidget for LoginFace<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Logged in through", self.identity.login_manager.clone()),
-            KeyValue::new(
+            LabeledValue::new("Logged in through", self.identity.login_manager.clone()),
+            LabeledValue::new(
                 "Wiki",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: "Display manager".to_owned(),
                     url: "https://wiki.archlinux.org/title/Display_manager".to_owned(),
-                    glyph: Some(SimpleIcon::ArchLinux.into()),
+                    glyph: SimpleIcon::ArchLinux.into(),
                 },
             ),
         ])
@@ -56,7 +57,7 @@ impl ReadingSections for SessionInfo {
             Section::dictionary(
                 self.greeter
                     .clone()
-                    .map(|greeter_name| KeyValue::new("Greeter", greeter_name)),
+                    .map(|greeter_name| LabeledValue::new("Greeter", greeter_name)),
             )
             .titled((
                 "Login screen shown before this session",
@@ -64,19 +65,19 @@ impl ReadingSections for SessionInfo {
             )),
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Session number", self.id.clone())),
-                    Some(KeyValue::new("State", self.state.clone())),
-                    Some(KeyValue::new(
+                    Some(LabeledValue::new("Session number", self.id.clone())),
+                    Some(LabeledValue::new("State", self.state.clone())),
+                    Some(LabeledValue::new(
                         "Logged in",
-                        Cell::Time {
+                        ValueCell::Time {
                             at: self.since,
                             format: LocalizedTimeFormat::DateAndTime,
                         },
                     )),
                     self.idle_since.map(|at| {
-                        KeyValue::new(
+                        LabeledValue::new(
                             "Idle since",
-                            Cell::Time {
+                            ValueCell::Time {
                                 at,
                                 format: LocalizedTimeFormat::TimeOfDay,
                             },
@@ -94,9 +95,12 @@ impl ReadingSections for SessionInfo {
                 [
                     self.leader_name
                         .clone()
-                        .map(|leader_name| KeyValue::new("Started by", leader_name)),
-                    Some(KeyValue::new("Starter process id", self.leader.to_string())),
-                    Some(KeyValue::new("Processes kept in", self.scope.clone())),
+                        .map(|leader_name| LabeledValue::new("Started by", leader_name)),
+                    Some(LabeledValue::new(
+                        "Starter process id",
+                        self.leader.to_string(),
+                    )),
+                    Some(LabeledValue::new("Processes kept in", self.scope.clone())),
                 ]
                 .into_iter()
                 .flatten(),

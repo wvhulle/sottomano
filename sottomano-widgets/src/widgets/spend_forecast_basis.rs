@@ -7,8 +7,7 @@ use sottomano_sources::ai_usage_spend::{
 };
 
 use crate::widgets::{
-    localized_quantities::Quantity,
-    tooltip_body::{KeyValue, Section},
+    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
 };
 
 const CLOCK_FORMAT: &str = "%H:%M";
@@ -19,16 +18,16 @@ pub const MONTH_HEADING_FORMAT: &str = "%B";
 
 impl Section {
     pub fn spend_forecast_basis(
-        sources: impl IntoIterator<Item = KeyValue>,
+        sources: impl IntoIterator<Item = LabeledValue>,
         budget: &SpendBudget,
     ) -> Self {
         Section::dictionary(sources.into_iter().chain(pacing_entries(&budget.pacing)))
     }
 }
 
-fn pacing_entries(pacing: &SpendPacing) -> Vec<KeyValue> {
+fn pacing_entries(pacing: &SpendPacing) -> Vec<LabeledValue> {
     match pacing {
-        SpendPacing::CalendarTime => vec![KeyValue::new(
+        SpendPacing::CalendarTime => vec![LabeledValue::new(
             "Projection",
             "cost per hour elapsed so far, every day",
         )],
@@ -45,19 +44,19 @@ fn pacing_entries(pacing: &SpendPacing) -> Vec<KeyValue> {
                 working_time.hours.end.format(CLOCK_FORMAT)
             );
             vec![
-                KeyValue::new("Working Days", working_days),
-                KeyValue::new("Working Hours", working_hours),
-                KeyValue::new("Projection", "cost per working hour elapsed so far"),
+                LabeledValue::new("Working Days", working_days),
+                LabeledValue::new("Working Hours", working_hours),
+                LabeledValue::new("Projection", "cost per working hour elapsed so far"),
             ]
         }
     }
 }
 
-impl KeyValue {
+impl LabeledValue {
     #[must_use]
     pub fn monthly_budget(budget: &SpendBudget, spent: &Money, projected: Option<Money>) -> Self {
         let limit = usd(Decimal::from(budget.monthly_limit_usd));
-        let entry = KeyValue::new("Monthly Budget", Quantity::spend(limit));
+        let entry = LabeledValue::new("Monthly Budget", Quantity::spend(limit));
         let exceeds_limit = |cost: &Money| cost.amount() > limit.amount();
         if exceeds_limit(spent) || projected.as_ref().is_some_and(exceeds_limit) {
             entry.level(Severity::Warning)

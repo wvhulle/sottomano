@@ -23,7 +23,7 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

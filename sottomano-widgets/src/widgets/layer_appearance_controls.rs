@@ -14,7 +14,7 @@ use crate::{
         shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
     },
 };
 

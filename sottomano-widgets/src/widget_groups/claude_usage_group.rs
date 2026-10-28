@@ -31,7 +31,8 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
+        value_cells::{LabeledValue, ValueCell},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -52,8 +53,12 @@ impl From<claude_usage::Error> for Section {
             claude_usage::Error::RateLimited(cause) | claude_usage::Error::Fetch(cause) => {
                 cause.into()
             }
-            claude_usage::Error::Backoff { remaining, cause } => Section::from(cause)
-                .with_entries([KeyValue::new("Retry in", Cell::duration(remaining))]),
+            claude_usage::Error::Backoff { remaining, cause } => {
+                Section::from(cause).with_entries([LabeledValue::new(
+                    "Retry in",
+                    ValueCell::duration(remaining),
+                )])
+            }
             other => Section::error(other),
         }
     }

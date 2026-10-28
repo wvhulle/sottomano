@@ -7,8 +7,7 @@ use sottomano_sources::network_connectivity::icmp_echo_probes::{
 use uom::si::ratio::percent;
 
 use crate::widgets::{
-    localized_quantities::Quantity,
-    tooltip_body::{KeyValue, Section},
+    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
 };
 
 const WARNING_ROUND_TRIP: Duration = Duration::from_millis(100);
@@ -45,21 +44,22 @@ pub fn probe_window_severity(window: &ProbeWindow) -> Severity {
 #[must_use]
 pub fn probe_window_section(window: &ProbeWindow) -> Section {
     let latest = match window.latest_outcome() {
-        Some(ProbeOutcome::Answered(round_trip)) => {
-            Some(KeyValue::new("Latest", Quantity::round_trip(round_trip)))
-        }
-        Some(ProbeOutcome::Lost) => Some(KeyValue::new("Latest", "no reply")),
+        Some(ProbeOutcome::Answered(round_trip)) => Some(LabeledValue::new(
+            "Latest",
+            Quantity::round_trip(round_trip),
+        )),
+        Some(ProbeOutcome::Lost) => Some(LabeledValue::new("Latest", "no reply")),
         None => None,
     };
     let median = window
         .median_round_trip()
-        .map(|round_trip| KeyValue::new("Median", Quantity::round_trip(round_trip)));
+        .map(|round_trip| LabeledValue::new("Median", Quantity::round_trip(round_trip)));
     Section::dictionary(
-        [KeyValue::new("Host", window.host.to_string())]
+        [LabeledValue::new("Host", window.host.to_string())]
             .into_iter()
             .chain(latest)
             .chain(median)
-            .chain([KeyValue::new(
+            .chain([LabeledValue::new(
                 format!("Loss of last {}", window.outcomes.len()),
                 Quantity::share(window.loss_share()),
             )

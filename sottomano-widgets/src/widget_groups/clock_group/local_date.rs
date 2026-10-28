@@ -13,7 +13,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -47,15 +48,15 @@ impl BarWidget for LocalDate {
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let local = clock.local();
         TooltipBody::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 "Weekday",
-                Cell::Time {
+                ValueCell::Time {
                     at: local.with_timezone(&Utc),
                     format: LocalizedTimeFormat::Weekday,
                 },
             ),
-            KeyValue::new("Week", local.iso_week().week().to_string()),
-            KeyValue::new("Day of year", local.ordinal().to_string()),
+            LabeledValue::new("Week", local.iso_week().week().to_string()),
+            LabeledValue::new("Day of year", local.ordinal().to_string()),
         ])
     }
 }

@@ -10,7 +10,8 @@ use crate::{
         gauge::percent_fill,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -50,14 +51,15 @@ impl BarWidget for Mobile {
                 [
                     self.operator
                         .as_deref()
-                        .map(|operator| KeyValue::new("Carrier", operator)),
+                        .map(|operator| LabeledValue::new("Carrier", operator)),
                     (!self.technology.is_empty())
-                        .then(|| KeyValue::new("Network Type", self.technology.join(", "))),
+                        .then(|| LabeledValue::new("Network Type", self.technology.join(", "))),
                     self.signal.map(|signal| {
-                        KeyValue::new("Signal Strength", format!("{signal}%{signal_suffix}"))
+                        LabeledValue::new("Signal Strength", format!("{signal}%{signal_suffix}"))
                     }),
-                    self.registration
-                        .map(|registration| KeyValue::new("Network Registration", registration)),
+                    self.registration.map(|registration| {
+                        LabeledValue::new("Network Registration", registration)
+                    }),
                 ]
                 .into_iter()
                 .flatten(),
@@ -68,10 +70,10 @@ impl BarWidget for Mobile {
                     [
                         self.ipv4
                             .as_deref()
-                            .map(|address| KeyValue::new("IPv4 Address", address)),
+                            .map(|address| LabeledValue::new("IPv4 Address", address)),
                         self.ipv6
                             .as_deref()
-                            .map(|address| KeyValue::new("IPv6 Address", address)),
+                            .map(|address| LabeledValue::new("IPv6 Address", address)),
                     ]
                     .into_iter()
                     .flatten(),
@@ -81,12 +83,12 @@ impl BarWidget for Mobile {
                 let failure = match self.state {
                     Some(ModemState::Failed {
                         reason: Some(reason),
-                    }) => Some(KeyValue::new("Failure Reason", reason)),
+                    }) => Some(LabeledValue::new("Failure Reason", reason)),
                     _ => None,
                 };
                 Section::dictionary(
                     self.state
-                        .map(|state| KeyValue::new("Connection State", state.label()))
+                        .map(|state| LabeledValue::new("Connection State", state.label()))
                         .into_iter()
                         .chain(failure),
                 )
@@ -95,9 +97,9 @@ impl BarWidget for Mobile {
             Section::dictionary(
                 [
                     self.rx
-                        .map(|rx| KeyValue::new("Received (RX)", Quantity::size(rx))),
+                        .map(|rx| LabeledValue::new("Received (RX)", Quantity::size(rx))),
                     self.tx
-                        .map(|tx| KeyValue::new("Sent (TX)", Quantity::size(tx))),
+                        .map(|tx| LabeledValue::new("Sent (TX)", Quantity::size(tx))),
                 ]
                 .into_iter()
                 .flatten(),

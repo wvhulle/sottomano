@@ -30,7 +30,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };
@@ -164,11 +164,17 @@ impl WeatherGroup {
     }
 
     fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
+        let sources = match (
+            self.rain.visible_reading(),
+            self.precipitation_model.visible_reading(),
+        ) {
+            (Some(radar), Some(model)) => RainSources::RadarAndModel { radar, model },
+            (Some(radar), None) => RainSources::Radar(radar),
+            (None, Some(model)) => RainSources::Model(model),
+            (None, None) => return None,
+        };
         Some(RainForecast {
-            sources: RainSources::from_readings(
-                self.rain.visible_reading(),
-                self.precipitation_model.visible_reading(),
-            )?,
+            sources,
             alerts: &config.widget_groups.rain_alerts,
         })
     }

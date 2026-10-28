@@ -25,7 +25,8 @@ use crate::{
         group_item::GroupItem,
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
     },
 };
@@ -302,8 +303,8 @@ impl MediaGroup {
         let media = self.player(&target.bus)?;
         match target.control {
             MediaTarget::Player => self.players.tooltip_with(TooltipBody::dictionary([
-                KeyValue::new("Player", media.identity.clone()),
-                KeyValue::new("State", media.status.label()),
+                LabeledValue::new("Player", media.identity.clone()),
+                LabeledValue::new("State", media.status.label()),
             ])),
             MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
                 track_section(media, index),

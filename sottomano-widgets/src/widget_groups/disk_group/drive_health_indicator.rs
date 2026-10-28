@@ -14,7 +14,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -58,21 +59,21 @@ impl BarWidget for DriveHealth {
         let temperature_cell = match self.temperature {
             DriveTemperature::Reported { current, .. } => Quantity::temperature(current).into(),
             DriveTemperature::Unreported(MissingSensor::DrivetempNotLoaded) => {
-                Cell::from("load the drivetemp kernel module")
+                ValueCell::from("load the drivetemp kernel module")
             }
             DriveTemperature::Unreported(MissingSensor::NotExposed) => {
-                Cell::from("not reported by the drive")
+                ValueCell::from("not reported by the drive")
             }
         };
         let summary = Section::dictionary([
-            KeyValue::new("Drive", self.device_name.as_str()),
-            KeyValue::new("Temperature", temperature_cell),
+            LabeledValue::new("Drive", self.device_name.as_str()),
+            LabeledValue::new("Temperature", temperature_cell),
         ]);
         let threshold_section =
             Section::dictionary(thresholds.into_iter().flat_map(|thresholds| {
                 [
-                    KeyValue::new("Warns above", Quantity::temperature(thresholds.warning)),
-                    KeyValue::new("Critical above", thresholds.critical_text()),
+                    LabeledValue::new("Warns above", Quantity::temperature(thresholds.warning)),
+                    LabeledValue::new("Critical above", thresholds.critical_text()),
                 ]
             }))
             .titled("Thresholds");
@@ -85,15 +86,15 @@ impl BarWidget for DriveHealth {
     }
 }
 
-fn error_entries(errors: &DeviceErrors) -> Vec<KeyValue> {
+fn error_entries(errors: &DeviceErrors) -> Vec<LabeledValue> {
     if errors.total() == 0 {
-        return vec![KeyValue::new("Since reset", "none")];
+        return vec![LabeledValue::new("Since reset", "none")];
     }
     errors
         .by_kind()
         .into_iter()
         .filter(|error| error.count > 0)
-        .map(|error| KeyValue::new(error.kind, Quantity::count(error.count)))
-        .chain([KeyValue::new("Reset with", ERROR_RESET_COMMAND)])
+        .map(|error| LabeledValue::new(error.kind, Quantity::count(error.count)))
+        .chain([LabeledValue::new("Reset with", ERROR_RESET_COMMAND)])
         .collect()
 }

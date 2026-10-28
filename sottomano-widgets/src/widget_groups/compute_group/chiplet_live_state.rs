@@ -5,7 +5,7 @@ use sottomano_sources::cpu_memory_compute::{
 
 use crate::widgets::{
     localized_quantities::{DisplayUnit, Quantity},
-    tooltip_body::KeyValue,
+    value_cells::LabeledValue,
 };
 
 const LOOKUPS_PER_MILLION: f64 = 1_000_000.0;
@@ -57,15 +57,15 @@ impl ChipletLiveState<'_> {
         (!temperatures.is_empty()).then(|| temperatures.join(" · "))
     }
 
-    pub fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<KeyValue> {
+    pub fn cache_traffic_facts(&self, group: &CoreGroup) -> Vec<LabeledValue> {
         self.cache_traffic
             .into_iter()
             .flat_map(|traffic| traffic.caches.iter())
             .filter(|cache| group.contains(cache.counted_on_cpu))
             .flat_map(|cache| {
                 [
-                    KeyValue::new("L3 hits", Quantity::share(cache.hit_rate)),
-                    KeyValue::new(
+                    LabeledValue::new("L3 hits", Quantity::share(cache.hit_rate)),
+                    LabeledValue::new(
                         "L3 lookups",
                         Quantity::measured(
                             cache.lookups_per_second / LOOKUPS_PER_MILLION,

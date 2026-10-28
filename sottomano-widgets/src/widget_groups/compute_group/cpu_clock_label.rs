@@ -17,7 +17,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -40,7 +41,7 @@ impl BarWidget for CpuClock {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let frequency = |key, frequency: Option<Frequency>| {
-            frequency.map(|frequency| KeyValue::new(key, Quantity::clock_gigahertz(frequency)))
+            frequency.map(|frequency| LabeledValue::new(key, Quantity::clock_gigahertz(frequency)))
         };
         let shared_causes = self.shared_causes();
         TooltipBody::sections([Section::dictionary(
@@ -51,7 +52,7 @@ impl BarWidget for CpuClock {
                 frequency("floor", self.shared_floor()),
                 frequency("cap", self.shared_ceiling()),
                 frequency("max hw", self.shared_hardware_ceiling()),
-                causes_text(&shared_causes).map(|text| KeyValue::new("limited by", text)),
+                causes_text(&shared_causes).map(|text| LabeledValue::new("limited by", text)),
             ]
             .into_iter()
             .flatten(),

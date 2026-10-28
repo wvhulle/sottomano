@@ -11,10 +11,12 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -28,10 +30,14 @@ fn timeline_record(
     TableRecord::new(
         stage.to_owned(),
         [
-            Some(Cell::duration(took)),
-            comparison.map(|comparison| Cell::duration(comparison.previous)),
-            comparison.map(|comparison| Quantity::signed_share(comparison.change).into()),
-            Some(Cell::Hint(meaning.to_owned())),
+            ValueCell::duration(took),
+            comparison.map_or(ValueCell::Blank, |comparison| {
+                ValueCell::duration(comparison.previous)
+            }),
+            comparison.map_or(ValueCell::Blank, |comparison| {
+                Quantity::signed_share(comparison.change).into()
+            }),
+            ValueCell::Hint(meaning.to_owned()),
         ],
     )
     .level(comparison.map_or(Severity::Normal, |comparison| comparison.severity))
@@ -41,8 +47,8 @@ fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
     TableRecord::new(
         stage.to_owned(),
         [
-            Some(Cell::duration(took)),
-            Some(Cell::Hint(meaning.to_owned())),
+            ValueCell::duration(took),
+            ValueCell::Hint(meaning.to_owned()),
         ],
     )
 }
@@ -121,7 +127,7 @@ impl BarWidget for BootTimeline {
             }
             None => "No previous boot in the journal to compare with.",
         };
-        let stages_section = Section::totalled_column_table(
+        let stages_section = Section::column_table(
             [
                 ColumnHeading::titled("Took"),
                 ColumnHeading::titled("Previous"),
@@ -129,8 +135,8 @@ impl BarWidget for BootTimeline {
                 ColumnHeading::titled("Meaning").align_x(Horizontal::Left),
             ],
             stage_records,
-            os_startup_total,
         )
+        .with_total_record(os_startup_total)
         .titled(("Boot stages", caption));
         let login_section = (!login_records.is_empty()).then(|| {
             Section::column_table(
@@ -204,8 +210,11 @@ impl BarWidget for StartupUnits<'_> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let blame_section = |ranked: &RankedActivations, title: &str| {
             Section::dictionary(ranked.slowest_first.iter().map(|activation| {
-                KeyValue::new(activation.name.clone(), Cell::duration(activation.duration))
-                    .level(activation.severity)
+                LabeledValue::new(
+                    activation.name.clone(),
+                    ValueCell::duration(activation.duration),
+                )
+                .level(activation.severity)
             }))
             .titled((
                 title,

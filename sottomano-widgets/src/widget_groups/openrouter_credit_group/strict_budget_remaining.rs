@@ -12,7 +12,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -46,7 +47,7 @@ impl BarWidget for OpenRouterStrictBudget {
         TooltipBody::sections(
             [Section::dictionary([
                 remaining_entry(self.credits.remaining()),
-                KeyValue::new("Lifetime Purchased", Quantity::spend(self.credits.total)),
+                LabeledValue::new("Lifetime Purchased", Quantity::spend(self.credits.total)),
             ])
             .titled("Credits")]
             .into_iter()
@@ -67,11 +68,11 @@ impl From<&KeyLimit> for Section {
                 LimitReset::Weekly => "weekly",
                 LimitReset::Monthly => "monthly",
             };
-            KeyValue::new("Resets", period_name)
+            LabeledValue::new("Resets", period_name)
         });
         Section::dictionary(
             [
-                Some(KeyValue::new("Limit", Quantity::spend(key_limit.limit))),
+                Some(LabeledValue::new("Limit", Quantity::spend(key_limit.limit))),
                 Some(remaining_entry(key_limit.remaining)),
                 resets,
             ]
@@ -82,8 +83,8 @@ impl From<&KeyLimit> for Section {
     }
 }
 
-fn remaining_entry(remaining: Money) -> KeyValue {
-    let entry = KeyValue::new("Remaining", Quantity::spend(remaining));
+fn remaining_entry(remaining: Money) -> LabeledValue {
+    let entry = LabeledValue::new("Remaining", Quantity::spend(remaining));
     if remaining.is_positive() {
         entry
     } else {

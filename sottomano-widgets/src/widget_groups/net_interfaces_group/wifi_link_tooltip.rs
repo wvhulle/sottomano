@@ -11,7 +11,8 @@ use crate::{
         gauge::percent_fill,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -45,21 +46,21 @@ impl BarWidget for Wifi {
             } else {
                 "radio off"
             };
-            return TooltipBody::dictionary([KeyValue::new("WiFi", radio_state)]);
+            return TooltipBody::dictionary([LabeledValue::new("WiFi", radio_state)]);
         };
         TooltipBody::sections([Section::dictionary(
             link.ssid
                 .as_deref()
-                .map(|ssid| KeyValue::new("Network Name (SSID)", ssid))
+                .map(|ssid| LabeledValue::new("Network Name (SSID)", ssid))
                 .into_iter()
                 .chain([
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Signal Strength",
                         Quantity::share(percent_fill(link.signal)),
                     ),
-                    KeyValue::new("Security Type", link.security.as_str()),
-                    KeyValue::new("Frequency Band", Quantity::clock_megahertz(link.frequency)),
-                    KeyValue::new("Interface Name", self.device.as_str()),
+                    LabeledValue::new("Security Type", link.security.as_str()),
+                    LabeledValue::new("Frequency Band", Quantity::clock_megahertz(link.frequency)),
+                    LabeledValue::new("Interface Name", self.device.as_str()),
                 ]),
         )
         .titled("Identity")])
@@ -71,7 +72,7 @@ impl ReadingSections for WifiDetails {
         let key = |label: &str| label.to_string();
         let addressing = self.addressing.iter().flat_map(|addressing| {
             [
-                Section::dictionary([KeyValue::new("MAC Address", addressing.mac.as_str())]),
+                Section::dictionary([LabeledValue::new("MAC Address", addressing.mac.as_str())]),
                 address_section(&key, "IPv4", addressing.ipv4.as_ref()),
                 address_section(&key, "IPv6", addressing.ipv6.as_ref()),
                 dns_section(&key, &addressing.dns),

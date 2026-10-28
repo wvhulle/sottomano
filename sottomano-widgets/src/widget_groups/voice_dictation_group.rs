@@ -39,7 +39,7 @@ use crate::{
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },

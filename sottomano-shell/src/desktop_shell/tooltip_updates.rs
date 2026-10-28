@@ -22,7 +22,10 @@ use sottomano_widgets::{
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_tooltip,
     },
-    widgets::tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
+    widgets::tooltip_body::{
+        TooltipBody,
+        tooltip_source_delivery::{DeliveryTiming, Tooltip},
+    },
 };
 use tokio::time::sleep_until;
 

@@ -8,7 +8,8 @@ use crate::{
         gauge::percent_fill,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -27,8 +28,8 @@ impl BarWidget for ColorTemperature {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Dim", Quantity::share(percent_fill(self.brightness))),
-            KeyValue::new("Temperature", Quantity::color_temperature(self.temperature)),
+            LabeledValue::new("Dim", Quantity::share(percent_fill(self.brightness))),
+            LabeledValue::new("Temperature", Quantity::color_temperature(self.temperature)),
         ])
     }
 }

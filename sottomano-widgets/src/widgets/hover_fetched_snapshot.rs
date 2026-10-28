@@ -12,7 +12,8 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     widgets::tooltip_body::{
-        DeliveryTiming, ReadingSections, Section, SourcedSections, TooltipBody,
+        ReadingSections, Section, TooltipBody,
+        tooltip_source_delivery::{DeliveryTiming, SourcedSections},
     },
 };
 
@@ -294,7 +295,9 @@ mod tests {
     use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
-    use crate::widgets::tooltip_body::{Heading, SectionBody, SectionsDeliveryState};
+    use crate::widgets::tooltip_body::{
+        Heading, SectionBody, tooltip_source_delivery::SectionsDeliveryState,
+    };
 
     #[derive(Debug, Clone, PartialEq)]
     struct CountedSnapshot(u32);
@@ -347,7 +350,7 @@ mod tests {
 
     fn delivery_state(hover: &HoverFetchedSnapshot<CountedSnapshot>) -> SectionsDeliveryState {
         hover
-            .sections_described_by(|_| vec![Section::note("counted", None)])
+            .sections_described_by(|_| vec![Section::note("counted")])
             .unwrap()
             .delivery_state()
     }

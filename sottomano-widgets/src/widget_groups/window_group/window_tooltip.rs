@@ -13,7 +13,8 @@ use crate::{
     widgets::{
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -27,14 +28,15 @@ pub fn pick_body(
         window
             .title
             .as_deref()
-            .map(|title| KeyValue::new("Title", title)),
+            .map(|title| LabeledValue::new("Title", title)),
         window
             .app_id
             .as_deref()
-            .map(|app_id| KeyValue::new("App id", app_id)),
-        Some(KeyValue::new("Window id", window.id.to_string())),
-        focus_age(window)
-            .map(|focused| KeyValue::new("Focused", Cell::RelativeMoment((now - focused).into()))),
+            .map(|app_id| LabeledValue::new("App id", app_id)),
+        Some(LabeledValue::new("Window id", window.id.to_string())),
+        focus_age(window).map(|focused| {
+            LabeledValue::new("Focused", ValueCell::RelativeMoment((now - focused).into()))
+        }),
     ];
     Some(TooltipBody::sections([Section::dictionary(
         window_entries.into_iter().flatten(),
@@ -59,7 +61,7 @@ impl ReadingSections for Inspection {
         let profile = provenance
             .profile
             .as_deref()
-            .map(|profile| KeyValue::new("Profile", profile));
+            .map(|profile| LabeledValue::new("Profile", profile));
         let packages = provenance
             .package
             .as_ref()
@@ -89,21 +91,21 @@ impl ReadingSections for NixPackageFacts {
         let rows = [
             nixpkgs
                 .and_then(|entry| entry.homepage.clone())
-                .map(|homepage| KeyValue::new("Homepage", homepage_link(homepage))),
+                .map(|homepage| LabeledValue::new("Homepage", homepage_link(homepage))),
             nixpkgs.map(|entry| {
-                KeyValue::new(
+                LabeledValue::new(
                     "Nix file",
-                    Cell::Link {
+                    ValueCell::BrandedLink {
                         label: entry.definition.file.clone(),
                         url: entry.definition.url.clone(),
-                        glyph: Some(SimpleIcon::NixOS.into()),
+                        glyph: SimpleIcon::NixOS.into(),
                     },
                 )
             }),
             nixpkgs
                 .and_then(|entry| entry.license.as_deref())
-                .map(|license| KeyValue::new("License", license)),
-            Some(KeyValue::new(
+                .map(|license| LabeledValue::new("License", license)),
+            Some(LabeledValue::new(
                 "Closure size",
                 format!(
                     "{} in {} paths",
@@ -111,10 +113,13 @@ impl ReadingSections for NixPackageFacts {
                     closure.path_count
                 ),
             )),
-            Some(KeyValue::new("Own size", Quantity::size(closure.own_size))),
-            Some(KeyValue::new(
+            Some(LabeledValue::new(
+                "Own size",
+                Quantity::size(closure.own_size),
+            )),
+            Some(LabeledValue::new(
                 "Added",
-                Cell::RelativeMoment(self.registered.into()),
+                ValueCell::RelativeMoment(self.registered.into()),
             )),
             origin_entry(&self.origin),
             nixpkgs.and_then(|entry| generation_entry(&entry.generation)),
@@ -124,32 +129,30 @@ impl ReadingSections for NixPackageFacts {
     }
 }
 
-fn homepage_link(url: String) -> Cell {
+fn homepage_link(url: String) -> ValueCell {
     let label = ["https://", "http://"]
         .into_iter()
         .find_map(|scheme| url.strip_prefix(scheme))
         .unwrap_or(&url)
         .to_owned();
-    Cell::Link {
-        label,
-        url,
-        glyph: None,
-    }
+    ValueCell::Link { label, url }
 }
 
-fn origin_entry(origin: &Origin) -> Option<KeyValue> {
+fn origin_entry(origin: &Origin) -> Option<LabeledValue> {
     match origin {
         Origin::Signed { .. } => None,
-        Origin::BuiltLocally => Some(KeyValue::new("Obtained", "built locally")),
-        Origin::Unsigned => Some(KeyValue::new("Obtained", "unsigned").level(Severity::Warning)),
+        Origin::BuiltLocally => Some(LabeledValue::new("Obtained", "built locally")),
+        Origin::Unsigned => {
+            Some(LabeledValue::new("Obtained", "unsigned").level(Severity::Warning))
+        }
     }
 }
 
-fn generation_entry(generation: &Generation) -> Option<KeyValue> {
+fn generation_entry(generation: &Generation) -> Option<LabeledValue> {
     match generation {
         Generation::Current => None,
         Generation::Rebuilt { version } => Some(
-            KeyValue::new(
+            LabeledValue::new(
                 "System generation",
                 format!("has {version}, restart to use it"),
             )
@@ -158,11 +161,11 @@ fn generation_entry(generation: &Generation) -> Option<KeyValue> {
     }
 }
 
-fn upstream_entry(upstream: &Upstream) -> Option<KeyValue> {
+fn upstream_entry(upstream: &Upstream) -> Option<LabeledValue> {
     match &upstream.state {
         UpstreamState::UpToDate => None,
         UpstreamState::Newer { version } => Some(
-            KeyValue::new(upstream.branch.as_str(), format!("has {version}"))
+            LabeledValue::new(upstream.branch.as_str(), format!("has {version}"))
                 .level(Severity::Warning),
         ),
     }
@@ -174,30 +177,30 @@ fn focus_age(window: &niri_ipc::Window) -> Option<Duration> {
     process_tree_inspection::monotonic()?.checked_sub(stamp)
 }
 
-fn versioned(key: &'static str, package: &StorePackage) -> KeyValue {
+fn versioned(key: &'static str, package: &StorePackage) -> LabeledValue {
     let named = match &package.version {
         Some(version) => format!("{} {version}", package.name),
         None => package.name.clone(),
     };
-    KeyValue::new(key, named)
+    LabeledValue::new(key, named)
 }
 
-fn command(inspected: &Inspection) -> Vec<KeyValue> {
+fn command(inspected: &Inspection) -> Vec<LabeledValue> {
     let launched = &inspected.launch;
     let arguments = beyond_binary(launched)
         .enumerate()
         .map(|(index, argument)| {
             let key = if index == 0 { "Command" } else { "" };
-            KeyValue::new(key, argument.as_str())
+            LabeledValue::new(key, argument.as_str())
         });
     let binary = launched
         .binary
         .as_ref()
-        .map(|binary| KeyValue::new("Binary", Cell::Path(binary.clone())));
+        .map(|binary| LabeledValue::new("Binary", ValueCell::Path(binary.clone())));
     let scope = launched
         .scope
         .as_deref()
-        .map(|scope| KeyValue::new("Scope", scope));
+        .map(|scope| LabeledValue::new("Scope", scope));
     binary.into_iter().chain(arguments).chain(scope).collect()
 }
 

@@ -11,7 +11,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -35,12 +36,12 @@ impl BarWidget for GpuPowerDraw {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(
             [
-                Some(KeyValue::new(
+                Some(LabeledValue::new(
                     "Draw",
                     Quantity::power(self.draw).decimals(0),
                 )),
                 self.limit
-                    .map(|limit| KeyValue::new("Limit", Quantity::power(limit).decimals(0))),
+                    .map(|limit| LabeledValue::new("Limit", Quantity::power(limit).decimals(0))),
             ]
             .into_iter()
             .flatten(),

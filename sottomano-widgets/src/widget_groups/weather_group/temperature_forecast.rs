@@ -10,11 +10,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
-        },
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
     },
 };
@@ -42,21 +42,22 @@ impl BarWidget for Temperature {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let sky_entry = self
             .condition
-            .map(|condition| KeyValue::new("Sky", condition.to_string()));
+            .map(|condition| LabeledValue::new("Sky", condition.to_string()));
         TooltipBody::sections([
             Section::dictionary(sky_entry.into_iter().chain([
-                KeyValue::new("Temperature", weather_temperature(self.temp)),
-                KeyValue::new("Feels like", weather_temperature(self.feels)),
-                KeyValue::new("Humidity", Quantity::share(self.humidity)),
+                LabeledValue::new("Temperature", weather_temperature(self.temp)),
+                LabeledValue::new("Feels like", weather_temperature(self.feels)),
+                LabeledValue::new("Humidity", Quantity::share(self.humidity)),
             ]))
             .titled("Now"),
             Section::dictionary([
-                KeyValue::new("Low", weather_temperature(self.temp_min)),
-                KeyValue::new("High", weather_temperature(self.temp_max)),
+                LabeledValue::new("Low", weather_temperature(self.temp_min)),
+                LabeledValue::new("High", weather_temperature(self.temp_max)),
             ])
             .titled("Today"),
             Section::column_table(HOURLY_HEADINGS, self.hourly.earlier.iter()).titled("Earlier"),
-            Section::continuing_column_table(HOURLY_HEADINGS, self.hourly.later.iter())
+            Section::column_table(HOURLY_HEADINGS, self.hourly.later.iter())
+                .marked_as_continuing()
                 .titled("Later"),
         ])
     }
@@ -67,19 +68,20 @@ const HOURLY_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::titled("Sky").align_x(Horizontal::Left),
 ];
 
-impl TableRow<3> for &HourlyTemperature {
-    fn table_record(self) -> TableRecord<3> {
+impl IntoTableRecord<3> for &HourlyTemperature {
+    fn into_table_record(self) -> TableRecord<3> {
         TableRecord::new(
-            Cell::Time {
+            ValueCell::Time {
                 at: self.time,
                 format: LocalizedTimeFormat::HourOfDay,
             },
             [
-                Some(weather_temperature(self.temp).into()),
-                self.condition.map(|condition| {
-                    Cell::Glyph(WeatherIcon::Sky(condition, self.daylight).into())
+                weather_temperature(self.temp).into(),
+                self.condition.map_or(ValueCell::Blank, |condition| {
+                    ValueCell::Glyph(WeatherIcon::Sky(condition, self.daylight).into())
                 }),
-                self.condition.map(|condition| condition.to_string().into()),
+                self.condition
+                    .map_or(ValueCell::Blank, |condition| condition.to_string().into()),
             ],
         )
     }

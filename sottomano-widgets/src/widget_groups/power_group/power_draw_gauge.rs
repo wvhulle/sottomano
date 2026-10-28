@@ -12,7 +12,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -41,7 +42,7 @@ impl PowerDraw {
     }
 
     fn breakdown_on_battery(&self) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([KeyValue::new(
+        TooltipBody::sections([Section::dictionary([LabeledValue::new(
             "Laptop",
             Quantity::power(self.power),
         )])
@@ -51,11 +52,11 @@ impl PowerDraw {
     fn breakdown_on_ac(&self) -> TooltipBody {
         let laptop = self
             .expected_laptop
-            .map(|laptop| KeyValue::new("Laptop (estimated)", Quantity::power(laptop)));
+            .map(|laptop| LabeledValue::new("Laptop (estimated)", Quantity::power(laptop)));
         TooltipBody::sections([Section::dictionary(
             laptop
                 .into_iter()
-                .chain([KeyValue::new("Battery", Quantity::power(self.power))]),
+                .chain([LabeledValue::new("Battery", Quantity::power(self.power))]),
         )
         .titled("Charger feeds")])
     }
@@ -65,9 +66,9 @@ impl ReadingSections for ChargerSupply {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(self.limit.iter().flat_map(|limit| {
             [
-                KeyValue::new("Limit", Quantity::power(limit.power())),
-                KeyValue::new("Voltage", Quantity::voltage(limit.voltage)),
-                KeyValue::new("Current", Quantity::current(limit.current)),
+                LabeledValue::new("Limit", Quantity::power(limit.power())),
+                LabeledValue::new("Voltage", Quantity::voltage(limit.voltage)),
+                LabeledValue::new("Current", Quantity::current(limit.current)),
             ]
         }))]
     }
@@ -143,12 +144,12 @@ mod tests {
         assert_eq!(
             charger.sections(Clock::real()),
             [Section::dictionary([
-                KeyValue::new("Limit", Quantity::power(Power::new::<watt>(65.0))),
-                KeyValue::new(
+                LabeledValue::new("Limit", Quantity::power(Power::new::<watt>(65.0))),
+                LabeledValue::new(
                     "Voltage",
                     Quantity::voltage(ElectricPotential::new::<volt>(20.0))
                 ),
-                KeyValue::new(
+                LabeledValue::new(
                     "Current",
                     Quantity::current(ElectricCurrent::new::<ampere>(3.25))
                 ),
@@ -158,11 +159,11 @@ mod tests {
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
             TooltipBody::sections([Section::dictionary([
-                KeyValue::new(
+                LabeledValue::new(
                     "Laptop (estimated)",
                     Quantity::power(Power::new::<watt>(8.9))
                 ),
-                KeyValue::new("Battery", Quantity::power(Power::new::<watt>(19.7))),
+                LabeledValue::new("Battery", Quantity::power(Power::new::<watt>(19.7))),
             ])
             .titled("Charger feeds")])
         );
@@ -172,7 +173,7 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            TooltipBody::sections([Section::dictionary([KeyValue::new(
+            TooltipBody::sections([Section::dictionary([LabeledValue::new(
                 "Laptop",
                 Quantity::power(Power::new::<watt>(19.7))
             )])

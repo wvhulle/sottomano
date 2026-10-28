@@ -19,14 +19,14 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
-        },
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -47,7 +47,7 @@ fn current_intensity_text(intensity: Velocity) -> String {
     }
 }
 
-fn current_intensity_cell(intensity: Velocity) -> Cell {
+fn current_intensity_cell(intensity: Velocity) -> ValueCell {
     if intensity <= Velocity::default() {
         "none right now".into()
     } else {
@@ -179,9 +179,12 @@ impl RainTimelineRow<'_> {
         }
     }
 
-    fn clock_hour(self) -> (NaiveDate, u32) {
+    fn starting_hour(self) -> TimelineHour {
         let starts_at = self.starts_at();
-        (starts_at.date_naive(), starts_at.hour())
+        TimelineHour {
+            date: starts_at.date_naive(),
+            hour: starts_at.hour(),
+        }
     }
 
     fn is_wet(self) -> bool {
@@ -198,49 +201,49 @@ impl RainTimelineRow<'_> {
     }
 }
 
-fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> Cell {
+fn rain_amount_cell(intensity: Velocity, scale: RainIntensityScale) -> ValueCell {
     match scale.strength(intensity) {
-        RadarRainStrength::Dry => Cell::from("–"),
+        RadarRainStrength::Dry => ValueCell::from("–"),
         _ => Quantity::precipitation_rate(intensity).into(),
     }
 }
 
-impl TableRow<3> for &RainTimelineRow<'_> {
-    fn table_record(self) -> TableRecord<3> {
-        let time = Cell::Time {
+impl IntoTableRecord<3> for &RainTimelineRow<'_> {
+    fn into_table_record(self) -> TableRecord<3> {
+        let time = ValueCell::Time {
             at: self.starts_at().to_utc(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
         let cells = match *self {
             RainTimelineRow::RadarFrame { frame, scale } => [
-                Some(rain_amount_cell(frame.intensity, scale)),
-                Some(Cell::Glyph(scale.strength(frame.intensity).glyph())),
-                None,
+                rain_amount_cell(frame.intensity, scale),
+                ValueCell::Glyph(scale.strength(frame.intensity).glyph()),
+                ValueCell::Blank,
             ],
             RainTimelineRow::RadarFrameStartingModelQuarter {
                 frame,
                 scale,
                 quarter,
             } => [
-                Some(rain_amount_cell(frame.intensity, scale)),
-                Some(Cell::Glyph(scale.strength(frame.intensity).glyph())),
-                Some(model_quarter_text(quarter).into()),
+                rain_amount_cell(frame.intensity, scale),
+                ValueCell::Glyph(scale.strength(frame.intensity).glyph()),
+                model_quarter_text(quarter).into(),
             ],
             RainTimelineRow::ModelQuarter { quarter, scale } => [
-                None,
-                Some(Cell::Glyph(model_quarter_glyph(
+                ValueCell::Blank,
+                ValueCell::Glyph(model_quarter_glyph(
                     quarter,
                     scale.strength(quarter.intensity).glyph(),
-                ))),
-                Some(model_quarter_text(quarter).into()),
+                )),
+                model_quarter_text(quarter).into(),
             ],
             RainTimelineRow::ModelQuarterWithoutRadar { quarter, scale } => [
-                Some(rain_amount_cell(quarter.intensity, scale)),
-                Some(Cell::Glyph(model_quarter_glyph(
+                rain_amount_cell(quarter.intensity, scale),
+                ValueCell::Glyph(model_quarter_glyph(
                     quarter,
                     scale.strength(quarter.intensity).glyph(),
-                ))),
-                Some(model_quarter_text(quarter).into()),
+                )),
+                model_quarter_text(quarter).into(),
             ],
         };
         TableRecord::new(time, cells)
@@ -257,27 +260,33 @@ fn model_quarter_containing<'a>(
         .find(|quarter| quarter.starts_at <= at && at < quarter.starts_at + MODEL_QUARTER_HOUR)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TimelineHour {
+    date: NaiveDate,
+    hour: u32,
+}
+
 fn rain_timeline<'a>(
     radar_frames: &'a [Downpour],
     model_quarters: &[&'a ModelQuarterHour],
     scale: RainIntensityScale,
 ) -> Vec<RainTimelineRow<'a>> {
-    let mut previous_quarter_start = None;
-    let radar_rows = radar_frames.iter().map(|frame| {
-        let quarter = model_quarter_containing(model_quarters, frame.at.to_utc())
-            .filter(|quarter| previous_quarter_start != Some(quarter.starts_at));
-        match quarter {
-            Some(quarter) => {
-                previous_quarter_start = Some(quarter.starts_at);
-                RainTimelineRow::RadarFrameStartingModelQuarter {
-                    frame,
-                    scale,
-                    quarter,
+    let radar_rows = radar_frames
+        .iter()
+        .scan(None, |previous_quarter_start, frame| {
+            let row = match model_quarter_containing(model_quarters, frame.at.to_utc()) {
+                Some(quarter) if *previous_quarter_start != Some(quarter.starts_at) => {
+                    *previous_quarter_start = Some(quarter.starts_at);
+                    RainTimelineRow::RadarFrameStartingModelQuarter {
+                        frame,
+                        scale,
+                        quarter,
+                    }
                 }
-            }
-            None => RainTimelineRow::RadarFrame { frame, scale },
-        }
-    });
+                _ => RainTimelineRow::RadarFrame { frame, scale },
+            };
+            Some(row)
+        });
     let radar_horizon = radar_frames.last().map(|frame| frame.at.to_utc());
     let model_rows =
         model_quarters
@@ -290,18 +299,15 @@ fn rain_timeline<'a>(
                 }
                 Some(_) => None,
             });
-    radar_rows
-        .collect::<Vec<_>>()
-        .into_iter()
-        .chain(model_rows)
-        .collect()
+    radar_rows.chain(model_rows).collect()
 }
 
 fn rain_timeline_section(rows: &[RainTimelineRow<'_>], headings: [ColumnHeading; 3]) -> Section {
-    Section::grouped_continuing_column_table(
+    Section::grouped_column_table(
         headings,
-        rows.chunk_by(|earlier, later| earlier.clock_hour() == later.clock_hour()),
+        rows.chunk_by(|earlier, later| earlier.starting_hour() == later.starting_hour()),
     )
+    .marked_as_continuing()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -316,18 +322,6 @@ pub enum RainSources<'a> {
 
 impl<'a> RainSources<'a> {
     #[must_use]
-    pub fn from_readings(
-        radar: Option<&'a Rain>,
-        model: Option<&'a PrecipitationModel>,
-    ) -> Option<Self> {
-        match (radar, model) {
-            (Some(radar), Some(model)) => Some(RainSources::RadarAndModel { radar, model }),
-            (Some(radar), None) => Some(RainSources::Radar(radar)),
-            (None, Some(model)) => Some(RainSources::Model(model)),
-            (None, None) => None,
-        }
-    }
-
     fn radar(self) -> Option<&'a Rain> {
         match self {
             RainSources::RadarAndModel { radar, .. } | RainSources::Radar(radar) => Some(radar),
@@ -393,38 +387,41 @@ impl RainForecast<'_> {
     }
 
     fn summary_section(&self) -> Section {
-        let time_of_day = |at: DateTime<Local>| Cell::Time {
+        let time_of_day = |at: DateTime<Local>| ValueCell::Time {
             at: at.to_utc(),
             format: LocalizedTimeFormat::HourAndMinute,
         };
-        let entries: Vec<KeyValue> = match (self.sources.radar(), self.sources.model()) {
+        let entries: Vec<LabeledValue> = match (self.sources.radar(), self.sources.model()) {
             (Some(rain), _) => match (rain.outlook, rain.forecast.last()) {
                 (RainOutlook::Dry, Some(last_frame)) => vec![
-                    KeyValue::new("Rain", "none expected"),
-                    KeyValue::new("Dry until at least", time_of_day(last_frame.at)),
+                    LabeledValue::new("Rain", "none expected"),
+                    LabeledValue::new("Dry until at least", time_of_day(last_frame.at)),
                 ],
                 (outlook, _) => {
                     let peak = &rain.peak;
-                    iter::once(KeyValue::new("Now", current_intensity_cell(rain.intensity)))
-                        .chain(
-                            outlook_turn(outlook)
-                                .map(|turn| KeyValue::new(turn.label, time_of_day(turn.at))),
-                        )
-                        .chain([
-                            KeyValue::new("Peak", Quantity::precipitation_rate(peak.intensity)),
-                            KeyValue::new("Peak at", time_of_day(peak.at)),
-                        ])
-                        .collect()
+                    iter::once(LabeledValue::new(
+                        "Now",
+                        current_intensity_cell(rain.intensity),
+                    ))
+                    .chain(
+                        outlook_turn(outlook)
+                            .map(|turn| LabeledValue::new(turn.label, time_of_day(turn.at))),
+                    )
+                    .chain([
+                        LabeledValue::new("Peak", Quantity::precipitation_rate(peak.intensity)),
+                        LabeledValue::new("Peak at", time_of_day(peak.at)),
+                    ])
+                    .collect()
                 }
             },
             (None, Some(model)) if model.current.condition.is_precipitation() => vec![
-                KeyValue::new("Now", model_quarter_text(&model.current)),
-                KeyValue::new(
+                LabeledValue::new("Now", model_quarter_text(&model.current)),
+                LabeledValue::new(
                     "Rain",
                     Quantity::precipitation_rate(model.current.intensity),
                 ),
             ],
-            (None, Some(_)) => vec![KeyValue::new("Now", "Dry")],
+            (None, Some(_)) => vec![LabeledValue::new("Now", "Dry")],
             (None, None) => Vec::new(),
         };
         let title = match self.sources {
@@ -717,7 +714,7 @@ mod tests {
     use crate::{
         hover_tooltips::HoverTarget,
         widget_groups::weather_group::WeatherTarget,
-        widgets::{ongoing_toast::OngoingToast, tooltip_body::RecordCells},
+        widgets::{keyed_record_table::RecordCells, ongoing_toast::OngoingToast},
     };
 
     #[test]
@@ -942,20 +939,20 @@ mod tests {
         let rain = radar_frames(clock, &[2.0, 0.0]);
         let scale = default_scale();
         let row = |frame| {
-            RecordCells::from((&RainTimelineRow::RadarFrame { frame, scale }).table_record())
+            RecordCells::from((&RainTimelineRow::RadarFrame { frame, scale }).into_table_record())
         };
         let wet = row(&rain.forecast[0]);
         assert_eq!(
-            wet.cell(0).map(|cell| match cell {
-                Cell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
+            match wet.cell(0) {
+                ValueCell::Quantity(quantity) => quantity.localized_text(Locale::en_US),
                 _ => String::new(),
-            }),
-            Some("2.0 mm/h".to_owned())
+            },
+            "2.0 mm/h"
         );
-        assert_eq!(wet.cell(1), Some(&Cell::Glyph(WeatherIcon::Rain.into())));
-        assert_eq!(wet.cell(2), None);
+        assert_eq!(wet.cell(1), &ValueCell::Glyph(WeatherIcon::Rain.into()));
+        assert_eq!(wet.cell(2), &ValueCell::Blank);
         let dry = row(&rain.forecast[1]);
-        assert_eq!(dry.cell(0), Some(&Cell::from("–")));
+        assert_eq!(dry.cell(0), &ValueCell::from("–"));
     }
 
     #[test]
@@ -968,18 +965,18 @@ mod tests {
         let timeline = rain_timeline(&rain.forecast, &quarters, default_scale());
         let model_texts: Vec<_> = timeline
             .iter()
-            .map(|row| RecordCells::from(row.table_record()).cell(2).cloned())
+            .map(|row| RecordCells::from(row.into_table_record()).cell(2).clone())
             .collect();
         assert_eq!(
             model_texts,
             [
-                Some(Cell::from("Dry")),
-                None,
-                None,
-                Some(Cell::from("Light drizzle")),
-                None,
-                None,
-                Some(Cell::from("Light drizzle")),
+                ValueCell::from("Dry"),
+                ValueCell::Blank,
+                ValueCell::Blank,
+                ValueCell::from("Light drizzle"),
+                ValueCell::Blank,
+                ValueCell::Blank,
+                ValueCell::from("Light drizzle"),
             ]
         );
         assert!(matches!(

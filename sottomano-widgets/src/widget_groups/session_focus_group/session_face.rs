@@ -14,7 +14,8 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -101,17 +102,17 @@ impl SessionFace<'_> {
     fn session_alerts(&self) -> Section {
         let config = self.accounting.config;
         Section::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 "Warning after active for",
-                Cell::duration(config.session_warning),
+                ValueCell::duration(config.session_warning),
             ),
-            KeyValue::new(
+            LabeledValue::new(
                 "Critical after active for",
-                Cell::duration(config.session_critical),
+                ValueCell::duration(config.session_critical),
             ),
-            KeyValue::new(
+            LabeledValue::new(
                 "Break must start within",
-                Cell::duration(config.break_grace),
+                ValueCell::duration(config.break_grace),
             ),
         ])
         .titled((
@@ -130,23 +131,23 @@ impl SessionFace<'_> {
         let last_break = self.accounting.last_break(now);
         let entries = [
             self.accounting.screen_run(now).map(|ScreenRun { since }| {
-                KeyValue::new("Active since last break", Cell::duration(now - since))
+                LabeledValue::new("Active since last break", ValueCell::duration(now - since))
                     .level(self.severity(now))
             }),
             self.accounting.ledger.screen_off_since().map(|since| {
-                KeyValue::new(
+                LabeledValue::new(
                     "Screen off since",
-                    Cell::Time {
+                    ValueCell::Time {
                         at: since,
                         format: LocalizedTimeFormat::TimeOfDay,
                     },
                 )
             }),
             last_break.map(|Interval { until, .. }| {
-                KeyValue::new("Last break ended", Cell::RelativeMoment(until))
+                LabeledValue::new("Last break ended", ValueCell::RelativeMoment(until))
             }),
             last_break.map(|Interval { from, until }| {
-                KeyValue::new("Last break lasted", Cell::duration(until - from))
+                LabeledValue::new("Last break lasted", ValueCell::duration(until - from))
             }),
         ];
         Section::dictionary(entries.into_iter().flatten()).titled((

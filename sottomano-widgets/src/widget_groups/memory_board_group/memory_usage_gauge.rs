@@ -12,7 +12,8 @@ use crate::{
         gauge::percent_fill,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -20,7 +21,7 @@ use crate::{
 impl ReadingSections for MemoryModuleTemperatures {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(self.modules.iter().map(|module| {
-            KeyValue::new(
+            LabeledValue::new(
                 module.bus_address.clone(),
                 Quantity::temperature(module.temperature),
             )
@@ -31,7 +32,7 @@ impl ReadingSections for MemoryModuleTemperatures {
 impl ReadingSections for MemoryProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(self.processes.iter().map(|process| {
-            KeyValue::new(process.name.clone(), Quantity::size(process.resident))
+            LabeledValue::new(process.name.clone(), Quantity::size(process.resident))
         }))]
     }
 }
@@ -66,9 +67,9 @@ impl BarWidget for Memory {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
-            KeyValue::new("Used", Quantity::size(self.used)),
-            KeyValue::new("Total", Quantity::size(self.total)),
+            LabeledValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
+            LabeledValue::new("Used", Quantity::size(self.used)),
+            LabeledValue::new("Total", Quantity::size(self.total)),
         ])
     }
 }

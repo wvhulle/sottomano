@@ -24,7 +24,7 @@ use crate::{
         },
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };

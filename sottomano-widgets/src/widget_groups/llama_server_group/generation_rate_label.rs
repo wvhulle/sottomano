@@ -7,7 +7,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -37,7 +38,7 @@ impl BarWidget for GenerationRate {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new(
+        TooltipBody::dictionary([LabeledValue::new(
             "Decoding",
             Quantity::measured(self.0.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
         )])

@@ -31,7 +31,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

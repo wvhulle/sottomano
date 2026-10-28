@@ -14,7 +14,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -73,7 +74,7 @@ impl BarWidget for Throughput {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if self.interfaces.is_empty() {
-            return TooltipBody::dictionary([KeyValue::new("Interfaces", "none")]);
+            return TooltipBody::dictionary([LabeledValue::new("Interfaces", "none")]);
         }
         let rate_label = match self.direction {
             NetworkTrafficDirection::Upload => "Up",
@@ -81,12 +82,12 @@ impl BarWidget for Throughput {
         };
         TooltipBody::dictionary(
             [
-                KeyValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-                KeyValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
-                KeyValue::new("Interfaces", self.interfaces.join(", ")),
+                LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+                LabeledValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
+                LabeledValue::new("Interfaces", self.interfaces.join(", ")),
             ]
             .into_iter()
-            .chain([KeyValue::new(
+            .chain([LabeledValue::new(
                 "Capacity",
                 Quantity::transfer_rate(InformationRate::new::<megabyte_per_second>(
                     SCALE_END_MB_PER_S,
@@ -111,8 +112,8 @@ impl BarWidget for InterfaceThroughput {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Down", Quantity::transfer_rate(self.down.rate)),
-            KeyValue::new("Up", Quantity::transfer_rate(self.up.rate)),
+            LabeledValue::new("Down", Quantity::transfer_rate(self.down.rate)),
+            LabeledValue::new("Up", Quantity::transfer_rate(self.up.rate)),
         ])
     }
 }

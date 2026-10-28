@@ -14,7 +14,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -80,13 +81,13 @@ impl BarWidget for ZoneTime {
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let there = self.there(clock);
         TooltipBody::dictionary([
-            KeyValue::new("Zone", self.zone().name().to_owned()),
-            KeyValue::new("Abbreviation", there.format("%Z").to_string()),
-            KeyValue::new("UTC offset", there.format("%:z").to_string()),
-            KeyValue::new("Day", self.day_relative_to_local(clock).to_owned()),
-            KeyValue::new(
+            LabeledValue::new("Zone", self.zone().name().to_owned()),
+            LabeledValue::new("Abbreviation", there.format("%Z").to_string()),
+            LabeledValue::new("UTC offset", there.format("%:z").to_string()),
+            LabeledValue::new("Day", self.day_relative_to_local(clock).to_owned()),
+            LabeledValue::new(
                 "Offset from local",
-                Cell::SignedDuration(TimeDelta::seconds(i64::from(
+                ValueCell::SignedDuration(TimeDelta::seconds(i64::from(
                     self.seconds_ahead_of_local(clock),
                 ))),
             ),

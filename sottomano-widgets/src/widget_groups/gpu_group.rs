@@ -28,7 +28,8 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{FailedSnapshotFetch, HidesFetchFailures, LatestSnapshot},
         tooltip_body::{
-            DeliveryTiming, ReadingSections, Section, SourcedSections, Tooltip, TooltipBody,
+            ReadingSections, Section, TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },

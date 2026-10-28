@@ -8,7 +8,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::widgets::{
     localized_quantities::Quantity,
-    tooltip_body::{Cell, KeyValue, Section},
+    tooltip_body::Section,
+    value_cells::{LabeledValue, ValueCell},
 };
 
 const NOTICEABLE_LOSS_PERCENT: f64 = 5.0;
@@ -55,17 +56,17 @@ impl MeasuredReportTiming {
     #[must_use]
     pub fn report_section(self, title: &'static str) -> Section {
         let entries = match self {
-            MeasuredReportTiming::Pending => vec![KeyValue::new("Reports", "measuring")],
+            MeasuredReportTiming::Pending => vec![LabeledValue::new("Reports", "measuring")],
             MeasuredReportTiming::Measured(timing) => {
                 let arriving =
-                    KeyValue::new("Arriving", Quantity::refresh_hertz(timing.arrival_rate));
+                    LabeledValue::new("Arriving", Quantity::refresh_hertz(timing.arrival_rate));
                 let clocked = match timing.device_clock {
                     DeviceClock::Present(sent) => vec![
-                        KeyValue::new("Sent", Quantity::refresh_hertz(sent.sent_rate)),
+                        LabeledValue::new("Sent", Quantity::refresh_hertz(sent.sent_rate)),
                         arriving,
-                        KeyValue::new("Lost", Quantity::share(sent.lost_share))
+                        LabeledValue::new("Lost", Quantity::share(sent.lost_share))
                             .level(warning_when(noticeable_loss(sent.lost_share))),
-                        KeyValue::new("Most delayed", Cell::duration(sent.most_delayed)),
+                        LabeledValue::new("Most delayed", ValueCell::duration(sent.most_delayed)),
                     ],
                     DeviceClock::Absent => vec![arriving],
                 };
@@ -73,9 +74,9 @@ impl MeasuredReportTiming {
                 clocked
                     .into_iter()
                     .chain([
-                        KeyValue::new("Stalls over 20 ms", Quantity::count(timing.stalls))
+                        LabeledValue::new("Stalls over 20 ms", Quantity::count(timing.stalls))
                             .level(stalling),
-                        KeyValue::new("Longest gap", Cell::duration(timing.longest_gap))
+                        LabeledValue::new("Longest gap", ValueCell::duration(timing.longest_gap))
                             .level(stalling),
                     ])
                     .collect()
@@ -100,14 +101,14 @@ impl KernelErrorListing<'_> {
                 .rev()
                 .take(LISTED_KERNEL_ERRORS)
                 .map(|error| {
-                    KeyValue::new(
-                        Cell::RelativeMoment(DateTime::<Utc>::from(error.at)),
+                    LabeledValue::new(
+                        ValueCell::RelativeMoment(DateTime::<Utc>::from(error.at)),
                         error.message.clone(),
                     )
                     .level(Severity::Warning)
                 });
             Section::dictionary(
-                [KeyValue::new(
+                [LabeledValue::new(
                     "Errors in the last 10 minutes",
                     Quantity::count(self.kernel_errors.len()),
                 )

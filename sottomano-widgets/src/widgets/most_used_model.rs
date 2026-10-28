@@ -11,9 +11,11 @@ use crate::{
     widgets::{
         amount_text::{percent_text, spend_text},
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -72,9 +74,11 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                     .filter(|spend| !listed.contains(&spend.model.as_str()))
                     .map(|spend| *spend.cost.amount())
                     .sum());
-                unlisted
-                    .is_positive()
-                    .then(|| Cell::from(Quantity::spend(unlisted)))
+                if unlisted.is_positive() {
+                    ValueCell::from(Quantity::spend(unlisted))
+                } else {
+                    ValueCell::Blank
+                }
             }),
         );
         TooltipBody::sections([Section::column_table(
@@ -88,7 +92,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                         self.narrowest_to_widest.map(|span| {
                             span.models
                                 .cost_of(model)
-                                .map(|cost| Quantity::spend(cost).into())
+                                .map_or(ValueCell::Blank, |cost| Quantity::spend(cost).into())
                         }),
                     )
                 })
@@ -106,7 +110,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             let cost = span.models.cost_of(&top).filter(Money::is_positive)?;
             let total = span.models.total();
             let share = (cost.amount() / total.amount()).to_f64()?;
-            Some(KeyValue::new(
+            Some(LabeledValue::new(
                 span.heading,
                 format!(
                     "{cost} of {total}, {}",

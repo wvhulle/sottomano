@@ -14,7 +14,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         toggle_control::ToggleableSource,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -90,7 +91,7 @@ impl ChipletRoles<'_> {
                 .map(topology_facts)
                 .into_iter()
                 .flatten()
-                .chain([KeyValue::new("Suits", suited_work(preference))]),
+                .chain([LabeledValue::new("Suits", suited_work(preference))]),
         )
     }
 }

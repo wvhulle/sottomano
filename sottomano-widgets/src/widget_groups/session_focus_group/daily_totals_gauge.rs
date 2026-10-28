@@ -14,9 +14,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -69,13 +71,14 @@ impl DailyTotalsGauge {
 
     fn screen(&self) -> Section {
         let status = self.screen_budget.as_ref();
-        let active = KeyValue::new("Active (24h)", Cell::duration(self.screen_spent)).level(
-            status
-                .map(|status| status.quota.severity())
-                .unwrap_or_default(),
-        );
-        let budget_entry =
-            status.map(|status| KeyValue::new("Daily budget", Cell::duration(status.budget)));
+        let active = LabeledValue::new("Active (24h)", ValueCell::duration(self.screen_spent))
+            .level(
+                status
+                    .map(|status| status.quota.severity())
+                    .unwrap_or_default(),
+            );
+        let budget_entry = status
+            .map(|status| LabeledValue::new("Daily budget", ValueCell::duration(status.budget)));
         Section::dictionary(once(active).chain(budget_entry)).titled((
             "Screen".to_owned(),
             "Only active time in the last 24 hours counts, attributed to the focused window's app \
@@ -122,7 +125,7 @@ impl UnitSpendRecord {
         let level = self.severity();
         TableRecord::new(
             self.total.unit.label().into_owned(),
-            [Some(Cell::duration(self.total.spent))],
+            [ValueCell::duration(self.total.spent)],
         )
         .level(level)
     }
@@ -132,10 +135,12 @@ impl UnitSpendRecord {
         TableRecord::new(
             self.total.unit.label().into_owned(),
             [
-                Some(Cell::duration(self.total.spent)),
+                ValueCell::duration(self.total.spent),
                 self.budget_status
                     .as_ref()
-                    .map(|status| Cell::duration(status.budget)),
+                    .map_or(ValueCell::Blank, |status| {
+                        ValueCell::duration(status.budget)
+                    }),
             ],
         )
         .level(level)

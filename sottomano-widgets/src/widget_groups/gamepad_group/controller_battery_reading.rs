@@ -7,7 +7,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -73,12 +74,12 @@ impl BarWidget for ControllerBatteryReading {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("Battery", self.charge_description()).level(
-            if self.running_low() {
+        TooltipBody::dictionary([
+            LabeledValue::new("Battery", self.charge_description()).level(if self.running_low() {
                 Severity::Warning
             } else {
                 Severity::Normal
-            },
-        )])
+            }),
+        ])
     }
 }

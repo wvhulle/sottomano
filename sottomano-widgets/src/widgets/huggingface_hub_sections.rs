@@ -4,7 +4,8 @@ use crate::{
     clock::Clock,
     widgets::{
         localized_quantities::Quantity,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section},
+        tooltip_body::{ReadingSections, Section},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -16,14 +17,14 @@ impl ReadingSections for HuggingFaceModelCard {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(
             [
-                Some(KeyValue::new("Likes", Quantity::count(self.likes))),
+                Some(LabeledValue::new("Likes", Quantity::count(self.likes))),
                 filled_text(&self.pipeline_tag)
-                    .map(|pipeline_task| KeyValue::new("Task", pipeline_task)),
+                    .map(|pipeline_task| LabeledValue::new("Task", pipeline_task)),
                 filled_text(&self.library_name)
-                    .map(|library_name| KeyValue::new("Library", library_name)),
-                Some(KeyValue::new(
+                    .map(|library_name| LabeledValue::new("Library", library_name)),
+                Some(LabeledValue::new(
                     "Updated",
-                    Cell::RelativeMoment(self.last_modified),
+                    ValueCell::RelativeMoment(self.last_modified),
                 )),
             ]
             .into_iter()

@@ -9,7 +9,8 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -41,8 +42,8 @@ impl BarWidget for ClaudeCcusageBlock {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let source = Section::dictionary([
-            KeyValue::new("Source", "ccusage, local Claude Code logs"),
-            KeyValue::new("Cost Basis", "API list prices"),
+            LabeledValue::new("Source", "ccusage, local Claude Code logs"),
+            LabeledValue::new("Cost Basis", "API list prices"),
         ]);
         let Some(block) = &self.active else {
             return TooltipBody::sections([source]);
@@ -51,16 +52,16 @@ impl BarWidget for ClaudeCcusageBlock {
             source,
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", Quantity::spend(block.cost))),
+                    Some(LabeledValue::new("Cost", Quantity::spend(block.cost))),
                     block
                         .cost_per_hour
-                        .map(|rate| KeyValue::new("Burn Rate", format!("{rate}/h"))),
+                        .map(|rate| LabeledValue::new("Burn Rate", format!("{rate}/h"))),
                     block
                         .projected_cost
-                        .map(|cost| KeyValue::new("Projected Cost", Quantity::spend(cost))),
-                    Some(KeyValue::new(
+                        .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost))),
+                    Some(LabeledValue::new(
                         "Ends In",
-                        Cell::duration(block.ends_at - clock.utc()),
+                        ValueCell::duration(block.ends_at - clock.utc()),
                     )),
                 ]
                 .into_iter()

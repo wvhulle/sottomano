@@ -25,10 +25,12 @@ use crate::{
         sqlite_power_draw_regression,
     },
     widgets::{
+        keyed_record_table::{IntoTableRecord, TableRecord},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{KeyValue, Section, TableRecord, TableRow, Tooltip, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
     },
 };
 
@@ -262,11 +264,13 @@ impl PowerProfileControl {
     }
 
     pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
-        let profile = Section::dictionary([KeyValue::new("Active", self.control.readout_cell())])
-            .titled((
-                "Power profile",
-                "Lower profiles trade speed for less power draw, heat and fan noise.",
-            ));
+        let profile =
+            Section::dictionary([LabeledValue::new("Active", self.control.readout_cell())]).titled(
+                (
+                    "Power profile",
+                    "Lower profiles trade speed for less power draw, heat and fan noise.",
+                ),
+            );
         let battery_life = (!self.estimates.is_empty()).then(|| self.battery_life_section());
         self.status
             .tooltip_with(TooltipBody::sections(
@@ -312,8 +316,8 @@ impl ProfileLife {
     }
 }
 
-impl TableRow<3> for ProfileLife {
-    fn table_record(self) -> TableRecord<3> {
+impl IntoTableRecord<3> for ProfileLife {
+    fn into_table_record(self) -> TableRecord<3> {
         TableRecord::new(self.title(), self.forecast.cells())
     }
 }

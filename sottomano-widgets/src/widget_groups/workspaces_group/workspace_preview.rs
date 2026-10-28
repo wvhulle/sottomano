@@ -12,7 +12,7 @@ use crate::{
     widgets::{
         favicon::Favicons,
         palette_colors::PaletteColors,
-        tooltip_body::{PreviewTile, WorkspacePreview},
+        tooltip_body::tooltip_figure_payloads::{PreviewTile, WorkspacePreview},
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
     },

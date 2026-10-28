@@ -11,7 +11,8 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         slider_control::{ControlMessage, SliderControl, percent_f},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -51,12 +52,12 @@ impl BarWidget for AudioState {
 pub(super) fn device_entries(
     kind: ControlKind,
     reading: &ChannelLevels,
-) -> impl Iterator<Item = KeyValue> {
+) -> impl Iterator<Item = LabeledValue> {
     let device = reading
         .device
         .as_deref()
-        .map(|device| KeyValue::new("Device", device));
-    [KeyValue::new(
+        .map(|device| LabeledValue::new("Device", device));
+    [LabeledValue::new(
         kind.label(),
         Quantity::share(percent_fill(reading.percent)),
     )]

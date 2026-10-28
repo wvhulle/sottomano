@@ -8,9 +8,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -32,10 +34,10 @@ struct RecentBreaks {
 }
 
 impl RecentBreaks {
-    fn moment_cell(&self, at: DateTime<Utc>) -> Cell {
+    fn moment_cell(&self, at: DateTime<Utc>) -> ValueCell {
         let same_local_day =
             at.with_timezone(&Local).date_naive() == self.now.with_timezone(&Local).date_naive();
-        Cell::Time {
+        ValueCell::Time {
             at,
             format: if same_local_day {
                 LocalizedTimeFormat::HourAndMinute
@@ -47,16 +49,16 @@ impl RecentBreaks {
 
     fn break_record(&self, taken: &TakenBreak) -> TableRecord<3> {
         let ended = if taken.interval.until >= self.now {
-            Cell::Hint("ongoing".to_owned())
+            ValueCell::Hint("ongoing".to_owned())
         } else {
             self.moment_cell(taken.interval.until)
         };
         TableRecord::new(
             self.moment_cell(taken.interval.from),
             [
-                Some(ended),
-                Some(Cell::duration(taken.interval.length())),
-                Some(Cell::Hint(taken.cause.label().to_owned())),
+                ended,
+                ValueCell::duration(taken.interval.length()),
+                ValueCell::Hint(taken.cause.label().to_owned()),
             ],
         )
     }
@@ -106,13 +108,13 @@ impl BreakLog<'_> {
     fn break_rules(&self) -> Section {
         let config = self.accounting.config;
         Section::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 "Idle after no input for",
-                Cell::duration(config.idle_detection_delay),
+                ValueCell::duration(config.idle_detection_delay),
             ),
-            KeyValue::new(
+            LabeledValue::new(
                 "Idle pause becomes a break after",
-                Cell::duration(config.idle_after),
+                ValueCell::duration(config.idle_after),
             ),
         ])
         .titled((

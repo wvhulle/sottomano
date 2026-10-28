@@ -9,7 +9,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         vendor_logo::{DistributionIds, VendorLogo},
     },
 };
@@ -36,19 +37,22 @@ impl BarWidget for KernelFace<'_> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary(
             [
-                Some(KeyValue::new("Host", self.system.hostname.clone())),
-                Some(KeyValue::new("Kernel", self.system.kernel.clone())),
-                Some(KeyValue::new("OS", self.system.operating_system.clone())),
+                Some(LabeledValue::new("Host", self.system.hostname.clone())),
+                Some(LabeledValue::new("Kernel", self.system.kernel.clone())),
+                Some(LabeledValue::new(
+                    "OS",
+                    self.system.operating_system.clone(),
+                )),
                 self.system
                     .chassis
                     .map(Chassis::stored_name)
-                    .map(|chassis_kind| KeyValue::new("Chassis", chassis_kind)),
-                Some(KeyValue::new(
+                    .map(|chassis_kind| LabeledValue::new("Chassis", chassis_kind)),
+                Some(LabeledValue::new(
                     "Wiki",
-                    Cell::Link {
+                    ValueCell::BrandedLink {
                         label: "Kernel".to_owned(),
                         url: "https://wiki.archlinux.org/title/Kernel".to_owned(),
-                        glyph: Some(SimpleIcon::ArchLinux.into()),
+                        glyph: SimpleIcon::ArchLinux.into(),
                     },
                 )),
             ]

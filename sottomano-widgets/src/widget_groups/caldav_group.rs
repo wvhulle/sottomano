@@ -24,7 +24,7 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

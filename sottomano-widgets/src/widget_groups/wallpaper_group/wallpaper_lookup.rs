@@ -17,7 +17,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -124,6 +125,6 @@ impl BarWidget for Lookup {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("File", self.photo.file_name.clone())])
+        TooltipBody::dictionary([LabeledValue::new("File", self.photo.file_name.clone())])
     }
 }

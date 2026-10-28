@@ -15,7 +15,6 @@ use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 
 const CODE_BLOCK_PADDING_PX: f32 = 6.0;
 const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
-const KEY_TINT_ALPHA: f32 = 0.7;
 const COLUMN_GAP_PX: f32 = 8.0;
 
 pub struct MarkupBody<'a> {
@@ -115,14 +114,20 @@ impl<'a> MarkupBody<'a> {
     }
 
     fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
-        let key_tint = self.color.scale_alpha(KEY_TINT_ALPHA);
+        let upright_face = FontFaces::from(self.font).regular;
         let key_column = table::column(Space::new(), move |row: Row<'static>| {
-            let dimmed: Vec<_> = row
+            let italic_key: Vec<_> = row
                 .key
                 .into_iter()
-                .map(|styled| styled.color(key_tint))
+                .map(|styled| {
+                    let face = styled.font.unwrap_or(upright_face);
+                    styled.font(Font {
+                        style: FontStyle::Italic,
+                        ..face
+                    })
+                })
                 .collect();
-            rich_text(dimmed)
+            rich_text(italic_key)
                 .line_height(LINE_HEIGHT)
                 .wrapping(Wrapping::None)
         })

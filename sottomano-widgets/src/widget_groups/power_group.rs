@@ -34,7 +34,7 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

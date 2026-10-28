@@ -38,7 +38,7 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };

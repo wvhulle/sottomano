@@ -1,8 +1,12 @@
 use sottomano_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
 use uom::si::information::mebibyte;
 
-use crate::widgets::tooltip_body::{
-    ChipletCells, KeyValue, PhysicalCoreCells, Section, ThreadCell,
+use crate::widgets::{
+    tooltip_body::{
+        Section,
+        tooltip_figure_payloads::{ChipletCells, PhysicalCoreCells, ThreadCell},
+    },
+    value_cells::LabeledValue,
 };
 
 pub trait PerCoreReading {
@@ -26,7 +30,7 @@ impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
     pub fn section(
         &self,
         title: impl Fn(&CoreGroup) -> String,
-        facts: impl Fn(&CoreGroup, &[&Reading]) -> Vec<KeyValue>,
+        facts: impl Fn(&CoreGroup, &[&Reading]) -> Vec<LabeledValue>,
     ) -> Section {
         Section::core_grid(self.topology.core_groups().iter().filter_map(|group| {
             let members = self.members(group);
@@ -59,15 +63,17 @@ impl<Reading: PerCoreReading> CoreGridSection<'_, Reading> {
     }
 }
 
-pub fn topology_facts(group: &CoreGroup) -> Vec<KeyValue> {
+pub fn topology_facts(group: &CoreGroup) -> Vec<LabeledValue> {
     let shared_caches: Vec<String> = group
         .chiplets()
         .iter()
         .map(|chiplet| format!("{} MiB", chiplet.shared_cache.get::<mebibyte>()))
         .collect();
-    [KeyValue::new("CPUs", cpu_ranges(group.logical_cpus()))]
+    [LabeledValue::new("CPUs", cpu_ranges(group.logical_cpus()))]
         .into_iter()
-        .chain((!shared_caches.is_empty()).then(|| KeyValue::new("L3", shared_caches.join(" + "))))
+        .chain(
+            (!shared_caches.is_empty()).then(|| LabeledValue::new("L3", shared_caches.join(" + "))),
+        )
         .collect()
 }
 

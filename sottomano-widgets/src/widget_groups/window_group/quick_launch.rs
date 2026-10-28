@@ -16,7 +16,11 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{DeliveryTiming, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
@@ -49,7 +53,7 @@ impl QuickLaunch {
     #[must_use]
     pub fn tooltip_for(app_id: &str) -> Tooltip {
         Tooltip::sourced(
-            TooltipBody::dictionary([KeyValue::new("App", app_id.to_owned())]),
+            TooltipBody::dictionary([LabeledValue::new("App", app_id.to_owned())]),
             DeliveryTiming::LivePush,
         )
     }

@@ -8,7 +8,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -48,17 +49,17 @@ impl BarWidget for TcpRetransmissions {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 "Retransmitted",
                 Quantity::share(self.retransmitted_share).decimals(1),
             )
             .level(severity(self)),
-            KeyValue::new(
+            LabeledValue::new(
                 "Retransmitted segments",
                 Quantity::per_second(self.retransmitted_per_second),
             ),
-            KeyValue::new("Sent segments", Quantity::per_second(self.sent_per_second)),
-            KeyValue::new("Measured over", Cell::duration(self.window)),
+            LabeledValue::new("Sent segments", Quantity::per_second(self.sent_per_second)),
+            LabeledValue::new("Measured over", ValueCell::duration(self.window)),
         ])
     }
 }

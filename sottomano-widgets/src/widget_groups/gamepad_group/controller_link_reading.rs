@@ -16,7 +16,8 @@ use crate::{
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -79,7 +80,7 @@ impl ControllerLinkReading<'_> {
                 wired_fallback,
             } if self.over_bluetooth() => {
                 let ethernet = match wired_fallback {
-                    WiredFallback::Connected => Some(KeyValue::new("Ethernet", "connected")),
+                    WiredFallback::Connected => Some(LabeledValue::new("Ethernet", "connected")),
                     WiredFallback::Absent => None,
                 };
                 let remedy = match wired_fallback {
@@ -95,9 +96,9 @@ impl ControllerLinkReading<'_> {
                 vec![
                     Section::dictionary(
                         [
-                            KeyValue::new("Wi-Fi network", network_name),
-                            KeyValue::new("Frequency", Quantity::clock_megahertz(frequency)),
-                            KeyValue::new(
+                            LabeledValue::new("Wi-Fi network", network_name),
+                            LabeledValue::new("Frequency", Quantity::clock_megahertz(frequency)),
+                            LabeledValue::new(
                                 "Channel",
                                 two_point_four_gigahertz_channel(frequency).to_string(),
                             ),
@@ -106,15 +107,12 @@ impl ControllerLinkReading<'_> {
                         .chain(ethernet),
                     )
                     .titled("Interference"),
-                    Section::note("Shared radio band", Some(remedy.to_owned())),
+                    Section::detailed_note("Shared radio band", remedy),
                 ]
             }
-            _ if self.over_bluetooth() && self.unstable() => vec![Section::note(
+            _ if self.over_bluetooth() && self.unstable() => vec![Section::detailed_note(
                 "Unstable Bluetooth link",
-                Some(
-                    "Move the controller closer to the Bluetooth adapter, or connect it by cable."
-                        .to_owned(),
-                ),
+                "Move the controller closer to the Bluetooth adapter, or connect it by cable.",
             )],
             _ => Vec::new(),
         }

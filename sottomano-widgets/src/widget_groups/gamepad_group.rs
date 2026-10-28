@@ -48,7 +48,10 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         input_report_sections::MeasuredReportTiming,
-        tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };

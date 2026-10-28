@@ -28,7 +28,8 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
@@ -211,19 +212,19 @@ impl BarWidget for JournalEventsGroup {
         let kernel = self
             .kernel
             .visible_reading()
-            .map(|errors| KeyValue::new("Kernel errors", Quantity::count(errors.len())));
+            .map(|errors| LabeledValue::new("Kernel errors", Quantity::count(errors.len())));
         let service = self
             .service_errors
             .visible_reading()
-            .map(|errors| KeyValue::new("Service errors", Quantity::count(errors.entry_count)));
+            .map(|errors| LabeledValue::new("Service errors", Quantity::count(errors.entry_count)));
         let coredumps = self
             .coredumps
             .visible_reading()
-            .map(|coredumps| KeyValue::new("Coredumps", Quantity::count(coredumps.len())));
+            .map(|coredumps| LabeledValue::new("Coredumps", Quantity::count(coredumps.len())));
         let oom_kills = self
             .oom_kills
             .visible_reading()
-            .map(|kills| KeyValue::new("OOM kills", Quantity::count(kills.len())));
+            .map(|kills| LabeledValue::new("OOM kills", Quantity::count(kills.len())));
         TooltipBody::sections([Section::dictionary(
             kernel
                 .into_iter()

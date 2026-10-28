@@ -5,7 +5,8 @@ use crate::widgets::{
     bar_widget::Glyph,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,
-    tooltip_body::{KeyValue, Section},
+    tooltip_body::Section,
+    value_cells::LabeledValue,
 };
 
 const ONNX_RUNTIME_NAME: &str = "ONNX Runtime";
@@ -33,9 +34,9 @@ impl SpeechRuntime<'_> {
             Section::dictionary(
                 [
                     non_empty(&self.0.inference_runtime)
-                        .map(|inference_runtime| KeyValue::new("Runtime", inference_runtime)),
+                        .map(|inference_runtime| LabeledValue::new("Runtime", inference_runtime)),
                     non_empty(&self.0.inference_runtime_version)
-                        .map(|runtime_version| KeyValue::new("Version", runtime_version)),
+                        .map(|runtime_version| LabeledValue::new("Version", runtime_version)),
                 ]
                 .into_iter()
                 .flatten(),

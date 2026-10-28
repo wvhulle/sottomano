@@ -6,7 +6,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -64,10 +65,10 @@ fn output_problem_section(problem: &OutputProblem) -> Section {
         }) => vec![
             exit_code
                 .map(|code| code.to_string())
-                .map(|exit_code| KeyValue::new("Exit code", exit_code)),
+                .map(|exit_code| LabeledValue::new("Exit code", exit_code)),
             Some(stderr.trim())
                 .filter(|text| !text.is_empty())
-                .map(|stderr_text| KeyValue::new("Stderr", stderr_text)),
+                .map(|stderr_text| LabeledValue::new("Stderr", stderr_text)),
         ],
         OutputProblem::TextFieldTypingUnavailable(_)
         | OutputProblem::AnotherInputMethodOwnsSeat
@@ -78,7 +79,7 @@ fn output_problem_section(problem: &OutputProblem) -> Section {
         field_rows
             .into_iter()
             .flatten()
-            .chain([KeyValue::new("Details", problem.to_string())]),
+            .chain([LabeledValue::new("Details", problem.to_string())]),
     )
     .titled(output_problem_label(problem))
 }

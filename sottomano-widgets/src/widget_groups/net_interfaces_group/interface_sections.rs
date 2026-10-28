@@ -5,8 +5,7 @@ use sottomano_sources::network_connectivity::{
 use uom::si::f64::InformationRate;
 
 use crate::widgets::{
-    localized_quantities::Quantity,
-    tooltip_body::{KeyValue, Section},
+    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
 };
 
 pub fn signal_level(quality: i64) -> Severity {
@@ -31,10 +30,10 @@ pub fn address_section(
         let gateway = block
             .gateway
             .as_deref()
-            .map(|gateway| KeyValue::new("Gateway (Router)", gateway));
+            .map(|gateway| LabeledValue::new("Gateway (Router)", gateway));
         [
-            KeyValue::new("Address", block.address.as_str()),
-            KeyValue::new(mask_label, block.mask.as_str()),
+            LabeledValue::new("Address", block.address.as_str()),
+            LabeledValue::new(mask_label, block.mask.as_str()),
         ]
         .into_iter()
         .chain(gateway)
@@ -46,7 +45,7 @@ pub fn dns_section(key: &impl Fn(&str) -> String, servers: &[String]) -> Section
     Section::dictionary(
         servers
             .iter()
-            .map(|server| KeyValue::new("Server", server.as_str())),
+            .map(|server| LabeledValue::new("Server", server.as_str())),
     )
     .titled(key("DNS"))
 }
@@ -60,8 +59,9 @@ pub fn link_stats_section(
     fault_counters: InterfaceFaultCounters,
 ) -> Section {
     let rate_entry = (rate > InformationRate::default())
-        .then(|| KeyValue::new(rate_label, Quantity::link_rate(rate)));
-    let mtu_entry = (mtu > 0).then(|| KeyValue::new("Max Packet Size (MTU)", Quantity::count(mtu)));
+        .then(|| LabeledValue::new(rate_label, Quantity::link_rate(rate)));
+    let mtu_entry =
+        (mtu > 0).then(|| LabeledValue::new("Max Packet Size (MTU)", Quantity::count(mtu)));
     let fault_entries = [
         (
             "Receive Errors",
@@ -87,7 +87,7 @@ pub fn link_stats_section(
     .into_iter()
     .filter(|(_, fault_count, _)| *fault_count > 0)
     .map(|(fault_label, fault_count, fault_level)| {
-        KeyValue::new(fault_label, Quantity::count(fault_count)).level(fault_level)
+        LabeledValue::new(fault_label, Quantity::count(fault_count)).level(fault_level)
     });
     Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries))
         .titled(key(title))

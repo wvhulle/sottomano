@@ -21,7 +21,8 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{KeyValue, Section, Tooltip, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -279,11 +280,11 @@ impl AudioGroup {
         let device = reading
             .device
             .as_deref()
-            .map(|device| KeyValue::new("Device", device));
+            .map(|device| LabeledValue::new("Device", device));
         self.state.tooltip_with(TooltipBody::dictionary(
             [
-                KeyValue::new(kind.label(), control.readout_cell()),
-                KeyValue::new("State", state),
+                LabeledValue::new(kind.label(), control.readout_cell()),
+                LabeledValue::new("State", state),
             ]
             .into_iter()
             .chain(device),

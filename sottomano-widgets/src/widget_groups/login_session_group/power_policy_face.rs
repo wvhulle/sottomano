@@ -1,17 +1,19 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::login_session_presence::logind_session_facts::{InhibitMode, PowerPolicy};
+use sottomano_sources::login_session_presence::logind_session_facts::{
+    InhibitMode, InhibitorLock, PowerPolicy,
+};
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TooltipBody,
-        },
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -28,13 +30,13 @@ impl BarWidget for PowerPolicyFace {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Decided by", "systemd-logind"),
-            KeyValue::new(
+            LabeledValue::new("Decided by", "systemd-logind"),
+            LabeledValue::new(
                 "Wiki",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: "Power management".to_owned(),
                     url: "https://wiki.archlinux.org/title/Power_management".to_owned(),
-                    glyph: Some(SimpleIcon::ArchLinux.into()),
+                    glyph: SimpleIcon::ArchLinux.into(),
                 },
             ),
         ])
@@ -49,32 +51,35 @@ fn yes_no(flag: bool) -> &'static str {
     if flag { "yes" } else { "no" }
 }
 
+impl IntoTableRecord<2> for &InhibitorLock {
+    fn into_table_record(self) -> TableRecord<2> {
+        TableRecord::new(
+            self.who.clone(),
+            [
+                self.operation.clone().into(),
+                self.why.clone().map_or(ValueCell::Blank, ValueCell::from),
+            ],
+        )
+    }
+}
+
 impl ReadingSections for PowerPolicy {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         let idle_after = self
             .idle_action_after
             .filter(|_| self.idle_action != "ignore")
-            .map(|after| KeyValue::new("Idle after", Cell::duration(after)));
+            .map(|after| LabeledValue::new("Idle after", ValueCell::duration(after)));
         let sleep_tries = self
             .sleep_order
             .iter()
             .enumerate()
             .map(|(position, operation)| {
-                KeyValue::new(format!("Sleep try {}", position + 1), operation.clone())
+                LabeledValue::new(format!("Sleep try {}", position + 1), operation.clone())
             });
         let locks_in_mode = |mode: InhibitMode| {
             self.inhibitor_locks
                 .iter()
                 .filter(move |lock| lock.mode == mode)
-                .map(|lock| {
-                    TableRecord::new(
-                        lock.who.clone(),
-                        [
-                            Some(lock.operation.clone().into()),
-                            lock.why.clone().map(Cell::from),
-                        ],
-                    )
-                })
         };
         let lock_headings = [
             ColumnHeading::titled("Holds").align_x(Horizontal::Left),
@@ -88,25 +93,28 @@ impl ReadingSections for PowerPolicy {
                 _ => "Scheduled shutdown",
             };
             match shutdown.at {
-                Some(at) => KeyValue::new(
+                Some(at) => LabeledValue::new(
                     key,
-                    Cell::Time {
+                    ValueCell::Time {
                         at,
                         format: LocalizedTimeFormat::DateAndTime,
                     },
                 ),
-                None => KeyValue::new(key, shutdown.kind.clone()),
+                None => LabeledValue::new(key, shutdown.kind.clone()),
             }
         });
         vec![
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Power key", self.power_key.clone())),
-                    Some(KeyValue::new("Suspend key", self.suspend_key.clone())),
-                    Some(KeyValue::new("Hibernate key", self.hibernate_key.clone())),
-                    Some(KeyValue::new("Reboot key", self.reboot_key.clone())),
-                    Some(KeyValue::new("Lid switch", self.lid_switch.clone())),
-                    Some(KeyValue::new("Idle action", self.idle_action.clone())),
+                    Some(LabeledValue::new("Power key", self.power_key.clone())),
+                    Some(LabeledValue::new("Suspend key", self.suspend_key.clone())),
+                    Some(LabeledValue::new(
+                        "Hibernate key",
+                        self.hibernate_key.clone(),
+                    )),
+                    Some(LabeledValue::new("Reboot key", self.reboot_key.clone())),
+                    Some(LabeledValue::new("Lid switch", self.lid_switch.clone())),
+                    Some(LabeledValue::new("Idle action", self.idle_action.clone())),
                     idle_after,
                 ]
                 .into_iter()
@@ -119,16 +127,22 @@ impl ReadingSections for PowerPolicy {
             )),
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Docked", yes_no(self.chassis.docked))),
-                    Some(KeyValue::new("Lid closed", yes_no(self.chassis.lid_closed))),
-                    Some(KeyValue::new(
+                    Some(LabeledValue::new("Docked", yes_no(self.chassis.docked))),
+                    Some(LabeledValue::new(
+                        "Lid closed",
+                        yes_no(self.chassis.lid_closed),
+                    )),
+                    Some(LabeledValue::new(
                         "External power",
                         yes_no(self.chassis.on_external_power),
                     )),
-                    Some(KeyValue::new("Sessions", Quantity::count(self.sessions))),
+                    Some(LabeledValue::new(
+                        "Sessions",
+                        Quantity::count(self.sessions),
+                    )),
                     scheduled,
                     self.preparing_for_shutdown
-                        .then(|| KeyValue::new("Preparing for shutdown", "yes")),
+                        .then(|| LabeledValue::new("Preparing for shutdown", "yes")),
                 ]
                 .into_iter()
                 .flatten(),

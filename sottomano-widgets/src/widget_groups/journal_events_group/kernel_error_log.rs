@@ -13,9 +13,11 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
@@ -38,19 +40,16 @@ impl JournalEventsGroup {
     }
 }
 
-impl TableRow<2> for &KernelOccurrence {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &KernelOccurrence {
+    fn into_table_record(self) -> TableRecord<2> {
         let message: String = self.message.chars().take(MESSAGE_CAP).collect();
-        let at = Cell::Time {
+        let at = ValueCell::Time {
             at: self.latest.into(),
             format: LocalizedTimeFormat::TimeOfDay,
         };
         TableRecord::new(
             at,
-            [
-                Some(Cell::Hint(self.count.to_string())),
-                Some(message.into()),
-            ],
+            [ValueCell::Hint(self.count.to_string()), message.into()],
         )
         .level(self.severity)
     }
@@ -86,7 +85,10 @@ impl BarWidget for Vec<KernelOccurrence> {
         let hidden_notice = (hidden > 0).then(|| {
             TableRecord::new(
                 "",
-                [None, Some(format!("{hidden} earlier not shown").into())],
+                [
+                    ValueCell::Blank,
+                    format!("{hidden} earlier not shown").into(),
+                ],
             )
         });
         TooltipBody::sections([Section::column_table(
@@ -94,9 +96,11 @@ impl BarWidget for Vec<KernelOccurrence> {
                 ColumnHeading::titled("Count"),
                 ColumnHeading::titled("Message").align_x(Horizontal::Left),
             ],
-            hidden_notice
-                .into_iter()
-                .chain(self[hidden..].iter().map(TableRow::table_record)),
+            hidden_notice.into_iter().chain(
+                self[hidden..]
+                    .iter()
+                    .map(IntoTableRecord::into_table_record),
+            ),
         )
         .titled((
             "Kernel log",
@@ -135,16 +139,16 @@ mod tests {
         );
         let body = errors.tooltip(Clock::real());
         let sections = body.listed_sections();
-        let SectionBody::ColumnTable { rows, .. } = sections[0].body() else {
+        let SectionBody::ColumnTable(table) = sections[0].body() else {
             panic!("expected column table");
         };
-        let values: Vec<Cell> = rows
-            .shown_records()
-            .filter_map(|record| record.cell(1).cloned())
+        let values: Vec<ValueCell> = table
+            .records()
+            .map(|record| record.cell(1).clone())
             .collect();
-        let expected: Vec<Cell> = once("2 earlier not shown".to_string())
+        let expected: Vec<ValueCell> = once("2 earlier not shown".to_string())
             .chain((2..17).map(|secs| format!("message {secs}")))
-            .map(Cell::from)
+            .map(ValueCell::from)
             .collect();
         assert_eq!(values, expected);
     }

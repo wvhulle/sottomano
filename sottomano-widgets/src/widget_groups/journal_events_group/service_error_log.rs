@@ -6,25 +6,27 @@ use crate::{
     widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
 
-impl TableRow<3> for &UnitErrors {
-    fn table_record(self) -> TableRecord<3> {
+impl IntoTableRecord<3> for &UnitErrors {
+    fn into_table_record(self) -> TableRecord<3> {
         let message: String = self.latest_message.chars().take(MESSAGE_CAP).collect();
         TableRecord::new(
             self.unit.name(),
             [
-                Some(Cell::Time {
+                ValueCell::Time {
                     at: self.latest.into(),
                     format: LocalizedTimeFormat::TimeOfDay,
-                }),
-                Some(Cell::Hint(self.count.to_string())),
-                Some(message.into()),
+                },
+                ValueCell::Hint(self.count.to_string()),
+                message.into(),
             ],
         )
         .level(self.severity)

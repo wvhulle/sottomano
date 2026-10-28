@@ -10,7 +10,8 @@ use crate::{
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -83,9 +84,9 @@ impl BarWidget for Location {
         };
         let position = self.geo.position;
         let position_section = Section::dictionary([
-            KeyValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
-            KeyValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
-            KeyValue::new("Source", self.geo.origin.to_string()),
+            LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(4)),
+            LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(4)),
+            LabeledValue::new("Source", self.geo.origin.to_string()),
         ])
         .titled("Position");
         TooltipBody::sections([
@@ -100,9 +101,9 @@ impl BarWidget for Location {
 fn place_section(place: Option<&NearestPlace>) -> Section {
     Section::dictionary(place.into_iter().flat_map(|place| {
         [
-            KeyValue::new("Name", place.name.as_str()),
-            KeyValue::new("Country", place.country.as_str()),
-            KeyValue::new(
+            LabeledValue::new("Name", place.name.as_str()),
+            LabeledValue::new("Country", place.country.as_str()),
+            LabeledValue::new(
                 "Distance",
                 Quantity::measured(place.distance.get::<kilometer>(), DisplayUnit::Kilometer, 2),
             ),
@@ -115,15 +116,15 @@ fn estimate_section(estimate: Option<&BeaconDbEstimate>) -> Section {
     Section::dictionary(estimate.into_iter().flat_map(|estimate| {
         let observations = estimate.observations;
         [
-            KeyValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
-            KeyValue::new(
+            LabeledValue::new("Accuracy", Quantity::distance(estimate.accuracy)),
+            LabeledValue::new(
                 "Access points",
                 format!(
                     "{} seen, {} submitted",
                     observations.access_points_seen, observations.access_points_submitted
                 ),
             ),
-            KeyValue::new(
+            LabeledValue::new(
                 "Cells",
                 format!(
                     "{} seen, {} submitted",
@@ -139,12 +140,12 @@ fn map_section(position: GeoCoordinates) -> Section {
     let latitude = position.latitude_degrees();
     let longitude = position.longitude_degrees();
     Section::dictionary(MapService::ALL.map(|service| {
-        KeyValue::new(
+        LabeledValue::new(
             service.name(),
-            Cell::Link {
+            ValueCell::BrandedLink {
                 label: format!("{latitude:.5}, {longitude:.5}"),
                 url: service.url(position),
-                glyph: Some(service.glyph()),
+                glyph: service.glyph(),
             },
         )
     }))

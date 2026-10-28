@@ -10,7 +10,8 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         vendor_logo::{PciVendorId, VendorLogo},
     },
 };
@@ -50,7 +51,7 @@ impl BarWidget for MachineInfo {
             .collect::<Vec<_>>()
             .join(" "),
         );
-        let firmware_date = self.firmware_date.map(|at| Cell::Time {
+        let firmware_date = self.firmware_date.map(|at| ValueCell::Time {
             at,
             format: LocalizedTimeFormat::Date,
         });
@@ -58,12 +59,13 @@ impl BarWidget for MachineInfo {
             [
                 self.hardware_vendor
                     .clone()
-                    .map(|hardware_vendor| KeyValue::new("Vendor", hardware_vendor)),
+                    .map(|hardware_vendor| LabeledValue::new("Vendor", hardware_vendor)),
                 self.hardware_model
                     .clone()
-                    .map(|hardware_model| KeyValue::new("Model", hardware_model)),
-                firmware.map(|firmware_version| KeyValue::new("Firmware", firmware_version)),
-                firmware_date.map(|firmware_date| KeyValue::new("Firmware date", firmware_date)),
+                    .map(|hardware_model| LabeledValue::new("Model", hardware_model)),
+                firmware.map(|firmware_version| LabeledValue::new("Firmware", firmware_version)),
+                firmware_date
+                    .map(|firmware_date| LabeledValue::new("Firmware date", firmware_date)),
             ]
             .into_iter()
             .flatten(),

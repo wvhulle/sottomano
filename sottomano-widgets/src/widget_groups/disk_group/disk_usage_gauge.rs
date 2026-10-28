@@ -10,7 +10,8 @@ use crate::{
         gauge::percent_fill,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -56,10 +57,10 @@ impl BarWidget for RootFilesystem {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let capacity = Section::dictionary([
-            KeyValue::new("Mount", "/".to_owned()),
-            KeyValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
-            KeyValue::new("Free", Quantity::size(self.free)),
-            KeyValue::new("Total", Quantity::size(self.total)),
+            LabeledValue::new("Mount", "/".to_owned()),
+            LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
+            LabeledValue::new("Free", Quantity::size(self.free)),
+            LabeledValue::new("Total", Quantity::size(self.total)),
         ]);
         TooltipBody::sections([capacity, Section::from(&self.filesystem)])
     }
@@ -69,17 +70,17 @@ impl From<&Filesystem> for Section {
     fn from(filesystem: &Filesystem) -> Self {
         match filesystem {
             Filesystem::Btrfs(space) => Section::dictionary([
-                KeyValue::new("Compression", space.compression.to_string()),
-                KeyValue::new("Unallocated space", Quantity::size(space.unallocated)),
-                KeyValue::new("Metadata in use", Quantity::size(space.metadata.used)),
-                KeyValue::new(
+                LabeledValue::new("Compression", space.compression.to_string()),
+                LabeledValue::new("Unallocated space", Quantity::size(space.unallocated)),
+                LabeledValue::new("Metadata in use", Quantity::size(space.metadata.used)),
+                LabeledValue::new(
                     "Metadata reserved",
                     Quantity::size(space.metadata.allocated),
                 ),
             ])
             .titled("Btrfs"),
             Filesystem::Other { fs_type } => {
-                Section::dictionary([KeyValue::new("Filesystem", fs_type.clone())])
+                Section::dictionary([LabeledValue::new("Filesystem", fs_type.clone())])
             }
         }
     }

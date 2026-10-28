@@ -80,43 +80,96 @@ pub fn content_sized_spanning_table<'a, Row: Clone, Message>(
     columns: impl IntoIterator<Item = ContentSizedColumn<'a, Row, Message>>,
     rows: impl IntoIterator<Item = SpannableRow<'a, Row, Message>>,
 ) -> ContentSizedTable<'a, Message> {
-    let (headers, views): (Vec<_>, Vec<_>) = columns
+    let column_parts = columns
         .into_iter()
-        .map(|column| {
-            (
-                column.header,
-                (
-                    column.view,
-                    CellAlignment {
-                        align_x: column.align_x,
-                        align_y: column.align_y,
-                    },
-                ),
-            )
-        })
-        .unzip();
-    let alignments = views.iter().map(|(_, alignment)| *alignment).collect();
-    let mut cells = headers;
-    let mut row_spans = vec![RowSpan::Columned];
-    for row in rows {
-        match row {
-            SpannableRow::Columned(row) => {
-                cells.extend(views.iter().map(|(view, _)| view(row.clone())));
-                row_spans.push(RowSpan::Columned);
-            }
-            SpannableRow::FullWidth(element) => {
-                cells.push(element);
-                row_spans.push(RowSpan::FullWidth);
-            }
-        }
-    }
+        .fold(ColumnParts::empty(), ColumnParts::with_column);
+    let alignments = column_parts
+        .views
+        .iter()
+        .map(|column_view| column_view.alignment)
+        .collect();
+    let table_cells = rows.into_iter().fold(
+        TableCells {
+            cells: column_parts.headers,
+            row_spans: vec![RowSpan::Columned],
+        },
+        |table_cells, row| table_cells.with_row(row, &column_parts.views),
+    );
     ContentSizedTable {
-        cells,
-        row_spans,
+        cells: table_cells.cells,
+        row_spans: table_cells.row_spans,
         alignments,
         padding_x: 0.0,
         padding_y: 0.0,
     }
+}
+
+struct ColumnView<'a, Row, Message> {
+    view: Box<dyn Fn(Row) -> Element<'a, Message> + 'a>,
+    alignment: CellAlignment,
+}
+
+struct ColumnParts<'a, Row, Message> {
+    headers: Vec<Element<'a, Message>>,
+    views: Vec<ColumnView<'a, Row, Message>>,
+}
+
+impl<'a, Row, Message> ColumnParts<'a, Row, Message> {
+    fn empty() -> Self {
+        Self {
+            headers: Vec::new(),
+            views: Vec::new(),
+        }
+    }
+
+    fn with_column(mut self, column: ContentSizedColumn<'a, Row, Message>) -> Self {
+        self.headers.push(column.header);
+        self.views.push(ColumnView {
+            view: column.view,
+            alignment: CellAlignment {
+                align_x: column.align_x,
+                align_y: column.align_y,
+            },
+        });
+        self
+    }
+}
+
+struct TableCells<'a, Message> {
+    cells: Vec<Element<'a, Message>>,
+    row_spans: Vec<RowSpan>,
+}
+
+impl<'a, Message> TableCells<'a, Message> {
+    fn with_row<Row: Clone>(
+        mut self,
+        row: SpannableRow<'a, Row, Message>,
+        views: &[ColumnView<'a, Row, Message>],
+    ) -> Self {
+        match row {
+            SpannableRow::Columned(row) => {
+                self.cells.extend(
+                    views
+                        .iter()
+                        .map(|column_view| (column_view.view)(row.clone())),
+                );
+                self.row_spans.push(RowSpan::Columned);
+            }
+            SpannableRow::FullWidth(element) => {
+                self.cells.push(element);
+                self.row_spans.push(RowSpan::FullWidth);
+            }
+        }
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PlacedCell {
+    row: usize,
+    column: usize,
+    position: usize,
+    row_span: RowSpan,
 }
 
 pub fn content_sized_grid<'a, Message: 'a>(
@@ -167,19 +220,30 @@ impl<Message> ContentSizedTable<'_, Message> {
         self.alignments.len().max(1)
     }
 
-    fn row_cell_ranges(&self) -> Vec<Range<usize>> {
+    fn placed_cells(&self) -> Vec<PlacedCell> {
         let column_count = self.column_count();
         self.row_spans
             .iter()
-            .scan(0, |next_cell, row_span| {
+            .enumerate()
+            .scan(0, |next_cell, (row, row_span)| {
                 let cell_count = match row_span {
                     RowSpan::Columned => column_count,
                     RowSpan::FullWidth => 1,
                 };
-                let row_cells = *next_cell..*next_cell + cell_count;
+                let row_cells: Range<usize> = *next_cell..*next_cell + cell_count;
                 *next_cell = row_cells.end;
-                Some(row_cells)
+                Some(
+                    row_cells
+                        .enumerate()
+                        .map(move |(column, position)| PlacedCell {
+                            row,
+                            column,
+                            position,
+                            row_span: *row_span,
+                        }),
+                )
             })
+            .flatten()
             .collect()
     }
 }
@@ -199,8 +263,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let column_count = self.column_count();
-        let row_cells = self.row_cell_ranges();
-        let row_spans = self.row_spans.clone();
+        let row_count = self.row_spans.len();
+        let placed_cells = self.placed_cells();
         let intrinsic = Limits::with_compression(Size::ZERO, limits.max(), Size::new(true, true));
         let mut nodes: Vec<Node> = self
             .cells
@@ -208,17 +272,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
             .zip(&mut tree.children)
             .map(|(cell, cell_tree)| cell.as_widget_mut().layout(cell_tree, renderer, &intrinsic))
             .collect();
-        let columned_row_starts: Vec<usize> = row_cells
-            .iter()
-            .zip(&row_spans)
-            .filter(|(_, row_span)| **row_span == RowSpan::Columned)
-            .map(|(cells, _)| cells.start)
-            .collect();
         let column_widths: Vec<f32> = (0..column_count)
             .map(|column| {
-                columned_row_starts
+                placed_cells
                     .iter()
-                    .filter_map(|row_start| nodes.get(row_start + column))
+                    .filter(|placed| {
+                        placed.row_span == RowSpan::Columned && placed.column == column
+                    })
+                    .filter_map(|placed| nodes.get(placed.position))
                     .map(|node| node.size().width)
                     .fold(0.0, f32::max)
             })
@@ -227,62 +288,58 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
             extents.iter().sum::<f32>() + 2.0 * padding * extents.len() as f32
         };
         let table_width = span(&column_widths, self.padding_x);
-        for (cells, row_span) in row_cells.iter().zip(&row_spans) {
-            for (column, position) in cells.clone().enumerate() {
-                let cell = &mut self.cells[position];
-                let fixed_width = match row_span {
-                    RowSpan::FullWidth => table_width,
-                    RowSpan::Columned if cell.as_widget().size().width.is_fill() => {
-                        column_widths[column]
-                    }
-                    RowSpan::Columned => continue,
-                };
-                let width_limits = Limits::new(
-                    Size::new(fixed_width, 0.0),
-                    Size::new(fixed_width, limits.max().height),
-                );
-                nodes[position] = cell.as_widget_mut().layout(
-                    &mut tree.children[position],
-                    renderer,
-                    &width_limits,
-                );
-            }
-        }
-        let row_heights: Vec<f32> = row_cells
-            .iter()
-            .map(|cells| {
-                nodes[cells.clone()]
+        placed_cells.iter().for_each(|placed| {
+            let cell = &mut self.cells[placed.position];
+            let fixed_width = match placed.row_span {
+                RowSpan::FullWidth => table_width,
+                RowSpan::Columned if cell.as_widget().size().width.is_fill() => {
+                    column_widths[placed.column]
+                }
+                RowSpan::Columned => return,
+            };
+            let width_limits = Limits::new(
+                Size::new(fixed_width, 0.0),
+                Size::new(fixed_width, limits.max().height),
+            );
+            nodes[placed.position] = cell.as_widget_mut().layout(
+                &mut tree.children[placed.position],
+                renderer,
+                &width_limits,
+            );
+        });
+        let row_heights: Vec<f32> = (0..row_count)
+            .map(|row| {
+                placed_cells
                     .iter()
-                    .map(|node| node.size().height)
+                    .filter(|placed| placed.row == row)
+                    .map(|placed| nodes[placed.position].size().height)
                     .fold(0.0, f32::max)
             })
             .collect();
         let column_starts = cell_starts(&column_widths, self.padding_x);
         let row_starts = cell_starts(&row_heights, self.padding_y);
-        for (row, (cells, row_span)) in row_cells.iter().zip(&row_spans).enumerate() {
-            for (column, position) in cells.clone().enumerate() {
-                let node = &mut nodes[position];
-                match row_span {
-                    RowSpan::Columned => {
-                        let alignment = self.alignments[column];
-                        node.move_to_mut((column_starts[column], row_starts[row]));
-                        node.align_mut(
-                            Alignment::from(alignment.align_x),
-                            Alignment::from(alignment.align_y),
-                            Size::new(column_widths[column], row_heights[row]),
-                        );
-                    }
-                    RowSpan::FullWidth => {
-                        node.move_to_mut((0.0, row_starts[row]));
-                        node.align_mut(
-                            Alignment::Start,
-                            Alignment::Center,
-                            Size::new(table_width, row_heights[row]),
-                        );
-                    }
+        placed_cells.iter().for_each(|placed| {
+            let node = &mut nodes[placed.position];
+            match placed.row_span {
+                RowSpan::Columned => {
+                    let alignment = self.alignments[placed.column];
+                    node.move_to_mut((column_starts[placed.column], row_starts[placed.row]));
+                    node.align_mut(
+                        Alignment::from(alignment.align_x),
+                        Alignment::from(alignment.align_y),
+                        Size::new(column_widths[placed.column], row_heights[placed.row]),
+                    );
+                }
+                RowSpan::FullWidth => {
+                    node.move_to_mut((0.0, row_starts[placed.row]));
+                    node.align_mut(
+                        Alignment::Start,
+                        Alignment::Center,
+                        Size::new(table_width, row_heights[placed.row]),
+                    );
                 }
             }
-        }
+        });
         Node::with_children(
             Size::new(table_width, span(&row_heights, self.padding_y)),
             nodes,
@@ -300,23 +357,22 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
-        for ((cell, cell_tree), cell_layout) in self
-            .cells
+        self.cells
             .iter_mut()
             .zip(&mut tree.children)
             .zip(layout.children())
-        {
-            cell.as_widget_mut().update(
-                cell_tree,
-                event,
-                cell_layout,
-                cursor,
-                renderer,
-                clipboard,
-                shell,
-                viewport,
-            );
-        }
+            .for_each(|((cell, cell_tree), cell_layout)| {
+                cell.as_widget_mut().update(
+                    cell_tree,
+                    event,
+                    cell_layout,
+                    cursor,
+                    renderer,
+                    clipboard,
+                    shell,
+                    viewport,
+                );
+            });
     }
 
     fn draw(
@@ -329,19 +385,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        for ((cell, cell_tree), cell_layout) in
-            self.cells.iter().zip(&tree.children).zip(layout.children())
-        {
-            cell.as_widget().draw(
-                cell_tree,
-                renderer,
-                theme,
-                style,
-                cell_layout,
-                cursor,
-                viewport,
-            );
-        }
+        self.cells
+            .iter()
+            .zip(&tree.children)
+            .zip(layout.children())
+            .for_each(|((cell, cell_tree), cell_layout)| {
+                cell.as_widget().draw(
+                    cell_tree,
+                    renderer,
+                    theme,
+                    style,
+                    cell_layout,
+                    cursor,
+                    viewport,
+                );
+            });
     }
 
     fn mouse_interaction(
@@ -378,15 +436,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
     ) {
         operation.container(None, layout.bounds());
         operation.traverse(&mut |operation| {
-            for ((cell, cell_tree), cell_layout) in self
-                .cells
+            self.cells
                 .iter_mut()
                 .zip(&mut tree.children)
                 .zip(layout.children())
-            {
-                cell.as_widget_mut()
-                    .operate(cell_tree, cell_layout, renderer, operation);
-            }
+                .for_each(|((cell, cell_tree), cell_layout)| {
+                    cell.as_widget_mut()
+                        .operate(cell_tree, cell_layout, renderer, operation);
+                });
         });
     }
 

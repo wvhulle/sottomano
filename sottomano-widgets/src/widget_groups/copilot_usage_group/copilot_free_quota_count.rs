@@ -8,7 +8,8 @@ use crate::{
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -45,20 +46,20 @@ impl BarWidget for CopilotFree {
             Section::dictionary(
                 self.plan
                     .as_deref()
-                    .map(|plan| KeyValue::new("Plan", plan))
+                    .map(|plan| LabeledValue::new("Plan", plan))
                     .into_iter()
-                    .chain([KeyValue::new("Source", USER_ENDPOINT)]),
+                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
             ),
             Section::dictionary(
                 [
-                    KeyValue::new("Chat", Quantity::count(self.chat)),
-                    KeyValue::new("Completions", Quantity::count(self.completions)),
+                    LabeledValue::new("Chat", Quantity::count(self.chat)),
+                    LabeledValue::new("Completions", Quantity::count(self.completions)),
                 ]
                 .into_iter()
                 .chain(self.reset.map(|at| {
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Resets",
-                        Cell::Time {
+                        ValueCell::Time {
                             at,
                             format: LocalizedTimeFormat::Date,
                         },

@@ -35,7 +35,7 @@ use sottomano_widgets::{
     },
     widgets::{
         favicon::Favicons, palette_colors::PaletteColors, pointer_drag::DragView,
-        tooltip_body::Tooltip, window_icon::WindowAssets,
+        tooltip_body::tooltip_source_delivery::Tooltip, window_icon::WindowAssets,
     },
 };
 

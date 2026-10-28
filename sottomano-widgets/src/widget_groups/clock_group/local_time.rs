@@ -13,7 +13,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -47,8 +48,8 @@ impl BarWidget for LocalTime {
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let local = clock.local();
         TooltipBody::dictionary([
-            KeyValue::new("UTC offset", local.format("%:z").to_string()),
-            KeyValue::new("Unix time", local.timestamp().to_string()),
+            LabeledValue::new("UTC offset", local.format("%:z").to_string()),
+            LabeledValue::new("Unix time", local.timestamp().to_string()),
         ])
     }
 }
