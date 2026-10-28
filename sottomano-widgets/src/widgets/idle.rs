@@ -5,7 +5,9 @@ use std::time::Duration;
 use iced::futures::{Stream, StreamExt, stream};
 use sottomano_sources::login_session_presence::{
     idle_session_actions::IdleAction,
-    wayland_idle_notify::{IdleEdge, IdleNotifier, IdleTrigger, TaggedEdge, WaylandError},
+    wayland_idle_notify::{
+        IdleEdge, IdleNotifier, IdleTrigger, InputOrInhibitors, TaggedEdge, WaylandError,
+    },
 };
 use tokio::task::spawn_blocking;
 
@@ -51,7 +53,7 @@ enum IdleActionConnection {
         attempts_left: usize,
     },
     Connected {
-        notifier: Box<IdleNotifier<IdleAction>>,
+        notifier: Box<IdleNotifier<IdleAction, InputOrInhibitors>>,
         attempts_left: usize,
     },
 }

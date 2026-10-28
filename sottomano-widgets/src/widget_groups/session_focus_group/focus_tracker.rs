@@ -10,7 +10,7 @@ use sottomano_sources::{
     login_session_presence::{
         focus_time_ledger::{FocusIdentity, FocusLedger, FocusSignal, LoadedSpans},
         logind_manager,
-        wayland_idle_notify::idle_edges,
+        wayland_idle_notify::input_idle_edges,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -57,7 +57,7 @@ impl FocusTracker {
     pub fn idle_messages(
         idle_detection_delay: &Duration,
     ) -> impl Stream<Item = TrackerMessage> + Send + use<> {
-        idle_edges(*idle_detection_delay)
+        input_idle_edges(*idle_detection_delay)
             .map(|edge| TrackerMessage::Signal(FocusSignal::Idle(edge)))
     }
 

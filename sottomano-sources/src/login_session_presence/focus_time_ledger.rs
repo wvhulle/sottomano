@@ -26,14 +26,16 @@ pub use self::{
     time_intervals::{Interval, LAST_DAY, LAST_HOUR, TrailingPeriod},
     unit_accounting::{BudgetStatus, UnitTotal},
 };
-use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
+use crate::login_session_presence::{
+    logind_manager::SleepEdge, wayland_idle_notify::InputIdleEdge,
+};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum FocusSignal {
     WindowFocused(Focused),
     #[default]
     NoWindowFocused,
-    Idle(IdleEdge),
+    Idle(InputIdleEdge),
     Sleep(SleepEdge),
     ScreenPower(ScreenEdge),
 }

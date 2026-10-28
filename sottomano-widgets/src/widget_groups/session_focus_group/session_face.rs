@@ -201,7 +201,7 @@ mod tests {
     use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
     use sottomano_sources::login_session_presence::{
         focus_time_ledger::{FocusLedger, FocusSignal, Focused},
-        wayland_idle_notify::IdleEdge,
+        wayland_idle_notify::{IdleEdge, InputIdleEdge},
     };
 
     use super::*;
@@ -251,8 +251,14 @@ mod tests {
         let config = config();
         let ledger = ledger_after([
             (focused(1, "kitty"), 0),
-            (FocusSignal::Idle(IdleEdge::Idled), 11),
-            (FocusSignal::Idle(IdleEdge::Resumed), 15),
+            (
+                FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Idled)),
+                11,
+            ),
+            (
+                FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Resumed)),
+                15,
+            ),
         ]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),

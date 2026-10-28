@@ -7,7 +7,10 @@ use super::{
     FocusLedger, FocusSignal, away_reasons::ScreenEdge, focus_identity::Focused,
     time_intervals::Interval,
 };
-use crate::login_session_presence::{logind_manager::SleepEdge, wayland_idle_notify::IdleEdge};
+use crate::login_session_presence::{
+    logind_manager::SleepEdge,
+    wayland_idle_notify::{IdleEdge, InputIdleEdge},
+};
 
 pub(super) fn at(minutes: i64) -> DateTime<Utc> {
     "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
@@ -37,7 +40,7 @@ pub(super) fn no_window_focused() -> FocusSignal {
 }
 
 pub(super) fn idle_edge(edge: IdleEdge) -> FocusSignal {
-    FocusSignal::Idle(edge)
+    FocusSignal::Idle(InputIdleEdge::simulated(edge))
 }
 
 pub(super) fn sleep_edge(edge: SleepEdge) -> FocusSignal {
