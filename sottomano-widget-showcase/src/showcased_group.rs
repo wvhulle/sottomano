@@ -1,5 +1,5 @@
 use iced::{
-    Element, Font, Length, Padding, border,
+    Color, Element, Font, Length, Padding, Theme, border,
     widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
@@ -34,8 +34,13 @@ use sottomano_widgets::{
         workspaces_group::{inline_strip, sidebar_column, workspace_tooltip},
     },
     widgets::{
-        favicon::Favicons, palette_colors::PaletteColors, pointer_drag::DragView,
-        tooltip_body::tooltip_source_delivery::Tooltip, window_icon::WindowAssets,
+        configured_theme::{background_color, primary_color, secondary_text_color, success_color},
+        favicon::Favicons,
+        panel_frame::LayerFrameStyle,
+        pointer_drag::DragView,
+        shell_layer_appearance::ShellLayer,
+        tooltip_body::tooltip_source_delivery::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
@@ -59,10 +64,10 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
         .collect()
 }
 
-fn undragged() -> DragView {
+fn undragged(config: &Config) -> DragView {
     DragView {
         drag: None,
-        ghost_frame: container::Style::default(),
+        ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance(), config),
     }
 }
 
@@ -108,46 +113,53 @@ pub enum TerminalLine {
 }
 
 impl TerminalLine {
-    fn view<'a>(&self, palette: PaletteColors) -> Element<'a, ShowcaseMessage> {
-        let (lead, lead_color, rest) = match self {
-            TerminalLine::Prompt { directory, command } => (*directory, palette.info, *command),
-            TerminalLine::Status { verb, detail } => (*verb, palette.success, *detail),
-        };
-        Row::with_children([
-            text(lead).font(Font::MONOSPACE).color(lead_color).into(),
-            text(rest)
-                .font(Font::MONOSPACE)
-                .color(palette.bar_foreground)
-                .into(),
-        ])
-        .into()
+    fn view<'a>(&self) -> Element<'a, ShowcaseMessage> {
+        match self {
+            TerminalLine::Prompt { directory, command } => {
+                terminal_row(directory, primary_color, command)
+            }
+            TerminalLine::Status { verb, detail } => terminal_row(verb, success_color, detail),
+        }
     }
 }
 
+fn terminal_row<'a>(
+    lead: &'static str,
+    lead_color: fn(&Theme) -> Color,
+    rest: &'static str,
+) -> Element<'a, ShowcaseMessage> {
+    Row::with_children([
+        text(lead)
+            .font(Font::MONOSPACE)
+            .style(move |theme| text::Style {
+                color: Some(lead_color(theme)),
+            })
+            .into(),
+        text(rest).font(Font::MONOSPACE).style(text::base).into(),
+    ])
+    .into()
+}
+
 impl ShowcasedToasts {
-    fn window_frames<'a>(&'a self, config: &'a Config) -> Element<'a, ShowcaseMessage> {
-        let palette = PaletteColors::from(&config.theme.palette);
+    fn window_frames(&self) -> Element<'_, ShowcaseMessage> {
         let frames = self.niri.windows.windows.values().filter_map(|window| {
             let (x, y) = window.layout.tile_pos_in_workspace_view?;
             let (width, height) = window.layout.window_size;
-            let focus_ring = if window.is_focused {
-                palette.focus
+            let focus_ring: fn(&Theme) -> Color = if window.is_focused {
+                primary_color
             } else {
-                palette.inactive
+                secondary_text_color
             };
-            let scrollback = Column::with_children(
-                self.terminal_scrollback
-                    .iter()
-                    .map(|line| line.view(palette)),
-            );
+            let scrollback =
+                Column::with_children(self.terminal_scrollback.iter().map(TerminalLine::view));
             let frame = container(scrollback)
                 .padding(TERMINAL_PADDING_PX)
                 .width(Length::Fixed(f32::from(u16::try_from(width).ok()?)))
                 .height(Length::Fixed(f32::from(u16::try_from(height).ok()?)))
-                .style(move |_| container::Style {
-                    background: Some(palette.surface.into()),
+                .style(move |theme| container::Style {
+                    background: Some(background_color(theme).into()),
                     border: border::rounded(WINDOW_CORNER_RADIUS_PX)
-                        .color(focus_ring)
+                        .color(focus_ring(theme))
                         .width(FOCUS_RING_WIDTH_PX),
                     ..container::Style::default()
                 });
@@ -185,7 +197,7 @@ impl ShowcasedNiriSession {
             &self.snapshot,
             SHOWCASE_OUTPUT,
             config,
-            &undragged(),
+            &undragged(config),
             Some(&configured_in_fixture_order(&self.snapshot)),
             clock,
         )
@@ -205,7 +217,7 @@ impl ShowcasedNiriSession {
             SHOWCASE_OUTPUT,
             config,
             Position::Bottom,
-            &undragged(),
+            &undragged(config),
             Some(&configured_in_fixture_order(snapshot)),
             clock,
         )
@@ -223,7 +235,7 @@ impl ShowcasedNiriSession {
                 SHOWCASE_OUTPUT,
                 config,
                 Position::Bottom,
-                &undragged(),
+                &undragged(config),
                 clock,
             )
             .map(|element| {
@@ -644,9 +656,9 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn backdrop<'a>(&'a self, config: &'a Config) -> Option<Element<'a, ShowcaseMessage>> {
+    pub fn backdrop(&self) -> Option<Element<'_, ShowcaseMessage>> {
         match self {
-            ShowcasedGroup::Toasts(toasts) => Some(toasts.window_frames(config)),
+            ShowcasedGroup::Toasts(toasts) => Some(toasts.window_frames()),
             _ => None,
         }
     }

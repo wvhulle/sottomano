@@ -83,6 +83,6 @@ pub(super) fn sidebar_row<'a>(
     .align_y(Alignment::Center);
     container(label_with_edge)
         .align_right(Length::Fill)
-        .style(drop_tint(config, p, drag))
+        .style(drop_tint(p, drag))
         .into()
 }

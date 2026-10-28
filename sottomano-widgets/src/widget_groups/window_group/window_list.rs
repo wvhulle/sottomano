@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use iced::{
-    Alignment, Border, Element, Subscription, Task, border,
+    Alignment, Element, Subscription, Task, border,
     widget::{Row, container, progress_bar, right, stack, text},
 };
 use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
@@ -29,10 +29,12 @@ use crate::{
         DISABLED_ALPHA,
         activity_line::activity_line,
         bar_widget::Glyph,
+        configured_theme::{
+            background_color, background_strong_color, danger_color, primary_color, warning_color,
+        },
         focus_indicator::focus_indicator,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         pager_slot::PagerSlot,
-        palette_colors::PaletteColors,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
@@ -42,7 +44,7 @@ use crate::{
         },
         text::FontFaces,
         tooltip_body::{Section, tooltip_source_delivery::SourcedSections},
-        widget_state::WidgetState,
+        widget_state::{StateTint, WidgetState},
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
         window_title::WindowTitle,
@@ -269,9 +271,7 @@ impl WindowList {
         let indicated = focus_indicator(
             keyed_slot_list(slots, position, config),
             focused_index,
-            PaletteColors::from(&config.theme.palette)
-                .focus
-                .scale_alpha(focus_opacity),
+            move |theme| primary_color(theme).scale_alpha(focus_opacity),
             config,
         )
         .edge(position);
@@ -302,14 +302,10 @@ impl WindowList {
         if drag.has_left_its_list() {
             let icon = resolved_icon(config, icons, win, 1.0)?;
             let inset = config.layout.overlay.content_inset;
-            let circle = container::Style {
-                border: Border {
-                    radius: (config.theme.font.icon_size_px / 2.0 + inset).into(),
-                    ..drag.ghost_frame.border
-                },
-                ..drag.ghost_frame
-            };
-            return Some(panel_frame(container(icon).padding(inset), &circle).into());
+            let circle = drag
+                .ghost_frame
+                .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
+            return Some(panel_frame(container(icon).padding(inset), circle).into());
         }
         let content = button_content(config, icons, win, self.extras(win, audio, config), 1.0);
         Some(
@@ -317,7 +313,7 @@ impl WindowList {
                 container(content)
                     .padding([0.0, config.layout.panel.group_padding])
                     .center_y(config.layout.panel.height),
-                &drag.ghost_frame,
+                drag.ghost_frame,
             )
             .into(),
         )
@@ -489,11 +485,13 @@ fn secondary_glyph<'a>(
     icon: fn(Weight) -> Phosphor,
     opacity: f32,
 ) -> Element<'a, WindowListMessage> {
-    let state = WidgetState::Off;
-    let color = state
-        .color(&PaletteColors::from(&config.theme.palette))
-        .scale_alpha(opacity);
-    Glyph::from(icon(state.weight())).view(config.theme.font.icon_size_px, color)
+    let tint = StateTint {
+        state: WidgetState::Off,
+        opacity,
+    };
+    Glyph::from(icon(tint.state.weight())).view(config.theme.font.icon_size_px, move |theme| {
+        tint.color(theme)
+    })
 }
 
 fn button_content<'a>(
@@ -532,10 +530,13 @@ fn audio_glyph<'a>(
     } else {
         Phosphor::SpeakerHigh(Weight::Regular)
     };
-    let color = state
-        .color(&PaletteColors::from(&config.theme.palette))
-        .scale_alpha(opacity);
-    Some(Glyph::from(icon.with_weight(state.weight())).view(config.theme.font.icon_size_px, color))
+    let tint = StateTint { state, opacity };
+    Some(
+        Glyph::from(icon.with_weight(state.weight()))
+            .view(config.theme.font.icon_size_px, move |theme| {
+                tint.color(theme)
+            }),
+    )
 }
 
 fn indicator_line<'a>(
@@ -550,7 +551,7 @@ fn indicator_line<'a>(
         0.0
     };
     activity_line(
-        PaletteColors::from(&config.theme.palette).urgent,
+        danger_color,
         severity * opacity,
         config.panel_bar.indicator_thickness,
     )
@@ -563,18 +564,12 @@ fn progress_ticks<'a>(
 ) -> Option<Element<'a, WindowListMessage>> {
     let fraction = extras.progress(config)?;
     let thickness = config.panel_bar.indicator_thickness;
-    let filled = PaletteColors::from(&config.theme.palette)
-        .warning
-        .scale_alpha(opacity);
-    let track = PaletteColors::from(&config.theme.palette)
-        .dim
-        .scale_alpha(opacity);
     Some(
         progress_bar(0.0..=1.0, fraction)
             .girth(thickness)
-            .style(move |_| progress_bar::Style {
-                background: track.into(),
-                bar: filled.into(),
+            .style(move |theme| progress_bar::Style {
+                background: background_strong_color(theme).scale_alpha(opacity).into(),
+                bar: warning_color(theme).scale_alpha(opacity).into(),
                 border: border::rounded(thickness),
             })
             .into(),
@@ -594,23 +589,19 @@ fn count_badge<'a>(
     } else {
         count.to_string()
     };
-    let background = PaletteColors::from(&config.theme.palette)
-        .urgent
-        .scale_alpha(opacity);
-    let foreground = PaletteColors::from(&config.theme.palette)
-        .surface
-        .scale_alpha(opacity);
     let size = config.theme.font.text_size_px;
     let badge = container(
         text(label)
             .size(size)
             .font(FontFaces::from(&config.theme.font).regular)
-            .color(foreground),
+            .style(move |theme| text::Style {
+                color: Some(background_color(theme).scale_alpha(opacity)),
+            }),
     )
     .padding([0.0, config.layout.panel.widget_spacing])
-    .style(move |_| {
+    .style(move |theme| {
         container::Style::default()
-            .background(background)
+            .background(danger_color(theme).scale_alpha(opacity))
             .border(border::rounded(size))
     });
     Some(right(badge).into())

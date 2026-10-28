@@ -15,16 +15,17 @@ use crate::{
     widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
         bar_widget::Glyph,
+        configured_theme::text_color,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         group_item::GroupItem,
         localized_durations::duration_text,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         widget_group::{GroupContent, GroupEvent},
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -51,10 +52,10 @@ impl SessionMenuEntry {
             ScheduledAfterIdle::Never => Trailing::Nothing,
         };
         MenuLine::Row(MenuRow {
-            leading: Some(Glyph::from(session_action_icon(self.action)).view(
-                config.theme.font.icon_size_px,
-                PaletteColors::from(&config.theme.palette).bar_foreground,
-            )),
+            leading: Some(
+                Glyph::from(session_action_icon(self.action))
+                    .view(config.theme.font.icon_size_px, text_color),
+            ),
             label: Some(self.action.verb().to_owned()),
             trailing: note,
             enabled: true,
@@ -186,12 +187,13 @@ impl SessionMenu {
         GroupContent::single((!self.permissions.allowed.is_empty()).then(|| {
             GroupItem::element(move |reveal| {
                 hoverable(
-                    glyph.view(
-                        config.theme.font.icon_size_px,
-                        PaletteColors::from(&config.theme.palette)
-                            .bar_foreground
-                            .scale_alpha(reveal),
-                    ),
+                    glyph.view(config.theme.font.icon_size_px, {
+                        let tint = StateTint {
+                            state: WidgetState::Idle,
+                            opacity: reveal,
+                        };
+                        move |theme| tint.color(theme)
+                    }),
                     SessionTarget::Menu.into(),
                     PressHints::default(),
                     GroupEvent::Tooltip,

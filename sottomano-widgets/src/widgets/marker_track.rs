@@ -1,17 +1,17 @@
-use iced::{
-    Color, Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas,
-};
+use iced::{Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas};
 use sottomano_config::screen_edges::Position;
 
+use crate::widgets::configured_theme::ThemedColor;
+
 pub struct MarkerTrack {
-    markers: Vec<Color>,
+    markers: Vec<ThemedColor<'static>>,
     max_diameter: f32,
     along_vertical_edge: bool,
 }
 
 impl MarkerTrack {
     #[must_use]
-    pub fn new(markers: Vec<Color>, max_diameter: f32, edge: Position) -> Self {
+    pub fn new(markers: Vec<ThemedColor<'static>>, max_diameter: f32, edge: Position) -> Self {
         Self {
             markers,
             max_diameter,
@@ -53,7 +53,7 @@ impl<Message> canvas::Program<Message> for MarkerTrack {
         &self,
         (): &Self::State,
         renderer: &Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
@@ -69,13 +69,13 @@ impl<Message> canvas::Program<Message> for MarkerTrack {
         let radius = self.marker_diameter(track_length) / 2.0;
         self.marker_centres(track_length)
             .zip(&self.markers)
-            .for_each(|(along, &color)| {
+            .for_each(|(along, color)| {
                 let centre = if self.along_vertical_edge {
                     Point::new(cross, along)
                 } else {
                     Point::new(along, cross)
                 };
-                frame.fill(&canvas::Path::circle(centre, radius), color);
+                frame.fill(&canvas::Path::circle(centre, radius), color(theme));
             });
         vec![frame.into_geometry()]
     }

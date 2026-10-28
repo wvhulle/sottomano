@@ -1,19 +1,18 @@
 use std::{iter::once, num::NonZeroUsize};
 
 use iced::{
-    Color, Element, Pixels,
+    Color, Element, Pixels, Theme,
     alignment::{Horizontal, Vertical},
-    widget::Space,
+    widget::{Space, rule},
 };
 use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::widgets::{
-    activity_line::activity_line,
+    configured_theme::background_strong_color,
     content_sized_table::{
         ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
     },
     ellipsis_rule::ellipsis_rule,
-    palette_colors::PaletteColors,
     text::{LINE_HEIGHT, column_heading},
     value_cells::{LabeledValue, ValueCell, ValueCellView},
     widget_state::WidgetState,
@@ -309,12 +308,9 @@ impl KeyedRecordTable {
             .into_iter()
             .enumerate()
             .map(|(position, heading)| style.value_column(position, heading, line_height_px));
-        let rule_color = style.palette.dim;
         content_sized_spanning_table(
             once(style.key_column(line_height_px)).chain(value_columns),
-            self.rows
-                .iter()
-                .flat_map(|row| spannable_rows(row, rule_color)),
+            self.rows.iter().flat_map(spannable_rows),
         )
         .padding_x(style.column_gap / 2.0)
         .padding_y(style.row_spacing / 2.0)
@@ -324,10 +320,8 @@ impl KeyedRecordTable {
 
 pub struct KeyedRecordTableStyle<Message> {
     pub cell_view: ValueCellView<Message>,
-    pub palette: PaletteColors,
-    pub key_color: Color,
+    pub key_color: fn(&Theme) -> Color,
     pub heading_font: ResolvedFont,
-    pub heading_color: Color,
     pub column_gap: f32,
     pub row_spacing: f32,
 }
@@ -346,13 +340,15 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
     ) -> ContentSizedColumn<'static, ColumnedRowContent, Message> {
         let key_view = self.cell_view.key_view();
         let key_color = self.key_color;
-        let dim = self.palette.dim;
         content_sized_column(Space::new(), move |content| match content {
             ColumnedRowContent::Record(record) => key_view.key(record.key().clone(), key_color),
-            ColumnedRowContent::OmittedRecordCount(omitted_count) => {
-                key_view.key(ValueCell::from(format!("{omitted_count} more")), dim)
+            ColumnedRowContent::OmittedRecordCount(omitted_count) => key_view.key(
+                ValueCell::from(format!("{omitted_count} more")),
+                background_strong_color,
+            ),
+            ColumnedRowContent::ContinuationMarker => {
+                ellipsis_rule(background_strong_color, line_height_px).into()
             }
-            ColumnedRowContent::ContinuationMarker => ellipsis_rule(dim, line_height_px).into(),
         })
         .align_x(Horizontal::Right)
         .align_y(Vertical::Top)
@@ -365,21 +361,21 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
         line_height_px: f32,
     ) -> ContentSizedColumn<'static, ColumnedRowContent, Message> {
         let heading_view: Element<'static, Message> = match heading {
-            ColumnHeading::Titled { label, .. } => {
-                column_heading(&self.heading_font, label, self.heading_color).into()
-            }
+            ColumnHeading::Titled { label, .. } => column_heading(&self.heading_font, label).into(),
             ColumnHeading::Untitled { .. } => Space::new().into(),
         };
         let cell_view = self.cell_view.clone();
-        let palette = self.palette;
         content_sized_column(heading_view, move |content| match content {
-            ColumnedRowContent::Record(record) => cell_view.value(
-                record.cell(position).clone(),
-                WidgetState::from(record.severity()).color(&palette),
-                record.key(),
-            ),
+            ColumnedRowContent::Record(record) => {
+                let state = WidgetState::from(record.severity());
+                cell_view.value(
+                    record.cell(position).clone(),
+                    move |theme| state.color(theme),
+                    record.key(),
+                )
+            }
             ColumnedRowContent::OmittedRecordCount(_) | ColumnedRowContent::ContinuationMarker => {
-                ellipsis_rule(palette.dim, line_height_px).into()
+                ellipsis_rule(background_strong_color, line_height_px).into()
             }
         })
         .align_x(heading.alignment())
@@ -387,9 +383,14 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
     }
 }
 
+fn separator_rule<Message: 'static>() -> Element<'static, Message> {
+    rule::horizontal(SEPARATOR_RULE_THICKNESS_PX)
+        .style(rule::default)
+        .into()
+}
+
 fn spannable_rows<Message: 'static>(
     row: &KeyedTableRow,
-    rule_color: Color,
 ) -> Vec<SpannableRow<'static, ColumnedRowContent, Message>> {
     match row {
         KeyedTableRow::Record(record) => {
@@ -397,13 +398,9 @@ fn spannable_rows<Message: 'static>(
                 record.clone(),
             ))]
         }
-        KeyedTableRow::GroupSeparator => vec![SpannableRow::FullWidth(activity_line(
-            rule_color,
-            1.0,
-            SEPARATOR_RULE_THICKNESS_PX,
-        ))],
+        KeyedTableRow::GroupSeparator => vec![SpannableRow::FullWidth(separator_rule())],
         KeyedTableRow::TotalRecord(record) => vec![
-            SpannableRow::FullWidth(activity_line(rule_color, 1.0, SEPARATOR_RULE_THICKNESS_PX)),
+            SpannableRow::FullWidth(separator_rule()),
             SpannableRow::Columned(ColumnedRowContent::Record(record.clone())),
         ],
         KeyedTableRow::ContinuationMarker => {

@@ -1,4 +1,4 @@
-use iced::{Color, Element};
+use iced::{Color, Element, Theme};
 use sottomano_sources::weather::open_meteo_temperature::{
     Daylight::{self, Day, Night},
     Intensity,
@@ -48,7 +48,11 @@ impl WeatherIcon {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(self, ink_size: f32, color: Color) -> Element<'a, Message> {
+    pub fn view<'a, Message: 'a>(
+        self,
+        ink_size: f32,
+        color: impl Fn(&Theme) -> Color + 'a,
+    ) -> Element<'a, Message> {
         svg_icon::view(self.svg_data(), ink_size / INK_FRACTION, color)
     }
 }

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, Utc};
-use iced::{Color, Element};
+use iced::{Color, Element, Theme};
 use sottomano_config::severity::Severity;
 use sottomano_sources::ai_usage_spend::usage_quota::Quota;
 use uom::si::f64::Ratio;
@@ -33,7 +33,11 @@ impl Glyph {
     }
 
     #[must_use]
-    pub fn view<'a, Message: 'a>(self, size: f32, color: Color) -> Element<'a, Message> {
+    pub fn view<'a, Message: 'a>(
+        self,
+        size: f32,
+        color: impl Fn(&Theme) -> Color + 'a,
+    ) -> Element<'a, Message> {
         match self {
             Glyph::Phosphor(icon) => view_phosphor(icon, size, color),
             Glyph::SimpleIcon(icon) => view_simple_icon(icon, size, color),

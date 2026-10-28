@@ -1,10 +1,10 @@
 use iced::{
-    Color, Font,
+    Font,
     advanced::{graphics::text::font_system, text as advanced_text},
     font::{Family, Style, Weight},
     widget::{
-        Text, span, text,
-        text::{IntoFragment, Shaping, Span},
+        Text, text,
+        text::{IntoFragment, Shaping},
     },
 };
 use sottomano_config::theme::{
@@ -17,11 +17,10 @@ pub const LINE_HEIGHT: advanced_text::LineHeight = advanced_text::LineHeight::Re
 pub fn column_heading<'a>(
     font: &ResolvedFont,
     title: impl IntoFragment<'a>,
-    color: Color,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
     bar_text(font, title)
         .size(font.small_text_size_px)
-        .color(color)
+        .style(text::secondary)
 }
 
 pub fn bar_text<'a>(
@@ -72,9 +71,4 @@ impl FontFaces {
         database.set_sans_serif_family(theme.font.family.clone());
         database.set_monospace_family(theme.monospace_font.family.clone());
     }
-}
-
-#[must_use]
-pub fn colored_span<'a>(text: String, font: Font, color: Color) -> Span<'a> {
-    span(text).font(font).color(color)
 }

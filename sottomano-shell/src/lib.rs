@@ -78,7 +78,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         DesktopShell::update,
         DesktopShell::view,
     )
-    .style(DesktopShell::style)
+    .style(|_shell: &DesktopShell, theme| DesktopShell::style(theme))
     .theme(DesktopShell::theme)
     .subscription(message_subscriptions::subscription)
     .wl_settings(wl_settings)

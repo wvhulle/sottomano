@@ -8,7 +8,7 @@ use uom::si::ratio::ratio;
 use crate::{
     hover_tooltips::PopupMessage,
     widgets::{
-        palette_colors::PaletteColors,
+        configured_theme::secondary_text_color,
         tooltip_body::tooltip_figure_payloads::{PhysicalCoreCells, ThreadCell},
         widget_state::WidgetState,
     },
@@ -37,22 +37,21 @@ impl<'a> CoreCellGrid<'a> {
 
     fn core_cell(&self, core: &PhysicalCoreCells) -> Element<'static, PopupMessage> {
         let side = self.config.theme.font.text_size_px;
-        let outline = PaletteColors::from(&self.config.theme.palette).inactive;
         let thread_height = side - 2.0 * OUTLINE_PX;
         container(
             Row::with_children(
                 core.threads
                     .iter()
-                    .map(|thread| self.thread_column(*thread, thread_height)),
+                    .map(|thread| thread_column(*thread, thread_height)),
             )
             .spacing(OUTLINE_PX),
         )
         .padding(OUTLINE_PX)
         .width(side)
         .height(side)
-        .style(move |_| container::Style {
+        .style(|theme| container::Style {
             border: Border {
-                color: outline,
+                color: secondary_text_color(theme),
                 width: OUTLINE_PX,
                 radius: 2.0.into(),
             },
@@ -60,19 +59,18 @@ impl<'a> CoreCellGrid<'a> {
         })
         .into()
     }
+}
 
-    fn thread_column(&self, thread: ThreadCell, height: f32) -> Element<'static, PopupMessage> {
-        let ink: Color =
-            WidgetState::from(thread.level).color(&PaletteColors::from(&self.config.theme.palette));
-        progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)
-            .vertical()
-            .length(height)
-            .girth(Length::Fill)
-            .style(move |_| progress_bar::Style {
-                background: Color::TRANSPARENT.into(),
-                bar: ink.into(),
-                border: Border::default(),
-            })
-            .into()
-    }
+fn thread_column(thread: ThreadCell, height: f32) -> Element<'static, PopupMessage> {
+    let state = WidgetState::from(thread.level);
+    progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)
+        .vertical()
+        .length(height)
+        .girth(Length::Fill)
+        .style(move |theme| progress_bar::Style {
+            background: Color::TRANSPARENT.into(),
+            bar: state.color(theme).into(),
+            border: Border::default(),
+        })
+        .into()
 }

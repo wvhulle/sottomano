@@ -6,6 +6,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use iced::{
     Alignment, Border, Color, Element, Length, Shadow, Theme, border,
+    theme::palette::{Extended, Pair},
     widget::{Column, Row, button, container, mouse_area, progress_bar, space, text_input},
 };
 use reqwest::Url;
@@ -26,12 +27,56 @@ use crate::{
         icon_handle::IconHandle,
         localized_durations::relative_moment_text,
         markup_body::MarkupBody,
-        palette_colors::PaletteColors,
         panel_frame::LayerFrameStyle,
         shell_layer_appearance::LayerAppearance,
         text::{FontFaces, bar_text},
     },
 };
+
+#[derive(Debug, Clone, Copy)]
+struct FamilyShades {
+    weak: Pair,
+    base: Pair,
+    strong: Pair,
+}
+
+fn family_shades(palette: &Extended, severity: Severity) -> FamilyShades {
+    match severity {
+        Severity::Low => FamilyShades {
+            weak: palette.secondary.weak,
+            base: palette.secondary.base,
+            strong: palette.secondary.strong,
+        },
+        Severity::Normal => FamilyShades {
+            weak: palette.primary.weak,
+            base: palette.primary.base,
+            strong: palette.primary.strong,
+        },
+        Severity::Warning => FamilyShades {
+            weak: palette.warning.weak,
+            base: palette.warning.base,
+            strong: palette.warning.strong,
+        },
+        Severity::Critical => FamilyShades {
+            weak: palette.danger.weak,
+            base: palette.danger.base,
+            strong: palette.danger.strong,
+        },
+    }
+}
+
+fn action_family(palette: &Extended, tint: ActionTint) -> FamilyShades {
+    match tint {
+        ActionTint::Proceed => FamilyShades {
+            weak: palette.success.weak,
+            base: palette.success.base,
+            strong: palette.success.strong,
+        },
+        ActionTint::Inspect => family_shades(palette, Severity::Normal),
+        ActionTint::Hold => family_shades(palette, Severity::Warning),
+        ActionTint::Refuse => family_shades(palette, Severity::Critical),
+    }
+}
 
 const BODY_ROW_SPACING: f32 = 10.0;
 const ROW_SPACING: f32 = 8.0;
@@ -208,19 +253,14 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
 }
 
 impl<Routed> ToastCard<'_, Routed> {
+    fn urgency_family(&self) -> FamilyShades {
+        family_shades(self.theme.extended_palette(), self.notif.data.severity)
+    }
+
     fn style(&self) -> container::Style {
-        let palette = self.theme.extended_palette();
         let hovered = self.hovered;
-        let urgency = match self.notif.data.severity {
-            Severity::Low if hovered => palette.secondary.strong,
-            Severity::Low => palette.secondary.base,
-            Severity::Normal if hovered => palette.primary.strong,
-            Severity::Normal => palette.primary.base,
-            Severity::Warning if hovered => palette.warning.strong,
-            Severity::Warning => palette.warning.base,
-            Severity::Critical if hovered => palette.danger.strong,
-            Severity::Critical => palette.danger.base,
-        };
+        let family = self.urgency_family();
+        let urgency = if hovered { family.strong } else { family.base };
         let opacity = if hovered {
             1.0
         } else {
@@ -245,7 +285,7 @@ impl<Routed> ToastCard<'_, Routed> {
 impl<Routed> ToastCard<'_, Routed> {
     fn body(&self, body: &str, text: Color) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupBody::new(body, font, text)
+        MarkupBody::new(body, font, text, self.urgency_family().weak.color)
             .size(font.small_text_size_px)
             .block_spacing(self.config.layout.overlay.row_spacing)
             .corner_radius(self.overlay_appearance.corner_radius_px)
@@ -330,18 +370,22 @@ impl<Routed> ToastCard<'_, Routed> {
             ));
         }
         if let Some(progress) = data.progress {
-            column = column.push(progress_widget(progress, text));
+            column = column.push(progress_widget(
+                progress,
+                text,
+                self.urgency_family().weak.color,
+            ));
         }
         if let ReplyPrompt::Offered {
             placeholder,
             submit,
         } = &data.reply
         {
-            column = column.push(self.reply_row(placeholder, submit.clone(), text));
+            column = column.push(self.reply_row(placeholder, submit.clone()));
         }
         if has_actions {
             let actions = self
-                .actions_row(&button_actions, previewed, text)
+                .actions_row(&button_actions, previewed)
                 .push(space::horizontal());
             column = column.push(match reltime_span(true) {
                 Some(time) => actions.push(time),
@@ -355,10 +399,10 @@ impl<Routed> ToastCard<'_, Routed> {
         &self,
         button_actions: &[&NotifAction],
         previewed: bool,
-        text: Color,
     ) -> Row<'b, NotificationMessage> {
         let id = self.notif.data.id;
-        let palette = PaletteColors::from(&self.config.theme.palette);
+        let palette = self.theme.extended_palette();
+        let proceed = action_family(palette, ActionTint::Proceed);
         let app_buttons = button_actions.iter().map(|action| {
             self.action_button(
                 action.label.clone(),
@@ -366,13 +410,7 @@ impl<Routed> ToastCard<'_, Routed> {
                     id,
                     key: action.key.clone(),
                 },
-                match action.tint {
-                    ActionTint::Proceed => palette.success,
-                    ActionTint::Hold => palette.warning,
-                    ActionTint::Refuse => palette.urgent,
-                    ActionTint::Inspect => palette.info,
-                },
-                text,
+                action_family(palette, action.tint),
             )
         });
         let file_buttons = previewed
@@ -381,14 +419,12 @@ impl<Routed> ToastCard<'_, Routed> {
                     self.action_button(
                         "Open".to_owned(),
                         NotificationMessage::OpenFile(id),
-                        palette.success,
-                        text,
+                        proceed,
                     ),
                     self.action_button(
                         "Copy path".to_owned(),
                         NotificationMessage::CopyFilePath(id),
-                        palette.success,
-                        text,
+                        proceed,
                     ),
                 ]
             })
@@ -399,16 +435,12 @@ impl<Routed> ToastCard<'_, Routed> {
             .align_y(Alignment::Center)
     }
 
-    fn reply_row<'b>(
-        &self,
-        placeholder: &str,
-        submit: String,
-        text: Color,
-    ) -> Element<'b, NotificationMessage> {
+    fn reply_row<'b>(&self, placeholder: &str, submit: String) -> Element<'b, NotificationMessage> {
         let id = self.notif.data.id;
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.corner_radius_px;
         let reply = move |message| NotificationMessage::Reply { id, message };
+        let family = self.urgency_family();
         let field = text_input(placeholder, &self.notif.reply_draft)
             .font(FontFaces::from(font).regular)
             .size(font.text_size_px)
@@ -416,14 +448,14 @@ impl<Routed> ToastCard<'_, Routed> {
             .on_input(move |draft| reply(ReplyMessage::Edited(draft)))
             .on_submit(reply(ReplyMessage::Submitted))
             .style(move |_, _| text_input::Style {
-                background: text.scale_alpha(0.12).into(),
+                background: family.weak.color.into(),
                 border: border::rounded(radius)
-                    .color(text.scale_alpha(0.5))
+                    .color(family.strong.color)
                     .width(1.0),
-                icon: text,
-                placeholder: text.scale_alpha(0.6),
-                value: text,
-                selection: text.scale_alpha(0.3),
+                icon: family.weak.text,
+                placeholder: family.strong.color,
+                value: family.weak.text,
+                selection: family.strong.color,
             });
         let row = Row::new()
             .spacing(6.0)
@@ -432,8 +464,7 @@ impl<Routed> ToastCard<'_, Routed> {
             .push(self.action_button(
                 submit,
                 reply(ReplyMessage::Submitted),
-                PaletteColors::from(&self.config.theme.palette).success,
-                text,
+                action_family(self.theme.extended_palette(), ActionTint::Proceed),
             ));
         mouse_area(row)
             .on_enter(reply(ReplyMessage::PointerEntered))
@@ -445,24 +476,18 @@ impl<Routed> ToastCard<'_, Routed> {
         &self,
         label: String,
         message: NotificationMessage,
-        tint: Color,
-        text: Color,
+        tint: FamilyShades,
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.corner_radius_px;
-        button(bar_text(font, label).size(font.text_size_px).color(text))
+        button(bar_text(font, label))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {
                 let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+                let shade = if hovered { tint.base } else { tint.weak };
                 button::Style {
-                    background: Some(
-                        Color {
-                            a: if hovered { 0.4 } else { 0.25 },
-                            ..tint
-                        }
-                        .into(),
-                    ),
-                    text_color: text,
+                    background: Some(shade.color.into()),
+                    text_color: shade.text,
                     border: Border {
                         radius: radius.into(),
                         ..Default::default()
@@ -506,17 +531,21 @@ fn preview_widget<'a>(
 ) -> Element<'a, NotificationMessage> {
     let preview: Element<'a, NotificationMessage> = match icon {
         CardIcon::Handle(handle) => handle.scaled_down(reveal),
-        CardIcon::Glyph(glyph) => glyph.view(max_height, text.scale_alpha(reveal)),
+        CardIcon::Glyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
     };
     container(preview).max_height(max_height).into()
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn progress_widget<'a>(progress: Ratio, text: Color) -> Element<'a, NotificationMessage> {
+fn progress_widget<'a>(
+    progress: Ratio,
+    text: Color,
+    track: Color,
+) -> Element<'a, NotificationMessage> {
     progress_bar(0.0..=1.0, progress.get::<ratio>() as f32)
         .girth(PROGRESS_GIRTH_PX)
         .style(move |_| progress_bar::Style {
-            background: text.scale_alpha(0.2).into(),
+            background: track.into(),
             bar: text.into(),
             border: border::rounded(PROGRESS_GIRTH_PX / 2.0),
         })
@@ -530,7 +559,7 @@ fn icon_widget<'a>(
     text: Color,
 ) -> Element<'a, NotificationMessage> {
     match icon {
-        CardIcon::Glyph(glyph) => glyph.view(size, text.scale_alpha(reveal)),
+        CardIcon::Glyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
     }
 }

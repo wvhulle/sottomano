@@ -1,7 +1,12 @@
-use iced::Color;
+use iced::{Color, Theme, widget::text};
 use sottomano_config::severity::Severity;
 
-use crate::widgets::{palette_colors::PaletteColors, phosphor::Weight};
+use crate::widgets::{
+    configured_theme::{
+        danger_color, primary_color, secondary_text_color, text_color, warning_color,
+    },
+    phosphor::Weight,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WidgetState {
@@ -39,13 +44,24 @@ impl WidgetState {
     }
 
     #[must_use]
-    pub const fn color(self, palette: &PaletteColors) -> Color {
+    pub fn color(self, theme: &Theme) -> Color {
         match self {
-            WidgetState::Failed | WidgetState::Critical => palette.urgent,
-            WidgetState::Off => palette.inactive,
-            WidgetState::Idle | WidgetState::On => palette.bar_foreground,
-            WidgetState::Live => palette.focus,
-            WidgetState::Pending | WidgetState::Warning => palette.warning,
+            WidgetState::Failed | WidgetState::Critical => danger_color(theme),
+            WidgetState::Off => secondary_text_color(theme),
+            WidgetState::Idle | WidgetState::On => text_color(theme),
+            WidgetState::Live => primary_color(theme),
+            WidgetState::Pending | WidgetState::Warning => warning_color(theme),
+        }
+    }
+
+    #[must_use]
+    pub const fn text_style(self) -> fn(&Theme) -> text::Style {
+        match self {
+            WidgetState::Failed | WidgetState::Critical => text::danger,
+            WidgetState::Off => text::secondary,
+            WidgetState::Idle | WidgetState::On => text::base,
+            WidgetState::Live => text::primary,
+            WidgetState::Pending | WidgetState::Warning => text::warning,
         }
     }
 
@@ -59,6 +75,33 @@ impl WidgetState {
             | WidgetState::Pending
             | WidgetState::On
             | WidgetState::Live => Severity::Normal,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StateTint {
+    pub state: WidgetState,
+    pub opacity: f32,
+}
+
+impl StateTint {
+    #[must_use]
+    pub const fn opaque(state: WidgetState) -> Self {
+        Self {
+            state,
+            opacity: 1.0,
+        }
+    }
+
+    #[must_use]
+    pub fn color(self, theme: &Theme) -> Color {
+        self.state.color(theme).scale_alpha(self.opacity)
+    }
+
+    pub fn text_style(self) -> impl Fn(&Theme) -> text::Style + Copy {
+        move |theme| text::Style {
+            color: Some(self.color(theme)),
         }
     }
 }
@@ -79,15 +122,36 @@ mod tests {
     use sottomano_config::theme::palette::Palette;
 
     use super::*;
+    use crate::widgets::configured_theme::configured_theme;
 
     #[test]
     fn severity_states_share_the_severity_colours() {
-        let palette = PaletteColors::from(&Palette::default());
-        assert_eq!(WidgetState::Failed.color(&palette), palette.urgent);
-        assert_eq!(WidgetState::Critical.color(&palette), palette.urgent);
-        assert_eq!(WidgetState::Warning.color(&palette), palette.warning);
-        assert_eq!(WidgetState::Off.color(&palette), palette.inactive);
-        assert_eq!(WidgetState::Live.color(&palette), palette.focus);
+        let theme = configured_theme(&Palette::default());
+        assert_eq!(WidgetState::Failed.color(&theme), danger_color(&theme));
+        assert_eq!(WidgetState::Critical.color(&theme), danger_color(&theme));
+        assert_eq!(WidgetState::Warning.color(&theme), warning_color(&theme));
+        assert_eq!(WidgetState::Off.color(&theme), secondary_text_color(&theme));
+        assert_eq!(WidgetState::Live.color(&theme), primary_color(&theme));
+    }
+
+    #[test]
+    fn each_state_text_style_uses_its_colour() {
+        let theme = configured_theme(&Palette::default());
+        [
+            WidgetState::Failed,
+            WidgetState::Off,
+            WidgetState::Idle,
+            WidgetState::Live,
+            WidgetState::Warning,
+        ]
+        .into_iter()
+        .for_each(|state| {
+            assert_eq!(
+                (state.text_style())(&theme).color,
+                Some(state.color(&theme)),
+                "{state:?}"
+            );
+        });
     }
 
     #[test]

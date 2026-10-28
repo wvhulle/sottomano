@@ -39,7 +39,7 @@ impl DesktopShell {
         };
         DragView::new(
             &self.pointer_drag,
-            &LayerFrameStyle::new(&ghost_layer, &self.config).container_style(),
+            LayerFrameStyle::new(&ghost_layer, &self.config),
         )
     }
 

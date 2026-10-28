@@ -11,18 +11,15 @@ let
   tomlFormat = pkgs.formats.toml { };
 
   modeToPalette = p: {
-    surface = p.base00;
-    surface_raised = p.base02;
-    bar_foreground = p.base05;
-    secondary_foreground = p.base04;
-    inactive = p.base04;
-    dim = p.base03;
-    frame_outline = p.base03;
-    urgent = p.base08;
-    warning = p.base0A;
-    focus = p.base0C;
+    background = p.base00;
+    background_weak = p.base02;
+    background_strong = p.base03;
+    text = p.base05;
+    secondary = p.base04;
+    primary = p.base0C;
     success = p.base0B;
-    info = p.base0D;
+    warning = p.base0A;
+    danger = p.base08;
   };
 
   variantToml =

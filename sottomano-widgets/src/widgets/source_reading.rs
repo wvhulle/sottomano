@@ -1,5 +1,5 @@
 use iced::{
-    Alignment, Color, Element,
+    Alignment, Element,
     widget::{Row, row, text},
 };
 use sottomano_config::Config;
@@ -9,11 +9,10 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::Gauge,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         steady_label_width::{LabelShape, steady_label_width},
         text::{FontFaces, bar_text},
-        widget_state::WidgetState,
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -40,25 +39,31 @@ fn composed_reading<'a, Message: 'a>(
     widget: &dyn BarWidget,
     opacity: f32,
     clock: Clock,
-    value: fn(&Config, &dyn BarWidget, Color, Clock) -> Option<Element<'a, Message>>,
+    value: fn(&Config, &dyn BarWidget, StateTint, Clock) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let color = reading_color(config, widget, clock).scale_alpha(opacity);
+    let tint = StateTint {
+        state: widget.state(clock),
+        opacity,
+    };
     let bare_icon = widget
         .icon_at(clock)
-        .view(config.theme.font.icon_size_px, color);
+        .view(config.theme.font.icon_size_px, move |theme| {
+            tint.color(theme)
+        });
     let icon = match widget.identity_ordinal() {
         Some(ordinal) => superscripted(
             config,
             bare_icon,
             ordinal.to_string(),
-            PaletteColors::from(&config.theme.palette)
-                .inactive
-                .scale_alpha(opacity),
+            StateTint {
+                state: WidgetState::Off,
+                opacity,
+            },
         ),
         None => bare_icon,
     };
 
-    let reading = match value(config, widget, color, clock) {
+    let reading = match value(config, widget, tint, clock) {
         Some(value) => row![icon, value]
             .spacing(icon_value_gap(config))
             .align_y(Alignment::Center)
@@ -69,7 +74,7 @@ fn composed_reading<'a, Message: 'a>(
     if widget.state(clock) == WidgetState::Failed {
         return reading;
     }
-    badged(config, reading, widget.badge(), color)
+    badged(config, reading, widget.badge(), tint)
 }
 
 #[must_use]
@@ -77,47 +82,41 @@ pub fn icon_value_gap(config: &Config) -> f32 {
     config.layout.panel.widget_spacing / 2.0
 }
 
-pub fn reading_color(config: &Config, widget: &dyn BarWidget, clock: Clock) -> Color {
-    widget
-        .state(clock)
-        .color(&PaletteColors::from(&config.theme.palette))
-}
-
 pub fn reading_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
-    color: Color,
+    tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
     if widget.state(clock) == WidgetState::Failed {
-        return Some(failure_marker(config, color));
+        return Some(failure_marker(config, tint));
     }
     match widget.gauge() {
         Some(fill) => Some(
-            Gauge::new(fill, color, config.theme.font.icon_size_px)
+            Gauge::new(fill, tint, config.theme.font.icon_size_px)
                 .live(widget.live_gauge().unwrap_or(fill))
                 .into(),
         ),
-        None => label_text(config, widget, color, clock),
+        None => label_text(config, widget, tint, clock),
     }
 }
 
 fn label_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
-    color: Color,
+    tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
     if widget.state(clock) == WidgetState::Failed {
-        return Some(failure_marker(config, color));
+        return Some(failure_marker(config, tint));
     }
-    label_text(config, widget, color, clock)
+    label_text(config, widget, tint, clock)
 }
 
 fn label_text<'a, Message: 'a>(
     config: &Config,
     widget: &dyn BarWidget,
-    color: Color,
+    tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
     widget
@@ -130,23 +129,28 @@ fn label_text<'a, Message: 'a>(
             };
             steady_label_width(
                 shape,
-                bar_text(&config.theme.font, label).color(color).into(),
+                bar_text(&config.theme.font, label)
+                    .style(tint.text_style())
+                    .into(),
             )
         })
 }
 
-fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a, Message> {
-    Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.theme.font.icon_size_px, color)
+fn failure_marker<'a, Message: 'a>(config: &Config, tint: StateTint) -> Element<'a, Message> {
+    Glyph::from(Phosphor::Warning(Weight::Thin))
+        .view(config.theme.font.icon_size_px, move |theme| {
+            tint.color(theme)
+        })
 }
 
 fn badged<'a, Message: 'a>(
     config: &Config,
     reading: Element<'a, Message>,
     badge: Option<u32>,
-    color: Color,
+    tint: StateTint,
 ) -> Element<'a, Message> {
     match badge {
-        Some(count) if count > 0 => superscripted(config, reading, count.to_string(), color),
+        Some(count) if count > 0 => superscripted(config, reading, count.to_string(), tint),
         _ => reading,
     }
 }
@@ -155,12 +159,12 @@ fn superscripted<'a, Message: 'a>(
     config: &Config,
     marked: Element<'a, Message>,
     digits: String,
-    color: Color,
+    tint: StateTint,
 ) -> Element<'a, Message> {
     let superscript = text(digits)
         .size(config.theme.font.small_text_size_px)
         .font(FontFaces::from(&config.theme.font).regular)
-        .color(color);
+        .style(tint.text_style());
     Row::with_children([marked, superscript.into()])
         .spacing(1.0)
         .align_y(Alignment::Start)

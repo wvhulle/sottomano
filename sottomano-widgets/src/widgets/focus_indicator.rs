@@ -16,18 +16,18 @@ use iced::{
 };
 use sottomano_config::{Config, screen_edges::Position};
 
-const BACKDROP_ALPHA: f32 = 0.2;
+use crate::widgets::configured_theme::{ThemedColor, background_weak_color};
 
 pub fn focus_indicator<'a, Message>(
     slots: impl Into<Element<'a, Message>>,
     active: Option<usize>,
-    color: Color,
+    color: impl Fn(&iced::Theme) -> Color + 'a,
     config: &Config,
 ) -> FocusIndicator<'a, Message> {
     FocusIndicator {
         slots: slots.into(),
         active,
-        color,
+        color: Box::new(color),
         motion: config.panel_bar.focus_indicator_motion,
         thickness: config.panel_bar.indicator_thickness,
         edge: Position::Bottom,
@@ -37,7 +37,7 @@ pub fn focus_indicator<'a, Message>(
 pub struct FocusIndicator<'a, Message> {
     slots: Element<'a, Message>,
     active: Option<usize>,
-    color: Color,
+    color: ThemedColor<'a>,
     motion: Duration,
     thickness: f32,
     edge: Position,
@@ -222,7 +222,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
                     snap: false,
                     ..renderer::Quad::default()
                 },
-                self.color.scale_alpha(BACKDROP_ALPHA),
+                background_weak_color(theme),
             );
         }
         self.slots.as_widget().draw(
@@ -244,7 +244,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
                 snap: false,
                 ..renderer::Quad::default()
             },
-            self.color,
+            (self.color)(theme),
         );
     }
 

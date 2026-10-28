@@ -9,9 +9,10 @@ use iced::{
     event::listen_with,
     mouse,
     time::{Duration, Instant},
-    widget::container,
     window,
 };
+
+use crate::widgets::panel_frame::LayerFrameStyle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DraggedBarSlot {
@@ -264,17 +265,17 @@ pub fn pointer_events<Click: Copy + Send + 'static>(
 #[derive(Debug, Clone, Copy)]
 pub struct DragView {
     pub drag: Option<ActiveDrag>,
-    pub ghost_frame: container::Style,
+    pub ghost_frame: LayerFrameStyle,
 }
 
 impl DragView {
-    pub fn new<Click>(drag: &PointerDrag<Click>, ghost_frame: &container::Style) -> Self {
+    pub fn new<Click>(drag: &PointerDrag<Click>, ghost_frame: LayerFrameStyle) -> Self {
         Self {
             drag: match drag {
                 PointerDrag::Dragging(active) => Some(*active),
                 PointerDrag::Idle | PointerDrag::Pressed(_) | PointerDrag::Held { .. } => None,
             },
-            ghost_frame: *ghost_frame,
+            ghost_frame,
         }
     }
 

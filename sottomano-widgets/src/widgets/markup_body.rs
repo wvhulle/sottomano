@@ -14,13 +14,13 @@ use sottomano_config::theme::font::ResolvedFont;
 use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 
 const CODE_BLOCK_PADDING_PX: f32 = 6.0;
-const CODE_BLOCK_TINT_ALPHA: f32 = 0.08;
 const COLUMN_GAP_PX: f32 = 8.0;
 
 pub struct MarkupBody<'a> {
     markup: &'a str,
     font: &'a ResolvedFont,
     color: Color,
+    code_block_fill: Color,
     size: f32,
     monospace: Font,
     block_spacing: f32,
@@ -29,11 +29,17 @@ pub struct MarkupBody<'a> {
 
 impl<'a> MarkupBody<'a> {
     #[must_use]
-    pub fn new(markup: &'a str, font: &'a ResolvedFont, color: Color) -> Self {
+    pub fn new(
+        markup: &'a str,
+        font: &'a ResolvedFont,
+        color: Color,
+        code_block_fill: Color,
+    ) -> Self {
         Self {
             markup,
             font,
             color,
+            code_block_fill,
             size: font.text_size_px,
             monospace: Font::MONOSPACE,
             block_spacing: 0.0,
@@ -100,14 +106,14 @@ impl<'a> MarkupBody<'a> {
         if !preformatted {
             return flowing.into();
         }
-        let tint = self.color.scale_alpha(CODE_BLOCK_TINT_ALPHA);
+        let fill = self.code_block_fill;
         let corner_radius = self.corner_radius;
         container(flowing)
             .padding(CODE_BLOCK_PADDING_PX)
             .width(Length::Fill)
             .style(move |_| {
                 container::Style::default()
-                    .background(tint)
+                    .background(fill)
                     .border(border::rounded(corner_radius))
             })
             .into()

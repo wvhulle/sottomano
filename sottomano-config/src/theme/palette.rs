@@ -5,46 +5,37 @@ use serde::{Deserialize, Serialize};
 #[serde(default, deny_unknown_fields, rename_all = "snake_case")]
 pub struct Palette {
     #[serde(with = "css_color")]
-    pub surface: AlphaColor<Srgb>,
+    pub background: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub bar_foreground: AlphaColor<Srgb>,
+    pub text: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub inactive: AlphaColor<Srgb>,
-    #[serde(with = "css_color")]
-    pub urgent: AlphaColor<Srgb>,
-    #[serde(with = "css_color")]
-    pub warning: AlphaColor<Srgb>,
-    #[serde(with = "css_color")]
-    pub focus: AlphaColor<Srgb>,
+    pub primary: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
     pub success: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub info: AlphaColor<Srgb>,
+    pub warning: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub dim: AlphaColor<Srgb>,
+    pub danger: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub surface_raised: AlphaColor<Srgb>,
+    pub background_weak: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub frame_outline: AlphaColor<Srgb>,
+    pub background_strong: AlphaColor<Srgb>,
     #[serde(with = "css_color")]
-    pub secondary_foreground: AlphaColor<Srgb>,
+    pub secondary: AlphaColor<Srgb>,
 }
 
 impl Default for Palette {
     fn default() -> Self {
         Self {
-            surface: css("#0b0e14"),
-            bar_foreground: css("#e6e1cf"),
-            inactive: css("#bfbdb6"),
-            urgent: css("#f07178"),
-            warning: css("#ffb454"),
-            focus: css("#95e6cb"),
+            background: css("#0b0e14"),
+            text: css("#e6e1cf"),
+            primary: css("#95e6cb"),
             success: css("#aad94c"),
-            info: css("#59c2ff"),
-            dim: css("#3e4b59"),
-            surface_raised: css("#202229"),
-            frame_outline: css("#3e4b59"),
-            secondary_foreground: css("#bfbdb6"),
+            warning: css("#ffb454"),
+            danger: css("#f07178"),
+            background_weak: css("#202229"),
+            background_strong: css("#3e4b59"),
+            secondary: css("#bfbdb6"),
         }
     }
 }

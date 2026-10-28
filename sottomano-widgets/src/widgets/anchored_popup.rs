@@ -1,7 +1,8 @@
 use std::{iter::once, mem};
 
 use iced::{
-    Animation, Border, Color, Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
+    Animation, Background, Border, Color, Element, Event, Length, Point, Rectangle, Shadow, Size,
+    Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -18,7 +19,6 @@ use sottomano_config::{Config, screen_edges::Position};
 
 use crate::widgets::{
     child_view::{ChildView, ChildViewMut},
-    palette_colors::PaletteColors,
     panel_frame::LayerFrameStyle,
     popup_connector::ConnectorTriangle,
     region_reporter::RegionRoles,
@@ -69,9 +69,6 @@ pub fn anchored_popup<'a, Message: 'a>(
     config: &Config,
     overlay_appearance: LayerAppearance,
 ) -> Element<'a, Message> {
-    let background = PaletteColors::from(&config.theme.palette)
-        .surface
-        .scale_alpha(overlay_appearance.opacity);
     let overlay_frame = LayerFrameStyle::new(&overlay_appearance, config);
     Element::new(AnchoredPopup {
         renderings,
@@ -82,11 +79,10 @@ pub fn anchored_popup<'a, Message: 'a>(
         position,
         seq,
         morph: config.tooltips.popup_morph,
-        background,
+        frame: overlay_frame,
         radius: overlay_appearance.corner_radius_px,
         blurred: overlay_appearance.blurred,
         shadow: overlay_frame.lifted_drop_shadow(),
-        outline: overlay_frame.outline_border(),
     })
 }
 
@@ -99,11 +95,10 @@ struct AnchoredPopup<'a, Message> {
     position: Position,
     seq: u64,
     morph: Duration,
-    background: Color,
+    frame: LayerFrameStyle,
     radius: f32,
     blurred: bool,
     shadow: Shadow,
-    outline: Border,
 }
 
 struct MorphState {
@@ -249,17 +244,18 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
     fn draw_outline(
         &self,
         renderer: &mut iced::Renderer,
+        outline: Border,
         box_bounds: Rectangle,
         notch_join: Option<Rectangle>,
     ) {
-        if self.outline.width <= 0.0 {
+        if outline.width <= 0.0 {
             return;
         }
         let quad = renderer::Quad {
             bounds: box_bounds,
             border: Border {
                 radius: self.radius.into(),
-                ..self.outline
+                ..outline
             },
             ..Default::default()
         };
@@ -426,6 +422,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
+        let background =
+            self.frame
+                .container_style(theme)
+                .background
+                .map_or(Color::TRANSPARENT, |fill| match fill {
+                    Background::Color(color) => color,
+                    Background::Gradient(_) => Color::TRANSPARENT,
+                });
+        let outline = self.frame.outline_border(theme);
         renderer.fill_quad(
             renderer::Quad {
                 bounds: box_bounds,
@@ -437,14 +442,14 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 shadow: self.shadow,
                 ..Default::default()
             },
-            self.background,
+            background,
         );
         let notch_join = self.is_settled(state).then(|| {
             let connector = state.connector.translated(origin);
-            connector.draw(renderer, self.background, self.outline);
-            connector.base_span(2.0 * self.outline.width)
+            connector.draw(renderer, background, outline);
+            connector.base_span(2.0 * outline.width)
         });
-        self.draw_outline(renderer, box_bounds, notch_join);
+        self.draw_outline(renderer, outline, box_bounds, notch_join);
         let Some(clipped_viewport) = box_bounds.intersection(viewport) else {
             return;
         };

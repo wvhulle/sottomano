@@ -1,5 +1,5 @@
 use iced::{
-    Border, Color, Element, Padding, Shadow, Vector,
+    Border, Color, Element, Padding, Shadow, Theme, Vector,
     alignment::Vertical,
     border::Radius,
     widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
@@ -10,8 +10,11 @@ use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 use crate::{
     hover_tooltips::PopupMessage,
     widgets::{
+        configured_theme::{
+            background_color, background_strong_color, background_weak_color, danger_color,
+            primary_color, secondary_text_color, text_color,
+        },
         favicon::Favicons,
-        palette_colors::PaletteColors,
         tooltip_body::tooltip_figure_payloads::{PreviewTile, WorkspacePreview},
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
@@ -21,9 +24,6 @@ use crate::{
 const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
 const TILE_BORDER_PX: f32 = 2.0;
-const TILE_FILL_ALPHA: f32 = 0.18;
-const TILE_HOVER_FILL_ALPHA: f32 = 0.34;
-const TILE_OUTLINE_ALPHA: f32 = 0.7;
 const TILE_PADDING: Padding = Padding::new(4.0);
 const FLOATING_SHADOW_ALPHA: f32 = 0.45;
 const FLOATING_SHADOW_OFFSET: Vector = Vector::new(0.0, 2.0);
@@ -103,19 +103,9 @@ impl<'a> WorkspaceSchematic<'a> {
             .spacing(TILE_LABEL_GAP_PX)
             .align_y(Vertical::Top);
 
-        let outline = self.outline(tile);
-        let highlight = PaletteColors::from(&self.config.theme.palette).focus;
-        let fill = Color {
-            a: TILE_FILL_ALPHA,
-            ..PaletteColors::from(&self.config.theme.palette).dim
-        };
-        let hovered_fill = Color {
-            a: TILE_HOVER_FILL_ALPHA,
-            ..PaletteColors::from(&self.config.theme.palette).dim
-        };
+        let outline = tile_outline(tile);
         let radius = Radius::from(self.preview.niri_layout.window_corner_radius_px);
-        let shadow = self.lift(tile);
-        let text_color = PaletteColors::from(&self.config.theme.palette).bar_foreground;
+        let floating = tile.is_floating;
 
         button(content)
             .width(width)
@@ -123,35 +113,30 @@ impl<'a> WorkspaceSchematic<'a> {
             .padding(TILE_PADDING)
             .clip(true)
             .on_press(PopupMessage::FocusWindow(tile.window))
-            .style(move |_, status| {
+            .style(move |theme, status| {
                 let hovered = matches!(status, Status::Hovered | Status::Pressed);
+                let fill = if hovered {
+                    background_strong_color(theme)
+                } else {
+                    background_weak_color(theme)
+                };
                 button::Style {
-                    background: Some(if hovered { hovered_fill } else { fill }.into()),
-                    text_color,
+                    background: Some(fill.into()),
+                    text_color: text_color(theme),
                     border: Border {
-                        color: if hovered { highlight } else { outline },
+                        color: if hovered {
+                            primary_color(theme)
+                        } else {
+                            outline(theme)
+                        },
                         width: TILE_BORDER_PX,
                         radius,
                     },
-                    shadow,
+                    shadow: floating_lift(theme, floating),
                     ..button::Style::default()
                 }
             })
             .into()
-    }
-
-    fn lift(&self, tile: &PreviewTile) -> Shadow {
-        if !tile.is_floating {
-            return Shadow::default();
-        }
-        Shadow {
-            color: Color {
-                a: FLOATING_SHADOW_ALPHA,
-                ..PaletteColors::from(&self.config.theme.palette).surface
-            },
-            offset: FLOATING_SHADOW_OFFSET,
-            blur_radius: FLOATING_SHADOW_BLUR_PX,
-        }
     }
 
     fn label(&self, label: &WindowLabel) -> Element<'static, PopupMessage> {
@@ -160,17 +145,25 @@ impl<'a> WorkspaceSchematic<'a> {
             .wrapping(Wrapping::WordOrGlyph)
             .into()
     }
+}
 
-    fn outline(&self, tile: &PreviewTile) -> Color {
-        if tile.is_urgent {
-            PaletteColors::from(&self.config.theme.palette).urgent
-        } else if tile.is_focused {
-            PaletteColors::from(&self.config.theme.palette).focus
-        } else {
-            Color {
-                a: TILE_OUTLINE_ALPHA,
-                ..PaletteColors::from(&self.config.theme.palette).bar_foreground
-            }
-        }
+fn tile_outline(tile: &PreviewTile) -> fn(&Theme) -> Color {
+    if tile.is_urgent {
+        danger_color
+    } else if tile.is_focused {
+        primary_color
+    } else {
+        secondary_text_color
+    }
+}
+
+fn floating_lift(theme: &Theme, floating: bool) -> Shadow {
+    if !floating {
+        return Shadow::default();
+    }
+    Shadow {
+        color: background_color(theme).scale_alpha(FLOATING_SHADOW_ALPHA),
+        offset: FLOATING_SHADOW_OFFSET,
+        blur_radius: FLOATING_SHADOW_BLUR_PX,
     }
 }

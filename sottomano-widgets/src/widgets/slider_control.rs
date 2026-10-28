@@ -5,7 +5,7 @@ use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
     mouse::ScrollDelta,
-    widget::{Row, button, container, mouse_area, text::Wrapping},
+    widget::{Row, button, container, mouse_area, text, text::Wrapping},
 };
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::blocking_background_work::blocking;
@@ -17,11 +17,11 @@ use crate::{
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
         bar_widget::{BarWidget, Glyph},
+        configured_theme::text_color,
         device_setting::{DeviceSetting, Nudge, Write},
         expand_animation::expand_animation,
         flat_button,
         inline_slider::inline_slider,
-        palette_colors::PaletteColors,
         phosphor::Phosphor,
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
@@ -433,9 +433,7 @@ impl SliderControl {
         let closing_button = |content: Element<'a, ControlMessage>| -> Element<'a, ControlMessage> {
             button(content)
                 .padding(0)
-                .style(flat_button(
-                    PaletteColors::from(&config.theme.palette).bar_foreground,
-                ))
+                .style(flat_button(text_color))
                 .on_press(ControlMessage::Press)
                 .into()
         };
@@ -462,10 +460,11 @@ impl SliderControl {
 
     fn state_glyph<'a>(&self, config: &Config, clock: Clock) -> Element<'a, ControlMessage> {
         let state = self.state(clock);
-        self.effective_icon().with_weight(state.weight()).view(
-            config.theme.font.icon_size_px,
-            state.color(&PaletteColors::from(&config.theme.palette)),
-        )
+        self.effective_icon()
+            .with_weight(state.weight())
+            .view(config.theme.font.icon_size_px, move |theme| {
+                state.color(theme)
+            })
     }
 
     fn inline_slider_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
@@ -499,7 +498,7 @@ impl SliderControl {
             .wrapping(Wrapping::None)
             .width(Length::Fill)
             .align_x(Horizontal::Center)
-            .color(PaletteColors::from(&config.theme.palette).bar_foreground),
+            .style(text::base),
         )
         .into()
     }

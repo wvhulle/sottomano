@@ -4,11 +4,11 @@ use std::{
 };
 
 use iced::{
-    Color, Element, Length, Padding, Pixels,
+    Element, Length, Padding, Pixels,
     alignment::Vertical,
     font::Style as FontStyle,
     mouse::Interaction,
-    widget::{Column, Space, Text, container, row, text::Wrapping},
+    widget::{Column, Space, Text, container, row, text, text::Wrapping},
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
 use sottomano_config::Config;
@@ -22,9 +22,12 @@ use crate::{
     },
     widgets::{
         bar_widget::Glyph,
+        configured_theme::{
+            primary_color, primary_shades, secondary_text_color, success_color, success_shades,
+            text_color,
+        },
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
@@ -93,7 +96,7 @@ impl<'a> TooltipContent<'a> {
         TransitionStyle {
             loading: self.config.tooltips.loading,
             presence,
-            highlight: self.flash(),
+            highlight: success_color,
         }
     }
 
@@ -171,7 +174,7 @@ impl<'a> TooltipContent<'a> {
                 self.small_dim_text("loading".to_owned()).into(),
                 Glyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
                     self.config.theme.font.small_text_size_px,
-                    self.secondary_foreground(),
+                    secondary_text_color,
                 ),
             ])
             .spacing(GESTURE_ICON_GAP_PX)
@@ -222,12 +225,11 @@ impl<'a> TooltipContent<'a> {
 
     fn gesture_hints(&self, press_hints: PressHints) -> Element<'static, PopupMessage> {
         let icon_size = self.config.theme.font.small_text_size_px;
-        let secondary_foreground = self.secondary_foreground();
         row(MouseGesture::ALL.into_iter().filter_map(|gesture| {
             let does = press_hints.does(gesture)?;
             Some(
                 row([
-                    Glyph::from(gesture.glyph()).view(icon_size, secondary_foreground),
+                    Glyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
                     self.small_dim_text(does.to_owned()).into(),
                 ])
                 .spacing(GESTURE_ICON_GAP_PX)
@@ -239,20 +241,7 @@ impl<'a> TooltipContent<'a> {
         .into()
     }
 
-    fn foreground(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).bar_foreground
-    }
-
-    fn flash(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).success
-    }
-
-    fn secondary_foreground(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).secondary_foreground
-    }
-
     fn delivery_timing(&self, delivery_timing: DeliveryTiming) -> Element<'static, PopupMessage> {
-        let secondary_foreground = self.secondary_foreground();
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
             row([label.into(), glyph])
@@ -283,12 +272,12 @@ impl<'a> TooltipContent<'a> {
             DeliveryTiming::LivePush => labelled(
                 self.small_dim_text("live".to_owned()),
                 Glyph::from(Phosphor::Pulse(Weight::Regular))
-                    .view(glyph_size, secondary_foreground),
+                    .view(glyph_size, secondary_text_color),
             ),
             DeliveryTiming::SingleRead => labelled(
                 self.small_dim_text("read once".to_owned()),
                 Glyph::from(Phosphor::PushPin(Weight::Regular))
-                    .view(glyph_size, secondary_foreground),
+                    .view(glyph_size, secondary_text_color),
             ),
         }
     }
@@ -299,7 +288,6 @@ impl<'a> TooltipContent<'a> {
         refresh_period: Duration,
         delivered_at: SystemTime,
     ) -> Element<'static, PopupMessage> {
-        let secondary_foreground = self.secondary_foreground();
         let glyph_size = self.config.theme.font.small_text_size_px;
         pressable_text(
             row([
@@ -312,8 +300,6 @@ impl<'a> TooltipContent<'a> {
                     refresh_period,
                     self.clock.instant,
                     glyph_size,
-                    secondary_foreground,
-                    PaletteColors::from(&self.config.theme.palette).dim,
                 )
                 .view(),
             ])
@@ -321,7 +307,7 @@ impl<'a> TooltipContent<'a> {
             .align_y(Vertical::Center),
             (),
             |()| PopupMessage::RefreshHoveredReading,
-            self.flash(),
+            success_shades,
             self.config.tooltips.copy_flash,
             Interaction::Pointer,
         )
@@ -330,13 +316,13 @@ impl<'a> TooltipContent<'a> {
     fn small_dim_text(&self, text: String) -> Text<'static> {
         bar_text(&self.config.theme.font, text)
             .size(self.config.theme.font.small_text_size_px)
-            .color(self.secondary_foreground())
+            .style(text::secondary)
     }
 
     fn bold_title(&self, title: &str) -> Text<'static> {
         bar_text(&self.config.theme.font, title.to_owned())
             .font(FontFaces::from(&self.config.theme.font).bold)
-            .color(self.foreground())
+            .style(text::base)
     }
 
     fn note_title(&self, title: &str) -> Element<'static, PopupMessage> {
@@ -351,7 +337,7 @@ impl<'a> TooltipContent<'a> {
             wrapped_text(
                 &self.config.theme.font,
                 body.to_owned(),
-                self.secondary_foreground(),
+                secondary_text_color,
                 self.config.tooltips.value_width,
                 Wrapping::default(),
             )
@@ -363,7 +349,6 @@ impl<'a> TooltipContent<'a> {
 
     fn section_seeding(&self) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
-        let color = self.secondary_foreground();
         let line_height_px = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
         TransitioningText::new(
             container(Space::new())
@@ -372,7 +357,7 @@ impl<'a> TooltipContent<'a> {
             String::new(),
             self.transition(TextPresence::Placeholder),
             font,
-            color,
+            secondary_text_color,
         )
         .into()
     }
@@ -435,9 +420,9 @@ impl<'a> TooltipContent<'a> {
             wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
             now: self.clock.utc(),
-            flash: self.flash(),
-            link: PaletteColors::from(&self.config.theme.palette).info,
-            hint: self.secondary_foreground(),
+            flash: success_shades,
+            link: primary_shades,
+            hint: secondary_text_color,
             transition: self.transition(self.presence),
             copy_flash: self.config.tooltips.copy_flash,
             press_messages: ValueCellPressMessages {
@@ -451,22 +436,15 @@ impl<'a> TooltipContent<'a> {
     fn record_table_style(&self) -> KeyedRecordTableStyle<PopupMessage> {
         KeyedRecordTableStyle {
             cell_view: self.value_cell_view(),
-            palette: PaletteColors::from(&self.config.theme.palette),
-            key_color: self.foreground(),
+            key_color: text_color,
             heading_font: self.config.theme.font.clone(),
-            heading_color: self.secondary_foreground(),
             column_gap: COLUMN_GAP_PX,
             row_spacing: self.config.layout.overlay.row_spacing,
         }
     }
 
     fn controller_diagram(&self, diagram: &ControllerCallouts) -> Element<'static, PopupMessage> {
-        let palette = PaletteColors::from(&self.config.theme.palette);
         let font = &self.config.theme.font;
-        let leader_style = DiagramStyle {
-            line: self.secondary_foreground(),
-            anchor: palette.info,
-        };
         let row_height = LINE_HEIGHT.to_absolute(font.text_size_px.into()).0.ceil();
         diagram
             .callouts
@@ -475,12 +453,15 @@ impl<'a> TooltipContent<'a> {
                 controller_diagram(self.assets.controller_artwork.clone(), diagram.model)
                     .body_width(CONTROLLER_DIAGRAM_WIDTH_PX)
                     .row_height(row_height)
-                    .style(move |_| leader_style),
+                    .style(|theme| DiagramStyle {
+                        line: secondary_text_color(theme),
+                        anchor: primary_color(theme),
+                    }),
                 |drawn, callout| {
                     drawn.callout(
                         callout.anchor,
                         bar_text(font, callout.label.clone())
-                            .color(WidgetState::from(callout.level).color(&palette)),
+                            .style(WidgetState::from(callout.level).text_style()),
                     )
                 },
             )
@@ -494,8 +475,7 @@ impl<'a> TooltipContent<'a> {
                 .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0));
             Column::with_children([
                 container(
-                    bar_text(&self.config.theme.font, chiplet.title.clone())
-                        .color(self.foreground()),
+                    bar_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
                 )
                 .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0))
                 .into(),

@@ -11,7 +11,10 @@ use iced::{
 };
 use sottomano_config::{Config, severity::Severity};
 
-use crate::widgets::{palette_colors::PaletteColors, widget_state::WidgetState};
+use crate::widgets::{
+    configured_theme::{background_color, background_strong_color, primary_color, text_color},
+    widget_state::WidgetState,
+};
 
 const RESTING_KNOB_PER_GLYPH: f32 = 0.17;
 const ENGAGED_KNOB_GROWTH: f32 = 1.25;
@@ -28,19 +31,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     on_release: Message,
     on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
-    let palette = PaletteColors::from(&config.theme.palette);
-    let accents = if level == Severity::Normal {
-        InteractionAccents {
-            resting: palette.bar_foreground,
-            engaged: palette.focus,
-        }
-    } else {
-        let severity_color = WidgetState::from(level).color(&palette);
-        InteractionAccents {
-            resting: severity_color,
-            engaged: severity_color,
-        }
-    };
+    let accents = InteractionAccents { level };
     let geometry = FaceGeometry::from_sizes(
         config.theme.font.icon_size_px,
         config.panel_bar.slider_stroke,
@@ -50,8 +41,6 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         value,
         lagging_value,
         accents,
-        track: palette.frame_outline,
-        knob_hollow: palette.surface,
         geometry,
     };
     mouse_area(stack![
@@ -118,8 +107,23 @@ impl FaceGeometry {
 
 #[derive(Debug, Clone, Copy)]
 struct InteractionAccents {
-    resting: Color,
-    engaged: Color,
+    level: Severity,
+}
+
+impl InteractionAccents {
+    fn resting(self, theme: &Theme) -> Color {
+        match self.level {
+            Severity::Normal => text_color(theme),
+            other => WidgetState::from(other).color(theme),
+        }
+    }
+
+    fn engaged(self, theme: &Theme) -> Color {
+        match self.level {
+            Severity::Normal => primary_color(theme),
+            other => WidgetState::from(other).color(theme),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -155,8 +159,6 @@ struct SliderFace {
     value: f32,
     lagging_value: Option<f32>,
     accents: InteractionAccents,
-    track: Color,
-    knob_hollow: Color,
     geometry: FaceGeometry,
 }
 
@@ -181,7 +183,7 @@ impl<Message> canvas::Program<Message> for SliderFace {
         &self,
         engagement: &Self::State,
         renderer: &Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
@@ -200,9 +202,9 @@ impl<Message> canvas::Program<Message> for SliderFace {
 
         let engaged = engagement.engaged() || self.lagging_value.is_some();
         let accent = if engaged {
-            self.accents.engaged
+            self.accents.engaged(theme)
         } else {
-            self.accents.resting
+            self.accents.resting(theme)
         };
         let knob_radius = if engaged {
             geometry.engaged_knob_radius
@@ -229,7 +231,11 @@ impl<Message> canvas::Program<Message> for SliderFace {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
         [
-            (edge_inset, bounds.width - edge_inset, self.track),
+            (
+                edge_inset,
+                bounds.width - edge_inset,
+                background_strong_color(theme),
+            ),
             (edge_inset, handle_x, accent),
         ]
         .into_iter()
@@ -258,7 +264,7 @@ impl<Message> canvas::Program<Message> for SliderFace {
         }
 
         let knob = Path::circle(Point::new(handle_x, rail_y), knob_radius);
-        frame.fill(&knob, self.knob_hollow);
+        frame.fill(&knob, background_color(theme));
         frame.stroke(&knob, line_stroke(accent));
 
         vec![frame.into_geometry()]
