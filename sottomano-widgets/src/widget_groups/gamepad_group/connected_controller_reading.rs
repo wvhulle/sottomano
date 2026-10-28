@@ -7,8 +7,11 @@ use sottomano_config::{
         ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
     },
 };
-use sottomano_sources::gamepad_controller_input::evdev_gamepad_devices::{
-    ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
+use sottomano_sources::gamepad_controller_input::{
+    evdev_gamepad_devices::{
+        ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
+    },
+    player_indicator_leds::LitPlayer,
 };
 
 use super::{
@@ -28,10 +31,18 @@ use crate::{
 
 const DIRECTION_ARROWS: &[char] = &['←', '→', '↑', '↓', ' '];
 
+#[derive(Debug, Clone, Copy)]
+pub enum ControllerMarking<'a> {
+    PlayerLights(&'a LitPlayer),
+    PairedAlias,
+    IconOnly,
+}
+
 pub struct ConnectedControllerReading<'a> {
     pub gamepad: &'a ConnectedGamepad,
     pub bindings: &'a GamepadBindingsConfig,
     pub control: CompositorControl<'a>,
+    pub marking: ControllerMarking<'a>,
 }
 
 fn axis_label(
@@ -78,6 +89,14 @@ fn distinguishing_name(alias: &str, model_name: &str) -> String {
     } else {
         distinguishing
     }
+}
+
+fn led_pattern(lit_player: &LitPlayer) -> String {
+    lit_player
+        .leds_lit
+        .iter()
+        .map(|lit| if *lit { '●' } else { '○' })
+        .collect()
 }
 
 fn program_name(command: &[String]) -> String {
@@ -136,7 +155,29 @@ impl ConnectedControllerReading<'_> {
                 ]
             },
         );
-        Section::dictionary(named)
+        let player = match self.marking {
+            ControllerMarking::PlayerLights(lit_player) => vec![
+                KeyValue::new("Player", lit_player.number.to_string()),
+                KeyValue::new("Lights", led_pattern(lit_player)),
+            ],
+            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => Vec::new(),
+        };
+        Section::dictionary(named.into_iter().chain(player))
+    }
+
+    fn player_numbering_section(&self) -> Option<Section> {
+        match self.marking {
+            ControllerMarking::PlayerLights(_) => Some(Section::note(
+                "Player numbered by the kernel",
+                Some(
+                    "Assigned in the order the controllers connected, and shown on the \
+                     controller's lights. Games may number players differently, for example by \
+                     who presses a button first."
+                        .to_owned(),
+                ),
+            )),
+            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => None,
+        }
     }
 
     fn bindings_section(&self) -> Section {
@@ -212,8 +253,19 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        self.paired_alias()
-            .map(|alias| distinguishing_name(alias, &self.gamepad.name))
+        match self.marking {
+            ControllerMarking::PairedAlias => self
+                .paired_alias()
+                .map(|alias| distinguishing_name(alias, &self.gamepad.name)),
+            ControllerMarking::PlayerLights(_) | ControllerMarking::IconOnly => None,
+        }
+    }
+
+    fn identity_ordinal(&self) -> Option<u8> {
+        match self.marking {
+            ControllerMarking::PlayerLights(lit_player) => Some(lit_player.number),
+            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => None,
+        }
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
@@ -224,14 +276,21 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([
-            self.identity_section(),
-            self.bindings_section(),
-            Section::controller_diagram(
-                self.family().controller_model(),
-                self.stick_callouts().chain(self.button_callouts()),
-            ),
-        ])
+        TooltipBody::sections(
+            [
+                Some(self.identity_section()),
+                self.player_numbering_section(),
+            ]
+            .into_iter()
+            .flatten()
+            .chain([
+                self.bindings_section(),
+                Section::controller_diagram(
+                    self.family().controller_model(),
+                    self.stick_callouts().chain(self.button_callouts()),
+                ),
+            ]),
+        )
     }
 }
 

@@ -28,16 +28,20 @@ impl BarWidget for BluetoothLinkReading<'_> {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let address = match self.identity {
+        let paired_identity = match self.identity {
             ControllerIdentity::Addressed {
-                hardware_address, ..
-            } => Some(KeyValue::new("Address", hardware_address.clone())),
-            ControllerIdentity::Unaddressed => None,
+                hardware_address,
+                alias,
+            } => vec![
+                KeyValue::new("Paired as", alias.clone()),
+                KeyValue::new("Address", hardware_address.clone()),
+            ],
+            ControllerIdentity::Unaddressed => Vec::new(),
         };
         TooltipBody::sections([Section::dictionary(
-            [KeyValue::new("Carries", "input")]
+            paired_identity
                 .into_iter()
-                .chain(address),
+                .chain([KeyValue::new("Carries", "input")]),
         )])
     }
 }
