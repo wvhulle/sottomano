@@ -11,9 +11,8 @@ use sottomano_config::widget_groups::reachability::ReachabilityConfig;
 use sottomano_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        icmp_uplink_latency::{LatencyProbeTargets, UplinkLatency},
+        icmp_internet_latency::InternetLatency,
         interface_throughput::{InterfaceThroughput, NetworkTrafficDirection, Throughput},
-        network_manager_proxies::Connectivity,
         nm_uplink_connectivity::UplinkConnectivity,
         proc_tcp_retransmissions::TcpRetransmissions,
     },
@@ -46,7 +45,6 @@ pub enum ReachabilityTarget {
     Throughput,
     Latency,
     TcpRetransmissions,
-    Connectivity,
 }
 
 impl From<ReachabilityTarget> for HoverTarget {
@@ -58,7 +56,7 @@ impl From<ReachabilityTarget> for HoverTarget {
 #[derive(Default)]
 pub struct ReachabilityGroup {
     throughput: LatestSnapshot<InterfaceThroughput>,
-    latency: LatestSnapshot<UplinkLatency>,
+    latency: LatestSnapshot<InternetLatency>,
     tcp_retransmissions: LatestSnapshot<TcpRetransmissions>,
     connectivity: LatestSnapshot<UplinkConnectivity>,
     metered_volume: MeteredVolumeTally,
@@ -68,7 +66,7 @@ pub struct ReachabilityGroup {
 #[derive(Debug, Clone)]
 pub enum ReachabilityMessage {
     Throughput(SnapshotDelivery<InterfaceThroughput>),
-    Latency(SnapshotDelivery<UplinkLatency>),
+    Latency(SnapshotDelivery<InternetLatency>),
     TcpRetransmissions(SnapshotDelivery<TcpRetransmissions>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
@@ -91,11 +89,8 @@ impl ReachabilityGroup {
             snapshot_subscription::<UplinkConnectivity>(buses.clone())
                 .map(ReachabilityMessage::Connectivity),
             self.expansion.while_expanded(
-                snapshot_subscription::<UplinkLatency>(LatencyProbeTargets {
-                    buses: buses.clone(),
-                    internet_host: config.latency_target,
-                })
-                .map(ReachabilityMessage::Latency),
+                snapshot_subscription::<InternetLatency>(config.latency_target)
+                    .map(ReachabilityMessage::Latency),
             ),
             self.expansion.while_expanded(
                 snapshot_subscription::<TcpRetransmissions>(())
@@ -182,19 +177,26 @@ impl ReachabilityGroup {
             ReachabilityTarget::Throughput => self.throughput.tooltip(clock),
             ReachabilityTarget::Latency => self.latency.tooltip(clock),
             ReachabilityTarget::TcpRetransmissions => self.tcp_retransmissions.tooltip(clock),
-            ReachabilityTarget::Connectivity => self.connectivity.tooltip(clock),
         }
     }
 
-    fn connectivity_degraded(&self) -> bool {
-        self.connectivity
-            .get()
-            .is_some_and(|reading| reading.connectivity != Connectivity::Full)
+    fn handle_face(&self) -> HandleFace<'_> {
+        let handle = GroupHandle::Reachability;
+        match self.connectivity.display() {
+            Some(reading) => HandleFace::IconColoredBy {
+                glyph: reading.icon(),
+                reading,
+                handle,
+            },
+            None => HandleFace::Icon {
+                glyph: Phosphor::CloudCheck(Weight::Regular).into(),
+                handle,
+            },
+        }
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ReachabilityMessage> {
         let throughput = self.throughput.get();
-        let connectivity_degraded = self.connectivity_degraded();
         GroupContent::new(
             &self.expansion,
             ReachabilityMessage::Expansion,
@@ -204,7 +206,7 @@ impl ReachabilityGroup {
                 .chain(throughput.into_iter().flat_map(|readings| {
                     [
                         GroupItem::reading(&readings.down, ReachabilityTarget::Down)
-                            .previewed_on_handle_if(!connectivity_degraded),
+                            .previewed_on_handle(),
                         GroupItem::reading(&readings.up, ReachabilityTarget::Up),
                     ]
                 }))
@@ -212,17 +214,9 @@ impl ReachabilityGroup {
                 .chain(
                     self.tcp_retransmissions
                         .group_item(ReachabilityTarget::TcpRetransmissions),
-                )
-                .chain(
-                    self.connectivity
-                        .group_item(ReachabilityTarget::Connectivity)
-                        .map(|item| item.previewed_on_handle_if(connectivity_degraded)),
                 ),
         )
-        .face(HandleFace::Icon {
-            glyph: Phosphor::Globe(Weight::Regular).into(),
-            handle: GroupHandle::Reachability,
-        })
+        .face(self.handle_face())
     }
 }
 

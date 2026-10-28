@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::{Ipv4Addr, Ipv6Addr},
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     ops::RangeInclusive,
 };
 
@@ -99,8 +99,6 @@ trait Manager {
     fn connectivity(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn metered(&self) -> zbus::Result<u32>;
-    #[zbus(property)]
-    fn primary_connection(&self) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn active_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
     #[zbus(property)]
@@ -303,7 +301,12 @@ pub struct Uplink {
     pub activated_interfaces: Vec<String>,
     pub connectivity: Option<Connectivity>,
     pub metered: bool,
-    pub gateway: Option<Ipv4Addr>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DeviceGateway {
+    pub interface: String,
+    pub gateway: IpAddr,
 }
 
 const METERED_YES: u32 = 1;
@@ -333,20 +336,17 @@ async fn connectivity_changes(
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     let manager = manager(&connection).await?;
-    let (paths, connectivity, metered, primary_connection) = try_join!(
+    let (paths, connectivity, metered) = try_join!(
         manager.get_devices(),
         manager.connectivity(),
-        manager.metered(),
-        manager.primary_connection()
+        manager.metered()
     )?;
-    let (interfaces, gateway) = try_join!(
-        try_join_all(
-            paths
-                .into_iter()
-                .map(|path| device_interface(&connection, path)),
-        ),
-        primary_ipv4_gateway(&connection, primary_connection)
-    )?;
+    let interfaces = try_join_all(
+        paths
+            .into_iter()
+            .map(|path| device_interface(&connection, path)),
+    )
+    .await?;
     Ok(Uplink {
         activated_interfaces: interfaces
             .into_iter()
@@ -355,7 +355,6 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
             .collect(),
         connectivity: Connectivity::try_from(connectivity).ok(),
         metered: matches!(metered, METERED_YES | METERED_GUESS_YES),
-        gateway,
     })
 }
 
@@ -364,20 +363,29 @@ pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity
     Connectivity::try_from(state_code).map_err(|_| ReadingError::Absent)
 }
 
-async fn primary_ipv4_gateway(
-    connection: &Connection,
-    primary_connection: OwnedObjectPath,
-) -> zbus::Result<Option<Ipv4Addr>> {
-    if is_unset(&primary_connection) {
-        return Ok(None);
-    }
-    let active: ActiveConnectionProxy = uncached(connection, primary_connection).await?;
-    let config_path = active.ip4_config().await?;
-    if is_unset(&config_path) {
-        return Ok(None);
-    }
-    let config: Ip4ConfigProxy = uncached(connection, config_path).await?;
-    Ok(config.gateway().await?.parse().ok())
+pub async fn device_gateways(connection: Connection) -> Result<Vec<DeviceGateway>, ReadingError> {
+    let routed_devices = devices(&connection).await?.into_iter().filter(|device| {
+        device.connected && matches!(device.kind, DeviceKind::Ethernet | DeviceKind::Wifi)
+    });
+    let gateways_per_device = try_join_all(routed_devices.map(|device| {
+        let connection = &connection;
+        async move {
+            let addressing = ip(connection, &device).await?;
+            Ok::<_, zbus::Error>(
+                [addressing.v4, addressing.v6]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|block| block.gateway?.parse().ok())
+                    .map(|gateway| DeviceGateway {
+                        interface: device.interface.clone(),
+                        gateway,
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        }
+    }))
+    .await?;
+    Ok(gateways_per_device.into_iter().flatten().collect())
 }
 
 struct DeviceInterface {
@@ -916,6 +924,12 @@ pub const SETTINGS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Settings";
 
 pub const UPLINK_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, DEVICE_PROPERTIES];
 pub const CONNECTIVITY_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES];
+pub const GATEWAY_PROPERTIES: &[&str] = &[
+    MANAGER_PROPERTIES,
+    DEVICE_PROPERTIES,
+    IP4_CONFIG_PROPERTIES,
+    IP6_CONFIG_PROPERTIES,
+];
 
 pub async fn changes(
     connection: &Connection,

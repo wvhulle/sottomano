@@ -10,6 +10,7 @@ use sottomano_sources::{
     SnapshotDelivery,
     network_connectivity::{
         ethernet_connection::{Ethernet, EthernetDetails, toggle_ethernet_ports},
+        icmp_gateway_latency::GatewayLatencies,
         modem_manager_mobile::{Mobile, ModemState, toggle_mobile_radio},
         wifi_connection::{Wifi, WifiDetails, toggle_wifi_radio},
     },
@@ -20,13 +21,14 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
+    widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::LatestSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        tooltip_body::Tooltip,
+        tooltip_body::{SourcedSections, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
         widget_state::WidgetState,
     },
@@ -52,6 +54,7 @@ pub struct NetInterfacesGroup {
     mobile: LatestSnapshot<Mobile>,
     wifi_details: HoverFetchedSnapshot<WifiDetails>,
     ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
+    gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
     expansion: GroupExpansion,
 }
 
@@ -62,6 +65,7 @@ pub enum NetInterfacesMessage {
     Mobile(Box<SnapshotDelivery<Mobile>>),
     WifiDetailsFetched(Box<SnapshotDelivery<WifiDetails>>),
     EthernetDetailsFetched(SnapshotDelivery<EthernetDetails>),
+    GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
     ToggleRadio(NetInterfaceTarget),
     Expansion(ExpansionMessage),
 }
@@ -76,6 +80,10 @@ impl NetInterfacesGroup {
             self.expansion.while_expanded(
                 snapshot_subscription::<Ethernet>(buses.clone())
                     .map(NetInterfacesMessage::Ethernet),
+            ),
+            self.expansion.while_expanded(
+                snapshot_subscription::<GatewayLatencies>(buses.clone())
+                    .map(NetInterfacesMessage::GatewayLatencies),
             ),
             snapshot_subscription::<Wifi>(buses.clone()).map(NetInterfacesMessage::Wifi),
             snapshot_subscription::<Mobile>(buses.clone())
@@ -101,6 +109,9 @@ impl NetInterfacesGroup {
             }
             NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
                 self.ethernet_details.receive(fetched, clock);
+            }
+            NetInterfacesMessage::GatewayLatencies(delivery) => {
+                self.gateway_latencies.receive(delivery, clock);
             }
             NetInterfacesMessage::ToggleRadio(target) => {
                 return Task::future(async move {
@@ -150,14 +161,62 @@ impl NetInterfacesGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: NetInterfaceTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            NetInterfaceTarget::Ethernet => self
-                .ethernet
-                .tooltip_with_groups(self.ethernet_details.sections(clock), clock),
-            NetInterfaceTarget::Wifi => self
-                .wifi
-                .tooltip_with_groups(self.wifi_details.sections(clock), clock),
+            NetInterfaceTarget::Ethernet => {
+                let port_names: Vec<&str> = self
+                    .ethernet
+                    .get()
+                    .map(|ethernet| {
+                        ethernet
+                            .ports
+                            .iter()
+                            .map(|port| port.name.as_str())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                self.ethernet.tooltip_with_groups(
+                    self.ethernet_details
+                        .sections(clock)
+                        .into_iter()
+                        .chain(self.gateway_sections(&port_names)),
+                    clock,
+                )
+            }
+            NetInterfaceTarget::Wifi => {
+                let wifi_device = self.wifi.get().map(|wifi| wifi.device.as_str());
+                self.wifi.tooltip_with_groups(
+                    self.wifi_details
+                        .sections(clock)
+                        .into_iter()
+                        .chain(self.gateway_sections(wifi_device.as_slice())),
+                    clock,
+                )
+            }
             NetInterfaceTarget::Mobile => self.mobile.tooltip(clock),
         }
+    }
+
+    fn gateway_sections(&self, interfaces: &[&str]) -> Option<SourcedSections> {
+        let prefixed = interfaces.len() > 1;
+        self.gateway_latencies.sections_described_by(|latencies| {
+            latencies
+                .gateways
+                .iter()
+                .filter(|gateway_latency| interfaces.contains(&gateway_latency.interface.as_str()))
+                .map(|gateway_latency| {
+                    let family = if gateway_latency.window.host.is_ipv4() {
+                        "IPv4 Router"
+                    } else {
+                        "IPv6 Router"
+                    };
+                    let title = if prefixed {
+                        format!("{} {family}", gateway_latency.interface)
+                    } else {
+                        family.to_owned()
+                    };
+                    probe_window_section(&gateway_latency.window).titled(title)
+                })
+                .collect()
+        })
     }
 
     fn radio_on(&self, target: NetInterfaceTarget) -> bool {

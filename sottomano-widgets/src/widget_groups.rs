@@ -8,6 +8,7 @@ pub mod compute_group;
 pub mod copilot_usage_group;
 pub mod dark_mode_group;
 pub mod disk_group;
+mod echo_probe_window_rows;
 pub mod gamepad_group;
 pub mod gpu_group;
 pub mod idle_timeouts_group;
