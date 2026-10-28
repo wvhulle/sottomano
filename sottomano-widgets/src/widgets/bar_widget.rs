@@ -88,6 +88,10 @@ pub trait BarWidget {
         None
     }
 
+    fn identity_ordinal(&self) -> Option<u8> {
+        None
+    }
+
     fn live_gauge(&self) -> Option<Ratio> {
         self.gauge()
     }
@@ -142,6 +146,10 @@ impl<W: BarWidget + ?Sized> BarWidget for &W {
 
     fn badge(&self) -> Option<u32> {
         (**self).badge()
+    }
+
+    fn identity_ordinal(&self) -> Option<u8> {
+        (**self).identity_ordinal()
     }
 
     fn live_gauge(&self) -> Option<Ratio> {

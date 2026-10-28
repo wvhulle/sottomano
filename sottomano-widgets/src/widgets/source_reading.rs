@@ -43,9 +43,14 @@ fn composed_reading<'a, Message: 'a>(
     value: fn(&Config, &dyn BarWidget, Color, Clock) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let color = reading_color(config, widget, clock).scale_alpha(opacity);
-    let icon = widget
-        .icon_at(clock)
-        .view(config.theme.font.icon_size_px, color);
+    let icon = ordinal_marked(
+        config,
+        widget
+            .icon_at(clock)
+            .view(config.theme.font.icon_size_px, color),
+        widget.identity_ordinal(),
+        opacity,
+    );
 
     let reading = match value(config, widget, color, clock) {
         Some(value) => row![icon, value]
@@ -126,6 +131,29 @@ fn label_text<'a, Message: 'a>(
 
 fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a, Message> {
     Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.theme.font.icon_size_px, color)
+}
+
+fn ordinal_marked<'a, Message: 'a>(
+    config: &Config,
+    icon: Element<'a, Message>,
+    ordinal: Option<u8>,
+    opacity: f32,
+) -> Element<'a, Message> {
+    let Some(ordinal) = ordinal else {
+        return icon;
+    };
+    let superscript = text(ordinal.to_string())
+        .size(config.theme.font.small_text_size_px)
+        .font(FontFaces::from(&config.theme.font).regular)
+        .color(
+            PaletteColors::from(&config.theme.palette)
+                .inactive
+                .scale_alpha(opacity),
+        );
+    Row::with_children([icon, superscript.into()])
+        .spacing(1.0)
+        .align_y(Alignment::Start)
+        .into()
 }
 
 fn badged<'a, Message: 'a>(

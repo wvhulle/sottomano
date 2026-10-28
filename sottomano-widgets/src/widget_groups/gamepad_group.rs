@@ -4,7 +4,6 @@ mod controller_battery_reading;
 pub mod controller_button_labels;
 mod controller_link_reading;
 mod diagram_anchor_mapping;
-mod player_number_reading;
 mod usb_cable_reading;
 
 use std::collections::BTreeMap;
@@ -32,10 +31,9 @@ use sottomano_sources::{
 
 use self::{
     bluetooth_link_reading::BluetoothLinkReading,
-    connected_controller_reading::ConnectedControllerReading,
+    connected_controller_reading::{ConnectedControllerReading, ControllerMarking},
     controller_battery_reading::ControllerBatteryReading,
     controller_link_reading::{ControllerLinkReading, MeasuredReportRate},
-    player_number_reading::PlayerNumberReading,
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
@@ -52,7 +50,6 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GamepadTarget {
     Controller { slot: usize },
-    Player { slot: usize },
     Battery { slot: usize },
     Link { slot: usize },
     Bluetooth { slot: usize },
@@ -279,7 +276,22 @@ impl GamepadGroup {
         ordered
     }
 
+    fn controller_marking(&self, slot: usize) -> ControllerMarking<'_> {
+        let unlit_controller_count = self
+            .physical_controllers()
+            .filter(|(_, link)| link.player_indicator == PlayerIndicator::Unlit)
+            .count();
+        match self.physical_link(slot).map(|link| &link.player_indicator) {
+            Some(PlayerIndicator::Lit(lit_player)) => ControllerMarking::PlayerLights(lit_player),
+            Some(PlayerIndicator::Unlit) if unlit_controller_count > 1 => {
+                ControllerMarking::PairedAlias
+            }
+            Some(PlayerIndicator::Unlit) | None => ControllerMarking::IconOnly,
+        }
+    }
+
     fn face_reading<'a>(
+        &'a self,
         gamepad: &'a ConnectedGamepad,
         bindings: &'a GamepadBindingsConfig,
         focused_app_id: Option<&'a str>,
@@ -288,6 +300,7 @@ impl GamepadGroup {
             gamepad,
             bindings,
             control: Self::control(bindings, focused_app_id),
+            marking: self.controller_marking(gamepad.slot),
         }
     }
 
@@ -319,15 +332,9 @@ impl GamepadGroup {
         clock: Clock,
     ) -> Option<TooltipBody> {
         Some(match target {
-            GamepadTarget::Controller { slot } => {
-                Self::face_reading(self.controller(slot)?, bindings, focused_app_id).tooltip(clock)
-            }
-            GamepadTarget::Player { slot } => match &self.physical_link(slot)?.player_indicator {
-                PlayerIndicator::Lit(lit_player) => {
-                    PlayerNumberReading { lit_player }.tooltip(clock)
-                }
-                PlayerIndicator::Unlit => return None,
-            },
+            GamepadTarget::Controller { slot } => self
+                .face_reading(self.controller(slot)?, bindings, focused_app_id)
+                .tooltip(clock),
             GamepadTarget::Battery { slot } => ControllerBatteryReading {
                 power: self.controller(slot)?.power,
             }
@@ -372,16 +379,9 @@ impl GamepadGroup {
         };
         let battery_low = battery_reading.running_low();
         let face = GroupItem::reading(
-            Self::face_reading(gamepad, bindings, focused_app_id),
+            self.face_reading(gamepad, bindings, focused_app_id),
             GamepadTarget::Controller { slot },
         );
-        let player = match &link.player_indicator {
-            PlayerIndicator::Lit(lit_player) => Some(GroupItem::reading(
-                PlayerNumberReading { lit_player },
-                GamepadTarget::Player { slot },
-            )),
-            PlayerIndicator::Unlit => None,
-        };
         let connection =
             GroupItem::reading(self.link_reading(slot, link), GamepadTarget::Link { slot });
         let battery = (gamepad.power != GamepadPower::NoBattery).then(|| {
@@ -404,16 +404,9 @@ impl GamepadGroup {
         Some(GroupContent::new(
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
-            [
-                Some(face),
-                player,
-                Some(connection),
-                battery,
-                bluetooth,
-                usb_cable,
-            ]
-            .into_iter()
-            .flatten(),
+            [Some(face), Some(connection), battery, bluetooth, usb_cable]
+                .into_iter()
+                .flatten(),
         ))
     }
 
@@ -511,6 +504,7 @@ fn niri_request(action: CompositorAction) -> niri_ipc::Action {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Locale;
     use sottomano_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
     use sottomano_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
 
@@ -661,6 +655,45 @@ mod tests {
                 .group_contents(&GamepadBindingsConfig::default(), Some("kitty"))
                 .len(),
             2
+        );
+    }
+
+    fn face_marking(group: &GamepadGroup, slot: usize) -> (Option<u8>, Option<String>) {
+        let bindings = GamepadBindingsConfig::default();
+        let face = group.face_reading(group.controller(slot).unwrap(), &bindings, Some("kitty"));
+        (
+            face.identity_ordinal(),
+            face.label(Clock::real(), Locale::en_US),
+        )
+    }
+
+    #[test]
+    fn a_lit_pad_is_marked_by_its_player_number_instead_of_its_alias() {
+        let group = group_with_two_pads_and_a_virtual_one();
+        assert_eq!(face_marking(&group, DUALSENSE), (Some(2), None));
+        assert_eq!(face_marking(&group, SECOND_PAD), (Some(1), None));
+    }
+
+    #[test]
+    fn unlit_pads_fall_back_to_their_alias_only_when_ambiguous() {
+        let mut group = GamepadGroup::default();
+        let roster =
+            |pads: Vec<ConnectedGamepad>| GamepadMessage::Input(GamepadInput::Roster(pads));
+        let unlit_pad = |slot| connected_pad(slot, bluetooth_link(slot, PlayerIndicator::Unlit));
+        group.update(
+            roster(vec![unlit_pad(DUALSENSE)]),
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        assert_eq!(face_marking(&group, DUALSENSE), (None, None));
+        group.update(
+            roster(vec![unlit_pad(DUALSENSE), unlit_pad(SECOND_PAD)]),
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        assert_eq!(
+            face_marking(&group, DUALSENSE),
+            (None, Some(format!("Pad {DUALSENSE}")))
         );
     }
 
