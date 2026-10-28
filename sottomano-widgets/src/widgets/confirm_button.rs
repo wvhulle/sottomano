@@ -1,12 +1,11 @@
-use iced::{Alignment, Element, widget::row};
+use iced::{Alignment, Element, Theme, widget::row};
 use sottomano_config::Config;
 
 use crate::widgets::{
     glyph_button,
-    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
     source_reading::icon_value_gap,
-    widget_state::WidgetState,
+    widget_state::{StateTint, WidgetState},
 };
 
 pub enum Press {
@@ -58,9 +57,8 @@ impl ConfirmButton {
     ) -> Element<'a, Message> {
         let size = config.theme.font.icon_size_px;
         let color = |state: WidgetState| {
-            state
-                .color(&PaletteColors::from(&config.theme.palette))
-                .scale_alpha(opacity)
+            let tint = StateTint { state, opacity };
+            move |theme: &Theme| tint.color(theme)
         };
         if !self.armed {
             let state = WidgetState::of_toggle(active);

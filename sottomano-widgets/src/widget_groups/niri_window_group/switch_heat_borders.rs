@@ -61,8 +61,8 @@ impl SwitchHeatBorders {
     ) -> Task<NiriWindowMessage> {
         let switch_heat = if self.shown {
             SwitchHeat::Shown {
-                focus_ring_color: format!("{:x}", palette.focus.to_rgba8()),
-                neutral_border_color: format!("{:x}", palette.surface.to_rgba8()),
+                focus_ring_color: format!("{:x}", palette.primary.to_rgba8()),
+                neutral_border_color: format!("{:x}", palette.background.to_rgba8()),
                 windows: heated_windows(),
             }
         } else {

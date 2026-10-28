@@ -11,8 +11,8 @@ use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::widgets::{
-    palette_colors::PaletteColors,
     text::{FontFaces, LINE_HEIGHT},
+    widget_state::{StateTint, WidgetState},
 };
 
 const SEPARATOR: &str = " · ";
@@ -53,23 +53,15 @@ impl<'a> WindowTitle<'a> {
     }
 
     fn main_span(&self, content: &str) -> Span<'static> {
-        self.styled(content, FontFaces::from(&self.config.theme.font).regular)
+        styled_span(content, FontFaces::from(&self.config.theme.font).regular)
     }
 
     fn context_span(&self, content: &str) -> Span<'static> {
-        self.styled(content, FontFaces::from(&self.config.theme.font).italic)
+        styled_span(content, FontFaces::from(&self.config.theme.font).italic)
     }
 
     fn separator_span(&self) -> Span<'static> {
-        self.styled(SEPARATOR, FontFaces::from(&self.config.theme.font).regular)
-    }
-
-    fn styled(&self, content: &str, font: Font) -> Span<'static> {
-        span(content.to_owned()).font(font).color(
-            PaletteColors::from(&self.config.theme.palette)
-                .bar_foreground
-                .scale_alpha(self.opacity),
-        )
+        styled_span(SEPARATOR, FontFaces::from(&self.config.theme.font).regular)
     }
 
     fn spans(&self) -> Vec<Span<'static>> {
@@ -95,9 +87,18 @@ impl<'a> WindowTitle<'a> {
     }
 }
 
+fn styled_span(content: &str, font: Font) -> Span<'static> {
+    span(content.to_owned()).font(font)
+}
+
 impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
     fn from(title: WindowTitle<'_>) -> Self {
+        let tint = StateTint {
+            state: WidgetState::Idle,
+            opacity: title.opacity,
+        };
         rich_text(title.spans())
+            .style(tint.text_style())
             .size(title.size)
             .line_height(LINE_HEIGHT)
             .wrapping(title.wrapping)

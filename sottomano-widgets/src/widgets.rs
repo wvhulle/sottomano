@@ -6,6 +6,7 @@ pub mod announced_level;
 pub mod app_window_focus;
 pub mod bar_widget;
 pub mod child_view;
+pub mod configured_theme;
 pub mod confirm_button;
 pub mod content_sized_table;
 pub mod context_menu;
@@ -35,7 +36,6 @@ pub mod markup_body;
 pub mod most_used_model;
 pub mod ongoing_toast;
 pub mod pager_slot;
-pub mod palette_colors;
 pub mod panel_frame;
 pub mod phosphor;
 pub mod pointer_drag;
@@ -75,10 +75,12 @@ use iced::{Color, Element, Theme, widget::button};
 
 use crate::widgets::bar_widget::Glyph;
 
-pub fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> button::Style {
-    move |_, _| button::Style {
+pub fn flat_button<'a>(
+    text_color: impl Fn(&Theme) -> Color + 'a,
+) -> impl Fn(&Theme, button::Status) -> button::Style + 'a {
+    move |theme, _| button::Style {
         background: None,
-        text_color,
+        text_color: text_color(theme),
         ..button::Style::default()
     }
 }
@@ -86,7 +88,7 @@ pub fn flat_button(text_color: Color) -> impl Fn(&Theme, button::Status) -> butt
 pub fn glyph_button<'a, Message: Clone + 'a>(
     glyph: impl Into<Glyph>,
     size: f32,
-    color: Color,
+    color: impl Fn(&Theme) -> Color + Copy + 'a,
     on_press: Message,
 ) -> Element<'a, Message> {
     button(glyph.into().view(size, color))

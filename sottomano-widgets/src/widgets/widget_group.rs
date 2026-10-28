@@ -16,15 +16,17 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
         bar_widget::{BarWidget, Glyph},
+        configured_theme::{
+            background_strong_color, primary_color, secondary_text_color, text_color,
+        },
         expand_animation::expand_animation,
         flat_button,
         group_item::{GroupItem, ItemPlacement},
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
-        palette_colors::PaletteColors,
         reveal::reveal_x,
-        source_reading::{icon_value_gap, reading_color, reading_value},
-        widget_state::WidgetState,
+        source_reading::{icon_value_gap, reading_value},
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -122,17 +124,14 @@ impl<'a> HandleFace<'a> {
         clock: Clock,
     ) -> GroupItem<'a, M> {
         match self {
-            HandleFace::Icon { glyph, .. } => GroupItem::element(move |_| {
-                glyph.view(
-                    config.theme.font.icon_size_px,
-                    PaletteColors::from(&config.theme.palette).bar_foreground,
-                )
-            }),
+            HandleFace::Icon { glyph, .. } => {
+                GroupItem::element(move |_| glyph.view(config.theme.font.icon_size_px, text_color))
+            }
             HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
-                glyph.view(
-                    config.theme.font.icon_size_px,
-                    reading_color(config, reading, clock),
-                )
+                glyph.view(config.theme.font.icon_size_px, {
+                    let state = reading.state(clock);
+                    move |theme: &iced::Theme| state.color(theme)
+                })
             }),
             HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_hints),
         }
@@ -398,9 +397,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 .align_y(Alignment::Center),
             )
             .padding(0)
-            .style(flat_button(
-                PaletteColors::from(&config.theme.palette).bar_foreground,
-            ))
+            .style(flat_button(text_color))
             .on_press(toggle.clone())
             .into();
             let handle = match &handle_target {
@@ -469,26 +466,22 @@ impl EdgeIndicator {
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
-            Severity::Low | Severity::Normal if self.expanded => activity_line(
-                PaletteColors::from(&config.theme.palette).focus,
-                revealing_opacity,
-                thickness,
-            ),
-            Severity::Low | Severity::Normal if self.cursor_hovering => activity_line(
-                PaletteColors::from(&config.theme.palette).bar_foreground,
-                base,
-                thickness,
-            ),
-            Severity::Low | Severity::Normal => activity_line(
-                PaletteColors::from(&config.theme.palette).bar_foreground,
-                0.12,
-                thickness,
-            ),
-            severity @ (Severity::Warning | Severity::Critical) => activity_line(
-                WidgetState::from(severity).color(&PaletteColors::from(&config.theme.palette)),
-                revealing_opacity,
-                thickness,
-            ),
+            Severity::Low | Severity::Normal if self.expanded => {
+                activity_line(primary_color, revealing_opacity, thickness)
+            }
+            Severity::Low | Severity::Normal if self.cursor_hovering => {
+                activity_line(secondary_text_color, 1.0, thickness)
+            }
+            Severity::Low | Severity::Normal => {
+                activity_line(background_strong_color, 1.0, thickness)
+            }
+            severity @ (Severity::Warning | Severity::Critical) => {
+                let tint = StateTint {
+                    state: WidgetState::from(severity),
+                    opacity: revealing_opacity,
+                };
+                activity_line(move |theme| tint.color(theme), 1.0, thickness)
+            }
         }
     }
 }
@@ -519,7 +512,12 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
     let Some(value) = previewed_widget
         .filter(|_| hidden > 0.0)
         .and_then(|widget| {
-            reading_value(config, widget, reading_color(config, widget, clock), clock)
+            reading_value(
+                config,
+                widget,
+                StateTint::opaque(widget.state(clock)),
+                clock,
+            )
         })
     else {
         return Row::new().into();

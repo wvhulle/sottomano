@@ -1,21 +1,21 @@
 use iced::{
-    Background, Color, Element, Length, Padding,
+    Background, Color, Element, Length, Padding, Theme,
     alignment::Vertical,
-    widget::{Column, Row, button, space},
+    widget::{Column, Row, button, space, text},
 };
 use sottomano_config::Config;
 
 use crate::widgets::{
-    DISABLED_ALPHA,
     activity_line::activity_line,
     bar_widget::Glyph,
-    palette_colors::PaletteColors,
+    configured_theme::{
+        background_strong_color, background_weak_color, secondary_text_color, text_color,
+    },
     phosphor::{Phosphor, Weight},
     text::bar_text,
 };
 
 const DIVIDER_THICKNESS: f32 = 1.0;
-const HOVER_ALPHA: f32 = 0.22;
 
 pub enum Trailing {
     Nothing,
@@ -48,7 +48,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
             .into_iter()
             .map(|line| match line {
                 MenuLine::Row(row) => entry(config, row),
-                MenuLine::Divider => divider(config),
+                MenuLine::Divider => divider(),
             }),
     )
     .spacing(config.layout.overlay.row_spacing)
@@ -59,9 +59,11 @@ pub fn context_menu<'a, M: Clone + 'a>(
 fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
     let row_spacing = config.layout.overlay.row_spacing;
-    let color = PaletteColors::from(&config.theme.palette)
-        .bar_foreground
-        .scale_alpha(if row.enabled { 1.0 } else { DISABLED_ALPHA });
+    let color: fn(&Theme) -> Color = if row.enabled {
+        text_color
+    } else {
+        secondary_text_color
+    };
 
     let mut content = Row::new()
         .spacing(row_spacing)
@@ -71,7 +73,12 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
         content = content.push(element);
     }
     if let Some(label) = row.label {
-        content = content.push(bar_text(&config.theme.font, label).color(color));
+        content =
+            content.push(
+                bar_text(&config.theme.font, label).style(move |theme| text::Style {
+                    color: Some(color(theme)),
+                }),
+            );
     }
     match row.trailing {
         Trailing::Nothing => {}
@@ -79,7 +86,9 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
             content = content.push(space::horizontal()).push(
                 bar_text(&config.theme.font, note)
                     .size(config.theme.font.small_text_size_px)
-                    .color(PaletteColors::from(&config.theme.palette).dim),
+                    .style(|theme| text::Style {
+                        color: Some(background_strong_color(theme)),
+                    }),
             );
         }
         Trailing::Submenu { open } => {
@@ -102,33 +111,32 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
         bottom: row_spacing,
         left: inset + row.depth as f32 * glyph_column,
     };
-    let accent = PaletteColors::from(&config.theme.palette).focus;
     let styled = button(content)
         .width(Length::Fill)
         .padding(padding)
-        .style(move |_theme, status| button_style(status, color, accent));
+        .style(move |theme, status| button_style(theme, status, color));
     match row.on_press.filter(|_| row.enabled) {
         Some(message) => styled.on_press(message).into(),
         None => styled.into(),
     }
 }
 
-fn button_style(status: button::Status, text: Color, accent: Color) -> button::Style {
+fn button_style(
+    theme: &Theme,
+    status: button::Status,
+    text_role: fn(&Theme) -> Color,
+) -> button::Style {
     let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
-        .then(|| Background::Color(accent.scale_alpha(HOVER_ALPHA)));
+        .then(|| Background::Color(background_weak_color(theme)));
     button::Style {
         background,
-        text_color: text,
+        text_color: text_role(theme),
         ..Default::default()
     }
 }
 
-fn divider<'a, Message: 'a>(config: &Config) -> Element<'a, Message> {
-    activity_line(
-        PaletteColors::from(&config.theme.palette).surface_raised,
-        1.0,
-        DIVIDER_THICKNESS,
-    )
+fn divider<'a, Message: 'a>() -> Element<'a, Message> {
+    activity_line(background_weak_color, 1.0, DIVIDER_THICKNESS)
 }
 
 fn without_redundant_dividers<M>(lines: Vec<MenuLine<'_, M>>) -> Vec<MenuLine<'_, M>> {

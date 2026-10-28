@@ -6,7 +6,7 @@ use sottomano_config::screen_edges::Position;
 
 #[must_use]
 pub fn activity_line<'a, Message: 'a>(
-    color: Color,
+    color: impl Fn(&Theme) -> Color + 'a,
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
@@ -18,7 +18,7 @@ pub fn activity_line<'a, Message: 'a>(
 #[must_use]
 pub fn edge_activity_line<'a, Message: 'a>(
     edge: Position,
-    color: Color,
+    color: impl Fn(&Theme) -> Color + 'a,
     opacity: f32,
     thickness: f32,
 ) -> Element<'a, Message> {
@@ -31,9 +31,13 @@ pub fn edge_activity_line<'a, Message: 'a>(
     }
 }
 
-fn line_style(color: Color, opacity: f32, thickness: f32) -> impl Fn(&Theme) -> rule::Style {
-    move |_| rule::Style {
-        color: color.scale_alpha(opacity),
+fn line_style<'a>(
+    color: impl Fn(&Theme) -> Color + 'a,
+    opacity: f32,
+    thickness: f32,
+) -> impl Fn(&Theme) -> rule::Style + 'a {
+    move |theme| rule::Style {
+        color: color(theme).scale_alpha(opacity),
         radius: thickness.into(),
         fill_mode: FillMode::Full,
         snap: true,

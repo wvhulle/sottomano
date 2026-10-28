@@ -2,7 +2,7 @@ use core::slice;
 use std::time::{Duration, Instant};
 
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Size,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Theme,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -14,8 +14,8 @@ use iced::{
     window,
 };
 
-const OUTLINE_ALPHA: f32 = 0.45;
-const COPIED_FILL_ALPHA: f32 = 0.3;
+use crate::widgets::configured_theme::AccentShades;
+
 const BORDER_PX: f32 = 1.0;
 const RADIUS_PX: f32 = 3.0;
 const PADDING: Padding = Padding {
@@ -29,7 +29,7 @@ pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     payload: Payload,
     on_press: impl Fn(Payload) -> Message + 'a,
-    accent: Color,
+    accent: fn(&Theme) -> AccentShades,
     hold: Duration,
     interaction: Interaction,
 ) -> Element<'a, Message> {
@@ -47,7 +47,7 @@ struct PressableText<'a, Payload, Message> {
     content: Element<'a, Message>,
     payload: Payload,
     on_press: Box<dyn Fn(Payload) -> Message + 'a>,
-    accent: Color,
+    accent: fn(&Theme) -> AccentShades,
     hold: Duration,
     interaction: Interaction,
 }
@@ -164,7 +164,7 @@ impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
         &self,
         tree: &Tree,
         renderer: &mut iced::Renderer,
-        theme: &iced::Theme,
+        theme: &Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
         cursor: Cursor,
@@ -173,20 +173,19 @@ impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
         let state = tree.state.downcast_ref::<CellState>();
         let copied = state.holding(self.hold);
         if copied || state.hovered {
+            let accent = (self.accent)(theme);
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: layout.bounds(),
                     border: Border {
-                        color: self
-                            .accent
-                            .scale_alpha(if copied { 1.0 } else { OUTLINE_ALPHA }),
+                        color: if copied { accent.base } else { accent.weak },
                         width: BORDER_PX,
                         radius: Radius::new(RADIUS_PX),
                     },
                     ..renderer::Quad::default()
                 },
                 if copied {
-                    self.accent.scale_alpha(COPIED_FILL_ALPHA)
+                    accent.weak
                 } else {
                     Color::TRANSPARENT
                 },

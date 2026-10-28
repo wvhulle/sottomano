@@ -1,6 +1,6 @@
 use iced::{
     Alignment, Element,
-    widget::{Row, rich_text, text::Span},
+    widget::{Row, rich_text, span, text::Span},
 };
 use sottomano_config::Config;
 use sottomano_sources::{
@@ -19,12 +19,12 @@ use crate::{
         gauge::Gauge,
         group_item::GroupItem,
         icon_handle::IconHandle,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         source_reading::icon_value_gap,
-        text::{FontFaces, LINE_HEIGHT, colored_span},
+        text::{FontFaces, LINE_HEIGHT},
         widget_group::GroupEvent,
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -36,7 +36,14 @@ pub(super) fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem
     };
     let label = GroupItem::element(move |reveal| {
         hoverable(
-            rich_text(label_spans(config, media, reveal))
+            rich_text(label_spans(config, media))
+                .style(
+                    StateTint {
+                        state: WidgetState::Idle,
+                        opacity: reveal,
+                    }
+                    .text_style(),
+                )
                 .size(config.theme.font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .into(),
@@ -62,16 +69,17 @@ pub(super) fn player_face<'a, Message: 'a>(
     gauge_fraction: Option<Ratio>,
 ) -> Element<'a, Message> {
     let side = config.theme.font.icon_size_px;
-    let color = PaletteColors::from(&config.theme.palette)
-        .bar_foreground
-        .scale_alpha(opacity);
+    let tint = StateTint {
+        state: WidgetState::Idle,
+        opacity,
+    };
     let player_glyph = SimpleIcon::titled(&media.identity)
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), Glyph::from);
-    let player_icon = player_glyph.view(side, color);
+    let player_icon = player_glyph.view(side, move |theme| tint.color(theme));
     let Some(fraction) = gauge_fraction else {
         return player_icon;
     };
-    Row::with_children([player_icon, Gauge::new(fraction, color, side).into()])
+    Row::with_children([player_icon, Gauge::new(fraction, tint, side).into()])
         .spacing(icon_value_gap(config))
         .align_y(Alignment::Center)
         .into()
@@ -83,24 +91,20 @@ pub(super) fn track_cover<'a, Message: 'a>(
     opacity: f32,
 ) -> Element<'a, Message> {
     let side = config.theme.font.icon_size_px;
-    match cover_art {
-        Some(art) => art.view(side, opacity),
-        None => Glyph::from(Phosphor::VinylRecord(Weight::Regular)).view(
-            side,
-            PaletteColors::from(&config.theme.palette)
-                .bar_foreground
-                .scale_alpha(opacity),
-        ),
-    }
+    let tint = StateTint {
+        state: WidgetState::Idle,
+        opacity,
+    };
+    cover_art.map_or_else(
+        || {
+            Glyph::from(Phosphor::VinylRecord(Weight::Regular))
+                .view(side, move |theme| tint.color(theme))
+        },
+        |art| art.view(side, opacity),
+    )
 }
 
-pub(super) fn label_spans<'a>(config: &Config, media: &Media, reveal: f32) -> Vec<Span<'a>> {
+pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {
     let title = media.title.as_ref().unwrap_or(&media.identity);
-    vec![colored_span(
-        title.clone(),
-        FontFaces::from(&config.theme.font).regular,
-        PaletteColors::from(&config.theme.palette)
-            .bar_foreground
-            .scale_alpha(reveal),
-    )]
+    vec![span(title.clone()).font(FontFaces::from(&config.theme.font).regular)]
 }

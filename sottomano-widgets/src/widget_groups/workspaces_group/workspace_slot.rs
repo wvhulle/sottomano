@@ -5,31 +5,35 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 
-use super::{DROP_TARGET_ALPHA, WorkspacesMessage, dragged};
+use super::{WorkspacesMessage, dragged};
 use crate::{
     bar_slot_drag::{SlotClick, SlotPress},
     clock::Clock,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         activity_line::edge_activity_line,
+        configured_theme::{
+            ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
+            secondary_text_color,
+        },
         focus_indicator::focus_indicator,
         marker_track::MarkerTrack,
-        palette_colors::PaletteColors,
         pointer_drag::{DragView, DraggedBarSlot, draggable_slot::draggable_slot},
     },
 };
 
 pub(super) fn drop_tint(
-    config: &Config,
     p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
 ) -> impl Fn(&Theme) -> container::Style + 'static {
-    let tint = drag.awaits_window_on(p.id).then(|| {
-        PaletteColors::from(&config.theme.palette)
-            .focus
-            .scale_alpha(DROP_TARGET_ALPHA)
-    });
-    move |_| tint.map_or_else(container::Style::default, container::background)
+    let awaits_window = drag.awaits_window_on(p.id);
+    move |theme| {
+        if awaits_window {
+            container::background(primary_weak_color(theme))
+        } else {
+            container::Style::default()
+        }
+    }
 }
 
 pub(super) fn edge_line<'a>(
@@ -47,13 +51,12 @@ pub(super) fn edge_line<'a>(
     ) else {
         return urgency_line(config, p, position, tone);
     };
-    let focus = PaletteColors::from(&config.theme.palette).focus;
     let thickness = config.panel_bar.indicator_thickness;
     let bar = progress_bar(0.0..=1.0, charge)
         .girth(thickness)
-        .style(move |_| progress_bar::Style {
-            background: focus.scale_alpha(DROP_TARGET_ALPHA).into(),
-            bar: focus.into(),
+        .style(move |theme| progress_bar::Style {
+            background: primary_weak_color(theme).into(),
+            bar: primary_color(theme).into(),
             border: border::rounded(thickness),
         });
     if position.is_vertical() {
@@ -70,10 +73,13 @@ pub(super) enum SlotTone {
 }
 
 impl SlotTone {
-    pub(super) fn tint(self, config: &Config, regular: Color) -> Color {
-        match self {
-            SlotTone::Regular => regular,
-            SlotTone::Dragged => PaletteColors::from(&config.theme.palette).dim,
+    pub(super) fn tint(
+        self,
+        regular: impl Fn(&Theme) -> Color + Copy + 'static,
+    ) -> impl Fn(&Theme) -> Color + Copy + 'static {
+        move |theme| match self {
+            SlotTone::Regular => regular(theme),
+            SlotTone::Dragged => background_strong_color(theme),
         }
     }
 }
@@ -95,9 +101,9 @@ pub(super) fn indicated<'a>(
     let active = workspaces.iter().position(|p| p.is_active);
     let active_is_urgent = workspaces.iter().any(|p| p.is_active && p.is_urgent);
     let color = if active_is_urgent {
-        PaletteColors::from(&config.theme.palette).urgent
+        danger_color
     } else {
-        PaletteColors::from(&config.theme.palette).focus
+        primary_color
     };
     focus_indicator(slots, active, color, config)
         .edge(position)
@@ -135,14 +141,13 @@ pub(super) fn hit_area<'a>(
 }
 
 pub(super) fn window_color(
-    config: &Config,
     w: &niri_window_snapshot::WinEntry,
-    unfocused: Color,
-) -> Color {
+    unfocused: fn(&Theme) -> Color,
+) -> fn(&Theme) -> Color {
     if w.is_urgent {
-        PaletteColors::from(&config.theme.palette).urgent
+        danger_color
     } else if w.is_focused {
-        PaletteColors::from(&config.theme.palette).focus
+        primary_color
     } else {
         unfocused
     }
@@ -158,19 +163,12 @@ pub(super) fn window_markers(
 ) -> MarkerTrack {
     let incoming = drag
         .awaits_window_on(workspace)
-        .then_some(PaletteColors::from(&config.theme.palette).focus);
+        .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
     let colors = niri
         .windows_on_workspace(workspace)
         .iter()
-        .map(|w| {
-            tone.tint(
-                config,
-                window_color(
-                    config,
-                    w,
-                    PaletteColors::from(&config.theme.palette).inactive,
-                ),
-            )
+        .map(|w| -> ThemedColor<'static> {
+            Box::new(tone.tint(window_color(w, secondary_text_color)))
         })
         .chain(incoming)
         .collect();
@@ -186,7 +184,7 @@ pub(super) fn urgency_line<'a>(
     let opacity = if p.is_urgent { 1.0 } else { 0.0 };
     edge_activity_line(
         position,
-        tone.tint(config, PaletteColors::from(&config.theme.palette).urgent),
+        tone.tint(danger_color),
         opacity,
         config.panel_bar.indicator_thickness,
     )

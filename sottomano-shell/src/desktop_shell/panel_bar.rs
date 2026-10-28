@@ -5,7 +5,6 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::widgets::{
-    palette_colors::PaletteColors,
     panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
     region_reporter::{RegionRoles, region_reporter},
 };
@@ -39,7 +38,6 @@ impl DesktopShell {
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let panels = self.panel_settings_group.panel_appearance();
-        let palette = PaletteColors::from(&self.config.theme.palette);
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -48,25 +46,25 @@ impl DesktopShell {
         )
         .on_press(Message::DismissPressed);
         let groups_joined = !self.panel_settings_group.groups_disconnected();
-        let band_style = if groups_joined {
-            LayerFrameStyle::new(&panels, &self.config).container_style()
-        } else {
-            container::Style::default().color(palette.bar_foreground)
-        };
+        let band = container(centered)
+            .width(Length::Fill)
+            .height(Length::Fixed(self.config.layout.panel.height));
+        if !groups_joined {
+            let roles = RegionRoles {
+                takes_input: true,
+                ..RegionRoles::default()
+            };
+            return region_reporter(column![band], roles).into();
+        }
         let outlined_sides = OutlinedSides {
             left: false,
             right: false,
             ..OutlinedSides::inward_of(position)
         }
         .all_when_floating(self.panel_settings_group.float_offset_px());
-        let strip = panel_frame(
-            container(centered)
-                .width(Length::Fill)
-                .height(Length::Fixed(self.config.layout.panel.height)),
-            &band_style,
-        )
-        .outlined_sides(outlined_sides)
-        .blurred(panels.blurred && groups_joined);
+        let strip = panel_frame(band, LayerFrameStyle::new(&panels, &self.config))
+            .outlined_sides(outlined_sides)
+            .blurred(panels.blurred);
         let roles = RegionRoles {
             takes_input: true,
             ..RegionRoles::default()
@@ -82,7 +80,7 @@ impl DesktopShell {
         let config = &self.config;
         let panels = self.panel_settings_group.panel_appearance();
         let groups_disconnected = self.panel_settings_group.groups_disconnected();
-        let frame_style = LayerFrameStyle::new(&panels, config).container_style();
+        let frame_style = LayerFrameStyle::new(&panels, config);
         let outlined_sides = OutlinedSides::inward_of(position)
             .all_when_floating(self.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().flatten().map(|group| {
@@ -97,7 +95,7 @@ impl DesktopShell {
                         0.0,
                         panels.frame_corner_inset() + config.layout.panel.group_padding,
                     ]),
-                &frame_style,
+                frame_style,
             )
             .outlined_sides(outlined_sides)
             .blurred(panels.blurred)

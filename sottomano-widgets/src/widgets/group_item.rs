@@ -3,7 +3,7 @@ use std::rc::Rc;
 use chrono::Locale;
 use iced::{
     Alignment, Element,
-    widget::{Row, button, mouse_area, text::Wrapping},
+    widget::{Row, button, mouse_area, text, text::Wrapping},
 };
 use sottomano_config::{Config, severity::Severity};
 
@@ -14,12 +14,12 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
         bar_widget::BarWidget,
+        configured_theme::text_color,
         flat_button,
         ongoing_toast::{
             OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
             widget_state_alert_severity,
         },
-        palette_colors::PaletteColors,
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
         text::bar_text,
@@ -454,9 +454,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         if let Some(press) = self.on_press.clone() {
             element = button(element)
                 .padding(0)
-                .style(flat_button(
-                    PaletteColors::from(&config.theme.palette).bar_foreground,
-                ))
+                .style(flat_button(text_color))
                 .on_press(GroupEvent::Group(press.message))
                 .into();
         }
@@ -479,6 +477,6 @@ fn press_description<'a, Message: 'a>(config: &Config, does: &'static str) -> El
         .size(font.small_text_size_px)
         .width(PRESS_DESCRIPTION_WIDTH_EMS * font.text_size_px)
         .wrapping(Wrapping::Word)
-        .color(PaletteColors::from(&config.theme.palette).secondary_foreground)
+        .style(text::secondary)
         .into()
 }

@@ -25,14 +25,15 @@ use crate::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
         bar_widget::Glyph,
+        configured_theme::primary_color,
         context_menu::context_menu,
         group_item::GroupItem,
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -252,24 +253,22 @@ fn item_view<'a>(
     reveal: f32,
 ) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.theme.font.icon_size_px;
-    let glyph: Element<'a, GroupEvent<TrayMessage>> = match &item.icon {
-        Some(source) => pixmap_handles.icon_handle(source).view(side, reveal),
-        None => Glyph::from(Phosphor::Question(Weight::Regular)).view(
-            side,
-            PaletteColors::from(&config.theme.palette)
-                .bar_foreground
-                .scale_alpha(reveal),
-        ),
+    let tint = StateTint {
+        state: WidgetState::Idle,
+        opacity: reveal,
     };
+    let glyph: Element<'a, GroupEvent<TrayMessage>> = item.icon.as_ref().map_or_else(
+        || {
+            Glyph::from(Phosphor::Question(Weight::Regular))
+                .view(side, move |theme| tint.color(theme))
+        },
+        |source| pixmap_handles.icon_handle(source).view(side, reveal),
+    );
 
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
-            activity_line(
-                PaletteColors::from(&config.theme.palette).focus,
-                reveal,
-                config.panel_bar.indicator_thickness,
-            ),
+            activity_line(primary_color, reveal, config.panel_bar.indicator_thickness),
         ])
         .spacing(1.0)
         .align_x(Alignment::Center)

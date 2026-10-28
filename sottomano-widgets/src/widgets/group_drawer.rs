@@ -8,7 +8,7 @@ use chrono::Locale;
 use iced::{
     Alignment, Element, Length,
     alignment::Horizontal,
-    widget::{Row, Space, container},
+    widget::{Row, Space, container, text},
 };
 use sottomano_config::{Config, screen_edges::Position};
 
@@ -19,15 +19,13 @@ use crate::{
         activity_line::activity_line,
         aligned_quantity::AlignedQuantity,
         bar_widget::Glyph,
+        configured_theme::{background_strong_color, text_color},
         content_sized_table::content_sized_grid,
         pager_slot::PagerSlot,
-        palette_colors::PaletteColors,
         text::bar_text,
         widget_group::{DrawerCells, EdgeIndicator, GroupContent, GroupEvent, GroupToastRequests},
     },
 };
-
-const RULE_OPACITY: f32 = 0.2;
 
 pub struct GroupDrawer<'a, M> {
     drawer: GroupHandle,
@@ -73,9 +71,8 @@ impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
             .map(|member| member.highest_alert_severity(clock))
             .max()
             .unwrap_or_default();
-        let foreground = PaletteColors::from(&config.theme.palette).bar_foreground;
         let handle = hoverable(
-            self.glyph.view(config.theme.font.icon_size_px, foreground),
+            self.glyph.view(config.theme.font.icon_size_px, text_color),
             HoverTarget::GroupHandle(self.drawer),
             PressHints::default(),
             GroupEvent::Tooltip,
@@ -216,14 +213,14 @@ fn at_least_height<'a, M: 'a>(minimum_height: f32, cell: Element<'a, M>) -> Elem
 
 fn quantity_label<'a, M: 'a>(config: &Config, quantity: AlignedQuantity) -> Element<'a, M> {
     bar_text(&config.theme.font, quantity.to_string())
-        .color(PaletteColors::from(&config.theme.palette).secondary_foreground)
+        .style(text::secondary)
         .into()
 }
 
 fn drawer_rule<'a, M: 'a>(config: &Config) -> Element<'a, M> {
     activity_line(
-        PaletteColors::from(&config.theme.palette).bar_foreground,
-        RULE_OPACITY,
+        background_strong_color,
+        1.0,
         config.panel_bar.indicator_thickness,
     )
 }

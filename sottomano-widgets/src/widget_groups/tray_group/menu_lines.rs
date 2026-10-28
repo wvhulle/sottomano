@@ -5,9 +5,9 @@ use sottomano_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, Me
 
 use crate::widgets::{
     bar_widget::Glyph,
+    configured_theme::text_color,
     context_menu::{MenuLine, MenuRow, Trailing},
     icon_handle::PixmapHandles,
-    palette_colors::PaletteColors,
     phosphor::{Phosphor, Weight},
 };
 
@@ -77,14 +77,14 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
         M: 'a,
     {
         let icon_size = self.config.theme.font.icon_size_px;
-        let color = PaletteColors::from(&self.config.theme.palette).bar_foreground;
         let leading = node
             .icon
             .as_ref()
             .map(|source| self.pixmap_handles.icon_handle(source).view(icon_size, 1.0))
             .or_else(|| {
-                matches!(node.kind, MenuKind::Toggle(true))
-                    .then(|| Glyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, color))
+                matches!(node.kind, MenuKind::Toggle(true)).then(|| {
+                    Glyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, text_color)
+                })
             });
         MenuLine::Row(MenuRow {
             leading,

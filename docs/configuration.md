@@ -25,18 +25,15 @@ Every key with its default, as `sottomano default-config` prints it.
 <!-- default-config:start -->
 ```toml
 [theme.palette]
-surface = "#0b0e14"
-bar_foreground = "#e6e1cf"
-inactive = "#bfbdb6"
-urgent = "#f07178"
-warning = "#ffb454"
-focus = "#95e6cb"
+background = "#0b0e14"
+text = "#e6e1cf"
+primary = "#95e6cb"
 success = "#aad94c"
-info = "#59c2ff"
-dim = "#3e4b59"
-surface_raised = "#202229"
-frame_outline = "#3e4b59"
-secondary_foreground = "#bfbdb6"
+warning = "#ffb454"
+danger = "#f07178"
+background_weak = "#202229"
+background_strong = "#3e4b59"
+secondary = "#bfbdb6"
 
 [theme.font]
 text_size = "14px"

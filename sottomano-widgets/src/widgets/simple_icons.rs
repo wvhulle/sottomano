@@ -1,4 +1,4 @@
-use iced::{Color, Element, widget::svg};
+use iced::{Color, Element, Theme, widget::svg};
 pub use sottomano_icon_sets::SimpleIcon;
 
 use crate::widgets::bar_widget::Glyph;
@@ -7,12 +7,14 @@ use crate::widgets::bar_widget::Glyph;
 pub fn view_simple_icon<'a, Message: 'a>(
     icon: SimpleIcon,
     size: f32,
-    color: Color,
+    color: impl Fn(&Theme) -> Color + 'a,
 ) -> Element<'a, Message> {
     svg(svg::Handle::from_memory(icon.svg_data()))
         .width(size)
         .height(size)
-        .style(move |_, _| svg::Style { color: Some(color) })
+        .style(move |theme, _| svg::Style {
+            color: Some(color(theme)),
+        })
         .into()
 }
 

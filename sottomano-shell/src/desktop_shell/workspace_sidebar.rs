@@ -24,7 +24,7 @@ impl DesktopShell {
     ) -> Element<'a, Message> {
         let config = &self.config;
         let sidebar = self.sidebar_settings_group.sidebar_appearance();
-        let frame_style = LayerFrameStyle::new(&sidebar, config).container_style();
+        let frame_style = LayerFrameStyle::new(&sidebar, config);
         let outlined_sides = OutlinedSides::inward_of(Position::Left)
             .all_when_floating(self.panel_settings_group.float_offset_px());
         let framed_workspaces = (self.sidebar_settings_group.workspaces_placement()
@@ -44,7 +44,7 @@ impl DesktopShell {
                 panel_frame(
                     container(workspaces.map(Message::from))
                         .padding([sidebar.corner_radius_px, 0.0]),
-                    &frame_style,
+                    frame_style,
                 )
                 .outlined_sides(outlined_sides)
                 .blurred(sidebar.blurred)

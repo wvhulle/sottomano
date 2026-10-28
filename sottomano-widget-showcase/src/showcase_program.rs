@@ -27,8 +27,8 @@ use sottomano_widgets::{
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
     widgets::{
+        configured_theme::{background_weak_color, configured_theme, text_color},
         favicon::Favicons,
-        palette_colors::PaletteColors,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         shell_layer_appearance::ShellLayer,
         text::FontFaces,
@@ -149,7 +149,7 @@ impl ShowcaseState {
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
-            theme: Theme::from(&PaletteColors::from(&config.theme.palette)),
+            theme: configured_theme(&config.theme.palette),
             group,
             tooltip,
             notifications: NotificationLayer::default(),
@@ -285,7 +285,7 @@ impl ShowcaseState {
             Position::Top | Position::Bottom => ShellLayer::Panels,
         }
         .default_appearance();
-        let frame_style = LayerFrameStyle::new(&layer, &self.config).container_style();
+        let frame_style = LayerFrameStyle::new(&layer, &self.config);
         let outlined_sides =
             OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self
@@ -300,7 +300,7 @@ impl ShowcaseState {
                         .align_y(Vertical::Center)
                         .padding([0.0, layer.frame_corner_inset() + panel.group_padding]),
                 };
-                panel_frame(content, &frame_style)
+                panel_frame(content, frame_style)
                     .outlined_sides(outlined_sides)
                     .into()
             });
@@ -401,7 +401,7 @@ impl Program for ShowcaseProgram {
         let layers = stack(
             state
                 .group
-                .backdrop(&state.config)
+                .backdrop()
                 .into_iter()
                 .chain([strip, state.toast_layer()])
                 .chain(state.tooltip_layer()),
@@ -424,11 +424,10 @@ impl Program for ShowcaseProgram {
         Some(state.theme.clone())
     }
 
-    fn style(&self, state: &ShowcaseState, _theme: &Theme) -> Style {
-        let palette = PaletteColors::from(&state.config.theme.palette);
+    fn style(&self, _state: &ShowcaseState, theme: &Theme) -> Style {
         Style {
-            background_color: palette.surface_raised,
-            text_color: palette.bar_foreground,
+            background_color: background_weak_color(theme),
+            text_color: text_color(theme),
         }
     }
 }

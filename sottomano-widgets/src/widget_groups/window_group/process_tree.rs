@@ -2,10 +2,10 @@ use std::{collections::BTreeSet, time::Duration};
 
 use bytesize::ByteSize;
 use iced::{
-    Alignment, Color, Element, Padding,
+    Alignment, Color, Element, Padding, Theme,
     alignment::{Horizontal, Vertical},
     mouse::Interaction,
-    widget::{Row, Space, container, mouse_area},
+    widget::{Row, Space, container, mouse_area, text},
 };
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::desktop_windows_apps::process_tree_inspection::Process;
@@ -19,14 +19,16 @@ use crate::{
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         bar_widget::Glyph,
+        configured_theme::{
+            danger_color, secondary_text_color, success_color, success_shades, text_color,
+            warning_color,
+        },
         content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
         localized_durations::duration_text,
-        palette_colors::PaletteColors,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
         text::{FontFaces, bar_text, column_heading},
         transitioning_text::{TransitionStyle, TransitioningText},
-        widget_state::WidgetState,
     },
 };
 
@@ -101,19 +103,20 @@ impl Listing {
     }
 }
 
-#[derive(Clone, Copy)]
-struct Tint {
-    warning: Color,
-    critical: Color,
+fn severity_tint(
+    level: Severity,
+    calm: fn(&Theme) -> Color,
+) -> impl Fn(&Theme) -> Color + Copy + 'static {
+    move |theme| match level {
+        Severity::Low | Severity::Normal => calm(theme),
+        Severity::Warning => warning_color(theme),
+        Severity::Critical => danger_color(theme),
+    }
 }
 
-impl Tint {
-    fn or(self, level: Severity, calm: Color) -> Color {
-        match level {
-            Severity::Low | Severity::Normal => calm,
-            Severity::Warning => self.warning,
-            Severity::Critical => self.critical,
-        }
+fn styled_by(color: impl Fn(&Theme) -> Color + 'static) -> impl Fn(&Theme) -> text::Style {
+    move |theme| text::Style {
+        color: Some(color(theme)),
     }
 }
 
@@ -159,10 +162,6 @@ impl<'a> ProcessTree<'a> {
         let mut branches = Vec::new();
         outline(self.root, 0, self.folding, &mut branches);
 
-        let foreground = self.foreground();
-        let flash = self.flash();
-        let secondary_foreground = self.secondary_foreground();
-        let tint = self.tint();
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
         let bold = FontFaces::from(&monospace).bold;
@@ -178,9 +177,10 @@ impl<'a> ProcessTree<'a> {
                     let row = match branch.entry {
                         Entry::Listed(listing) => {
                             let level = listing.level();
-                            let calm = if is_root { flash } else { foreground };
-                            let color = tint.or(level, calm);
-                            let name = bar_text(&monospace, listing.label()).color(color);
+                            let calm = if is_root { success_color } else { text_color };
+                            let color = severity_tint(level, calm);
+                            let name =
+                                bar_text(&monospace, listing.label()).style(styled_by(color));
                             let name = if is_root { name.font(bold) } else { name };
                             let cell = TransitioningText::new(
                                 container(name).max_width(NAME_WIDTH_PX),
@@ -194,19 +194,19 @@ impl<'a> ProcessTree<'a> {
                                 .push(caret(
                                     &listing,
                                     caret_size,
-                                    tint.or(level, secondary_foreground),
+                                    severity_tint(level, secondary_text_color),
                                 ))
                                 .push(pressable_text(
                                     cell,
                                     listing.name,
                                     PopupMessage::CopyText,
-                                    flash,
+                                    success_shades,
                                     copy_flash,
                                     Interaction::Copy,
                                 ))
                         }
                         Entry::Elided { hidden } => Row::new().push(blank(caret_size)).push(
-                            bar_text(&font, format!("+{hidden} more")).color(secondary_foreground),
+                            bar_text(&font, format!("+{hidden} more")).style(text::secondary),
                         ),
                     };
                     let row = row.spacing(CARET_GAP_PX).align_y(Alignment::Center);
@@ -230,12 +230,7 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn heading(&self, title: &str) -> Element<'static, PopupMessage> {
-        column_heading(
-            &self.config.theme.font,
-            title.to_owned(),
-            self.secondary_foreground(),
-        )
-        .into()
+        column_heading(&self.config.theme.font, title.to_owned()).into()
     }
 
     fn number(
@@ -243,9 +238,6 @@ impl<'a> ProcessTree<'a> {
         title: &str,
         field: impl Fn(&Listing) -> String + 'static,
     ) -> ContentSizedColumn<'static, Branch, PopupMessage> {
-        let secondary_foreground = self.secondary_foreground();
-        let flash = self.flash();
-        let tint = self.tint();
         let font = self.config.theme.monospace_font.clone();
         let transition = self.transition;
         let copy_flash = self.copy_flash();
@@ -254,9 +246,9 @@ impl<'a> ProcessTree<'a> {
                 return blank(0.0);
             };
             let text = field(&listing);
-            let color = tint.or(listing.level(), secondary_foreground);
+            let color = severity_tint(listing.level(), secondary_text_color);
             let cell = TransitioningText::new(
-                bar_text(&font, text.clone()).color(color),
+                bar_text(&font, text.clone()).style(styled_by(color)),
                 text.clone(),
                 transition,
                 &font,
@@ -267,7 +259,7 @@ impl<'a> ProcessTree<'a> {
                 cell,
                 text,
                 PopupMessage::CopyText,
-                flash,
+                success_shades,
                 copy_flash,
                 Interaction::Copy,
             )
@@ -276,28 +268,8 @@ impl<'a> ProcessTree<'a> {
         .align_y(Vertical::Top)
     }
 
-    fn tint(&self) -> Tint {
-        let palette = PaletteColors::from(&self.config.theme.palette);
-        Tint {
-            warning: WidgetState::Warning.color(&palette),
-            critical: WidgetState::Critical.color(&palette),
-        }
-    }
-
-    fn foreground(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).bar_foreground
-    }
-
-    fn flash(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).success
-    }
-
     fn copy_flash(&self) -> Duration {
         self.config.tooltips.copy_flash
-    }
-
-    fn secondary_foreground(&self) -> Color {
-        PaletteColors::from(&self.config.theme.palette).secondary_foreground
     }
 }
 
@@ -305,7 +277,11 @@ fn blank(size: f32) -> Element<'static, PopupMessage> {
     Space::new().width(size).height(size).into()
 }
 
-fn caret(listing: &Listing, size: f32, color: Color) -> Element<'static, PopupMessage> {
+fn caret(
+    listing: &Listing,
+    size: f32,
+    color: impl Fn(&Theme) -> Color + 'static,
+) -> Element<'static, PopupMessage> {
     match listing.fold {
         Fold::Leaf => blank(size),
         Fold::Folded { .. } => fold_toggle(
@@ -327,7 +303,7 @@ fn fold_toggle(
     icon: Phosphor,
     pid: i32,
     size: f32,
-    color: Color,
+    color: impl Fn(&Theme) -> Color + 'static,
 ) -> Element<'static, PopupMessage> {
     mouse_area(Glyph::from(icon).view(size, color))
         .on_press(PopupMessage::WindowGroup(WindowGroupMessage::WindowList(

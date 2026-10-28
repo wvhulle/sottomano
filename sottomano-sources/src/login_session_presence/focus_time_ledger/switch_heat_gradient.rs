@@ -33,14 +33,14 @@ impl Accounting<'_> {
         };
         if switches < warning {
             blended_in_oklab(
-                palette.surface,
+                palette.background,
                 palette.warning,
                 progress_between(1, warning),
             )
         } else {
             blended_in_oklab(
                 palette.warning,
-                palette.urgent,
+                palette.danger,
                 progress_between(warning, critical),
             )
         }
@@ -116,7 +116,7 @@ mod tests {
     fn counts_past_critical_stay_at_the_urgent_color() {
         let config = two_hour_span_config();
         let color = heat_after_returning(config.switch_heat_critical + 3, &config);
-        assert_eq!(color.to_rgba8(), Palette::default().urgent.to_rgba8());
+        assert_eq!(color.to_rgba8(), Palette::default().danger.to_rgba8());
     }
 
     #[test]
@@ -126,7 +126,7 @@ mod tests {
         let midway = u32::midpoint(config.switch_heat_warning, config.switch_heat_critical);
         let color = heat_after_returning(midway, &config).to_rgba8();
         assert_ne!(color, palette.warning.to_rgba8());
-        assert_ne!(color, palette.urgent.to_rgba8());
+        assert_ne!(color, palette.danger.to_rgba8());
     }
 
     #[test]
@@ -135,7 +135,7 @@ mod tests {
         let palette = Palette::default();
         let lightness = |color: AlphaColor<Srgb>| color.convert::<Oklab>().components[0];
         let typical = lightness(heat_after_returning(6, &config));
-        let neutral = lightness(palette.surface);
+        let neutral = lightness(palette.background);
         let warning = lightness(palette.warning);
         assert!(typical - neutral < warning - typical);
     }

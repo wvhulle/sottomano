@@ -7,19 +7,20 @@ use std::{
 
 use chrono::{DateTime, Locale, TimeDelta, Utc};
 use iced::{
-    Color, Element, Font,
+    Color, Element, Font, Theme,
     alignment::Vertical,
     font::Style as FontStyle,
     mouse::Interaction,
     widget::{
         Container, Row, Space, container, rich_text, span,
-        text::{Span, Wrapping},
+        text::{Span, Style as TextStyle, Wrapping},
     },
 };
 use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::widgets::{
     bar_widget::Glyph,
+    configured_theme::AccentShades,
     localized_durations::{
         LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
     },
@@ -176,9 +177,9 @@ pub struct ValueCellView<Message> {
     pub wrapping: Wrapping,
     pub locale: Locale,
     pub now: DateTime<Utc>,
-    pub flash: Color,
-    pub link: Color,
-    pub hint: Color,
+    pub flash: fn(&Theme) -> AccentShades,
+    pub link: fn(&Theme) -> AccentShades,
+    pub hint: fn(&Theme) -> Color,
     pub transition: TransitionStyle,
     pub copy_flash: Duration,
     pub press_messages: ValueCellPressMessages<Message>,
@@ -227,7 +228,11 @@ impl<Message: 'static> ValueCellView<Message> {
     }
 
     #[must_use]
-    pub fn key(&self, key: ValueCell, color: Color) -> Element<'static, Message> {
+    pub fn key(
+        &self,
+        key: ValueCell,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
+    ) -> Element<'static, Message> {
         let row = key.clone();
         self.value(key, color, &row)
     }
@@ -236,7 +241,7 @@ impl<Message: 'static> ValueCellView<Message> {
     pub fn value(
         &self,
         value: ValueCell,
-        color: Color,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
         row: &ValueCell,
     ) -> Element<'static, Message> {
         match value {
@@ -295,7 +300,7 @@ impl<Message: 'static> ValueCellView<Message> {
         &self,
         text: String,
         face: CellTypeFace,
-        color: Color,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
         row: &ValueCell,
     ) -> Element<'static, Message> {
         let font = self.face(face);
@@ -303,7 +308,9 @@ impl<Message: 'static> ValueCellView<Message> {
             container(
                 bar_text(font, text.clone())
                     .font(self.styled_face(font))
-                    .color(color)
+                    .style(move |theme| TextStyle {
+                        color: Some(color(theme)),
+                    })
                     .wrapping(self.wrapping),
             )
             .max_width(self.max_width),
@@ -316,11 +323,18 @@ impl<Message: 'static> ValueCellView<Message> {
         .into()
     }
 
-    fn path(&self, path: &Path, color: Color, row: &ValueCell) -> Element<'static, Message> {
+    fn path(
+        &self,
+        path: &Path,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
+        row: &ValueCell,
+    ) -> Element<'static, Message> {
         let text = path.display().to_string();
         let unwrapped = bar_text(&self.prose_font, text.clone())
             .font(self.styled_face(&self.prose_font))
-            .color(color)
+            .style(move |theme| TextStyle {
+                color: Some(color(theme)),
+            })
             .wrapping(Wrapping::None);
         let value = TransitioningText::new(
             unwrapped,
@@ -343,15 +357,17 @@ impl<Message: 'static> ValueCellView<Message> {
     fn underlined_label(
         &self,
         label: String,
-        color: Color,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
         link_cell: &ValueCell,
     ) -> Element<'static, Message> {
         let underlined_label: Span<'static> = span(label.clone())
             .font(self.styled_face(&self.prose_font))
-            .color(color)
             .underline(true);
         let underlined = container(
             rich_text([underlined_label])
+                .style(move |theme| TextStyle {
+                    color: Some(color(theme)),
+                })
                 .size(self.prose_font.text_size_px)
                 .line_height(LINE_HEIGHT)
                 .wrapping(self.wrapping),
@@ -373,14 +389,18 @@ impl<Message: 'static> ValueCellView<Message> {
         )
     }
 
-    fn glyph(&self, icon: Glyph, color: Color) -> Element<'static, Message> {
+    fn glyph(
+        &self,
+        icon: Glyph,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
+    ) -> Element<'static, Message> {
         icon.view(self.prose_font.text_size_px, color)
     }
 
     fn copyable_figures(
         &self,
         text: String,
-        color: Color,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
         row: &ValueCell,
     ) -> Element<'static, Message> {
         self.copyable_text(text, CellTypeFace::Figures, color, row)
@@ -390,7 +410,7 @@ impl<Message: 'static> ValueCellView<Message> {
         &self,
         text: String,
         face: CellTypeFace,
-        color: Color,
+        color: impl Fn(&Theme) -> Color + Copy + 'static,
         row: &ValueCell,
     ) -> Element<'static, Message> {
         let value = self.text(text.clone(), face, color, row);
@@ -412,9 +432,16 @@ impl<Message: 'static> ValueCellView<Message> {
 pub fn wrapped_text<Message>(
     font: &ResolvedFont,
     text: String,
-    color: Color,
+    color: impl Fn(&Theme) -> Color + Copy + 'static,
     max_width: f32,
     wrapping: Wrapping,
 ) -> Container<'static, Message> {
-    container(bar_text(font, text).color(color).wrapping(wrapping)).max_width(max_width)
+    container(
+        bar_text(font, text)
+            .style(move |theme| TextStyle {
+                color: Some(color(theme)),
+            })
+            .wrapping(wrapping),
+    )
+    .max_width(max_width)
 }

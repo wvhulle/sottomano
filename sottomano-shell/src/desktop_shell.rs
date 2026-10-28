@@ -96,8 +96,12 @@ use sottomano_widgets::{
         window_group::{self, WindowGroup, WindowGroupMessage, window_list},
     },
     widgets::{
-        app_window_focus::AppWindowFocus, favicon::Favicons, palette_colors::PaletteColors,
-        text::FontFaces, tooltip_body::tooltip_source_delivery::Tooltip, window_icon::WindowAssets,
+        app_window_focus::AppWindowFocus,
+        configured_theme::{configured_theme, text_color},
+        favicon::Favicons,
+        text::FontFaces,
+        tooltip_body::tooltip_source_delivery::Tooltip,
+        window_icon::WindowAssets,
     },
 };
 
@@ -247,7 +251,7 @@ impl DesktopShell {
             spring_load: None,
             niri_config,
             configured_workspaces: None,
-            theme: iced::Theme::from(&PaletteColors::from(&config.theme.palette)),
+            theme: configured_theme(&config.theme.palette),
             wayland,
             desktop_buses: None,
             config,
@@ -714,7 +718,7 @@ impl DesktopShell {
 
     fn adopt_config(&mut self, config: Config) -> Task<Message> {
         let previous = mem::replace(&mut self.config, config);
-        self.theme = iced::Theme::from(&PaletteColors::from(&self.config.theme.palette));
+        self.theme = configured_theme(&self.config.theme.palette);
         Task::batch([
             self.notifications
                 .withdraw_config_error(&self.config, self.clock.instant),
@@ -1025,10 +1029,10 @@ impl DesktopShell {
     }
 
     #[must_use]
-    pub fn style(&self, _theme: &iced::Theme) -> Style {
+    pub fn style(theme: &iced::Theme) -> Style {
         Style {
             background_color: Color::TRANSPARENT,
-            text_color: PaletteColors::from(&self.config.theme.palette).bar_foreground,
+            text_color: text_color(theme),
         }
     }
 }

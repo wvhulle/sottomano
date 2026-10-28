@@ -13,6 +13,8 @@ use iced::{
     window,
 };
 
+use crate::widgets::configured_theme::{background_strong_color, secondary_text_color};
+
 const RING_THICKNESS_FRACTION: f32 = 0.12;
 
 pub struct RefreshDial {
@@ -20,27 +22,16 @@ pub struct RefreshDial {
     period: Duration,
     viewed_at: Instant,
     diameter: f32,
-    fill: Color,
-    track: Color,
 }
 
 impl RefreshDial {
     #[must_use]
-    pub fn new(
-        elapsed: Duration,
-        period: Duration,
-        viewed_at: Instant,
-        diameter: f32,
-        fill: Color,
-        track: Color,
-    ) -> Self {
+    pub fn new(elapsed: Duration, period: Duration, viewed_at: Instant, diameter: f32) -> Self {
         Self {
             elapsed,
             period,
             viewed_at,
             diameter,
-            fill,
-            track,
         }
     }
 
@@ -101,16 +92,22 @@ impl<Message> canvas::Program<Message> for RefreshDial {
         &self,
         frame: &Self::State,
         renderer: &Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _cursor: Cursor,
     ) -> Vec<canvas::Geometry> {
         let mut geometry = canvas::Frame::new(renderer, bounds.size());
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let radius = self.diameter * (1.0 - RING_THICKNESS_FRACTION) / 2.0;
-        geometry.stroke(&canvas::Path::circle(center, radius), self.ring(self.track));
+        geometry.stroke(
+            &canvas::Path::circle(center, radius),
+            self.ring(background_strong_color(theme)),
+        );
         let swept = TAU * self.elapsed_fraction(*frame);
-        geometry.stroke(&arc_path(center, radius, swept), self.ring(self.fill));
+        geometry.stroke(
+            &arc_path(center, radius, swept),
+            self.ring(secondary_text_color(theme)),
+        );
         vec![geometry.into_geometry()]
     }
 }

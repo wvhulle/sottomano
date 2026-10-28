@@ -1,6 +1,6 @@
 use iced::{
-    Alignment, Element, Length,
-    widget::{Row, Text, container, row},
+    Alignment, Color, Element, Length, Theme,
+    widget::{Row, Text, container, row, text},
 };
 use sottomano_config::{Config, screen_edges::Position};
 use sottomano_sources::desktop_windows_apps::{
@@ -16,8 +16,8 @@ use super::{
 use crate::{
     clock::Clock,
     widgets::{
+        configured_theme::{secondary_text_color, text_color},
         pager_slot::PagerSlot,
-        palette_colors::PaletteColors,
         pointer_drag::{
             BarSlotList, DragView, DraggedBarSlot, draggable_slot::draggable_slot_list,
             keyed_slot_list::keyed_slot_list,
@@ -49,7 +49,7 @@ pub fn inline_view<'a>(
         .ticks(window_markers(config, niri, p.id, position, drag, tone).view())
         .spaced_by(config.layout.panel.widget_spacing)
         .view(config, position);
-        let tinted = container(slot).style(drop_tint(config, p, drag)).into();
+        let tinted = container(slot).style(drop_tint(p, drag)).into();
         (
             DraggedBarSlot::Workspace(p.id),
             hit_area(p, position_in_bar, tinted, drag),
@@ -85,6 +85,12 @@ pub(super) fn has_superscript(p: &niri_window_snapshot::WorkspaceIndicator) -> b
     given_name(p).is_some() && p.idx <= 9
 }
 
+fn tinted_text(color: impl Fn(&Theme) -> Color + Copy + 'static) -> impl Fn(&Theme) -> text::Style {
+    move |theme| text::Style {
+        color: Some(color(theme)),
+    }
+}
+
 pub(super) fn superscript<'a>(
     config: &Config,
     p: &niri_window_snapshot::WorkspaceIndicator,
@@ -92,7 +98,7 @@ pub(super) fn superscript<'a>(
 ) -> Text<'a> {
     bar_text(&config.theme.font, p.idx.to_string())
         .size(config.theme.font.small_text_size_px)
-        .color(tone.tint(config, PaletteColors::from(&config.theme.palette).inactive))
+        .style(tinted_text(tone.tint(secondary_text_color)))
 }
 
 pub(super) fn inline_label<'a>(
@@ -100,10 +106,8 @@ pub(super) fn inline_label<'a>(
     p: &niri_window_snapshot::WorkspaceIndicator,
     tone: SlotTone,
 ) -> Element<'a, WorkspacesMessage> {
-    let name = bar_text(&config.theme.font, display_name(p)).color(tone.tint(
-        config,
-        PaletteColors::from(&config.theme.palette).bar_foreground,
-    ));
+    let name =
+        bar_text(&config.theme.font, display_name(p)).style(tinted_text(tone.tint(text_color)));
     if !has_superscript(p) {
         return name.into();
     }

@@ -15,15 +15,13 @@ use crate::{
     bar_slot_drag::{DragMessage, SlotDragEvent},
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
+        configured_theme::secondary_text_color,
         glyph_button,
-        palette_colors::PaletteColors,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::DragView,
     },
 };
-
-const DROP_TARGET_ALPHA: f32 = 0.4;
 
 #[derive(Debug, Clone)]
 pub enum WorkspacesMessage {
@@ -49,7 +47,7 @@ pub fn drag_ghost<'a>(
             container(inline_label(config, p, SlotTone::Regular))
                 .padding([0.0, config.layout.panel.group_padding])
                 .center_y(config.layout.panel.height),
-            &drag.ghost_frame,
+            drag.ghost_frame,
         )
         .into(),
     )
@@ -70,7 +68,7 @@ fn order_restore<'a>(
         glyph_button(
             Phosphor::ArrowCounterClockwise(Weight::Regular),
             config.theme.font.icon_size_px,
-            PaletteColors::from(&config.theme.palette).inactive,
+            secondary_text_color,
             WorkspacesMessage::RestoreOrder {
                 output: output.to_owned(),
             },

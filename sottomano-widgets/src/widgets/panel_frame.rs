@@ -1,7 +1,7 @@
 use core::slice;
 
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Shadow, Size, Vector,
+    Border, Color, Element, Event, Length, Padding, Rectangle, Shadow, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -16,52 +16,74 @@ use iced_exwlshell::BlurRegions;
 use sottomano_config::{Config, screen_edges::Position};
 
 use crate::widgets::{
-    palette_colors::PaletteColors, region_reporter::rounded_blur_rows,
+    configured_theme::{background_color, background_strong_color, text_color},
+    region_reporter::rounded_blur_rows,
     shell_layer_appearance::LayerAppearance,
 };
 
 const SHADOW_DROP_PER_SOFTNESS: f32 = 0.25;
 
-pub struct LayerFrameStyle<'a> {
-    appearance: &'a LayerAppearance,
-    config: &'a Config,
+#[derive(Debug, Clone, Copy)]
+pub struct LayerFrameStyle {
+    appearance: LayerAppearance,
+    outline_width: f32,
 }
 
-impl<'a> LayerFrameStyle<'a> {
+impl LayerFrameStyle {
     #[must_use]
-    pub fn new(appearance: &'a LayerAppearance, config: &'a Config) -> Self {
-        Self { appearance, config }
+    pub fn new(appearance: &LayerAppearance, config: &Config) -> Self {
+        Self {
+            appearance: *appearance,
+            outline_width: config.panel_bar.frame_outline,
+        }
     }
 
     #[must_use]
-    pub fn container_style(&self) -> container::Style {
-        let colors = PaletteColors::from(&self.config.theme.palette);
+    pub fn with_corner_radius(mut self, corner_radius_px: f32) -> Self {
+        self.appearance.corner_radius_px = corner_radius_px;
+        self
+    }
+
+    #[must_use]
+    pub fn corner_radius(self) -> Radius {
+        Radius::from(self.appearance.corner_radius_px)
+    }
+
+    #[must_use]
+    pub fn container_style(self, theme: &Theme) -> container::Style {
         container::Style::default()
-            .background(colors.surface.scale_alpha(self.appearance.opacity))
+            .background(background_color(theme).scale_alpha(self.appearance.opacity))
             .border(Border {
-                radius: Radius::from(self.appearance.corner_radius_px),
-                ..self.outline_border()
+                radius: self.corner_radius(),
+                ..self.outline_border(theme)
             })
             .shadow(self.drop_shadow())
-            .color(colors.bar_foreground)
+            .color(text_color(theme))
     }
 
     #[must_use]
-    pub fn outline_border(&self) -> Border {
+    pub fn outline_border(self, theme: &Theme) -> Border {
         if !self.appearance.outline.drawn {
             return Border::default();
         }
         Border {
-            color: PaletteColors::from(&self.config.theme.palette)
-                .frame_outline
-                .scale_alpha(self.appearance.outline.opacity),
-            width: self.config.panel_bar.frame_outline,
+            color: background_strong_color(theme).scale_alpha(self.appearance.outline.opacity),
+            width: self.outline_width,
             radius: Radius::default(),
         }
     }
 
     #[must_use]
-    pub fn drop_shadow(&self) -> Shadow {
+    pub fn outline_width(self) -> f32 {
+        if self.appearance.outline.drawn {
+            self.outline_width
+        } else {
+            0.0
+        }
+    }
+
+    #[must_use]
+    pub fn drop_shadow(self) -> Shadow {
         let shadow = &self.appearance.shadow;
         if !shadow.cast {
             return Shadow::default();
@@ -74,7 +96,7 @@ impl<'a> LayerFrameStyle<'a> {
     }
 
     #[must_use]
-    pub fn lifted_drop_shadow(&self) -> Shadow {
+    pub fn lifted_drop_shadow(self) -> Shadow {
         let centered_shadow = self.drop_shadow();
         Shadow {
             offset: Vector::new(0.0, centered_shadow.blur_radius * SHADOW_DROP_PER_SOFTNESS),
@@ -144,11 +166,11 @@ impl OutlinedSides {
 
 pub fn panel_frame<'a, Message>(
     content: impl Into<Element<'a, Message>>,
-    style: &container::Style,
+    frame: LayerFrameStyle,
 ) -> PanelFrame<'a, Message> {
     PanelFrame {
         content: content.into(),
-        style: *style,
+        frame,
         outlined_sides: OutlinedSides::ALL,
         blurred: false,
     }
@@ -156,7 +178,7 @@ pub fn panel_frame<'a, Message>(
 
 pub struct PanelFrame<'a, Message> {
     content: Element<'a, Message>,
-    style: container::Style,
+    frame: LayerFrameStyle,
     outlined_sides: OutlinedSides,
     blurred: bool,
 }
@@ -176,7 +198,7 @@ impl<Message> PanelFrame<'_, Message> {
 
     fn drawn_radius(&self) -> Radius {
         self.outlined_sides
-            .square_unoutlined_corners(self.style.border.radius)
+            .square_unoutlined_corners(self.frame.corner_radius())
     }
 
     fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {
@@ -186,20 +208,30 @@ impl<Message> PanelFrame<'_, Message> {
         BlurRegions(rounded_blur_rows(bounds, self.drawn_radius()))
     }
 
-    fn draw_fill(&self, renderer: &mut iced::Renderer, bounds: Rectangle, radius: Radius) {
+    fn draw_fill(
+        renderer: &mut iced::Renderer,
+        frame_style: &container::Style,
+        bounds: Rectangle,
+        radius: Radius,
+    ) {
         let fill_without_outline = container::Style {
             border: Border {
                 width: 0.0,
                 radius,
-                ..self.style.border
+                ..frame_style.border
             },
-            ..self.style
+            ..*frame_style
         };
         container::draw_background(renderer, &fill_without_outline, bounds);
     }
 
-    fn draw_outline(&self, renderer: &mut iced::Renderer, bounds: Rectangle, radius: Radius) {
-        let outline = self.style.border;
+    fn draw_outline(
+        &self,
+        renderer: &mut iced::Renderer,
+        outline: Border,
+        bounds: Rectangle,
+        radius: Radius,
+    ) {
         if outline.width <= 0.0 {
             return;
         }
@@ -255,10 +287,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
     ) {
         let bounds = layout.bounds();
         let radius = self.drawn_radius();
-        self.draw_fill(renderer, bounds, radius);
-        self.draw_outline(renderer, bounds, radius);
+        let resolved_frame = self.frame.container_style(theme);
+        Self::draw_fill(renderer, &resolved_frame, bounds, radius);
+        self.draw_outline(renderer, resolved_frame.border, bounds, radius);
         let framed_style = renderer::Style {
-            text_color: self.style.text_color.unwrap_or(style.text_color),
+            text_color: resolved_frame.text_color.unwrap_or(style.text_color),
         };
         renderer.with_layer(*viewport, |renderer| {
             self.content.as_widget().draw(
@@ -347,24 +380,24 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
 
 #[cfg(test)]
 mod tests {
-    use iced::{
-        Rectangle,
-        border::{Border, Radius},
-        widget::{container, space},
-    };
-    use sottomano_config::screen_edges::Position;
+    use iced::{Rectangle, widget::space};
+    use sottomano_config::{Config, screen_edges::Position};
 
-    use super::{OutlinedSides, panel_frame};
+    use super::{LayerFrameStyle, OutlinedSides, panel_frame};
+    use crate::widgets::shell_layer_appearance::LayerAppearance;
 
     #[test]
     fn a_top_panel_blurs_its_screen_edge_corners_square() {
-        let style = container::Style::default().border(Border {
-            radius: Radius::from(8.0),
-            ..Border::default()
-        });
-        let frame = panel_frame::<()>(space(), &style)
-            .outlined_sides(OutlinedSides::inward_of(Position::Top))
-            .blurred(true);
+        let appearance = LayerAppearance {
+            corner_radius_px: 8.0,
+            ..LayerAppearance::default()
+        };
+        let frame = panel_frame::<()>(
+            space(),
+            LayerFrameStyle::new(&appearance, &Config::default()),
+        )
+        .outlined_sides(OutlinedSides::inward_of(Position::Top))
+        .blurred(true);
         let pill = Rectangle {
             x: 10.0,
             y: 0.0,

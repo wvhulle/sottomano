@@ -8,10 +8,9 @@ use crate::{
     widgets::{
         confirm_button::ConfirmButton,
         glyph_button,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
-        widget_state::WidgetState,
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -59,14 +58,15 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
     {
         self.stoppable().then(|| {
             let state = WidgetState::of_toggle(false);
-            let color = state
-                .color(&PaletteColors::from(&self.config.theme.palette))
-                .scale_alpha(self.reveal);
+            let tint = StateTint {
+                state,
+                opacity: self.reveal,
+            };
             hoverable(
                 glyph_button(
                     Phosphor::Stop(state.weight()),
                     self.config.theme.font.icon_size_px,
-                    color,
+                    move |theme| tint.color(theme),
                     (self.on_command)(Command::Stop),
                 ),
                 PlayerTarget::of(&self.media.bus, MediaTarget::Stop).into(),

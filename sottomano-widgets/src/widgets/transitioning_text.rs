@@ -26,7 +26,10 @@ use sottomano_config::{
     tooltips::{IntroEffect, PlaceholderEffect, ReplaceEffect, TooltipLoading},
 };
 
-use crate::widgets::text::{FontFaces, LINE_HEIGHT};
+use crate::widgets::{
+    configured_theme::ThemedColor,
+    text::{FontFaces, LINE_HEIGHT},
+};
 
 const NOISE_GLYPHS: &[u8] =
     b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789#%&@$*+=<>/\\|";
@@ -50,7 +53,7 @@ pub enum TextPresence {
 pub struct TransitionStyle {
     pub loading: TooltipLoading,
     pub presence: TextPresence,
-    pub highlight: Color,
+    pub highlight: fn(&iced::Theme) -> Color,
 }
 
 pub struct TransitioningText<'a, Message> {
@@ -60,7 +63,7 @@ pub struct TransitioningText<'a, Message> {
     style: TransitionStyle,
     font: Font,
     size: f32,
-    color: Color,
+    color: ThemedColor<'a>,
 }
 
 impl<'a, Message> TransitioningText<'a, Message> {
@@ -69,7 +72,7 @@ impl<'a, Message> TransitioningText<'a, Message> {
         text: String,
         style: TransitionStyle,
         font: &ResolvedFont,
-        color: Color,
+        color: impl Fn(&iced::Theme) -> Color + 'a,
     ) -> Self {
         Self {
             settled: settled.into(),
@@ -78,7 +81,7 @@ impl<'a, Message> TransitioningText<'a, Message> {
             style,
             font: FontFaces::from(font).regular,
             size: font.text_size_px,
-            color,
+            color: Box::new(color),
         }
     }
 
@@ -330,21 +333,23 @@ impl<Message> TransitioningText<'_, Message> {
         running.elapsed >= lock_time(running.length, self.seed(), position, length)
     }
 
-    fn draw_placeholder(&self, renderer: &mut iced::Renderer, area: Rectangle, elapsed: Duration) {
+    fn draw_placeholder(
+        &self,
+        renderer: &mut iced::Renderer,
+        area: Rectangle,
+        elapsed: Duration,
+        color: Color,
+    ) {
         match self.style.loading.placeholder {
             PlaceholderEffect::Pulse { period } => {
                 let breath = 0.5 - (cycle_fraction(elapsed, period) * TAU).cos() * 0.5;
                 let alpha = PULSE_FLOOR_ALPHA + PULSE_SWING_ALPHA * breath;
-                self.fill_bars(
-                    renderer,
-                    area,
-                    Background::Color(self.color.scale_alpha(alpha)),
-                );
+                self.fill_bars(renderer, area, Background::Color(color.scale_alpha(alpha)));
             }
             PlaceholderEffect::Shimmer { sweep_period } => {
                 let crest = cycle_fraction(elapsed, sweep_period) * (1.0 + 2.0 * SHIMMER_HALF_BAND)
                     - SHIMMER_HALF_BAND;
-                self.fill_bars(renderer, area, shimmer_background(self.color, crest));
+                self.fill_bars(renderer, area, shimmer_background(color, crest));
             }
             PlaceholderEffect::Noise { glyph_change } => {
                 let content = self.noise_run(area, elapsed, glyph_change);
@@ -353,26 +358,32 @@ impl<Message> TransitioningText<'_, Message> {
                     content,
                     area,
                     area,
-                    self.color.scale_alpha(NOISE_ALPHA),
+                    color.scale_alpha(NOISE_ALPHA),
                 );
             }
         }
     }
 
-    fn draw_intro(&self, renderer: &mut iced::Renderer, area: Rectangle, running: &Running<'_>) {
+    fn draw_intro(
+        &self,
+        renderer: &mut iced::Renderer,
+        area: Rectangle,
+        running: &Running<'_>,
+        color: Color,
+    ) {
         match self.style.loading.intro {
             IntroEffect::Fade { .. } => {
                 let eased = running.eased();
-                let skeleton = self.color.scale_alpha(SKELETON_ALPHA * (1.0 - eased));
+                let skeleton = color.scale_alpha(SKELETON_ALPHA * (1.0 - eased));
                 self.fill_bars(renderer, area, Background::Color(skeleton));
-                let color = self.color.scale_alpha(eased);
-                self.fill_text(renderer, self.text.clone(), area, area, color);
+                let faded_in = color.scale_alpha(eased);
+                self.fill_text(renderer, self.text.clone(), area, area, faded_in);
             }
             IntroEffect::Decode { glyph_change, .. } => {
                 let content = self.scrambled(running.elapsed, glyph_change, |position, _| {
                     self.locks_by(running, position)
                 });
-                self.fill_text(renderer, content, area, area, self.color);
+                self.fill_text(renderer, content, area, area, color);
             }
             IntroEffect::Wipe { .. } => {
                 let edge = area.width * running.eased();
@@ -385,17 +396,17 @@ impl<Message> TransitioningText<'_, Message> {
                     width: area.width - edge,
                     ..area
                 };
-                let skeleton = self.color.scale_alpha(SKELETON_ALPHA);
+                let skeleton = color.scale_alpha(SKELETON_ALPHA);
                 self.fill_bars(renderer, pending, Background::Color(skeleton));
-                self.fill_text(renderer, self.text.clone(), area, revealed, self.color);
+                self.fill_text(renderer, self.text.clone(), area, revealed, color);
             }
             IntroEffect::Typewriter { per_char } => {
                 let typed = (running.elapsed.as_nanos() / per_char.as_nanos().max(1)) as usize;
                 let content = self.text.chars().take(typed + 1).collect();
-                self.fill_text(renderer, content, area, area, self.color);
+                self.fill_text(renderer, content, area, area, color);
             }
             IntroEffect::Immediate => {
-                self.fill_text(renderer, self.text.clone(), area, area, self.color);
+                self.fill_text(renderer, self.text.clone(), area, area, color);
             }
         }
     }
@@ -406,6 +417,7 @@ impl<Message> TransitioningText<'_, Message> {
         area: Rectangle,
         from: &str,
         running: &Running<'_>,
+        text_colors: TextColors,
     ) {
         match self.style.loading.replace {
             ReplaceEffect::Decode { glyph_change, .. } => {
@@ -413,31 +425,43 @@ impl<Message> TransitioningText<'_, Message> {
                 let content = self.scrambled(running.elapsed, glyph_change, |position, target| {
                     previous.get(position) == Some(&target) || self.locks_by(running, position)
                 });
-                self.fill_text(renderer, content, area, area, self.color);
+                self.fill_text(renderer, content, area, area, text_colors.text);
             }
             ReplaceEffect::Crossfade { .. } => {
                 let eased = running.eased();
-                let leaving = self.color.scale_alpha(1.0 - eased);
+                let leaving = text_colors.text.scale_alpha(1.0 - eased);
                 self.fill_text(renderer, from.to_owned(), area, area, leaving);
-                let arriving = self.color.scale_alpha(eased);
+                let arriving = text_colors.text.scale_alpha(eased);
                 self.fill_text(renderer, self.text.clone(), area, area, arriving);
             }
             ReplaceEffect::Roll { .. } => {
                 let shift = area.height * running.eased();
                 let leaving = area + Vector::new(0.0, -shift);
-                self.fill_text(renderer, from.to_owned(), leaving, area, self.color);
+                self.fill_text(renderer, from.to_owned(), leaving, area, text_colors.text);
                 let arriving = area + Vector::new(0.0, area.height - shift);
-                self.fill_text(renderer, self.text.clone(), arriving, area, self.color);
+                self.fill_text(
+                    renderer,
+                    self.text.clone(),
+                    arriving,
+                    area,
+                    text_colors.text,
+                );
             }
             ReplaceEffect::Flash { .. } => {
-                let color = blend(self.style.highlight, self.color, running.eased());
-                self.fill_text(renderer, self.text.clone(), area, area, color);
+                let flashed = blend(text_colors.highlight, text_colors.text, running.eased());
+                self.fill_text(renderer, self.text.clone(), area, area, flashed);
             }
             ReplaceEffect::Immediate => {
-                self.fill_text(renderer, self.text.clone(), area, area, self.color);
+                self.fill_text(renderer, self.text.clone(), area, area, text_colors.text);
             }
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct TextColors {
+    text: Color,
+    highlight: Color,
 }
 
 fn cycle_fraction(elapsed: Duration, period: Duration) -> f32 {
@@ -538,9 +562,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
         let state = tree.state.downcast_ref::<State>();
         let settled = layout.children().next().unwrap();
         let area = settled.bounds();
+        let text_colors = TextColors {
+            text: (self.color)(theme),
+            highlight: (self.style.highlight)(theme),
+        };
         match &state.shown {
             ShownText::Placeholder => {
-                self.draw_placeholder(renderer, area, state.placeholder_elapsed());
+                self.draw_placeholder(
+                    renderer,
+                    area,
+                    state.placeholder_elapsed(),
+                    text_colors.text,
+                );
             }
             ShownText::Text { .. } => match self.running(state) {
                 None => self.settled.as_widget().draw(
@@ -553,9 +586,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
                     viewport,
                 ),
                 Some(running) => match running.kind {
-                    TransitionKind::Intro => self.draw_intro(renderer, area, &running),
+                    TransitionKind::Intro => {
+                        self.draw_intro(renderer, area, &running, text_colors.text);
+                    }
                     TransitionKind::Replace { from } => {
-                        self.draw_replace(renderer, area, from, &running);
+                        self.draw_replace(renderer, area, from, &running, text_colors);
                     }
                 },
             },

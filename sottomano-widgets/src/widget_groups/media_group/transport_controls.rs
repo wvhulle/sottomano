@@ -1,4 +1,4 @@
-use iced::{Alignment, Color, Element, widget::Row};
+use iced::{Alignment, Element, widget::Row};
 use sottomano_config::Config;
 use sottomano_sources::media_playback_audio::mpris_players::{Command, LoopMode, Media, Status};
 
@@ -7,10 +7,9 @@ use crate::{
     widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
         glyph_button,
-        palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
-        widget_state::WidgetState,
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -49,10 +48,11 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.config.theme.font.icon_size_px
     }
 
-    fn foreground(&self) -> Color {
-        WidgetState::On
-            .color(&PaletteColors::from(&self.config.theme.palette))
-            .scale_alpha(self.reveal)
+    fn foreground(&self) -> StateTint {
+        StateTint {
+            state: WidgetState::On,
+            opacity: self.reveal,
+        }
     }
 
     fn toggle<'a>(
@@ -67,9 +67,10 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         let state = WidgetState::of_toggle(active);
         self.control(
             icon.with_weight(state.weight()),
-            state
-                .color(&PaletteColors::from(&self.config.theme.palette))
-                .scale_alpha(self.reveal),
+            StateTint {
+                state,
+                opacity: self.reveal,
+            },
             press,
         )
     }
@@ -77,7 +78,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     fn control<'a>(
         &self,
         glyph: Phosphor,
-        color: Color,
+        tint: StateTint,
         press: TransportPress,
     ) -> Element<'a, Message>
     where
@@ -87,7 +88,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
             glyph_button(
                 glyph,
                 self.primary_size(),
-                color,
+                move |theme| tint.color(theme),
                 (self.on_command)(press.command),
             ),
             PlayerTarget::of(&self.media.bus, press.target).into(),
