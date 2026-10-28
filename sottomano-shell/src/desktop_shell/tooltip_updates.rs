@@ -6,6 +6,7 @@ use sottomano_widgets::{
     hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
     layer_surfaces::PanelEdge,
     widget_groups::{
+        bluetooth_adapters_group::BluetoothTarget,
         clock_group::ClockGroup,
         color_temperature_group::ColorTemperatureGroup,
         compute_group::ComputeGroup,
@@ -156,6 +157,17 @@ impl DesktopShell {
         }
     }
 
+    fn bluetooth_tooltip_for(&self, target: &BluetoothTarget) -> Option<Tooltip> {
+        self.bluetooth_adapters_group.tooltip_for(
+            target,
+            &|hardware_address| {
+                self.gamepad_group
+                    .report_timing_for_address(hardware_address)
+            },
+            self.clock,
+        )
+    }
+
     fn source_group_tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target, self.clock),
@@ -180,6 +192,7 @@ impl DesktopShell {
             HoverTarget::NetInterface(target) => {
                 self.net_interfaces_group.tooltip_for(*target, self.clock)
             }
+            HoverTarget::Bluetooth(target) => self.bluetooth_tooltip_for(target),
             HoverTarget::Audio(kind) => self.audio_group.tooltip_for(*kind, self.clock),
             HoverTarget::Monitor(target) => {
                 self.monitor_group
@@ -320,6 +333,7 @@ impl DesktopShell {
             | HoverTarget::Journal(_)
             | HoverTarget::PendingUpgrades(_)
             | HoverTarget::NetInterface(_)
+            | HoverTarget::Bluetooth(_)
             | HoverTarget::Audio(_)
             | HoverTarget::IdleTimeout(_)
             | HoverTarget::Wallpaper(_)

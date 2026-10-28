@@ -23,6 +23,7 @@ pub mod huggingface_hub_sections;
 pub mod icon_handle;
 pub mod idle;
 pub mod inline_slider;
+pub mod input_report_sections;
 pub mod latest_snapshot;
 pub mod layer_appearance_controls;
 pub mod localized_durations;

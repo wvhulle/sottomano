@@ -57,6 +57,20 @@ impl DesktopShell {
                 self.net_interfaces_group
                     .group_content(self.clock)
                     .map(Message::NetInterfaces),
+            ])
+            .chain(
+                self.bluetooth_adapters_group
+                    .group_contents(
+                        &|hardware_address| {
+                            self.gamepad_group
+                                .report_timing_for_address(hardware_address)
+                        },
+                        self.clock,
+                    )
+                    .into_iter()
+                    .map(|group| group.map(Message::BluetoothAdapters)),
+            )
+            .chain([
                 self.internet_group.group_content().map(Message::Internet),
                 self.vpn_group.group_content().map(Message::Vpn),
             ])

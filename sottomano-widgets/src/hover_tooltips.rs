@@ -12,6 +12,7 @@ pub use crate::hover_tooltips::{hover_area::hoverable, tooltip_surfaces::Tooltip
 use crate::{
     widget_groups::{
         audio_group::AudioTarget,
+        bluetooth_adapters_group::BluetoothTarget,
         caldav_group::CaldavTarget,
         claude_usage_group::ClaudeUsageTarget,
         clock_group::ClockTarget,
@@ -66,6 +67,7 @@ pub enum HoverTarget {
     Journal(JournalTarget),
     PendingUpgrades(PendingUpgradesTarget),
     NetInterface(NetInterfaceTarget),
+    Bluetooth(BluetoothTarget),
     Audio(AudioTarget),
     Monitor(MonitorTarget),
     ColorTemperature(ColorTemperatureTarget),

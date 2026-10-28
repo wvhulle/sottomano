@@ -1,4 +1,3 @@
-mod bluetooth_link_reading;
 mod connected_controller_reading;
 mod controller_battery_reading;
 pub mod controller_button_labels;
@@ -34,12 +33,10 @@ use sottomano_sources::{
 use uom::si::f64::Frequency;
 
 use self::{
-    bluetooth_link_reading::BluetoothLinkReading,
     connected_controller_reading::{ConnectedControllerReading, ControllerMarking},
     controller_battery_reading::ControllerBatteryReading,
     controller_link_reading::{
-        BandSharing, ControllerLinkReading, MeasuredReportTiming, WiredFallback,
-        shares_bluetooth_band,
+        BandSharing, ControllerLinkReading, WiredFallback, shares_bluetooth_band,
     },
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
@@ -50,6 +47,7 @@ use crate::{
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
+        input_report_sections::MeasuredReportTiming,
         tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
@@ -60,7 +58,6 @@ pub enum GamepadTarget {
     Controller { slot: usize },
     Battery { slot: usize },
     Link { slot: usize },
-    Bluetooth { slot: usize },
     UsbCable { slot: usize },
 }
 
@@ -96,6 +93,7 @@ pub enum Action {
     Idle,
     Compositor(niri_ipc::Action),
     Dictation(DictationCommand),
+    DisconnectBluetooth { hardware_address: String },
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -270,11 +268,9 @@ impl GamepadGroup {
             GamepadMessage::DisconnectBluetooth { slot } => {
                 self.bluetooth_address(slot)
                     .map_or(Action::Idle, |hardware_address| {
-                        Action::Compositor(spawned([
-                            "bluetoothctl",
-                            "disconnect",
-                            hardware_address,
-                        ]))
+                        Action::DisconnectBluetooth {
+                            hardware_address: hardware_address.to_owned(),
+                        }
                     })
             }
             GamepadMessage::Expansion { slot, expansion } => {
@@ -334,6 +330,18 @@ impl GamepadGroup {
         self.physical_controllers()
             .find(|(controller, _)| controller.slot == slot)
             .map(|(_, link)| link)
+    }
+
+    #[must_use]
+    pub fn report_timing_for_address(&self, hardware_address: &str) -> Option<ReportTiming> {
+        self.controllers
+            .iter()
+            .map(|controller| controller.slot)
+            .find(|slot| {
+                self.bluetooth_address(*slot)
+                    .is_some_and(|address| address.eq_ignore_ascii_case(hardware_address))
+            })
+            .and_then(|slot| self.report_timings.get(&slot).copied())
     }
 
     fn bluetooth_address(&self, slot: usize) -> Option<&str> {
@@ -448,10 +456,6 @@ impl GamepadGroup {
             GamepadTarget::Link { slot } => self
                 .link_reading(slot, self.physical_link(slot)?)
                 .tooltip(clock),
-            GamepadTarget::Bluetooth { slot } => {
-                let link = self.physical_link(slot)?;
-                bluetooth_reading(link)?.tooltip(clock)
-            }
             GamepadTarget::UsbCable { slot } => UsbCableReading {
                 role: usb_cable_role(self.physical_link(slot)?.transport)?,
             }
@@ -488,14 +492,15 @@ impl GamepadGroup {
             self.face_reading(gamepad, link, bindings, focused_app_id),
             GamepadTarget::Controller { slot },
         );
-        let connection =
-            GroupItem::reading(self.link_reading(slot, link), GamepadTarget::Link { slot });
-        let battery = (gamepad.power != GamepadPower::NoBattery).then(|| {
-            GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
-                .previewed_on_handle_if(battery_low)
+        let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
+        let connection = (!shown_in_bluetooth_group).then(|| {
+            GroupItem::reading(self.link_reading(slot, link), GamepadTarget::Link { slot })
         });
-        let bluetooth = bluetooth_reading(link)
-            .map(|reading| GroupItem::reading(reading, GamepadTarget::Bluetooth { slot }));
+        let battery =
+            (!shown_in_bluetooth_group && gamepad.power != GamepadPower::NoBattery).then(|| {
+                GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
+                    .previewed_on_handle_if(battery_low)
+            });
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item =
                 GroupItem::reading(UsbCableReading { role }, GamepadTarget::UsbCable { slot });
@@ -510,7 +515,7 @@ impl GamepadGroup {
         Some(GroupContent::new(
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
-            [Some(face), Some(connection), battery, bluetooth, usb_cable]
+            [Some(face), connection, battery, usb_cable]
                 .into_iter()
                 .flatten(),
         ))
@@ -528,15 +533,6 @@ impl GamepadGroup {
                 self.controller_group(gamepad, link, bindings, focused_app_id)
             })
             .collect()
-    }
-}
-
-fn bluetooth_reading(link: &PhysicalGamepadLink) -> Option<BluetoothLinkReading<'_>> {
-    match link.transport {
-        GamepadTransport::Bluetooth { .. } => Some(BluetoothLinkReading {
-            identity: &link.identity,
-        }),
-        GamepadTransport::Usb | GamepadTransport::Other => None,
     }
 }
 

@@ -1,5 +1,6 @@
 pub mod bluez_bluetooth;
 pub mod ethernet_connection;
+pub mod hid_sysfs_bluetooth_peripherals;
 pub mod interface_throughput;
 pub mod modem_manager_mobile;
 pub mod network_manager_proxies;

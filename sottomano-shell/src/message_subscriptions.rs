@@ -22,7 +22,8 @@ use sottomano_widgets::{
     background_work::snapshot_subscription,
     toast_messages::NotificationMessage,
     widget_groups::{
-        audio_group::AudioGroup, clock_group::ClockGroup, compute_group::ComputeGroup,
+        audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
+        clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup, gamepad_group::GamepadGroup,
         journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
@@ -153,6 +154,7 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
             .net_interfaces_group
             .subscription(buses)
             .map(Message::NetInterfaces),
+        BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
         GamepadGroup::network_subscription(buses).map(Message::Gamepad),
         MonitorGroup::subscription(buses).map(Message::Monitor),
         state.media_group.subscription(buses).map(Message::Media),

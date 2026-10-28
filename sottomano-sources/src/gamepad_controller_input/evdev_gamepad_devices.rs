@@ -485,16 +485,6 @@ fn kernel_device_of_input_node(slot: usize) -> Option<String> {
     ))
 }
 
-fn uevent_field(uevent: &Path, field: &str) -> Option<String> {
-    sysfs_attribute_reads::read_trimmed(uevent)?
-        .lines()
-        .find_map(|line| {
-            line.strip_prefix(field)?
-                .strip_prefix('=')
-                .map(str::to_owned)
-        })
-}
-
 fn has_unbound_usb_cable(hardware_address: &str) -> bool {
     sysfs_attribute_reads::list_dir(HID_DEVICE_DIRECTORY)
         .into_iter()
@@ -506,7 +496,7 @@ fn has_unbound_usb_cable(hardware_address: &str) -> bool {
         })
         .any(|hid_device| {
             !hid_device.join("driver").exists()
-                && uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
+                && sysfs_attribute_reads::uevent_field(&hid_device.join("uevent"), "HID_UNIQ")
                     .is_some_and(|unique| unique.eq_ignore_ascii_case(hardware_address))
         })
 }

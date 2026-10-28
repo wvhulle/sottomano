@@ -1,40 +1,27 @@
 use std::time::Duration;
 
-use chrono::{DateTime, Locale, Utc};
-use sottomano_config::severity::Severity;
+use chrono::Locale;
 use sottomano_sources::{
     gamepad_controller_input::{
-        accelerometer_report_timing::{DeviceClock, ReportTiming},
-        evdev_gamepad_devices::GamepadTransport,
+        accelerometer_report_timing::DeviceClock, evdev_gamepad_devices::GamepadTransport,
     },
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
-use uom::si::{
-    f64::{Frequency, Ratio},
-    frequency::megahertz,
-    ratio::percent,
-};
+use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 
 use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{KeyValue, Section, TooltipBody},
         widget_state::WidgetState,
     },
 };
 
-const NOTICEABLE_LOSS_PERCENT: f64 = 5.0;
-const LISTED_KERNEL_ERRORS: usize = 5;
 const LOWEST_FIVE_GIGAHERTZ_MEGAHERTZ: f64 = 4900.0;
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MeasuredReportTiming {
-    Pending,
-    Measured(ReportTiming),
-}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WiredFallback {
@@ -64,20 +51,8 @@ fn two_point_four_gigahertz_channel(frequency: Frequency) -> u32 {
         .max(0.0) as u32
 }
 
-fn noticeable_loss(lost_share: Ratio) -> bool {
-    lost_share.get::<percent>() >= NOTICEABLE_LOSS_PERCENT
-}
-
 fn gap_label(longest_gap: Duration) -> String {
     format!("{} ms", longest_gap.as_millis().max(1))
-}
-
-const fn warning_when(warning: bool) -> Severity {
-    if warning {
-        Severity::Warning
-    } else {
-        Severity::Normal
-    }
 }
 
 pub struct ControllerLinkReading<'a> {
@@ -93,75 +68,7 @@ impl ControllerLinkReading<'_> {
     }
 
     fn unstable(&self) -> bool {
-        let lossy_or_stalling = match self.report_timing {
-            MeasuredReportTiming::Pending => false,
-            MeasuredReportTiming::Measured(timing) => {
-                timing.stalls > 0
-                    || matches!(
-                        timing.device_clock,
-                        DeviceClock::Present(sent) if noticeable_loss(sent.lost_share)
-                    )
-            }
-        };
-        lossy_or_stalling || !self.kernel_errors.is_empty()
-    }
-
-    fn report_section(&self) -> Section {
-        let entries = match self.report_timing {
-            MeasuredReportTiming::Pending => vec![KeyValue::new("Reports", "measuring")],
-            MeasuredReportTiming::Measured(timing) => {
-                let arriving =
-                    KeyValue::new("Arriving", Quantity::refresh_hertz(timing.arrival_rate));
-                let clocked = match timing.device_clock {
-                    DeviceClock::Present(sent) => vec![
-                        KeyValue::new("Sent", Quantity::refresh_hertz(sent.sent_rate)),
-                        arriving,
-                        KeyValue::new("Lost", Quantity::share(sent.lost_share))
-                            .level(warning_when(noticeable_loss(sent.lost_share))),
-                        KeyValue::new("Most delayed", Cell::duration(sent.most_delayed)),
-                    ],
-                    DeviceClock::Absent => vec![arriving],
-                };
-                let stalling = warning_when(timing.stalls > 0);
-                clocked
-                    .into_iter()
-                    .chain([
-                        KeyValue::new("Stalls over 20 ms", Quantity::count(timing.stalls))
-                            .level(stalling),
-                        KeyValue::new("Longest gap", Cell::duration(timing.longest_gap))
-                            .level(stalling),
-                    ])
-                    .collect()
-            }
-        };
-        Section::dictionary(entries).titled("Controller reports, last 2 s")
-    }
-
-    fn kernel_error_section(&self) -> Option<Section> {
-        (!self.kernel_errors.is_empty()).then(|| {
-            let listed = self
-                .kernel_errors
-                .iter()
-                .rev()
-                .take(LISTED_KERNEL_ERRORS)
-                .map(|error| {
-                    KeyValue::new(
-                        Cell::RelativeMoment(DateTime::<Utc>::from(error.at)),
-                        error.message.clone(),
-                    )
-                    .level(Severity::Warning)
-                });
-            Section::dictionary(
-                [KeyValue::new(
-                    "Errors in the last 10 minutes",
-                    Quantity::count(self.kernel_errors.len()),
-                )
-                .level(Severity::Warning)]
-                .into_iter()
-                .chain(listed),
-            )
-            .titled("Kernel messages")
-        })
+        self.report_timing.lossy_or_stalling() || !self.kernel_errors.is_empty()
     }
 
     fn interference_sections(&self) -> Vec<Section> {
@@ -250,10 +157,19 @@ impl BarWidget for ControllerLinkReading<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections(
-            [Some(self.report_section()), self.kernel_error_section()]
-                .into_iter()
-                .flatten()
-                .chain(self.interference_sections()),
+            [
+                Some(
+                    self.report_timing
+                        .report_section("Controller reports, last 2 s"),
+                ),
+                KernelErrorListing {
+                    kernel_errors: &self.kernel_errors,
+                }
+                .section(),
+            ]
+            .into_iter()
+            .flatten()
+            .chain(self.interference_sections()),
         )
     }
 }
