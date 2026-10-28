@@ -1,30 +1,19 @@
 use std::{
     collections::VecDeque,
     fmt::{Display, Formatter, Result as FmtResult},
-    io,
-    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket as StdUdpSocket},
-    pin::Pin,
+    fs, io,
+    net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6, UdpSocket as StdUdpSocket},
+    path::Path,
     time::{Duration, Instant},
 };
 
-use futures::{
-    Stream, StreamExt,
-    future::join,
-    stream::{self, select},
-};
 use socket2::{Domain, Protocol, Socket, Type};
 use tokio::{net::UdpSocket, time::timeout};
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use crate::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
-    delivery_cadence_drivers::{PeriodicPolling, PollTick},
-    network_connectivity::{network_manager_proxies, nm_readings},
-    stream_operators::StreamOperators,
-    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
-};
+use crate::delivery_cadence_drivers::PeriodicPolling;
 
-const PROBE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(5));
+pub const PROBE_POLLING: PeriodicPolling = PeriodicPolling::every(Duration::from_secs(5));
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 const WINDOW_PROBES: usize = 20;
 const ICMPV4_ECHO_REQUEST: u8 = 8;
@@ -32,12 +21,6 @@ const ICMPV4_ECHO_REPLY: u8 = 0;
 const ICMPV6_ECHO_REQUEST: u8 = 128;
 const ICMPV6_ECHO_REPLY: u8 = 129;
 const ECHO_PAYLOAD: &[u8] = b"sottomano";
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct LatencyProbeTargets {
-    pub buses: DesktopBuses,
-    pub internet_host: IpAddr,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProbeOutcome {
@@ -49,18 +32,6 @@ pub enum ProbeOutcome {
 pub struct ProbeWindow {
     pub host: IpAddr,
     pub outcomes: VecDeque<ProbeOutcome>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GatewayProbe {
-    Probed(ProbeWindow),
-    NoGateway,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UplinkLatency {
-    pub gateway: GatewayProbe,
-    pub internet: ProbeWindow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,119 +103,39 @@ impl ProbeWindow {
     }
 }
 
-impl SnapshotSource for UplinkLatency {
-    type Error = LatencyProbeError;
-    type StreamInputs = LatencyProbeTargets;
-
-    const NAME: &'static str = "Latency";
-    const CAPTION: SourceCaption = SourceCaption::Captioned(
-        "Echo round trips every five seconds to the router and to an internet host. A slow router \
-         points at the local network; a slow internet host alone points at the provider.",
-    );
-
-    fn delivery_stream(
-        targets: LatencyProbeTargets,
-    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        let gateway_changes = nm_readings(
-            targets.buses.system,
-            network_manager_proxies::UPLINK_PROPERTIES,
-            network_manager_proxies::uplink,
-        )
-        .map(|uplink| match uplink {
-            Ok(uplink) => ProbeEvent::GatewayChanged(uplink.and_then(|uplink| uplink.gateway)),
-            Err(_) => ProbeEvent::GatewayChanged(None),
-        });
-        let ticks = PROBE_POLLING.poll_ticks().map(ProbeEvent::Tick);
-        let probe_events: Pin<Box<dyn Stream<Item = ProbeEvent> + Send>> =
-            Box::pin(select(gateway_changes, ticks));
-        let prober = LatencyProber {
-            gateway: GatewayProbe::NoGateway,
-            internet: ProbeWindow::empty(targets.internet_host),
-            next_sequence: 0,
-        };
-        stream::unfold(
-            (probe_events, prober),
-            |(mut probe_events, mut prober)| async move {
-                loop {
-                    match probe_events.next().await? {
-                        ProbeEvent::GatewayChanged(gateway) => prober.retarget_gateway(gateway),
-                        ProbeEvent::Tick(poll_tick) => {
-                            let delivery = prober.probe_round(poll_tick).await;
-                            return Some((delivery, (probe_events, prober)));
-                        }
-                    }
-                }
-            },
-        )
-        .distinct_until_changed()
-    }
-}
-
-enum ProbeEvent {
-    GatewayChanged(Option<Ipv4Addr>),
-    Tick(PollTick),
-}
-
-struct LatencyProber {
-    gateway: GatewayProbe,
-    internet: ProbeWindow,
-    next_sequence: u16,
-}
-
-impl LatencyProber {
-    fn retarget_gateway(&mut self, gateway: Option<Ipv4Addr>) {
-        let unchanged = match (&self.gateway, gateway) {
-            (GatewayProbe::Probed(window), Some(address)) => window.host == IpAddr::V4(address),
-            (GatewayProbe::NoGateway, None) => true,
-            _ => false,
-        };
-        if !unchanged {
-            self.gateway = gateway.map_or(GatewayProbe::NoGateway, |address| {
-                GatewayProbe::Probed(ProbeWindow::empty(IpAddr::V4(address)))
-            });
+#[must_use]
+pub fn probe_address(host: IpAddr, interface: &str) -> SocketAddr {
+    match host {
+        IpAddr::V6(address) if is_link_local(address) => {
+            SocketAddr::V6(SocketAddrV6::new(address, 0, 0, interface_index(interface)))
         }
-    }
-
-    async fn probe_round(&mut self, poll_tick: PollTick) -> SnapshotDelivery<UplinkLatency> {
-        let sequence = self.next_sequence;
-        self.next_sequence = self.next_sequence.wrapping_add(1);
-        let gateway_host = match &self.gateway {
-            GatewayProbe::Probed(window) => Some(window.host),
-            GatewayProbe::NoGateway => None,
-        };
-        let (internet_outcome, gateway_outcome) =
-            join(echo_round_trip(self.internet.host, sequence), async {
-                match gateway_host {
-                    Some(host) => Some(echo_round_trip(host, sequence).await),
-                    None => None,
-                }
-            })
-            .await;
-        let internet_outcome = match internet_outcome {
-            Ok(outcome) => outcome,
-            Err(failure) => return poll_tick.stamped(Err(failure)),
-        };
-        self.internet = self.internet.clone().recorded(internet_outcome);
-        if let (GatewayProbe::Probed(window), Some(Ok(outcome))) = (&self.gateway, gateway_outcome)
-        {
-            self.gateway = GatewayProbe::Probed(window.clone().recorded(outcome));
-        }
-        poll_tick.stamped(Ok(UplinkLatency {
-            gateway: self.gateway.clone(),
-            internet: self.internet.clone(),
-        }))
+        host => SocketAddr::new(host, 0),
     }
 }
 
-async fn echo_round_trip(host: IpAddr, sequence: u16) -> Result<ProbeOutcome, LatencyProbeError> {
-    let (domain, protocol, request_kind, reply_kind) = match host {
-        IpAddr::V4(_) => (
+fn is_link_local(address: Ipv6Addr) -> bool {
+    address.segments()[0] & 0xffc0 == 0xfe80
+}
+
+fn interface_index(interface: &str) -> u32 {
+    fs::read_to_string(Path::new("/sys/class/net").join(interface).join("ifindex"))
+        .ok()
+        .and_then(|index| index.trim().parse().ok())
+        .unwrap_or_default()
+}
+
+pub async fn echo_round_trip(
+    target: SocketAddr,
+    sequence: u16,
+) -> Result<ProbeOutcome, LatencyProbeError> {
+    let (domain, protocol, request_kind, reply_kind) = match target {
+        SocketAddr::V4(_) => (
             Domain::IPV4,
             Protocol::ICMPV4,
             ICMPV4_ECHO_REQUEST,
             ICMPV4_ECHO_REPLY,
         ),
-        IpAddr::V6(_) => (
+        SocketAddr::V6(_) => (
             Domain::IPV6,
             Protocol::ICMPV6,
             ICMPV6_ECHO_REQUEST,
@@ -258,7 +149,7 @@ async fn echo_round_trip(host: IpAddr, sequence: u16) -> Result<ProbeOutcome, La
         })
         .map_err(|denied| LatencyProbeError::IcmpSocketDenied(denied.to_string()))?;
     let exchange = async {
-        icmp_socket.connect(SocketAddr::new(host, 0)).await?;
+        icmp_socket.connect(target).await?;
         let sent_at = Instant::now();
         icmp_socket
             .send(&echo_request(request_kind, sequence))
@@ -293,6 +184,8 @@ fn is_echo_reply(reply_bytes: &[u8], reply_kind: u8, sequence: u16) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use super::*;
 
     fn window_of(outcomes: &[ProbeOutcome]) -> ProbeWindow {
@@ -330,10 +223,21 @@ mod tests {
         assert_eq!(window_of(&outcomes).outcomes.len(), WINDOW_PROBES);
     }
 
+    #[test]
+    fn link_local_gateways_are_scoped_to_their_interface() {
+        let link_local = IpAddr::V6("fe80::1".parse().unwrap());
+        let SocketAddr::V6(scoped) = probe_address(link_local, "lo") else {
+            panic!("expected an IPv6 probe address");
+        };
+        assert_eq!(scoped.scope_id(), 1);
+        let global = IpAddr::V6("2001:db8::1".parse().unwrap());
+        assert_eq!(probe_address(global, "lo"), SocketAddr::new(global, 0));
+    }
+
     #[tokio::test]
     #[ignore = "needs net.ipv4.ping_group_range to include the test user"]
     async fn loopback_answers_an_unprivileged_echo() {
-        let outcome = echo_round_trip(IpAddr::V4(Ipv4Addr::LOCALHOST), 7)
+        let outcome = echo_round_trip(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0), 7)
             .await
             .unwrap();
         assert!(matches!(outcome, ProbeOutcome::Answered(_)));
