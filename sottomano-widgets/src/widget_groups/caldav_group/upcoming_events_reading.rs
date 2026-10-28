@@ -3,8 +3,8 @@ use std::num::NonZeroUsize;
 use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_sources::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment, caldav_agenda::CaldavAgenda,
-    caldav_event_query::UpcomingEvent, caldav_server_provider::CaldavProvider,
+    agenda_moment_zones::AgendaMoment, caldav_event_query::UpcomingEvent,
+    caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
     nextcloud_web_links::NextcloudWebRoot,
 };
 
@@ -87,8 +87,8 @@ pub(super) fn linked_title(title: &str, url: String) -> ValueCell {
     }
 }
 
-pub(super) fn calendar_count_caption(agenda: &CaldavAgenda) -> String {
-    format!("{} calendars over CalDAV.", agenda.calendar_count)
+fn calendar_count_caption(calendar_count: usize) -> String {
+    format!("{calendar_count} calendars over CalDAV.")
 }
 
 pub(super) fn nextcloud_footer(
@@ -121,7 +121,7 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
         .unwrap_or_else(|| LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale))
 }
 
-impl BarWidget for CaldavAgenda {
+impl BarWidget for UpcomingEventList {
     fn name(&self) -> &'static str {
         "Upcoming events"
     }
@@ -171,7 +171,10 @@ impl BarWidget for CaldavAgenda {
                 rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
             )
             .truncated_to(LISTED_EVENTS)
-            .titled(("Upcoming events", calendar_count_caption(self))),
+            .titled((
+                "Upcoming events",
+                calendar_count_caption(self.calendar_count),
+            )),
             nextcloud_footer(
                 "open Calendar",
                 &self.provider,

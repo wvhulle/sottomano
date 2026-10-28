@@ -4,7 +4,7 @@ use chrono::{DateTime, Local, Locale, NaiveDate};
 use iced::alignment::Horizontal;
 use sottomano_config::severity::Severity;
 use sottomano_sources::caldav_tasks_events::{
-    caldav_agenda::CaldavAgenda,
+    caldav_open_tasks::OpenTaskList,
     caldav_server_provider::CaldavProvider,
     caldav_task_query::{OpenTask, PriorityBand, TaskDeadline, TaskProgress},
     nextcloud_web_links::NextcloudWebRoot,
@@ -13,7 +13,7 @@ use sottomano_sources::caldav_tasks_events::{
 use crate::{
     clock::Clock,
     widget_groups::caldav_group::upcoming_events_reading::{
-        calendar_count_caption, event_date_cell, event_time_cell, linked_title, nextcloud_footer,
+        event_date_cell, event_time_cell, linked_title, nextcloud_footer,
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
@@ -27,8 +27,6 @@ use crate::{
 };
 
 const LISTED_TASKS: NonZeroUsize = NonZeroUsize::new(16).unwrap();
-
-pub struct OpenTasks<'a>(pub &'a CaldavAgenda);
 
 struct TaskRow<'a> {
     task: &'a OpenTask,
@@ -96,7 +94,7 @@ fn progress_hint(task: &OpenTask) -> String {
     }
 }
 
-impl BarWidget for OpenTasks<'_> {
+impl BarWidget for OpenTaskList {
     fn name(&self) -> &'static str {
         "Open tasks"
     }
@@ -106,12 +104,12 @@ impl BarWidget for OpenTasks<'_> {
     }
 
     fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        let overdue_count = self.0.overdue_task_count(clock.local());
+        let overdue_count = self.overdue_task_count(clock.local());
         (overdue_count > 0).then(|| overdue_count.to_string())
     }
 
     fn state(&self, clock: Clock) -> WidgetState {
-        if self.0.overdue_task_count(clock.local()) > 0 {
+        if self.overdue_task_count(clock.local()) > 0 {
             WidgetState::Warning
         } else {
             WidgetState::Idle
@@ -119,19 +117,18 @@ impl BarWidget for OpenTasks<'_> {
     }
 
     fn visible_in_bar(&self) -> bool {
-        !self.0.tasks.is_empty()
+        !self.tasks.is_empty()
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let provider = &self.0.provider;
+        let provider = &self.provider;
         let with_deadline: Vec<&OpenTask> = self
-            .0
             .tasks
             .iter()
             .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
             .collect();
-        let without_deadline = self.0.tasks.len() - with_deadline.len();
+        let without_deadline = self.tasks.len() - with_deadline.len();
         let rows: Vec<_> = with_deadline
             .into_iter()
             .map(|task| TaskRow {
@@ -156,8 +153,8 @@ impl BarWidget for OpenTasks<'_> {
                 "Open tasks",
                 format!(
                     "Open tasks with a deadline from all lists, earliest first. Overdue in red, \
-                     high priority in yellow, low priority dimmed; {}",
-                    calendar_count_caption(self.0)
+                     high priority in yellow, low priority dimmed; {} task lists over CalDAV.",
+                    self.task_list_count
                 ),
             )),
             nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app).with_entries(
