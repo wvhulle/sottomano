@@ -1,5 +1,7 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::network_connectivity::network_manager_proxies::AddressBlock;
+use sottomano_sources::network_connectivity::{
+    network_manager_proxies::AddressBlock, sysfs_interface_faults::InterfaceFaultCounters,
+};
 use uom::si::f64::InformationRate;
 
 use crate::widgets::{
@@ -55,9 +57,38 @@ pub fn link_stats_section(
     rate_label: &str,
     rate: InformationRate,
     mtu: u32,
+    fault_counters: InterfaceFaultCounters,
 ) -> Section {
     let rate_entry = (rate > InformationRate::default())
         .then(|| KeyValue::new(rate_label, Quantity::link_rate(rate)));
     let mtu_entry = (mtu > 0).then(|| KeyValue::new("Max Packet Size (MTU)", Quantity::count(mtu)));
-    Section::dictionary(rate_entry.into_iter().chain(mtu_entry)).titled(key(title))
+    let fault_entries = [
+        (
+            "Receive Errors",
+            fault_counters.receive_errors,
+            Severity::Warning,
+        ),
+        (
+            "Transmit Errors",
+            fault_counters.transmit_errors,
+            Severity::Warning,
+        ),
+        (
+            "Received Packets Dropped",
+            fault_counters.receive_dropped,
+            Severity::Normal,
+        ),
+        (
+            "Sent Packets Dropped",
+            fault_counters.transmit_dropped,
+            Severity::Normal,
+        ),
+    ]
+    .into_iter()
+    .filter(|(_, fault_count, _)| *fault_count > 0)
+    .map(|(fault_label, fault_count, fault_level)| {
+        KeyValue::new(fault_label, Quantity::count(fault_count)).level(fault_level)
+    });
+    Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries))
+        .titled(key(title))
 }

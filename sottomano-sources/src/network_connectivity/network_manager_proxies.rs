@@ -98,6 +98,10 @@ trait Manager {
     #[zbus(property)]
     fn connectivity(&self) -> zbus::Result<u32>;
     #[zbus(property)]
+    fn metered(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn primary_connection(&self) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(property)]
     fn active_connections(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
     #[zbus(property)]
     fn wireless_enabled(&self) -> zbus::Result<bool>;
@@ -294,7 +298,12 @@ async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Re
 pub struct Uplink {
     pub activated_interfaces: Vec<String>,
     pub connectivity: Option<Connectivity>,
+    pub metered: bool,
+    pub gateway: Option<Ipv4Addr>,
 }
+
+const METERED_YES: u32 = 1;
+const METERED_GUESS_YES: u32 = 3;
 
 pub fn connected(system: Connection) -> impl Stream<Item = bool> + Send {
     connected_until_failure(connectivity_changes(system)).map(|connected| {
@@ -320,13 +329,20 @@ async fn connectivity_changes(
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
     let manager = manager(&connection).await?;
-    let (paths, connectivity) = try_join!(manager.get_devices(), manager.connectivity())?;
-    let interfaces = try_join_all(
-        paths
-            .into_iter()
-            .map(|path| device_interface(&connection, path)),
-    )
-    .await?;
+    let (paths, connectivity, metered, primary_connection) = try_join!(
+        manager.get_devices(),
+        manager.connectivity(),
+        manager.metered(),
+        manager.primary_connection()
+    )?;
+    let (interfaces, gateway) = try_join!(
+        try_join_all(
+            paths
+                .into_iter()
+                .map(|path| device_interface(&connection, path)),
+        ),
+        primary_ipv4_gateway(&connection, primary_connection)
+    )?;
     Ok(Uplink {
         activated_interfaces: interfaces
             .into_iter()
@@ -334,7 +350,30 @@ pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
             .map(|interface| interface.name)
             .collect(),
         connectivity: Connectivity::try_from(connectivity).ok(),
+        metered: matches!(metered, METERED_YES | METERED_GUESS_YES),
+        gateway,
     })
+}
+
+pub async fn manager_connectivity(connection: Connection) -> Result<Connectivity, ReadingError> {
+    let state_code = manager(&connection).await?.connectivity().await?;
+    Connectivity::try_from(state_code).map_err(|_| ReadingError::Absent)
+}
+
+async fn primary_ipv4_gateway(
+    connection: &Connection,
+    primary_connection: OwnedObjectPath,
+) -> zbus::Result<Option<Ipv4Addr>> {
+    if is_unset(&primary_connection) {
+        return Ok(None);
+    }
+    let active: ActiveConnectionProxy = uncached(connection, primary_connection).await?;
+    let config_path = active.ip4_config().await?;
+    if is_unset(&config_path) {
+        return Ok(None);
+    }
+    let config: Ip4ConfigProxy = uncached(connection, config_path).await?;
+    Ok(config.gateway().await?.parse().ok())
 }
 
 struct DeviceInterface {
@@ -739,6 +778,7 @@ pub const VPN_CONNECTION_PROPERTIES: &str = "org.freedesktop.NetworkManager.VPN.
 pub const SETTINGS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Settings";
 
 pub const UPLINK_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, DEVICE_PROPERTIES];
+pub const CONNECTIVITY_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES];
 
 pub async fn changes(
     connection: &Connection,

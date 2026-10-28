@@ -81,6 +81,7 @@ impl ReadingSections for WifiDetails {
                     "Radio Speed",
                     addressing.bitrate,
                     addressing.mtu,
+                    addressing.fault_counters,
                 ),
             ]
         });

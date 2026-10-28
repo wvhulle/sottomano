@@ -156,6 +156,10 @@ lead_time = "15m"
 minimum_millimeters_per_hour = 0.5
 heavy_millimeters_per_hour = 4.0
 
+[widget_groups.reachability]
+latency_target = "1.1.1.1"
+metered_cycle_start_day = 1
+
 [widget_groups.gamepad]
 passive_app_id_prefixes = ["steam", "gamescope"]
 

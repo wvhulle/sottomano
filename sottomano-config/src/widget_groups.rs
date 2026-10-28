@@ -2,6 +2,7 @@ pub mod caldav_account;
 pub mod focus_time;
 pub mod gamepad_bindings;
 pub mod rain_alerts;
+pub mod reachability;
 pub mod spend_budget;
 pub mod systemd_manager;
 pub mod temperature_sensors;
@@ -14,6 +15,7 @@ use crate::widget_groups::{
     focus_time::FocusTimeConfig,
     gamepad_bindings::GamepadBindingsConfig,
     rain_alerts::RainAlertsConfig,
+    reachability::ReachabilityConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,
     temperature_sensors::TemperatureSensorsConfig,
@@ -33,6 +35,7 @@ pub struct WidgetGroupsConfig {
     pub openrouter_credit: OpenRouterBudgetConfig,
     pub focus_time: FocusTimeConfig,
     pub rain_alerts: RainAlertsConfig,
+    pub reachability: ReachabilityConfig,
     pub gamepad: GamepadBindingsConfig,
     pub caldav: CaldavAccountConfig,
 }

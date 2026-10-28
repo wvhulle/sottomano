@@ -71,7 +71,9 @@ impl DesktopShell {
                     .map(|group| group.map(Message::BluetoothAdapters)),
             )
             .chain([
-                self.internet_group.group_content().map(Message::Internet),
+                self.reachability_group
+                    .group_content()
+                    .map(Message::Reachability),
                 self.vpn_group.group_content().map(Message::Vpn),
             ])
             .collect(),

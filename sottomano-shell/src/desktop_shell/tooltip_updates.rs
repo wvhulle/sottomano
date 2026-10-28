@@ -12,11 +12,11 @@ use sottomano_widgets::{
         compute_group::ComputeGroup,
         dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup,
-        internet_group::InternetGroup,
         login_session_group::LoginSessionGroup,
         memory_board_group::MemoryBoardGroup,
         monitor_group::MonitorGroup,
         power_group::PowerGroup,
+        reachability_group::ReachabilityGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
@@ -208,7 +208,9 @@ impl DesktopShell {
             HoverTarget::IdleTimeout(kind) => {
                 Some(self.idle_timeouts_group.tooltip_for(*kind, self.clock))
             }
-            HoverTarget::Internet(target) => self.internet_group.tooltip_for(target, self.clock),
+            HoverTarget::Reachability(target) => {
+                self.reachability_group.tooltip_for(target, self.clock)
+            }
             HoverTarget::Vpn(target) => self.vpn_group.tooltip_for(target, self.clock),
             HoverTarget::Weather(target) => {
                 self.weather_group
@@ -313,8 +315,8 @@ impl DesktopShell {
             HoverTarget::LoginSession(target) => on_buses(&|buses| {
                 LoginSessionGroup::refresh(*target, buses).map(Message::LoginSession)
             }),
-            HoverTarget::Internet(_) => {
-                on_buses(&|buses| InternetGroup::refresh(buses).map(Message::Internet))
+            HoverTarget::Reachability(_) => {
+                on_buses(&|buses| ReachabilityGroup::refresh(buses).map(Message::Reachability))
             }
             HoverTarget::Vpn(target) => {
                 on_buses(&|buses| VpnGroup::refresh(target, buses).map(Message::Vpn))

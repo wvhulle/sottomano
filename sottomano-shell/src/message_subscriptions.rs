@@ -146,9 +146,9 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
             .map(Message::SystemdManager),
         PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
         state
-            .internet_group
-            .subscription(buses)
-            .map(Message::Internet),
+            .reachability_group
+            .subscription(&state.config.widget_groups.reachability, buses)
+            .map(Message::Reachability),
         state.vpn_group.subscription(buses).map(Message::Vpn),
         state
             .net_interfaces_group

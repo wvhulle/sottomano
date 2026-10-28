@@ -13,6 +13,7 @@ use crate::{
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
         ReadingError, device_or_absent, device_readings, network_manager_proxies, nm_readings,
+        sysfs_interface_faults::InterfaceFaultCounters,
     },
     stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -43,6 +44,7 @@ pub struct Addressing {
     pub dns: Vec<String>,
     pub bitrate: InformationRate,
     pub mtu: u32,
+    pub fault_counters: InterfaceFaultCounters,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +109,7 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
             dns: ip.dns,
             bitrate,
             mtu,
+            fault_counters: InterfaceFaultCounters::of_interface(&device.interface),
         })
     } else {
         None
