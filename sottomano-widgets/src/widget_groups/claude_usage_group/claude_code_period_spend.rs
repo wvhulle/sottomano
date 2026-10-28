@@ -12,7 +12,8 @@ use crate::{
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -46,20 +47,23 @@ impl BarWidget for ClaudeCcusagePeriods {
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let recent = &self.recent;
         let now = clock.local();
-        let period_section = |title: String, period: &Period, threshold: Option<KeyValue>| {
+        let period_section = |title: String, period: &Period, threshold: Option<LabeledValue>| {
             let projected = period
                 .projected_cost(now, &self.budget)
-                .map(|cost| KeyValue::new("Projected Cost", Quantity::spend(cost)));
+                .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", Quantity::spend(period.usage.cost))),
+                    Some(LabeledValue::new(
+                        "Cost",
+                        Quantity::spend(period.usage.cost),
+                    )),
                     projected,
                     threshold,
-                    Some(KeyValue::new(
+                    Some(LabeledValue::new(
                         "Tokens",
                         Quantity::compact_count(period.usage.tokens),
                     )),
-                    Some(KeyValue::new("Models", period.usage.models.to_string())),
+                    Some(LabeledValue::new("Models", period.usage.models.to_string())),
                 ]
                 .into_iter()
                 .flatten(),
@@ -69,8 +73,8 @@ impl BarWidget for ClaudeCcusagePeriods {
         TooltipBody::sections([
             Section::spend_forecast_basis(
                 [
-                    KeyValue::new("Source", "ccusage, local Claude Code logs"),
-                    KeyValue::new("Cost Basis", "API list prices"),
+                    LabeledValue::new("Source", "ccusage, local Claude Code logs"),
+                    LabeledValue::new("Cost Basis", "API list prices"),
                 ],
                 &self.budget,
             ),
@@ -93,7 +97,7 @@ impl BarWidget for ClaudeCcusagePeriods {
                     .format(MONTH_HEADING_FORMAT)
                     .to_string(),
                 &recent.month,
-                Some(KeyValue::monthly_budget(
+                Some(LabeledValue::monthly_budget(
                     &self.budget,
                     &recent.month.usage.cost,
                     recent.month.projected_cost(now, &self.budget),

@@ -6,7 +6,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -32,19 +33,19 @@ impl BarWidget for Article {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([
-            Section::dictionary([KeyValue::new(
+            Section::dictionary([LabeledValue::new(
                 "Article",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: self.title.clone(),
                     url: self.url.clone(),
-                    glyph: Some(SimpleIcon::Wikipedia.into()),
+                    glyph: SimpleIcon::Wikipedia.into(),
                 },
             )])
             .titled("Wikipedia"),
             Section::dictionary(
                 self.summary
                     .as_deref()
-                    .map(|summary| KeyValue::new(" ", summary)),
+                    .map(|summary| LabeledValue::new(" ", summary)),
             )
             .titled("Summary"),
         ])

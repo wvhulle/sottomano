@@ -10,7 +10,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -51,9 +52,9 @@ impl ReadingSections for GpuMemory {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         match self {
             GpuMemory::Dedicated(vram) => vec![Section::dictionary([
-                KeyValue::new("VRAM", Quantity::share(vram.fill())),
-                KeyValue::new("Used", Quantity::size(vram.used)),
-                KeyValue::new("Total", Quantity::size(vram.total)),
+                LabeledValue::new("VRAM", Quantity::share(vram.fill())),
+                LabeledValue::new("Used", Quantity::size(vram.used)),
+                LabeledValue::new("Total", Quantity::size(vram.total)),
             ])],
             GpuMemory::SharedWithSystem(shared) => shared_memory_sections(shared),
         }
@@ -62,12 +63,12 @@ impl ReadingSections for GpuMemory {
 
 fn shared_memory_sections(shared: &SharedGpuMemory) -> Vec<Section> {
     let buffers = Section::dictionary([
-        KeyValue::new("Allocated", Quantity::size(shared.allocated)),
-        KeyValue::new("Resident", Quantity::size(shared.resident)),
+        LabeledValue::new("Allocated", Quantity::size(shared.allocated)),
+        LabeledValue::new("Resident", Quantity::size(shared.resident)),
     ])
     .titled("GPU buffers");
     let system = Section::dictionary(shared.system.as_ref().map(|system| {
-        KeyValue::new(
+        LabeledValue::new(
             "Used",
             format!(
                 "{} of {}",
@@ -84,7 +85,7 @@ impl ReadingSections for GpuProcesses {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(self.processes.iter().filter_map(
             |process| {
-                Some(KeyValue::new(
+                Some(LabeledValue::new(
                     process
                         .name
                         .clone()

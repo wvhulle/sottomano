@@ -5,8 +5,10 @@ use sottomano_sources::battery_power_profiles::power_profiles_daemon::{
 
 use crate::{
     clock::Clock,
-    widgets::tooltip_body::{
-        ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,
+    widgets::{
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        tooltip_body::{ReadingSections, Section},
+        value_cells::LabeledValue,
     },
 };
 
@@ -15,14 +17,11 @@ const HOLD_HEADINGS: [ColumnHeading; 2] = [
     ColumnHeading::titled("Reason").align_x(Horizontal::Left),
 ];
 
-impl TableRow<2> for &ProfileHold {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &ProfileHold {
+    fn into_table_record(self) -> TableRecord<2> {
         TableRecord::new(
             self.application_id.clone(),
-            [
-                Some(self.profile.title().into()),
-                Some(self.reason.clone().into()),
-            ],
+            [self.profile.title().into(), self.reason.clone().into()],
         )
     }
 }
@@ -36,7 +35,7 @@ impl ReadingSections for ProfileStatus {
             ))
         });
         let degraded = self.degraded.as_ref().map(|reason| {
-            Section::dictionary([KeyValue::new("Reason", reason.clone())]).titled((
+            Section::dictionary([LabeledValue::new("Reason", reason.clone())]).titled((
                 "Performance degraded",
                 "The daemon is throttling performance until this clears.",
             ))

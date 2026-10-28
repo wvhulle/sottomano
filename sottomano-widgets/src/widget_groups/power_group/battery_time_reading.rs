@@ -21,9 +21,11 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_text,
+        keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -148,8 +150,8 @@ impl Countdown {
     }
 }
 
-impl TableRow<3> for Countdown {
-    fn table_record(self) -> TableRecord<3> {
+impl IntoTableRecord<3> for Countdown {
+    fn into_table_record(self) -> TableRecord<3> {
         TableRecord::new(self.key(), self.forecast().cells())
     }
 }
@@ -190,9 +192,9 @@ impl IdleBattery {
 
     fn tooltip(self) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Status", self.explanation()),
-            KeyValue::new("Charge", Quantity::share(self.capacity)),
-            KeyValue::new("Charge limit", Quantity::share(self.charge_limit)),
+            LabeledValue::new("Status", self.explanation()),
+            LabeledValue::new("Charge", Quantity::share(self.capacity)),
+            LabeledValue::new("Charge limit", Quantity::share(self.charge_limit)),
         ])
     }
 }

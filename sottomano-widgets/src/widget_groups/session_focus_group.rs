@@ -37,7 +37,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         ongoing_toast::OngoingToastActionButton,
-        tooltip_body::{DeliveryTiming, Tooltip},
+        tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };

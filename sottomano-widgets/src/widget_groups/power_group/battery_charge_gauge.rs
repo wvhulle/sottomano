@@ -7,7 +7,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -38,10 +39,13 @@ impl BarWidget for Battery {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary(
             [
-                Some(KeyValue::new("Battery", Quantity::share(self.capacity))),
+                Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
                 self.status
-                    .map(|status| KeyValue::new("Status", status.as_str())),
-                Some(KeyValue::new("Remaining", Quantity::energy(self.energy))),
+                    .map(|status| LabeledValue::new("Status", status.as_str())),
+                Some(LabeledValue::new(
+                    "Remaining",
+                    Quantity::energy(self.energy),
+                )),
             ]
             .into_iter()
             .flatten(),

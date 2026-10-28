@@ -11,7 +11,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };

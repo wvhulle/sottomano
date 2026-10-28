@@ -10,7 +10,10 @@ use crate::{
         group_item::GroupItem,
         latest_snapshot::{CommandOutcome, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{DeliveryTiming, Section, Tooltip, TooltipBody},
+        tooltip_body::{
+            Section, TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
         widget_state::WidgetState,
     },
 };

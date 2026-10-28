@@ -10,7 +10,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -42,13 +43,13 @@ impl BarWidget for CompositorFace<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Protocol", self.identity.session_type.clone()),
-            KeyValue::new(
+            LabeledValue::new("Protocol", self.identity.session_type.clone()),
+            LabeledValue::new(
                 "Wiki",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: "Wayland".to_owned(),
                     url: "https://wiki.archlinux.org/title/Wayland".to_owned(),
-                    glyph: Some(SimpleIcon::ArchLinux.into()),
+                    glyph: SimpleIcon::ArchLinux.into(),
                 },
             ),
         ])
@@ -67,19 +68,20 @@ impl ReadingSections for GraphicalSession {
             .filter(|session| Some(session) != self.current_desktop.as_ref());
         vec![Section::dictionary(
             [
-                Some(KeyValue::new("Runs", self.compositor_version.clone())),
-                Some(KeyValue::new(
+                Some(LabeledValue::new("Runs", self.compositor_version.clone())),
+                Some(LabeledValue::new(
                     "Wayland apps connect to",
                     self.wayland_display.clone(),
                 )),
                 self.x11_display
                     .clone()
-                    .map(|x11_display| KeyValue::new("X11 apps connect to", x11_display)),
+                    .map(|x11_display| LabeledValue::new("X11 apps connect to", x11_display)),
                 self.current_desktop
                     .clone()
-                    .map(|desktop_name| KeyValue::new("Desktop name", desktop_name)),
-                distinct_session_desktop
-                    .map(|session_desktop| KeyValue::new("Session desktop name", session_desktop)),
+                    .map(|desktop_name| LabeledValue::new("Desktop name", desktop_name)),
+                distinct_session_desktop.map(|session_desktop| {
+                    LabeledValue::new("Session desktop name", session_desktop)
+                }),
             ]
             .into_iter()
             .flatten(),

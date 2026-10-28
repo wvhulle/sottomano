@@ -13,7 +13,8 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -46,28 +47,28 @@ impl BarWidget for CopilotMetered {
             Section::dictionary(
                 self.plan
                     .as_deref()
-                    .map(|plan| KeyValue::new("Plan", plan))
+                    .map(|plan| LabeledValue::new("Plan", plan))
                     .into_iter()
-                    .chain([KeyValue::new("Source", USER_ENDPOINT)]),
+                    .chain([LabeledValue::new("Source", USER_ENDPOINT)]),
             ),
             Section::dictionary(
                 [
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Used",
                         Quantity::measured(self.used, DisplayUnit::Unitless, 2),
                     ),
-                    KeyValue::new("Used Share", Quantity::share(self.used_share).decimals(2)),
-                    KeyValue::new(
+                    LabeledValue::new("Used Share", Quantity::share(self.used_share).decimals(2)),
+                    LabeledValue::new(
                         "Remaining",
                         Quantity::measured(self.remaining, DisplayUnit::Unitless, 2),
                     ),
-                    KeyValue::new("Limit", Quantity::count(self.limit)),
+                    LabeledValue::new("Limit", Quantity::count(self.limit)),
                 ]
                 .into_iter()
                 .chain(self.reset.map(|at| {
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Resets",
-                        Cell::Time {
+                        ValueCell::Time {
                             at,
                             format: LocalizedTimeFormat::Date,
                         },

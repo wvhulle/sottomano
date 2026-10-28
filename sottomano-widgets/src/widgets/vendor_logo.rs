@@ -6,7 +6,7 @@ use sottomano_sources::{
 use crate::widgets::{
     bar_widget::Glyph,
     simple_icons::SimpleIcon,
-    tooltip_body::{Cell, KeyValue},
+    value_cells::{LabeledValue, ValueCell},
 };
 
 pub trait VendorLogo {
@@ -165,15 +165,17 @@ impl VendorLogo for PnpManufacturerName<'_> {
     }
 }
 
-impl KeyValue {
+impl LabeledValue {
     pub fn keyed_by_logo(
         key: &'static str,
         logo: Option<SimpleIcon>,
-        value: impl Into<Cell>,
+        value: impl Into<ValueCell>,
     ) -> Self {
         match logo {
-            Some(vendor_logo) => KeyValue::new(Cell::Glyph(Glyph::from(vendor_logo)), value),
-            None => KeyValue::new(key, value),
+            Some(vendor_logo) => {
+                LabeledValue::new(ValueCell::Glyph(Glyph::from(vendor_logo)), value)
+            }
+            None => LabeledValue::new(key, value),
         }
     }
 }

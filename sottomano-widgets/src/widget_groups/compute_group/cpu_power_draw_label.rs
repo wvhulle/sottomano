@@ -11,7 +11,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -49,7 +50,7 @@ impl BarWidget for CpuPower {
         TooltipBody::sections([Section::dictionary(
             self.zones
                 .iter()
-                .map(|zone| KeyValue::new(zone.name.clone(), Quantity::power(zone.draw))),
+                .map(|zone| LabeledValue::new(zone.name.clone(), Quantity::power(zone.draw))),
         )
         .titled((
             "CPU power draw per RAPL zone".to_owned(),

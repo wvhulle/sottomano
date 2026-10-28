@@ -8,7 +8,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -40,8 +41,7 @@ impl BarWidget for UplinkConnectivity {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
-            KeyValue::new("Internet", self.connectivity.label()).level(severity(self.connectivity))
-        ])
+        TooltipBody::dictionary([LabeledValue::new("Internet", self.connectivity.label())
+            .level(severity(self.connectivity))])
     }
 }

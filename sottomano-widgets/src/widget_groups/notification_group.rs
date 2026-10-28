@@ -13,7 +13,11 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{DeliveryTiming, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },
@@ -203,7 +207,7 @@ impl BarWidget for NotificationStatus {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         if self.held > 0 {
-            TooltipBody::dictionary([KeyValue::new(
+            TooltipBody::dictionary([LabeledValue::new(
                 "Held until do not disturb ends",
                 Quantity::count(self.held),
             )])

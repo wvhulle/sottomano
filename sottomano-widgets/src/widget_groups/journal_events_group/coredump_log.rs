@@ -11,25 +11,29 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
 
-impl TableRow<4> for &CoredumpEntry {
-    fn table_record(self) -> TableRecord<4> {
+impl IntoTableRecord<4> for &CoredumpEntry {
+    fn into_table_record(self) -> TableRecord<4> {
         TableRecord::new(
-            Cell::Time {
+            ValueCell::Time {
                 at: self.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,
             },
             [
-                Some(self.command.clone().into()),
-                Some(self.signal.to_string().into()),
-                Some(self.pid.to_string().into()),
-                self.unit.as_ref().map(|unit| unit.name().into()),
+                self.command.clone().into(),
+                self.signal.to_string().into(),
+                self.pid.to_string().into(),
+                self.unit
+                    .as_ref()
+                    .map_or(ValueCell::Blank, |unit| unit.name().into()),
             ],
         )
         .level(self.severity)

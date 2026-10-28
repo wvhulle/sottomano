@@ -7,7 +7,8 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -24,13 +25,13 @@ impl BarWidget for ServiceManagerFace {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Service manager", "systemd --user"),
-            KeyValue::new(
+            LabeledValue::new("Service manager", "systemd --user"),
+            LabeledValue::new(
                 "Wiki",
-                Cell::Link {
+                ValueCell::BrandedLink {
                     label: "systemd/User".to_owned(),
                     url: "https://wiki.archlinux.org/title/Systemd/User".to_owned(),
-                    glyph: Some(SimpleIcon::ArchLinux.into()),
+                    glyph: SimpleIcon::ArchLinux.into(),
                 },
             ),
         ])
@@ -45,12 +46,12 @@ impl ReadingSections for UserServiceManager {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(
             [
-                Some(KeyValue::new("systemd version", self.version.clone())),
-                Some(KeyValue::new("State", self.state.clone())),
+                Some(LabeledValue::new("systemd version", self.version.clone())),
+                Some(LabeledValue::new("State", self.state.clone())),
                 self.started_at.map(|at| {
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Running since",
-                        Cell::Time {
+                        ValueCell::Time {
                             at,
                             format: LocalizedTimeFormat::DateAndTime,
                         },

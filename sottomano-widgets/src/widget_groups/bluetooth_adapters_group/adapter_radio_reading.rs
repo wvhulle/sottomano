@@ -13,7 +13,8 @@ use crate::{
         input_report_sections::KernelErrorListing,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -52,15 +53,15 @@ impl AdapterRadioReading<'_> {
     fn overview_section(&self) -> Section {
         let powered_counts = match &self.adapter.power {
             AdapterPower::On(powered) => vec![
-                KeyValue::new("Connected", Quantity::count(powered.connected.len())),
-                KeyValue::new("Paired", Quantity::count(powered.paired_count)),
+                LabeledValue::new("Connected", Quantity::count(powered.connected.len())),
+                LabeledValue::new("Paired", Quantity::count(powered.paired_count)),
             ],
             AdapterPower::Off | AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => {
                 Vec::new()
             }
         };
         Section::dictionary(
-            once(KeyValue::new(
+            once(LabeledValue::new(
                 "Power",
                 power_description(&self.adapter.power),
             ))
@@ -164,8 +165,8 @@ impl BarWidget for AdapterPowerSwitch<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary([
-            KeyValue::new("Adapter", self.adapter.controller_name.as_str()),
-            KeyValue::new("Power", power_description(&self.adapter.power)),
+            LabeledValue::new("Adapter", self.adapter.controller_name.as_str()),
+            LabeledValue::new("Power", power_description(&self.adapter.power)),
         ])])
     }
 }

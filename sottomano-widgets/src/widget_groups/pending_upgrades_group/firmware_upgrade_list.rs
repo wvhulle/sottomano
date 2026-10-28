@@ -16,10 +16,12 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
@@ -96,20 +98,26 @@ impl BarWidget for Vec<FirmwareUpgrade> {
     }
 }
 
-impl TableRow<6> for &FirmwareUpgrade {
-    fn table_record(self) -> TableRecord<6> {
+impl IntoTableRecord<6> for &FirmwareUpgrade {
+    fn into_table_record(self) -> TableRecord<6> {
         TableRecord::new(
             self.device.clone(),
             [
-                self.vendor.clone().map(Cell::from),
-                Some(self.current_version.clone().into()),
-                Some(self.offered_version.clone().into()),
-                self.offered_released.map(|at| Cell::Time {
-                    at,
-                    format: LocalizedTimeFormat::Date,
-                }),
-                self.urgency.map(|urgency| urgency.title().into()),
-                self.summary.clone().map(Cell::from),
+                self.vendor
+                    .clone()
+                    .map_or(ValueCell::Blank, ValueCell::from),
+                self.current_version.clone().into(),
+                self.offered_version.clone().into(),
+                self.offered_released
+                    .map_or(ValueCell::Blank, |at| ValueCell::Time {
+                        at,
+                        format: LocalizedTimeFormat::Date,
+                    }),
+                self.urgency
+                    .map_or(ValueCell::Blank, |urgency| urgency.title().into()),
+                self.summary
+                    .clone()
+                    .map_or(ValueCell::Blank, ValueCell::from),
             ],
         )
         .level(self.severity())

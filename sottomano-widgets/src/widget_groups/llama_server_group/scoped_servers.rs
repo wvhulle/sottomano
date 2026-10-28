@@ -22,8 +22,12 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{Cell, KeyValue, Section, SourcedSections, Tooltip, TooltipBody},
+        tooltip_body::{
+            Section, TooltipBody,
+            tooltip_source_delivery::{SourcedSections, Tooltip},
+        },
         unit_switch::{UnitSwitch, UnitSwitchMessage},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -178,14 +182,13 @@ impl ScopedLlamaServers {
                 let endpoint = &readings.discovered.endpoint;
                 let status_and_web_ui = Section::dictionary(
                     resident
-                        .map(|model| KeyValue::new("Status", model.status))
+                        .map(|model| LabeledValue::new("Status", model.status))
                         .into_iter()
-                        .chain([KeyValue::new(
+                        .chain([LabeledValue::new(
                             "Web UI",
-                            Cell::Link {
+                            ValueCell::Link {
                                 label: endpoint.clone(),
                                 url: endpoint.clone(),
-                                glyph: None,
                             },
                         )]),
                 );
@@ -194,7 +197,7 @@ impl ScopedLlamaServers {
                         .models
                         .iter()
                         .filter(|model| Some(*model) != resident)
-                        .map(|model| KeyValue::new(model.id.clone(), model.status)),
+                        .map(|model| LabeledValue::new(model.id.clone(), model.status)),
                 )
                 .titled("Available models");
                 Some(

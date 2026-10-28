@@ -14,7 +14,11 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -120,10 +124,10 @@ impl IdleTimer {
         clock: Clock,
     ) -> Tooltip {
         let when = match timeout {
-            None => KeyValue::new("State", "disabled"),
-            Some(timeout) => KeyValue::new(
+            None => LabeledValue::new("State", "disabled"),
+            Some(timeout) => LabeledValue::new(
                 format!("{} at", self.action.session_action().verb()),
-                Cell::Time {
+                ValueCell::Time {
                     at: clock.utc() + chrono::Duration::from_std(timeout).unwrap_or_default(),
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
@@ -131,12 +135,12 @@ impl IdleTimer {
         };
         let overridden = overrider
             .zip(timeout)
-            .map(|(overrider, timeout)| KeyValue::new(overrider, Cell::duration(timeout)));
+            .map(|(overrider, timeout)| LabeledValue::new(overrider, ValueCell::duration(timeout)));
         Tooltip::sourced(
             TooltipBody::dictionary(
                 [
                     when,
-                    KeyValue::new("Via", self.action.session_action().mechanism()),
+                    LabeledValue::new("Via", self.action.session_action().mechanism()),
                 ]
                 .into_iter()
                 .chain(overridden),

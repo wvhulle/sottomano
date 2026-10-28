@@ -3,8 +3,10 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, Interval, LAST_DAY,
 };
 
-use crate::widgets::tooltip_body::{
-    Cell, ColumnHeading, KeyValue, Section, TableRecord, TooltipBody,
+use crate::widgets::{
+    keyed_record_table::{ColumnHeading, TableRecord},
+    tooltip_body::{Section, TooltipBody},
+    value_cells::{LabeledValue, ValueCell},
 };
 
 pub struct WindowUsage<'a> {
@@ -18,18 +20,20 @@ impl WindowUsage<'_> {
             .accounting
             .ledger
             .project_shown_in(self.window)
-            .map(|root| KeyValue::new("Project", Cell::Path(root.to_path_buf())));
+            .map(|root| LabeledValue::new("Project", ValueCell::Path(root.to_path_buf())));
         let longest = self
             .accounting
             .longest_stay_on(self.window, last_day, now)
-            .map(|stay| KeyValue::new("Longest active stay", Cell::duration(stay.length())));
+            .map(|stay| {
+                LabeledValue::new("Longest active stay", ValueCell::duration(stay.length()))
+            });
         let entries = [
             project,
-            Some(KeyValue::new(
+            Some(LabeledValue::new(
                 "Active on this window (24h)",
-                Cell::duration(self.accounting.spent_on(self.window, last_day, now)),
+                ValueCell::duration(self.accounting.spent_on(self.window, last_day, now)),
             )),
-            Some(KeyValue::new(
+            Some(LabeledValue::new(
                 "Switched to",
                 format!(
                     "{} times",
@@ -50,7 +54,7 @@ impl WindowUsage<'_> {
             .map(|total| {
                 TableRecord::new(
                     total.unit.label().into_owned(),
-                    [Some(Cell::duration(total.spent))],
+                    [ValueCell::duration(total.spent)],
                 )
             })
             .collect();

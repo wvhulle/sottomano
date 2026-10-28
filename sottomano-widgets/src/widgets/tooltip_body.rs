@@ -1,483 +1,87 @@
-use std::{
-    convert::Infallible,
-    fmt::Display,
-    hash::{Hash, Hasher},
-    num::NonZeroUsize,
-    path::PathBuf,
-    ptr::fn_addr_eq,
-    time::{Duration, SystemTime},
-};
+pub mod tooltip_figure_payloads;
+pub mod tooltip_source_delivery;
 
-use chrono::{DateTime, Locale, TimeDelta, Utc};
-use iced::{Size, alignment::Horizontal};
-use iced_controller_diagram::{ControllerModel, DiagramAnchor};
-use sottomano_config::severity::Severity;
+use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
+
 use sottomano_sources::{
-    SnapshotDelivery, SnapshotSource, SourceCaption,
-    delivery_cadence_drivers::DeliveryCadence,
-    desktop_windows_apps::{process_tree_inspection::Process, window_title_labels::WindowLabel},
+    SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
-use uom::si::f64::Ratio;
 
+use self::tooltip_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview};
 use crate::{
     clock::Clock,
-    hover_tooltips::PressHints,
-    widget_groups::{
-        niri_window_group::niri_kdl_rules::NiriLayout, window_group::process_tree::Folding,
-    },
+    widget_groups::window_group::process_tree::Folding,
     widgets::{
-        bar_widget::Glyph, localized_durations::LengthOfTime, localized_quantities::Quantity,
-        localized_time::LocalizedTimeFormat,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, KeyedRecordTable, TableColumns},
+        value_cells::LabeledValue,
     },
 };
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Cell {
-    Text(String),
-    Path(PathBuf),
-    Glyph(Glyph),
-    Time {
-        at: DateTime<Utc>,
-        format: LocalizedTimeFormat,
-    },
-    Duration(Duration),
-    SignedDuration(TimeDelta),
-    RelativeMoment(DateTime<Utc>),
-    Readout(SliderReadout),
-    Quantity(Quantity),
-    Link {
-        label: String,
-        url: String,
-        glyph: Option<Glyph>,
-    },
-    Hint(String),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct SliderReadout {
-    value_bits: u32,
-    format: fn(f32, Locale) -> String,
-}
-
-impl PartialEq for SliderReadout {
-    fn eq(&self, other: &Self) -> bool {
-        self.value_bits == other.value_bits && fn_addr_eq(self.format, other.format)
-    }
-}
-
-impl Eq for SliderReadout {}
-
-impl Hash for SliderReadout {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.value_bits.hash(state);
-    }
-}
-
-impl SliderReadout {
-    #[must_use]
-    pub fn new(value: f32, format: fn(f32, Locale) -> String) -> Self {
-        Self {
-            value_bits: value.to_bits(),
-            format,
-        }
-    }
-
-    #[must_use]
-    pub fn text(self, locale: Locale) -> String {
-        (self.format)(f32::from_bits(self.value_bits), locale)
-    }
-}
-
-impl Cell {
-    #[must_use]
-    pub fn duration(length: impl LengthOfTime) -> Self {
-        Cell::Duration(length.elapsed_length())
-    }
-}
-
-impl From<String> for Cell {
-    fn from(text: String) -> Self {
-        Cell::Text(text)
-    }
-}
-
-impl From<Quantity> for Cell {
-    fn from(quantity: Quantity) -> Self {
-        Cell::Quantity(quantity)
-    }
-}
-
-impl From<&str> for Cell {
-    fn from(text: &str) -> Self {
-        Cell::Text(text.to_owned())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeyValue {
-    key: Cell,
-    value: Cell,
-    level: Severity,
-}
-
-impl KeyValue {
-    pub fn new(key: impl Into<Cell>, value: impl Into<Cell>) -> Self {
-        Self {
-            key: key.into(),
-            value: value.into(),
-            level: Severity::Normal,
-        }
-    }
-
-    #[must_use]
-    pub fn level(self, level: Severity) -> Self {
-        Self { level, ..self }
-    }
-
-    #[must_use]
-    pub fn key(&self) -> &Cell {
-        &self.key
-    }
-
-    #[must_use]
-    pub fn value(&self) -> &Cell {
-        &self.value
-    }
-
-    #[must_use]
-    pub fn severity(&self) -> Severity {
-        self.level
-    }
-}
 
 pub trait ReadingSections {
     fn sections(&self, clock: Clock) -> Vec<Section>;
 }
 
-pub trait TableRow<const COLUMNS: usize> {
-    fn table_record(self) -> TableRecord<COLUMNS>;
-}
-
-impl<const COLUMNS: usize> TableRow<COLUMNS> for TableRecord<COLUMNS> {
-    fn table_record(self) -> TableRecord<COLUMNS> {
-        self
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TableRecord<const COLUMNS: usize> {
-    key: Cell,
-    cells: [Option<Cell>; COLUMNS],
-    level: Severity,
-}
-
-impl<const COLUMNS: usize> TableRecord<COLUMNS> {
-    pub fn new(key: impl Into<Cell>, cells: [Option<Cell>; COLUMNS]) -> Self {
-        Self {
-            key: key.into(),
-            cells,
-            level: Severity::Normal,
-        }
-    }
-
-    #[must_use]
-    pub fn level(self, level: Severity) -> Self {
-        Self { level, ..self }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecordCells {
-    key: Cell,
-    cells: Vec<Option<Cell>>,
-    level: Severity,
-}
-
-impl RecordCells {
-    #[must_use]
-    pub fn key(&self) -> &Cell {
-        &self.key
-    }
-
-    #[must_use]
-    pub fn cell(&self, position: usize) -> Option<&Cell> {
-        self.cells[position].as_ref()
-    }
-
-    #[must_use]
-    pub fn severity(&self) -> Severity {
-        self.level
-    }
-}
-
-impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
-    fn from(record: TableRecord<COLUMNS>) -> Self {
-        Self {
-            key: record.key,
-            cells: record.cells.into(),
-            level: record.level,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ColumnHeading {
-    Titled {
-        label: &'static str,
-        align_x: Horizontal,
-    },
-    Untitled {
-        align_x: Horizontal,
-    },
-}
-
-impl ColumnHeading {
-    #[must_use]
-    pub const fn titled(label: &'static str) -> Self {
-        ColumnHeading::Titled {
-            label,
-            align_x: Horizontal::Right,
-        }
-    }
-
-    #[must_use]
-    pub const fn untitled() -> Self {
-        ColumnHeading::Untitled {
-            align_x: Horizontal::Right,
-        }
-    }
-
-    #[must_use]
-    pub const fn align_x(self, align_x: Horizontal) -> Self {
-        match self {
-            ColumnHeading::Titled { label, .. } => ColumnHeading::Titled { label, align_x },
-            ColumnHeading::Untitled { .. } => ColumnHeading::Untitled { align_x },
-        }
-    }
-
-    #[must_use]
-    pub const fn alignment(&self) -> Horizontal {
-        match self {
-            ColumnHeading::Titled { align_x, .. } | ColumnHeading::Untitled { align_x } => *align_x,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableColumns {
-    Headed(Vec<ColumnHeading>),
-    Unheaded(Vec<Horizontal>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableLine {
-    Record(RecordCells),
-    GroupSeparator,
-}
-
-impl TableLine {
-    fn record(&self) -> Option<&RecordCells> {
-        match self {
-            TableLine::Record(record) => Some(record),
-            TableLine::GroupSeparator => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TableRows {
-    Complete(Vec<TableLine>),
-    Truncated {
-        shown_lines: Vec<TableLine>,
-        omitted_count: NonZeroUsize,
-    },
-    Continuing(Vec<TableLine>),
-    Totalled {
-        shown_lines: Vec<TableLine>,
-        total_record: RecordCells,
-    },
-}
-
-impl TableRows {
-    fn first_rows(lines: Vec<TableLine>, row_limit: NonZeroUsize) -> Self {
-        let record_count = lines.iter().filter_map(TableLine::record).count();
-        let Some(omitted_count) = NonZeroUsize::new(record_count.saturating_sub(row_limit.get()))
-        else {
-            return TableRows::Complete(lines);
-        };
-        let mut kept_records = 0;
-        let shown_lines = lines
-            .into_iter()
-            .take_while(|line| match line {
-                TableLine::Record(_) => {
-                    kept_records += 1;
-                    kept_records <= row_limit.get()
-                }
-                TableLine::GroupSeparator => kept_records < row_limit.get(),
-            })
-            .collect();
-        TableRows::Truncated {
-            shown_lines,
-            omitted_count,
-        }
-    }
-
-    #[must_use]
-    pub fn shown_lines(&self) -> &[TableLine] {
-        match self {
-            TableRows::Complete(shown_lines)
-            | TableRows::Continuing(shown_lines)
-            | TableRows::Truncated { shown_lines, .. }
-            | TableRows::Totalled { shown_lines, .. } => shown_lines,
-        }
-    }
-
-    pub fn shown_records(&self) -> impl Iterator<Item = &RecordCells> {
-        self.shown_lines().iter().filter_map(TableLine::record)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum SectionBody {
-    Dictionary(Vec<KeyValue>),
-    ColumnTable {
-        columns: TableColumns,
-        rows: TableRows,
-    },
-    Tree {
-        root: Process,
-        folding: Folding,
-    },
+    ColumnTable(KeyedRecordTable),
+    Tree { root: Process, folding: Folding },
     CoreGrid(Vec<ChipletCells>),
     ControllerDiagram(ControllerCallouts),
-    Note {
-        title: String,
-        body: Option<String>,
-    },
+    Note { title: String },
+    DetailedNote { title: String, body: String },
     SectionSeeding,
     Workspace(WorkspacePreview),
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct ControllerCallouts {
-    pub model: ControllerModel,
-    pub callouts: Vec<DiagramCallout>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct DiagramCallout {
-    pub anchor: DiagramAnchor,
-    pub label: String,
-    pub level: Severity,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChipletCells {
-    pub title: String,
-    pub facts: Vec<KeyValue>,
-    pub cores: Vec<PhysicalCoreCells>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PhysicalCoreCells {
-    pub threads: Vec<ThreadCell>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ThreadCell {
-    pub fill: Ratio,
-    pub level: Severity,
-}
-
 impl SectionBody {
-    fn table_lines<const COLUMNS: usize>(
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Vec<TableLine> {
-        rows.into_iter()
-            .map(|row| TableLine::Record(RecordCells::from(row.table_record())))
-            .collect()
-    }
-
-    fn grouped_table_lines<const COLUMNS: usize>(
-        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
-    ) -> Vec<TableLine> {
-        groups
-            .into_iter()
-            .map(Self::table_lines)
-            .filter(|group_lines| !group_lines.is_empty())
-            .fold(Vec::new(), |mut lines, group_lines| {
-                if !lines.is_empty() {
-                    lines.push(TableLine::GroupSeparator);
-                }
-                lines.extend(group_lines);
-                lines
-            })
-    }
-
-    fn column_table<const COLUMNS: usize>(
-        columns: TableColumns,
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Self {
-        SectionBody::ColumnTable {
-            columns,
-            rows: TableRows::Complete(Self::table_lines(rows)),
-        }
-    }
-
     #[must_use]
     pub fn is_empty(&self) -> bool {
         match self {
-            SectionBody::Dictionary(entries) => entries.is_empty(),
-            SectionBody::ColumnTable { rows, .. } => rows.shown_lines().is_empty(),
+            SectionBody::ColumnTable(table) => table.is_empty(),
             SectionBody::CoreGrid(chiplets) => chiplets.is_empty(),
             SectionBody::ControllerDiagram(diagram) => diagram.callouts.is_empty(),
             SectionBody::Workspace(preview) => {
                 preview.columns.is_empty() && preview.floating.is_empty()
             }
-            SectionBody::Tree { .. } | SectionBody::Note { .. } | SectionBody::SectionSeeding => {
-                false
-            }
+            SectionBody::Tree { .. }
+            | SectionBody::Note { .. }
+            | SectionBody::DetailedNote { .. }
+            | SectionBody::SectionSeeding => false,
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SectionsDeliveryState {
-    Delivered { delivery_timing: DeliveryTiming },
-    AwaitingDelivery,
-}
-
 #[derive(Debug, Clone, PartialEq)]
-pub struct Section {
-    heading: Option<Heading>,
-    body: SectionBody,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Heading {
-    title: String,
-    caption: Option<String>,
+pub enum Heading {
+    Plain { title: String },
+    Captioned { title: String, caption: String },
 }
 
 impl Heading {
     fn of_source<S: SnapshotSource>() -> Self {
-        Self {
-            title: S::NAME.to_owned(),
-            caption: match S::CAPTION {
-                SourceCaption::Captioned(caption) => Some(caption.to_owned()),
-                SourceCaption::Uncaptioned => None,
+        let title = S::NAME.to_owned();
+        match S::CAPTION {
+            SourceCaption::Captioned(caption) => Heading::Captioned {
+                title,
+                caption: caption.to_owned(),
             },
+            SourceCaption::Uncaptioned => Heading::Plain { title },
         }
     }
 
     #[must_use]
     pub fn title(&self) -> &str {
-        &self.title
+        match self {
+            Heading::Plain { title } | Heading::Captioned { title, .. } => title,
+        }
     }
 
     #[must_use]
     pub fn caption(&self) -> Option<&str> {
-        self.caption.as_deref()
+        match self {
+            Heading::Plain { .. } => None,
+            Heading::Captioned { caption, .. } => Some(caption),
+        }
     }
 }
 
@@ -489,26 +93,35 @@ impl From<&str> for Heading {
 
 impl From<String> for Heading {
     fn from(title: String) -> Self {
-        Self {
-            title,
-            caption: None,
-        }
+        Heading::Plain { title }
     }
 }
 
 impl<Title: Into<String>, Caption: Into<String>> From<(Title, Caption)> for Heading {
     fn from((title, caption): (Title, Caption)) -> Self {
-        Self {
+        Heading::Captioned {
             title: title.into(),
-            caption: Some(caption.into()),
+            caption: caption.into(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SectionHeading {
+    Untitled,
+    Titled(Heading),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Section {
+    heading: SectionHeading,
+    body: SectionBody,
 }
 
 impl Section {
     fn untitled(body: SectionBody) -> Self {
         Self {
-            heading: None,
+            heading: SectionHeading::Untitled,
             body,
         }
     }
@@ -518,31 +131,53 @@ impl Section {
         Self::untitled(SectionBody::SectionSeeding)
     }
 
-    pub fn note(title: impl Into<String>, body: Option<String>) -> Self {
+    pub fn note(title: impl Into<String>) -> Self {
         Self::untitled(SectionBody::Note {
             title: title.into(),
-            body,
         })
     }
 
-    #[must_use]
-    pub fn workspace(preview: WorkspacePreview) -> Self {
-        Self::untitled(SectionBody::Workspace(preview))
+    pub fn detailed_note(title: impl Into<String>, body: impl Into<String>) -> Self {
+        Self::untitled(SectionBody::DetailedNote {
+            title: title.into(),
+            body: body.into(),
+        })
     }
 
-    pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
-        Self::untitled(SectionBody::Dictionary(entries.into_iter().collect()))
+    pub fn dictionary(entries: impl IntoIterator<Item = LabeledValue>) -> Self {
+        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::labeled_values(
+            entries,
+        )))
+    }
+
+    pub fn column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        records: impl IntoIterator<Item: IntoTableRecord<COLUMNS>>,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::new(
+            TableColumns::Headed(headings.into()),
+            records,
+        )))
+    }
+
+    pub fn grouped_column_table<const COLUMNS: usize>(
+        headings: [ColumnHeading; COLUMNS],
+        groups: impl IntoIterator<Item: IntoIterator<Item: IntoTableRecord<COLUMNS>>>,
+    ) -> Self {
+        Self::untitled(SectionBody::ColumnTable(KeyedRecordTable::grouped(
+            TableColumns::Headed(headings.into()),
+            groups,
+        )))
     }
 
     pub fn error(message: impl Display) -> Self {
-        Self::dictionary([KeyValue::new("Error", message.to_string())])
+        Self::dictionary([LabeledValue::new("Error", message.to_string())])
     }
 
-    #[must_use]
-    pub fn with_entries(self, extra: impl IntoIterator<Item = KeyValue>) -> Self {
+    fn with_changed_table(self, change: impl FnOnce(KeyedRecordTable) -> KeyedRecordTable) -> Self {
         match self.body {
-            SectionBody::Dictionary(entries) => Self {
-                body: SectionBody::Dictionary(entries.into_iter().chain(extra).collect()),
+            SectionBody::ColumnTable(table) => Self {
+                body: SectionBody::ColumnTable(change(table)),
                 ..self
             },
             other => Self {
@@ -552,147 +187,65 @@ impl Section {
         }
     }
 
-    pub fn column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Self {
-        Self::untitled(SectionBody::column_table(
-            TableColumns::Headed(headings.into()),
-            rows,
-        ))
+    #[must_use]
+    pub fn with_entries(self, extra: impl IntoIterator<Item = LabeledValue>) -> Self {
+        self.with_changed_table(|table| table.with_appended_records(extra))
     }
 
-    pub fn truncated_column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-        row_limit: NonZeroUsize,
-    ) -> Self {
-        Self::untitled(SectionBody::ColumnTable {
-            columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::first_rows(SectionBody::table_lines(rows), row_limit),
-        })
+    #[must_use]
+    pub fn truncated_to(self, row_limit: NonZeroUsize) -> Self {
+        self.with_changed_table(|table| table.truncated_to(row_limit))
     }
 
-    pub fn continuing_column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Self {
-        Self::untitled(SectionBody::ColumnTable {
-            columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::Continuing(SectionBody::table_lines(rows)),
-        })
+    #[must_use]
+    pub fn marked_as_continuing(self) -> Self {
+        self.with_changed_table(KeyedRecordTable::marked_as_continuing)
     }
 
-    pub fn grouped_continuing_column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
+    #[must_use]
+    pub fn with_total_record<const COLUMNS: usize>(
+        self,
+        total: impl IntoTableRecord<COLUMNS>,
     ) -> Self {
-        Self::untitled(SectionBody::ColumnTable {
-            columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::Continuing(SectionBody::grouped_table_lines(groups)),
-        })
-    }
-
-    pub fn grouped_truncated_column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        groups: impl IntoIterator<Item: IntoIterator<Item: TableRow<COLUMNS>>>,
-        row_limit: NonZeroUsize,
-    ) -> Self {
-        Self::untitled(SectionBody::ColumnTable {
-            columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::first_rows(SectionBody::grouped_table_lines(groups), row_limit),
-        })
-    }
-
-    pub fn totalled_column_table<const COLUMNS: usize>(
-        headings: [ColumnHeading; COLUMNS],
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-        total: impl TableRow<COLUMNS>,
-    ) -> Self {
-        Self::untitled(SectionBody::ColumnTable {
-            columns: TableColumns::Headed(headings.into()),
-            rows: TableRows::Totalled {
-                shown_lines: SectionBody::table_lines(rows),
-                total_record: RecordCells::from(total.table_record()),
-            },
-        })
-    }
-
-    pub fn unheaded_table<const COLUMNS: usize>(
-        alignments: [Horizontal; COLUMNS],
-        rows: impl IntoIterator<Item: TableRow<COLUMNS>>,
-    ) -> Self {
-        Self::untitled(SectionBody::column_table(
-            TableColumns::Unheaded(alignments.into()),
-            rows,
-        ))
-    }
-
-    pub fn core_grid(chiplets: impl IntoIterator<Item = ChipletCells>) -> Self {
-        Self::untitled(SectionBody::CoreGrid(chiplets.into_iter().collect()))
-    }
-
-    pub fn controller_diagram(
-        model: ControllerModel,
-        callouts: impl IntoIterator<Item = DiagramCallout>,
-    ) -> Self {
-        Self::untitled(SectionBody::ControllerDiagram(ControllerCallouts {
-            model,
-            callouts: callouts.into_iter().collect(),
-        }))
+        self.with_changed_table(|table| table.with_total_record(total))
     }
 
     #[must_use]
     pub fn tree(root: Option<&Process>, folding: &Folding) -> Self {
-        Self::untitled(root.map_or(SectionBody::Dictionary(Vec::new()), |root| {
-            SectionBody::Tree {
+        match root {
+            Some(root) => Self::untitled(SectionBody::Tree {
                 root: root.clone(),
                 folding: folding.clone(),
-            }
-        }))
+            }),
+            None => Self::dictionary([]),
+        }
     }
 
     #[must_use]
     pub fn titled(self, heading: impl Into<Heading>) -> Self {
         Self {
-            heading: Some(heading.into()),
+            heading: SectionHeading::Titled(heading.into()),
             ..self
         }
     }
 
     #[must_use]
-    pub fn title(&self) -> Option<&str> {
-        self.heading.as_ref().map(|heading| heading.title.as_str())
+    pub fn heading(&self) -> &SectionHeading {
+        &self.heading
     }
 
     #[must_use]
-    pub fn caption(&self) -> Option<&str> {
-        self.heading.as_ref()?.caption.as_deref()
+    pub fn title(&self) -> Option<&str> {
+        match &self.heading {
+            SectionHeading::Untitled => None,
+            SectionHeading::Titled(heading) => Some(heading.title()),
+        }
     }
 
     #[must_use]
     pub fn body(&self) -> &SectionBody {
         &self.body
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PreviewTile {
-    pub window: u64,
-    pub label: Option<WindowLabel>,
-    pub favicon_key: Option<String>,
-    pub icon: Option<PathBuf>,
-    pub tile_size: Size,
-    pub is_focused: bool,
-    pub is_urgent: bool,
-    pub is_floating: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct WorkspacePreview {
-    pub columns: Vec<Vec<PreviewTile>>,
-    pub floating: Vec<PreviewTile>,
-    pub niri_layout: NiriLayout,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -707,7 +260,7 @@ impl TooltipBody {
         }
     }
 
-    pub fn dictionary(entries: impl IntoIterator<Item = KeyValue>) -> Self {
+    pub fn dictionary(entries: impl IntoIterator<Item = LabeledValue>) -> Self {
         Self::sections([Section::dictionary(entries)])
     }
 
@@ -729,388 +282,8 @@ impl From<Section> for TooltipBody {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum GroupHeading {
-    Unheaded,
-    Source(Heading),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SourcedSections {
-    heading: GroupHeading,
-    delivery_state: SectionsDeliveryState,
-    sections: Vec<Section>,
-}
-
-impl SourcedSections {
-    #[must_use]
-    pub fn delivered(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
-        Self {
-            heading: GroupHeading::Unheaded,
-            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_delivered<S: SnapshotSource>(
-        body: TooltipBody,
-        delivery_timing: DeliveryTiming,
-    ) -> Self {
-        Self {
-            heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_awaiting_delivery<S: SnapshotSource>(body: TooltipBody) -> Self {
-        Self {
-            heading: GroupHeading::Source(Heading::of_source::<S>()),
-            delivery_state: SectionsDeliveryState::AwaitingDelivery,
-            sections: body.sections,
-        }
-    }
-
-    #[must_use]
-    pub fn source_heading(&self) -> Option<&Heading> {
-        match &self.heading {
-            GroupHeading::Source(heading) => Some(heading),
-            GroupHeading::Unheaded => None,
-        }
-    }
-
-    #[must_use]
-    pub fn delivery_state(&self) -> SectionsDeliveryState {
-        self.delivery_state
-    }
-
-    pub fn filled_sections(&self) -> impl Iterator<Item = &Section> {
-        self.sections
-            .iter()
-            .filter(|section| !section.body.is_empty())
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.filled_sections().next().is_none()
-    }
-}
-
 impl From<Infallible> for Section {
     fn from(never: Infallible) -> Self {
         match never {}
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DeliveryTiming {
-    PeriodicPolling {
-        poll_period: Duration,
-        delivered_at: SystemTime,
-    },
-    LivePushWithRecheck {
-        recheck_period: Duration,
-        delivered_at: SystemTime,
-    },
-    LivePush,
-    SingleRead,
-}
-
-impl DeliveryTiming {
-    #[must_use]
-    pub fn from_snapshot_delivery<S: SnapshotSource>(
-        delivery: &SnapshotDelivery<S>,
-        clock: Clock,
-    ) -> Option<Self> {
-        match delivery {
-            SnapshotDelivery::SnapshotDelivered {
-                stamped_cadence, ..
-            } => Some(Self::from_delivery_cadence(
-                stamped_cadence.delivery_cadence(),
-                clock,
-            )),
-            SnapshotDelivery::SourceUnavailable | SnapshotDelivery::SnapshotUnchanged => None,
-        }
-    }
-
-    #[must_use]
-    pub fn from_delivery_cadence(delivery_cadence: DeliveryCadence, clock: Clock) -> Self {
-        match delivery_cadence {
-            DeliveryCadence::PeriodicPolling(polling) => DeliveryTiming::PeriodicPolling {
-                poll_period: polling.poll_period(),
-                delivered_at: clock.wall,
-            },
-            DeliveryCadence::LivePushWithRecheck(recheck) => DeliveryTiming::LivePushWithRecheck {
-                recheck_period: recheck.poll_period(),
-                delivered_at: clock.wall,
-            },
-            DeliveryCadence::LivePush => DeliveryTiming::LivePush,
-            DeliveryCadence::SingleRead => DeliveryTiming::SingleRead,
-        }
-    }
-
-    #[must_use]
-    pub fn redelivered(self, clock: Clock) -> Self {
-        match self {
-            DeliveryTiming::PeriodicPolling { poll_period, .. } => {
-                DeliveryTiming::PeriodicPolling {
-                    poll_period,
-                    delivered_at: clock.wall,
-                }
-            }
-            DeliveryTiming::LivePushWithRecheck { recheck_period, .. } => {
-                DeliveryTiming::LivePushWithRecheck {
-                    recheck_period,
-                    delivered_at: clock.wall,
-                }
-            }
-            DeliveryTiming::LivePush | DeliveryTiming::SingleRead => self,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Tooltip {
-    pub groups: Vec<SourcedSections>,
-    pub press_hints: PressHints,
-}
-
-impl Tooltip {
-    #[must_use]
-    pub fn empty() -> Self {
-        Self::grouped([])
-    }
-
-    pub fn grouped(groups: impl IntoIterator<Item = SourcedSections>) -> Self {
-        Self {
-            groups: groups.into_iter().collect(),
-            press_hints: PressHints::default(),
-        }
-    }
-
-    #[must_use]
-    pub fn sourced(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
-        Self::grouped([SourcedSections::delivered(body, delivery_timing)])
-    }
-
-    #[must_use]
-    pub fn with_groups(mut self, extra: impl IntoIterator<Item = SourcedSections>) -> Self {
-        self.groups.extend(extra);
-        self
-    }
-
-    pub fn filled_groups(&self) -> impl Iterator<Item = &SourcedSections> {
-        self.groups.iter().filter(|group| !group.is_empty())
-    }
-
-    #[must_use]
-    pub fn with_press_hints(mut self, press_hints: PressHints) -> Self {
-        self.press_hints = press_hints;
-        self
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.filled_groups().next().is_none()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use sottomano_sources::cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses;
-
-    use super::*;
-
-    struct Planet {
-        name: &'static str,
-        moons: u32,
-    }
-
-    impl TableRow<2> for &Planet {
-        fn table_record(self) -> TableRecord<2> {
-            let level = if self.moons == 0 {
-                Severity::Warning
-            } else {
-                Severity::Normal
-            };
-            TableRecord::new(self.name, [Some(self.moons.to_string().into()), None]).level(level)
-        }
-    }
-
-    #[test]
-    fn table_pairs_headings_with_each_records_cells() {
-        let planets = [
-            Planet {
-                name: "Mars",
-                moons: 2,
-            },
-            Planet {
-                name: "Venus",
-                moons: 0,
-            },
-        ];
-        assert_eq!(
-            Section::column_table(
-                [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-                &planets
-            )
-            .body(),
-            &SectionBody::ColumnTable {
-                columns: TableColumns::Headed(vec![
-                    ColumnHeading::titled("Moons"),
-                    ColumnHeading::untitled()
-                ]),
-                rows: TableRows::Complete(vec![
-                    TableLine::Record(TableRecord::new("Mars", [Some("2".into()), None]).into()),
-                    TableLine::Record(
-                        TableRecord::new("Venus", [Some("0".into()), None])
-                            .level(Severity::Warning)
-                            .into()
-                    ),
-                ]),
-            }
-        );
-    }
-
-    fn planets(names: &[&'static str]) -> Vec<Planet> {
-        names.iter().map(|name| Planet { name, moons: 1 }).collect()
-    }
-
-    #[test]
-    fn a_truncated_table_keeps_its_first_rows_and_counts_the_rest() {
-        let solar_system = planets(&["Mercury", "Venus", "Earth", "Mars"]);
-        let section = Section::truncated_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            &solar_system,
-            NonZeroUsize::new(2).unwrap(),
-        );
-        let SectionBody::ColumnTable {
-            rows:
-                TableRows::Truncated {
-                    shown_lines,
-                    omitted_count,
-                },
-            ..
-        } = section.body()
-        else {
-            panic!("expected a truncated table");
-        };
-        assert_eq!(shown_lines.len(), 2);
-        assert_eq!(omitted_count.get(), 2);
-    }
-
-    #[test]
-    fn a_seeding_section_keeps_its_group_visible() {
-        let tooltip = Tooltip::grouped([SourcedSections::source_awaiting_delivery::<
-            CpuBusyProcesses,
-        >(TooltipBody::sections([
-            Section::section_seeding(),
-        ]))]);
-        assert_eq!(tooltip.filled_groups().count(), 1);
-    }
-
-    #[test]
-    fn a_source_group_carries_its_source_title_and_caption() {
-        let headed = SourcedSections::source_delivered::<CpuBusyProcesses>(
-            TooltipBody::sections([]),
-            DeliveryTiming::LivePush,
-        );
-        let heading = headed.source_heading().unwrap();
-        assert_eq!(heading.title(), CpuBusyProcesses::NAME);
-        assert!(heading.caption().is_some());
-        let unheaded =
-            SourcedSections::delivered(TooltipBody::sections([]), DeliveryTiming::LivePush);
-        assert!(unheaded.source_heading().is_none());
-    }
-
-    #[test]
-    fn a_continuing_table_keeps_every_row() {
-        let solar_system = planets(&["Mercury", "Venus", "Earth"]);
-        let section = Section::continuing_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            &solar_system,
-        );
-        assert!(matches!(
-            section.body(),
-            SectionBody::ColumnTable {
-                rows: TableRows::Continuing(lines),
-                ..
-            } if lines.len() == 3
-        ));
-    }
-
-    fn line_shapes(section: &Section) -> Vec<&'static str> {
-        let SectionBody::ColumnTable { rows, .. } = section.body() else {
-            panic!("expected a table");
-        };
-        rows.shown_lines()
-            .iter()
-            .map(|line| match line {
-                TableLine::Record(_) => "record",
-                TableLine::GroupSeparator => "separator",
-            })
-            .collect()
-    }
-
-    #[test]
-    fn separators_fall_only_between_non_empty_groups() {
-        let inner_planets = planets(&["Mercury", "Venus"]);
-        let no_planets = planets(&[]);
-        let outer_planets = planets(&["Jupiter", "Saturn"]);
-        let section = Section::grouped_continuing_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            [
-                &no_planets,
-                &inner_planets,
-                &no_planets,
-                &outer_planets,
-                &no_planets,
-            ],
-        );
-        assert_eq!(
-            line_shapes(&section),
-            ["record", "record", "separator", "record", "record"]
-        );
-    }
-
-    #[test]
-    fn truncation_counts_records_and_never_ends_on_a_separator() {
-        let inner_planets = planets(&["Mercury", "Venus"]);
-        let outer_planets = planets(&["Jupiter", "Saturn", "Uranus"]);
-        let groups = [&inner_planets, &outer_planets];
-        let cut_inside_a_group = Section::grouped_truncated_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            groups,
-            NonZeroUsize::new(3).unwrap(),
-        );
-        assert_eq!(
-            line_shapes(&cut_inside_a_group),
-            ["record", "record", "separator", "record"]
-        );
-        let cut_at_a_group_end = Section::grouped_truncated_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            groups,
-            NonZeroUsize::new(2).unwrap(),
-        );
-        assert_eq!(line_shapes(&cut_at_a_group_end), ["record", "record"]);
-    }
-
-    #[test]
-    fn a_table_within_its_limit_is_complete() {
-        let inner_planets = planets(&["Mercury", "Venus"]);
-        let section = Section::truncated_column_table(
-            [ColumnHeading::titled("Moons"), ColumnHeading::untitled()],
-            &inner_planets,
-            NonZeroUsize::new(2).unwrap(),
-        );
-        assert!(matches!(
-            section.body(),
-            SectionBody::ColumnTable {
-                rows: TableRows::Complete(lines),
-                ..
-            } if lines.len() == 2
-        ));
     }
 }

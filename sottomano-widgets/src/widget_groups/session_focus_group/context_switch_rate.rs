@@ -10,7 +10,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -45,21 +46,24 @@ impl ContextSwitchRate<'_> {
         let readings = Section::dictionary(
             [
                 Some(
-                    KeyValue::new(
+                    LabeledValue::new(
                         "Switches in the last hour",
                         Quantity::count(self.per_hour(now)),
                     )
                     .level(self.severity(now)),
                 ),
-                Some(KeyValue::new(
+                Some(LabeledValue::new(
                     "Switches in the last 24 hours",
                     Quantity::count(switches_last_day),
                 )),
-                average_span
-                    .map(|span| KeyValue::new("Average time per window", Cell::duration(span))),
-                Some(KeyValue::new(
+                average_span.map(|span| {
+                    LabeledValue::new("Average time per window", ValueCell::duration(span))
+                }),
+                Some(LabeledValue::new(
                     "Active time in the last hour",
-                    Cell::duration(self.accounting.screen_spent(LAST_HOUR.ending_at(now), now)),
+                    ValueCell::duration(
+                        self.accounting.screen_spent(LAST_HOUR.ending_at(now), now),
+                    ),
                 )),
             ]
             .into_iter()
@@ -72,7 +76,7 @@ impl ContextSwitchRate<'_> {
                 .to_owned(),
         ));
         let thresholds = Section::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 "Warning above per hour",
                 Quantity::measured(
                     f64::from(self.accounting.config.switches_per_hour_warning),
@@ -80,7 +84,7 @@ impl ContextSwitchRate<'_> {
                     0,
                 ),
             ),
-            KeyValue::new(
+            LabeledValue::new(
                 "Critical above per hour",
                 Quantity::measured(
                     f64::from(self.accounting.config.switches_per_hour_critical),

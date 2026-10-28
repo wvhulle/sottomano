@@ -17,24 +17,26 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
 
-impl TableRow<2> for &SlowJob {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &SlowJob {
+    fn into_table_record(self) -> TableRecord<2> {
         TableRecord::new(
             self.unit.clone(),
             [
-                Some(self.job_type.clone().into()),
-                Some(Cell::Time {
+                self.job_type.clone().into(),
+                ValueCell::Time {
                     at: self.started_at.into(),
                     format: LocalizedTimeFormat::TimeOfDay,
-                }),
+                },
             ],
         )
         .level(Severity::Warning)

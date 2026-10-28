@@ -39,7 +39,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         weather_icons::WeatherIcon,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },

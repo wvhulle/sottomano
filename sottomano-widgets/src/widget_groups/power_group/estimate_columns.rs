@@ -2,8 +2,7 @@ use chrono::Locale;
 use sottomano_sources::battery_power_profiles::battery_time_forecast::Estimate;
 
 use crate::widgets::{
-    localized_durations::duration_text,
-    tooltip_body::{Cell, ColumnHeading},
+    keyed_record_table::ColumnHeading, localized_durations::duration_text, value_cells::ValueCell,
 };
 
 pub const ESTIMATE_HEADINGS: [ColumnHeading; 3] = [
@@ -57,14 +56,20 @@ impl Forecast {
         }
     }
 
-    pub fn cells(self) -> [Option<Cell>; 3] {
+    pub fn cells(self) -> [ValueCell; 3] {
         match self {
             Forecast::Estimated(estimate) => [
-                Some(Cell::duration(estimate.earliest)),
-                Some(Cell::duration(estimate.time)),
-                Some(estimate.latest.map_or_else(|| "∞".into(), Cell::duration)),
+                ValueCell::duration(estimate.earliest),
+                ValueCell::duration(estimate.time),
+                estimate
+                    .latest
+                    .map_or_else(|| "∞".into(), ValueCell::duration),
             ],
-            Forecast::Unavailable(reason) => [None, Some(reason.explanation().into()), None],
+            Forecast::Unavailable(reason) => [
+                ValueCell::Blank,
+                reason.explanation().into(),
+                ValueCell::Blank,
+            ],
         }
     }
 }

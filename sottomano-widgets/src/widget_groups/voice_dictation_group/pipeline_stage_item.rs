@@ -8,28 +8,29 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
 
-fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = KeyValue> {
+fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue> {
     let last_tick = activity.last_tick.as_ref();
     let decoded_tick = last_tick.filter(|report| report.decode.ran);
     [
-        Some(KeyValue::new("Stage", stage_text(activity.stage))),
+        Some(LabeledValue::new("Stage", stage_text(activity.stage))),
         decoded_tick
             .map(|report| report.language.chosen_language.clone())
-            .map(|chosen_language| KeyValue::new("Language", chosen_language)),
+            .map(|chosen_language| LabeledValue::new("Language", chosen_language)),
         decoded_tick
             .and_then(|report| seconds_cell(report.whisper_secs()))
-            .map(|decode_time| KeyValue::new("Decode time", decode_time)),
+            .map(|decode_time| LabeledValue::new("Decode time", decode_time)),
         decoded_tick
             .and_then(|report| seconds_cell(report.decode.audio_secs))
-            .map(|audio_length| KeyValue::new("Audio length", audio_length)),
+            .map(|audio_length| LabeledValue::new("Audio length", audio_length)),
         last_tick
             .and_then(|report| gate_text(report.gate.verdict))
-            .map(|gate_verdict| KeyValue::new("Gate", gate_verdict)),
+            .map(|gate_verdict| LabeledValue::new("Gate", gate_verdict)),
     ]
     .into_iter()
     .flatten()
@@ -98,10 +99,10 @@ const fn gate_text(verdict: GateVerdict) -> Option<&'static str> {
     }
 }
 
-fn seconds_cell(seconds: f64) -> Option<Cell> {
+fn seconds_cell(seconds: f64) -> Option<ValueCell> {
     Duration::try_from_secs_f64(seconds)
         .ok()
-        .map(Cell::duration)
+        .map(ValueCell::duration)
 }
 
 #[cfg(test)]
@@ -110,12 +111,12 @@ mod tests {
 
     use super::*;
 
-    fn row_keys(activity: &PipelineActivity) -> Vec<Cell> {
+    fn row_keys(activity: &PipelineActivity) -> Vec<ValueCell> {
         stage_rows(activity).map(|row| row.key().clone()).collect()
     }
 
-    fn cells(keys: &[&str]) -> Vec<Cell> {
-        keys.iter().copied().map(Cell::from).collect()
+    fn cells(keys: &[&str]) -> Vec<ValueCell> {
+        keys.iter().copied().map(ValueCell::from).collect()
     }
 
     #[test]

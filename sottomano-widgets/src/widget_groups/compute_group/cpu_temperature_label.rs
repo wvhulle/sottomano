@@ -24,7 +24,8 @@ use crate::{
         localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, ThreadCell, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::ThreadCell},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -114,28 +115,38 @@ impl BarWidget for Temperature {
         let thresholds = self.thresholds();
         let summary = Section::dictionary(
             [
-                Some(KeyValue::new("Chips", chips.join(", "))),
-                Some(KeyValue::new(
+                Some(LabeledValue::new("Chips", chips.join(", "))),
+                Some(LabeledValue::new(
                     "Samples",
                     Quantity::count(self.readings.len()),
                 )),
                 self.lowest()
-                    .map(|lowest| KeyValue::new("Min", Quantity::temperature(lowest))),
-                Some(KeyValue::new("Avg", Quantity::temperature(self.average()))),
-                Some(KeyValue::new("Max", Quantity::temperature(self.hottest()))),
+                    .map(|lowest| LabeledValue::new("Min", Quantity::temperature(lowest))),
+                Some(LabeledValue::new(
+                    "Avg",
+                    Quantity::temperature(self.average()),
+                )),
+                Some(LabeledValue::new(
+                    "Max",
+                    Quantity::temperature(self.hottest()),
+                )),
             ]
             .into_iter()
             .flatten(),
         );
         let threshold_section = Section::dictionary(
             [
-                self.throttle_limit
-                    .map(|throttle| KeyValue::new("Throttles at", Quantity::temperature(throttle))),
-                Some(KeyValue::new(
+                self.throttle_limit.map(|throttle| {
+                    LabeledValue::new("Throttles at", Quantity::temperature(throttle))
+                }),
+                Some(LabeledValue::new(
                     "Warns above",
                     Quantity::temperature(thresholds.warning),
                 )),
-                Some(KeyValue::new("Critical above", thresholds.critical_text())),
+                Some(LabeledValue::new(
+                    "Critical above",
+                    thresholds.critical_text(),
+                )),
             ]
             .into_iter()
             .flatten(),
@@ -159,7 +170,7 @@ impl ChipletLiveState<'_> {
                         .iter()
                         .map(|reading| reading.temperature)
                         .reduce(ThermodynamicTemperature::max)
-                        .map(|hottest| KeyValue::new("Hottest", Quantity::temperature(hottest)))
+                        .map(|hottest| LabeledValue::new("Hottest", Quantity::temperature(hottest)))
                         .into_iter()
                         .collect()
                 },

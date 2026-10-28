@@ -49,7 +49,7 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::tooltip_body::{KeyValue, Section};
+use crate::widgets::{tooltip_body::Section, value_cells::LabeledValue};
 
 impl From<GgufHeaderError> for Section {
     fn from(error: GgufHeaderError) -> Self {
@@ -86,9 +86,9 @@ impl From<http_json_client::Error> for Section {
         match error {
             http_json_client::Error::Status { status, message } => Section::dictionary(
                 message
-                    .map(|message| KeyValue::new("Error", message))
+                    .map(|message| LabeledValue::new("Error", message))
                     .into_iter()
-                    .chain([KeyValue::new("Status", status.to_string())]),
+                    .chain([LabeledValue::new("Status", status.to_string())]),
             ),
             other => Section::error(other),
         }

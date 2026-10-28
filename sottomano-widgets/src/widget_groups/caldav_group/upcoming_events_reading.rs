@@ -12,13 +12,13 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
-        },
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -37,8 +37,8 @@ impl EventRow<'_> {
     }
 }
 
-impl TableRow<4> for &EventRow<'_> {
-    fn table_record(self) -> TableRecord<4> {
+impl IntoTableRecord<4> for &EventRow<'_> {
+    fn into_table_record(self) -> TableRecord<4> {
         let details_link = self
             .provider
             .nextcloud_web_root()
@@ -50,34 +50,40 @@ impl TableRow<4> for &EventRow<'_> {
         TableRecord::new(
             title,
             [
-                Some(event_date_cell(self.event.start)),
+                event_date_cell(self.event.start),
                 event_time_cell(self.event.start),
-                Some(Cell::Hint(self.event.calendar.clone())),
-                (!self.event.location.is_empty()).then(|| Cell::from(self.event.location.clone())),
+                ValueCell::Hint(self.event.calendar.clone()),
+                if self.event.location.is_empty() {
+                    ValueCell::Blank
+                } else {
+                    ValueCell::from(self.event.location.clone())
+                },
             ],
         )
     }
 }
 
-pub(super) fn event_date_cell(start: AgendaMoment) -> Cell {
-    Cell::Time {
+pub(super) fn event_date_cell(start: AgendaMoment) -> ValueCell {
+    ValueCell::Time {
         at: start.starts_at().to_utc(),
         format: LocalizedTimeFormat::WeekdayDate,
     }
 }
 
-pub(super) fn event_time_cell(start: AgendaMoment) -> Option<Cell> {
-    (!start.is_all_day()).then(|| Cell::Time {
+pub(super) fn event_time_cell(start: AgendaMoment) -> ValueCell {
+    if start.is_all_day() {
+        return ValueCell::Blank;
+    }
+    ValueCell::Time {
         at: start.starts_at().to_utc(),
         format: LocalizedTimeFormat::HourAndMinute,
-    })
+    }
 }
 
-pub(super) fn linked_title(title: &str, url: String) -> Cell {
-    Cell::Link {
+pub(super) fn linked_title(title: &str, url: String) -> ValueCell {
+    ValueCell::Link {
         label: title.to_owned(),
         url,
-        glyph: None,
     }
 }
 
@@ -91,12 +97,12 @@ pub(super) fn nextcloud_footer(
     app_url: fn(&NextcloudWebRoot) -> String,
 ) -> Section {
     Section::dictionary(provider.nextcloud_web_root().map(|nextcloud| {
-        KeyValue::new(
+        LabeledValue::new(
             "Nextcloud",
-            Cell::Link {
+            ValueCell::BrandedLink {
                 label: app_label.to_owned(),
                 url: app_url(nextcloud),
-                glyph: Some(SimpleIcon::Nextcloud.into()),
+                glyph: SimpleIcon::Nextcloud.into(),
             },
         )
     }))
@@ -145,7 +151,7 @@ impl BarWidget for CaldavAgenda {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let rows: Vec<EventRow> = self
+        let rows: Vec<_> = self
             .events
             .iter()
             .filter(|event| !event.has_ended(now))
@@ -155,7 +161,7 @@ impl BarWidget for CaldavAgenda {
             })
             .collect();
         TooltipBody::sections([
-            Section::grouped_truncated_column_table(
+            Section::grouped_column_table(
                 [
                     ColumnHeading::titled("Date"),
                     ColumnHeading::titled("Time"),
@@ -163,8 +169,8 @@ impl BarWidget for CaldavAgenda {
                     ColumnHeading::titled("Location").align_x(Horizontal::Left),
                 ],
                 rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
-                LISTED_EVENTS,
             )
+            .truncated_to(LISTED_EVENTS)
             .titled(("Upcoming events", calendar_count_caption(self))),
             nextcloud_footer(
                 "open Calendar",

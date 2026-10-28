@@ -6,7 +6,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
@@ -39,11 +40,11 @@ impl BarWidget for Wind {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Speed", Quantity::wind_speed(self.speed)),
-            KeyValue::new("Beaufort", Quantity::count(self.beaufort())),
-            KeyValue::new("Gusts", Quantity::wind_speed(self.gusts)),
-            KeyValue::new("From", self.compass_point()),
-            KeyValue::new("Bearing", Quantity::angle(self.direction)),
+            LabeledValue::new("Speed", Quantity::wind_speed(self.speed)),
+            LabeledValue::new("Beaufort", Quantity::count(self.beaufort())),
+            LabeledValue::new("Gusts", Quantity::wind_speed(self.gusts)),
+            LabeledValue::new("From", self.compass_point()),
+            LabeledValue::new("Bearing", Quantity::angle(self.direction)),
         ])
     }
 }

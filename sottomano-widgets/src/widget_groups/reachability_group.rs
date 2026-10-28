@@ -33,7 +33,8 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, Tooltip},
+        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -226,9 +227,9 @@ fn metered_section(totals: &MeteredVolumeTotals, direction: NetworkTrafficDirect
         NetworkTrafficDirection::Upload => transferred.sent,
     };
     Section::dictionary([
-        KeyValue::new("Today", Quantity::size(in_direction(totals.today))),
-        KeyValue::new("This cycle", Quantity::size(in_direction(totals.cycle))),
-        KeyValue::new(
+        LabeledValue::new("Today", Quantity::size(in_direction(totals.today))),
+        LabeledValue::new("This cycle", Quantity::size(in_direction(totals.cycle))),
+        LabeledValue::new(
             "Counted since",
             totals.counting_since.format("%-d %b %Y").to_string(),
         ),

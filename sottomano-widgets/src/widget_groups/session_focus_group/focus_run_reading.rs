@@ -9,7 +9,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -30,15 +31,15 @@ impl FocusRunReading<'_> {
         });
         Section::dictionary(
             [
-                project.map(|root| KeyValue::new("Focused project", Cell::Path(root))),
-                app.map(|app_id| KeyValue::new("Focused app", app_id)),
+                project.map(|root| LabeledValue::new("Focused project", ValueCell::Path(root))),
+                app.map(|app_id| LabeledValue::new("Focused app", app_id)),
             ]
             .into_iter()
             .flatten()
             .chain(self.accounting.runs(now).into_iter().map(|run| {
-                KeyValue::new(
+                LabeledValue::new(
                     format!("On this {} since", run.unit.kind_label()),
-                    Cell::Time {
+                    ValueCell::Time {
                         at: run.since,
                         format: LocalizedTimeFormat::TimeOfDay,
                     },
@@ -59,10 +60,10 @@ impl FocusRunReading<'_> {
             .longest_session_within(LAST_DAY.ending_at(now), now)?;
         Some(
             Section::dictionary([
-                KeyValue::new("Longest session", Cell::duration(session.length())),
-                KeyValue::new(
+                LabeledValue::new("Longest session", ValueCell::duration(session.length())),
+                LabeledValue::new(
                     "That session started at",
-                    Cell::Time {
+                    ValueCell::Time {
                         at: session.from,
                         format: LocalizedTimeFormat::HourAndMinute,
                     },

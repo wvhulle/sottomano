@@ -18,7 +18,8 @@ use crate::{
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -64,7 +65,7 @@ impl BarWidget for UnitSwitchReading {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new(
+        TooltipBody::dictionary([LabeledValue::new(
             "Service",
             match self.activity {
                 UnitActivity::Running => "running",

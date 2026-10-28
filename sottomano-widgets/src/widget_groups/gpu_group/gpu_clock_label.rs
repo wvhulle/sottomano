@@ -11,7 +11,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::LabeledValue,
     },
 };
 
@@ -37,7 +38,7 @@ impl BarWidget for GpuClockLabel {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new(
+        TooltipBody::dictionary([LabeledValue::new(
             "Graphics clock",
             Quantity::clock_megahertz(self.current),
         )])
@@ -50,20 +51,22 @@ impl ReadingSections for GpuClocks {
             Section::dictionary(
                 self.throttle_reasons
                     .iter()
-                    .map(|reason| KeyValue::new(throttle_reason_text(*reason), "active")),
+                    .map(|reason| LabeledValue::new(throttle_reason_text(*reason), "active")),
             )
             .titled("Throttled by")
         });
         [Section::dictionary(
             [
-                self.graphics_clock_ceiling
-                    .map(|ceiling| KeyValue::new("Ceiling", Quantity::clock_megahertz(ceiling))),
-                self.memory_clock
-                    .map(|memory| KeyValue::new("Memory clock", Quantity::clock_megahertz(memory))),
+                self.graphics_clock_ceiling.map(|ceiling| {
+                    LabeledValue::new("Ceiling", Quantity::clock_megahertz(ceiling))
+                }),
+                self.memory_clock.map(|memory| {
+                    LabeledValue::new("Memory clock", Quantity::clock_megahertz(memory))
+                }),
                 self.performance_state
-                    .map(|state| KeyValue::new("Performance state", format!("P{state}"))),
+                    .map(|state| LabeledValue::new("Performance state", format!("P{state}"))),
                 self.fan
-                    .map(|speed| KeyValue::new("Fan", Quantity::share(speed))),
+                    .map(|speed| LabeledValue::new("Fan", Quantity::share(speed))),
             ]
             .into_iter()
             .flatten(),

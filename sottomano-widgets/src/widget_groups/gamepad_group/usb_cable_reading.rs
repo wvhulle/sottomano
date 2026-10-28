@@ -6,7 +6,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -47,23 +48,21 @@ impl BarWidget for UsbCableReading {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         match self.role {
             UsbCableRole::InputAndCharging => {
-                TooltipBody::sections([Section::dictionary([KeyValue::new(
+                TooltipBody::sections([Section::dictionary([LabeledValue::new(
                     "Carries",
                     "input and charging",
                 )])])
             }
             UsbCableRole::ChargingOnly => TooltipBody::sections([
                 Section::dictionary([
-                    KeyValue::new("Carries", "charging only").level(Severity::Warning)
+                    LabeledValue::new("Carries", "charging only").level(Severity::Warning)
                 ]),
-                Section::note(
+                Section::detailed_note(
                     "Input still goes over Bluetooth",
-                    Some(
-                        "The controller was already connected over Bluetooth when the cable was \
-                         plugged in, so the kernel ignored the cable. Press to disconnect \
-                         Bluetooth, then plug the cable in again."
-                            .to_owned(),
-                    ),
+                    "The controller was already connected over Bluetooth when the cable was \
+                     plugged in, so the kernel ignored the cable. Press to disconnect Bluetooth, \
+                     then plug the cable in again."
+                        .to_owned(),
                 ),
             ]),
         }

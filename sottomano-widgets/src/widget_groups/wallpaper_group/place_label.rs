@@ -7,7 +7,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
     },
 };
 
@@ -33,12 +34,12 @@ impl BarWidget for Place {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let coordinates = self.position.into_iter().flat_map(|position| {
             [
-                KeyValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),
-                KeyValue::new("Longitude", Quantity::angle(position.longitude).decimals(5)),
+                LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),
+                LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(5)),
             ]
         });
         TooltipBody::dictionary(
-            [KeyValue::new("Where", self.name.as_str())]
+            [LabeledValue::new("Where", self.name.as_str())]
                 .into_iter()
                 .chain(coordinates),
         )

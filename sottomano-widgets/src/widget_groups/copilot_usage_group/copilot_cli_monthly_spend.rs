@@ -13,7 +13,8 @@ use crate::{
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -50,19 +51,19 @@ impl BarWidget for CopilotCcusage {
         TooltipBody::sections([
             Section::dictionary(
                 [
-                    KeyValue::new("Plan", "copilot-cli"),
-                    KeyValue::new("Source", "ccusage, local CLI session data"),
+                    LabeledValue::new("Plan", "copilot-cli"),
+                    LabeledValue::new("Source", "ccusage, local CLI session data"),
                 ]
                 .into_iter()
-                .chain([KeyValue::new(
+                .chain([LabeledValue::new(
                     "Monthly Budget",
                     Quantity::spend(usd(Decimal::from(self.budget.monthly_limit_usd))),
                 )]),
             ),
             Section::dictionary([
-                KeyValue::new("Tokens", Quantity::count(usage.tokens)),
-                KeyValue::new("Cost", Quantity::spend(usage.cost)),
-                KeyValue::new("Models", usage.models.to_string()),
+                LabeledValue::new("Tokens", Quantity::count(usage.tokens)),
+                LabeledValue::new("Cost", Quantity::spend(usage.cost)),
+                LabeledValue::new("Models", usage.models.to_string()),
             ])
             .titled(
                 self.period

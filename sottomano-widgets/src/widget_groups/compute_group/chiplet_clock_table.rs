@@ -9,8 +9,10 @@ use uom::si::f64::{Frequency, Ratio};
 
 use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::widgets::{
+    keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
     localized_quantities::Quantity,
-    tooltip_body::{ColumnHeading, Section, TableRecord, TableRow},
+    tooltip_body::Section,
+    value_cells::ValueCell,
 };
 
 struct PhysicalCoreClock {
@@ -73,17 +75,19 @@ impl PhysicalCoreClock {
     }
 }
 
-impl TableRow<4> for PhysicalCoreClock {
-    fn table_record(self) -> TableRecord<4> {
+impl IntoTableRecord<4> for PhysicalCoreClock {
+    fn into_table_record(self) -> TableRecord<4> {
         let level = self.level();
         TableRecord::new(
             format!("Core {}", self.first_thread),
             [
-                Some(Quantity::clock_gigahertz(self.clock).into()),
-                self.busy.map(|busy| Quantity::share(busy).into()),
-                self.distinct_cap
-                    .map(|cap| Quantity::clock_gigahertz(cap).into()),
-                causes_text(&self.own_causes).map(Into::into),
+                Quantity::clock_gigahertz(self.clock).into(),
+                self.busy
+                    .map_or(ValueCell::Blank, |busy| Quantity::share(busy).into()),
+                self.distinct_cap.map_or(ValueCell::Blank, |cap| {
+                    Quantity::clock_gigahertz(cap).into()
+                }),
+                causes_text(&self.own_causes).map_or(ValueCell::Blank, Into::into),
             ],
         )
         .level(level)

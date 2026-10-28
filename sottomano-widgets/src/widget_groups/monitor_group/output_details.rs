@@ -7,7 +7,7 @@ use sottomano_sources::{
 
 use crate::widgets::{
     localized_quantities::{DisplayUnit, Quantity},
-    tooltip_body::KeyValue,
+    value_cells::LabeledValue,
     vendor_logo::{PnpManufacturerName, VendorLogo},
 };
 
@@ -34,7 +34,7 @@ impl<'a> ConnectedOutput<'a> {
             .map(|(connector, info)| Self { connector, info })
     }
 
-    pub fn entries(&self) -> Vec<KeyValue> {
+    pub fn entries(&self) -> Vec<LabeledValue> {
         let mode_entries = self.info.mode.into_iter().flat_map(
             |OutputMode {
                  width,
@@ -42,18 +42,18 @@ impl<'a> ConnectedOutput<'a> {
                  refresh_hz,
              }| {
                 [
-                    KeyValue::new("Resolution", format!("{width}x{height}")),
-                    KeyValue::new(
+                    LabeledValue::new("Resolution", format!("{width}x{height}")),
+                    LabeledValue::new(
                         "Refresh",
                         Quantity::measured(refresh_hz, DisplayUnit::Hertz, 2),
                     ),
                 ]
             },
         );
-        [KeyValue::new("Output", self.connector)]
+        [LabeledValue::new("Output", self.connector)]
             .into_iter()
             .chain(mode_entries)
-            .chain([KeyValue::new(
+            .chain([LabeledValue::new(
                 "Scale",
                 Quantity::measured(self.info.scale, DisplayUnit::Unitless, 2),
             )])
@@ -62,15 +62,15 @@ impl<'a> ConnectedOutput<'a> {
 }
 
 impl ConnectedOutput<'_> {
-    pub fn hardware_entries(&self) -> Vec<KeyValue> {
+    pub fn hardware_entries(&self) -> Vec<LabeledValue> {
         let make = self.info.make.as_deref().map(|make| {
-            KeyValue::keyed_by_logo("Make", PnpManufacturerName(make).vendor_logo(), make)
+            LabeledValue::keyed_by_logo("Make", PnpManufacturerName(make).vendor_logo(), make)
         });
         make.into_iter()
             .chain(
                 [("Model", &self.info.model), ("Serial", &self.info.serial)]
                     .into_iter()
-                    .filter_map(|(key, value)| Some(KeyValue::new(key, value.as_deref()?))),
+                    .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?))),
             )
             .collect()
     }
@@ -81,7 +81,8 @@ mod tests {
     use super::*;
     use crate::widgets::{
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, Section, SectionBody},
+        tooltip_body::{Section, SectionBody},
+        value_cells::ValueCell,
     };
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {
@@ -118,16 +119,16 @@ mod tests {
         assert_eq!(
             output.entries(),
             [
-                KeyValue::new("Output", "eDP-1"),
-                KeyValue::new("Resolution", "1920x1200"),
-                KeyValue::new("Refresh", Quantity::measured(60.0, DisplayUnit::Hertz, 2)),
-                KeyValue::new("Scale", Quantity::measured(1.2, DisplayUnit::Unitless, 2)),
+                LabeledValue::new("Output", "eDP-1"),
+                LabeledValue::new("Resolution", "1920x1200"),
+                LabeledValue::new("Refresh", Quantity::measured(60.0, DisplayUnit::Hertz, 2)),
+                LabeledValue::new("Scale", Quantity::measured(1.2, DisplayUnit::Unitless, 2)),
             ]
         );
         assert_eq!(
             Section::hardware_identity(output.hardware_entries()),
-            Section::dictionary([KeyValue::new(
-                Cell::Glyph(SimpleIcon::LG.into()),
+            Section::dictionary([LabeledValue::new(
+                ValueCell::Glyph(SimpleIcon::LG.into()),
                 "LG Display"
             )])
             .titled("Hardware")
@@ -142,13 +143,13 @@ mod tests {
                 .expect("internal panel")
                 .hardware_entries(),
         );
-        let SectionBody::Dictionary(entries) = hardware.body() else {
-            panic!("expected dictionary");
+        let SectionBody::ColumnTable(table) = hardware.body() else {
+            panic!("expected a table");
         };
         assert!(
-            entries
-                .iter()
-                .all(|entry| *entry.key() != Cell::from("Model"))
+            table
+                .records()
+                .all(|record| *record.key() != ValueCell::from("Model"))
         );
     }
 

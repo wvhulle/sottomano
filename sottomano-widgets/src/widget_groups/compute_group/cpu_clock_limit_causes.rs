@@ -12,7 +12,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -122,7 +123,7 @@ impl BarWidget for ClockLimitCauses<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections([Section::dictionary(self.spreads().iter().map(|spread| {
-            KeyValue::new(cause_text(spread.cause), self.spread_text(spread))
+            LabeledValue::new(cause_text(spread.cause), self.spread_text(spread))
                 .level(cause_level(spread.cause))
         }))
         .titled("Published limits")])

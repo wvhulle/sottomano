@@ -26,7 +26,11 @@ use crate::{
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
         text::bar_text,
-        tooltip_body::{Cell, DeliveryTiming, KeyValue, SliderReadout, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
         widget_state::WidgetState,
     },
@@ -282,13 +286,13 @@ impl SliderControl {
     }
 
     #[must_use]
-    pub fn readout_cell(&self) -> Cell {
-        Cell::Readout(SliderReadout::new(self.current(), self.readout))
+    pub fn readout_cell(&self) -> ValueCell {
+        ValueCell::Readout(SliderReadout::new(self.current(), self.readout))
     }
 
-    pub fn readout_tooltip(&self, label: impl Into<Cell>) -> Tooltip {
+    pub fn readout_tooltip(&self, label: impl Into<ValueCell>) -> Tooltip {
         Tooltip::sourced(
-            TooltipBody::dictionary([KeyValue::new(label, self.readout_cell())]),
+            TooltipBody::dictionary([LabeledValue::new(label, self.readout_cell())]),
             DeliveryTiming::LivePush,
         )
     }

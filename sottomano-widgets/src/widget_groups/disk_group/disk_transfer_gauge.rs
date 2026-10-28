@@ -13,7 +13,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -68,9 +69,9 @@ impl BarWidget for DiskTransfer {
             DiskTransferDirection::Write => "Write",
         };
         TooltipBody::dictionary([
-            KeyValue::new("Disk", self.disk.clone()),
-            KeyValue::new(rate_label, Quantity::transfer_rate(self.rate)),
-            KeyValue::new("Disk busy", Quantity::share(self.disk_busy)),
+            LabeledValue::new("Disk", self.disk.clone()),
+            LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
+            LabeledValue::new("Disk busy", Quantity::share(self.disk_busy)),
         ])
     }
 }

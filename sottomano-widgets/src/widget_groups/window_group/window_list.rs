@@ -41,7 +41,7 @@ use crate::{
             keyed_slot_list::keyed_slot_list,
         },
         text::FontFaces,
-        tooltip_body::{Section, SourcedSections},
+        tooltip_body::{Section, tooltip_source_delivery::SourcedSections},
         widget_state::WidgetState,
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},

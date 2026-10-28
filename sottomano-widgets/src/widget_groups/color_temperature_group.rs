@@ -23,8 +23,9 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -201,14 +202,14 @@ impl ColorTemperatureGroup {
         match target {
             ColorTemperatureTarget::GammaDim => {
                 self.gamma
-                    .tooltip_with(TooltipBody::dictionary([KeyValue::new(
+                    .tooltip_with(TooltipBody::dictionary([LabeledValue::new(
                         "Dim",
                         self.dim.readout_cell(),
                     )]))
             }
             ColorTemperatureTarget::Temperature => {
                 self.gamma
-                    .tooltip_with(TooltipBody::dictionary([KeyValue::new(
+                    .tooltip_with(TooltipBody::dictionary([LabeledValue::new(
                         "Temperature",
                         self.warmth.readout_cell(),
                     )]))

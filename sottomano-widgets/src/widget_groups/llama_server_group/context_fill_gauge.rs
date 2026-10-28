@@ -6,9 +6,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ColumnHeading, Section, TableRecord, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
     },
 };
 
@@ -36,18 +38,18 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
     TableRecord::new(
         slot.id.to_string(),
         [
-            Some(
-                if slot.processing {
-                    "processing"
-                } else {
-                    "idle"
-                }
-                .into(),
-            ),
-            slot.task
-                .map(|task| format!("{} / {}", task.tokens(), slot.context).into()),
-            slot.task
-                .map(|task| Quantity::share(context_fill(&task, slot.context)).into()),
+            if slot.processing {
+                "processing"
+            } else {
+                "idle"
+            }
+            .into(),
+            slot.task.map_or(ValueCell::Blank, |task| {
+                format!("{} / {}", task.tokens(), slot.context).into()
+            }),
+            slot.task.map_or(ValueCell::Blank, |task| {
+                Quantity::share(context_fill(&task, slot.context)).into()
+            }),
         ],
     )
 }

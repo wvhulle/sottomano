@@ -20,7 +20,11 @@ use crate::{
         simple_icons::SimpleIcon,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Cell, DeliveryTiming, KeyValue, Section, SourcedSections, Tooltip},
+        tooltip_body::{
+            Section,
+            tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
+        },
+        value_cells::{LabeledValue, ValueCell},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },
 };
@@ -184,8 +188,8 @@ impl NiriWindowGroup {
         };
         control.with_groups(self.rules_file.unreadable().map(|unreadable| {
             SourcedSections::delivered(
-                Section::dictionary([KeyValue::new(
-                    Cell::Path(unreadable.path.to_path_buf()),
+                Section::dictionary([LabeledValue::new(
+                    ValueCell::Path(unreadable.path.to_path_buf()),
                     unreadable.kind.to_string(),
                 )
                 .level(Severity::Critical)])

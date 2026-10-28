@@ -11,25 +11,27 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
 
-impl TableRow<2> for &OomKillEntry {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &OomKillEntry {
+    fn into_table_record(self) -> TableRecord<2> {
         let killer = match self.killer {
             OomKiller::Kernel => "kernel",
             OomKiller::Oomd => "systemd-oomd",
         };
         TableRecord::new(
-            Cell::Time {
+            ValueCell::Time {
                 at: self.at.into(),
                 format: LocalizedTimeFormat::TimeOfDay,
             },
-            [Some(self.unit.name().into()), Some(killer.into())],
+            [self.unit.name().into(), killer.into()],
         )
         .level(self.severity)
     }

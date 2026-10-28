@@ -33,7 +33,8 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
+        value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
         widget_state::WidgetState,
     },
@@ -327,9 +328,9 @@ impl BarWidget for SystemdManagerGroup {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let slow_jobs_count =
-            |jobs: &SlowJobs| KeyValue::new(jobs.name(), Quantity::count(jobs.jobs.len()));
+            |jobs: &SlowJobs| LabeledValue::new(jobs.name(), Quantity::count(jobs.jobs.len()));
         let failed_units_count = |failed: &FailedUnits| {
-            KeyValue::new(failed.name(), Quantity::count(failed.units.len()))
+            LabeledValue::new(failed.name(), Quantity::count(failed.units.len()))
         };
         TooltipBody::dictionary(
             [

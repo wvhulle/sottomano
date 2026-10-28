@@ -8,13 +8,12 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, ReadingSections, Section, TableRecord, TableRow,
-            TooltipBody,
-        },
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -33,28 +32,28 @@ impl BarWidget for Wireguard {
     }
 }
 
-fn endpoint_cell(endpoint: &PeerEndpoint) -> Option<Cell> {
+fn endpoint_cell(endpoint: &PeerEndpoint) -> Option<ValueCell> {
     match endpoint {
         PeerEndpoint::At(address) => Some(address.as_str().into()),
         PeerEndpoint::Roaming => None,
     }
 }
 
-fn handshake_cell(traffic: PeerTraffic) -> Option<Cell> {
+fn handshake_cell(traffic: PeerTraffic) -> Option<ValueCell> {
     match traffic {
-        PeerTraffic::Exchanged(statistics) => Some(Cell::duration(statistics.handshake_ago)),
+        PeerTraffic::Exchanged(statistics) => Some(ValueCell::duration(statistics.handshake_ago)),
         PeerTraffic::NeverHandshaken => Some("never".into()),
         PeerTraffic::Unobserved => None,
     }
 }
 
-fn transfer_cells(traffic: PeerTraffic) -> [Option<Cell>; 2] {
+fn transfer_cells(traffic: PeerTraffic) -> Option<[ValueCell; 2]> {
     match traffic {
-        PeerTraffic::Exchanged(statistics) => [
-            Some(Quantity::size(statistics.received).into()),
-            Some(Quantity::size(statistics.sent).into()),
-        ],
-        PeerTraffic::NeverHandshaken | PeerTraffic::Unobserved => [None, None],
+        PeerTraffic::Exchanged(statistics) => Some([
+            Quantity::size(statistics.received).into(),
+            Quantity::size(statistics.sent).into(),
+        ]),
+        PeerTraffic::NeverHandshaken | PeerTraffic::Unobserved => None,
     }
 }
 
@@ -81,14 +80,15 @@ fn peer_label(peer: &Peer) -> String {
     }
 }
 
-impl TableRow<4> for &Peer {
-    fn table_record(self) -> TableRecord<4> {
-        let [received, sent] = transfer_cells(self.traffic);
+impl IntoTableRecord<4> for &Peer {
+    fn into_table_record(self) -> TableRecord<4> {
+        let [received, sent] =
+            transfer_cells(self.traffic).unwrap_or([ValueCell::Blank, ValueCell::Blank]);
         TableRecord::new(
             peer_label(self),
             [
-                endpoint_cell(&self.endpoint),
-                handshake_cell(self.traffic),
+                endpoint_cell(&self.endpoint).unwrap_or(ValueCell::Blank),
+                handshake_cell(self.traffic).unwrap_or(ValueCell::Blank),
                 received,
                 sent,
             ],
@@ -96,27 +96,29 @@ impl TableRow<4> for &Peer {
     }
 }
 
-fn statistics_entry(statistics_access: &StatisticsAccess) -> Option<KeyValue> {
+fn statistics_entry(statistics_access: &StatisticsAccess) -> Option<LabeledValue> {
     match statistics_access {
-        StatisticsAccess::NeedsNetAdmin => Some(KeyValue::new("Peer stats", "need CAP_NET_ADMIN")),
+        StatisticsAccess::NeedsNetAdmin => {
+            Some(LabeledValue::new("Peer stats", "need CAP_NET_ADMIN"))
+        }
         StatisticsAccess::Unreadable(detail) => {
-            Some(KeyValue::new("Peer stats", detail.as_str()).level(Severity::Warning))
+            Some(LabeledValue::new("Peer stats", detail.as_str()).level(Severity::Warning))
         }
         StatisticsAccess::TunnelDown | StatisticsAccess::Read => None,
     }
 }
 
-fn activity_entry(tunnel: &Tunnel) -> Option<KeyValue> {
+fn activity_entry(tunnel: &Tunnel) -> Option<LabeledValue> {
     if tunnel.switching() {
-        Some(KeyValue::new("State", "switching"))
+        Some(LabeledValue::new("State", "switching"))
     } else if tunnel.up() {
         None
     } else {
-        Some(KeyValue::new("State", "not connected"))
+        Some(LabeledValue::new("State", "not connected"))
     }
 }
 
-fn clients_entry(tunnel: &Tunnel) -> KeyValue {
+fn clients_entry(tunnel: &Tunnel) -> LabeledValue {
     let clients = match tunnel.statistics_access {
         StatisticsAccess::Read => format!(
             "{}/{} connected",
@@ -127,14 +129,14 @@ fn clients_entry(tunnel: &Tunnel) -> KeyValue {
         | StatisticsAccess::NeedsNetAdmin
         | StatisticsAccess::Unreadable(_) => format!("{} configured", tunnel.peers.len()),
     };
-    KeyValue::new("Clients", clients)
+    LabeledValue::new("Clients", clients)
 }
 
 fn server_tooltip(tunnel: &Tunnel, listen_port: u32) -> TooltipBody {
     let summary_section = Section::dictionary(
         [
-            KeyValue::new(tunnel.name.as_str(), "server"),
-            KeyValue::new("Listen port", listen_port.to_string()),
+            LabeledValue::new(tunnel.name.as_str(), "server"),
+            LabeledValue::new("Listen port", listen_port.to_string()),
             clients_entry(tunnel),
         ]
         .into_iter()
@@ -155,19 +157,26 @@ fn server_tooltip(tunnel: &Tunnel, listen_port: u32) -> TooltipBody {
 
 fn client_tooltip(tunnel: &Tunnel) -> TooltipBody {
     let peer_entries = tunnel.peers.iter().flat_map(|peer| {
-        let [received, sent] = transfer_cells(peer.traffic);
+        let transfer_entries =
+            transfer_cells(peer.traffic)
+                .into_iter()
+                .flat_map(|[received, sent]| {
+                    [
+                        LabeledValue::new("Received", received),
+                        LabeledValue::new("Sent", sent),
+                    ]
+                });
         [
-            endpoint_cell(&peer.endpoint).map(|endpoint| KeyValue::new("Server", endpoint)),
-            Some(KeyValue::new("Allowed IPs", allowed_ips_text(peer))),
-            handshake_cell(peer.traffic).map(|handshake| KeyValue::new("Handshake", handshake)),
-            received.map(|received| KeyValue::new("Received", received)),
-            sent.map(|sent| KeyValue::new("Sent", sent)),
+            endpoint_cell(&peer.endpoint).map(|endpoint| LabeledValue::new("Server", endpoint)),
+            Some(LabeledValue::new("Allowed IPs", allowed_ips_text(peer))),
+            handshake_cell(peer.traffic).map(|handshake| LabeledValue::new("Handshake", handshake)),
         ]
         .into_iter()
         .flatten()
+        .chain(transfer_entries)
     });
     TooltipBody::dictionary(
-        [KeyValue::new(tunnel.name.as_str(), "client")]
+        [LabeledValue::new(tunnel.name.as_str(), "client")]
             .into_iter()
             .chain(activity_entry(tunnel))
             .chain(peer_entries)
@@ -177,7 +186,7 @@ fn client_tooltip(tunnel: &Tunnel) -> TooltipBody {
 
 fn undetermined_tooltip(tunnel: &Tunnel) -> TooltipBody {
     TooltipBody::dictionary(
-        [KeyValue::new(tunnel.name.as_str(), "tunnel")]
+        [LabeledValue::new(tunnel.name.as_str(), "tunnel")]
             .into_iter()
             .chain(statistics_entry(&tunnel.statistics_access)),
     )
@@ -249,7 +258,7 @@ impl BarWidget for Tunnel {
 impl ReadingSections for TunnelAddress {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         vec![Section::dictionary(
-            self.ip.as_deref().map(|ip| KeyValue::new("IP", ip)),
+            self.ip.as_deref().map(|ip| LabeledValue::new("IP", ip)),
         )]
     }
 }

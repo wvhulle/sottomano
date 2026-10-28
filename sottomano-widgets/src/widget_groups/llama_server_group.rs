@@ -23,7 +23,7 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::UnitSwitchFace,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
     },

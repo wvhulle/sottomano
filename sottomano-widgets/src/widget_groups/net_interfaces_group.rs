@@ -28,7 +28,7 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{SourcedSections, Tooltip},
+        tooltip_body::tooltip_source_delivery::{SourcedSections, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
         widget_state::WidgetState,
     },

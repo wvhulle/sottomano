@@ -24,7 +24,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{DiagramCallout, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::DiagramCallout},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -53,29 +54,27 @@ impl ControllerMarking<'_> {
         }
     }
 
-    fn player_rows(self) -> impl Iterator<Item = KeyValue> {
+    fn player_rows(self) -> impl Iterator<Item = LabeledValue> {
         let lit_player = match self {
             ControllerMarking::PlayerLights(lit_player) => Some(lit_player),
             ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
         };
         lit_player.into_iter().flat_map(|lit_player| {
             [
-                KeyValue::new("Player", lit_player.number.to_string()),
-                KeyValue::new("Lights", Self::led_pattern(lit_player)),
+                LabeledValue::new("Player", lit_player.number.to_string()),
+                LabeledValue::new("Lights", Self::led_pattern(lit_player)),
             ]
         })
     }
 
     fn numbering_note(self) -> Option<Section> {
         match self {
-            ControllerMarking::PlayerLights(_) => Some(Section::note(
+            ControllerMarking::PlayerLights(_) => Some(Section::detailed_note(
                 "Player numbered by the kernel",
-                Some(
-                    "Assigned in the order the controllers connected, and shown on the \
-                     controller's lights. Games may number players differently, for example by \
-                     who presses a button first."
-                        .to_owned(),
-                ),
+                "Assigned in the order the controllers connected, and shown on the controller's \
+                 lights. Games may number players differently, for example by who presses a \
+                 button first."
+                    .to_owned(),
             )),
             ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
         }
@@ -191,11 +190,11 @@ impl ConnectedControllerReading<'_> {
 
     fn identity_section(&self) -> Section {
         let named = self.paired_alias().map_or_else(
-            || vec![KeyValue::new("Controller", self.gamepad.name.clone())],
+            || vec![LabeledValue::new("Controller", self.gamepad.name.clone())],
             |alias| {
                 vec![
-                    KeyValue::new("Controller", alias),
-                    KeyValue::new("Model", self.gamepad.name.clone()),
+                    LabeledValue::new("Controller", alias),
+                    LabeledValue::new("Model", self.gamepad.name.clone()),
                 ]
             },
         );
@@ -204,13 +203,16 @@ impl ConnectedControllerReading<'_> {
 
     fn bindings_section(&self) -> Section {
         let shared_stick = self.bindings.sticks_conflict().then(|| {
-            KeyValue::new("Sticks", "navigation and pointer share one stick")
+            LabeledValue::new("Sticks", "navigation and pointer share one stick")
                 .level(Severity::Warning)
         });
         Section::dictionary(
-            [KeyValue::new("Buttons go to", self.control_description())]
-                .into_iter()
-                .chain(shared_stick),
+            [LabeledValue::new(
+                "Buttons go to",
+                self.control_description(),
+            )]
+            .into_iter()
+            .chain(shared_stick),
         )
         .titled("Bindings")
     }

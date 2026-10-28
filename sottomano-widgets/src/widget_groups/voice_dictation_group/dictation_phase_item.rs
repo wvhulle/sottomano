@@ -8,7 +8,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -68,7 +69,7 @@ impl BarWidget for NotulistDictation {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let phase_row = KeyValue::new("Dictation", phase_text(&self.phase));
+        let phase_row = LabeledValue::new("Dictation", phase_text(&self.phase));
         let error_rows = match &self.phase {
             DictationPhase::StoppedByError(dictation_error) => {
                 dictation_error_rows(dictation_error)
@@ -82,18 +83,18 @@ impl BarWidget for NotulistDictation {
     }
 }
 
-fn dictation_error_rows(dictation_error: &DictationError) -> Vec<KeyValue> {
-    let problem_row = KeyValue::new("Problem", dictation_error.kind().short_label());
+fn dictation_error_rows(dictation_error: &DictationError) -> Vec<LabeledValue> {
+    let problem_row = LabeledValue::new("Problem", dictation_error.kind().short_label());
     let field_rows = match dictation_error {
         DictationError::MicrophoneCouldNotOpen(open_error) => {
             microphone_open_error_rows(open_error)
         }
         DictationError::MicrophoneDisconnectedMidSession { device } => {
-            vec![KeyValue::new("Device", device.clone())]
+            vec![LabeledValue::new("Device", device.clone())]
         }
         DictationError::MicrophoneDeliveredSilence(
             MicrophoneSilence::OnlyZeroSamplesDelivered { samples },
-        ) => vec![KeyValue::new("Zero samples", Quantity::count(*samples))],
+        ) => vec![LabeledValue::new("Zero samples", Quantity::count(*samples))],
         DictationError::MicrophoneDeliveredSilence(MicrophoneSilence::NoSamplesDelivered)
         | DictationError::TranscriptionPassInterrupted(_) => Vec::new(),
         DictationError::SpeechModelUnavailable(load_error) => {
@@ -106,30 +107,30 @@ fn dictation_error_rows(dictation_error: &DictationError) -> Vec<KeyValue> {
     [problem_row]
         .into_iter()
         .chain(field_rows)
-        .chain([KeyValue::new("Details", dictation_error.to_string())])
+        .chain([LabeledValue::new("Details", dictation_error.to_string())])
         .collect()
 }
 
-fn microphone_open_error_rows(open_error: &MicrophoneOpenError) -> Vec<KeyValue> {
+fn microphone_open_error_rows(open_error: &MicrophoneOpenError) -> Vec<LabeledValue> {
     match open_error {
         MicrophoneOpenError::ConfiguredMicrophoneNotFound {
             requested,
             available,
         } => vec![
-            KeyValue::new("Requested", requested.clone()),
-            KeyValue::new("Available", available.join(", ")),
+            LabeledValue::new("Requested", requested.clone()),
+            LabeledValue::new("Available", available.join(", ")),
         ],
         MicrophoneOpenError::NoUsableInputFormat { device }
         | MicrophoneOpenError::InputStreamNotOpened { device }
         | MicrophoneOpenError::InputStreamNotStarted { device } => {
-            vec![KeyValue::new("Device", device.clone())]
+            vec![LabeledValue::new("Device", device.clone())]
         }
         MicrophoneOpenError::SampleFormatUnsupported {
             device,
             sample_format,
         } => vec![
-            KeyValue::new("Device", device.clone()),
-            KeyValue::new("Sample format", sample_format.clone()),
+            LabeledValue::new("Device", device.clone()),
+            LabeledValue::new("Sample format", sample_format.clone()),
         ],
         MicrophoneOpenError::NoDefaultMicrophoneAvailable
         | MicrophoneOpenError::InputDeviceListUnavailable
@@ -144,9 +145,9 @@ mod tests {
     use notulist_client::{ModelLoadError, ModelRole};
 
     use super::*;
-    use crate::widgets::tooltip_body::Cell;
+    use crate::widgets::value_cells::ValueCell;
 
-    fn keys(rows: &[KeyValue]) -> Vec<Cell> {
+    fn keys(rows: &[LabeledValue]) -> Vec<ValueCell> {
         rows.iter().map(|row| row.key().clone()).collect()
     }
 
@@ -162,11 +163,11 @@ mod tests {
         assert_eq!(
             keys(&rows),
             ["Problem", "Requested", "Available", "Details"]
-                .map(Cell::from)
+                .map(ValueCell::from)
                 .to_vec()
         );
-        assert_eq!(rows[0].value(), &Cell::from("No mic"));
-        assert_eq!(rows[2].value(), &Cell::from("Built-in, USB"));
+        assert_eq!(rows[0].value(), &ValueCell::from("No mic"));
+        assert_eq!(rows[2].value(), &ValueCell::from("Built-in, USB"));
     }
 
     #[test]
@@ -179,7 +180,7 @@ mod tests {
         assert_eq!(
             keys(&dictation_error_rows(&dictation_error)),
             ["Problem", "Role", "URL", "Details"]
-                .map(Cell::from)
+                .map(ValueCell::from)
                 .to_vec()
         );
     }

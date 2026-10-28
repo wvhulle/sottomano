@@ -31,7 +31,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, Tooltip, TooltipBody},
+        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
     },
 };
@@ -160,8 +160,10 @@ impl TrayGroup {
         let title = tip
             .and_then(|tip| tip.title.clone())
             .unwrap_or_else(|| item.name().to_owned());
-        let body = tip.and_then(|tip| tip.body.clone());
-        TooltipBody::from(Section::note(title, body))
+        TooltipBody::from(match tip.and_then(|tip| tip.body.clone()) {
+            Some(body) => Section::detailed_note(title, body),
+            None => Section::note(title),
+        })
     }
 
     #[must_use]

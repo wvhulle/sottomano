@@ -4,7 +4,8 @@ use crate::{
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -17,7 +18,7 @@ pub fn face(backlight: &Backlight) -> Phosphor {
 
 pub fn tooltip(
     backlight: &Backlight,
-    brightness: Cell,
+    brightness: ValueCell,
     output: Option<&ConnectedOutput>,
 ) -> TooltipBody {
     let kind = match backlight.kind {
@@ -25,9 +26,9 @@ pub fn tooltip(
         BacklightKind::External => "External (DDC)",
     };
     let display_entries = [
-        KeyValue::new("Display", backlight.serial.as_str()),
-        KeyValue::new("Type", kind),
-        KeyValue::new("Brightness", brightness),
+        LabeledValue::new("Display", backlight.serial.as_str()),
+        LabeledValue::new("Type", kind),
+        LabeledValue::new("Brightness", brightness),
     ];
     let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
     TooltipBody::sections([

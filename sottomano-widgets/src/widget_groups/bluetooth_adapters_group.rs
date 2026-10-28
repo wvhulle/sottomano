@@ -33,7 +33,7 @@ use crate::{
         group_item::GroupItem,
         input_report_sections::MeasuredReportTiming,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
         widget_state::WidgetState,
     },

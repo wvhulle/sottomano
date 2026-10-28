@@ -19,7 +19,8 @@ use crate::{
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -125,7 +126,7 @@ impl ConnectedDeviceReading<'_> {
 
     fn link_section(&self) -> Section {
         let horizon_minutes = RECONNECT_HORIZON.num_minutes();
-        let reconnects = KeyValue::new(
+        let reconnects = LabeledValue::new(
             format!("Reconnects, last {horizon_minutes} min"),
             Quantity::count(self.recent_reconnects),
         );
@@ -135,7 +136,7 @@ impl ConnectedDeviceReading<'_> {
             reconnects
         };
         let signal = match self.device.signal {
-            LinkSignal::Measured { quality_percent } => Some(KeyValue::new(
+            LinkSignal::Measured { quality_percent } => Some(LabeledValue::new(
                 "Signal",
                 Quantity::share(percent_fill(quality_percent)),
             )),
@@ -154,13 +155,13 @@ impl ConnectedDeviceReading<'_> {
         };
         Some(
             Section::dictionary(
-                once(KeyValue::new(
+                once(LabeledValue::new(
                     "Level",
                     Quantity::whole_percent(level_percent),
                 ))
                 .chain(
                     charging_description(charging)
-                        .map(|description| KeyValue::new("Status", description)),
+                        .map(|description| LabeledValue::new("Status", description)),
                 ),
             )
             .titled("Battery"),
@@ -169,8 +170,8 @@ impl ConnectedDeviceReading<'_> {
 
     fn identity_section(&self) -> Section {
         Section::dictionary([
-            KeyValue::new("Kind", self.device.kind.as_str()),
-            KeyValue::new("Address", self.device.address.as_str()),
+            LabeledValue::new("Kind", self.device.kind.as_str()),
+            LabeledValue::new("Address", self.device.address.as_str()),
         ])
         .titled("Device")
     }
@@ -211,7 +212,7 @@ impl BarWidget for ConnectedDeviceReading<'_> {
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections(
             [
-                Some(Section::note(self.device.name.clone(), None)),
+                Some(Section::note(self.device.name.clone())),
                 self.input_report_section(),
                 Some(self.link_section()),
                 KernelErrorListing {

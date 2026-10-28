@@ -26,12 +26,14 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
             OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
         },
         phosphor::Weight,
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
@@ -223,13 +225,15 @@ impl BarWidget for FailedUnits {
     }
 }
 
-impl TableRow<2> for &FailedUnitInfo {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &FailedUnitInfo {
+    fn into_table_record(self) -> TableRecord<2> {
         let reason = self
             .service_outcome
             .as_ref()
-            .map(|outcome| service_outcome_reason(outcome).into());
-        let failed = self.at.map(|at| Cell::Time {
+            .map_or(ValueCell::Blank, |outcome| {
+                service_outcome_reason(outcome).into()
+            });
+        let failed = self.at.map_or(ValueCell::Blank, |at| ValueCell::Time {
             at: at.into(),
             format: LocalizedTimeFormat::DateAndTime,
         });
@@ -259,13 +263,11 @@ mod tests {
         }
     }
 
-    fn section_keys(section: &Section) -> Vec<Cell> {
-        let SectionBody::ColumnTable { rows, .. } = section.body() else {
+    fn section_keys(section: &Section) -> Vec<ValueCell> {
+        let SectionBody::ColumnTable(table) = section.body() else {
             panic!("expected a table");
         };
-        rows.shown_records()
-            .map(|record| record.key().clone())
-            .collect()
+        table.records().map(|record| record.key().clone()).collect()
     }
 
     #[test]
@@ -292,7 +294,7 @@ mod tests {
                 "older.service",
                 "undated.service"
             ]
-            .map(Cell::from)
+            .map(ValueCell::from)
         );
     }
 }

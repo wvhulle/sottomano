@@ -20,7 +20,10 @@ use crate::{
         localized_durations::duration_text,
         palette_colors::PaletteColors,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{DeliveryTiming, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
         widget_group::{GroupContent, GroupEvent},
     },
 };

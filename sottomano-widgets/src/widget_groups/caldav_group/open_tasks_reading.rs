@@ -17,11 +17,11 @@ use crate::{
     },
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{
-            Cell, ColumnHeading, KeyValue, Section, TableRecord, TableRow, TooltipBody,
-        },
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -45,8 +45,8 @@ impl TaskRow<'_> {
     }
 }
 
-impl TableRow<5> for &TaskRow<'_> {
-    fn table_record(self) -> TableRecord<5> {
+impl IntoTableRecord<5> for &TaskRow<'_> {
+    fn into_table_record(self) -> TableRecord<5> {
         let details_link = self
             .provider
             .nextcloud_web_root()
@@ -58,14 +58,19 @@ impl TableRow<5> for &TaskRow<'_> {
         TableRecord::new(
             title,
             [
-                self.task.deadline.due_moment().map(event_date_cell),
-                self.task.deadline.due_moment().and_then(event_time_cell),
                 self.task
-                    .priority
-                    .band()
-                    .map(|band| Cell::Hint(band.name().to_owned())),
-                Some(Cell::Hint(progress_hint(self.task))),
-                Some(Cell::Hint(self.task.calendar.clone())),
+                    .deadline
+                    .due_moment()
+                    .map_or(ValueCell::Blank, event_date_cell),
+                self.task
+                    .deadline
+                    .due_moment()
+                    .map_or(ValueCell::Blank, event_time_cell),
+                self.task.priority.band().map_or(ValueCell::Blank, |band| {
+                    ValueCell::Hint(band.name().to_owned())
+                }),
+                ValueCell::Hint(progress_hint(self.task)),
+                ValueCell::Hint(self.task.calendar.clone()),
             ],
         )
         .level(task_severity(self.task, self.now))
@@ -101,11 +106,8 @@ impl BarWidget for OpenTasks<'_> {
     }
 
     fn label(&self, clock: Clock, _locale: Locale) -> Option<String> {
-        let overdue = self.0.overdue_task_count(clock.local());
-        Some(match overdue {
-            0 => self.0.tasks.len().to_string(),
-            _ => format!("{} ({overdue} late)", self.0.tasks.len()),
-        })
+        let overdue_count = self.0.overdue_task_count(clock.local());
+        (overdue_count > 0).then(|| overdue_count.to_string())
     }
 
     fn state(&self, clock: Clock) -> WidgetState {
@@ -130,7 +132,7 @@ impl BarWidget for OpenTasks<'_> {
             .filter(|task| matches!(task.deadline, TaskDeadline::Due(_)))
             .collect();
         let without_deadline = self.0.tasks.len() - with_deadline.len();
-        let rows: Vec<TaskRow> = with_deadline
+        let rows: Vec<_> = with_deadline
             .into_iter()
             .map(|task| TaskRow {
                 task,
@@ -139,7 +141,7 @@ impl BarWidget for OpenTasks<'_> {
             })
             .collect();
         TooltipBody::sections([
-            Section::grouped_truncated_column_table(
+            Section::grouped_column_table(
                 [
                     ColumnHeading::titled("Day"),
                     ColumnHeading::titled("Time"),
@@ -148,8 +150,8 @@ impl BarWidget for OpenTasks<'_> {
                     ColumnHeading::titled("List").align_x(Horizontal::Left),
                 ],
                 rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
-                LISTED_TASKS,
             )
+            .truncated_to(LISTED_TASKS)
             .titled((
                 "Open tasks",
                 format!(
@@ -159,8 +161,9 @@ impl BarWidget for OpenTasks<'_> {
                 ),
             )),
             nextcloud_footer("open Tasks", provider, NextcloudWebRoot::tasks_app).with_entries(
-                (without_deadline > 0)
-                    .then(|| KeyValue::new("Without deadline", Quantity::count(without_deadline))),
+                (without_deadline > 0).then(|| {
+                    LabeledValue::new("Without deadline", Quantity::count(without_deadline))
+                }),
             ),
         ])
     }

@@ -32,7 +32,7 @@ use sottomano_widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         shell_layer_appearance::ShellLayer,
         text::FontFaces,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
     },
 };

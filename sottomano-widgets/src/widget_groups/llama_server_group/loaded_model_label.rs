@@ -9,14 +9,15 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
 
-impl From<LlamaModelStatus> for Cell {
+impl From<LlamaModelStatus> for ValueCell {
     fn from(status: LlamaModelStatus) -> Self {
-        Cell::from(match status {
+        ValueCell::from(match status {
             LlamaModelStatus::Downloading => "downloading",
             LlamaModelStatus::Downloaded => "downloaded",
             LlamaModelStatus::Unloaded => "unloaded",
@@ -55,7 +56,7 @@ impl BarWidget for LlamaModel {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([KeyValue::new("Status", self.status)])
+        TooltipBody::dictionary([LabeledValue::new("Status", self.status)])
     }
 }
 
@@ -102,11 +103,11 @@ impl ReadingSections for LlamaModelProps {
         .collect::<Vec<_>>()
         .join(", ");
         vec![Section::dictionary([
-            KeyValue::new("File", Cell::Path(self.path.clone())),
-            KeyValue::new("Quantization", self.quantization.clone()),
-            KeyValue::new("Slots", Quantity::count(self.total_slots)),
-            KeyValue::new("Input", modalities),
-            KeyValue::new("Build", self.build.clone()),
+            LabeledValue::new("File", ValueCell::Path(self.path.clone())),
+            LabeledValue::new("Quantization", self.quantization.clone()),
+            LabeledValue::new("Slots", Quantity::count(self.total_slots)),
+            LabeledValue::new("Input", modalities),
+            LabeledValue::new("Build", self.build.clone()),
         ])]
     }
 }

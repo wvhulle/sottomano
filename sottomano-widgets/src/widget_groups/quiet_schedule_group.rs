@@ -31,7 +31,11 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
         weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
@@ -446,7 +450,7 @@ impl QuietScheduleGroup {
                     "day off"
                 };
                 Some(Tooltip::sourced(
-                    TooltipBody::dictionary([KeyValue::new(weekday_name(day, locale), kind)]),
+                    TooltipBody::dictionary([LabeledValue::new(weekday_name(day, locale), kind)]),
                     DeliveryTiming::LivePush,
                 ))
             }
@@ -457,7 +461,7 @@ impl QuietScheduleGroup {
         let now = clock.local();
         let manual = self
             .manual_at(now)
-            .map(|_| KeyValue::new("Set", "by hand, until the schedule next changes"));
+            .map(|_| LabeledValue::new("Set", "by hand, until the schedule next changes"));
         let upcoming = self.next_change(now).map(|at| {
             let label = if self.is_quiet() {
                 "Quiet until"
@@ -465,14 +469,14 @@ impl QuietScheduleGroup {
                 "Quiet from"
             };
             [
-                KeyValue::new(
+                LabeledValue::new(
                     label,
-                    Cell::Time {
+                    ValueCell::Time {
                         at: at.with_timezone(&Utc),
                         format: LocalizedTimeFormat::TimeOfDay,
                     },
                 ),
-                KeyValue::new("In", Cell::duration(at - now)),
+                LabeledValue::new("In", ValueCell::duration(at - now)),
             ]
         });
         TooltipBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))

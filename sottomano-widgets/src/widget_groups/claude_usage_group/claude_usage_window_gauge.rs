@@ -14,7 +14,8 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -54,7 +55,11 @@ impl BarWidget for ClaudeUsageWindows {
         });
         TooltipBody::sections(
             [
-                Section::dictionary(self.plan.as_deref().map(|plan| KeyValue::new("Plan", plan))),
+                Section::dictionary(
+                    self.plan
+                        .as_deref()
+                        .map(|plan| LabeledValue::new("Plan", plan)),
+                ),
                 window_section(
                     "Session",
                     &self.session,
@@ -84,17 +89,17 @@ fn window_section(
     quota: Option<&Quota>,
     now: DateTime<Utc>,
 ) -> Section {
-    let used = KeyValue::new("Used", Quantity::share(window.utilization).decimals(2));
+    let used = LabeledValue::new("Used", Quantity::share(window.utilization).decimals(2));
     let pace_entry = quota.and_then(Quota::pace).map(|pace| match pace {
         Pace::Lasts { at_reset } => {
-            KeyValue::new("Projected At Reset", Quantity::share(at_reset).decimals(2))
+            LabeledValue::new("Projected At Reset", Quantity::share(at_reset).decimals(2))
         }
-        Pace::RunsOut { at } => KeyValue::new("Runs Out In", Cell::duration(at - now)),
-        Pace::Exceeded => KeyValue::new("Used Up", "already"),
+        Pace::RunsOut { at } => LabeledValue::new("Runs Out In", ValueCell::duration(at - now)),
+        Pace::Exceeded => LabeledValue::new("Used Up", "already"),
     });
     let resets = window
         .resets_at
-        .map(|at| KeyValue::new("Resets In", Cell::duration(at - now)));
+        .map(|at| LabeledValue::new("Resets In", ValueCell::duration(at - now)));
     Section::dictionary(once(used).chain(pace_entry).chain(resets)).titled(title)
 }
 
@@ -105,17 +110,17 @@ fn extra_section(extra: Option<&ExtraUsage>) -> Section {
             ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
         };
         [
-            Some(KeyValue::new("Status", status)),
-            reason.map(|reason| KeyValue::new("Reason", reason)),
+            Some(LabeledValue::new("Status", status)),
+            reason.map(|reason| LabeledValue::new("Reason", reason)),
             extra
                 .spent
-                .map(|spent| KeyValue::new("Spent This Month", Quantity::spend(spent))),
+                .map(|spent| LabeledValue::new("Spent This Month", Quantity::spend(spent))),
             extra
                 .monthly_limit
-                .map(|limit| KeyValue::new("Monthly Limit", Quantity::spend(limit))),
+                .map(|limit| LabeledValue::new("Monthly Limit", Quantity::spend(limit))),
             extra
                 .used_share
-                .map(|used| KeyValue::new("Used", Quantity::share(used).decimals(2))),
+                .map(|used| LabeledValue::new("Used", Quantity::share(used).decimals(2))),
         ]
         .into_iter()
         .flatten()

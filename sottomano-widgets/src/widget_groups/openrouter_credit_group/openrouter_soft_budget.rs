@@ -12,7 +12,8 @@ use crate::{
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -47,20 +48,21 @@ impl BarWidget for OpenRouterSpend {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
         let now = clock.local();
-        let daily_warning = KeyValue::new("Daily Warning", Quantity::spend(self.daily_warning()))
-            .level(self.daily_severity());
-        let monthly_budget = KeyValue::monthly_budget(
+        let daily_warning =
+            LabeledValue::new("Daily Warning", Quantity::spend(self.daily_warning()))
+                .level(self.daily_severity());
+        let monthly_budget = LabeledValue::monthly_budget(
             &self.budget,
             &self.month.cost(),
             self.month.projected_cost(now, &self.budget),
         );
-        let span_section = |title: String, spent: &SpanSpend, threshold: Option<KeyValue>| {
+        let span_section = |title: String, spent: &SpanSpend, threshold: Option<LabeledValue>| {
             let projected = spent
                 .projected_cost(now, &self.budget)
-                .map(|cost| KeyValue::new("Projected Cost", Quantity::spend(cost)));
+                .map(|cost| LabeledValue::new("Projected Cost", Quantity::spend(cost)));
             Section::dictionary(
                 [
-                    Some(KeyValue::new("Cost", Quantity::spend(spent.cost()))),
+                    Some(LabeledValue::new("Cost", Quantity::spend(spent.cost()))),
                     projected,
                     threshold,
                 ]
@@ -71,7 +73,7 @@ impl BarWidget for OpenRouterSpend {
         };
         TooltipBody::sections([
             Section::spend_forecast_basis(
-                [KeyValue::new("Source", "OpenRouter analytics")],
+                [LabeledValue::new("Source", "OpenRouter analytics")],
                 &self.budget,
             ),
             span_section("Today".to_owned(), &self.today, Some(daily_warning)),

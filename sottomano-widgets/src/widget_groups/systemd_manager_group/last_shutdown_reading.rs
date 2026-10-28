@@ -8,9 +8,11 @@ use crate::{
     clock::Clock,
     widgets::{
         bar_widget::{BarWidget, Glyph},
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, ColumnHeading, Section, TableRecord, TableRow, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::ValueCell,
         widget_state::WidgetState,
     },
 };
@@ -21,17 +23,21 @@ impl From<ShutdownReadError> for Section {
     }
 }
 
-impl TableRow<2> for &UnitStop {
-    fn table_record(self) -> TableRecord<2> {
+impl IntoTableRecord<2> for &UnitStop {
+    fn into_table_record(self) -> TableRecord<2> {
         let cells = match &self.outcome {
-            StopOutcome::Unfinished => [Some("did not finish".into()), None],
+            StopOutcome::Unfinished => ["did not finish".into(), ValueCell::Blank],
             StopOutcome::Finished {
                 duration,
                 job_result,
                 ..
             } => [
-                Some(Cell::duration(*duration)),
-                (*job_result != JobResult::Done).then(|| job_result.to_string().into()),
+                ValueCell::duration(*duration),
+                if *job_result == JobResult::Done {
+                    ValueCell::Blank
+                } else {
+                    job_result.to_string().into()
+                },
             ],
         };
         TableRecord::new(self.unit.name(), cells).level(self.outcome.severity())

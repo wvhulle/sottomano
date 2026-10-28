@@ -8,7 +8,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -55,8 +56,8 @@ impl BarWidget for SlotOccupancy<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::dictionary([
-            KeyValue::new("Processing", Quantity::count(self.busy())),
-            KeyValue::new("Slots", Quantity::count(self.0.len())),
+            LabeledValue::new("Processing", Quantity::count(self.busy())),
+            LabeledValue::new("Slots", Quantity::count(self.0.len())),
         ])
     }
 }

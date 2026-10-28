@@ -18,7 +18,7 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         latest_snapshot::LatestSnapshot,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
     },
 };

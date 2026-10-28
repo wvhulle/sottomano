@@ -12,7 +12,11 @@ use crate::{
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, DeliveryTiming, KeyValue, Tooltip, TooltipBody},
+        tooltip_body::{
+            TooltipBody,
+            tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        },
+        value_cells::{LabeledValue, ValueCell},
         widget_state::WidgetState,
     },
 };
@@ -144,13 +148,13 @@ impl BarWidget for AutoSwitchToggle {
         let upcoming = match self.status_at(clock.utc()) {
             ScheduleStatus::Disarmed => return TooltipBody::sections([]),
             ScheduleStatus::AwaitingLocationFix => {
-                return TooltipBody::dictionary([KeyValue::new(
+                return TooltipBody::dictionary([LabeledValue::new(
                     "Next",
                     "waiting for a location fix",
                 )]);
             }
             ScheduleStatus::NoSunEvents => {
-                return TooltipBody::dictionary([KeyValue::new(
+                return TooltipBody::dictionary([LabeledValue::new(
                     "Next",
                     "no sunrise or sunset soon",
                 )]);
@@ -162,17 +166,17 @@ impl BarWidget for AutoSwitchToggle {
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
         TooltipBody::dictionary([
-            KeyValue::new(
+            LabeledValue::new(
                 upcoming.target_mode.sun_event_label().to_owned(),
-                Cell::Time {
+                ValueCell::Time {
                     at: upcoming.switch_time - offset,
                     format: LocalizedTimeFormat::TimeOfDay,
                 },
             ),
-            KeyValue::new("Offset".to_owned(), Cell::SignedDuration(offset)),
-            KeyValue::new(
+            LabeledValue::new("Offset".to_owned(), ValueCell::SignedDuration(offset)),
+            LabeledValue::new(
                 format!("Switch to {}", upcoming.target_mode.umbra_name()),
-                Cell::Time {
+                ValueCell::Time {
                     at: upcoming.switch_time,
                     format: LocalizedTimeFormat::TimeOfDay,
                 },

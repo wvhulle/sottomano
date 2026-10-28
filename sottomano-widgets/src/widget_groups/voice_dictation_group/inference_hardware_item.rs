@@ -7,7 +7,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{KeyValue, TooltipBody},
+        tooltip_body::TooltipBody,
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -25,15 +26,16 @@ impl InferenceHardware<'_> {
             .any(|vendor_word| self.0.compute_device_name.contains(vendor_word))
     }
 
-    fn hardware_rows(&self) -> impl Iterator<Item = KeyValue> {
+    fn hardware_rows(&self) -> impl Iterator<Item = LabeledValue> {
         let engine = self.0;
         [
             non_empty(&engine.compute_device)
-                .map(|compute_device| KeyValue::new("Device", compute_device)),
-            non_empty(&engine.compute_device_name).map(|gpu_name| KeyValue::new("GPU", gpu_name)),
+                .map(|compute_device| LabeledValue::new("Device", compute_device)),
+            non_empty(&engine.compute_device_name)
+                .map(|gpu_name| LabeledValue::new("GPU", gpu_name)),
             Some(engine.available_accelerators.join(", "))
                 .filter(|joined| !joined.is_empty())
-                .map(|accelerator_list| KeyValue::new("Accelerators", accelerator_list)),
+                .map(|accelerator_list| LabeledValue::new("Accelerators", accelerator_list)),
         ]
         .into_iter()
         .flatten()
@@ -78,7 +80,7 @@ impl BarWidget for InferenceHardware<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::tooltip_body::Cell;
+    use crate::widgets::value_cells::ValueCell;
 
     fn engine_on(compute_device: &str, compute_device_name: &str) -> DictationEngine {
         DictationEngine {
@@ -94,7 +96,7 @@ mod tests {
             available_accelerators: vec!["CUDA".to_owned(), "Vulkan".to_owned()],
             ..engine_on("CUDA0", "NVIDIA GeForce RTX 4090")
         };
-        let rows: Vec<(Cell, Cell)> = InferenceHardware(&engine)
+        let rows: Vec<(ValueCell, ValueCell)> = InferenceHardware(&engine)
             .hardware_rows()
             .map(|row| (row.key().clone(), row.value().clone()))
             .collect();
@@ -105,7 +107,7 @@ mod tests {
                 ("GPU", "NVIDIA GeForce RTX 4090"),
                 ("Accelerators", "CUDA, Vulkan"),
             ]
-            .map(|(key, value)| (Cell::from(key), Cell::from(value)))
+            .map(|(key, value)| (ValueCell::from(key), ValueCell::from(value)))
             .to_vec()
         );
     }

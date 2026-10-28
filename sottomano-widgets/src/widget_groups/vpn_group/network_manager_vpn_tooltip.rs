@@ -8,7 +8,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
         widget_state::WidgetState,
     },
 };
@@ -53,20 +54,20 @@ impl BarWidget for VpnConnection {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         let profile_entries = [
-            Some(KeyValue::new(self.name.as_str(), self.protocol_label())),
+            Some(LabeledValue::new(self.name.as_str(), self.protocol_label())),
             self.remote_gateway
                 .as_deref()
-                .map(|gateway| KeyValue::new("Gateway", gateway)),
+                .map(|gateway| LabeledValue::new("Gateway", gateway)),
         ];
         let VpnActivity::Active(tunnel) = &self.activity else {
             return TooltipBody::sections([Section::dictionary(
                 profile_entries
                     .into_iter()
                     .flatten()
-                    .chain([KeyValue::new("State", "not connected")]),
+                    .chain([LabeledValue::new("State", "not connected")]),
             )]);
         };
-        let state_entry = KeyValue::new("State", tunnel.vpn_state.label());
+        let state_entry = LabeledValue::new("State", tunnel.vpn_state.label());
         let tunnel_entries = [
             Some(match tunnel.vpn_state {
                 VpnState::Failed => state_entry.level(Severity::Warning),
@@ -75,20 +76,20 @@ impl BarWidget for VpnConnection {
             tunnel
                 .ipv4
                 .as_ref()
-                .map(|block| KeyValue::new("IPv4", block.address.as_str())),
+                .map(|block| LabeledValue::new("IPv4", block.address.as_str())),
             tunnel
                 .ipv6
                 .as_ref()
-                .map(|block| KeyValue::new("IPv6", block.address.as_str())),
+                .map(|block| LabeledValue::new("IPv6", block.address.as_str())),
         ];
         let dns_entries = tunnel
             .dns
             .iter()
-            .map(|nameserver| KeyValue::new("DNS", nameserver.as_str()));
+            .map(|nameserver| LabeledValue::new("DNS", nameserver.as_str()));
         let banner_entries = tunnel
             .banner
             .as_deref()
-            .map(|banner| KeyValue::new("Banner", banner));
+            .map(|banner| LabeledValue::new("Banner", banner));
         TooltipBody::sections([
             Section::dictionary(
                 profile_entries

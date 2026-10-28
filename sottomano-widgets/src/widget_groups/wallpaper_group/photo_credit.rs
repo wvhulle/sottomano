@@ -6,7 +6,8 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         simple_icons::SimpleIcon,
-        tooltip_body::{Cell, KeyValue, Section, TooltipBody},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -35,16 +36,16 @@ impl BarWidget for Photo {
         TooltipBody::sections([
             Section::dictionary(
                 [
-                    Some(KeyValue::new("File", self.file_name.as_str())),
+                    Some(LabeledValue::new("File", self.file_name.as_str())),
                     self.photographer
                         .as_deref()
-                        .map(|photographer| KeyValue::new("Photographer", photographer)),
-                    Some(KeyValue::new(
+                        .map(|photographer| LabeledValue::new("Photographer", photographer)),
+                    Some(LabeledValue::new(
                         "Unsplash",
-                        Cell::Link {
+                        ValueCell::BrandedLink {
                             label: "photo page".to_owned(),
                             url: self.url.clone(),
-                            glyph: Some(SimpleIcon::Unsplash.into()),
+                            glyph: SimpleIcon::Unsplash.into(),
                         },
                     )),
                 ]
@@ -55,7 +56,7 @@ impl BarWidget for Photo {
             Section::dictionary(
                 self.caption
                     .as_deref()
-                    .map(|caption| KeyValue::new(" ", caption)),
+                    .map(|caption| LabeledValue::new(" ", caption)),
             )
             .titled("Caption"),
         ])

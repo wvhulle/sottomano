@@ -6,7 +6,8 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Cell, KeyValue, ReadingSections, Section, TooltipBody},
+        tooltip_body::{ReadingSections, Section, TooltipBody},
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
@@ -22,7 +23,7 @@ impl BarWidget for DesktopServicesFace {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([KeyValue::new(
+        TooltipBody::sections([Section::dictionary([LabeledValue::new(
             "Started by",
             "systemd --user",
         )])
@@ -36,11 +37,11 @@ impl BarWidget for DesktopServicesFace {
 impl ReadingSections for GraphicalSessionTarget {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
         let entries = [
-            Some(KeyValue::new("State", self.state.clone())),
+            Some(LabeledValue::new("State", self.state.clone())),
             self.reached_at.map(|at| {
-                KeyValue::new(
+                LabeledValue::new(
                     "Ready since",
-                    Cell::Time {
+                    ValueCell::Time {
                         at,
                         format: LocalizedTimeFormat::DateAndTime,
                     },

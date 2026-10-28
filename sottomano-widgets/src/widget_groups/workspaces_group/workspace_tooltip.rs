@@ -9,7 +9,9 @@ use crate::{
     desktop_index::DesktopIndex,
     widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
     widgets::tooltip_body::{
-        DeliveryTiming, PreviewTile, Section, Tooltip, TooltipBody, WorkspacePreview,
+        Section, TooltipBody,
+        tooltip_figure_payloads::{PreviewTile, WorkspacePreview},
+        tooltip_source_delivery::{DeliveryTiming, Tooltip},
     },
 };
 

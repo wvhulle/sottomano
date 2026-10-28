@@ -22,7 +22,7 @@ use crate::{
     widgets::{
         anchored_popup::{Rendering, anchored_popup},
         shell_layer_appearance::LayerAppearance,
-        tooltip_body::Tooltip,
+        tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
     },
 };

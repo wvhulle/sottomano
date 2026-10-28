@@ -9,7 +9,7 @@ use crate::{
     hover_tooltips::PopupMessage,
     widgets::{
         palette_colors::PaletteColors,
-        tooltip_body::{PhysicalCoreCells, ThreadCell},
+        tooltip_body::tooltip_figure_payloads::{PhysicalCoreCells, ThreadCell},
         widget_state::WidgetState,
     },
 };
