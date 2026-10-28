@@ -144,7 +144,7 @@ fn readings(clock: Clock) -> [WeatherMessage; 5] {
             Ok(pollen_counts()),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_mins(30))),
         )),
-        WeatherMessage::Temp(SnapshotDelivery::fixture_delivered(
+        WeatherMessage::Temperature(SnapshotDelivery::fixture_delivered(
             Ok(Temperature {
                 condition: Some(WeatherCondition::PartlyCloudy),
                 daylight: Daylight::Day,

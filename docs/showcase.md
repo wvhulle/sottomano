@@ -60,11 +60,11 @@ Wind speed, gusts and direction, with the Beaufort force in the panel.
 
 <img src="../recordings/weather_wind.webp" width="401" alt="Hovering the wind in the weather group">
 
-### Weather: Precipitation
+### Weather: Rain
 
-What falls in the coming quarter-hours, from the forecast model.
+Rain in the coming hours on one timeline, split by hour: radar every five minutes where Buienradar covers, the forecast model's precipitation type every quarter-hour everywhere.
 
-<img src="../recordings/weather_precipitation.webp" width="401" alt="Hovering the precipitation type in the weather group">
+<img src="../recordings/weather_precipitation.webp" width="401" alt="Hovering the rain item in the weather group">
 
 ### Weather: Pollen
 

@@ -25,7 +25,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::weather_group::rain_intensity::RainForecast,
+    widget_groups::weather_group::rain_intensity::{RainForecast, RainSources},
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -40,7 +40,6 @@ pub enum WeatherTarget {
     Temperature,
     Wind,
     Rain,
-    PrecipitationType,
     Pollen,
     Allergen(Allergen),
     Location,
@@ -63,7 +62,7 @@ impl From<WeatherTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct WeatherGroup {
-    temp: LatestSnapshot<Temperature>,
+    temperature: LatestSnapshot<Temperature>,
     wind: LatestSnapshot<Wind>,
     rain: LatestSnapshot<Rain, HidesFailuresAfterSuccess>,
     precipitation_model: LatestSnapshot<PrecipitationModel, HidesFailuresAfterSuccess>,
@@ -74,7 +73,7 @@ pub struct WeatherGroup {
 
 #[derive(Debug, Clone)]
 pub enum WeatherMessage {
-    Temp(SnapshotDelivery<Temperature>),
+    Temperature(SnapshotDelivery<Temperature>),
     Wind(SnapshotDelivery<Wind>),
     Rain(SnapshotDelivery<Rain>),
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
@@ -95,7 +94,7 @@ impl WeatherGroup {
         };
         Subscription::batch([
             location,
-            snapshot_subscription::<Temperature>(here).map(WeatherMessage::Temp),
+            snapshot_subscription::<Temperature>(here).map(WeatherMessage::Temperature),
             snapshot_subscription::<Rain>(here).map(WeatherMessage::Rain),
             snapshot_subscription::<PrecipitationModel>(here)
                 .map(WeatherMessage::PrecipitationModel),
@@ -108,7 +107,7 @@ impl WeatherGroup {
 
     pub fn update(&mut self, msg: WeatherMessage, clock: Clock) -> Task<WeatherMessage> {
         match msg {
-            WeatherMessage::Temp(reading) => self.temp.receive(reading, clock),
+            WeatherMessage::Temperature(reading) => self.temperature.receive(reading, clock),
             WeatherMessage::Wind(reading) => self.wind.receive(reading, clock),
             WeatherMessage::Rain(reading) => self.rain.receive(reading, clock),
             WeatherMessage::PrecipitationModel(reading) => {
@@ -131,13 +130,13 @@ impl WeatherGroup {
         };
         match target {
             WeatherTarget::Temperature => {
-                first_delivery::<Temperature>(here).map(WeatherMessage::Temp)
+                first_delivery::<Temperature>(here).map(WeatherMessage::Temperature)
             }
             WeatherTarget::Wind => first_delivery::<Wind>(here).map(WeatherMessage::Wind),
-            WeatherTarget::Rain => first_delivery::<Rain>(here).map(WeatherMessage::Rain),
-            WeatherTarget::PrecipitationType => {
-                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel)
-            }
+            WeatherTarget::Rain => Task::batch([
+                first_delivery::<Rain>(here).map(WeatherMessage::Rain),
+                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
+            ]),
             WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
                 first_delivery::<Pollen>(here).map(WeatherMessage::Pollen)
             }
@@ -153,19 +152,9 @@ impl WeatherGroup {
         clock: Clock,
     ) -> Option<Tooltip> {
         match target {
-            WeatherTarget::Temperature => self.temp.tooltip(clock),
+            WeatherTarget::Temperature => self.temperature.tooltip(clock),
             WeatherTarget::Wind => self.wind.tooltip(clock),
-            WeatherTarget::Rain => match self.rain.visible_reading() {
-                Some(rain) => self.rain.tooltip_with(
-                    RainForecast {
-                        rain,
-                        alerts: &config.widget_groups.rain_alerts,
-                    }
-                    .tooltip(clock),
-                ),
-                None => self.rain.tooltip(clock),
-            },
-            WeatherTarget::PrecipitationType => self.precipitation_model.tooltip(clock),
+            WeatherTarget::Rain => self.rain_tooltip(config, clock),
             WeatherTarget::Pollen => self.pollen.tooltip(clock),
             WeatherTarget::Allergen(allergen) => self
                 .pollen
@@ -174,17 +163,47 @@ impl WeatherGroup {
         }
     }
 
-    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherMessage>> {
-        let Some(rain) = self.rain.visible_reading() else {
-            return self.rain.group_item(WeatherTarget::Rain);
+    fn rain_forecast<'a>(&'a self, config: &'a Config) -> Option<RainForecast<'a>> {
+        Some(RainForecast {
+            sources: RainSources::from_readings(
+                self.rain.visible_reading(),
+                self.precipitation_model.visible_reading(),
+            )?,
+            alerts: &config.widget_groups.rain_alerts,
+        })
+    }
+
+    fn rain_tooltip(&self, config: &Config, clock: Clock) -> Option<Tooltip> {
+        let Some(forecast) = self.rain_forecast(config) else {
+            return self
+                .rain
+                .tooltip(clock)
+                .or_else(|| self.precipitation_model.tooltip(clock));
         };
-        Some(GroupItem::reading(
-            RainForecast {
-                rain,
-                alerts: &config.widget_groups.rain_alerts,
-            },
-            WeatherTarget::Rain,
-        ))
+        let radar_failure_sections = self
+            .rain
+            .failure()
+            .map(|failure| failure.tooltip(clock).listed_sections().to_vec())
+            .unwrap_or_default();
+        let body = forecast
+            .tooltip(clock)
+            .with_sections(radar_failure_sections);
+        match forecast.sources {
+            RainSources::Model(_) => self.precipitation_model.tooltip_with(body),
+            RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
+                self.rain.tooltip_with(body)
+            }
+        }
+    }
+
+    fn rain_item<'a>(&'a self, config: &'a Config) -> Option<GroupItem<'a, WeatherMessage>> {
+        match self.rain_forecast(config) {
+            Some(forecast) => Some(GroupItem::reading(forecast, WeatherTarget::Rain)),
+            None => self
+                .rain
+                .group_item(WeatherTarget::Rain)
+                .or_else(|| self.precipitation_model.group_item(WeatherTarget::Rain)),
+        }
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, WeatherMessage> {
@@ -200,11 +219,9 @@ impl WeatherGroup {
             &self.expansion,
             WeatherMessage::Expansion,
             [
-                self.temp.group_item(WeatherTarget::Temperature),
-                self.wind.group_item(WeatherTarget::Wind),
+                self.temperature.group_item(WeatherTarget::Temperature),
                 self.rain_item(config),
-                self.precipitation_model
-                    .group_item(WeatherTarget::PrecipitationType),
+                self.wind.group_item(WeatherTarget::Wind),
             ]
             .into_iter()
             .flatten()

@@ -87,6 +87,30 @@ pub enum WeatherCondition {
     ThunderstormWithHail(Intensity),
 }
 
+impl WeatherCondition {
+    #[must_use]
+    pub const fn is_precipitation(self) -> bool {
+        match self {
+            Self::Clear
+            | Self::MainlyClear
+            | Self::PartlyCloudy
+            | Self::Overcast
+            | Self::Fog
+            | Self::RimeFog => false,
+            Self::Drizzle(_)
+            | Self::FreezingDrizzle(_)
+            | Self::Rain(_)
+            | Self::FreezingRain(_)
+            | Self::Snow(_)
+            | Self::SnowGrains
+            | Self::RainShowers(_)
+            | Self::SnowShowers(_)
+            | Self::Thunderstorm
+            | Self::ThunderstormWithHail(_) => true,
+        }
+    }
+}
+
 impl Display for Intensity {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str(match self {
@@ -310,6 +334,15 @@ impl Temperature {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_codes_from_drizzle_upward_are_precipitation() {
+        for code in 0..=99 {
+            if let Ok(condition) = WeatherCondition::try_from(code) {
+                assert_eq!(condition.is_precipitation(), code >= 51, "code {code}");
+            }
+        }
+    }
 
     #[test]
     fn hourly_temperatures_split_around_now() {

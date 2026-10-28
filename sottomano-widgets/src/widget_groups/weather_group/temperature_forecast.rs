@@ -1,8 +1,6 @@
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_sources::weather::open_meteo_temperature::{
-    Daylight, HourlyTemperature, Temperature, WeatherCondition,
-};
+use sottomano_sources::weather::open_meteo_temperature::{HourlyTemperature, Temperature};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},
@@ -42,46 +40,35 @@ impl BarWidget for Temperature {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        let sky_entry = self
+            .condition
+            .map(|condition| KeyValue::new("Sky", condition.to_string()));
         TooltipBody::sections([
-            Section::unheaded_table(
-                [Horizontal::Right, Horizontal::Left],
-                self.condition.map(|condition| {
-                    TableRecord::new("Conditions", condition_cells(condition, self.daylight))
-                }),
-            ),
-            Section::dictionary([
-                KeyValue::new("Now", weather_temperature(self.temp)),
+            Section::dictionary(sky_entry.into_iter().chain([
+                KeyValue::new("Temperature", weather_temperature(self.temp)),
                 KeyValue::new("Feels like", weather_temperature(self.feels)),
-                KeyValue::new("Today's low", weather_temperature(self.temp_min)),
-                KeyValue::new("Today's high", weather_temperature(self.temp_max)),
                 KeyValue::new("Humidity", Quantity::share(self.humidity)),
+            ]))
+            .titled("Now"),
+            Section::dictionary([
+                KeyValue::new("Low", weather_temperature(self.temp_min)),
+                KeyValue::new("High", weather_temperature(self.temp_max)),
             ])
-            .titled("Temperature"),
+            .titled("Today"),
             Section::column_table(HOURLY_HEADINGS, self.hourly.earlier.iter()).titled("Earlier"),
             Section::continuing_column_table(HOURLY_HEADINGS, self.hourly.later.iter())
                 .titled("Later"),
         ])
     }
 }
-const HOURLY_HEADINGS: [ColumnHeading; 4] = [
+const HOURLY_HEADINGS: [ColumnHeading; 3] = [
     ColumnHeading::titled("Temp"),
     ColumnHeading::untitled(),
-    ColumnHeading::titled("Conditions").align_x(Horizontal::Left),
-    ColumnHeading::titled("Daylight").align_x(Horizontal::Left),
+    ColumnHeading::titled("Sky").align_x(Horizontal::Left),
 ];
 
-fn condition_cells(condition: WeatherCondition, daylight: Daylight) -> [Option<Cell>; 2] {
-    [
-        Some(Cell::Glyph(WeatherIcon::Sky(condition, daylight).into())),
-        Some(condition.to_string().into()),
-    ]
-}
-
-impl TableRow<4> for &HourlyTemperature {
-    fn table_record(self) -> TableRecord<4> {
-        let [glyph, text] = self.condition.map_or([None, None], |condition| {
-            condition_cells(condition, self.daylight)
-        });
+impl TableRow<3> for &HourlyTemperature {
+    fn table_record(self) -> TableRecord<3> {
         TableRecord::new(
             Cell::Time {
                 at: self.time,
@@ -89,9 +76,10 @@ impl TableRow<4> for &HourlyTemperature {
             },
             [
                 Some(weather_temperature(self.temp).into()),
-                glyph,
-                text,
-                Some(self.daylight.to_string().into()),
+                self.condition.map(|condition| {
+                    Cell::Glyph(WeatherIcon::Sky(condition, self.daylight).into())
+                }),
+                self.condition.map(|condition| condition.to_string().into()),
             ],
         )
     }

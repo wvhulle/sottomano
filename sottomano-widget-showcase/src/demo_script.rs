@@ -168,7 +168,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         script: &[
             Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::PrecipitationType)),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
         ],
     },
     Demo {
