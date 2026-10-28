@@ -1,4 +1,4 @@
-pub mod accelerometer_report_rate;
+pub mod accelerometer_report_timing;
 pub mod bluez_device_aliases;
 pub mod evdev_gamepad_devices;
 pub mod gamepad_input_machine;

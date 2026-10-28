@@ -43,14 +43,20 @@ fn composed_reading<'a, Message: 'a>(
     value: fn(&Config, &dyn BarWidget, Color, Clock) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let color = reading_color(config, widget, clock).scale_alpha(opacity);
-    let icon = ordinal_marked(
-        config,
-        widget
-            .icon_at(clock)
-            .view(config.theme.font.icon_size_px, color),
-        widget.identity_ordinal(),
-        opacity,
-    );
+    let bare_icon = widget
+        .icon_at(clock)
+        .view(config.theme.font.icon_size_px, color);
+    let icon = match widget.identity_ordinal() {
+        Some(ordinal) => superscripted(
+            config,
+            bare_icon,
+            ordinal.to_string(),
+            PaletteColors::from(&config.theme.palette)
+                .inactive
+                .scale_alpha(opacity),
+        ),
+        None => bare_icon,
+    };
 
     let reading = match value(config, widget, color, clock) {
         Some(value) => row![icon, value]
@@ -133,29 +139,6 @@ fn failure_marker<'a, Message: 'a>(config: &Config, color: Color) -> Element<'a,
     Glyph::from(Phosphor::Warning(Weight::Thin)).view(config.theme.font.icon_size_px, color)
 }
 
-fn ordinal_marked<'a, Message: 'a>(
-    config: &Config,
-    icon: Element<'a, Message>,
-    ordinal: Option<u8>,
-    opacity: f32,
-) -> Element<'a, Message> {
-    let Some(ordinal) = ordinal else {
-        return icon;
-    };
-    let superscript = text(ordinal.to_string())
-        .size(config.theme.font.small_text_size_px)
-        .font(FontFaces::from(&config.theme.font).regular)
-        .color(
-            PaletteColors::from(&config.theme.palette)
-                .inactive
-                .scale_alpha(opacity),
-        );
-    Row::with_children([icon, superscript.into()])
-        .spacing(1.0)
-        .align_y(Alignment::Start)
-        .into()
-}
-
 fn badged<'a, Message: 'a>(
     config: &Config,
     reading: Element<'a, Message>,
@@ -163,16 +146,23 @@ fn badged<'a, Message: 'a>(
     color: Color,
 ) -> Element<'a, Message> {
     match badge {
-        Some(count) if count > 0 => {
-            let superscript = text(count.to_string())
-                .size(config.theme.font.small_text_size_px)
-                .font(FontFaces::from(&config.theme.font).regular)
-                .color(color);
-            Row::with_children([reading, superscript.into()])
-                .spacing(1.0)
-                .align_y(Alignment::Start)
-                .into()
-        }
+        Some(count) if count > 0 => superscripted(config, reading, count.to_string(), color),
         _ => reading,
     }
+}
+
+fn superscripted<'a, Message: 'a>(
+    config: &Config,
+    marked: Element<'a, Message>,
+    digits: String,
+    color: Color,
+) -> Element<'a, Message> {
+    let superscript = text(digits)
+        .size(config.theme.font.small_text_size_px)
+        .font(FontFaces::from(&config.theme.font).regular)
+        .color(color);
+    Row::with_children([marked, superscript.into()])
+        .spacing(1.0)
+        .align_y(Alignment::Start)
+        .into()
 }

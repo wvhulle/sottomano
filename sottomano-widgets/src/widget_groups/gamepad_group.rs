@@ -14,8 +14,9 @@ use sottomano_config::widget_groups::gamepad_bindings::{
     ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
 use sottomano_sources::{
+    SnapshotDelivery,
     gamepad_controller_input::{
-        accelerometer_report_rate::ReportRate,
+        accelerometer_report_timing::ReportTiming,
         evdev_gamepad_devices::{
             ButtonEdge, ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower,
             GamepadTransport, PhysicalGamepadLink, UsbCableState,
@@ -24,19 +25,26 @@ use sottomano_sources::{
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
+    network_connectivity::{ethernet_connection::Ethernet, wifi_connection::Wifi},
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
     },
 };
+use uom::si::f64::Frequency;
 
 use self::{
     bluetooth_link_reading::BluetoothLinkReading,
     connected_controller_reading::{ConnectedControllerReading, ControllerMarking},
     controller_battery_reading::ControllerBatteryReading,
-    controller_link_reading::{ControllerLinkReading, MeasuredReportRate},
+    controller_link_reading::{
+        BandSharing, ControllerLinkReading, MeasuredReportTiming, WiredFallback,
+        shares_bluetooth_band,
+    },
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
+    background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
@@ -72,6 +80,8 @@ pub enum CompositorControl<'a> {
 pub enum GamepadMessage {
     Input(GamepadInput),
     KernelErrors(Vec<DeviceKernelError>),
+    Wifi(Box<SnapshotDelivery<Wifi>>),
+    Ethernet(Box<SnapshotDelivery<Ethernet>>),
     DisconnectBluetooth {
         slot: usize,
     },
@@ -88,6 +98,33 @@ pub enum Action {
     Dictation(DictationCommand),
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+enum WifiBandUse {
+    #[default]
+    ClearOfBluetooth,
+    SharingBluetoothBand {
+        network_name: String,
+        frequency: Frequency,
+    },
+}
+
+impl WifiBandUse {
+    fn of_wifi(wifi: &Wifi) -> Self {
+        match &wifi.link {
+            Some(link) if shares_bluetooth_band(link.frequency) => {
+                WifiBandUse::SharingBluetoothBand {
+                    network_name: link
+                        .ssid
+                        .clone()
+                        .unwrap_or_else(|| "hidden network".to_owned()),
+                    frequency: link.frequency,
+                }
+            }
+            _ => WifiBandUse::ClearOfBluetooth,
+        }
+    }
+}
+
 #[derive(Default)]
 struct ControllerSession {
     expansion: GroupExpansion,
@@ -97,8 +134,10 @@ struct ControllerSession {
 pub struct GamepadGroup {
     controllers: Vec<ConnectedGamepad>,
     sessions: BTreeMap<usize, ControllerSession>,
-    report_rates: BTreeMap<usize, ReportRate>,
+    report_timings: BTreeMap<usize, ReportTiming>,
     kernel_errors: Vec<DeviceKernelError>,
+    wifi_band_use: WifiBandUse,
+    wired_fallback: WiredFallback,
 }
 
 impl GamepadGroup {
@@ -148,6 +187,15 @@ impl GamepadGroup {
         ])
     }
 
+    pub fn network_subscription(buses: &DesktopBuses) -> Subscription<GamepadMessage> {
+        Subscription::batch([
+            snapshot_subscription::<Wifi>(buses.clone())
+                .map(|delivery| GamepadMessage::Wifi(Box::new(delivery))),
+            snapshot_subscription::<Ethernet>(buses.clone())
+                .map(|delivery| GamepadMessage::Ethernet(Box::new(delivery))),
+        ])
+    }
+
     fn acts(bindings: &GamepadBindingsConfig, focused_app_id: Option<&str>) -> bool {
         Self::control(bindings, focused_app_id) == CompositorControl::DrivingNiri
     }
@@ -163,8 +211,8 @@ impl GamepadGroup {
                 self.receive_roster(controllers);
                 Action::Idle
             }
-            GamepadMessage::Input(GamepadInput::ReportRate { slot, rate }) => {
-                self.report_rates.insert(slot, rate);
+            GamepadMessage::Input(GamepadInput::ReportTiming { slot, timing }) => {
+                self.report_timings.insert(slot, timing);
                 Action::Idle
             }
             GamepadMessage::Input(GamepadInput::Button { button, edge, .. }) => {
@@ -181,6 +229,42 @@ impl GamepadGroup {
                 }),
             GamepadMessage::KernelErrors(kernel_errors) => {
                 self.kernel_errors = kernel_errors;
+                Action::Idle
+            }
+            GamepadMessage::Wifi(delivery) => {
+                match *delivery {
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(wifi),
+                        ..
+                    } => self.wifi_band_use = WifiBandUse::of_wifi(&wifi),
+                    SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(_),
+                        ..
+                    } => self.wifi_band_use = WifiBandUse::ClearOfBluetooth,
+                    SnapshotDelivery::SnapshotUnchanged => {}
+                }
+                Action::Idle
+            }
+            GamepadMessage::Ethernet(delivery) => {
+                match *delivery {
+                    SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Ok(ethernet),
+                        ..
+                    } => {
+                        self.wired_fallback = if ethernet.connected_count() > 0 {
+                            WiredFallback::Connected
+                        } else {
+                            WiredFallback::Absent
+                        };
+                    }
+                    SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::SnapshotDelivered {
+                        snapshot_fetch: Err(_),
+                        ..
+                    } => self.wired_fallback = WiredFallback::Absent,
+                    SnapshotDelivery::SnapshotUnchanged => {}
+                }
                 Action::Idle
             }
             GamepadMessage::DisconnectBluetooth { slot } => {
@@ -205,7 +289,7 @@ impl GamepadGroup {
     fn receive_roster(&mut self, controllers: Vec<ConnectedGamepad>) {
         let connected = |slot: &usize| controllers.iter().any(|gamepad| gamepad.slot == *slot);
         self.sessions.retain(|slot, _| connected(slot));
-        self.report_rates.retain(|slot, _| connected(slot));
+        self.report_timings.retain(|slot, _| connected(slot));
         for gamepad in &controllers {
             self.sessions.entry(gamepad.slot).or_default();
         }
@@ -276,23 +360,30 @@ impl GamepadGroup {
         ordered
     }
 
-    fn controller_marking(&self, slot: usize) -> ControllerMarking<'_> {
+    fn controller_marking<'a>(
+        &self,
+        gamepad: &ConnectedGamepad,
+        link: &'a PhysicalGamepadLink,
+    ) -> ControllerMarking<'a> {
         let unlit_controller_count = self
             .physical_controllers()
-            .filter(|(_, link)| link.player_indicator == PlayerIndicator::Unlit)
+            .filter(|(_, other_link)| matches!(other_link.player_indicator, PlayerIndicator::Unlit))
             .count();
-        match self.physical_link(slot).map(|link| &link.player_indicator) {
-            Some(PlayerIndicator::Lit(lit_player)) => ControllerMarking::PlayerLights(lit_player),
-            Some(PlayerIndicator::Unlit) if unlit_controller_count > 1 => {
-                ControllerMarking::PairedAlias
+        match (&link.player_indicator, &link.identity) {
+            (PlayerIndicator::Lit(lit_player), _) => ControllerMarking::PlayerLights(lit_player),
+            (PlayerIndicator::Unlit, ControllerIdentity::Addressed { alias, .. })
+                if unlit_controller_count > 1 && *alias != gamepad.name =>
+            {
+                ControllerMarking::PairedAlias(alias)
             }
-            Some(PlayerIndicator::Unlit) | None => ControllerMarking::IconOnly,
+            (PlayerIndicator::Unlit, _) => ControllerMarking::IconOnly,
         }
     }
 
     fn face_reading<'a>(
         &'a self,
         gamepad: &'a ConnectedGamepad,
+        link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
         focused_app_id: Option<&'a str>,
     ) -> ConnectedControllerReading<'a> {
@@ -300,7 +391,7 @@ impl GamepadGroup {
             gamepad,
             bindings,
             control: Self::control(bindings, focused_app_id),
-            marking: self.controller_marking(gamepad.slot),
+            marking: self.controller_marking(gamepad, link),
         }
     }
 
@@ -310,17 +401,27 @@ impl GamepadGroup {
         link: &'a PhysicalGamepadLink,
     ) -> ControllerLinkReading<'a> {
         ControllerLinkReading {
-            transport: &link.transport,
-            report_rate: self
-                .report_rates
-                .get(&slot)
-                .copied()
-                .map_or(MeasuredReportRate::Pending, MeasuredReportRate::Measured),
+            transport: link.transport,
+            report_timing: self.report_timings.get(&slot).copied().map_or(
+                MeasuredReportTiming::Pending,
+                MeasuredReportTiming::Measured,
+            ),
             kernel_errors: self
                 .kernel_errors
                 .iter()
                 .filter(|error| error.kernel_device == link.kernel_device)
                 .collect(),
+            band_sharing: match &self.wifi_band_use {
+                WifiBandUse::ClearOfBluetooth => BandSharing::NoConflict,
+                WifiBandUse::SharingBluetoothBand {
+                    network_name,
+                    frequency,
+                } => BandSharing::SharedWithWifi {
+                    network_name,
+                    frequency: *frequency,
+                    wired_fallback: self.wired_fallback,
+                },
+            },
         }
     }
 
@@ -333,7 +434,12 @@ impl GamepadGroup {
     ) -> Option<TooltipBody> {
         Some(match target {
             GamepadTarget::Controller { slot } => self
-                .face_reading(self.controller(slot)?, bindings, focused_app_id)
+                .face_reading(
+                    self.controller(slot)?,
+                    self.physical_link(slot)?,
+                    bindings,
+                    focused_app_id,
+                )
                 .tooltip(clock),
             GamepadTarget::Battery { slot } => ControllerBatteryReading {
                 power: self.controller(slot)?.power,
@@ -379,7 +485,7 @@ impl GamepadGroup {
         };
         let battery_low = battery_reading.running_low();
         let face = GroupItem::reading(
-            self.face_reading(gamepad, bindings, focused_app_id),
+            self.face_reading(gamepad, link, bindings, focused_app_id),
             GamepadTarget::Controller { slot },
         );
         let connection =
@@ -504,7 +610,6 @@ fn niri_request(action: CompositorAction) -> niri_ipc::Action {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Locale;
     use sottomano_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
     use sottomano_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
 
@@ -658,20 +763,24 @@ mod tests {
         );
     }
 
-    fn face_marking(group: &GamepadGroup, slot: usize) -> (Option<u8>, Option<String>) {
-        let bindings = GamepadBindingsConfig::default();
-        let face = group.face_reading(group.controller(slot).unwrap(), &bindings, Some("kitty"));
-        (
-            face.identity_ordinal(),
-            face.label(Clock::real(), Locale::en_US),
+    fn marking_of(group: &GamepadGroup, slot: usize) -> ControllerMarking<'_> {
+        group.controller_marking(
+            group.controller(slot).unwrap(),
+            group.physical_link(slot).unwrap(),
         )
     }
 
     #[test]
     fn a_lit_pad_is_marked_by_its_player_number_instead_of_its_alias() {
         let group = group_with_two_pads_and_a_virtual_one();
-        assert_eq!(face_marking(&group, DUALSENSE), (Some(2), None));
-        assert_eq!(face_marking(&group, SECOND_PAD), (Some(1), None));
+        assert!(matches!(
+            marking_of(&group, DUALSENSE),
+            ControllerMarking::PlayerLights(LitPlayer { number: 2, .. })
+        ));
+        assert!(matches!(
+            marking_of(&group, SECOND_PAD),
+            ControllerMarking::PlayerLights(LitPlayer { number: 1, .. })
+        ));
     }
 
     #[test]
@@ -685,16 +794,19 @@ mod tests {
             &GamepadBindingsConfig::default(),
             Some("kitty"),
         );
-        assert_eq!(face_marking(&group, DUALSENSE), (None, None));
+        assert!(matches!(
+            marking_of(&group, DUALSENSE),
+            ControllerMarking::IconOnly
+        ));
         group.update(
             roster(vec![unlit_pad(DUALSENSE), unlit_pad(SECOND_PAD)]),
             &GamepadBindingsConfig::default(),
             Some("kitty"),
         );
-        assert_eq!(
-            face_marking(&group, DUALSENSE),
-            (None, Some(format!("Pad {DUALSENSE}")))
-        );
+        assert!(matches!(
+            marking_of(&group, DUALSENSE),
+            ControllerMarking::PairedAlias("Pad 31")
+        ));
     }
 
     #[test]

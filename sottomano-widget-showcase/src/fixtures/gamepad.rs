@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use sottomano_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
 use sottomano_sources::gamepad_controller_input::{
-    accelerometer_report_rate::ReportRate,
+    accelerometer_report_timing::{DeviceClock, ReportTiming, SentReports},
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, GamepadPower, GamepadTransport,
         PhysicalGamepadLink, UsbCableState,
@@ -13,6 +13,11 @@ use sottomano_sources::gamepad_controller_input::{
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::gamepad_group::{GamepadGroup, GamepadMessage},
+};
+use uom::si::{
+    f64::{Frequency, Ratio},
+    frequency::hertz,
+    ratio::percent,
 };
 
 use crate::showcased_group::{ShowcasedGamepad, ShowcasedGroup};
@@ -82,11 +87,30 @@ pub fn group(_clock: Clock) -> ShowcasedGroup {
                 origin: GamepadOrigin::Virtual,
             },
         ])),
-        GamepadMessage::Input(GamepadInput::ReportRate {
+        GamepadMessage::Input(GamepadInput::ReportTiming {
             slot: DUALSENSE_SLOT,
-            rate: ReportRate {
-                reports_per_second: 250,
-                longest_gap: Duration::from_millis(9),
+            timing: ReportTiming {
+                arrival_rate: Frequency::new::<hertz>(250.0),
+                stalls: 0,
+                longest_gap: Duration::from_millis(4),
+                device_clock: DeviceClock::Present(SentReports {
+                    sent_rate: Frequency::new::<hertz>(250.0),
+                    lost_share: Ratio::new::<percent>(0.0),
+                    most_delayed: Duration::from_millis(1),
+                }),
+            },
+        }),
+        GamepadMessage::Input(GamepadInput::ReportTiming {
+            slot: SECOND_DUALSENSE_SLOT,
+            timing: ReportTiming {
+                arrival_rate: Frequency::new::<hertz>(465.0),
+                stalls: 22,
+                longest_gap: Duration::from_millis(27),
+                device_clock: DeviceClock::Present(SentReports {
+                    sent_rate: Frequency::new::<hertz>(790.0),
+                    lost_share: Ratio::new::<percent>(41.0),
+                    most_delayed: Duration::from_millis(24),
+                }),
             },
         }),
     ];
