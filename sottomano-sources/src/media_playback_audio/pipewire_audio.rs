@@ -30,9 +30,9 @@ use pipewire::{
             serialize::PodSerializer,
         },
         sys::{
-            SPA_PARAM_Props, SPA_PARAM_ROUTE_device, SPA_PARAM_ROUTE_index, SPA_PARAM_ROUTE_props,
-            SPA_PARAM_ROUTE_save, SPA_PARAM_Route, SPA_PROP_channelVolumes, SPA_PROP_mute,
-            SPA_TYPE_OBJECT_ParamRoute, SPA_TYPE_OBJECT_Props,
+            SPA_PARAM_Props, SPA_PARAM_ROUTE_device, SPA_PARAM_ROUTE_index, SPA_PARAM_ROUTE_info,
+            SPA_PARAM_ROUTE_props, SPA_PARAM_ROUTE_save, SPA_PARAM_Route, SPA_PROP_channelVolumes,
+            SPA_PROP_mute, SPA_TYPE_OBJECT_ParamRoute, SPA_TYPE_OBJECT_Props,
         },
         utils::dict::DictRef,
     },
@@ -77,10 +77,34 @@ pub enum OutputKind {
 }
 
 impl OutputKind {
-    fn of_node(form_factor: Option<&str>, node_name: &str) -> Self {
-        form_factor
+    fn of_described_props(props: &DictRef, icon_key: &str) -> Option<Self> {
+        props
+            .get("device.form-factor")
             .and_then(Self::of_form_factor)
-            .unwrap_or_else(|| Self::of_node_name(node_name))
+            .or_else(|| props.get(icon_key).and_then(Self::of_icon_name))
+    }
+
+    fn of_icon_name(icon_name: &str) -> Option<Self> {
+        if icon_name.contains("headset") {
+            Some(Self::Headset)
+        } else if icon_name.contains("headphone") {
+            Some(Self::Headphones)
+        } else if icon_name.contains("display") || icon_name.contains("video") {
+            Some(Self::Display)
+        } else if icon_name.contains("speaker") {
+            Some(Self::Speaker)
+        } else {
+            None
+        }
+    }
+
+    fn of_port_type(port_type: &str) -> Option<Self> {
+        match port_type {
+            "headphones" => Some(Self::Headphones),
+            "headset" | "handset" | "handsfree" => Some(Self::Headset),
+            "hdmi" | "displayport" => Some(Self::Display),
+            _ => None,
+        }
     }
 
     fn of_form_factor(form_factor: &str) -> Option<Self> {
@@ -359,7 +383,8 @@ struct AudioNode {
     direction: Direction,
     name: String,
     description: Option<String>,
-    output_kind: OutputKind,
+    device_id: Option<u32>,
+    props_kind: Option<OutputKind>,
     serial: u64,
     placement: Option<RoutePlacement>,
     levels: Levels,
@@ -368,6 +393,7 @@ struct AudioNode {
 #[derive(Debug)]
 struct Route {
     index: u32,
+    port_kind: Option<OutputKind>,
     levels: Levels,
 }
 
@@ -383,6 +409,7 @@ struct Graph {
     nodes: HashMap<u32, AudioNode>,
     streams: HashMap<u32, AppStream>,
     routes: HashMap<u32, HashMap<u32, Route>>,
+    device_kinds: HashMap<u32, OutputKind>,
     default_sink: Option<String>,
     default_source: Option<String>,
 }
@@ -412,6 +439,14 @@ enum Event {
     NodePlacement {
         id: u32,
         placement: RoutePlacement,
+    },
+    NodeKindHint {
+        id: u32,
+        kind: OutputKind,
+    },
+    DeviceKind {
+        id: u32,
+        kind: OutputKind,
     },
     Levels {
         id: u32,
@@ -443,6 +478,7 @@ enum Event {
 struct RouteLevels {
     index: u32,
     route_device: u32,
+    port_kind: Option<OutputKind>,
     update: LevelsUpdate,
 }
 
@@ -455,6 +491,14 @@ fn reduce(graph: &mut Graph, event: Event) {
             if let Some(node) = graph.nodes.get_mut(&id) {
                 node.placement = Some(placement);
             }
+        }
+        Event::NodeKindHint { id, kind } => {
+            if let Some(node) = graph.nodes.get_mut(&id) {
+                node.props_kind = Some(kind);
+            }
+        }
+        Event::DeviceKind { id, kind } => {
+            graph.device_kinds.insert(id, kind);
         }
         Event::Levels { id, update } => {
             if let Some(node) = graph.nodes.get_mut(&id) {
@@ -482,9 +526,11 @@ fn reduce(graph: &mut Graph, event: Event) {
                 .entry(route.route_device)
                 .or_insert_with(|| Route {
                     index: route.index,
+                    port_kind: None,
                     levels: Levels::default(),
                 });
             entry.index = route.index;
+            entry.port_kind = route.port_kind;
             entry.levels.merge(route.update);
         }
         Event::DefaultChanged { direction, name } => match direction {
@@ -495,6 +541,7 @@ fn reduce(graph: &mut Graph, event: Event) {
             graph.nodes.remove(&id);
             graph.streams.remove(&id);
             graph.routes.remove(&id);
+            graph.device_kinds.remove(&id);
         }
     }
 }
@@ -538,12 +585,28 @@ fn reading(graph: &Graph, name: &str) -> Option<ChannelLevels> {
     })
 }
 
+fn active_port_kind(graph: &Graph, node: &AudioNode) -> Option<OutputKind> {
+    let placement = node.placement.as_ref()?;
+    graph
+        .routes
+        .get(&placement.device)?
+        .get(&placement.route_device)?
+        .port_kind
+}
+
+fn resolved_output_kind(graph: &Graph, node: &AudioNode) -> OutputKind {
+    active_port_kind(graph, node)
+        .or(node.props_kind)
+        .or_else(|| graph.device_kinds.get(&node.device_id?).copied())
+        .unwrap_or_else(|| OutputKind::of_node_name(&node.name))
+}
+
 fn default_output_kind(graph: &Graph) -> OutputKind {
     graph
         .default_sink
         .as_deref()
         .and_then(|name| graph.nodes.get(&node_id_by_name(graph, name)?))
-        .map(|node| node.output_kind)
+        .map(|node| resolved_output_kind(graph, node))
         .unwrap_or_default()
 }
 
@@ -971,7 +1034,7 @@ fn track_device(
     let id = global.id;
     let listener = proxy
         .add_listener_local()
-        .info(on_device_info(id, session))
+        .info(on_device_info(id, session, states))
         .param(on_device_param(id, session, states))
         .register();
     proxy.enum_params(0, Some(ParamType::Route), 0, u32::MAX);
@@ -1011,8 +1074,14 @@ fn on_node_info(id: u32, session: &Shared, states: &Publisher) -> impl Fn(&NodeI
     let session = session.clone();
     let states = states.clone();
     move |info| {
-        if let Some(placement) = info.props().and_then(route_placement) {
+        let Some(props) = info.props() else {
+            return;
+        };
+        if let Some(placement) = route_placement(props) {
             dispatch(&session, &states, Event::NodePlacement { id, placement });
+        }
+        if let Some(kind) = OutputKind::of_described_props(props, "device.icon_name") {
+            dispatch(&session, &states, Event::NodeKindHint { id, kind });
         }
     }
 }
@@ -1045,9 +1114,21 @@ fn on_stream_info(
     }
 }
 
-fn on_device_info(id: u32, session: &Shared) -> impl Fn(&DeviceInfoRef) + 'static {
+fn on_device_info(
+    id: u32,
+    session: &Shared,
+    states: &Publisher,
+) -> impl Fn(&DeviceInfoRef) + 'static {
     let session = session.clone();
+    let states = states.clone();
     move |info| {
+        if info.change_mask().contains(DeviceChangeMask::PROPS)
+            && let Some(kind) = info
+                .props()
+                .and_then(|props| OutputKind::of_described_props(props, "device.icon-name"))
+        {
+            dispatch(&session, &states, Event::DeviceKind { id, kind });
+        }
         if info.change_mask().contains(DeviceChangeMask::PARAMS)
             && let Some(device) = session.borrow().proxies.devices.get(&id)
         {
@@ -1135,7 +1216,8 @@ fn node_from_props(props: &DictRef, direction: Direction) -> Option<AudioNode> {
             .or_else(|| props.get("node.description"))
             .filter(|description| !description.is_empty())
             .map(str::to_owned),
-        output_kind: OutputKind::of_node(props.get("device.form-factor"), name),
+        device_id: props.get("device.id").and_then(|id| id.parse().ok()),
+        props_kind: None,
         serial: props
             .get("object.serial")
             .and_then(|serial| serial.parse().ok())
@@ -1171,11 +1253,27 @@ fn parse_route(pod: &Pod) -> Option<RouteLevels> {
     Some(RouteLevels {
         index: int_of(&object, SPA_PARAM_ROUTE_index)?.try_into().ok()?,
         route_device: int_of(&object, SPA_PARAM_ROUTE_device)?.try_into().ok()?,
+        port_kind: route_info_value(&object, "port.type").and_then(OutputKind::of_port_type),
         update: nested_props(&object)
             .as_ref()
             .map(levels_update)
             .unwrap_or_default(),
     })
+}
+
+fn route_info_value<'object>(object: &'object Object, key: &str) -> Option<&'object str> {
+    let Value::Struct(fields) = property_value(object, SPA_PARAM_ROUTE_info)? else {
+        return None;
+    };
+    fields
+        .get(1..)?
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .find_map(|pair| match pair {
+            [Value::String(name), Value::String(value)] if name == key => Some(value.as_str()),
+            _ => None,
+        })
 }
 
 fn parse_object(pod: &Pod, type_: u32) -> Option<Object> {
@@ -1288,7 +1386,8 @@ mod tests {
             direction,
             name: name.to_owned(),
             description: Some(name.to_owned()),
-            output_kind: OutputKind::default(),
+            device_id: None,
+            props_kind: None,
             serial: 0,
             placement: None,
             levels: Levels {
@@ -1325,6 +1424,7 @@ mod tests {
                 route: RouteLevels {
                     index: 3,
                     route_device: 3,
+                    port_kind: None,
                     update: LevelsUpdate {
                         channel_volumes: Some(vec![cubic(29)]),
                         mute: None,
@@ -1417,6 +1517,7 @@ mod tests {
                 route: RouteLevels {
                     index: 0,
                     route_device: 0,
+                    port_kind: None,
                     update: LevelsUpdate {
                         channel_volumes: Some(vec![cubic(35)]),
                         mute: Some(false),
@@ -1498,6 +1599,7 @@ mod tests {
                 route: RouteLevels {
                     index: 3,
                     route_device: 3,
+                    port_kind: None,
                     update: LevelsUpdate {
                         channel_volumes: Some(vec![cubic(29)]),
                         mute: None,
@@ -1560,27 +1662,108 @@ mod tests {
     }
 
     #[test]
-    fn output_kind_comes_from_form_factor_then_node_name() {
+    fn output_kind_helpers_map_pipewire_vocabulary() {
         let ucm = "alsa_output.pci-0000_00_1f.3-platform-sof_sdw.HiFi__";
         assert_eq!(
-            OutputKind::of_node(None, &format!("{ucm}Headphones__sink")),
+            OutputKind::of_node_name(&format!("{ucm}Headphones__sink")),
             OutputKind::Headphones
         );
         assert_eq!(
-            OutputKind::of_node(None, &format!("{ucm}HDMI1__sink")),
+            OutputKind::of_node_name(&format!("{ucm}HDMI1__sink")),
             OutputKind::Display
         );
         assert_eq!(
-            OutputKind::of_node(None, &format!("{ucm}Speaker__sink")),
+            OutputKind::of_node_name("bluez_output.00_11_22.1"),
             OutputKind::Speaker
         );
         assert_eq!(
-            OutputKind::of_node(Some("headset"), "bluez_output.00_11_22.1"),
-            OutputKind::Headset
+            OutputKind::of_form_factor("headset"),
+            Some(OutputKind::Headset)
+        );
+        assert_eq!(OutputKind::of_form_factor("unheard-of"), None);
+        assert_eq!(
+            OutputKind::of_icon_name("audio-headset-bluetooth"),
+            Some(OutputKind::Headset)
         );
         assert_eq!(
-            OutputKind::of_node(Some("unheard-of"), "bluez_output.00_11_22.1"),
-            OutputKind::Speaker
+            OutputKind::of_icon_name("audio-headphones"),
+            Some(OutputKind::Headphones)
         );
+        assert_eq!(OutputKind::of_icon_name("audio-card-analog-usb"), None);
+        assert_eq!(
+            OutputKind::of_port_type("headphones"),
+            Some(OutputKind::Headphones)
+        );
+        assert_eq!(OutputKind::of_port_type("speaker"), None);
+    }
+
+    fn bluez_headset_events() -> Vec<Event> {
+        vec![
+            Event::NodeAdded {
+                id: 97,
+                node: AudioNode {
+                    device_id: Some(93),
+                    ..node(Direction::Output, "bluez_output.00_11_22.1", &[cubic(40)])
+                },
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("bluez_output.00_11_22.1".to_owned()),
+            },
+        ]
+    }
+
+    #[test]
+    fn a_bluez_sink_takes_the_device_form_factor() {
+        let mut graph = graph_with(bluez_headset_events());
+        assert_eq!(snapshot(&graph).output_kind, OutputKind::Speaker);
+        reduce(
+            &mut graph,
+            Event::DeviceKind {
+                id: 93,
+                kind: OutputKind::Headset,
+            },
+        );
+        assert_eq!(snapshot(&graph).output_kind, OutputKind::Headset);
+        reduce(&mut graph, Event::Removed { id: 93 });
+        assert_eq!(snapshot(&graph).output_kind, OutputKind::Speaker);
+    }
+
+    #[test]
+    fn the_active_port_beats_device_and_node_name() {
+        let graph = graph_with(vec![
+            Event::NodeAdded {
+                id: 56,
+                node: AudioNode {
+                    device_id: Some(46),
+                    ..node(Direction::Output, "alsa_output.analog-stereo", &[cubic(54)])
+                },
+            },
+            Event::DeviceKind {
+                id: 46,
+                kind: OutputKind::Speaker,
+            },
+            Event::NodePlacement {
+                id: 56,
+                placement: RoutePlacement {
+                    device: 46,
+                    route_device: 3,
+                },
+            },
+            Event::RouteLevels {
+                device: 46,
+                route: RouteLevels {
+                    index: 2,
+                    route_device: 3,
+                    port_kind: Some(OutputKind::Headphones),
+                    update: LevelsUpdate::default(),
+                },
+            },
+            Event::DefaultChanged {
+                direction: Direction::Output,
+                name: Some("alsa_output.analog-stereo".to_owned()),
+            },
+        ]);
+        assert_eq!(snapshot(&graph).output_kind, OutputKind::Headphones);
     }
 }
