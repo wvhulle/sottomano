@@ -35,7 +35,7 @@ Pressing the temperature opens the forecast for the coming hours.
 ### VPN: Tailscale
 
 The tailnet: how each peer is reached, the exit node and when the key expires,
-next to the NetworkManager VPNs and WireGuard tunnels that are up.
+next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
 <img src="recordings/vpn_tailscale.webp" width="645" alt="Expanding the VPN group and hovering Tailscale">
 

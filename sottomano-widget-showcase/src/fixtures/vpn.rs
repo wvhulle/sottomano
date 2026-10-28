@@ -11,7 +11,10 @@ use sottomano_sources::{
             ActiveTunnel, NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
         },
         tailscale_status::{ExitRouting, KeyExpiry, Peer, PeerPath, Tailnet, Tailscale},
-        wireguard_tunnels::{self, Tunnel, TunnelAddress, Wireguard},
+        wireguard_tunnels::{
+            self, PeerEndpoint, PeerStatistics, PeerTraffic, StatisticsAccess, Tunnel,
+            TunnelActivity, TunnelAddress, TunnelOrigin, TunnelRole, Wireguard,
+        },
     },
 };
 use sottomano_widgets::{
@@ -24,6 +27,7 @@ use crate::showcased_group::ShowcasedGroup;
 
 const KEY_EXPIRY_DAYS: i64 = 9;
 pub const LAB_TUNNEL_NAME: &str = "wg-lab";
+pub const HOME_SERVER_TUNNEL_NAME: &str = "wg-home";
 
 pub const COMPANY_VPN_NAME: &str = "Company VPN";
 
@@ -48,25 +52,76 @@ fn vpn_readings(clock: Clock) -> [VpnMessage; 3] {
         )),
         VpnMessage::Wireguard(SnapshotDelivery::fixture_delivered(
             Ok(Wireguard {
-                tunnels: vec![lab_wireguard_tunnel()],
+                tunnels: vec![lab_wireguard_tunnel(), home_wireguard_server()],
             }),
             DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
         )),
     ]
 }
 
+fn object_path(path: &str) -> OwnedObjectPath {
+    OwnedObjectPath::try_from(path).expect("static object path")
+}
+
+fn exchanged_traffic(handshake_seconds: u64, received: ByteSize, sent: ByteSize) -> PeerTraffic {
+    PeerTraffic::Exchanged(PeerStatistics {
+        handshake_ago: Duration::from_secs(handshake_seconds),
+        received,
+        sent,
+    })
+}
+
 fn lab_wireguard_tunnel() -> Tunnel {
     Tunnel {
         name: LAB_TUNNEL_NAME.to_owned(),
-        server: false,
-        port: Some(51820),
+        interface: LAB_TUNNEL_NAME.to_owned(),
+        role: TunnelRole::Client,
+        origin: TunnelOrigin::NetworkManager {
+            settings_connection: object_path("/org/freedesktop/NetworkManager/Settings/14"),
+            activity: TunnelActivity::Active {
+                active_connection: object_path(
+                    "/org/freedesktop/NetworkManager/ActiveConnection/9",
+                ),
+            },
+        },
+        statistics_access: StatisticsAccess::Read,
         peers: vec![wireguard_tunnels::Peer {
-            endpoint: Some("203.0.113.24:51820".to_owned()),
-            allowed_ips: Some("10.42.0.0/24".to_owned()),
-            handshake_ago: Some(37),
-            rx: ByteSize::mib(84),
-            tx: ByteSize::mib(12),
+            public_key: "lab-gateway-key".to_owned(),
+            endpoint: PeerEndpoint::At("203.0.113.24:51820".to_owned()),
+            allowed_ips: vec!["10.42.0.0/24".to_owned()],
+            traffic: exchanged_traffic(37, ByteSize::mib(84), ByteSize::mib(12)),
         }],
+    }
+}
+
+fn home_wireguard_server() -> Tunnel {
+    Tunnel {
+        name: HOME_SERVER_TUNNEL_NAME.to_owned(),
+        interface: HOME_SERVER_TUNNEL_NAME.to_owned(),
+        role: TunnelRole::Server { listen_port: 51820 },
+        origin: TunnelOrigin::NetworkManager {
+            settings_connection: object_path("/org/freedesktop/NetworkManager/Settings/15"),
+            activity: TunnelActivity::Active {
+                active_connection: object_path(
+                    "/org/freedesktop/NetworkManager/ActiveConnection/10",
+                ),
+            },
+        },
+        statistics_access: StatisticsAccess::Read,
+        peers: vec![
+            wireguard_tunnels::Peer {
+                public_key: "laptop-key".to_owned(),
+                endpoint: PeerEndpoint::At("198.51.100.7:40211".to_owned()),
+                allowed_ips: vec!["10.8.0.2/32".to_owned()],
+                traffic: exchanged_traffic(42, ByteSize::mib(12), ByteSize::mib(3)),
+            },
+            wireguard_tunnels::Peer {
+                public_key: "phone-key".to_owned(),
+                endpoint: PeerEndpoint::Roaming,
+                allowed_ips: vec!["10.8.0.3/32".to_owned()],
+                traffic: PeerTraffic::NeverHandshaken,
+            },
+        ],
     }
 }
 
@@ -76,10 +131,7 @@ fn company_globalprotect_vpn() -> VpnConnection {
         plugin: "openconnect".to_owned(),
         protocol: Some("gp".to_owned()),
         remote_gateway: Some("vpn.example.com".to_owned()),
-        settings_connection: OwnedObjectPath::try_from(
-            "/org/freedesktop/NetworkManager/Settings/12",
-        )
-        .expect("static object path"),
+        settings_connection: object_path("/org/freedesktop/NetworkManager/Settings/12"),
         activity: VpnActivity::Active(Box::new(ActiveTunnel {
             vpn_state: VpnState::Activated,
             ipv4: Some(AddressBlock {
@@ -90,10 +142,7 @@ fn company_globalprotect_vpn() -> VpnConnection {
             ipv6: None,
             dns: vec!["10.80.0.53".to_owned(), "10.80.0.54".to_owned()],
             banner: None,
-            active_connection: OwnedObjectPath::try_from(
-                "/org/freedesktop/NetworkManager/ActiveConnection/7",
-            )
-            .expect("static object path"),
+            active_connection: object_path("/org/freedesktop/NetworkManager/ActiveConnection/7"),
         })),
     }
 }
@@ -141,6 +190,13 @@ pub fn on_hover(target: &VpnTarget) -> Vec<VpnMessage> {
             vec![VpnMessage::TunnelAddressFetched(
                 SnapshotDelivery::single_read(Ok(TunnelAddress {
                     ip: Some("10.42.0.7/24".to_owned()),
+                })),
+            )]
+        }
+        VpnTarget::Wireguard(tunnel) if tunnel.as_ref() == HOME_SERVER_TUNNEL_NAME => {
+            vec![VpnMessage::TunnelAddressFetched(
+                SnapshotDelivery::single_read(Ok(TunnelAddress {
+                    ip: Some("10.8.0.1/24".to_owned()),
                 })),
             )]
         }
