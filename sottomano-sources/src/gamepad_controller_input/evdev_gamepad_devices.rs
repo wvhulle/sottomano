@@ -11,7 +11,7 @@ use sottomano_config::widget_groups::gamepad_bindings::{GamepadButton, GamepadSt
 use tokio::time::sleep;
 
 use super::{
-    accelerometer_report_rate::{ReportRate, accelerometer_node_beside, report_rates},
+    accelerometer_report_timing::{ReportTiming, accelerometer_node_beside, report_timings},
     bluez_device_aliases::bluetooth_aliases,
     player_indicator_leds::PlayerIndicator,
 };
@@ -227,9 +227,9 @@ pub enum RawGamepadEvent {
         axis: StickAxis,
         deflection: f32,
     },
-    ReportRate {
+    ReportTiming {
         slot: usize,
-        rate: ReportRate,
+        timing: ReportTiming,
     },
 }
 
@@ -618,7 +618,7 @@ fn connected_gamepad_events(
         .map(|gamepad| gamepad_events(gamepad).boxed());
     let report_rate_events = physical_gamepads.filter_map(|gamepad| {
         accelerometer_node_beside(gamepad.slot)
-            .map(|accelerometer| report_rates(gamepad.slot, &accelerometer).boxed())
+            .map(|accelerometer| report_timings(gamepad.slot, &accelerometer).boxed())
     });
     let device_events = stream::select_all(button_events.chain(report_rate_events));
     stream::select(roster_with_refresh(gamepads), device_events)

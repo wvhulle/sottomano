@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{iter::once, path::Path};
 
 use chrono::Locale;
 use sottomano_config::{
@@ -34,8 +34,60 @@ const DIRECTION_ARROWS: &[char] = &['←', '→', '↑', '↓', ' '];
 #[derive(Debug, Clone, Copy)]
 pub enum ControllerMarking<'a> {
     PlayerLights(&'a LitPlayer),
-    PairedAlias,
+    PairedAlias(&'a str),
     IconOnly,
+}
+
+impl ControllerMarking<'_> {
+    fn identity_ordinal(self) -> Option<u8> {
+        match self {
+            ControllerMarking::PlayerLights(lit_player) => Some(lit_player.number),
+            ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
+        }
+    }
+
+    fn alias_label(self, model_name: &str) -> Option<String> {
+        match self {
+            ControllerMarking::PairedAlias(alias) => Some(distinguishing_name(alias, model_name)),
+            ControllerMarking::PlayerLights(_) | ControllerMarking::IconOnly => None,
+        }
+    }
+
+    fn player_rows(self) -> impl Iterator<Item = KeyValue> {
+        let lit_player = match self {
+            ControllerMarking::PlayerLights(lit_player) => Some(lit_player),
+            ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
+        };
+        lit_player.into_iter().flat_map(|lit_player| {
+            [
+                KeyValue::new("Player", lit_player.number.to_string()),
+                KeyValue::new("Lights", Self::led_pattern(lit_player)),
+            ]
+        })
+    }
+
+    fn numbering_note(self) -> Option<Section> {
+        match self {
+            ControllerMarking::PlayerLights(_) => Some(Section::note(
+                "Player numbered by the kernel",
+                Some(
+                    "Assigned in the order the controllers connected, and shown on the \
+                     controller's lights. Games may number players differently, for example by \
+                     who presses a button first."
+                        .to_owned(),
+                ),
+            )),
+            ControllerMarking::PairedAlias(_) | ControllerMarking::IconOnly => None,
+        }
+    }
+
+    fn led_pattern(lit_player: &LitPlayer) -> String {
+        lit_player
+            .leds_lit
+            .iter()
+            .map(|lit| if *lit { '●' } else { '○' })
+            .collect()
+    }
 }
 
 pub struct ConnectedControllerReading<'a> {
@@ -89,14 +141,6 @@ fn distinguishing_name(alias: &str, model_name: &str) -> String {
     } else {
         distinguishing
     }
-}
-
-fn led_pattern(lit_player: &LitPlayer) -> String {
-    lit_player
-        .leds_lit
-        .iter()
-        .map(|lit| if *lit { '●' } else { '○' })
-        .collect()
 }
 
 fn program_name(command: &[String]) -> String {
@@ -155,29 +199,7 @@ impl ConnectedControllerReading<'_> {
                 ]
             },
         );
-        let player = match self.marking {
-            ControllerMarking::PlayerLights(lit_player) => vec![
-                KeyValue::new("Player", lit_player.number.to_string()),
-                KeyValue::new("Lights", led_pattern(lit_player)),
-            ],
-            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => Vec::new(),
-        };
-        Section::dictionary(named.into_iter().chain(player))
-    }
-
-    fn player_numbering_section(&self) -> Option<Section> {
-        match self.marking {
-            ControllerMarking::PlayerLights(_) => Some(Section::note(
-                "Player numbered by the kernel",
-                Some(
-                    "Assigned in the order the controllers connected, and shown on the \
-                     controller's lights. Games may number players differently, for example by \
-                     who presses a button first."
-                        .to_owned(),
-                ),
-            )),
-            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => None,
-        }
+        Section::dictionary(named.into_iter().chain(self.marking.player_rows()))
     }
 
     fn bindings_section(&self) -> Section {
@@ -253,19 +275,11 @@ impl BarWidget for ConnectedControllerReading<'_> {
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.marking {
-            ControllerMarking::PairedAlias => self
-                .paired_alias()
-                .map(|alias| distinguishing_name(alias, &self.gamepad.name)),
-            ControllerMarking::PlayerLights(_) | ControllerMarking::IconOnly => None,
-        }
+        self.marking.alias_label(&self.gamepad.name)
     }
 
     fn identity_ordinal(&self) -> Option<u8> {
-        match self.marking {
-            ControllerMarking::PlayerLights(lit_player) => Some(lit_player.number),
-            ControllerMarking::PairedAlias | ControllerMarking::IconOnly => None,
-        }
+        self.marking.identity_ordinal()
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
@@ -277,19 +291,15 @@ impl BarWidget for ConnectedControllerReading<'_> {
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
         TooltipBody::sections(
-            [
-                Some(self.identity_section()),
-                self.player_numbering_section(),
-            ]
-            .into_iter()
-            .flatten()
-            .chain([
-                self.bindings_section(),
-                Section::controller_diagram(
-                    self.family().controller_model(),
-                    self.stick_callouts().chain(self.button_callouts()),
-                ),
-            ]),
+            once(self.identity_section())
+                .chain(self.marking.numbering_note())
+                .chain([
+                    self.bindings_section(),
+                    Section::controller_diagram(
+                        self.family().controller_model(),
+                        self.stick_callouts().chain(self.button_callouts()),
+                    ),
+                ]),
         )
     }
 }

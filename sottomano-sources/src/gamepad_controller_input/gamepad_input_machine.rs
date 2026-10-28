@@ -8,7 +8,7 @@ use sottomano_config::widget_groups::gamepad_bindings::{
 };
 
 use super::{
-    accelerometer_report_rate::ReportRate,
+    accelerometer_report_timing::ReportTiming,
     evdev_gamepad_devices::{ButtonEdge, ConnectedGamepad, RawGamepadEvent, StickAxis},
     stick_motion_tracking::{
         FlickTracker, PointerDisplacement, StickPosition, pointer_displacement,
@@ -49,9 +49,9 @@ pub enum GamepadInput {
         stick: GamepadStick,
         direction: StickDirection,
     },
-    ReportRate {
+    ReportTiming {
         slot: usize,
-        rate: ReportRate,
+        timing: ReportTiming,
     },
 }
 
@@ -182,10 +182,10 @@ impl GamepadMachine {
                 .map(MachineEffect::Deliver)
                 .into_iter()
                 .collect(),
-            MachineInput::Raw(RawGamepadEvent::ReportRate { slot, rate }) => {
-                vec![MachineEffect::Deliver(GamepadInput::ReportRate {
+            MachineInput::Raw(RawGamepadEvent::ReportTiming { slot, timing }) => {
+                vec![MachineEffect::Deliver(GamepadInput::ReportTiming {
                     slot,
-                    rate,
+                    timing,
                 })]
             }
             MachineInput::Tick => self
