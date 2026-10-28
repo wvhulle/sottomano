@@ -131,6 +131,9 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
                 vpn::LAB_TUNNEL_NAME,
             )))),
+            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
+                vpn::HOME_SERVER_TUNNEL_NAME,
+            )))),
         ],
     },
     Demo {

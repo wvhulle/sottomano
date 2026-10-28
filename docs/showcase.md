@@ -74,9 +74,9 @@ Today's pollen per allergen, so hay fever has a forecast too.
 
 ### VPN: WireGuard
 
-A WireGuard tunnel with its peers, their last handshake and traffic.
+A WireGuard client tunnel and the server this machine runs, with each peer's last handshake and traffic.
 
-<img src="../recordings/vpn_wireguard.webp" width="330" alt="Expanding the VPN group and hovering a WireGuard tunnel">
+<img src="../recordings/vpn_wireguard.webp" width="556" alt="Expanding the VPN group and hovering a WireGuard tunnel">
 
 ### Dictation: Pipeline
 

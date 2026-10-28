@@ -14,7 +14,10 @@ use sottomano_sources::{
         tailscale_status::{
             self, ExitRouting, Tailscale, TailscaleSwitch, open_admin, switch_tailscale,
         },
-        wireguard_tunnels::{TunnelAddress, TunnelOnBus, Wireguard, disconnect},
+        wireguard_tunnels::{
+            Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,
+            switch_wireguard,
+        },
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -69,7 +72,7 @@ pub enum VpnMessage {
     Tailscale(SnapshotDelivery<Tailscale>),
     Expansion(ExpansionMessage),
     SwitchVpn(VpnSwitch),
-    DisconnectWireguard(String),
+    SwitchWireguard(WireguardSwitch),
     SwitchTailscale(TailscaleSwitch),
     OpenTailscale,
 }
@@ -83,7 +86,7 @@ impl VpnGroup {
         Subscription::batch([
             snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                 .map(VpnMessage::NetworkManagerVpns),
-            snapshot_subscription::<Wireguard>(()).map(VpnMessage::Wireguard),
+            snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
             snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
         ])
     }
@@ -92,7 +95,9 @@ impl VpnGroup {
         match target {
             VpnTarget::NetworkManagerVpn(_) => first_delivery::<NetworkManagerVpns>(buses.clone())
                 .map(VpnMessage::NetworkManagerVpns),
-            VpnTarget::Wireguard(_) => first_delivery::<Wireguard>(()).map(VpnMessage::Wireguard),
+            VpnTarget::Wireguard(_) => {
+                first_delivery::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard)
+            }
             VpnTarget::Tailscale => first_delivery::<Tailscale>(()).map(VpnMessage::Tailscale),
         }
     }
@@ -114,9 +119,8 @@ impl VpnGroup {
             VpnMessage::SwitchVpn(vpn_switch) => {
                 return Task::future(switch_vpn(vpn_switch)).discard();
             }
-            VpnMessage::DisconnectWireguard(name) => {
-                return Task::future(blocking("wireguard down", move || disconnect(&name)))
-                    .discard();
+            VpnMessage::SwitchWireguard(wireguard_switch) => {
+                return Task::future(switch_wireguard(wireguard_switch)).discard();
             }
             VpnMessage::SwitchTailscale(tailscale_switch) => {
                 return Task::future(switch_tailscale(tailscale_switch))
@@ -168,13 +172,13 @@ impl VpnGroup {
                 self.network_manager_vpns
                     .tooltip_with(vpn_connection.tooltip(clock))
             }
-            VpnTarget::Wireguard(name) => {
+            VpnTarget::Wireguard(interface) => {
                 let tunnel = self
                     .wireguard
                     .get()?
                     .tunnels
                     .iter()
-                    .find(|tunnel| tunnel.name == name.as_ref())?;
+                    .find(|tunnel| tunnel.interface == interface.as_ref())?;
                 Some(
                     self.wireguard
                         .tooltip_with(tunnel.tooltip(clock))?
@@ -194,6 +198,38 @@ impl VpnGroup {
             .map(|vpn_connection| vpn_connection.name.as_str())
     }
 
+    fn tunnels(&self) -> &[Tunnel] {
+        self.wireguard
+            .get()
+            .map_or(&[][..], |wireguard| &wireguard.tunnels)
+    }
+
+    fn previewed_tunnel_interface(&self) -> Option<&str> {
+        self.tunnels()
+            .iter()
+            .find(|tunnel| tunnel.routes_all_traffic())
+            .map(|tunnel| tunnel.interface.as_str())
+    }
+
+    fn tunnel_item(tunnel: &Tunnel, previewed: bool) -> GroupItem<'_, VpnMessage> {
+        let item = GroupItem::reading(
+            tunnel,
+            VpnTarget::Wireguard(Cow::Owned(tunnel.interface.clone())),
+        )
+        .previewed_on_handle_if(previewed);
+        match tunnel.switch() {
+            Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_press(
+                "connect the tunnel",
+                VpnMessage::SwitchWireguard(wireguard_switch),
+            ),
+            Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_press(
+                "disconnect the tunnel",
+                VpnMessage::SwitchWireguard(wireguard_switch),
+            ),
+            None => item,
+        }
+    }
+
     fn tailscale_routes_traffic(&self) -> bool {
         matches!(
             self.tailscale.get(),
@@ -207,11 +243,15 @@ impl VpnGroup {
             .network_manager_vpns
             .get()
             .map_or(&[][..], |vpns| &vpns.connections);
-        let tunnels = self
-            .wireguard
-            .get()
-            .map_or(&[][..], |wireguard| &wireguard.tunnels);
+        let (client_tunnels, serving_tunnels): (Vec<&Tunnel>, Vec<&Tunnel>) = self
+            .tunnels()
+            .iter()
+            .partition(|tunnel| tunnel.role == TunnelRole::Client);
         let previewed_vpn_name = self.previewed_vpn_name();
+        let previewed_tunnel_interface = previewed_vpn_name
+            .is_none()
+            .then(|| self.previewed_tunnel_interface())
+            .flatten();
         GroupContent::new(
             &self.expansion,
             VpnMessage::Expansion,
@@ -233,14 +273,10 @@ impl VpnGroup {
                         previewed_vpn_name == Some(vpn_connection.name.as_str()),
                     )
                 })
-                .chain(tunnels.iter().map(|tunnel| {
-                    GroupItem::reading(
+                .chain(client_tunnels.into_iter().map(move |tunnel| {
+                    Self::tunnel_item(
                         tunnel,
-                        VpnTarget::Wireguard(Cow::Owned(tunnel.name.clone())),
-                    )
-                    .on_right_press(
-                        "disconnect the tunnel",
-                        VpnMessage::DisconnectWireguard(tunnel.name.clone()),
+                        previewed_tunnel_interface == Some(tunnel.interface.as_str()),
                     )
                 }))
                 .chain(self.tailscale.display().map(|tailscale| {
@@ -259,9 +295,16 @@ impl VpnGroup {
                         );
                     }
                     item.previewed_on_handle_if(
-                        previewed_vpn_name.is_none() && self.tailscale_routes_traffic(),
+                        previewed_vpn_name.is_none()
+                            && previewed_tunnel_interface.is_none()
+                            && self.tailscale_routes_traffic(),
                     )
-                })),
+                }))
+                .chain(
+                    serving_tunnels
+                        .into_iter()
+                        .map(|tunnel| Self::tunnel_item(tunnel, false)),
+                ),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::ShieldCheck(Weight::Regular).into(),

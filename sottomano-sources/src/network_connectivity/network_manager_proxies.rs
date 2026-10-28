@@ -185,6 +185,10 @@ trait AccessPoint {
 trait ActiveConnection {
     #[zbus(property)]
     fn id(&self) -> zbus::Result<String>;
+    #[zbus(property, name = "Type")]
+    fn connection_type(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn state(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn vpn(&self) -> zbus::Result<bool>;
     #[zbus(property)]
@@ -499,6 +503,139 @@ async fn active_vpn(
             v4: v4.block,
             v6: v6.block,
             dns: v4.dns.into_iter().chain(v6.dns).collect(),
+        },
+    }))
+}
+
+pub struct WireguardProfile {
+    pub settings_connection: OwnedObjectPath,
+    pub name: String,
+    pub interface: String,
+    pub listen_port: u32,
+    pub peers: Vec<WireguardPeerSettings>,
+}
+
+pub struct WireguardPeerSettings {
+    pub public_key: String,
+    pub endpoint: Option<String>,
+    pub allowed_ips: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ActivationState {
+    Switching,
+    Activated,
+}
+
+pub struct ActiveWireguard {
+    pub settings_connection: OwnedObjectPath,
+    pub active_connection: OwnedObjectPath,
+    pub activation_state: ActivationState,
+}
+
+const ACTIVE_CONNECTION_ACTIVATED: u32 = 2;
+const WIREGUARD_CONNECTION_TYPE: &str = "wireguard";
+
+pub async fn wireguard_profiles(connection: &Connection) -> zbus::Result<Vec<WireguardProfile>> {
+    let settings: SettingsProxy = Builder::new(connection)
+        .cache_properties(CacheProperties::No)
+        .build()
+        .await?;
+    let paths = settings.list_connections().await?;
+    let profiles = join_all(
+        paths
+            .into_iter()
+            .map(|path| wireguard_profile(connection, path)),
+    )
+    .await;
+    Ok(profiles
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect())
+}
+
+fn settings_text(section: &HashMap<String, OwnedValue>, key: &str) -> Option<String> {
+    section
+        .get(key)
+        .and_then(|value| value.downcast_ref::<String>().ok())
+        .and_then(non_empty)
+}
+
+async fn wireguard_profile(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<WireguardProfile>> {
+    let settings: SettingsConnectionProxy = uncached(connection, path.clone()).await?;
+    let profile = settings.get_settings().await?;
+    let (Some(connection_section), Some(wireguard_section)) = (
+        profile.get("connection"),
+        profile.get(WIREGUARD_CONNECTION_TYPE),
+    ) else {
+        return Ok(None);
+    };
+    let name = settings_text(connection_section, "id").unwrap_or_default();
+    let interface = settings_text(connection_section, "interface-name").unwrap_or(name.clone());
+    let listen_port = wireguard_section
+        .get("listen-port")
+        .and_then(|value| value.downcast_ref::<u32>().ok())
+        .unwrap_or_default();
+    let peers = wireguard_section
+        .get("peers")
+        .and_then(|value| {
+            Vec::<HashMap<String, OwnedValue>>::try_from(value.try_clone().ok()?).ok()
+        })
+        .unwrap_or_default()
+        .iter()
+        .map(|peer_section| WireguardPeerSettings {
+            public_key: settings_text(peer_section, "public-key").unwrap_or_default(),
+            endpoint: settings_text(peer_section, "endpoint"),
+            allowed_ips: peer_section
+                .get("allowed-ips")
+                .and_then(|value| Vec::<String>::try_from(value.try_clone().ok()?).ok())
+                .unwrap_or_default(),
+        })
+        .collect();
+    Ok(Some(WireguardProfile {
+        settings_connection: path,
+        name,
+        interface,
+        listen_port,
+        peers,
+    }))
+}
+
+pub async fn active_wireguards(connection: &Connection) -> zbus::Result<Vec<ActiveWireguard>> {
+    let paths = manager(connection).await?.active_connections().await?;
+    let wireguards = join_all(
+        paths
+            .into_iter()
+            .map(|path| active_wireguard(connection, path)),
+    )
+    .await;
+    Ok(wireguards
+        .into_iter()
+        .filter_map(Result::ok)
+        .flatten()
+        .collect())
+}
+
+async fn active_wireguard(
+    connection: &Connection,
+    path: OwnedObjectPath,
+) -> zbus::Result<Option<ActiveWireguard>> {
+    let active: ActiveConnectionProxy = uncached(connection, path.clone()).await?;
+    if active.connection_type().await? != WIREGUARD_CONNECTION_TYPE {
+        return Ok(None);
+    }
+    let (settings_connection, state_code) = try_join!(active.connection(), active.state())?;
+    Ok(Some(ActiveWireguard {
+        settings_connection,
+        active_connection: path,
+        activation_state: if state_code == ACTIVE_CONNECTION_ACTIVATED {
+            ActivationState::Activated
+        } else {
+            ActivationState::Switching
         },
     }))
 }
