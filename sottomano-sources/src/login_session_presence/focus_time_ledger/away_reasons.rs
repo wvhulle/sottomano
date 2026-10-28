@@ -27,7 +27,7 @@ impl Default for LatestAwayReasons {
 impl LatestAwayReasons {
     pub(super) fn note_signal(&mut self, signal: &FocusSignal) {
         match *signal {
-            FocusSignal::Idle(idle) => self.idle = idle,
+            FocusSignal::Idle(idle) => self.idle = idle.edge(),
             FocusSignal::Sleep(sleep) => self.sleep = sleep,
             FocusSignal::ScreenPower(screen_power) => self.screen_power = screen_power,
             FocusSignal::WindowFocused(_) | FocusSignal::NoWindowFocused => {}
@@ -52,6 +52,7 @@ mod tests {
     use std::slice::from_ref;
 
     use super::*;
+    use crate::login_session_presence::wayland_idle_notify::InputIdleEdge;
 
     fn presence_after(signals: &[FocusSignal]) -> Presence {
         let mut latest_away_reasons = LatestAwayReasons::default();
@@ -63,7 +64,7 @@ mod tests {
 
     #[test]
     fn the_most_away_reason_wins_regardless_of_arrival_order() {
-        let idled = FocusSignal::Idle(IdleEdge::Idled);
+        let idled = FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Idled));
         let screen_off = FocusSignal::ScreenPower(ScreenEdge::Off);
         let suspending = FocusSignal::Sleep(SleepEdge::Suspending);
         assert_eq!(presence_after(&[]), Presence::Active);
@@ -84,7 +85,7 @@ mod tests {
             presence_after(&[
                 suspending,
                 FocusSignal::ScreenPower(ScreenEdge::On),
-                FocusSignal::Idle(IdleEdge::Resumed),
+                FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Resumed)),
             ]),
             Presence::Asleep
         );
