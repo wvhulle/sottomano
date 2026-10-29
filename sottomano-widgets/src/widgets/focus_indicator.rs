@@ -16,7 +16,9 @@ use iced::{
 };
 use sottomano_config::{Config, screen_edges::Position};
 
-use crate::widgets::configured_theme::{ThemedColor, background_weak_color};
+use crate::widgets::configured_theme::ThemedColor;
+
+const BACKDROP_TINT_ALPHA: f32 = 0.3;
 
 pub fn focus_indicator<'a, Message>(
     slots: impl Into<Element<'a, Message>>,
@@ -222,7 +224,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
                     snap: false,
                     ..renderer::Quad::default()
                 },
-                background_weak_color(theme),
+                (self.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
             );
         }
         self.slots.as_widget().draw(
