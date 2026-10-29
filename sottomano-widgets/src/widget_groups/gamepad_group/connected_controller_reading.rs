@@ -172,6 +172,9 @@ impl ConnectedControllerReading<'_> {
     fn control_description(&self) -> String {
         match self.control {
             CompositorControl::DrivingNiri => "niri, through the bindings below".to_owned(),
+            CompositorControl::HandedOverByHand => {
+                "the focused window; niri control is switched off".to_owned()
+            }
             CompositorControl::PausedForFocusedApp(app_id) => {
                 format!("{app_id}, which has focus; niri bindings pause")
             }
@@ -287,7 +290,9 @@ impl BarWidget for ConnectedControllerReading<'_> {
     fn state(&self, _clock: Clock) -> WidgetState {
         match self.control {
             CompositorControl::DrivingNiri => WidgetState::On,
-            CompositorControl::PausedForFocusedApp(_) => WidgetState::Off,
+            CompositorControl::HandedOverByHand | CompositorControl::PausedForFocusedApp(_) => {
+                WidgetState::Off
+            }
         }
     }
 

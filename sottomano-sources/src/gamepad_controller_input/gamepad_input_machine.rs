@@ -21,12 +21,13 @@ const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerGate {
     pub silenced_by_focus: bool,
+    pub handed_over_slots: BTreeSet<usize>,
 }
 
 impl PointerGate {
     #[must_use]
-    pub const fn allows(&self) -> bool {
-        !self.silenced_by_focus
+    pub fn allows(&self, slot: usize) -> bool {
+        !self.silenced_by_focus && !self.handed_over_slots.contains(&slot)
     }
 }
 
@@ -138,7 +139,7 @@ impl GamepadMachine {
         let pointer_stick = self.pointer_stick();
         self.sticks
             .iter()
-            .filter(|_| self.settings.gate.allows())
+            .filter(|(slot, _)| self.settings.gate.allows(**slot))
             .filter_map(move |(_, sticks)| Some(sticks.tracker(pointer_stick?).position()))
             .filter(|position| position.is_deflected())
     }
@@ -213,7 +214,7 @@ impl GamepadMachine {
         };
         let pressed = match edge {
             ButtonEdge::Pressed => {
-                self.settings.gate.allows() && self.held_pointer_buttons.insert(held)
+                self.settings.gate.allows(slot) && self.held_pointer_buttons.insert(held)
             }
             ButtonEdge::Released => {
                 return self
@@ -332,9 +333,23 @@ mod tests {
         let start = Instant::now();
         let mut machine = machine_with(PointerGate {
             silenced_by_focus: true,
+            ..PointerGate::default()
         });
         machine.step(right_stick_right(31), start);
         assert_eq!(machine.next_deadline(), None);
+    }
+
+    #[test]
+    fn a_handed_over_controller_leaves_the_pointer_alone_while_others_steer() {
+        let start = Instant::now();
+        let mut machine = machine_with(PointerGate {
+            handed_over_slots: BTreeSet::from([31]),
+            ..PointerGate::default()
+        });
+        machine.step(right_stick_right(31), start);
+        assert_eq!(machine.next_deadline(), None);
+        machine.step(right_stick_right(32), start);
+        assert!(machine.next_deadline().is_some());
     }
 
     #[test]

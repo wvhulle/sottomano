@@ -5,7 +5,7 @@ mod controller_link_reading;
 mod diagram_anchor_mapping;
 mod usb_cable_reading;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use iced::Subscription;
 use notulist_client::DictationCommand;
@@ -48,8 +48,10 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         input_report_sections::MeasuredReportTiming,
+        phosphor::{Phosphor, Weight},
+        toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{
-            TooltipBody,
+            Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
@@ -62,6 +64,7 @@ pub enum GamepadTarget {
     Battery { slot: usize },
     Link { slot: usize },
     UsbCable { slot: usize },
+    NiriControl { slot: usize },
 }
 
 impl From<GamepadTarget> for HoverTarget {
@@ -73,6 +76,7 @@ impl From<GamepadTarget> for HoverTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompositorControl<'a> {
     DrivingNiri,
+    HandedOverByHand,
     PausedForFocusedApp(&'a str),
 }
 
@@ -83,6 +87,9 @@ pub enum GamepadMessage {
     Wifi(Box<SnapshotDelivery<Wifi>>),
     Ethernet(Box<SnapshotDelivery<Ethernet>>),
     DisconnectBluetooth {
+        slot: usize,
+    },
+    ToggleNiriControl {
         slot: usize,
     },
     Expansion {
@@ -139,6 +146,28 @@ pub struct GamepadGroup {
     kernel_errors: Vec<DeviceKernelError>,
     wifi_band_use: WifiBandUse,
     wired_fallback: WiredFallback,
+    handed_over_controllers: BTreeSet<String>,
+}
+
+fn handover_key(link: &PhysicalGamepadLink) -> &str {
+    match &link.identity {
+        ControllerIdentity::Addressed {
+            hardware_address, ..
+        } => hardware_address,
+        ControllerIdentity::Unaddressed => &link.kernel_device,
+    }
+}
+
+fn niri_control_toggle(driving_niri: bool) -> IconToggle {
+    IconToggle::new(
+        "Niri control",
+        Phosphor::AppWindow(Weight::Regular),
+        driving_niri,
+        SwitchPresses {
+            turning_on: "let this controller drive niri again",
+            turning_off: "hand this controller to the focused window",
+        },
+    )
 }
 
 impl GamepadGroup {
@@ -148,10 +177,20 @@ impl GamepadGroup {
         }
     }
 
+    fn handed_over(&self, slot: usize) -> bool {
+        self.physical_link(slot)
+            .is_some_and(|link| self.handed_over_controllers.contains(handover_key(link)))
+    }
+
     fn control<'a>(
+        &self,
+        slot: usize,
         bindings: &GamepadBindingsConfig,
         focused_app_id: Option<&'a str>,
     ) -> CompositorControl<'a> {
+        if self.handed_over(slot) {
+            return CompositorControl::HandedOverByHand;
+        }
         focused_app_id
             .filter(|app_id| !bindings.acts_while_focused(Some(app_id)))
             .map_or(
@@ -170,6 +209,12 @@ impl GamepadGroup {
             steering: bindings.pointer_steering(),
             gate: PointerGate {
                 silenced_by_focus: !bindings.acts_while_focused(focused_app_id),
+                handed_over_slots: self
+                    .controllers
+                    .iter()
+                    .map(|controller| controller.slot)
+                    .filter(|slot| self.handed_over(*slot))
+                    .collect(),
             },
         }
     }
@@ -197,8 +242,13 @@ impl GamepadGroup {
         ])
     }
 
-    fn acts(bindings: &GamepadBindingsConfig, focused_app_id: Option<&str>) -> bool {
-        Self::control(bindings, focused_app_id) == CompositorControl::DrivingNiri
+    fn acts(
+        &self,
+        slot: usize,
+        bindings: &GamepadBindingsConfig,
+        focused_app_id: Option<&str>,
+    ) -> bool {
+        self.control(slot, bindings, focused_app_id) == CompositorControl::DrivingNiri
     }
 
     pub fn update(
@@ -216,15 +266,17 @@ impl GamepadGroup {
                 self.report_timings.insert(slot, timing);
                 Action::Idle
             }
-            GamepadMessage::Input(GamepadInput::Button { button, edge, .. }) => {
-                Self::receive_button(button, edge, bindings, focused_app_id)
+            GamepadMessage::Input(GamepadInput::Button { slot, button, edge }) => {
+                self.receive_button(slot, button, edge, bindings, focused_app_id)
             }
             GamepadMessage::Input(GamepadInput::StickFlick {
-                stick, direction, ..
+                slot,
+                stick,
+                direction,
             }) => bindings
                 .navigation
                 .flick_action(stick, direction)
-                .filter(|_| Self::acts(bindings, focused_app_id))
+                .filter(|_| self.acts(slot, bindings, focused_app_id))
                 .map_or(Action::Idle, |action| {
                     Action::Compositor(niri_request(action))
                 }),
@@ -276,6 +328,15 @@ impl GamepadGroup {
                         }
                     })
             }
+            GamepadMessage::ToggleNiriControl { slot } => {
+                if let Some(key) = self.physical_link(slot).map(handover_key) {
+                    let key = key.to_owned();
+                    if !self.handed_over_controllers.remove(&key) {
+                        self.handed_over_controllers.insert(key);
+                    }
+                }
+                Action::Idle
+            }
             GamepadMessage::Expansion { slot, expansion } => {
                 if let Some(session) = self.sessions.get_mut(&slot) {
                     session.expansion.update(expansion);
@@ -296,6 +357,8 @@ impl GamepadGroup {
     }
 
     fn receive_button(
+        &self,
+        slot: usize,
         button: GamepadButton,
         edge: ButtonEdge,
         bindings: &GamepadBindingsConfig,
@@ -303,7 +366,7 @@ impl GamepadGroup {
     ) -> Action {
         let releasing_push_to_talk = edge == ButtonEdge::Released
             && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
-        if !releasing_push_to_talk && !Self::acts(bindings, focused_app_id) {
+        if !releasing_push_to_talk && !self.acts(slot, bindings, focused_app_id) {
             return Action::Idle;
         }
         bindings
@@ -401,7 +464,7 @@ impl GamepadGroup {
         ConnectedControllerReading {
             gamepad,
             bindings,
-            control: Self::control(bindings, focused_app_id),
+            control: self.control(gamepad.slot, bindings, focused_app_id),
             marking: self.controller_marking(gamepad, link),
         }
     }
@@ -463,7 +526,42 @@ impl GamepadGroup {
                 role: usb_cable_role(self.physical_link(slot)?.transport)?,
             }
             .tooltip(clock),
+            GamepadTarget::NiriControl { slot } => {
+                self.physical_link(slot)?;
+                self.niri_control_tooltip(slot, bindings, focused_app_id)
+            }
         })
+    }
+
+    fn niri_control_tooltip(
+        &self,
+        slot: usize,
+        bindings: &GamepadBindingsConfig,
+        focused_app_id: Option<&str>,
+    ) -> TooltipBody {
+        let (note_title, note_body) = match self.control(slot, bindings, focused_app_id) {
+            CompositorControl::DrivingNiri => (
+                "Driving niri",
+                "Buttons and sticks focus and move niri windows. Turn this off when a game keeps \
+                 losing its window to niri: the controller then belongs to the focused window \
+                 until you turn it back on."
+                    .to_owned(),
+            ),
+            CompositorControl::HandedOverByHand => (
+                "Handed to the focused window",
+                "Niri bindings stay off for this controller, whatever window has focus, until you \
+                 turn this back on."
+                    .to_owned(),
+            ),
+            CompositorControl::PausedForFocusedApp(app_id) => (
+                "Paused while a game has focus",
+                format!(
+                    "{app_id} has focus, so niri bindings already pause on their own. Turning \
+                     this off keeps them off after focus moves."
+                ),
+            ),
+        };
+        TooltipBody::sections([Section::detailed_note(note_title, note_body)])
     }
 
     #[must_use]
@@ -504,6 +602,11 @@ impl GamepadGroup {
                 GroupItem::reading(battery_reading, GamepadTarget::Battery { slot })
                     .previewed_on_handle_if(battery_low)
             });
+        let niri_control = GroupItem::toggle(
+            niri_control_toggle(!self.handed_over(slot)),
+            GamepadTarget::NiriControl { slot },
+            GamepadMessage::ToggleNiriControl { slot },
+        );
         let usb_cable = usb_cable_role(link.transport).map(|role| {
             let item =
                 GroupItem::reading(UsbCableReading { role }, GamepadTarget::UsbCable { slot });
@@ -518,9 +621,15 @@ impl GamepadGroup {
         Some(GroupContent::new(
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
-            [Some(face), connection, battery, usb_cable]
-                .into_iter()
-                .flatten(),
+            [
+                Some(face),
+                Some(niri_control),
+                connection,
+                battery,
+                usb_cable,
+            ]
+            .into_iter()
+            .flatten(),
         ))
     }
 
@@ -811,13 +920,70 @@ mod tests {
     #[test]
     fn controllers_drive_niri_unless_a_game_has_focus() {
         let bindings = GamepadBindingsConfig::default();
+        let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
-            GamepadGroup::control(&bindings, Some("kitty")),
+            group.control(DUALSENSE, &bindings, Some("kitty")),
             CompositorControl::DrivingNiri
         );
         assert_eq!(
-            GamepadGroup::control(&bindings, Some("steam_app_1091500")),
+            group.control(DUALSENSE, &bindings, Some("steam_app_1091500")),
             CompositorControl::PausedForFocusedApp("steam_app_1091500")
+        );
+    }
+
+    #[test]
+    fn a_handed_over_controller_stops_driving_niri_while_others_continue() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        group.update(
+            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        assert!(matches!(
+            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
+            Action::Idle
+        ));
+        assert!(matches!(
+            press(&mut group, SECOND_PAD, GamepadButton::DpadLeft),
+            Action::Compositor(_)
+        ));
+        let settings = group.stream_settings(&GamepadBindingsConfig::default(), Some("kitty"));
+        assert_eq!(settings.gate.handed_over_slots, BTreeSet::from([DUALSENSE]));
+        group.update(
+            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        assert!(matches!(
+            press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
+            Action::Compositor(_)
+        ));
+    }
+
+    #[test]
+    fn a_handover_survives_the_controller_reconnecting_on_a_new_slot() {
+        let mut group = group_with_two_pads_and_a_virtual_one();
+        group.update(
+            GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        let reconnected_slot = 40;
+        group.update(
+            GamepadMessage::Input(GamepadInput::Roster(vec![connected_pad(
+                reconnected_slot,
+                bluetooth_link(DUALSENSE, lit_player(1)),
+            )])),
+            &GamepadBindingsConfig::default(),
+            Some("kitty"),
+        );
+        assert_eq!(
+            group.control(
+                reconnected_slot,
+                &GamepadBindingsConfig::default(),
+                Some("kitty")
+            ),
+            CompositorControl::HandedOverByHand
         );
     }
 
