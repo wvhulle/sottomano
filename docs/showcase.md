@@ -34,7 +34,7 @@ Each thread's clock per chiplet, with the cores the scheduler prefers starred.
 
 On dual-chiplet X3D parts, which chiplet the scheduler fills first; a click flips it.
 
-<img src="../recordings/compute_cache_preference.webp" width="685" alt="Hovering the X3D cache preference in the expanded compute group">
+<img src="../recordings/compute_cache_preference.webp" width="684" alt="Hovering the X3D cache preference in the expanded compute group">
 
 ### Memory and board: Memory
 
@@ -52,25 +52,25 @@ The board with its maker's logo, model and firmware.
 
 How rough the location fix is and which source produced it.
 
-<img src="../recordings/weather_location.webp" width="517" alt="Hovering the location in the weather group">
+<img src="../recordings/weather_location.webp" width="480" alt="Hovering the location in the weather group">
 
 ### Weather: Wind
 
 Wind speed, gusts and direction, with the Beaufort force in the panel.
 
-<img src="../recordings/weather_wind.webp" width="401" alt="Hovering the wind in the weather group">
+<img src="../recordings/weather_wind.webp" width="365" alt="Hovering the wind in the weather group">
 
 ### Weather: Rain
 
 Rain in the coming hours on one timeline, split by hour: radar every five minutes where Buienradar covers, the forecast model's precipitation type every quarter-hour everywhere.
 
-<img src="../recordings/weather_precipitation.webp" width="401" alt="Hovering the rain item in the weather group">
+<img src="../recordings/weather_precipitation.webp" width="365" alt="Hovering the rain item in the weather group">
 
 ### Weather: Pollen
 
 Today's pollen per allergen, so hay fever has a forecast too.
 
-<img src="../recordings/weather_pollen.webp" width="401" alt="Hovering the pollen in the weather group">
+<img src="../recordings/weather_pollen.webp" width="365" alt="Hovering the pollen in the weather group">
 
 ### VPN: WireGuard
 
@@ -152,7 +152,7 @@ The Wikipedia summary for that place.
 
 Dragging a timeout changes it; the card says what happens when it fires.
 
-<img src="../recordings/idle_screen_off.webp" width="319" alt="Expanding the idle timeouts and hovering the screen-off timer">
+<img src="../recordings/idle_screen_off.webp" width="318" alt="Expanding the idle timeouts and hovering the screen-off timer">
 
 ### Idle timeouts: Lock
 
@@ -176,7 +176,7 @@ The current five-hour block: spend so far, burn rate and where it will end.
 
 Spend today, this week and this month against the monthly budget.
 
-<img src="../recordings/ai_usage_periods.webp" width="551" alt="Expanding the AI usage group and hovering the spend periods">
+<img src="../recordings/ai_usage_periods.webp" width="548" alt="Expanding the AI usage group and hovering the spend periods">
 
 ### Login session: Kernel and compositor
 

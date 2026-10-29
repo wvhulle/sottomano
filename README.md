@@ -30,14 +30,14 @@ the card's top line says what a click does.
 
 Pressing the temperature opens the forecast for the coming hours.
 
-<img src="recordings/weather_conditions.webp" width="401" alt="Pressing the temperature in the weather group">
+<img src="recordings/weather_conditions.webp" width="365" alt="Pressing the temperature in the weather group">
 
 ### VPN: Tailscale
 
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
-<img src="recordings/vpn_tailscale.webp" width="645" alt="Expanding the VPN group and hovering Tailscale">
+<img src="recordings/vpn_tailscale.webp" width="643" alt="Expanding the VPN group and hovering Tailscale">
 
 ### Dictation: Speech model
 
