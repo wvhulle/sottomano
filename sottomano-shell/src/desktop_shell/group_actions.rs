@@ -1,0 +1,174 @@
+use std::{collections::HashMap, sync::Arc};
+
+use iced::Task;
+use sottomano_sources::{
+    blocking_background_work::blocking,
+    desktop_windows_apps::{
+        app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries, niri_output_facts,
+        niri_window_placement,
+    },
+    system_protocol_clients::shell_command_output::blocking::run,
+};
+use sottomano_widgets::{
+    background_work::niri_action,
+    widget_groups::{
+        gamepad_group::GamepadMessage,
+        media_group::{self, MediaMessage},
+        overlay_settings_group::{self, OverlaySettingsMessage},
+        panel_settings_group::{self, PanelSettingsMessage},
+        session_menu::{self, SessionMessage},
+        tray_group::{self, TrayMessage},
+        window_group::{self, WindowGroupMessage, window_list},
+    },
+    widgets::app_window_focus::AppWindowFocus,
+};
+
+use crate::{
+    desktop_shell::{DesktopShell, niri_event_updates::focused_app_id},
+    shell_message::Message,
+};
+
+impl DesktopShell {
+    pub(super) fn open_url(&mut self, url: String) -> Task<Message> {
+        Task::batch([
+            self.dismiss_tooltip(),
+            Task::future(blocking("open url", move || run("xdg-open", &[&url]))).discard(),
+        ])
+    }
+
+    pub(super) fn update_overlay_settings(&mut self, msg: OverlaySettingsMessage) -> Task<Message> {
+        match self.widget_groups.overlay_settings_group.update(msg) {
+            overlay_settings_group::Action::Run(task) => task.map(Message::OverlaySettings),
+            overlay_settings_group::Action::ReflowToasts(task) => {
+                Task::batch([self.reflow_toasts(), task.map(Message::OverlaySettings)])
+            }
+        }
+    }
+
+    pub(super) fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {
+        self.launch_tracker.load_from(launches);
+        self.refresh_quick_launch()
+    }
+
+    pub(super) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
+        self.desktop_entries.set(entries.clone());
+        self.widget_groups.window_group.set_desktop_entries(entries);
+        self.refresh_quick_launch()
+    }
+
+    pub(super) fn adopt_outputs(
+        &mut self,
+        outputs: HashMap<String, niri_output_facts::OutputInfo>,
+    ) -> Task<Message> {
+        self.outputs = outputs;
+        self.reflow_toasts()
+    }
+
+    pub(super) fn reflow_toasts(&mut self) -> Task<Message> {
+        let placement = niri_window_placement::Placement::derive(&self.niri);
+        self.notifications.on_niri_changed(
+            &placement,
+            &self.config,
+            self.widget_groups.notification_settings(),
+            self.clock.instant,
+        )
+    }
+
+    pub(super) fn refocus_session(&mut self) -> Task<Message> {
+        self.widget_groups
+            .session_focus_group
+            .refocus(
+                &self.niri,
+                self.widget_groups.window_group.window_processes(),
+            )
+            .map(Message::SessionFocus)
+    }
+
+    pub(super) fn update_window_group(
+        &mut self,
+        window_message: WindowGroupMessage,
+    ) -> Task<Message> {
+        let handled = match self
+            .widget_groups
+            .window_group
+            .update(window_message, self.clock)
+        {
+            window_group::Action::Run(task) => task.map(Message::WindowGroup),
+            window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
+                .widget_groups
+                .audio_group
+                .toggle_window_mute(pid)
+                .map(Message::Audio),
+            window_group::Action::WindowList(window_list::Action::None) => Task::none(),
+            window_group::Action::WindowList(window_list::Action::WindowProcessesPaired) => {
+                self.derive_niri_snapshot();
+                self.resolve_icons()
+            }
+            window_group::Action::WindowList(window_list::Action::Drag(drag)) => {
+                self.update_pointer_drag(drag)
+            }
+        };
+        Task::batch([handled, self.refocus_session()])
+    }
+
+    pub(super) fn update_gamepad(&mut self, msg: GamepadMessage) -> Task<Message> {
+        self.widget_groups
+            .gamepad_group
+            .update(
+                msg,
+                &self.config.widget_groups.gamepad,
+                focused_app_id(&self.niri),
+            )
+            .into_task()
+    }
+
+    pub(super) fn update_media(&mut self, msg: MediaMessage) -> Task<Message> {
+        match self.widget_groups.media_group.update(msg, self.clock) {
+            media_group::Action::Run(task) => task.map(Message::Media),
+            media_group::Action::FocusAppWindow(focus) => {
+                self.focus_app_window(focus, Message::Media)
+            }
+        }
+    }
+
+    pub(super) fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
+        match self.widget_groups.session_menu.update(msg) {
+            session_menu::Action::Run(task) => task.map(Message::Session),
+            session_menu::Action::Performed(task) => {
+                Task::batch([self.dismiss_tooltip(), task.map(Message::Session)])
+            }
+        }
+    }
+
+    pub(super) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
+        match self.widget_groups.tray_group.update(msg, self.clock) {
+            tray_group::Action::None => Task::none(),
+            tray_group::Action::MenuItemActivated => self.dismiss_tooltip(),
+            tray_group::Action::FocusAppWindow(focus) => {
+                self.focus_app_window(focus, Message::Tray)
+            }
+        }
+    }
+
+    pub(super) fn focus_app_window<M: Send + 'static>(
+        &self,
+        focus: AppWindowFocus<M>,
+        lift: fn(M) -> Message,
+    ) -> Task<Message> {
+        let placement = niri_window_placement::Placement::derive(&self.niri);
+        let Some(window) = placement.window_owned_by(&focus.owner) else {
+            tracing::debug!("no single window owned by {:?}", focus.owner);
+            return Task::done(lift(focus.unmatched));
+        };
+        niri_action(niri_ipc::Action::FocusWindow { id: window })
+    }
+
+    pub(super) fn update_panel_settings(&mut self, msg: PanelSettingsMessage) -> Task<Message> {
+        match self.widget_groups.panel_settings_group.update(msg) {
+            panel_settings_group::Action::Run(task) => task.map(Message::PanelSettings),
+            panel_settings_group::Action::Reflow(task) => {
+                Task::batch([self.reserve(), task.map(Message::PanelSettings)])
+            }
+        }
+    }
+}

@@ -149,6 +149,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         }
     }
 
+    pub fn snapshot(&self) -> Option<&S> {
+        self.reading.get()
+    }
+
     pub fn reading(&self) -> Option<&dyn BarWidget> {
         self.reading.get().map(|display| display as &dyn BarWidget)
     }

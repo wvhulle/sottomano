@@ -1,5 +1,7 @@
 use core::f32::consts::FRAC_1_SQRT_2;
 
+const LOOK_MATCH_TOLERANCE: f32 = 0.005;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellLayer {
     Panels,
@@ -55,6 +57,19 @@ impl LayerAppearance {
     #[must_use]
     pub fn frame_corner_inset(&self) -> f32 {
         self.corner_radius_px * (1.0 - FRAC_1_SQRT_2)
+    }
+
+    #[must_use]
+    pub fn looks_like(&self, other: &Self) -> bool {
+        let close = |current: f32, wanted: f32| (current - wanted).abs() < LOOK_MATCH_TOLERANCE;
+        close(self.opacity, other.opacity)
+            && close(self.corner_radius_px, other.corner_radius_px)
+            && self.blurred == other.blurred
+            && self.shadow.cast == other.shadow.cast
+            && close(self.shadow.softness_px, other.shadow.softness_px)
+            && close(self.shadow.opacity, other.shadow.opacity)
+            && self.outline.drawn == other.outline.drawn
+            && close(self.outline.opacity, other.outline.opacity)
     }
 }
 

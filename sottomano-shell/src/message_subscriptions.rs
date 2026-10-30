@@ -13,27 +13,12 @@ use sottomano_sources::{
         notification_data::{Outbound, ServerEvent},
     },
     desktop_windows_apps::{desktop_entry_changes, firefox_favicon_lookup, niri_window_snapshot},
-    host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::{
-        dbus_desktop_buses::{DesktopBuses, desktop_bus_events},
+        dbus_desktop_buses::desktop_bus_events,
         inotify_directory_changes::{WatchTarget, changes},
     },
 };
-use sottomano_widgets::{
-    background_work::snapshot_subscription,
-    toast_messages::NotificationMessage,
-    widget_groups::{
-        audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
-        clock_group::ClockGroup, compute_group::ComputeGroup,
-        copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        gamepad_group::GamepadGroup, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
-        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup, window_group::WindowGroup,
-    },
-};
+use sottomano_widgets::toast_messages::NotificationMessage;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
@@ -59,7 +44,6 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let working_days = state.quiet_schedule_group.working_days();
     let animation = if state.notifications.is_transitioning(state.clock.instant) {
         frames().map(|_| Message::Redraw)
     } else {
@@ -79,56 +63,18 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             )])
         })
         .map(|()| Message::ConfigFileChanged),
-        state.weather_group.subscription().map(Message::Weather),
-        state.wallpaper_group.subscription().map(Message::Wallpaper),
         state
-            .caldav_group
-            .subscription(&state.config.widget_groups.caldav)
-            .map(Message::Caldav),
+            .widget_groups
+            .subscription(&state.config, focused_app_id(&state.niri)),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
             .desktop_buses
             .as_ref()
             .map_or_else(Subscription::none, |buses| {
-                desktop_bus_subscriptions(state, buses)
+                state
+                    .widget_groups
+                    .desktop_bus_subscription(&state.config, buses)
             }),
-        ComputeGroup::subscription(&state.config.widget_groups.temperature_sensors.cpu)
-            .map(Message::Compute),
-        MemoryBoardGroup::subscription().map(Message::MemoryBoard),
-        state.gpu_group.subscription().map(Message::Gpu),
-        state
-            .storage_space_group
-            .subscription()
-            .map(Message::Storage),
-        state
-            .physical_drive_group
-            .subscription(&state.config.widget_groups.temperature_sensors.drive)
-            .map(Message::Drive),
-        ClockGroup::subscription(&state.config).map(Message::Clock),
-        JournalEventsGroup::subscription().map(Message::JournalEvents),
-        DarkModeGroup::subscription().map(Message::DarkMode),
-        TrayGroup::subscription().map(Message::Tray),
-        AudioGroup::subscription().map(Message::Audio),
-        state
-            .gamepad_group
-            .subscription(
-                &state.config.widget_groups.gamepad,
-                focused_app_id(&state.niri),
-            )
-            .map(Message::Gamepad),
-        state
-            .claude_usage_group
-            .subscription(&state.config, working_days)
-            .map(Message::ClaudeUsage),
-        CopilotUsageGroup::subscription(&state.config, working_days).map(Message::CopilotUsage),
-        state
-            .openrouter_credit_group
-            .subscription(&state.config)
-            .map(Message::OpenRouterCredit),
-        WindowGroup::subscription(&state.config.widget_groups.window_list.agents)
-            .map(Message::WindowGroup),
-        SessionFocusGroup::subscription(&state.config.widget_groups.focus_time)
-            .map(Message::SessionFocus),
         close_events().map(Message::WindowClosed),
         listen_with(|event, _status, _window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
@@ -147,55 +93,6 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .notifications
             .expiry_subscription()
             .map(Message::Notification),
-    ])
-}
-
-fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subscription<Message> {
-    Subscription::batch([
-        PowerGroup::subscription(buses).map(Message::Power),
-        LoginSessionGroup::subscription(buses).map(Message::LoginSession),
-        SystemdManagerGroup::subscription(&state.config.widget_groups.systemd_manager, buses)
-            .map(Message::SystemdManager),
-        PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
-        state
-            .reachability_group
-            .subscription(&state.config.widget_groups.reachability, buses)
-            .map(Message::Reachability),
-        state.vpn_group.subscription(buses).map(Message::Vpn),
-        state
-            .net_interfaces_group
-            .subscription(buses)
-            .map(Message::NetInterfaces),
-        state
-            .ethernet_ports_group
-            .subscription(buses)
-            .map(Message::EthernetPorts),
-        BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
-        GamepadGroup::network_subscription(buses).map(Message::Gamepad),
-        MonitorGroup::subscription(buses).map(Message::Monitor),
-        state.media_group.subscription(buses).map(Message::Media),
-        DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
-        state
-            .voice_dictation_group
-            .subscription(buses)
-            .map(Message::VoiceDictation),
-        QuietScheduleGroup::resume_subscription(buses).map(Message::QuietSchedule),
-        SessionFocusGroup::sleep_subscription(buses).map(Message::SessionFocus),
-        WindowGroup::launcher_entry_subscription(buses).map(Message::WindowGroup),
-        snapshot_subscription::<HostHardware>(buses.clone())
-            .map(|delivery| Message::HostHardware(Box::new(delivery))),
-        state
-            .copilot_usage_group
-            .account_subscription(buses)
-            .map(Message::CopilotUsage),
-        state
-            .color_temperature_group
-            .subscription(buses)
-            .map(Message::ColorTemperature),
-        state
-            .llama_server_group
-            .subscription(buses)
-            .map(Message::LlamaServer),
     ])
 }
 

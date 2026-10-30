@@ -21,6 +21,7 @@ use sottomano_widgets::{
         weather_group::WeatherTarget,
         window_group::WindowTarget,
     },
+    widgets::appearance_presets::{AppearancePreset, ShellAppearance},
 };
 
 use crate::{
@@ -38,6 +39,54 @@ pub struct Demo {
     pub group: fn(Clock) -> ShowcasedGroup,
     pub live: fn(Clock) -> Vec<ShowcaseMessage>,
     pub script: &'static [Step],
+}
+
+pub const THEMED_DEMOS: &[&str] = &[
+    "compute_cpu",
+    "memory_board_memory",
+    "weather_wind",
+    "audio_volume",
+    "vpn_wireguard",
+    "bottom_workspaces",
+    "wallpaper_place",
+    "idle_screen_off",
+    "ai_usage_windows",
+    "toast_arrival",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecordedLook {
+    DefaultLook,
+    Preset(AppearancePreset),
+}
+
+impl RecordedLook {
+    pub fn recorded_for(demo: &Demo) -> impl Iterator<Item = RecordedLook> {
+        let themed = THEMED_DEMOS.contains(&demo.name);
+        let default_appearance = ShellAppearance::default();
+        [RecordedLook::DefaultLook].into_iter().chain(
+            AppearancePreset::ALL
+                .into_iter()
+                .filter(move |preset| themed && !preset.is_shown_by(&default_appearance))
+                .map(RecordedLook::Preset),
+        )
+    }
+
+    #[must_use]
+    pub fn appearance(self) -> ShellAppearance {
+        match self {
+            RecordedLook::DefaultLook => ShellAppearance::default(),
+            RecordedLook::Preset(preset) => preset.applied_to(ShellAppearance::default()),
+        }
+    }
+
+    #[must_use]
+    pub fn recording_name(self, demo: &Demo) -> String {
+        match self {
+            RecordedLook::DefaultLook => demo.name.to_owned(),
+            RecordedLook::Preset(preset) => format!("{}_{}", demo.name, preset.slug()),
+        }
+    }
 }
 
 pub enum Step {

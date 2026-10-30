@@ -23,11 +23,17 @@ impl DesktopShell {
         output: &str,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let sidebar = self.sidebar_settings_group.sidebar_appearance();
+        let sidebar = self
+            .widget_groups
+            .sidebar_settings_group
+            .sidebar_appearance();
         let frame_style = LayerFrameStyle::new(&sidebar, config);
         let outlined_sides = OutlinedSides::inward_of(Position::Left)
-            .all_when_floating(self.panel_settings_group.float_offset_px());
-        let framed_workspaces = (self.sidebar_settings_group.workspaces_placement()
+            .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
+        let framed_workspaces = (self
+            .widget_groups
+            .sidebar_settings_group
+            .workspaces_placement()
             == WorkspacesPlacement::Sidebar)
             .then_some(&self.niri_snapshot)
             .and_then(|snapshot| {

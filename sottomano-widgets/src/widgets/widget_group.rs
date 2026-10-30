@@ -2,9 +2,9 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element, Padding, Subscription,
+    Alignment, Element, Length, Padding, Subscription,
     mouse::ScrollDelta,
-    widget::{Row, button, container, mouse_area},
+    widget::{Row, Space, button, container, mouse_area},
 };
 use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
@@ -19,9 +19,7 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
         bar_widget::{BarWidget, Glyph},
-        configured_theme::{
-            background_strong_color, primary_color, secondary_text_color, text_color,
-        },
+        configured_theme::{primary_color, secondary_text_color, text_color},
         expand_animation::expand_animation,
         flat_button,
         group_item::{GroupItem, ItemPlacement},
@@ -513,9 +511,10 @@ impl EdgeIndicator {
             Severity::Low | Severity::Normal if self.cursor_hovering => {
                 activity_line(secondary_text_color, 1.0, thickness)
             }
-            Severity::Low | Severity::Normal => {
-                activity_line(background_strong_color, 1.0, thickness)
-            }
+            Severity::Low | Severity::Normal => Space::new()
+                .width(Length::Fill)
+                .height(Length::Fixed(thickness))
+                .into(),
             severity @ (Severity::Warning | Severity::Critical) => {
                 let tint = StateTint {
                     state: WidgetState::from(severity),

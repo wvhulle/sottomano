@@ -47,8 +47,8 @@ impl DesktopShell {
                 &self.niri,
                 self.desktop_entries.get(),
                 &self.config,
-                self.notification_settings(),
-                self.quiet_schedule_group.is_quiet(),
+                self.widget_groups.notification_settings(),
+                self.widget_groups.quiet_schedule_group.is_quiet(),
                 self.clock,
             ),
             &|output| toast_surfaces.get(output).copied(),
@@ -56,7 +56,7 @@ impl DesktopShell {
     }
 
     pub fn update_notification_group(&mut self, msg: NotificationGroupMessage) -> Task<Message> {
-        match self.notification_group.update(msg) {
+        match self.widget_groups.notification_group.update(msg) {
             notification_group::Action::Run(task) => task.map(Message::NotificationGroup),
             notification_group::Action::ToggleDoNotDisturb => {
                 self.update_quiet_schedule(QuietScheduleMessage::ToggleQuietNow)
@@ -65,7 +65,10 @@ impl DesktopShell {
     }
 
     pub fn update_quiet_schedule(&mut self, msg: QuietScheduleMessage) -> Task<Message> {
-        let QuietUpdate { task, change } = self.quiet_schedule_group.update(msg, self.clock);
+        let QuietUpdate { task, change } = self
+            .widget_groups
+            .quiet_schedule_group
+            .update(msg, self.clock);
         Task::batch([
             task.map(Message::QuietSchedule),
             self.apply_quiet_change(change),
@@ -76,10 +79,12 @@ impl DesktopShell {
         match change {
             QuietChange::Unchanged => Task::none(),
             QuietChange::ScreenOffAfter(timeout) => self
+                .widget_groups
                 .idle_timeouts_group
                 .override_screen_off(Some(timeout))
                 .map(Message::IdleTimeouts),
             QuietChange::ScreenOffFollowsIdleTimer => self
+                .widget_groups
                 .idle_timeouts_group
                 .override_screen_off(None)
                 .map(Message::IdleTimeouts),
@@ -88,13 +93,14 @@ impl DesktopShell {
                     &self.niri,
                     self.desktop_entries.get(),
                     &self.config,
-                    self.notification_settings(),
+                    self.widget_groups.notification_settings(),
                     false,
                     self.clock,
                 ));
                 Task::batch([
                     released,
-                    self.idle_timeouts_group
+                    self.widget_groups
+                        .idle_timeouts_group
                         .override_screen_off(None)
                         .map(Message::IdleTimeouts),
                 ])

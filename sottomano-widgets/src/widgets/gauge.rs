@@ -11,7 +11,7 @@ use uom::{
 };
 
 use crate::widgets::{
-    configured_theme::{background_strong_color, background_weak_color},
+    configured_theme::{background_strong_color, secondary_text_color},
     widget_state::StateTint,
 };
 
@@ -82,7 +82,7 @@ impl<'a, Message: 'a> From<Gauge> for Element<'a, Message> {
         let live_reach = bar_reach(gauge.live).min(reach);
         let tint = gauge.tint;
         stack![
-            gauge.vertical_bar(reach, background_weak_color, background_strong_color),
+            gauge.vertical_bar(reach, background_strong_color, secondary_text_color),
             gauge.vertical_bar(
                 live_reach,
                 |_: &Theme| Color::TRANSPARENT,

@@ -5,7 +5,7 @@ use sottomano_config::Config;
 use sottomano_widget_showcase::{
     WORKSPACE_ROOT,
     animation_recording::RecordingSession,
-    demo_script::DEMOS,
+    demo_script::{DEMOS, RecordedLook},
     showcase_program::{ShowcaseProgram, booting_clock},
 };
 
@@ -50,7 +50,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         .enumerate()
         .for_each(|(demo_position, demo)| {
             let demo_started = Instant::now();
-            recording_session.record(demo, start, &command_line.output);
+            RecordedLook::recorded_for(demo).for_each(|look| {
+                recording_session.record(demo, look, start, &command_line.output);
+            });
             eprintln!(
                 "[{}/{}] {} recorded in {:.1}s",
                 demo_position + 1,

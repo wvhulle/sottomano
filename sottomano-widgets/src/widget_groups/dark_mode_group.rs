@@ -86,6 +86,7 @@ pub enum DarkModeMessage {
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
     Expansion(ExpansionMessage),
+    SwitchScheme(ColorMode),
 }
 
 impl WidgetGroup for DarkModeGroup {
@@ -144,6 +145,14 @@ impl DarkModeGroup {
             | DarkModeTarget::SunsetOffset => {
                 first_delivery::<Location>(()).map(DarkModeMessage::LocationFix)
             }
+        }
+    }
+
+    #[must_use]
+    pub fn scheme(&self) -> ColorMode {
+        match self.mode_toggle.snapshot() {
+            Some(DarkMode { dark: false }) => ColorMode::Light,
+            Some(DarkMode { dark: true }) | None => ColorMode::Dark,
         }
     }
 
@@ -232,6 +241,7 @@ impl DarkModeGroup {
                 }
                 Task::none()
             }
+            DarkModeMessage::SwitchScheme(mode) => self.apply_color_mode(mode),
         }
     }
 

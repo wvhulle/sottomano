@@ -4,7 +4,7 @@ use std::{
 };
 
 use iced::{
-    Element, Length, Padding, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Padding, Settings, Subscription, Task, Theme,
     alignment::Vertical,
     executor,
     theme::Style,
@@ -15,7 +15,8 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use iced_test::program::{Preset, Program};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_config::{Config, Palette, screen_edges::Position};
+use sottomano_sources::screen_brightness_color::solar_switch_schedule::ColorMode;
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
@@ -27,10 +28,10 @@ use sottomano_widgets::{
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
     widgets::{
-        configured_theme::{background_weak_color, configured_theme, text_color},
+        appearance_presets::ShellAppearance,
+        configured_theme::{configured_theme, text_color},
         favicon::Favicons,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
-        shell_layer_appearance::ShellLayer,
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -65,6 +66,7 @@ enum Pacing {
 
 pub struct ShowcaseProgram {
     config: Config,
+    appearance: ShellAppearance,
     presets: Vec<Preset<ShowcaseState, ShowcaseMessage>>,
     pacing: Pacing,
     start: Clock,
@@ -73,24 +75,37 @@ pub struct ShowcaseProgram {
 impl ShowcaseProgram {
     #[must_use]
     pub fn interactive(config: &Config) -> Self {
-        Self::with_pacing(config, Pacing::Realtime, booting_clock())
+        Self::with_pacing(
+            config,
+            ShellAppearance::default(),
+            Pacing::Realtime,
+            booting_clock(),
+        )
     }
 
     #[must_use]
-    pub fn scripted(config: &Config, start: Clock) -> Self {
-        Self::with_pacing(config, Pacing::Scripted, start)
+    pub fn scripted(config: &Config, appearance: ShellAppearance, start: Clock) -> Self {
+        Self::with_pacing(config, appearance, Pacing::Scripted, start)
     }
 
-    fn with_pacing(config: &Config, pacing: Pacing, start: Clock) -> Self {
+    fn with_pacing(
+        config: &Config,
+        appearance: ShellAppearance,
+        pacing: Pacing,
+        start: Clock,
+    ) -> Self {
         let presets = DEMOS
             .iter()
             .map(|demo| {
                 let config = config.clone();
-                Preset::new(demo.name, move || ShowcaseState::boot(demo, &config, start))
+                Preset::new(demo.name, move || {
+                    ShowcaseState::boot(demo, &config, appearance, start)
+                })
             })
             .collect();
         ShowcaseProgram {
             config: config.clone(),
+            appearance,
             presets,
             pacing,
             start,
@@ -108,6 +123,7 @@ impl ShowcaseProgram {
 pub struct ShowcaseState {
     demo: &'static Demo,
     config: Config,
+    appearance: ShellAppearance,
     notification_settings: NotificationSettings,
     desktop_entries: DesktopIndex,
     favicons: Favicons,
@@ -128,7 +144,12 @@ struct PendingHoverReply {
 }
 
 impl ShowcaseState {
-    fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
+    fn boot(
+        demo: &'static Demo,
+        config: &Config,
+        appearance: ShellAppearance,
+        clock: Clock,
+    ) -> (Self, Task<ShowcaseMessage>) {
         FontFaces::point_generic_families_at(&config.theme);
         let mut tooltip = TooltipHost::default();
         let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
@@ -145,11 +166,12 @@ impl ShowcaseState {
         let state = ShowcaseState {
             demo,
             config: config.clone(),
+            appearance,
             notification_settings,
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
-            theme: configured_theme(&config.theme.palette),
+            theme: configured_theme(&scheme_palette(config, appearance.scheme)),
             group,
             tooltip,
             notifications: NotificationLayer::default(),
@@ -244,7 +266,7 @@ impl ShowcaseState {
             SHOWCASE_OUTPUT,
             &self.config,
             &self.theme,
-            ShellLayer::Overlays.default_appearance(),
+            self.appearance.overlays,
             Padding::ZERO,
             self.clock,
         ))
@@ -281,10 +303,9 @@ impl ShowcaseState {
         let panel = &self.config.layout.panel;
         let position = self.group.position();
         let layer = match position {
-            Position::Left => ShellLayer::Sidebar,
-            Position::Top | Position::Bottom => ShellLayer::Panels,
-        }
-        .default_appearance();
+            Position::Left => self.appearance.sidebar,
+            Position::Top | Position::Bottom => self.appearance.panels,
+        };
         let frame_style = LayerFrameStyle::new(&layer, &self.config);
         let outlined_sides =
             OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
@@ -320,7 +341,7 @@ impl ShowcaseState {
             surface,
             &self.config,
             TooltipSurfaceStyle {
-                overlay_appearance: ShellLayer::Overlays.default_appearance(),
+                overlay_appearance: self.appearance.overlays,
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
             WindowAssets {
@@ -368,7 +389,7 @@ impl Program for ShowcaseProgram {
     }
 
     fn boot(&self) -> (ShowcaseState, Task<ShowcaseMessage>) {
-        ShowcaseState::boot(&DEMOS[0], &self.config, self.start)
+        ShowcaseState::boot(&DEMOS[0], &self.config, self.appearance, self.start)
     }
 
     fn presets(&self) -> &[Preset<ShowcaseState, ShowcaseMessage>] {
@@ -426,8 +447,15 @@ impl Program for ShowcaseProgram {
 
     fn style(&self, _state: &ShowcaseState, theme: &Theme) -> Style {
         Style {
-            background_color: background_weak_color(theme),
+            background_color: Color::TRANSPARENT,
             text_color: text_color(theme),
         }
+    }
+}
+
+fn scheme_palette(config: &Config, scheme: ColorMode) -> Palette {
+    match scheme {
+        ColorMode::Dark => config.theme.palette.clone(),
+        ColorMode::Light => Palette::light(),
     }
 }

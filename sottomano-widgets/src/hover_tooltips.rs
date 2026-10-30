@@ -14,6 +14,7 @@ pub use crate::hover_tooltips::{
 };
 use crate::{
     widget_groups::{
+        appearance_presets_group::AppearancePresetsTarget,
         audio_group::AudioTarget,
         bluetooth_adapters_group::BluetoothTarget,
         caldav_group::CaldavTarget,
@@ -67,6 +68,7 @@ pub enum HoverTarget {
     Power(PowerTarget),
     PanelSettings(PanelSettingsTarget),
     SidebarSettings(SidebarSettingsTarget),
+    AppearancePresets(AppearancePresetsTarget),
     OverlaySettings(OverlaySettingsTarget),
     NiriWindow(NiriWindowTarget),
     Systemd(SystemdTarget),
