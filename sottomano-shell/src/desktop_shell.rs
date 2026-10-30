@@ -379,6 +379,11 @@ impl DesktopShell {
     }
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
+        let popup_corner_radius = self
+            .widget_groups
+            .overlay_settings_group
+            .overlay_appearance()
+            .corner_radius_px;
         match target {
             HoverTarget::GroupHandle(handle) => self
                 .bar_drawers()
@@ -388,12 +393,16 @@ impl DesktopShell {
             HoverTarget::Tray(address) => self
                 .widget_groups
                 .tray_group
-                .menu_panel(address, &self.config)
+                .menu_panel(address, &self.config, popup_corner_radius)
                 .map(|panel| panel.map(Message::Tray)),
             HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu) => Some(
                 self.widget_groups
                     .appearance_presets_menu
-                    .menu_panel(&self.config, &self.widget_groups.shell_appearance())
+                    .menu_panel(
+                        &self.config,
+                        popup_corner_radius,
+                        &self.widget_groups.shell_appearance(),
+                    )
                     .map(Message::AppearancePresets),
             ),
             HoverTarget::Session(session_menu::SessionTarget::Menu) => Some(
@@ -401,6 +410,7 @@ impl DesktopShell {
                     .session_menu
                     .menu_panel(
                         &self.config,
+                        popup_corner_radius,
                         self.widget_groups.idle_timeouts_group.timeouts(),
                     )
                     .map(Message::Session),
