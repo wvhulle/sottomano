@@ -158,6 +158,7 @@ impl SessionMenu {
     pub fn menu_panel<'a>(
         &self,
         config: &'a Config,
+        popup_corner_radius: f32,
         timeouts: Timeouts,
     ) -> Element<'a, SessionMessage> {
         let lines = self
@@ -182,7 +183,7 @@ impl SessionMenu {
             })
             .flatten()
             .collect::<Vec<_>>();
-        context_menu(config, lines)
+        context_menu(config, popup_corner_radius, lines)
     }
 
     #[must_use]

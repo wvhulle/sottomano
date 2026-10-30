@@ -178,6 +178,7 @@ impl TrayGroup {
         &'a self,
         address: &str,
         config: &'a Config,
+        popup_corner_radius: f32,
     ) -> Option<Element<'a, TrayMessage>> {
         let item = self
             .items
@@ -200,7 +201,7 @@ impl TrayGroup {
             on_toggle: &TrayMessage::ToggleSubmenu,
         }
         .lines(&item.menu);
-        Some(context_menu(config, lines))
+        Some(context_menu(config, popup_corner_radius, lines))
     }
 
     fn command(&self, command: TrayCommand) {

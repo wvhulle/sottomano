@@ -75,10 +75,12 @@ impl AppearancePresetsMenu {
     pub fn menu_panel<'a>(
         &self,
         config: &'a Config,
+        popup_corner_radius: f32,
         current: &ShellAppearance,
     ) -> Element<'a, AppearancePresetsMessage> {
         context_menu(
             config,
+            popup_corner_radius,
             AppearancePreset::ALL
                 .into_iter()
                 .map(|preset| preset_menu_row(preset, current, config))

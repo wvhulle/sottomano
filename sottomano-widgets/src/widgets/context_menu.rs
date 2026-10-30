@@ -1,6 +1,7 @@
 use iced::{
-    Background, Color, Element, Length, Padding, Theme,
+    Background, Border, Color, Element, Length, Padding, Theme,
     alignment::Vertical,
+    border::Radius,
     widget::{Column, Row, button, space, text},
 };
 use sottomano_config::Config;
@@ -41,13 +42,30 @@ const CONTEXT_MENU_WIDTH_PX: f32 = 250.0;
 
 pub fn context_menu<'a, M: Clone + 'a>(
     config: &Config,
+    popup_corner_radius: f32,
     lines: impl IntoIterator<Item = MenuLine<'a, M>>,
 ) -> Element<'a, M> {
+    let kept_lines = without_redundant_dividers(lines.into_iter().collect());
+    let last_position = kept_lines.len().saturating_sub(1);
     Column::with_children(
-        without_redundant_dividers(lines.into_iter().collect())
+        kept_lines
             .into_iter()
-            .map(|line| match line {
-                MenuLine::Row(row) => entry(config, row),
+            .enumerate()
+            .map(|(position, line)| match line {
+                MenuLine::Row(row) => {
+                    let highlight_radius = Radius::default();
+                    let highlight_radius = if position == 0 {
+                        highlight_radius.top(popup_corner_radius)
+                    } else {
+                        highlight_radius
+                    };
+                    let highlight_radius = if position == last_position {
+                        highlight_radius.bottom(popup_corner_radius)
+                    } else {
+                        highlight_radius
+                    };
+                    entry(config, row, highlight_radius)
+                }
                 MenuLine::Divider => divider(),
             }),
     )
@@ -56,7 +74,11 @@ pub fn context_menu<'a, M: Clone + 'a>(
     .into()
 }
 
-fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a, M> {
+fn entry<'a, M: Clone + 'a>(
+    config: &Config,
+    row: MenuRow<'a, M>,
+    highlight_radius: Radius,
+) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
     let row_spacing = config.layout.overlay.row_spacing;
     let color: fn(&Theme) -> Color = if row.enabled {
@@ -114,7 +136,7 @@ fn entry<'a, M: Clone + 'a>(config: &Config, row: MenuRow<'a, M>) -> Element<'a,
     let styled = button(content)
         .width(Length::Fill)
         .padding(padding)
-        .style(move |theme, status| button_style(theme, status, color));
+        .style(move |theme, status| button_style(theme, status, color, highlight_radius));
     match row.on_press.filter(|_| row.enabled) {
         Some(message) => styled.on_press(message).into(),
         None => styled.into(),
@@ -125,12 +147,17 @@ fn button_style(
     theme: &Theme,
     status: button::Status,
     text_role: fn(&Theme) -> Color,
+    highlight_radius: Radius,
 ) -> button::Style {
     let background = matches!(status, button::Status::Hovered | button::Status::Pressed)
         .then(|| Background::Color(background_weak_color(theme)));
     button::Style {
         background,
         text_color: text_role(theme),
+        border: Border {
+            radius: highlight_radius,
+            ..Border::default()
+        },
         ..Default::default()
     }
 }

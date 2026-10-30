@@ -121,6 +121,7 @@ impl AppearancePreset {
                         ..panels
                     },
                     sidebar: LayerAppearance {
+                        opacity: 0.4,
                         blurred: true,
                         outline: OutlineStyle {
                             drawn: true,
@@ -180,6 +181,7 @@ mod tests {
         assert!(!cleared.panels.blurred);
         assert!(!cleared.panels.outline.drawn);
         assert!(cleared.sidebar.blurred);
+        assert!(cleared.sidebar.opacity > cleared.panels.opacity);
         assert!(cleared.sidebar.outline.drawn);
         assert_eq!(cleared.overlays, ShellAppearance::default().overlays);
     }
