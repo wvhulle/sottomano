@@ -115,6 +115,7 @@ pub enum Message {
     RefreshHoveredReading,
     FocusWindow(u64),
     TooltipHideElapsed,
+    TooltipFadeElapsed,
     Tooltip(TooltipMessage),
     Notification(NotificationMessage),
     OutputsResolved(HashMap<String, niri_output_facts::OutputInfo>),
@@ -163,6 +164,7 @@ impl From<SurfaceRequest> for Message {
                 settings,
                 id: surface,
             },
+            SurfaceRequest::Close { surface } => Message::RemoveWindow(surface),
             SurfaceRequest::InputRegions { surface, regions } => Message::SetInputRegion {
                 id: surface,
                 callback: RegionActionCB::new(move |region| {

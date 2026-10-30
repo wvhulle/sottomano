@@ -16,6 +16,9 @@ pub enum SurfaceRequest {
         settings: NewLayerShellSettings,
         surface: Id,
     },
+    Close {
+        surface: Id,
+    },
     InputRegions {
         surface: Id,
         regions: Vec<Rectangle>,

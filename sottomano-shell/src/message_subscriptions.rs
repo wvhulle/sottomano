@@ -3,6 +3,7 @@ use iced::{
     event::listen_with,
     futures::Stream,
     mouse::Event,
+    time::every,
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
@@ -62,6 +63,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     let working_days = state.quiet_schedule_group.working_days();
     let animation = if state.notifications.is_transitioning(state.clock.instant) {
         frames().map(|_| Message::Redraw)
+    } else {
+        Subscription::none()
+    };
+    let tooltip_fade = if state.tooltip.is_hiding() {
+        every(state.config.tooltips.popup_morph).map(|_| Message::TooltipFadeElapsed)
     } else {
         Subscription::none()
     };
@@ -130,6 +136,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         niri_subscription(),
         notifications_subscription(),
         animation,
+        tooltip_fade,
         state.pointer_drag_subscription(),
         state
             .notifications

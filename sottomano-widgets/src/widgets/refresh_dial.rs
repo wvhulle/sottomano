@@ -4,11 +4,12 @@ use std::{
 };
 
 use iced::{
-    Color, Element, Event, Length, Point, Radians, Rectangle, Renderer, Theme,
+    Border, Color, Element, Event, Length, Point, Radians, Rectangle, Renderer, Theme,
     mouse::Cursor,
     widget::{
         Action, canvas,
         canvas::{LineCap, Stroke},
+        container, space, stack,
     },
     window,
 };
@@ -38,10 +39,25 @@ impl RefreshDial {
     #[must_use]
     pub fn view<'a, Message: 'a>(self) -> Element<'a, Message> {
         let diameter = self.diameter;
-        canvas(self)
-            .width(Length::Fixed(diameter))
-            .height(Length::Fixed(diameter))
-            .into()
+        let ring_width = self.ring_width();
+        stack![
+            container(space())
+                .width(Length::Fixed(diameter))
+                .height(Length::Fixed(diameter))
+                .style(move |theme| container::Style::default().border(Border {
+                    color: background_strong_color(theme),
+                    width: ring_width,
+                    radius: (diameter / 2.0).into(),
+                })),
+            canvas(self)
+                .width(Length::Fixed(diameter))
+                .height(Length::Fixed(diameter))
+        ]
+        .into()
+    }
+
+    fn ring_width(&self) -> f32 {
+        self.diameter * RING_THICKNESS_FRACTION
     }
 
     fn elapsed_fraction(&self, frame: Option<Instant>) -> f32 {
@@ -55,7 +71,7 @@ impl RefreshDial {
     fn ring(&self, color: Color) -> Stroke<'static> {
         Stroke::default()
             .with_color(color)
-            .with_width(self.diameter * RING_THICKNESS_FRACTION)
+            .with_width(self.ring_width())
             .with_line_cap(LineCap::Butt)
     }
 }
@@ -99,10 +115,6 @@ impl<Message> canvas::Program<Message> for RefreshDial {
         let mut geometry = canvas::Frame::new(renderer, bounds.size());
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let radius = self.diameter * (1.0 - RING_THICKNESS_FRACTION) / 2.0;
-        geometry.stroke(
-            &canvas::Path::circle(center, radius),
-            self.ring(background_strong_color(theme)),
-        );
         let swept = TAU * self.elapsed_fraction(*frame);
         geometry.stroke(
             &arc_path(center, radius, swept),

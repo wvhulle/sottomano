@@ -105,7 +105,7 @@ impl DesktopShell {
 
     pub fn dismiss_tooltip(&mut self) -> Task<Message> {
         let departing = self.tooltip_departure();
-        self.tooltip.dismiss(departing);
+        self.tooltip.dismiss(departing, self.clock.instant);
         Task::none()
     }
 

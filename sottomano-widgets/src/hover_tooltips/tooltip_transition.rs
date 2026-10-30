@@ -1,4 +1,4 @@
-use iced::Rectangle;
+use iced::{Rectangle, time::Instant};
 use sottomano_config::screen_edges::Position;
 
 use crate::{
@@ -44,7 +44,7 @@ impl Departed {
 enum Stage {
     Idle,
     Showing { current: Occupant, leaving: bool },
-    Hiding { previous: Departed },
+    Hiding { previous: Departed, since: Instant },
 }
 
 pub struct TooltipTransition {
@@ -70,9 +70,12 @@ impl TooltipTransition {
         self.restart();
     }
 
-    pub fn hide(&mut self, previous: Option<Departed>) {
+    pub fn hide(&mut self, previous: Option<Departed>, now: Instant) {
         self.stage = match previous {
-            Some(previous) => Stage::Hiding { previous },
+            Some(previous) => Stage::Hiding {
+                previous,
+                since: now,
+            },
             None => Stage::Idle,
         };
         self.restart();
@@ -100,6 +103,14 @@ impl TooltipTransition {
     }
 
     #[must_use]
+    pub fn hiding_since(&self) -> Option<Instant> {
+        match self.stage {
+            Stage::Hiding { since, .. } => Some(since),
+            Stage::Idle | Stage::Showing { .. } => None,
+        }
+    }
+
+    #[must_use]
     pub fn is_leaving(&self) -> bool {
         matches!(self.stage, Stage::Showing { leaving: true, .. })
     }
@@ -123,7 +134,7 @@ impl TooltipTransition {
     #[must_use]
     pub fn previous(&self) -> Option<&Departed> {
         match &self.stage {
-            Stage::Hiding { previous } => Some(previous),
+            Stage::Hiding { previous, .. } => Some(previous),
             Stage::Idle | Stage::Showing { .. } => None,
         }
     }
@@ -132,7 +143,7 @@ impl TooltipTransition {
     pub fn placement(&self) -> Option<&Placement> {
         match &self.stage {
             Stage::Showing { current, .. } => Some(&current.placement),
-            Stage::Hiding { previous } => Some(&previous.placement),
+            Stage::Hiding { previous, .. } => Some(&previous.placement),
             Stage::Idle => None,
         }
     }

@@ -1,18 +1,21 @@
 use std::ops::RangeInclusive;
 
 use iced::{
-    Color, Element, Event, Point, Rectangle, Renderer, Theme,
-    mouse::{self, Cursor, ScrollDelta},
-    widget::{
-        Slider,
-        canvas::{self, LineCap, Path, Stroke},
-        mouse_area, slider, stack,
+    Color, Element, Event, Length, Point, Rectangle, Size, Theme,
+    advanced::{
+        Clipboard, Layout, Shell, Widget,
+        layout::{Limits, Node},
+        renderer,
+        widget::{Tree, tree},
     },
+    mouse::{self, Cursor, ScrollDelta},
+    widget::{Slider, mouse_area, slider, stack},
 };
 use sottomano_config::{Config, severity::Severity};
 
 use crate::widgets::{
     configured_theme::{background_color, background_strong_color, primary_color, text_color},
+    rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
     widget_state::WidgetState,
 };
 
@@ -42,12 +45,14 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         lagging_value,
         accents,
         geometry,
+        face_size: Size::new(
+            config.panel_bar.slider_width,
+            Slider::<f32, Message>::DEFAULT_HEIGHT,
+        ),
     };
     mouse_area(stack![
         interaction_slider(config, geometry, range, value, step, on_change, on_release),
-        canvas::Canvas::new(face)
-            .width(config.panel_bar.slider_width)
-            .height(Slider::<f32, Message>::DEFAULT_HEIGHT)
+        Element::new(face)
     ])
     .on_scroll(on_scroll)
     .into()
@@ -160,33 +165,60 @@ struct SliderFace {
     lagging_value: Option<f32>,
     accents: InteractionAccents,
     geometry: FaceGeometry,
+    face_size: Size,
 }
 
-impl<Message> canvas::Program<Message> for SliderFace {
-    type State = PointerEngagement;
+impl<Message> Widget<Message, Theme, iced::Renderer> for SliderFace {
+    fn tag(&self) -> tree::Tag {
+        tree::Tag::of::<PointerEngagement>()
+    }
+
+    fn state(&self) -> tree::State {
+        tree::State::new(PointerEngagement::default())
+    }
+
+    fn size(&self) -> Size<Length> {
+        Size::new(
+            Length::Fixed(self.face_size.width),
+            Length::Fixed(self.face_size.height),
+        )
+    }
+
+    fn layout(&mut self, _tree: &mut Tree, _renderer: &iced::Renderer, limits: &Limits) -> Node {
+        Node::new(limits.resolve(self.face_size.width, self.face_size.height, Size::ZERO))
+    }
 
     fn update(
-        &self,
-        engagement: &mut Self::State,
+        &mut self,
+        tree: &mut Tree,
         event: &Event,
-        bounds: Rectangle,
+        layout: Layout<'_>,
         cursor: Cursor,
-    ) -> Option<canvas::Action<Message>> {
-        let next_engagement = engagement.after_event(event, bounds, cursor);
-        (next_engagement != *engagement).then(|| {
+        _renderer: &iced::Renderer,
+        _clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) {
+        let engagement = tree.state.downcast_mut::<PointerEngagement>();
+        let next_engagement = engagement.after_event(event, layout.bounds(), cursor);
+        if next_engagement != *engagement {
             *engagement = next_engagement;
-            canvas::Action::request_redraw()
-        })
+            shell.request_redraw();
+        }
     }
 
     fn draw(
         &self,
-        engagement: &Self::State,
-        renderer: &Renderer,
+        tree: &Tree,
+        renderer: &mut iced::Renderer,
         theme: &Theme,
-        bounds: Rectangle,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
         _cursor: Cursor,
-    ) -> Vec<canvas::Geometry> {
+        _viewport: &Rectangle,
+    ) {
+        let engagement = tree.state.downcast_ref::<PointerEngagement>();
+        let bounds = layout.bounds();
         let geometry = self.geometry;
         let (range_start, range_end) = (*self.range.start(), *self.range.end());
         let span = range_end - range_start;
@@ -197,7 +229,7 @@ impl<Message> canvas::Program<Message> for SliderFace {
             } else {
                 0.0
             };
-            (bounds.width - 2.0 * edge_inset) * fraction + edge_inset
+            bounds.x + (bounds.width - 2.0 * edge_inset) * fraction + edge_inset
         };
 
         let engaged = engagement.engaged() || self.lagging_value.is_some();
@@ -212,7 +244,7 @@ impl<Message> canvas::Program<Message> for SliderFace {
             geometry.resting_knob_radius
         };
 
-        let rail_y = bounds.height / 2.0;
+        let rail_y = bounds.y + bounds.height / 2.0;
         let handle_x = centre_of(self.value);
         let lagging_gap = self.lagging_value.map(|lagging| {
             let lagging_x = centre_of(lagging);
@@ -221,22 +253,18 @@ impl<Message> canvas::Program<Message> for SliderFace {
                 lagging_x + geometry.resting_knob_radius,
             )
         });
-        let line_stroke = |color: Color| {
-            Stroke::default()
-                .with_width(geometry.stroke_width)
-                .with_color(color)
-                .with_line_cap(LineCap::Round)
+        let accent_outline = QuadOutline {
+            color: accent,
+            width: geometry.stroke_width,
         };
-
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
 
         [
             (
-                edge_inset,
-                bounds.width - edge_inset,
+                bounds.x + edge_inset,
+                bounds.x + bounds.width - edge_inset,
                 background_strong_color(theme),
             ),
-            (edge_inset, handle_x, accent),
+            (bounds.x + edge_inset, handle_x, accent),
         ]
         .into_iter()
         .flat_map(|(segment_start, segment_end, color)| {
@@ -244,30 +272,30 @@ impl<Message> canvas::Program<Message> for SliderFace {
                 .map(move |(piece_start, piece_end)| (piece_start, piece_end, color))
         })
         .for_each(|(piece_start, piece_end, color)| {
-            frame.stroke(
-                &Path::line(
-                    Point::new(piece_start, rail_y),
-                    Point::new(piece_end, rail_y),
-                ),
-                line_stroke(color),
-            );
+            HorizontalCapsuleQuad {
+                start_x: piece_start,
+                end_x: piece_end,
+                centre_y: rail_y,
+                thickness: geometry.stroke_width,
+            }
+            .draw(renderer, color);
         });
 
         if let Some(lagging_value) = self.lagging_value {
-            frame.stroke(
-                &Path::circle(
-                    Point::new(centre_of(lagging_value), rail_y),
-                    geometry.resting_knob_radius,
-                ),
-                line_stroke(accent),
-            );
+            CircleQuad::stroked_path(
+                Point::new(centre_of(lagging_value), rail_y),
+                geometry.resting_knob_radius,
+                geometry.stroke_width,
+            )
+            .draw(renderer, Color::TRANSPARENT, accent_outline);
         }
 
-        let knob = Path::circle(Point::new(handle_x, rail_y), knob_radius);
-        frame.fill(&knob, background_color(theme));
-        frame.stroke(&knob, line_stroke(accent));
-
-        vec![frame.into_geometry()]
+        CircleQuad::stroked_path(
+            Point::new(handle_x, rail_y),
+            knob_radius,
+            geometry.stroke_width,
+        )
+        .draw(renderer, background_color(theme), accent_outline);
     }
 }
 

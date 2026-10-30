@@ -98,7 +98,7 @@ tokio-stream = { version = "0.1.19", default-features = false, features = [
 ] }
 toml = "1.1.8"
 tracing = "0.1.44"
-turso = "0.8.3"
+turso = { version = "0.8.3", default-features = false }
 uom = { version = "0.38.0", default-features = false, features = [
   "autoconvert",
   "f64",
