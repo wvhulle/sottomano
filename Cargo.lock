@@ -6858,6 +6858,7 @@ dependencies = [
  "tokio",
  "tracing",
  "turso",
+ "unicode-segmentation",
  "uom",
  "usvg 0.48.1",
  "zbus",

@@ -110,12 +110,12 @@ pub fn track_section(media: &Media, index: &DesktopIndex) -> Section {
     });
     Section::dictionary(
         [
-            ("Title", &media.title),
-            ("Artist", &media.artist),
-            ("Album", &media.album),
+            ("Title", media.title.clone()),
+            ("Artist", media.joined_artists()),
+            ("Album", media.album.clone()),
         ]
         .into_iter()
-        .filter_map(|(key, value)| Some(LabeledValue::new(key, value.as_deref()?)))
+        .filter_map(|(key, value)| Some(LabeledValue::new(key, value?)))
         .chain(source),
     )
     .titled("Track")
@@ -149,9 +149,8 @@ pub fn playback_section(media: &Media, now: Instant) -> Section {
 pub fn search_section(media: &Media, index: &DesktopIndex) -> Section {
     let query = media.title.as_ref().map(|title| {
         media
-            .artist
-            .as_ref()
-            .map_or_else(|| title.clone(), |artist| format!("{artist} {title}"))
+            .joined_artists()
+            .map_or_else(|| title.clone(), |artists| format!("{artists} {title}"))
     });
     let playing_on = media.url.as_ref().and_then(SearchPlatform::hosting);
     let links = query.into_iter().flat_map(move |query| {

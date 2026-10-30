@@ -25,6 +25,7 @@ pub mod icon_handle;
 pub mod idle;
 pub mod inline_slider;
 pub mod input_report_sections;
+pub mod karaoke_lyric_line;
 pub mod keyed_record_table;
 pub mod latest_snapshot;
 pub mod layer_appearance_controls;

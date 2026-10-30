@@ -201,6 +201,9 @@ change_poll_interval = "1m"
 push_safety_recheck_interval = "15m"
 subscription_download_interval = "15m"
 
+[widget_groups.media_lyrics]
+lrclib_lookup = true
+
 [notification_toasts.placement]
 fallback_corner = "bottom-right"
 edge_gap = "24px"

@@ -23,6 +23,7 @@ use zbus::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
+    media_playback_audio::lrclib_synced_lyrics::LyricsQuery,
     stream_operators::{connected_until_failure, read_once_then_per_burst},
     system_protocol_clients::dbus_desktop_buses::{
         DbusPropertyLookup, DesktopBuses, OwnerProcess, Properties,
@@ -258,7 +259,7 @@ pub struct Media {
     pub identity: String,
     pub desktop_entry: Option<String>,
     pub title: Option<String>,
-    pub artist: Option<String>,
+    pub artists: Vec<String>,
     pub album: Option<String>,
     pub url: Option<Url>,
     pub status: Status,
@@ -274,12 +275,31 @@ fn controllable_setting<T>(player: &Properties, declared: Option<T>) -> Option<T
     declared.filter(|_| player.flag("CanControl"))
 }
 
-fn artist(metadata: &Properties) -> Option<String> {
+impl Media {
+    #[must_use]
+    pub fn joined_artists(&self) -> Option<String> {
+        (!self.artists.is_empty()).then(|| self.artists.join(", "))
+    }
+
+    #[must_use]
+    pub fn lyrics_query(&self) -> Option<LyricsQuery> {
+        Some(LyricsQuery {
+            artist: self.artists.first()?.clone(),
+            title: self.title.clone()?,
+            album: self.album.clone().unwrap_or_default(),
+            duration_secs: self.progress.length()?.as_secs(),
+        })
+    }
+}
+
+fn artists(metadata: &Properties) -> Vec<String> {
     metadata
         .get("xesam:artist")
         .and_then(|v| Vec::<String>::try_from(v.try_clone().ok()?).ok())
-        .map(|artists| artists.join(", "))
-        .filter(|artists| !artists.is_empty())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|artist| !artist.trim().is_empty())
+        .collect()
 }
 
 fn parsed<T: FromStr>(metadata: &Properties, key: &str) -> Option<T> {
@@ -366,7 +386,7 @@ async fn read_media(
         identity: root.text("Identity").unwrap_or_else(|| bus.to_owned()),
         desktop_entry: root.text("DesktopEntry"),
         title: metadata.text("xesam:title"),
-        artist: artist(&metadata),
+        artists: artists(&metadata),
         album: metadata.text("xesam:album"),
         url: parsed(&metadata, "xesam:url"),
         status,

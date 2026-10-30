@@ -90,7 +90,9 @@ impl ShellWidgetGroups {
             BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
             GamepadGroup::network_subscription(buses).map(Message::Gamepad),
             MonitorGroup::subscription(buses).map(Message::Monitor),
-            self.media_group.subscription(buses).map(Message::Media),
+            self.media_group
+                .subscription(buses, &config.widget_groups.media_lyrics)
+                .map(Message::Media),
             DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
             self.voice_dictation_group
                 .subscription(buses)

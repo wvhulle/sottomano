@@ -1,10 +1,17 @@
 use std::time::{Duration, Instant};
 
-use iced::{Element, mouse::ScrollDelta};
+use iced::{Alignment, Element, mouse::ScrollDelta, widget::Row};
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, SeekMode, micros};
 
-use crate::widgets::{inline_slider::inline_slider, slider_control::scroll_direction};
+use crate::widgets::{
+    bar_widget::Glyph,
+    inline_slider::inline_slider,
+    phosphor::{Phosphor, Weight},
+    slider_control::scroll_direction,
+    source_reading::icon_value_gap,
+    widget_state::{StateTint, WidgetState},
+};
 
 const SCROLL_SEEK_STEP: Duration = Duration::from_secs(5);
 const DRAG_STEP_SECONDS: f32 = 1.0;
@@ -143,7 +150,11 @@ impl SeekBar {
         let length = media.progress.length()?;
         let played = media.progress.played(media.status, now)?;
         let shown = self.request.requested_position().unwrap_or(played);
-        Some(inline_slider(
+        let seek_icon = Glyph::from(Phosphor::HourglassMedium(Weight::Regular))
+            .view(config.theme.font.icon_size_px, |theme| {
+                StateTint::opaque(WidgetState::Idle).color(theme)
+            });
+        let seek_slider = inline_slider(
             config,
             0.0..=length.as_secs_f32(),
             shown.as_secs_f32(),
@@ -154,7 +165,13 @@ impl SeekBar {
             SeekMessage::Drag,
             SeekMessage::Release,
             SeekMessage::Scroll,
-        ))
+        );
+        Some(
+            Row::with_children([seek_icon, seek_slider])
+                .spacing(icon_value_gap(config))
+                .align_y(Alignment::Center)
+                .into(),
+        )
     }
 }
 
@@ -199,7 +216,7 @@ mod tests {
             identity: "test".to_owned(),
             desktop_entry: None,
             title: Some("track".to_owned()),
-            artist: None,
+            artists: Vec::new(),
             album: None,
             url: None,
             status: Status::Paused,
