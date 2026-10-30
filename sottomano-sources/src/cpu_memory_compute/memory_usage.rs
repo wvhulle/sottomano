@@ -1,8 +1,8 @@
-use std::{cmp::Reverse, fs, time::Duration};
+use std::{cmp::Reverse, time::Duration};
 
 use bytesize::ByteSize;
 use futures::Stream;
-use procfs::{WithCurrentSystemInfo, process::all_processes};
+use procfs::{Current, Meminfo, WithCurrentSystemInfo, process::all_processes};
 
 use crate::{
     SnapshotDelivery, SnapshotSource, blocking_background_work::blocking_poll,
@@ -19,6 +19,13 @@ const SHOWN_PROCESSES: usize = 10;
 pub struct Memory {
     pub used: ByteSize,
     pub total: ByteSize,
+    pub swap: Swap,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Swap {
+    NotConfigured,
+    Configured { used: ByteSize, total: ByteSize },
 }
 
 impl Memory {
@@ -48,12 +55,22 @@ impl Memory {
 }
 
 pub(super) fn read_meminfo() -> Result<Memory, Error> {
-    let info = fs::read_to_string(MEMINFO).map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
-    let total = meminfo_size(&info, "MemTotal")?;
-    let available = meminfo_size(&info, "MemAvailable")?;
+    let info = Meminfo::current().map_err(|_| Error::Unreadable(MEMINFO.to_owned()))?;
+    let available = info
+        .mem_available
+        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field MemAvailable")))?;
+    let swap = if info.swap_total == 0 {
+        Swap::NotConfigured
+    } else {
+        Swap::Configured {
+            used: ByteSize::b(info.swap_total.saturating_sub(info.swap_free)),
+            total: ByteSize::b(info.swap_total),
+        }
+    };
     Ok(Memory {
-        used: total - available,
-        total,
+        used: ByteSize::b(info.mem_total.saturating_sub(available)),
+        total: ByteSize::b(info.mem_total),
+        swap,
     })
 }
 
@@ -105,14 +122,4 @@ fn read_memory_processes() -> Result<MemoryProcesses, Error> {
     processes.sort_by_key(|process| Reverse(process.resident));
     processes.truncate(SHOWN_PROCESSES);
     Ok(MemoryProcesses { processes })
-}
-
-fn meminfo_size(info: &str, key: &str) -> Result<ByteSize, Error> {
-    info.lines()
-        .find_map(|line| {
-            let rest = line.strip_prefix(key)?.strip_prefix(':')?;
-            rest.split_whitespace().next()?.parse().ok()
-        })
-        .map(ByteSize::kib)
-        .ok_or_else(|| Error::Unparsable(format!("{MEMINFO} field {key}")))
 }
