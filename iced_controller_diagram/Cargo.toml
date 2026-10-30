@@ -2,7 +2,6 @@
 name = "iced_controller_diagram"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
 license = "MIT"
 description = "An iced widget that draws a game controller with labelled callouts for its buttons and sticks"
 repository = "https://github.com/wvhulle/sottomano"

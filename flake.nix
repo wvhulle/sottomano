@@ -93,6 +93,8 @@
         SHOWCASE_APP_ICONS = showcaseAppIcons;
         pname = "sottomano-workspace";
         cargoExtraArgs = "--locked --workspace";
+        CARGO_PROFILE = "dev";
+        CARGO_PROFILE_DEV_DEBUG = "0";
       };
 
       formatters = [
