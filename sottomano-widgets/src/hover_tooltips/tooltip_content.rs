@@ -47,7 +47,7 @@ use crate::{
     },
 };
 
-const COLUMN_GAP_PX: f32 = 14.0;
+pub(crate) const TOOLTIP_COLUMN_GAP_PX: f32 = 14.0;
 const SECTION_SEPARATION_PX: f32 = 16.0;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
@@ -55,7 +55,7 @@ const FOOTER_PADDING: Padding = Padding {
     top: 2.0,
     right: 0.0,
     bottom: 2.0,
-    left: COLUMN_GAP_PX / 2.0,
+    left: TOOLTIP_COLUMN_GAP_PX / 2.0,
 };
 
 #[derive(Clone, Copy)]
@@ -219,7 +219,7 @@ impl<'a> TooltipContent<'a> {
                 .into_iter()
                 .chain(once(Space::new().width(Length::Fill).into()))
                 .chain(delivery_timing))
-            .spacing(COLUMN_GAP_PX)
+            .spacing(TOOLTIP_COLUMN_GAP_PX)
             .align_y(Vertical::Center),
         )
         .padding(self.footer_padding())
@@ -263,7 +263,7 @@ impl<'a> TooltipContent<'a> {
                 .into(),
             )
         }))
-        .spacing(COLUMN_GAP_PX)
+        .spacing(TOOLTIP_COLUMN_GAP_PX)
         .into()
     }
 
@@ -405,7 +405,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn heading_rows(&self, heading: &Heading) -> Vec<Element<'static, PopupMessage>> {
-        let title_padding = Padding::ZERO.left(COLUMN_GAP_PX / 2.0);
+        let title_padding = Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0);
         let title = container(self.bold_title(heading.title()))
             .padding(title_padding)
             .into();
@@ -464,7 +464,7 @@ impl<'a> TooltipContent<'a> {
             cell_view: self.value_cell_view(),
             key_color: text_color,
             heading_font: self.config.theme.font.clone(),
-            column_gap: COLUMN_GAP_PX,
+            column_gap: TOOLTIP_COLUMN_GAP_PX,
             row_spacing: self.config.layout.overlay.row_spacing,
         }
     }
@@ -498,19 +498,19 @@ impl<'a> TooltipContent<'a> {
         let spacing = self.config.layout.overlay.row_spacing;
         Column::with_children(chiplets.iter().map(|chiplet| {
             let cells = container(CoreCellGrid::new(&chiplet.cores, self.config).view())
-                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0));
+                .padding(Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0));
             Column::with_children([
                 container(
                     bar_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
                 )
-                .padding(Padding::ZERO.left(COLUMN_GAP_PX / 2.0))
+                .padding(Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0))
                 .into(),
                 row![
                     cells,
                     KeyedRecordTable::labeled_values(chiplet.facts.clone())
                         .view(&self.record_table_style())
                 ]
-                .spacing(COLUMN_GAP_PX)
+                .spacing(TOOLTIP_COLUMN_GAP_PX)
                 .align_y(Vertical::Center)
                 .into(),
             ])

@@ -176,17 +176,30 @@ pub fn content_sized_grid<'a, Message: 'a>(
     column_alignments: Vec<Horizontal>,
     rows: impl IntoIterator<Item = Vec<Element<'a, Message>>>,
 ) -> ContentSizedTable<'a, Message> {
+    content_sized_spanning_grid(
+        column_alignments,
+        rows.into_iter().map(SpannableRow::Columned),
+    )
+}
+
+pub fn content_sized_spanning_grid<'a, Message: 'a>(
+    column_alignments: Vec<Horizontal>,
+    rows: impl IntoIterator<Item = SpannableRow<'a, Vec<Element<'a, Message>>, Message>>,
+) -> ContentSizedTable<'a, Message> {
     let column_count = column_alignments.len();
-    let row_cells: Vec<Vec<Element<'a, Message>>> = rows
+    let (row_spans, cells): (Vec<RowSpan>, Vec<Vec<Element<'a, Message>>>) = rows
         .into_iter()
-        .map(|mut row| {
-            row.resize_with(column_count, || Space::new().into());
-            row
+        .map(|row| match row {
+            SpannableRow::Columned(mut row_cells) => {
+                row_cells.resize_with(column_count, || Space::new().into());
+                (RowSpan::Columned, row_cells)
+            }
+            SpannableRow::FullWidth(element) => (RowSpan::FullWidth, vec![element]),
         })
-        .collect();
+        .unzip();
     ContentSizedTable {
-        row_spans: vec![RowSpan::Columned; row_cells.len()],
-        cells: row_cells.into_iter().flatten().collect(),
+        row_spans,
+        cells: cells.into_iter().flatten().collect(),
         alignments: column_alignments
             .into_iter()
             .map(|align_x| CellAlignment {
