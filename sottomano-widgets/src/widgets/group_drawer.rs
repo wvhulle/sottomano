@@ -16,7 +16,6 @@ use crate::{
     clock::Clock,
     hover_tooltips::{
         GroupHandle, HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable,
-        tooltip_content::TOOLTIP_COLUMN_GAP_PX,
     },
     widgets::{
         aligned_quantity::AlignedQuantity,
@@ -183,7 +182,7 @@ fn sheet_view<'a, M: Clone + 'a>(
             .chain(section_separator)
             .chain(unaligned_rows.into_iter().map(SpannableRow::Columned)),
     )
-    .padding_x(TOOLTIP_COLUMN_GAP_PX / 2.0)
+    .padding_x(config.layout.overlay.row_spacing)
     .padding_y(config.layout.overlay.row_spacing / 2.0);
     Some(
         container(grid)
