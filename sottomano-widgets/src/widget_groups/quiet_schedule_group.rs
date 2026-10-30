@@ -155,6 +155,8 @@ impl Default for QuietScheduleGroup {
 }
 
 impl QuietScheduleGroup {
+    pub const NAME: &str = "Quiet schedule";
+
     pub fn load() -> Task<QuietScheduleMessage> {
         Task::batch([
             Task::perform(
@@ -494,6 +496,7 @@ impl QuietScheduleGroup {
             )
         };
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [

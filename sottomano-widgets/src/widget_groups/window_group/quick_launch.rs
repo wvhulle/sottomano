@@ -42,6 +42,8 @@ pub enum QuickLaunchMessage {
 }
 
 impl QuickLaunch {
+    pub const NAME: &str = "Quick launch";
+
     pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
         self.desktop_entries = Some(entries);
     }
@@ -93,6 +95,7 @@ impl QuickLaunch {
     ) -> GroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             QuickLaunchMessage::Expansion,
             app_ids

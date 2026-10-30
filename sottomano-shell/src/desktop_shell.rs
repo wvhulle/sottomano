@@ -970,7 +970,7 @@ impl DesktopShell {
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
         match target {
-            HoverTarget::GroupHandle(handle) => self
+            HoverTarget::GroupHandle { handle, .. } => self
                 .bar_drawers()
                 .into_iter()
                 .find(|drawer| drawer.drawer() == *handle)?

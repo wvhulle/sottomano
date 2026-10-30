@@ -78,6 +78,8 @@ pub enum JournalEventsMessage {
 }
 
 impl JournalEventsGroup {
+    pub const NAME: &str = "Journal";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -139,6 +141,7 @@ impl JournalEventsGroup {
     ) -> GroupContent<'a, JournalEventsMessage> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             JournalEventsMessage::Expansion,
             [

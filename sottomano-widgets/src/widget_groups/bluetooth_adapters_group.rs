@@ -91,6 +91,8 @@ async fn logged_bus_call(action: &'static str, bus_call: impl Future<Output = zb
 }
 
 impl BluetoothAdaptersGroup {
+    pub const NAME: &str = "Bluetooth";
+
     pub fn collapse(&mut self) {
         self.sessions.values_mut().for_each(|session| {
             session.expansion.collapse();
@@ -303,6 +305,7 @@ impl BluetoothAdaptersGroup {
             .collect();
         let controller_name = adapter.controller_name.clone();
         Some(GroupContent::new(
+            Self::NAME,
             &session.expansion,
             move |expansion| BluetoothMessage::Expansion {
                 controller_name: controller_name.clone(),

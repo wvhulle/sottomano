@@ -143,6 +143,8 @@ pub enum GpuMessage {
 }
 
 impl GpuGroup {
+    pub const NAME: &str = "GPU";
+
     pub fn collapse(&mut self) {
         for device in self.devices.values_mut() {
             device.expansion.collapse();
@@ -320,6 +322,7 @@ impl GpuGroup {
                         .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
                 ];
                 GroupContent::new(
+                    Self::NAME,
                     &device.expansion,
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),

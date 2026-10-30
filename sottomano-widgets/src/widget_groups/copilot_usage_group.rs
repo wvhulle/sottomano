@@ -72,6 +72,8 @@ pub enum CopilotUsageMessage {
 }
 
 impl CopilotUsageGroup {
+    pub const NAME: &str = "Copilot usage";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -180,6 +182,7 @@ impl CopilotUsageGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, CopilotUsageMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             CopilotUsageMessage::Expansion,
             [

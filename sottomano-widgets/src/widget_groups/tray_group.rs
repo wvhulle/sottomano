@@ -77,6 +77,8 @@ pub enum Action {
 }
 
 impl TrayGroup {
+    pub const NAME: &str = "Tray";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -215,6 +217,7 @@ impl TrayGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, TrayMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             TrayMessage::Expansion,
             self.visible(config).into_iter().map(|item| {

@@ -69,6 +69,8 @@ pub enum MonitorMessage {
 }
 
 impl MonitorGroup {
+    pub const NAME: &str = "Monitor";
+
     pub fn subscription(buses: &DesktopBuses) -> Subscription<MonitorMessage> {
         Subscription::batch([
             snapshot_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
@@ -227,6 +229,7 @@ impl MonitorGroup {
             .previewed_on_handle()
         });
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             MonitorMessage::Expansion,
             backlight_items.chain(

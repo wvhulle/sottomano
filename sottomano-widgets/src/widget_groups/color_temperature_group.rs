@@ -66,6 +66,8 @@ pub enum ColorTemperatureMessage {
 }
 
 impl ColorTemperatureGroup {
+    pub const NAME: &str = "Color temperature";
+
     #[must_use]
     pub fn new(unit: String) -> Self {
         Self {
@@ -224,6 +226,7 @@ impl ColorTemperatureGroup {
     ) -> GroupContent<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             ColorTemperatureMessage::Expansion,
             [

@@ -171,6 +171,8 @@ fn niri_control_toggle(driving_niri: bool) -> IconToggle {
 }
 
 impl GamepadGroup {
+    pub const NAME: &str = "Gamepads";
+
     pub fn collapse(&mut self) {
         for session in self.sessions.values_mut() {
             session.expansion.collapse();
@@ -619,6 +621,7 @@ impl GamepadGroup {
             }
         });
         Some(GroupContent::new(
+            Self::NAME,
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [

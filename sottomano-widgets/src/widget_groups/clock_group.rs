@@ -53,6 +53,8 @@ pub enum ClockMessage {
 }
 
 impl ClockGroup {
+    pub const NAME: &str = "Clock";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -126,6 +128,7 @@ impl ClockGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, ClockMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             ClockMessage::Expansion,
             [

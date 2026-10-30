@@ -101,6 +101,8 @@ pub struct EthernetPortsGroup {
 }
 
 impl EthernetPortsGroup {
+    pub const NAME: &str = "Ethernet";
+
     pub fn collapse(&mut self) {
         self.sessions.values_mut().for_each(|session| {
             session.expansion.collapse();
@@ -341,6 +343,7 @@ impl EthernetPortsGroup {
         });
         let port_name = port_state.name.clone();
         Some(GroupContent::new(
+            Self::NAME,
             &session.expansion,
             move |expansion| EthernetPortsMessage::Expansion {
                 port_name: port_name.clone(),

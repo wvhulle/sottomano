@@ -107,10 +107,13 @@ pub enum HandleFace<'a> {
 }
 
 impl<'a> HandleFace<'a> {
-    fn hover_target(&self) -> Option<HoverTarget> {
+    fn hover_target(&self, group_name: &'static str) -> Option<HoverTarget> {
         match self {
             HandleFace::Icon { handle, .. } | HandleFace::IconColoredBy { handle, .. } => {
-                Some(HoverTarget::GroupHandle(*handle))
+                Some(HoverTarget::GroupHandle {
+                    handle: *handle,
+                    group_name,
+                })
             }
             HandleFace::FirstItem => None,
         }
@@ -206,22 +209,26 @@ impl<'a, M: 'a> Handle<'a, M> {
 
 pub(super) struct DrawerCells<'a, M> {
     pub face: Element<'a, GroupEvent<M>>,
+    pub group_name: &'static str,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
     pub unaligned: Vec<Element<'a, GroupEvent<M>>>,
 }
 
 pub struct GroupContent<'a, M> {
+    group_name: &'static str,
     handle: Handle<'a, M>,
     items: Vec<GroupItem<'a, M>>,
 }
 
 impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     pub fn new(
+        group_name: &'static str,
         expansion: &'a GroupExpansion,
         on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> Self {
         Self {
+            group_name,
             handle: Handle::Expandable {
                 expansion,
                 on_expansion: Rc::new(on_expansion),
@@ -232,8 +239,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    pub fn single(item: Option<GroupItem<'a, M>>) -> Self {
+    pub fn single(group_name: &'static str, item: Option<GroupItem<'a, M>>) -> Self {
         Self {
+            group_name,
             handle: Handle::Fixed,
             items: item.into_iter().collect(),
         }
@@ -261,6 +269,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
 
     pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
         GroupContent {
+            group_name: self.group_name,
             handle: self.handle.map(lift),
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
         }
@@ -316,7 +325,11 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         if self.items.is_empty() {
             return None;
         }
-        let GroupContent { handle, mut items } = self;
+        let GroupContent {
+            group_name,
+            handle,
+            mut items,
+        } = self;
         let face = match handle {
             Handle::Expandable { face, .. } => face,
             Handle::Fixed => HandleFace::FirstItem,
@@ -338,6 +351,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         );
         Some(DrawerCells {
             face: face_view,
+            group_name,
             aligned,
             unaligned,
         })
@@ -353,7 +367,11 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         let highest_alert_severity = self.highest_alert_severity(clock);
-        let GroupContent { handle, mut items } = self;
+        let GroupContent {
+            group_name,
+            handle,
+            mut items,
+        } = self;
         let Handle::Expandable {
             expansion,
             on_expansion,
@@ -370,7 +388,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             ));
         };
         let handle_hints = PressHints::group_handle(expansion.expanded, scroll_does);
-        let face_target = face.hover_target();
+        let face_target = face.hover_target(group_name);
         let face = face.into_face_item(config, &mut items, handle_hints, clock);
         let handle_target = items
             .iter()

@@ -29,6 +29,7 @@ use crate::{
 
 pub struct GroupDrawer<'a, M> {
     drawer: GroupHandle,
+    group_name: &'static str,
     glyph: Glyph,
     members: Vec<GroupContent<'a, M>>,
 }
@@ -36,11 +37,13 @@ pub struct GroupDrawer<'a, M> {
 impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
     pub fn new(
         drawer: GroupHandle,
+        group_name: &'static str,
         glyph: impl Into<Glyph>,
         members: impl IntoIterator<Item = GroupContent<'a, M>>,
     ) -> Self {
         Self {
             drawer,
+            group_name,
             glyph: glyph.into(),
             members: members.into_iter().collect(),
         }
@@ -73,7 +76,10 @@ impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
             .unwrap_or_default();
         let handle = hoverable(
             self.glyph.view(config.theme.font.icon_size_px, text_color),
-            HoverTarget::GroupHandle(self.drawer),
+            HoverTarget::GroupHandle {
+                handle: self.drawer,
+                group_name: self.group_name,
+            },
             PressHints::default(),
             GroupEvent::Tooltip,
         );
@@ -130,7 +136,7 @@ fn sheet_view<'a, M: Clone + 'a>(
         .into_iter()
         .map(|cells| {
             (
-                container(cells.face).center_x(Length::Fill).into(),
+                drawer_column_header(config, cells.face, cells.group_name),
                 MemberRemainder {
                     aligned: cells.aligned,
                     unaligned: cells.unaligned.into_iter(),
@@ -209,6 +215,25 @@ fn at_least_height<'a, M: 'a>(minimum_height: f32, cell: Element<'a, M>) -> Elem
     Row::with_children([Space::new().height(minimum_height).into(), cell])
         .align_y(Alignment::Center)
         .into()
+}
+
+fn drawer_column_header<'a, M: 'a>(
+    config: &Config,
+    face: Element<'a, M>,
+    group_name: &'static str,
+) -> Element<'a, M> {
+    container(
+        Row::with_children([
+            face,
+            bar_text(&config.theme.font, group_name)
+                .style(text::secondary)
+                .into(),
+        ])
+        .spacing(config.layout.panel.widget_spacing)
+        .align_y(Alignment::Center),
+    )
+    .center_x(Length::Fill)
+    .into()
 }
 
 fn quantity_label<'a, M: 'a>(config: &Config, quantity: AlignedQuantity) -> Element<'a, M> {

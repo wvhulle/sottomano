@@ -75,6 +75,8 @@ pub enum PowerMessage {
 }
 
 impl PowerGroup {
+    pub const NAME: &str = "Power";
+
     pub fn collapse(&mut self) {
         if self.expansion.collapse() {
             self.power_profile.close();
@@ -228,6 +230,7 @@ impl PowerGroup {
                     ),
                 });
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             PowerMessage::Expansion,
             [

@@ -158,6 +158,8 @@ fn lifted_to_player<'a>(
 }
 
 impl MediaGroup {
+    pub const NAME: &str = "Media";
+
     pub fn collapse(&mut self) {
         for session in self.sessions.values_mut() {
             session.expansion.collapse();
@@ -406,6 +408,7 @@ fn player_group<'a>(
         })
     });
     GroupContent::new(
+        MediaGroup::NAME,
         &session.expansion,
         move |expansion| player_message(bus, PlayerMessage::Expansion(expansion)),
         [

@@ -63,6 +63,8 @@ pub enum NetInterfacesMessage {
 }
 
 impl NetInterfacesGroup {
+    pub const NAME: &str = "Network interfaces";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -201,6 +203,7 @@ impl NetInterfacesGroup {
                 .display()
                 .is_some_and(|wifi| shows_uplink_signal(wifi, clock));
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [

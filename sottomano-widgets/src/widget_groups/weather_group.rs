@@ -83,6 +83,8 @@ pub enum WeatherMessage {
 }
 
 impl WeatherGroup {
+    pub const NAME: &str = "Weather";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -222,6 +224,7 @@ impl WeatherGroup {
             })
         });
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             WeatherMessage::Expansion,
             [

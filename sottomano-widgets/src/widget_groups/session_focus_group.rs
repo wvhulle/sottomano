@@ -77,6 +77,8 @@ pub enum SessionFocusMessage {
 }
 
 impl SessionFocusGroup {
+    pub const NAME: &str = "Focus session";
+
     #[must_use]
     pub fn started_at(config: &FocusTimeConfig, now: DateTime<Utc>) -> Self {
         let tracker = FocusTracker::started_at(now);
@@ -265,6 +267,7 @@ impl SessionFocusGroup {
             SessionFocusTarget::ContextSwitches,
         );
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             SessionFocusMessage::Expansion,
             [session, breaks, focus_run, totals, switches],

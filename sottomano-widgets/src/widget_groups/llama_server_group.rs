@@ -93,6 +93,8 @@ pub enum LlamaServerMessage {
 }
 
 impl LlamaServerGroup {
+    pub const NAME: &str = "Llama server";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -219,6 +221,7 @@ impl LlamaServerGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, LlamaServerMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             LlamaServerMessage::Expansion,
             self.user

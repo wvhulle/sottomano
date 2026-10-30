@@ -66,6 +66,8 @@ pub enum OpenRouterCreditMessage {
 }
 
 impl OpenRouterCreditGroup {
+    pub const NAME: &str = "OpenRouter credit";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -167,6 +169,7 @@ impl OpenRouterCreditGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, OpenRouterCreditMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
             [

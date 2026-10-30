@@ -75,6 +75,8 @@ pub enum ReachabilityMessage {
 }
 
 impl ReachabilityGroup {
+    pub const NAME: &str = "Reachability";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -199,6 +201,7 @@ impl ReachabilityGroup {
     pub fn group_content(&self) -> GroupContent<'_, ReachabilityMessage> {
         let throughput = self.throughput.get();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             ReachabilityMessage::Expansion,
             self.throughput
