@@ -22,6 +22,7 @@ use std::{
 
 use iced::{
     Color, Element, Length, Task,
+    border::Radius,
     task::Handle,
     theme::Style,
     widget::{Space, container},
@@ -379,11 +380,12 @@ impl DesktopShell {
     }
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
-        let popup_corner_radius = self
-            .widget_groups
-            .overlay_settings_group
-            .overlay_appearance()
-            .corner_radius_px;
+        let popup_corners = Radius::from(
+            self.widget_groups
+                .overlay_settings_group
+                .overlay_appearance()
+                .corner_radius_px,
+        );
         match target {
             HoverTarget::GroupHandle(handle) => self
                 .bar_drawers()
@@ -393,14 +395,14 @@ impl DesktopShell {
             HoverTarget::Tray(address) => self
                 .widget_groups
                 .tray_group
-                .menu_panel(address, &self.config, popup_corner_radius)
+                .menu_panel(address, &self.config, popup_corners)
                 .map(|panel| panel.map(Message::Tray)),
             HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu) => Some(
                 self.widget_groups
                     .appearance_presets_menu
                     .menu_panel(
                         &self.config,
-                        popup_corner_radius,
+                        popup_corners,
                         &self.widget_groups.shell_appearance(),
                     )
                     .map(Message::AppearancePresets),
@@ -410,7 +412,7 @@ impl DesktopShell {
                     .session_menu
                     .menu_panel(
                         &self.config,
-                        popup_corner_radius,
+                        popup_corners,
                         self.widget_groups.idle_timeouts_group.timeouts(),
                     )
                     .map(Message::Session),

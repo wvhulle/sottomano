@@ -1,5 +1,6 @@
 use iced::{
     Alignment, Element, Length,
+    border::Radius,
     widget::{Column, column, container, row},
 };
 use sottomano_config::{Config, screen_edges::Position};
@@ -15,9 +16,12 @@ use super::{
 };
 use crate::{
     clock::Clock,
-    widgets::pointer_drag::{
-        BarSlotList, DragView, DraggedBarSlot, draggable_slot::draggable_slot_list,
-        keyed_slot_list::keyed_slot_list,
+    widgets::{
+        list_end_corners::ListEndCorners,
+        pointer_drag::{
+            BarSlotList, DragView, DraggedBarSlot, draggable_slot::draggable_slot_list,
+            keyed_slot_list::keyed_slot_list,
+        },
     },
 };
 
@@ -27,6 +31,7 @@ pub fn vertical_view<'a>(
     config: &Config,
     drag: &DragView,
     configured: Option<&ConfiguredWorkspaces>,
+    frame_corners: Radius,
     clock: Clock,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let workspaces = niri.workspaces_for_output(output);
@@ -34,8 +39,16 @@ pub fn vertical_view<'a>(
         return None;
     }
     let order = drag.previewed(workspaces, |p| DraggedBarSlot::Workspace(p.id));
+    let end_corners = ListEndCorners::new(order.len(), frame_corners);
     let rows = order.iter().enumerate().map(|(position, p)| {
-        let row = sidebar_row(config, niri, p, drag, clock);
+        let row = sidebar_row(
+            config,
+            niri,
+            p,
+            drag,
+            end_corners.radius_at(position),
+            clock,
+        );
         (
             DraggedBarSlot::Workspace(p.id),
             hit_area(p, position, row, drag),
@@ -45,7 +58,7 @@ pub fn vertical_view<'a>(
         .spacing(config.layout.panel.widget_spacing)
         .into();
     let draggable = draggable_slot_list(
-        indicated(list, &order, config, Position::Left),
+        indicated(list, &order, config, Position::Left, frame_corners),
         BarSlotList::Workspaces,
         drag,
         dragged,
@@ -65,6 +78,7 @@ pub(super) fn sidebar_row<'a>(
     niri: &niri_window_snapshot::Snapshot,
     p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
+    highlight_radius: Radius,
     clock: Clock,
 ) -> Element<'a, WorkspacesMessage> {
     let tone = slot_tone(p, drag);
@@ -83,6 +97,6 @@ pub(super) fn sidebar_row<'a>(
     .align_y(Alignment::Center);
     container(label_with_edge)
         .align_right(Length::Fill)
-        .style(drop_tint(p, drag))
+        .style(drop_tint(p, drag, highlight_radius))
         .into()
 }

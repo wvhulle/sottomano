@@ -1,5 +1,6 @@
 use iced::{
-    Color, Element, Font, Length, Padding, Theme, border,
+    Color, Element, Font, Length, Padding, Theme,
+    border::{self, Radius},
     widget::{Column, Row, container, stack, text},
 };
 use iced_controller_diagram::ControllerArtwork;
@@ -16,6 +17,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
     widget_groups::{
+        appearance_presets_group::{AppearancePresetsMenu, AppearancePresetsTarget},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
@@ -34,9 +36,10 @@ use sottomano_widgets::{
         workspaces_group::{inline_strip, sidebar_column, workspace_tooltip},
     },
     widgets::{
+        appearance_presets::ShellAppearance,
         configured_theme::{background_color, primary_color, secondary_text_color, success_color},
         favicon::Favicons,
-        panel_frame::LayerFrameStyle,
+        panel_frame::{LayerFrameStyle, OutlinedSides},
         pointer_drag::DragView,
         shell_layer_appearance::ShellLayer,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -49,6 +52,7 @@ use crate::{
         claude_usage, compute, login_session, memory_board, niri_session, voice_dictation, vpn,
     },
     showcase_message::ShowcaseMessage,
+    showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
 };
 
 pub const SHOWCASE_OUTPUT: &str = "widget-showcase";
@@ -78,6 +82,7 @@ pub enum ShowcasedGroup {
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdleTimeoutsGroup>),
+    AppearancePresets(AppearancePresetsMenu),
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
     Gamepad(Box<ShowcasedGamepad>),
@@ -199,6 +204,10 @@ impl ShowcasedNiriSession {
             config,
             &undragged(config),
             Some(&configured_in_fixture_order(&self.snapshot)),
+            LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance(), config).drawn_corners(
+                OutlinedSides::inward_of(Position::Left)
+                    .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
+            ),
             clock,
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from))
@@ -269,6 +278,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::IdleTimeouts(_)
+            | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::LoginSession(_)
             | ShowcasedGroup::Wallpaper(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
@@ -326,6 +336,10 @@ impl ShowcasedGroup {
             ShowcasedGroup::Wallpaper(group) => group
                 .group_content()
                 .map(ShowcaseMessage::Wallpaper)
+                .view(config, position, clock),
+            ShowcasedGroup::AppearancePresets(menu) => menu
+                .group_content(config)
+                .map(ShowcaseMessage::AppearancePresets)
                 .view(config, position, clock),
             ShowcasedGroup::Audio(group) => group
                 .group_content(config)
@@ -440,7 +454,7 @@ impl ShowcasedGroup {
                     let _ = session.window_group.update(message, clock);
                 }
             }
-            ShowcasedGroup::Toasts(_) => {}
+            ShowcasedGroup::AppearancePresets(_) | ShowcasedGroup::Toasts(_) => {}
         }
     }
 
@@ -527,6 +541,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
     }
@@ -623,7 +638,35 @@ impl ShowcasedGroup {
             ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.tooltip_for(target, clock)
             }
+            ShowcasedGroup::AppearancePresets(menu) => {
+                let HoverTarget::AppearancePresets(target) = target else {
+                    return None;
+                };
+                Some(menu.tooltip_for(*target))
+            }
             ShowcasedGroup::Toasts(_) => None,
+        }
+    }
+
+    pub fn interactive_panel<'a>(
+        &self,
+        target: &HoverTarget,
+        config: &'a Config,
+        appearance: &ShellAppearance,
+    ) -> Option<Element<'a, ShowcaseMessage>> {
+        match (self, target) {
+            (
+                ShowcasedGroup::AppearancePresets(menu),
+                HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu),
+            ) => Some(
+                menu.menu_panel(
+                    config,
+                    Radius::from(appearance.overlays.corner_radius_px),
+                    appearance,
+                )
+                .map(ShowcaseMessage::AppearancePresets),
+            ),
+            _ => None,
         }
     }
 
@@ -645,7 +688,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::Vpn(_)
-            | ShowcasedGroup::LoginSession(_) => None,
+            | ShowcasedGroup::LoginSession(_)
+            | ShowcasedGroup::AppearancePresets(_) => None,
         }
     }
 

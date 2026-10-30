@@ -12,6 +12,7 @@ use crate::widgets::{
     configured_theme::{
         background_strong_color, background_weak_color, secondary_text_color, text_color,
     },
+    list_end_corners::ListEndCorners,
     phosphor::{Phosphor, Weight},
     text::bar_text,
 };
@@ -42,30 +43,17 @@ const CONTEXT_MENU_WIDTH_PX: f32 = 250.0;
 
 pub fn context_menu<'a, M: Clone + 'a>(
     config: &Config,
-    popup_corner_radius: f32,
+    popup_corners: Radius,
     lines: impl IntoIterator<Item = MenuLine<'a, M>>,
 ) -> Element<'a, M> {
     let kept_lines = without_redundant_dividers(lines.into_iter().collect());
-    let last_position = kept_lines.len().saturating_sub(1);
+    let end_corners = ListEndCorners::new(kept_lines.len(), popup_corners);
     Column::with_children(
         kept_lines
             .into_iter()
             .enumerate()
             .map(|(position, line)| match line {
-                MenuLine::Row(row) => {
-                    let highlight_radius = Radius::default();
-                    let highlight_radius = if position == 0 {
-                        highlight_radius.top(popup_corner_radius)
-                    } else {
-                        highlight_radius
-                    };
-                    let highlight_radius = if position == last_position {
-                        highlight_radius.bottom(popup_corner_radius)
-                    } else {
-                        highlight_radius
-                    };
-                    entry(config, row, highlight_radius)
-                }
+                MenuLine::Row(row) => entry(config, row, end_corners.radius_at(position)),
                 MenuLine::Divider => divider(),
             }),
     )

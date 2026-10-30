@@ -29,6 +29,7 @@ pub mod input_report_sections;
 pub mod keyed_record_table;
 pub mod latest_snapshot;
 pub mod layer_appearance_controls;
+pub mod list_end_corners;
 pub mod localized_durations;
 pub mod localized_quantities;
 pub mod localized_time;

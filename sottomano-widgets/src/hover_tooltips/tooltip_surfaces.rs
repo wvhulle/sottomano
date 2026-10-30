@@ -44,6 +44,7 @@ pub struct TooltipHost {
     transition: TooltipTransition,
     pending_switch: Option<PendingSwitch>,
     hide_due: Option<Instant>,
+    pointer_over_tooltip: bool,
 }
 
 impl TooltipHost {
@@ -51,12 +52,16 @@ impl TooltipHost {
         match message {
             TooltipMessage::Exit { target } => self.exit(&target, now),
             TooltipMessage::EnterTooltip => {
+                self.pointer_over_tooltip = true;
                 self.pending_switch = None;
                 self.hide_due = None;
                 self.transition.cancel_leave();
                 None
             }
-            TooltipMessage::ExitTooltip => Some(self.leave_after_grace(now)),
+            TooltipMessage::ExitTooltip => {
+                self.pointer_over_tooltip = false;
+                Some(self.leave_after_grace(now))
+            }
             TooltipMessage::AnnouncementChanged {
                 target,
                 announcement,
@@ -112,6 +117,7 @@ impl TooltipHost {
         announcement: HoverAnnouncement,
     ) {
         self.pending_switch = None;
+        self.pointer_over_tooltip = false;
         self.transition.cancel_leave();
         if self
             .transition
@@ -139,10 +145,11 @@ impl TooltipHost {
         {
             return Some(self.leave_after_grace(now));
         }
-        if !self
-            .transition
-            .current()
-            .is_some_and(|current| &current.target == target)
+        if self.pointer_over_tooltip
+            || !self
+                .transition
+                .current()
+                .is_some_and(|current| &current.target == target)
         {
             return None;
         }
@@ -158,11 +165,13 @@ impl TooltipHost {
 
     pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
         if self.transition.is_leaving() && self.hide_due.take_if(|due| *due <= now).is_some() {
+            self.pointer_over_tooltip = false;
             self.transition.hide(departing, now);
         }
     }
 
     pub fn dismiss(&mut self, departing: Option<Departed>, now: Instant) {
+        self.pointer_over_tooltip = false;
         if self.transition.current().is_some() {
             self.transition.hide(departing, now);
         }

@@ -50,6 +50,11 @@ impl LayerFrameStyle {
     }
 
     #[must_use]
+    pub fn drawn_corners(self, outlined_sides: OutlinedSides) -> Radius {
+        outlined_sides.square_unoutlined_corners(self.corner_radius())
+    }
+
+    #[must_use]
     pub fn container_style(self, theme: &Theme) -> container::Style {
         container::Style::default()
             .background(background_color(theme).scale_alpha(self.appearance.opacity))
@@ -197,8 +202,7 @@ impl<Message> PanelFrame<'_, Message> {
     }
 
     fn drawn_radius(&self) -> Radius {
-        self.outlined_sides
-            .square_unoutlined_corners(self.frame.corner_radius())
+        self.frame.drawn_corners(self.outlined_sides)
     }
 
     fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {

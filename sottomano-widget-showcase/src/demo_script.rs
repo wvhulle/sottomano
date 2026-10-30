@@ -7,6 +7,7 @@ use sottomano_widgets::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::{
+        appearance_presets_group::AppearancePresetsTarget,
         audio_group::{AudioTarget, ControlKind},
         caldav_group::CaldavTarget,
         claude_usage_group::ClaudeUsageTarget,
@@ -26,9 +27,9 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        audio, caldav, claude_usage, compute, gamepad, idle_lock, login_session, media,
-        memory_board, niri_session, notification_toasts, unchanging, voice_dictation, vpn,
-        wallpaper, weather,
+        appearance_presets, audio, caldav, claude_usage, compute, gamepad, idle_lock,
+        login_session, media, memory_board, niri_session, notification_toasts, unchanging,
+        voice_dictation, vpn, wallpaper, weather,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -290,6 +291,23 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::IdleTimeout(IdleAction::Lock)),
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
+        ],
+    },
+    Demo {
+        name: "appearance_looks",
+        group: appearance_presets::group,
+        live: unchanging,
+        script: &[
+            Step::Hover(HoverTarget::AppearancePresets(
+                AppearancePresetsTarget::Menu,
+            )),
+            Step::PressText("Clear dark"),
+            Step::RestFor(Duration::from_millis(1200)),
+            Step::Hover(HoverTarget::AppearancePresets(
+                AppearancePresetsTarget::Menu,
+            )),
+            Step::PressText("Bright office"),
+            Step::RestFor(Duration::from_millis(1200)),
         ],
     },
     Demo {

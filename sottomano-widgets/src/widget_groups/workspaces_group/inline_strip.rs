@@ -1,5 +1,6 @@
 use iced::{
     Alignment, Color, Element, Length, Theme,
+    border::Radius,
     widget::{Row, Text, container, row, text},
 };
 use sottomano_config::{Config, screen_edges::Position};
@@ -49,7 +50,9 @@ pub fn inline_view<'a>(
         .ticks(window_markers(config, niri, p.id, position, drag, tone).view())
         .spaced_by(config.layout.panel.widget_spacing)
         .view(config, position);
-        let tinted = container(slot).style(drop_tint(p, drag)).into();
+        let tinted = container(slot)
+            .style(drop_tint(p, drag, Radius::default()))
+            .into();
         (
             DraggedBarSlot::Workspace(p.id),
             hit_area(p, position_in_bar, tinted, drag),
@@ -57,7 +60,7 @@ pub fn inline_view<'a>(
     });
     let list = keyed_slot_list(slots, position, config).into();
     let draggable = draggable_slot_list(
-        indicated(list, &order, config, position),
+        indicated(list, &order, config, position, Radius::default()),
         BarSlotList::Workspaces,
         drag,
         dragged,

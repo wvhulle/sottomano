@@ -4,6 +4,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use iced::{
     Alignment, Element,
+    border::Radius,
     widget::{Column, mouse_area},
 };
 use sottomano_config::{Config, widget_groups::tray::ClickAction};
@@ -178,7 +179,7 @@ impl TrayGroup {
         &'a self,
         address: &str,
         config: &'a Config,
-        popup_corner_radius: f32,
+        popup_corners: Radius,
     ) -> Option<Element<'a, TrayMessage>> {
         let item = self
             .items
@@ -201,7 +202,7 @@ impl TrayGroup {
             on_toggle: &TrayMessage::ToggleSubmenu,
         }
         .lines(&item.menu);
-        Some(context_menu(config, popup_corner_radius, lines))
+        Some(context_menu(config, popup_corners, lines))
     }
 
     fn command(&self, command: TrayCommand) {
