@@ -64,7 +64,7 @@ impl<'a> ConnectedOutput<'a> {
 impl ConnectedOutput<'_> {
     pub fn hardware_entries(&self) -> Vec<LabeledValue> {
         let make = self.info.make.as_deref().map(|make| {
-            LabeledValue::keyed_by_logo("Make", PnpManufacturerName(make).vendor_logo(), make)
+            LabeledValue::logo_prefixed("Make", PnpManufacturerName(make).vendor_logo(), make)
         });
         make.into_iter()
             .chain(
@@ -128,8 +128,11 @@ mod tests {
         assert_eq!(
             Section::hardware_identity(output.hardware_entries()),
             Section::dictionary([LabeledValue::new(
-                ValueCell::Glyph(SimpleIcon::LG.into()),
-                "LG Display"
+                "Make",
+                ValueCell::BrandedText {
+                    text: "LG Display".to_owned(),
+                    glyph: SimpleIcon::LG.into(),
+                }
             )])
             .titled("Hardware")
         );

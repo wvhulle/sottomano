@@ -166,16 +166,17 @@ impl VendorLogo for PnpManufacturerName<'_> {
 }
 
 impl LabeledValue {
-    pub fn keyed_by_logo(
-        key: &'static str,
-        logo: Option<SimpleIcon>,
-        value: impl Into<ValueCell>,
-    ) -> Self {
+    #[must_use]
+    pub fn logo_prefixed(key: &'static str, logo: Option<SimpleIcon>, text: &str) -> Self {
         match logo {
-            Some(vendor_logo) => {
-                LabeledValue::new(ValueCell::Glyph(Glyph::from(vendor_logo)), value)
-            }
-            None => LabeledValue::new(key, value),
+            Some(vendor_logo) => LabeledValue::new(
+                key,
+                ValueCell::BrandedText {
+                    text: text.to_owned(),
+                    glyph: Glyph::from(vendor_logo),
+                },
+            ),
+            None => LabeledValue::new(key, text),
         }
     }
 }

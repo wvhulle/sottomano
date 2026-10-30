@@ -57,6 +57,10 @@ pub enum ValueCell {
         url: String,
         glyph: Glyph,
     },
+    BrandedText {
+        text: String,
+        glyph: Glyph,
+    },
     Hint(String),
 }
 
@@ -277,6 +281,13 @@ impl<Message: 'static> ValueCellView<Message> {
                     .spacing(BRAND_GLYPH_GAP_PX)
                     .align_y(Vertical::Center);
                 self.openable(branded.into(), url)
+            }
+            ValueCell::BrandedText { text, glyph } => {
+                let copyable = self.copyable_text(text, CellTypeFace::Prose, color, row);
+                Row::with_children([self.glyph(glyph, color), copyable])
+                    .spacing(BRAND_GLYPH_GAP_PX)
+                    .align_y(Vertical::Center)
+                    .into()
             }
             ValueCell::Hint(text) => self.text(text, CellTypeFace::Prose, self.hint, row),
         }
