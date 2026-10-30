@@ -49,16 +49,7 @@ use crate::{
     },
 };
 
-pub(crate) const TOOLTIP_COLUMN_GAP_PX: f32 = 14.0;
-const SECTION_SEPARATION_PX: f32 = 16.0;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
-const GESTURE_ICON_GAP_PX: f32 = 4.0;
-const EDGE_ROW_PADDING: Padding = Padding {
-    top: 2.0,
-    right: 0.0,
-    bottom: 2.0,
-    left: TOOLTIP_COLUMN_GAP_PX / 2.0,
-};
 
 #[derive(Clone, Copy)]
 pub struct TooltipContent<'a> {
@@ -126,14 +117,13 @@ impl<'a> TooltipContent<'a> {
         let group_title = self.group_title_row().map(lift);
         let groups: Vec<&SourcedSections> = self.tooltip.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
-            return container(uniform_width_column(
-                group_title
+            let content = uniform_width_column(
+                enclosed_panel
                     .into_iter()
-                    .chain(enclosed_panel)
                     .chain(once(lift(self.closing_row(None)))),
-            ))
-            .padding(self.shell_padding())
+            )
             .into();
+            return self.shell_below_title(group_title, content);
         };
         let leading = leading_groups.iter().map(|group| {
             lift(
@@ -152,11 +142,22 @@ impl<'a> TooltipContent<'a> {
                     self.closing_row(Some(closing_group.delivery_state())),
                 ))),
         )
-        .spacing(SECTION_SEPARATION_PX / 2.0)
+        .spacing(self.config.layout.overlay.row_spacing)
         .into();
+        let content = uniform_width_column(leading.chain(once(closing)))
+            .spacing(self.config.layout.overlay.section_spacing)
+            .into();
+        self.shell_below_title(group_title, content)
+    }
+
+    fn shell_below_title<'panel, Message: 'panel>(
+        &self,
+        group_title: Option<Element<'panel, Message>>,
+        content: Element<'panel, Message>,
+    ) -> Element<'panel, Message> {
         container(
-            uniform_width_column(group_title.into_iter().chain(leading).chain(once(closing)))
-                .spacing(SECTION_SEPARATION_PX),
+            uniform_width_column(group_title.into_iter().chain(once(content)))
+                .spacing(self.config.layout.overlay.row_spacing),
         )
         .padding(self.shell_padding())
         .into()
@@ -187,7 +188,7 @@ impl<'a> TooltipContent<'a> {
                 .filled_sections()
                 .map(|section| content.section(section)),
         )
-        .spacing(SECTION_SEPARATION_PX)
+        .spacing(self.config.layout.overlay.section_spacing)
         .into();
         uniform_width_column(source_heading.into_iter().chain(once(sections)))
             .spacing(self.config.layout.overlay.row_spacing)
@@ -221,7 +222,7 @@ impl<'a> TooltipContent<'a> {
                     secondary_text_color,
                 ),
             ])
-            .spacing(GESTURE_ICON_GAP_PX)
+            .spacing(self.config.layout.overlay.row_spacing)
             .align_y(Vertical::Center)
             .into(),
         }
@@ -237,7 +238,7 @@ impl<'a> TooltipContent<'a> {
                 .into_iter()
                 .chain(once(Space::new().width(Length::Fill).into()))
                 .chain(delivery_timing))
-            .spacing(TOOLTIP_COLUMN_GAP_PX)
+            .spacing(self.config.layout.overlay.column_spacing)
             .align_y(Vertical::Center),
         )
         .padding(self.edge_row_padding())
@@ -255,12 +256,10 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn edge_row_padding(&self) -> Padding {
-        let inset = self.config.layout.overlay.content_inset;
-        Padding {
-            left: EDGE_ROW_PADDING.left + inset,
-            right: EDGE_ROW_PADDING.right + inset,
-            ..EDGE_ROW_PADDING
-        }
+        let overlay = &self.config.layout.overlay;
+        Padding::ZERO
+            .left(overlay.content_inset + overlay.row_spacing)
+            .right(overlay.content_inset)
     }
 
     fn inset(&self, content: Element<'static, PopupMessage>) -> Element<'static, PopupMessage> {
@@ -276,12 +275,12 @@ impl<'a> TooltipContent<'a> {
                     Glyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
                     self.small_dim_text(does.to_owned()).into(),
                 ])
-                .spacing(GESTURE_ICON_GAP_PX)
+                .spacing(self.config.layout.overlay.row_spacing)
                 .align_y(Vertical::Center)
                 .into(),
             )
         }))
-        .spacing(TOOLTIP_COLUMN_GAP_PX)
+        .spacing(self.config.layout.overlay.column_spacing)
         .into()
     }
 
@@ -289,7 +288,7 @@ impl<'a> TooltipContent<'a> {
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
             row([label.into(), glyph])
-                .spacing(GESTURE_ICON_GAP_PX)
+                .spacing(self.config.layout.overlay.row_spacing)
                 .align_y(Vertical::Center)
                 .into()
         };
@@ -347,7 +346,7 @@ impl<'a> TooltipContent<'a> {
                 )
                 .view(),
             ])
-            .spacing(GESTURE_ICON_GAP_PX)
+            .spacing(self.config.layout.overlay.row_spacing)
             .align_y(Vertical::Center),
             (),
             |()| PopupMessage::RefreshHoveredReading,
@@ -423,7 +422,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn heading_rows(&self, heading: &Heading) -> Vec<Element<'static, PopupMessage>> {
-        let title_padding = Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0);
+        let title_padding = Padding::ZERO.left(self.config.layout.overlay.row_spacing);
         let title = container(self.bold_title(heading.title()))
             .padding(title_padding)
             .into();
@@ -482,7 +481,7 @@ impl<'a> TooltipContent<'a> {
             cell_view: self.value_cell_view(),
             key_color: text_color,
             heading_font: self.config.theme.font.clone(),
-            column_gap: TOOLTIP_COLUMN_GAP_PX,
+            column_gap: self.config.layout.overlay.column_spacing,
             row_spacing: self.config.layout.overlay.row_spacing,
         }
     }
@@ -516,19 +515,19 @@ impl<'a> TooltipContent<'a> {
         let spacing = self.config.layout.overlay.row_spacing;
         Column::with_children(chiplets.iter().map(|chiplet| {
             let cells = container(CoreCellGrid::new(&chiplet.cores, self.config).view())
-                .padding(Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0));
+                .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing));
             Column::with_children([
                 container(
                     bar_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
                 )
-                .padding(Padding::ZERO.left(TOOLTIP_COLUMN_GAP_PX / 2.0))
+                .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing))
                 .into(),
                 row![
                     cells,
                     KeyedRecordTable::labeled_values(chiplet.facts.clone())
                         .view(&self.record_table_style())
                 ]
-                .spacing(TOOLTIP_COLUMN_GAP_PX)
+                .spacing(self.config.layout.overlay.column_spacing)
                 .align_y(Vertical::Center)
                 .into(),
             ])

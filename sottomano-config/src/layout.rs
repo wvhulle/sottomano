@@ -38,6 +38,8 @@ pub struct OverlayLayout<L = f32> {
     pub panel_gap: L,
     pub content_inset: L,
     pub row_spacing: L,
+    pub column_spacing: L,
+    pub section_spacing: L,
 }
 
 impl<L: From<f32>> Default for LayoutConfig<L> {
@@ -66,6 +68,8 @@ impl<L: From<f32>> Default for OverlayLayout<L> {
             panel_gap: L::from(14.0),
             content_inset: L::from(10.0),
             row_spacing: L::from(4.0),
+            column_spacing: L::from(14.0),
+            section_spacing: L::from(16.0),
         }
     }
 }
@@ -99,6 +103,8 @@ impl OverlayLayout<Spacing> {
             panel_gap: self.panel_gap.resolve(em_px),
             content_inset: self.content_inset.resolve(em_px),
             row_spacing: self.row_spacing.resolve(em_px),
+            column_spacing: self.column_spacing.resolve(em_px),
+            section_spacing: self.section_spacing.resolve(em_px),
         }
     }
 }

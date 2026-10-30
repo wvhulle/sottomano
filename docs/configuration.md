@@ -50,6 +50,8 @@ group_spacing = "11px"
 panel_gap = "14px"
 content_inset = "10px"
 row_spacing = "4px"
+column_spacing = "14px"
+section_spacing = "16px"
 
 [panel_bar]
 slider_width = "60px"
