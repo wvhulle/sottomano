@@ -35,12 +35,12 @@ impl BarWidget for ClaudeUsageWindows {
 
     fn state(&self, clock: Clock) -> WidgetState {
         Quota::worst_severity(&self.quotas(clock.utc()))
-            .unwrap_or_else(|| level_from_used(self.session_used()))
+            .unwrap_or_else(|| level_from_used(self.fullest_window_used()))
             .into()
     }
 
     fn gauge(&self) -> Option<Ratio> {
-        Some(self.session_used())
+        Some(self.fullest_window_used())
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {
@@ -75,7 +75,7 @@ impl BarWidget for ClaudeUsageWindows {
     }
 
     fn visible_in_bar(&self) -> bool {
-        self.session_used().get::<percent>() > 0.0
+        self.fullest_window_used().get::<percent>() > 0.0
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {
