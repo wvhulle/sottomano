@@ -15,10 +15,10 @@ The place in the current wallpaper and what Wikipedia says about it.
 
 The place in the current wallpaper, when it carries a location.
 
-<img src="../../recordings/wallpaper_place.webp" width="433" alt="Expanding the wallpaper group from the place lookup">
+<img src="../../recordings/wallpaper_place.webp" width="436" alt="Expanding the wallpaper group from the place lookup">
 
 ## Wallpaper: Article
 
 The Wikipedia summary for that place.
 
-<img src="../../recordings/wallpaper_article.webp" width="715" alt="Hovering the Wikipedia article in the wallpaper group">
+<img src="../../recordings/wallpaper_article.webp" width="718" alt="Hovering the Wikipedia article in the wallpaper group">

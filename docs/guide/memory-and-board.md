@@ -15,10 +15,10 @@ Memory use and the hardware it sits on.
 
 Memory use, the processes holding the most and the installed modules.
 
-<img src="../../recordings/memory_board_memory.webp" width="679" alt="Expanding the memory and board group from the memory reading">
+<img src="../../recordings/memory_board_memory.webp" width="682" alt="Expanding the memory and board group from the memory reading">
 
 ## Memory and board: Board
 
 The board with its maker's logo, model and firmware.
 
-<img src="../../recordings/memory_board_board.webp" width="679" alt="Hovering the board in the expanded memory and board group">
+<img src="../../recordings/memory_board_board.webp" width="682" alt="Hovering the board in the expanded memory and board group">

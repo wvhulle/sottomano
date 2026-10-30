@@ -15,16 +15,16 @@ The shell is the notification daemon, so there is nothing else to run.
 
 A toast arrives, holds while hovered and expires on its own.
 
-<img src="../../recordings/toast_arrival.webp" width="489" alt="A toast arriving, holding while hovered and expiring">
+<img src="../../recordings/toast_arrival.webp" width="492" alt="A toast arriving, holding while hovered and expiring">
 
 ## Toast: Progress
 
 A download that reports progress draws a bar instead of repeating itself.
 
-<img src="../../recordings/toast_progress.webp" width="489" alt="A download toast with a rising progress bar">
+<img src="../../recordings/toast_progress.webp" width="492" alt="A download toast with a rising progress bar">
 
 ## Toast: Actions
 
 Actions the sender offers appear as buttons.
 
-<img src="../../recordings/toast_actions.webp" width="489" alt="Hovering the actions of an invitation toast and accepting it">
+<img src="../../recordings/toast_actions.webp" width="492" alt="Hovering the actions of an invitation toast and accepting it">

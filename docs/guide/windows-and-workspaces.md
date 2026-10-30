@@ -15,13 +15,13 @@ Where the windows live: workspace previews, the window list and what runs behind
 
 Hovering a workspace shows its windows at a glance.
 
-<img src="../../recordings/bottom_workspaces.webp" width="515" alt="Hovering a workspace in the bottom panel">
+<img src="../../recordings/bottom_workspaces.webp" width="518" alt="Hovering a workspace in the bottom panel">
 
 ## Windows: Window
 
 A window's title, application and workspace.
 
-<img src="../../recordings/bottom_window.webp" width="515" alt="Hovering a window in the bottom panel">
+<img src="../../recordings/bottom_window.webp" width="518" alt="Hovering a window in the bottom panel">
 
 ## Windows: Process inspector
 
@@ -33,4 +33,4 @@ The process tree behind a window, to see what a terminal is really running.
 
 The same workspace previews, turned vertical for wide screens.
 
-<img src="../../recordings/sidebar_workspaces.webp" width="426" alt="Hovering each workspace in the vertical sidebar">
+<img src="../../recordings/sidebar_workspaces.webp" width="429" alt="Hovering each workspace in the vertical sidebar">

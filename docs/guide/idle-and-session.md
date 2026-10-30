@@ -15,16 +15,16 @@ When the screen turns off and locks, and what the session runs on.
 
 Dragging a timeout changes it; the card says what happens when it fires.
 
-<img src="../../recordings/idle_screen_off.webp" width="318" alt="Expanding the idle timeouts and hovering the screen-off timer">
+<img src="../../recordings/idle_screen_off.webp" width="321" alt="Expanding the idle timeouts and hovering the screen-off timer">
 
 ## Idle timeouts: Lock
 
 The lock timer, next to the screen-off timer so the two read together.
 
-<img src="../../recordings/idle_lock.webp" width="267" alt="Expanding the idle timeouts and hovering the lock timer">
+<img src="../../recordings/idle_lock.webp" width="270" alt="Expanding the idle timeouts and hovering the lock timer">
 
 ## Login session: Kernel and compositor
 
 Distribution, kernel and compositor, each with its logo and a wiki link.
 
-<img src="../../recordings/login_session_kernel.webp" width="679" alt="Expanding the login session group and hovering the kernel and compositor">
+<img src="../../recordings/login_session_kernel.webp" width="682" alt="Expanding the login session group and hovering the kernel and compositor">
