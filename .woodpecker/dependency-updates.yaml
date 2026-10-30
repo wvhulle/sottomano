@@ -1,0 +1,54 @@
+when:
+  - repo: wvhulle/sottomano
+    event: cron
+    cron: dependency-updates
+  - repo: wvhulle/sottomano
+    event: manual
+    branch: main
+
+variables:
+  - &dependency_updates_branch dependency-updates
+  - &dependency_updates_title "chore(deps): update lockfiles"
+
+steps:
+  - name: bump-dependencies
+    image: nixos/nix:latest
+    environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        extra-substituters = https://wvhulle.cachix.org
+        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+    commands:
+      - nix flake update
+      - nix develop --command cargo update
+
+  - name: push-dependency-updates-branch
+    image: appleboy/drone-git-push
+    settings:
+      remote: https://codeberg.org/${CI_REPO}.git
+      netrc_machine: codeberg.org
+      username: wvhulle
+      password:
+        from_secret: codeberg_token
+      branch: *dependency_updates_branch
+      force: true
+      commit: true
+      commit_message: *dependency_updates_title
+      author_name: sottomano-ci
+      author_email: willemvanhulle@protonmail.com
+
+  - name: open-dependency-updates-pr
+    image: woodpeckercommunity/gitea-pull-request-create-plugin:latest
+    settings:
+      gitea_address: https://codeberg.org
+      gitea_token:
+        from_secret: codeberg_token
+      owner: ${CI_REPO_OWNER}
+      repo: ${CI_REPO_NAME}
+      branch: *dependency_updates_branch
+      base_branch: main
+      pr_title: *dependency_updates_title
+      pr_body: Lockfiles bumped by `nix flake update` and `cargo update` in the dependency-updates pipeline.
+      skip_on_empty_branch: true
+      close_pr_if_empty: true
+      delete_branch_if_empty: true
