@@ -27,6 +27,7 @@ use sottomano_widgets::{
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
+    widget_groups::appearance_presets_group::AppearancePresetsMessage,
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::{configured_theme, text_color},
@@ -47,7 +48,7 @@ use crate::{
     showcased_group::{SHOWCASE_OUTPUT, ShowcasedGroup},
 };
 
-const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
+pub(crate) const SHOWCASE_FLOAT_OFFSET_PX: f32 = 0.0;
 pub(crate) const HOVER_FETCH_LATENCY: Duration = Duration::from_millis(1400);
 
 #[must_use]
@@ -214,6 +215,17 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::Notification(message) => self.update_notification(message),
+            ShowcaseMessage::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => {
+                self.appearance = preset.applied_to(self.appearance);
+                self.theme =
+                    configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
+                let departing = self.shown_tooltip().and_then(|content| {
+                    self.tooltip
+                        .departure::<ShowcaseMessage>(HoverContent::Described(content))
+                });
+                self.tooltip.dismiss(departing, self.clock.instant);
+                Task::none()
+            }
             other => {
                 self.group.update(other, self.clock);
                 Task::none()
@@ -315,7 +327,7 @@ impl ShowcaseState {
             .into_iter()
             .map(|group| {
                 let content = match position {
-                    Position::Left => container(group).padding([layer.corner_radius_px, 0.0]),
+                    Position::Left => container(group),
                     Position::Top | Position::Bottom => container(group)
                         .height(Length::Fixed(panel.height))
                         .align_y(Vertical::Center)
@@ -350,11 +362,17 @@ impl ShowcaseState {
                 controller_artwork: &self.controller_artwork,
             },
             |target: &HoverTarget| {
-                HoverContent::Described(
-                    self.group
-                        .tooltip_for(target, &self.config, self.clock)
-                        .unwrap_or_else(Tooltip::empty),
-                )
+                let described = self
+                    .group
+                    .tooltip_for(target, &self.config, self.clock)
+                    .unwrap_or_else(Tooltip::empty);
+                match self
+                    .group
+                    .interactive_panel(target, &self.config, &self.appearance)
+                {
+                    Some(panel) => HoverContent::Interactive { described, panel },
+                    None => HoverContent::Described(described),
+                }
             },
             self.clock,
         )

@@ -43,18 +43,15 @@ impl DesktopShell {
                     config,
                     &self.drag_view(),
                     self.configured_workspaces.as_ref(),
+                    frame_style.drawn_corners(outlined_sides),
                     self.clock,
                 )
             })
             .map(|workspaces| {
-                panel_frame(
-                    container(workspaces.map(Message::from))
-                        .padding([sidebar.corner_radius_px, 0.0]),
-                    frame_style,
-                )
-                .outlined_sides(outlined_sides)
-                .blurred(sidebar.blurred)
-                .into()
+                panel_frame(container(workspaces.map(Message::from)), frame_style)
+                    .outlined_sides(outlined_sides)
+                    .blurred(sidebar.blurred)
+                    .into()
             });
         region_reporter(
             Column::with_children(framed_workspaces),

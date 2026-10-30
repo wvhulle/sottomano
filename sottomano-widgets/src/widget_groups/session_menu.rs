@@ -1,6 +1,6 @@
 use std::{iter::once, thread, time::Duration};
 
-use iced::{Element, Task};
+use iced::{Element, Task, border::Radius};
 use sottomano_config::Config;
 use sottomano_sources::{
     blocking_background_work::blocking,
@@ -158,7 +158,7 @@ impl SessionMenu {
     pub fn menu_panel<'a>(
         &self,
         config: &'a Config,
-        popup_corner_radius: f32,
+        popup_corners: Radius,
         timeouts: Timeouts,
     ) -> Element<'a, SessionMessage> {
         let lines = self
@@ -183,7 +183,7 @@ impl SessionMenu {
             })
             .flatten()
             .collect::<Vec<_>>();
-        context_menu(config, popup_corner_radius, lines)
+        context_menu(config, popup_corners, lines)
     }
 
     #[must_use]

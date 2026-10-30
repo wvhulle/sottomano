@@ -308,7 +308,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
 
     fn state(&self) -> tree::State {
         tree::State::new(MorphState {
-            seq: 0,
+            seq: self.seq,
             morph: Animation::new(true),
             morph_pending: false,
             now: None,

@@ -1,5 +1,6 @@
 use iced::{
-    Color, Element, Theme, border,
+    Border, Color, Element, Theme,
+    border::{self, Radius},
     widget::{container, progress_bar},
 };
 use sottomano_config::{Config, screen_edges::Position};
@@ -25,11 +26,15 @@ use crate::{
 pub(super) fn drop_tint(
     p: &niri_window_snapshot::WorkspaceIndicator,
     drag: &DragView,
+    highlight_radius: Radius,
 ) -> impl Fn(&Theme) -> container::Style + 'static {
     let awaits_window = drag.awaits_window_on(p.id);
     move |theme| {
         if awaits_window {
-            container::background(primary_weak_color(theme))
+            container::background(primary_weak_color(theme)).border(Border {
+                radius: highlight_radius,
+                ..Border::default()
+            })
         } else {
             container::Style::default()
         }
@@ -97,6 +102,7 @@ pub(super) fn indicated<'a>(
     workspaces: &[&niri_window_snapshot::WorkspaceIndicator],
     config: &Config,
     position: Position,
+    frame_corners: Radius,
 ) -> Element<'a, WorkspacesMessage> {
     let active = workspaces.iter().position(|p| p.is_active);
     let active_is_urgent = workspaces.iter().any(|p| p.is_active && p.is_urgent);
@@ -107,6 +113,7 @@ pub(super) fn indicated<'a>(
     };
     focus_indicator(slots, active, color, config)
         .edge(position)
+        .frame_corners(frame_corners)
         .into()
 }
 

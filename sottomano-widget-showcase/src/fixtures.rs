@@ -1,3 +1,4 @@
+pub mod appearance_presets;
 pub mod audio;
 pub mod caldav;
 pub mod claude_usage;

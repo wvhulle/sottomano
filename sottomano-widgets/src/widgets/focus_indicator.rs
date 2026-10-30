@@ -9,14 +9,14 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
-    border,
+    border::{self, Radius},
     mouse::Cursor,
     time::{Duration, Instant},
     window,
 };
 use sottomano_config::{Config, screen_edges::Position};
 
-use crate::widgets::configured_theme::ThemedColor;
+use crate::widgets::{configured_theme::ThemedColor, list_end_corners::ListEndCorners};
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
 
@@ -33,6 +33,7 @@ pub fn focus_indicator<'a, Message>(
         motion: config.panel_bar.focus_indicator_motion,
         thickness: config.panel_bar.indicator_thickness,
         edge: Position::Bottom,
+        frame_corners: Radius::default(),
     }
 }
 
@@ -43,6 +44,7 @@ pub struct FocusIndicator<'a, Message> {
     motion: Duration,
     thickness: f32,
     edge: Position,
+    frame_corners: Radius,
 }
 
 impl<Message> FocusIndicator<'_, Message> {
@@ -50,6 +52,18 @@ impl<Message> FocusIndicator<'_, Message> {
     pub fn edge(mut self, edge: Position) -> Self {
         self.edge = edge;
         self
+    }
+
+    #[must_use]
+    pub fn frame_corners(mut self, frame_corners: Radius) -> Self {
+        self.frame_corners = frame_corners;
+        self
+    }
+
+    fn active_slot_corners(&self, layout: Layout<'_>) -> Radius {
+        self.active.map_or_else(Radius::default, |active| {
+            ListEndCorners::new(layout.children().count(), self.frame_corners).radius_at(active)
+        })
     }
 
     fn active_slot(&self, layout: Layout<'_>) -> Option<Rectangle> {
@@ -108,6 +122,26 @@ fn edge_band(edge: Position, slots: Rectangle, slot: Rectangle, thickness: f32) 
             x: slots.x + slots.width - thickness,
             width: thickness,
             ..slot
+        },
+    }
+}
+
+fn band_clear_of_corners(edge: Position, band: Rectangle, corners: Radius) -> Rectangle {
+    match edge {
+        Position::Left => Rectangle {
+            y: band.y + corners.top_right,
+            height: (band.height - corners.top_right - corners.bottom_right).max(0.0),
+            ..band
+        },
+        Position::Bottom => Rectangle {
+            x: band.x + corners.top_left,
+            width: (band.width - corners.top_left - corners.top_right).max(0.0),
+            ..band
+        },
+        Position::Top => Rectangle {
+            x: band.x + corners.bottom_left,
+            width: (band.width - corners.bottom_left - corners.bottom_right).max(0.0),
+            ..band
         },
     }
 }
@@ -221,6 +255,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
             renderer.fill_quad(
                 renderer::Quad {
                     bounds: edge_backdrop(self.edge, slots, slot),
+                    border: border::Border {
+                        radius: self.active_slot_corners(layout),
+                        ..border::Border::default()
+                    },
                     snap: false,
                     ..renderer::Quad::default()
                 },
@@ -241,7 +279,11 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for FocusIndicator<'_
         };
         renderer.fill_quad(
             renderer::Quad {
-                bounds: edge_band(self.edge, slots, slot, self.thickness),
+                bounds: band_clear_of_corners(
+                    self.edge,
+                    edge_band(self.edge, slots, slot, self.thickness),
+                    self.active_slot_corners(layout),
+                ),
                 border: border::rounded(self.thickness / 2.0),
                 snap: false,
                 ..renderer::Quad::default()
