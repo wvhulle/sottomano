@@ -283,9 +283,9 @@ impl<Routed> ToastCard<'_, Routed> {
 }
 
 impl<Routed> ToastCard<'_, Routed> {
-    fn body(&self, body: &str, text: Color) -> Element<'static, NotificationMessage> {
+    fn body(&self, body: &str) -> Element<'static, NotificationMessage> {
         let font = &self.config.theme.font;
-        MarkupBody::new(body, font, text, self.urgency_family().weak.color)
+        MarkupBody::new(body, font)
             .size(font.small_text_size_px)
             .block_spacing(self.config.layout.overlay.row_spacing)
             .corner_radius(self.overlay_appearance.corner_radius_px)
@@ -352,7 +352,7 @@ impl<Routed> ToastCard<'_, Routed> {
             let body = Row::new()
                 .spacing(ROW_SPACING)
                 .align_y(Alignment::End)
-                .push(self.body(body, text));
+                .push(self.body(body));
             column = column.push(match reltime_span(!has_actions) {
                 Some(time) => body.push(time),
                 None => body,

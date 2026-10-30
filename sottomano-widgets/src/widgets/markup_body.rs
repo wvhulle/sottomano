@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Font, Length,
+    Element, Font, Length,
     alignment::{Horizontal, Vertical},
     border,
     font::{Style as FontStyle, Weight},
@@ -19,8 +19,6 @@ const COLUMN_GAP_PX: f32 = 8.0;
 pub struct MarkupBody<'a> {
     markup: &'a str,
     font: &'a ResolvedFont,
-    color: Color,
-    code_block_fill: Color,
     size: f32,
     monospace: Font,
     block_spacing: f32,
@@ -29,17 +27,10 @@ pub struct MarkupBody<'a> {
 
 impl<'a> MarkupBody<'a> {
     #[must_use]
-    pub fn new(
-        markup: &'a str,
-        font: &'a ResolvedFont,
-        color: Color,
-        code_block_fill: Color,
-    ) -> Self {
+    pub fn new(markup: &'a str, font: &'a ResolvedFont) -> Self {
         Self {
             markup,
             font,
-            color,
-            code_block_fill,
             size: font.text_size_px,
             monospace: Font::MONOSPACE,
             block_spacing: 0.0,
@@ -75,13 +66,7 @@ impl<'a> MarkupBody<'a> {
 
     #[must_use]
     pub fn view<Message: 'static>(self) -> Element<'static, Message> {
-        let blocks = parse_blocks(
-            self.markup,
-            self.color,
-            self.size,
-            self.font,
-            self.monospace,
-        );
+        let blocks = parse_blocks(self.markup, self.size, self.font, self.monospace);
         Column::with_children(blocks.into_iter().map(|block| match block {
             Block::Paragraph {
                 spans,
@@ -106,15 +91,12 @@ impl<'a> MarkupBody<'a> {
         if !preformatted {
             return flowing.into();
         }
-        let fill = self.code_block_fill;
         let corner_radius = self.corner_radius;
         container(flowing)
             .padding(CODE_BLOCK_PADDING_PX)
             .width(Length::Fill)
-            .style(move |_| {
-                container::Style::default()
-                    .background(fill)
-                    .border(border::rounded(corner_radius))
+            .style(move |theme| {
+                container::rounded_box(theme).border(border::rounded(corner_radius))
             })
             .into()
     }
@@ -246,13 +228,7 @@ impl<'a> BlockBuilder<'a> {
     }
 }
 
-fn parse_blocks<'a>(
-    markup: &str,
-    color: Color,
-    size: f32,
-    font: &ResolvedFont,
-    mono: Font,
-) -> Vec<Block<'a>> {
+fn parse_blocks<'a>(markup: &str, size: f32, font: &ResolvedFont, mono: Font) -> Vec<Block<'a>> {
     let mut reader = Reader::from_str(markup);
     let config = reader.config_mut();
     config.allow_dangling_amp = true;
@@ -266,7 +242,6 @@ fn parse_blocks<'a>(
         span(text)
             .font(emphasis.font)
             .size(size)
-            .color(color)
             .underline(emphasis.underline)
     };
     loop {
@@ -334,13 +309,7 @@ mod tests {
             icon_size_px: 14.0,
             data: Arc::from([].as_slice()),
         };
-        parse_blocks(
-            markup,
-            Color::BLACK,
-            font.text_size_px,
-            &font,
-            Font::MONOSPACE,
-        )
+        parse_blocks(markup, font.text_size_px, &font, Font::MONOSPACE)
     }
 
     fn joined(spans: &[Span<'_>]) -> String {
