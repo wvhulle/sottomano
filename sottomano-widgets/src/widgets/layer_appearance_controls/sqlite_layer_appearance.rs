@@ -82,6 +82,16 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: Appearan
     .is_some()
 }
 
+pub async fn save_appearance(layer: ShellLayer, appearance: LayerAppearance) -> bool {
+    with_table(
+        &format!("layer appearance: save {} failed", layer.key()),
+        &[CREATE_TABLE],
+        async |connection| write_appearance(connection, layer, appearance).await,
+    )
+    .await
+    .is_some()
+}
+
 pub async fn load(layer: ShellLayer) -> LayerAppearance {
     let defaults = layer.default_appearance();
     with_table(
@@ -107,6 +117,35 @@ async fn write_setting(
              ON CONFLICT(layer) DO UPDATE SET {column} = ?2"
             ),
             (layer.key(), value),
+        )
+        .await?;
+    Ok(())
+}
+
+async fn write_appearance(
+    connection: &turso::Connection,
+    layer: ShellLayer,
+    appearance: LayerAppearance,
+) -> Result<(), StoreError> {
+    connection
+        .execute(
+            "INSERT INTO layer_appearance (layer, opacity, corner_radius_px, blurred, drop_shadow,
+                 shadow_softness_px, shadow_opacity, outline, outline_opacity)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(layer) DO UPDATE SET opacity = ?2, corner_radius_px = ?3, blurred = ?4,
+                 drop_shadow = ?5, shadow_softness_px = ?6, shadow_opacity = ?7, outline = ?8,
+                 outline_opacity = ?9",
+            (
+                layer.key(),
+                real(appearance.opacity),
+                real(appearance.corner_radius_px),
+                flag(appearance.blurred),
+                flag(appearance.shadow.cast),
+                real(appearance.shadow.softness_px),
+                real(appearance.shadow.opacity),
+                flag(appearance.outline.drawn),
+                real(appearance.outline.opacity),
+            ),
         )
         .await?;
     Ok(())
@@ -162,7 +201,9 @@ async fn read_layer_appearance(
 mod tests {
     use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
-    use super::{AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_setting};
+    use super::{
+        AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_appearance, write_setting,
+    };
     use crate::widgets::shell_layer_appearance::{LayerAppearance, ShellLayer};
 
     #[tokio::test]
@@ -200,5 +241,26 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(panels, defaults);
+    }
+
+    #[tokio::test]
+    async fn a_whole_appearance_round_trips_in_one_write() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let written = LayerAppearance {
+            opacity: 0.25,
+            blurred: false,
+            ..ShellLayer::Sidebar.default_appearance()
+        };
+        write_appearance(&connection, ShellLayer::Sidebar, written)
+            .await
+            .unwrap();
+        let read = read_layer_appearance(
+            &connection,
+            ShellLayer::Sidebar,
+            ShellLayer::Sidebar.default_appearance(),
+        )
+        .await
+        .unwrap();
+        assert!(read.looks_like(&written));
     }
 }

@@ -41,6 +41,7 @@ pub enum AppearanceMessage {
     ToggleShadow,
     ToggleOutline,
     Loaded(LayerAppearance),
+    Adopted(LayerAppearance),
 }
 
 fn blur_toggle(switched_on: bool) -> IconToggle {
@@ -287,6 +288,13 @@ impl LayerAppearanceControls {
             AppearanceMessage::Loaded(appearance) => {
                 self.adopt_loaded(appearance);
                 Task::none()
+            }
+            AppearanceMessage::Adopted(appearance) => {
+                self.adopt_loaded(appearance);
+                Task::future(sqlite_layer_appearance::save_appearance(
+                    self.layer, appearance,
+                ))
+                .discard()
             }
         }
     }

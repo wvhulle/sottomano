@@ -7,13 +7,14 @@ mod usb_cable_reading;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iced::Subscription;
+use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
 use sottomano_config::widget_groups::gamepad_bindings::{
     ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
 use sottomano_sources::{
     SnapshotDelivery,
+    desktop_windows_apps::niri_action_requests::ActionFailure,
     gamepad_controller_input::{
         accelerometer_report_timing::ReportTiming,
         evdev_gamepad_devices::{
@@ -24,11 +25,15 @@ use sottomano_sources::{
         gamepad_input_stream::gamepad_inputs,
         player_indicator_leds::PlayerIndicator,
     },
-    network_connectivity::{ethernet_connection::Ethernet, wifi_connection::Wifi},
+    network_connectivity::{
+        bluez_bluetooth::disconnect_bluetooth_address, ethernet_connection::Ethernet,
+        wifi_connection::Wifi,
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::journal_device_kernel_errors::{
         DeviceKernelError, device_kernel_error_windows,
     },
+    voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
 };
 use uom::si::f64::Frequency;
 
@@ -41,7 +46,7 @@ use self::{
     usb_cable_reading::{UsbCableReading, UsbCableRole},
 };
 use crate::{
-    background_work::snapshot_subscription,
+    background_work::{niri_action, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
@@ -104,6 +109,24 @@ pub enum Action {
     Compositor(niri_ipc::Action),
     Dictation(DictationCommand),
     DisconnectBluetooth { hardware_address: String },
+}
+
+impl Action {
+    pub fn into_task<M: From<ActionFailure> + Send + 'static>(self) -> Task<M> {
+        match self {
+            Action::Idle => Task::none(),
+            Action::Compositor(action) => niri_action(action),
+            Action::Dictation(command) => {
+                Task::future(send_logged_dictation_command(command)).discard()
+            }
+            Action::DisconnectBluetooth { hardware_address } => Task::future(async move {
+                if let Err(bus_error) = disconnect_bluetooth_address(hardware_address).await {
+                    tracing::warn!("disconnect Bluetooth controller: {bus_error}");
+                }
+            })
+            .discard(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

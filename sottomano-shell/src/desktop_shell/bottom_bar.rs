@@ -14,7 +14,7 @@ use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
     pub settings_drawer: GroupDrawer<'a, Message>,
-    pub start: [GroupContent<'a, Message>; 5],
+    pub start: [GroupContent<'a, Message>; 6],
     pub end: [GroupContent<'a, Message>; 9],
 }
 
@@ -62,36 +62,51 @@ impl DesktopShell {
             "Settings",
             Phosphor::SlidersHorizontal(Weight::Regular),
             [
-                self.panel_settings_group
+                self.widget_groups
+                    .panel_settings_group
                     .group_content(config)
                     .map(Message::PanelSettings),
-                self.sidebar_settings_group
+                self.widget_groups
+                    .sidebar_settings_group
                     .group_content(config)
                     .map(Message::SidebarSettings),
-                self.overlay_settings_group
+                self.widget_groups
+                    .overlay_settings_group
                     .group_content(config)
                     .map(Message::OverlaySettings),
-                self.niri_window_group
+                self.widget_groups
+                    .niri_window_group
                     .group_content(config)
                     .map(Message::NiriWindow),
             ],
         )
     }
 
-    fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 5] {
+    fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 6] {
         let config = &self.config;
         [
-            self.monitor_group
+            self.widget_groups
+                .monitor_group
                 .group_content(config)
                 .map(Message::Monitor),
-            self.dark_mode_group
+            self.widget_groups
+                .dark_mode_group
                 .group_content(config)
                 .map(Message::DarkMode),
-            self.color_temperature_group
+            self.widget_groups
+                .appearance_presets_menu
+                .group_content(config)
+                .map(Message::AppearancePresets),
+            self.widget_groups
+                .color_temperature_group
                 .group_content(config)
                 .map(Message::ColorTemperature),
-            self.wallpaper_group.group_content().map(Message::Wallpaper),
-            self.idle_timeouts_group
+            self.widget_groups
+                .wallpaper_group
+                .group_content()
+                .map(Message::Wallpaper),
+            self.widget_groups
+                .idle_timeouts_group
                 .group_content(config)
                 .map(Message::IdleTimeouts),
         ]
@@ -100,36 +115,51 @@ impl DesktopShell {
     fn bottom_bar_end_groups(&self) -> [GroupContent<'_, Message>; 9] {
         let config = &self.config;
         [
-            self.llama_server_group
+            self.widget_groups
+                .llama_server_group
                 .group_content()
                 .map(Message::LlamaServer),
-            self.claude_usage_group
+            self.widget_groups
+                .claude_usage_group
                 .group_content()
                 .map(Message::ClaudeUsage),
-            self.copilot_usage_group
+            self.widget_groups
+                .copilot_usage_group
                 .group_content()
                 .map(Message::CopilotUsage),
-            self.openrouter_credit_group
+            self.widget_groups
+                .openrouter_credit_group
                 .group_content()
                 .map(Message::OpenRouterCredit),
-            self.systemd_manager_group
+            self.widget_groups
+                .systemd_manager_group
                 .group_content(config, self.clock)
                 .map(Message::SystemdManager),
-            self.journal_events_group
+            self.widget_groups
+                .journal_events_group
                 .group_content(config)
                 .map(Message::JournalEvents),
-            self.pending_upgrades_group
+            self.widget_groups
+                .pending_upgrades_group
                 .group_content(config)
                 .map(Message::PendingUpgrades),
-            self.login_session_group
+            self.widget_groups
+                .login_session_group
                 .group_content()
                 .map(Message::LoginSession),
-            self.tray_group.group_content(config).map(Message::Tray),
+            self.widget_groups
+                .tray_group
+                .group_content(config)
+                .map(Message::Tray),
         ]
     }
 
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
-        match self.sidebar_settings_group.workspaces_placement() {
+        match self
+            .widget_groups
+            .sidebar_settings_group
+            .workspaces_placement()
+        {
             WorkspacesPlacement::Sidebar => None,
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 &self.niri_snapshot,
@@ -145,11 +175,12 @@ impl DesktopShell {
     }
 
     fn window_group_view<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {
-        self.window_group
+        self.widget_groups
+            .window_group
             .view(
                 &self.niri_snapshot,
                 self.window_assets(),
-                self.audio_group.window_audio(),
+                self.widget_groups.audio_group.window_audio(),
                 output,
                 &self.config,
                 Position::Bottom,

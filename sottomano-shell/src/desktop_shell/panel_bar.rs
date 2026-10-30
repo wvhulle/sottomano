@@ -37,7 +37,7 @@ impl DesktopShell {
         position: Position,
         content: impl Into<Element<'a, Message>>,
     ) -> Element<'a, Message> {
-        let panels = self.panel_settings_group.panel_appearance();
+        let panels = self.widget_groups.panel_settings_group.panel_appearance();
         let centered = mouse_area(
             container(content)
                 .width(Length::Fill)
@@ -45,7 +45,10 @@ impl DesktopShell {
                 .align_y(Vertical::Center),
         )
         .on_press(Message::DismissPressed);
-        let groups_joined = !self.panel_settings_group.groups_disconnected();
+        let groups_joined = !self
+            .widget_groups
+            .panel_settings_group
+            .groups_disconnected();
         let band = container(centered)
             .width(Length::Fill)
             .height(Length::Fixed(self.config.layout.panel.height));
@@ -61,7 +64,7 @@ impl DesktopShell {
             right: false,
             ..OutlinedSides::inward_of(position)
         }
-        .all_when_floating(self.panel_settings_group.float_offset_px());
+        .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let strip = panel_frame(band, LayerFrameStyle::new(&panels, &self.config))
             .outlined_sides(outlined_sides)
             .blurred(panels.blurred);
@@ -78,11 +81,14 @@ impl DesktopShell {
         groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
-        let panels = self.panel_settings_group.panel_appearance();
-        let groups_disconnected = self.panel_settings_group.groups_disconnected();
+        let panels = self.widget_groups.panel_settings_group.panel_appearance();
+        let groups_disconnected = self
+            .widget_groups
+            .panel_settings_group
+            .groups_disconnected();
         let frame_style = LayerFrameStyle::new(&panels, config);
         let outlined_sides = OutlinedSides::inward_of(position)
-            .all_when_floating(self.panel_settings_group.float_offset_px());
+            .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().flatten().map(|group| {
             if !groups_disconnected {
                 return group;

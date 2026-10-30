@@ -4,6 +4,7 @@ pub mod amount_text;
 pub mod anchored_popup;
 pub mod announced_level;
 pub mod app_window_focus;
+pub mod appearance_presets;
 pub mod bar_widget;
 pub mod child_view;
 pub mod configured_theme;

@@ -43,7 +43,7 @@ impl DesktopShell {
         window: Id,
         output: &'a str,
     ) -> Element<'a, Message> {
-        let float = self.panel_settings_group.float_offset_px();
+        let float = self.widget_groups.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
             |position, content| anchor_tooltips_on_surface(window, position, origin, content);
@@ -75,12 +75,13 @@ impl DesktopShell {
                     .map(Message::from)
             }
             DraggedBarSlot::Window { window, .. } => self
+                .widget_groups
                 .window_group
                 .window_list
                 .drag_ghost(
                     snapshot,
                     self.window_assets(),
-                    self.audio_group.window_audio(),
+                    self.widget_groups.audio_group.window_audio(),
                     window,
                     &self.config,
                     &view,

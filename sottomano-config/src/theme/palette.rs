@@ -40,6 +40,23 @@ impl Default for Palette {
     }
 }
 
+impl Palette {
+    #[must_use]
+    pub fn light() -> Self {
+        Self {
+            background: css("#fcfcfc"),
+            text: css("#5c6166"),
+            primary: css("#4cbf99"),
+            success: css("#86b300"),
+            warning: css("#f2ae49"),
+            danger: css("#e65050"),
+            background_weak: css("#eceff1"),
+            background_strong: css("#d3d7db"),
+            secondary: css("#8a9199"),
+        }
+    }
+}
+
 fn css(s: &str) -> AlphaColor<Srgb> {
     in_srgb(color::parse_color(s).expect("invalid default color"))
 }
