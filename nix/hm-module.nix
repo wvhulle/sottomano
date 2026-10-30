@@ -117,6 +117,20 @@ in
         '';
       };
 
+      "artificial-analysis-api-key" = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Path to a file holding a free Artificial Analysis API key
+          (https://artificialanalysis.ai) as plain text. The OpenRouter group
+          ranks the OpenRouter models fit for agentic coding (tool calls, at
+          least 128k context) that cost at most
+          `settings.widget_groups.openrouter_credit.max_blended_usd_per_million`
+          by their Terminal-Bench 4.0 score from Artificial Analysis. Symlinked into
+          ~/.config/sottomano/. When unset, the ranking pill is hidden.
+        '';
+      };
+
       "caldav-password" = lib.mkOption {
         type = lib.types.nullOr lib.types.path;
         default = null;
@@ -196,6 +210,12 @@ in
       "sottomano/unsplash-access-key" = lib.mkIf (cfg.secretFiles."unsplash-access-key" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."unsplash-access-key";
       };
+
+      "sottomano/artificial-analysis-api-key" =
+        lib.mkIf (cfg.secretFiles."artificial-analysis-api-key" != null)
+          {
+            source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."artificial-analysis-api-key";
+          };
 
       "sottomano/caldav-password" = lib.mkIf (cfg.secretFiles."caldav-password" != null) {
         source = config.lib.file.mkOutOfStoreSymlink cfg.secretFiles."caldav-password";

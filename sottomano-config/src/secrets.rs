@@ -7,15 +7,17 @@ pub enum SecretFile {
     GhAuthToken,
     UnsplashAccessKey,
     CaldavPassword,
+    ArtificialAnalysisApi,
 }
 
 impl SecretFile {
-    pub const ALL: [SecretFile; 5] = [
+    pub const ALL: [SecretFile; 6] = [
         SecretFile::OpenrouterManagement,
         SecretFile::ClaudeCodeOauth,
         SecretFile::GhAuthToken,
         SecretFile::UnsplashAccessKey,
         SecretFile::CaldavPassword,
+        SecretFile::ArtificialAnalysisApi,
     ];
 
     #[must_use]
@@ -26,6 +28,7 @@ impl SecretFile {
             SecretFile::GhAuthToken => "gh-auth-token",
             SecretFile::UnsplashAccessKey => "unsplash-access-key",
             SecretFile::CaldavPassword => "caldav-password",
+            SecretFile::ArtificialAnalysisApi => "artificial-analysis-api-key",
         }
     }
 
@@ -51,6 +54,11 @@ impl SecretFile {
                 "CalDAV password, plain text; prefer an app password (Nextcloud: Personal settings \
                  → Security). Shows tasks and upcoming events of widget_groups.caldav."
             }
+            SecretFile::ArtificialAnalysisApi => {
+                "Artificial Analysis free API key (artificialanalysis.ai). Ranks OpenRouter models \
+                 for agentic coding by Terminal-Bench 4.0 score, within \
+                 widget_groups.openrouter_credit.max_blended_usd_per_million."
+            }
         }
     }
 
@@ -72,6 +80,7 @@ pub struct SecretPaths {
     pub gh_auth_token: Option<PathBuf>,
     pub unsplash_access_key: Option<PathBuf>,
     pub caldav_password: Option<PathBuf>,
+    pub artificial_analysis_api: Option<PathBuf>,
 }
 
 impl SecretPaths {
@@ -83,6 +92,7 @@ impl SecretPaths {
             gh_auth_token: SecretFile::GhAuthToken.present_in(config_home),
             unsplash_access_key: SecretFile::UnsplashAccessKey.present_in(config_home),
             caldav_password: SecretFile::CaldavPassword.present_in(config_home),
+            artificial_analysis_api: SecretFile::ArtificialAnalysisApi.present_in(config_home),
         }
     }
 
@@ -94,6 +104,7 @@ impl SecretPaths {
             SecretFile::GhAuthToken => self.gh_auth_token.is_some(),
             SecretFile::UnsplashAccessKey => self.unsplash_access_key.is_some(),
             SecretFile::CaldavPassword => self.caldav_password.is_some(),
+            SecretFile::ArtificialAnalysisApi => self.artificial_analysis_api.is_some(),
         }
     }
 }

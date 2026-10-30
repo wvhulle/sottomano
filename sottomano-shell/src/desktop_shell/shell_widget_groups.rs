@@ -149,7 +149,10 @@ impl ShellWidgetGroups {
             audio_group: AudioGroup::default(),
             claude_usage_group: ClaudeUsageGroup::new(secrets.claude_code_oauth),
             copilot_usage_group: CopilotUsageGroup::new(secrets.gh_auth_token),
-            openrouter_credit_group: OpenRouterCreditGroup::new(secrets.openrouter_management),
+            openrouter_credit_group: OpenRouterCreditGroup::new(
+                secrets.openrouter_management,
+                secrets.artificial_analysis_api,
+            ),
             llama_server_group: LlamaServerGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
                 &config.widget_groups.focus_time,

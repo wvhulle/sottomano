@@ -1,3 +1,4 @@
+mod best_models_within_cap;
 mod openrouter_soft_budget;
 mod strict_budget_remaining;
 
@@ -9,6 +10,7 @@ use sottomano_sources::{
     SnapshotDelivery,
     ai_usage_spend::{
         openrouter_credits::{self, OpenRouterAccount, OpenRouterSpend, OpenRouterStrictBudget},
+        openrouter_model_rankings::{ModelRankingInputs, OpenRouterModelRankings},
         working_time_forecast::{SpendBudget, SpendPacing},
     },
 };
@@ -34,6 +36,7 @@ pub enum OpenRouterCreditTarget {
     StrictBudget,
     MostUsedModel,
     MostUsedModelSpend,
+    BestModelsWithinCap,
 }
 
 impl From<openrouter_credits::Error> for Section {
@@ -54,7 +57,9 @@ impl From<OpenRouterCreditTarget> for HoverTarget {
 pub struct OpenRouterCreditGroup {
     spend: LatestSnapshot<OpenRouterSpend>,
     strict_budget: LatestSnapshot<OpenRouterStrictBudget>,
+    model_rankings: LatestSnapshot<OpenRouterModelRankings>,
     management_key: Option<PathBuf>,
+    analysis_key: Option<PathBuf>,
     expansion: GroupExpansion,
 }
 
@@ -62,6 +67,7 @@ pub struct OpenRouterCreditGroup {
 pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
+    ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
     Expansion(ExpansionMessage),
 }
 
@@ -75,11 +81,13 @@ impl OpenRouterCreditGroup {
     }
 
     #[must_use]
-    pub fn new(management_key: Option<PathBuf>) -> Self {
+    pub fn new(management_key: Option<PathBuf>, analysis_key: Option<PathBuf>) -> Self {
         Self {
             spend: LatestSnapshot::default(),
             strict_budget: LatestSnapshot::default(),
+            model_rankings: LatestSnapshot::default(),
             management_key,
+            analysis_key,
             expansion: GroupExpansion::default(),
         }
     }
@@ -89,30 +97,56 @@ impl OpenRouterCreditGroup {
         target: OpenRouterCreditTarget,
         config: &Config,
     ) -> Task<OpenRouterCreditMessage> {
-        let Some(key) = self.management_key.clone() else {
-            return Task::none();
-        };
         match target {
             OpenRouterCreditTarget::SoftBudget
             | OpenRouterCreditTarget::MostUsedModel
             | OpenRouterCreditTarget::MostUsedModelSpend => {
-                first_delivery::<OpenRouterSpend>(account(key, config))
-                    .map(OpenRouterCreditMessage::SoftBudget)
+                self.management_key.clone().map_or_else(Task::none, |key| {
+                    first_delivery::<OpenRouterSpend>(account(key, config))
+                        .map(OpenRouterCreditMessage::SoftBudget)
+                })
             }
-            OpenRouterCreditTarget::StrictBudget => first_delivery::<OpenRouterStrictBudget>(key)
-                .map(OpenRouterCreditMessage::StrictBudget),
+            OpenRouterCreditTarget::StrictBudget => {
+                self.management_key.clone().map_or_else(Task::none, |key| {
+                    first_delivery::<OpenRouterStrictBudget>(key)
+                        .map(OpenRouterCreditMessage::StrictBudget)
+                })
+            }
+            OpenRouterCreditTarget::BestModelsWithinCap => {
+                self.analysis_key
+                    .clone()
+                    .map_or_else(Task::none, |analysis_key| {
+                        first_delivery::<OpenRouterModelRankings>(ranking_inputs(
+                            analysis_key,
+                            config,
+                        ))
+                        .map(OpenRouterCreditMessage::ModelRankings)
+                    })
+            }
         }
     }
 
     pub fn subscription(&self, config: &Config) -> Subscription<OpenRouterCreditMessage> {
-        Subscription::batch(self.management_key.clone().into_iter().flat_map(|key| {
-            [
-                snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config))
-                    .map(OpenRouterCreditMessage::SoftBudget),
-                snapshot_subscription::<OpenRouterStrictBudget>(key)
-                    .map(OpenRouterCreditMessage::StrictBudget),
-            ]
-        }))
+        Subscription::batch(
+            self.management_key
+                .clone()
+                .into_iter()
+                .flat_map(|key| {
+                    [
+                        snapshot_subscription::<OpenRouterSpend>(account(key.clone(), config))
+                            .map(OpenRouterCreditMessage::SoftBudget),
+                        snapshot_subscription::<OpenRouterStrictBudget>(key)
+                            .map(OpenRouterCreditMessage::StrictBudget),
+                    ]
+                })
+                .chain(self.analysis_key.clone().map(|analysis_key| {
+                    snapshot_subscription::<OpenRouterModelRankings>(ranking_inputs(
+                        analysis_key,
+                        config,
+                    ))
+                    .map(OpenRouterCreditMessage::ModelRankings)
+                })),
+        )
     }
 
     pub fn update(
@@ -126,6 +160,9 @@ impl OpenRouterCreditGroup {
             }
             OpenRouterCreditMessage::StrictBudget(reading) => {
                 self.strict_budget.receive(reading, clock);
+            }
+            OpenRouterCreditMessage::ModelRankings(reading) => {
+                self.model_rankings.receive(reading, clock);
             }
             OpenRouterCreditMessage::Expansion(menu) => {
                 self.expansion.update(menu);
@@ -160,6 +197,7 @@ impl OpenRouterCreditGroup {
         match target {
             OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(clock),
             OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(clock),
+            OpenRouterCreditTarget::BestModelsWithinCap => self.model_rankings.tooltip(clock),
             OpenRouterCreditTarget::MostUsedModel => self
                 .spend
                 .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
@@ -179,6 +217,8 @@ impl OpenRouterCreditGroup {
                     .map(GroupItem::previewed_on_handle),
                 self.strict_budget
                     .group_item(OpenRouterCreditTarget::StrictBudget),
+                self.model_rankings
+                    .group_item(OpenRouterCreditTarget::BestModelsWithinCap),
             ]
             .into_iter()
             .flatten()
@@ -211,5 +251,15 @@ fn account(management_key: PathBuf, config: &Config) -> OpenRouterAccount {
             monthly_limit_usd: budget.monthly_budget_usd,
         },
         daily_warning_usd: budget.daily_warning_usd,
+    }
+}
+
+fn ranking_inputs(analysis_key: PathBuf, config: &Config) -> ModelRankingInputs {
+    ModelRankingInputs {
+        analysis_key,
+        max_blended_per_million: config
+            .widget_groups
+            .openrouter_credit
+            .max_blended_usd_per_million,
     }
 }

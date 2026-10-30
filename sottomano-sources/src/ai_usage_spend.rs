@@ -5,6 +5,7 @@ pub mod gguf_header_model_card;
 pub mod llama_server_slots;
 pub mod model_spend_ranking;
 pub mod openrouter_credits;
+pub mod openrouter_model_rankings;
 pub mod spend_money;
 pub mod usage_quota;
 pub mod working_time_forecast;
