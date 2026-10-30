@@ -12,7 +12,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        login_session_group::{LoginSessionGroup, LoginSessionTarget},
+        login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
         voice_dictation_group::VoiceDictationTarget,
@@ -318,10 +318,7 @@ pub const DEMOS: &[Demo] = &[
         group: login_session::group,
         live: unchanging,
         script: &[
-            Step::Press(HoverTarget::GroupHandle {
-                handle: GroupHandle::LoginSession,
-                group_name: LoginSessionGroup::NAME,
-            }),
+            Step::Press(HoverTarget::GroupHandle(GroupHandle::LoginSession)),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Kernel)),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Compositor)),
         ],

@@ -35,7 +35,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -74,9 +74,11 @@ pub enum ReachabilityMessage {
     Expansion(ExpansionMessage),
 }
 
-impl ReachabilityGroup {
-    pub const NAME: &str = "Reachability";
+impl WidgetGroup for ReachabilityGroup {
+    const TITLE: &'static str = "Reachability";
+}
 
+impl ReachabilityGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -200,8 +202,7 @@ impl ReachabilityGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, ReachabilityMessage> {
         let throughput = self.throughput.get();
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             ReachabilityMessage::Expansion,
             self.throughput

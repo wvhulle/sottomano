@@ -25,7 +25,7 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
         value_cells::{LabeledValue, ValueCell},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -75,9 +75,11 @@ pub struct NiriWindowGroup {
     switch_heat: SwitchHeatBorders,
 }
 
-impl NiriWindowGroup {
-    pub const NAME: &str = "Niri";
+impl WidgetGroup for NiriWindowGroup {
+    const TITLE: &'static str = "Niri";
+}
 
+impl NiriWindowGroup {
     #[must_use]
     pub fn new(rules_file: NiriRulesFile) -> Self {
         let defaults = NiriStyling::default();
@@ -252,8 +254,7 @@ impl NiriWindowGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             NiriWindowMessage::Expansion,
             [

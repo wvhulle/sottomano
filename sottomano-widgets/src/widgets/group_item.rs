@@ -9,7 +9,7 @@ use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable},
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
@@ -132,7 +132,7 @@ pub struct GroupItem<'a, M> {
     kind: ItemKind<'a, M>,
     on_press: Option<Press<M>>,
     on_right_press: Option<Press<M>>,
-    handle_hints: PressHints,
+    handle_announcement: HoverAnnouncement,
     previewed_on_handle: bool,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
@@ -145,7 +145,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind,
             on_press: None,
             on_right_press: None,
-            handle_hints: PressHints::default(),
+            handle_announcement: HoverAnnouncement::default(),
             previewed_on_handle: false,
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
@@ -214,9 +214,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub(super) fn acting_as_handle(self, handle_hints: PressHints) -> Self {
+    pub(super) fn acting_as_handle(self, handle_announcement: HoverAnnouncement) -> Self {
         Self {
-            handle_hints,
+            handle_announcement,
             ..self
         }
     }
@@ -290,7 +290,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             kind: self.kind.map(lift),
             on_press: self.on_press.map(|press| press.map(lift)),
             on_right_press: self.on_right_press.map(|press| press.map(lift)),
-            handle_hints: self.handle_hints,
+            handle_announcement: self.handle_announcement,
             previewed_on_handle: self.previewed_on_handle,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
@@ -306,19 +306,23 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    fn press_hints(&self) -> PressHints {
-        PressHints {
-            left: self
-                .on_press
-                .as_ref()
-                .map(|press| press.does)
-                .or(self.handle_hints.left),
-            right: self
-                .on_right_press
-                .as_ref()
-                .map(|press| press.does)
-                .or(self.handle_hints.right),
-            ..self.handle_hints
+    fn announcement(&self) -> HoverAnnouncement {
+        let handle_hints = self.handle_announcement.press_hints;
+        HoverAnnouncement {
+            press_hints: PressHints {
+                left: self
+                    .on_press
+                    .as_ref()
+                    .map(|press| press.does)
+                    .or(handle_hints.left),
+                right: self
+                    .on_right_press
+                    .as_ref()
+                    .map(|press| press.does)
+                    .or(handle_hints.right),
+                ..handle_hints
+            },
+            ..self.handle_announcement
         }
     }
 
@@ -434,10 +438,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     {
         let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
         {
-            ItemPlacement::Bar => hoverable(
+            ItemPlacement::Bar => announcing_hoverable(
                 element,
                 target.clone(),
-                self.press_hints(),
+                self.announcement(),
                 GroupEvent::Tooltip,
             ),
             ItemPlacement::Drawer => element,

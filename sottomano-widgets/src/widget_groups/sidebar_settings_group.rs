@@ -13,7 +13,7 @@ use crate::{
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -104,9 +104,11 @@ impl Default for SidebarSettingsGroup {
     }
 }
 
-impl SidebarSettingsGroup {
-    pub const NAME: &str = "Sidebar";
+impl WidgetGroup for SidebarSettingsGroup {
+    const TITLE: &'static str = "Sidebar";
+}
 
+impl SidebarSettingsGroup {
     pub fn load() -> Task<SidebarSettingsMessage> {
         Task::batch([
             Task::perform(
@@ -175,8 +177,7 @@ impl SidebarSettingsGroup {
         config: &'a Config,
     ) -> GroupContent<'a, SidebarSettingsMessage> {
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             SidebarSettingsMessage::Expansion,
             [GroupItem::toggle(

@@ -32,7 +32,9 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_group::{
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+        },
         widget_state::{StateTint, WidgetState},
     },
 };
@@ -76,9 +78,11 @@ pub enum Action {
     FocusAppWindow(AppWindowFocus<TrayMessage>),
 }
 
-impl TrayGroup {
-    pub const NAME: &str = "Tray";
+impl WidgetGroup for TrayGroup {
+    const TITLE: &'static str = "Tray";
+}
 
+impl TrayGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -216,8 +220,7 @@ impl TrayGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, TrayMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             TrayMessage::Expansion,
             self.visible(config).into_iter().map(|item| {

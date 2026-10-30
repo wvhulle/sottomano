@@ -1,19 +1,21 @@
+mod disk_space_gauge;
 mod disk_transfer_gauge;
 mod drive_health_indicator;
 
-use std::{cmp::Ordering, collections::BTreeMap, ptr};
+use std::collections::BTreeMap;
 
+use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
 use iced::{Subscription, Task};
 use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
 use sottomano_sources::{
     SnapshotDelivery,
     disk_storage::{
         block_filesystem_mounts::{BlockFilesystemDiscovery, KernelDevice},
-        disk_io_activity::{DiskActivity, DiskTransfer},
+        disk_io_activity::DiskActivity,
         drive_temperature_health::{DriveHealth, DriveHealthInputs},
+        whole_disk_space_occupancy::{DiskOccupancyInputs, DiskSpaceOccupancy},
     },
 };
-use uom::si::f64::InformationRate;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
@@ -23,15 +25,15 @@ use crate::{
         bar_widget::BarWidget,
         group_item::GroupItem,
         latest_snapshot::LatestSnapshot,
-        named_reading::NamedReading,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DriveTarget {
     MountDiscovery,
+    Space(String),
     Read(String),
     Write(String),
     DriveHealth(String),
@@ -45,64 +47,50 @@ impl From<DriveTarget> for HoverTarget {
 
 #[derive(Default)]
 struct PhysicalDiskReadings {
+    space: LatestSnapshot<DiskSpaceOccupancy>,
     activity: LatestSnapshot<DiskActivity>,
     drive_health: LatestSnapshot<DriveHealth>,
-}
-
-impl PhysicalDiskReadings {
-    fn hotter_first(&self, other: &Self) -> Ordering {
-        let severity = |readings: &Self| {
-            readings
-                .drive_health
-                .get()
-                .map(DriveHealth::temperature_level)
-        };
-        let temperature = |readings: &Self| {
-            readings
-                .drive_health
-                .get()
-                .and_then(|health| health.temperature.current())
-        };
-        severity(other).cmp(&severity(self)).then_with(|| {
-            temperature(other)
-                .partial_cmp(&temperature(self))
-                .unwrap_or(Ordering::Equal)
-        })
-    }
-
-    fn transfers(&self) -> impl Iterator<Item = &DiskTransfer> {
-        self.activity
-            .get()
-            .into_iter()
-            .flat_map(|activity| [&activity.read, &activity.write])
-    }
+    expansion: GroupExpansion,
 }
 
 #[derive(Default)]
 pub struct PhysicalDriveGroup {
     discovery: LatestSnapshot<BlockFilesystemDiscovery>,
     disks: BTreeMap<KernelDevice, PhysicalDiskReadings>,
-    expansion: GroupExpansion,
+    discovery_expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum DriveMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
+    DiskSpace(KernelDevice, Box<SnapshotDelivery<DiskSpaceOccupancy>>),
     DiskActivity(KernelDevice, SnapshotDelivery<DiskActivity>),
     DriveHealth(KernelDevice, SnapshotDelivery<DriveHealth>),
-    Expansion(ExpansionMessage),
+    DiscoveryExpansion(ExpansionMessage),
+    DiskExpansion {
+        disk: KernelDevice,
+        expansion: ExpansionMessage,
+    },
+}
+
+impl WidgetGroup for PhysicalDriveGroup {
+    const TITLE: &'static str = "Drive";
 }
 
 impl PhysicalDriveGroup {
-    pub const NAME: &str = "Drives";
-
     pub fn collapse(&mut self) {
-        self.expansion.collapse();
+        self.discovery_expansion.collapse();
+        self.disks.values_mut().for_each(|readings| {
+            readings.expansion.collapse();
+        });
     }
 
     pub fn subscription(&self, drive_sensor: &SensorConfig) -> Subscription<DriveMessage> {
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
+                snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
+                    .with(disk.clone())
+                    .map(|(disk, reading)| DriveMessage::DiskSpace(disk, Box::new(reading))),
                 snapshot_subscription::<DiskActivity>(disk.clone())
                     .with(disk.clone())
                     .map(|(disk, reading)| DriveMessage::DiskActivity(disk, reading)),
@@ -127,6 +115,13 @@ impl PhysicalDriveGroup {
             || first_delivery::<BlockFilesystemDiscovery>(()).map(DriveMessage::Discovered);
         match target {
             DriveTarget::MountDiscovery => discover(),
+            DriveTarget::Space(name) => {
+                let Some(disk) = disk_named(name) else {
+                    return discover();
+                };
+                first_delivery::<DiskSpaceOccupancy>(self.occupancy_inputs(&disk))
+                    .map(move |reading| DriveMessage::DiskSpace(disk.clone(), Box::new(reading)))
+            }
             DriveTarget::Read(name) | DriveTarget::Write(name) => {
                 let Some(disk) = disk_named(name) else {
                     return discover();
@@ -162,6 +157,11 @@ impl PhysicalDriveGroup {
                         .collect();
                 }
             }
+            DriveMessage::DiskSpace(disk, reading) => {
+                if let Some(readings) = self.disks.get_mut(&disk) {
+                    readings.space.receive(*reading, clock);
+                }
+            }
             DriveMessage::DiskActivity(disk, reading) => {
                 if let Some(readings) = self.disks.get_mut(&disk) {
                     readings.activity.receive(reading, clock);
@@ -172,86 +172,106 @@ impl PhysicalDriveGroup {
                     readings.drive_health.receive(reading, clock);
                 }
             }
-            DriveMessage::Expansion(m) => {
-                self.expansion.update(m);
+            DriveMessage::DiscoveryExpansion(expansion) => {
+                self.discovery_expansion.update(expansion);
+            }
+            DriveMessage::DiskExpansion { disk, expansion } => {
+                if let Some(readings) = self.disks.get_mut(&disk) {
+                    readings.expansion.update(expansion);
+                }
             }
         }
         Task::none()
     }
 
-    fn busiest_transfer(&self) -> Option<&DiskTransfer> {
+    fn occupancy_inputs(&self, disk: &KernelDevice) -> DiskOccupancyInputs {
+        DiskOccupancyInputs {
+            disk: disk.clone(),
+            filesystems: self
+                .discovery
+                .get()
+                .map(|discovery| discovery.filesystems.clone())
+                .unwrap_or_default(),
+        }
+    }
+
+    fn disk_marking(&self, disk: &KernelDevice) -> DiskMarking {
+        if self.disks.len() < 2 {
+            return DiskMarking::OnlyDisk;
+        }
         self.disks
-            .values()
-            .flat_map(PhysicalDiskReadings::transfers)
-            .max_by(|first, second| {
-                first
-                    .rate
-                    .partial_cmp(&second.rate)
-                    .unwrap_or(Ordering::Equal)
+            .keys()
+            .position(|known| known == disk)
+            .and_then(|position| u8::try_from(position + 1).ok())
+            .map_or(DiskMarking::OnlyDisk, |ordinal| DiskMarking::Numbered {
+                ordinal,
             })
-            .filter(|transfer| transfer.rate > InformationRate::default())
     }
 
-    fn transfer_item<'a>(
-        transfer: &'a DiskTransfer,
-        target: DriveTarget,
-        busiest: Option<&DiskTransfer>,
-    ) -> GroupItem<'a, DriveMessage> {
-        let is_busiest = busiest.is_some_and(|busiest| ptr::eq(busiest, transfer));
-        GroupItem::reading(transfer, target).previewed_on_handle_if(is_busiest)
-    }
-
-    pub fn group_content(&self) -> GroupContent<'_, DriveMessage> {
-        let names_disks = self.disks.len() > 1;
-        let busiest = self.busiest_transfer();
-        let mut hottest_first: Vec<(&KernelDevice, &PhysicalDiskReadings)> =
-            self.disks.iter().collect();
-        hottest_first.sort_by(|(_, first), (_, second)| first.hotter_first(second));
-        let disk_items = hottest_first.into_iter().flat_map(move |(disk, readings)| {
-            let health_target = DriveTarget::DriveHealth(disk.name.clone());
-            let health_item = match readings.drive_health.display() {
-                Some(health) if names_disks => Some(GroupItem::reading(
-                    NamedReading {
-                        reading: health,
-                        shown_name: &disk.name,
-                    },
-                    health_target,
-                )),
-                _ => readings.drive_health.group_item(health_target),
-            };
-            let activity = readings.activity.get();
-            [
-                health_item,
+    fn disk_group<'a>(
+        &'a self,
+        disk: &'a KernelDevice,
+        readings: &'a PhysicalDiskReadings,
+    ) -> GroupContent<'a, DriveMessage> {
+        let space_target = DriveTarget::Space(disk.name.clone());
+        let space_item = match readings.space.get() {
+            Some(occupancy) => Some(GroupItem::reading(
+                MarkedDiskSpace {
+                    occupancy,
+                    marking: self.disk_marking(disk),
+                },
+                space_target,
+            )),
+            None => readings.space.group_item(space_target),
+        };
+        let transfer_items = readings
+            .activity
+            .get()
+            .into_iter()
+            .flat_map(move |activity| {
+                [
+                    GroupItem::reading(&activity.read, DriveTarget::Read(disk.name.clone())),
+                    GroupItem::reading(&activity.write, DriveTarget::Write(disk.name.clone())),
+                ]
+            });
+        let items = space_item
+            .into_iter()
+            .chain(
+                readings
+                    .drive_health
+                    .group_item(DriveTarget::DriveHealth(disk.name.clone())),
+            )
+            .chain(
                 readings
                     .activity
                     .group_item(DriveTarget::Read(disk.name.clone())),
-                activity.map(|activity| {
-                    Self::transfer_item(
-                        &activity.read,
-                        DriveTarget::Read(disk.name.clone()),
-                        busiest,
-                    )
-                }),
-                activity.map(|activity| {
-                    Self::transfer_item(
-                        &activity.write,
-                        DriveTarget::Write(disk.name.clone()),
-                        busiest,
-                    )
-                }),
-            ]
-            .into_iter()
-            .flatten()
-        });
-        GroupContent::new(
-            Self::NAME,
-            &self.expansion,
-            DriveMessage::Expansion,
-            self.discovery
-                .group_item(DriveTarget::MountDiscovery)
-                .into_iter()
-                .chain(disk_items),
+            )
+            .chain(transfer_items);
+        Self::expandable_group(
+            &readings.expansion,
+            move |expansion| DriveMessage::DiskExpansion {
+                disk: disk.clone(),
+                expansion,
+            },
+            items,
         )
+    }
+
+    #[must_use]
+    pub fn group_contents(&self) -> Vec<GroupContent<'_, DriveMessage>> {
+        let discovery_group = Self::expandable_group(
+            &self.discovery_expansion,
+            DriveMessage::DiscoveryExpansion,
+            self.discovery.group_item(DriveTarget::MountDiscovery),
+        );
+        [discovery_group]
+            .into_iter()
+            .chain(
+                self.disks
+                    .iter()
+                    .map(|(disk, readings)| self.disk_group(disk, readings)),
+            )
+            .collect()
     }
 
     #[must_use]
@@ -264,6 +284,7 @@ impl PhysicalDriveGroup {
         };
         match target {
             DriveTarget::MountDiscovery => self.discovery.tooltip(clock),
+            DriveTarget::Space(name) => readings_of(name)?.space.tooltip(clock),
             DriveTarget::Read(name) => {
                 let readings = readings_of(name)?;
                 match readings.activity.get() {

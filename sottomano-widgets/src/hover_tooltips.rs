@@ -8,7 +8,10 @@ use iced::{Rectangle, window::Id};
 use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
-pub use crate::hover_tooltips::{hover_area::hoverable, tooltip_surfaces::TooltipHost};
+pub use crate::hover_tooltips::{
+    hover_area::{announcing_hoverable, hoverable},
+    tooltip_surfaces::TooltipHost,
+};
 use crate::{
     widget_groups::{
         audio_group::AudioTarget,
@@ -100,10 +103,7 @@ pub enum HoverTarget {
     Window(WindowTarget),
     Workspace(u64),
     WorkspaceOrder,
-    GroupHandle {
-        handle: GroupHandle,
-        group_name: &'static str,
-    },
+    GroupHandle(GroupHandle),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -204,26 +204,64 @@ impl PressHints {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HoverOrigin {
+    #[default]
+    Reading,
+    GroupHandle {
+        group_title: &'static str,
+    },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct HoverAnnouncement {
+    pub press_hints: PressHints,
+    pub origin: HoverOrigin,
+}
+
+impl HoverAnnouncement {
+    #[must_use]
+    pub fn from_reading(press_hints: PressHints) -> Self {
+        HoverAnnouncement {
+            press_hints,
+            origin: HoverOrigin::Reading,
+        }
+    }
+
+    #[must_use]
+    pub fn from_group_handle(group_title: &'static str, press_hints: PressHints) -> Self {
+        HoverAnnouncement {
+            press_hints,
+            origin: HoverOrigin::GroupHandle { group_title },
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.press_hints.is_empty() && self.origin == HoverOrigin::Reading
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TooltipMessage {
     EnterAnchor {
         target: HoverTarget,
         anchor: Rectangle,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     },
     Enter {
         surface: Id,
         position: Position,
         target: HoverTarget,
         anchor: Rectangle,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     },
     Exit {
         target: HoverTarget,
     },
-    PressHintsChanged {
+    AnnouncementChanged {
         target: HoverTarget,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     },
     EnterTooltip,
     ExitTooltip,

@@ -39,7 +39,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -96,9 +96,11 @@ pub enum ComputeMessage {
     Expansion(ExpansionMessage),
 }
 
-impl ComputeGroup {
-    pub const NAME: &str = "Compute";
+impl WidgetGroup for ComputeGroup {
+    const TITLE: &'static str = "Compute";
+}
 
+impl ComputeGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -208,8 +210,7 @@ impl ComputeGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ComputeMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             ComputeMessage::Expansion,
             [

@@ -26,7 +26,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::tooltip_source_delivery::{SourcedSections, Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -62,9 +62,11 @@ pub enum NetInterfacesMessage {
     Expansion(ExpansionMessage),
 }
 
-impl NetInterfacesGroup {
-    pub const NAME: &str = "Network interfaces";
+impl WidgetGroup for NetInterfacesGroup {
+    const TITLE: &'static str = "Network interfaces";
+}
 
+impl NetInterfacesGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -202,8 +204,7 @@ impl NetInterfacesGroup {
                 .wifi
                 .display()
                 .is_some_and(|wifi| shows_uplink_signal(wifi, clock));
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [

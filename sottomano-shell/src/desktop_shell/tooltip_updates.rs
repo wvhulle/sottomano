@@ -22,7 +22,7 @@ use sottomano_widgets::{
         workspaces_group::workspace_tooltip,
     },
     widgets::tooltip_body::{
-        Section, TooltipBody,
+        TooltipBody,
         tooltip_source_delivery::{DeliveryTiming, Tooltip},
     },
 };
@@ -48,14 +48,14 @@ impl DesktopShell {
                 position,
                 target,
                 anchor,
-                press_hints,
+                announcement,
             } => {
                 if self.is_dragging() {
                     return Task::none();
                 }
                 let Some(host) = self.surfaces.get(&surface).filter(|_| {
                     self.hover_content(&target)
-                        .is_some_and(|content| content.shows_anything(press_hints))
+                        .is_some_and(|content| content.shows_anything(announcement))
                 }) else {
                     return Task::none();
                 };
@@ -65,11 +65,11 @@ impl DesktopShell {
                 };
                 if let Some(intent_elapsed) =
                     self.tooltip
-                        .defer_switch(&parent, &target, anchor, press_hints)
+                        .defer_switch(&parent, &target, anchor, announcement)
                 {
                     return intent_elapsed.map(Message::Tooltip);
                 }
-                self.tooltip.open(&parent, target, anchor, press_hints);
+                self.tooltip.open(&parent, target, anchor, announcement);
                 Task::none()
             }
             TooltipMessage::SwitchIntentElapsed => {
@@ -78,7 +78,7 @@ impl DesktopShell {
                         &pending.parent,
                         pending.target,
                         pending.anchor,
-                        pending.press_hints,
+                        pending.announcement,
                     );
                 }
                 Task::none()
@@ -132,8 +132,8 @@ impl DesktopShell {
                 self.clock,
             )),
             HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::tooltip_for(app_id)),
-            HoverTarget::GroupHandle { group_name, .. } => Some(Tooltip::sourced(
-                TooltipBody::sections([Section::note(*group_name)]),
+            HoverTarget::GroupHandle(_) => Some(Tooltip::sourced(
+                TooltipBody::sections([]),
                 DeliveryTiming::LivePush,
             )),
             HoverTarget::Session(target) => Some(self.session_menu.tooltip_for(*target)),
@@ -268,7 +268,7 @@ impl DesktopShell {
             | HoverTarget::OverlaySettings(_)
             | HoverTarget::Notification(_)
             | HoverTarget::QuickLaunch(_)
-            | HoverTarget::GroupHandle { .. }
+            | HoverTarget::GroupHandle(_)
             | HoverTarget::Session(_)
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
@@ -360,7 +360,7 @@ impl DesktopShell {
             | HoverTarget::LlamaServer(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::QuickLaunch(_)
-            | HoverTarget::GroupHandle { .. }
+            | HoverTarget::GroupHandle(_)
             | HoverTarget::Notification(_)
             | HoverTarget::QuietSchedule(_)
             | HoverTarget::Session(_)

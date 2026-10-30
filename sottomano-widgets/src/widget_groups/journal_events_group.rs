@@ -30,7 +30,7 @@ use crate::{
         phosphor::Phosphor,
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -77,9 +77,11 @@ pub enum JournalEventsMessage {
     Expansion(ExpansionMessage),
 }
 
-impl JournalEventsGroup {
-    pub const NAME: &str = "Journal";
+impl WidgetGroup for JournalEventsGroup {
+    const TITLE: &'static str = "Journal";
+}
 
+impl JournalEventsGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -140,8 +142,7 @@ impl JournalEventsGroup {
         config: &'a Config,
     ) -> GroupContent<'a, JournalEventsMessage> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             JournalEventsMessage::Expansion,
             [

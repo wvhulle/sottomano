@@ -19,7 +19,7 @@ use crate::{
         group_item::GroupItem,
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -49,9 +49,11 @@ pub enum WallpaperMessage {
     Expansion(ExpansionMessage),
 }
 
-impl WallpaperGroup {
-    pub const NAME: &str = "Wallpaper";
+impl WidgetGroup for WallpaperGroup {
+    const TITLE: &'static str = "Wallpaper";
+}
 
+impl WallpaperGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -101,8 +103,7 @@ impl WallpaperGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             WallpaperMessage::Expansion,
             [

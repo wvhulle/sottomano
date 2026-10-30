@@ -25,7 +25,9 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_group::{
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+        },
     },
 };
 
@@ -77,9 +79,11 @@ impl Default for IdleTimeoutsGroup {
     }
 }
 
-impl IdleTimeoutsGroup {
-    pub const NAME: &str = "Idle timeouts";
+impl WidgetGroup for IdleTimeoutsGroup {
+    const TITLE: &'static str = "Idle timeouts";
+}
 
+impl IdleTimeoutsGroup {
     pub fn load() -> Task<IdleTimeoutsMessage> {
         Task::perform(sqlite_idle_timeouts::load(), IdleTimeoutsMessage::Loaded)
     }
@@ -226,8 +230,7 @@ impl IdleTimeoutsGroup {
         &'a self,
         config: &'a Config,
     ) -> GroupContent<'a, IdleTimeoutsMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
             self.entries().map(|(kind, timer)| {

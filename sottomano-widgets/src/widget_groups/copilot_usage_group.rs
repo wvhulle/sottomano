@@ -27,7 +27,7 @@ use crate::{
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -71,9 +71,11 @@ pub enum CopilotUsageMessage {
     Expansion(ExpansionMessage),
 }
 
-impl CopilotUsageGroup {
-    pub const NAME: &str = "Copilot usage";
+impl WidgetGroup for CopilotUsageGroup {
+    const TITLE: &'static str = "Copilot usage";
+}
 
+impl CopilotUsageGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -181,8 +183,7 @@ impl CopilotUsageGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, CopilotUsageMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             CopilotUsageMessage::Expansion,
             [

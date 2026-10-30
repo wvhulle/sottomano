@@ -15,7 +15,9 @@ use sottomano_config::Config;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{MouseGesture, PopupMessage, PressHints, core_grid::CoreCellGrid},
+    hover_tooltips::{
+        HoverOrigin, MouseGesture, PopupMessage, PressHints, core_grid::CoreCellGrid,
+    },
     widget_groups::{
         window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
@@ -51,7 +53,7 @@ pub(crate) const TOOLTIP_COLUMN_GAP_PX: f32 = 14.0;
 const SECTION_SEPARATION_PX: f32 = 16.0;
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 const GESTURE_ICON_GAP_PX: f32 = 4.0;
-const FOOTER_PADDING: Padding = Padding {
+const EDGE_ROW_PADDING: Padding = Padding {
     top: 2.0,
     right: 0.0,
     bottom: 2.0,
@@ -121,11 +123,13 @@ impl<'a> TooltipContent<'a> {
             let element: Element<'panel, PopupMessage> = element;
             element.map(Message::from)
         };
+        let group_title = self.group_title_row().map(lift);
         let groups: Vec<&SourcedSections> = self.tooltip.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
             return container(uniform_width_column(
-                enclosed_panel
+                group_title
                     .into_iter()
+                    .chain(enclosed_panel)
                     .chain(once(lift(self.closing_row(None)))),
             ))
             .padding(self.shell_padding())
@@ -150,9 +154,23 @@ impl<'a> TooltipContent<'a> {
         )
         .spacing(SECTION_SEPARATION_PX / 2.0)
         .into();
-        container(uniform_width_column(leading.chain(once(closing))).spacing(SECTION_SEPARATION_PX))
-            .padding(self.shell_padding())
-            .into()
+        container(
+            uniform_width_column(group_title.into_iter().chain(leading).chain(once(closing)))
+                .spacing(SECTION_SEPARATION_PX),
+        )
+        .padding(self.shell_padding())
+        .into()
+    }
+
+    fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
+        match self.tooltip.announcement.origin {
+            HoverOrigin::GroupHandle { group_title } => Some(
+                container(self.small_dim_text(group_title.to_owned()))
+                    .padding(self.edge_row_padding())
+                    .into(),
+            ),
+            HoverOrigin::Reading => None,
+        }
     }
 
     fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
@@ -180,7 +198,7 @@ impl<'a> TooltipContent<'a> {
         &self,
         closing_delivery_state: Option<SectionsDeliveryState>,
     ) -> Element<'static, PopupMessage> {
-        let press_hints = self.tooltip.press_hints;
+        let press_hints = self.tooltip.announcement.press_hints;
         let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,
@@ -222,7 +240,7 @@ impl<'a> TooltipContent<'a> {
             .spacing(TOOLTIP_COLUMN_GAP_PX)
             .align_y(Vertical::Center),
         )
-        .padding(self.footer_padding())
+        .padding(self.edge_row_padding())
         .into()
     }
 
@@ -236,12 +254,12 @@ impl<'a> TooltipContent<'a> {
         Padding::ZERO.vertical(inset)
     }
 
-    fn footer_padding(&self) -> Padding {
+    fn edge_row_padding(&self) -> Padding {
         let inset = self.config.layout.overlay.content_inset;
         Padding {
-            left: FOOTER_PADDING.left + inset,
-            right: FOOTER_PADDING.right + inset,
-            ..FOOTER_PADDING
+            left: EDGE_ROW_PADDING.left + inset,
+            right: EDGE_ROW_PADDING.right + inset,
+            ..EDGE_ROW_PADDING
         }
     }
 

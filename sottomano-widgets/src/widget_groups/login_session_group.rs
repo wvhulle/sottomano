@@ -37,7 +37,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -83,9 +83,11 @@ pub enum LoginSessionMessage {
     Expansion(ExpansionMessage),
 }
 
-impl LoginSessionGroup {
-    pub const NAME: &str = "Login session";
+impl WidgetGroup for LoginSessionGroup {
+    const TITLE: &'static str = "Login session";
+}
 
+impl LoginSessionGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -213,8 +215,7 @@ impl LoginSessionGroup {
             .system
             .get()
             .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),

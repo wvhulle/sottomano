@@ -14,7 +14,7 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -147,9 +147,11 @@ impl Default for PanelSettingsGroup {
     }
 }
 
-impl PanelSettingsGroup {
-    pub const NAME: &str = "Panels";
+impl WidgetGroup for PanelSettingsGroup {
+    const TITLE: &'static str = "Panels";
+}
 
+impl PanelSettingsGroup {
     pub fn load() -> Task<PanelSettingsMessage> {
         Task::batch([
             Task::perform(load_panel_layout(), PanelSettingsMessage::LayoutLoaded),
@@ -274,8 +276,7 @@ impl PanelSettingsGroup {
         &'a self,
         config: &'a Config,
     ) -> GroupContent<'a, PanelSettingsMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [

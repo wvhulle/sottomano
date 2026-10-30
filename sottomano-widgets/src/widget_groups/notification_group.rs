@@ -18,7 +18,7 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -78,9 +78,11 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
     )
 }
 
-impl NotificationGroup {
-    pub const NAME: &str = "Notifications";
+impl WidgetGroup for NotificationGroup {
+    const TITLE: &'static str = "Notifications";
+}
 
+impl NotificationGroup {
     pub fn load() -> Task<NotificationGroupMessage> {
         Task::perform(
             sqlite_shell_settings_row::load_stored_flag(
@@ -144,8 +146,7 @@ impl NotificationGroup {
         status: NotificationStatus,
     ) -> GroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [

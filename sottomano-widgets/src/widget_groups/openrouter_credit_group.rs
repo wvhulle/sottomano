@@ -24,7 +24,7 @@ use crate::{
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -65,9 +65,11 @@ pub enum OpenRouterCreditMessage {
     Expansion(ExpansionMessage),
 }
 
-impl OpenRouterCreditGroup {
-    pub const NAME: &str = "OpenRouter credit";
+impl WidgetGroup for OpenRouterCreditGroup {
+    const TITLE: &'static str = "OpenRouter credit";
+}
 
+impl OpenRouterCreditGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -168,8 +170,7 @@ impl OpenRouterCreditGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, OpenRouterCreditMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
             [

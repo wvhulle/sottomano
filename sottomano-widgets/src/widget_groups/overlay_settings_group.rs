@@ -12,7 +12,7 @@ use crate::{
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -75,9 +75,11 @@ impl Default for OverlaySettingsGroup {
     }
 }
 
-impl OverlaySettingsGroup {
-    pub const NAME: &str = "Overlays";
+impl WidgetGroup for OverlaySettingsGroup {
+    const TITLE: &'static str = "Overlays";
+}
 
+impl OverlaySettingsGroup {
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
@@ -152,8 +154,7 @@ impl OverlaySettingsGroup {
         &'a self,
         config: &'a Config,
     ) -> GroupContent<'a, OverlaySettingsMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(

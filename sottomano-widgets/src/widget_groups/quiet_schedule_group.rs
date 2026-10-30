@@ -38,7 +38,9 @@ use crate::{
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
         weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_group::{
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+        },
     },
 };
 
@@ -154,9 +156,11 @@ impl Default for QuietScheduleGroup {
     }
 }
 
-impl QuietScheduleGroup {
-    pub const NAME: &str = "Quiet schedule";
+impl WidgetGroup for QuietScheduleGroup {
+    const TITLE: &'static str = "Quiet schedule";
+}
 
+impl QuietScheduleGroup {
     pub fn load() -> Task<QuietScheduleMessage> {
         Task::batch([
             Task::perform(
@@ -495,8 +499,7 @@ impl QuietScheduleGroup {
                 QuietScheduleMessage::Slider.with(slider),
             )
         };
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [

@@ -41,7 +41,7 @@ use crate::{
         toggle_control::SwitchPresses,
         tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -101,9 +101,11 @@ impl Default for VoiceDictationGroup {
     }
 }
 
-impl VoiceDictationGroup {
-    pub const NAME: &str = "Voice dictation";
+impl WidgetGroup for VoiceDictationGroup {
+    const TITLE: &'static str = "Voice dictation";
+}
 
+impl VoiceDictationGroup {
     #[must_use]
     pub fn new() -> Self {
         let dictation_unit = ScopedSystemdUnit {
@@ -280,8 +282,7 @@ impl VoiceDictationGroup {
         let engine = self.loaded_engine();
         let runtime_glyph =
             engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             VoiceDictationMessage::Expansion,
             [
