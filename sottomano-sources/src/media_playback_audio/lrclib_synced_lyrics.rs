@@ -10,7 +10,11 @@ const LRCLIB_GET_API: &str = "https://lrclib.net/api/get";
 const LRCLIB_SEARCH_API: &str = "https://lrclib.net/api/search";
 const USER_AGENT: &str = "sottomano/0.1 (https://codeberg.org/wvhulle/sottomano)";
 const NOT_FOUND_STATUS: u16 = 404;
-const SERVER_ERROR_STATUS: u16 = 500;
+const RETRY_DELAYS: [Duration; 3] = [
+    Duration::from_secs(2),
+    Duration::from_secs(10),
+    Duration::from_secs(30),
+];
 const DURATION_TOLERANCE_SECS: f64 = 2.0;
 const LONGEST_ESTIMATED_LINE: Duration = Duration::from_secs(6);
 
@@ -364,22 +368,27 @@ fn parse_lrc_timestamp(tag_body: &str) -> Option<Duration> {
         .map(|seconds_part| Duration::from_secs(minutes * 60) + seconds_part)
 }
 
-async fn fetch_track_lyrics(query: LyricsQuery) -> Result<TrackLyrics, http_json_client::Error> {
-    match http_json_client::get_json::<LrclibRecord>(
+fn needs_search_fallback(fetch_error: &http_json_client::Error) -> bool {
+    matches!(
+        fetch_error,
+        http_json_client::Error::Status {
+            status: NOT_FOUND_STATUS,
+            ..
+        }
+    ) || fetch_error.is_temporary()
+}
+
+async fn fetch_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_json_client::Error> {
+    let exact_lookup = http_json_client::get_json::<LrclibRecord>(
         &query.lookup_url(),
         &[("User-Agent", USER_AGENT)],
         FETCH_TIMEOUT_SECS,
     )
-    .await
-    {
-        Ok(record) => Ok(TrackLyrics::from(record)),
-        Err(http_json_client::Error::Status { status, .. })
-            if status == NOT_FOUND_STATUS || status >= SERVER_ERROR_STATUS =>
-        {
-            search_track_lyrics(&query).await
-        }
-        Err(fetch_error) => Err(fetch_error),
+    .await;
+    if exact_lookup.as_ref().is_err_and(needs_search_fallback) {
+        return search_track_lyrics(query).await;
     }
+    Ok(TrackLyrics::from(exact_lookup?))
 }
 
 async fn search_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_json_client::Error> {
@@ -399,7 +408,14 @@ impl SnapshotSource for TrackLyrics {
     const NAME: &'static str = "On LRCLIB";
 
     fn delivery_stream(query: LyricsQuery) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::single_read_deliveries(fetch_track_lyrics(query))
+        SnapshotDelivery::read_until_answered_deliveries(
+            move || {
+                let query = query.clone();
+                async move { fetch_track_lyrics(&query).await }
+            },
+            RETRY_DELAYS,
+            http_json_client::Error::is_temporary,
+        )
     }
 }
 
