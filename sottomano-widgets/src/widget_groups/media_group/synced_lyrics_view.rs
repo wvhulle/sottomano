@@ -9,17 +9,19 @@ use sottomano_sources::media_playback_audio::{
 
 use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
+    clock::Clock,
     hover_tooltips::{PressHints, hoverable},
     widgets::{
-        bar_widget::Glyph,
+        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         karaoke_lyric_line::{
             INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
         },
         keyed_record_table::{ColumnHeading, TableRecord},
+        latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         source_reading::icon_value_gap,
-        tooltip_body::Section,
+        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
         widget_group::GroupEvent,
         widget_state::{StateTint, WidgetState},
@@ -28,6 +30,38 @@ use crate::{
 
 const LINES_BEFORE_CURRENT: usize = 2;
 const LINES_AFTER_CURRENT: usize = 3;
+
+impl BarWidget for TrackLyrics {
+    fn name(&self) -> &'static str {
+        "Lyrics"
+    }
+
+    fn icon(&self) -> Glyph {
+        match self {
+            TrackLyrics::Synced(_) => Phosphor::MicrophoneStage(Weight::Regular).into(),
+            TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
+                Self::fallback_icon()
+            }
+        }
+    }
+
+    fn fallback_icon() -> Glyph {
+        Phosphor::MicrophoneSlash(Weight::Regular).into()
+    }
+
+    fn state(&self, _clock: Clock) -> WidgetState {
+        match self {
+            TrackLyrics::Synced(_) => WidgetState::Idle,
+            TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
+                WidgetState::Off
+            }
+        }
+    }
+
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        TooltipBody::sections([lyrics_section(self, Duration::ZERO)])
+    }
+}
 
 fn sung_text(timed_line: &TimedLyricLine) -> &str {
     if timed_line.text.is_empty() {
@@ -81,7 +115,28 @@ pub(super) fn lyrics_section(track_lyrics: &TrackLyrics, played: Duration) -> Se
     .titled("Lyrics")
 }
 
-pub(super) fn current_lyric_line<'a>(
+fn singing_line<'a>(
+    lyrics_snapshot: &'a LatestSnapshot<TrackLyrics>,
+    media: &Media,
+    sampled_at: Instant,
+) -> Option<&'a TimedLyricLine> {
+    let played = media.progress.played(media.status, sampled_at)?;
+    lyrics_snapshot.get()?.current_line(played)
+}
+
+pub(super) fn lyrics_item<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    lyrics_snapshot: &'a LatestSnapshot<TrackLyrics>,
+    sampled_at: Instant,
+) -> Option<GroupItem<'a, MediaMessage>> {
+    let Some(timed_line) = singing_line(lyrics_snapshot, media, sampled_at) else {
+        return lyrics_snapshot.group_item(PlayerTarget::of(&media.bus, MediaTarget::Lyrics));
+    };
+    Some(current_lyric_line(config, media, timed_line, sampled_at))
+}
+
+fn current_lyric_line<'a>(
     config: &'a Config,
     media: &'a Media,
     timed_line: &'a TimedLyricLine,
