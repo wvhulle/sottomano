@@ -1,6 +1,5 @@
 use std::{
     fs,
-    iter::Sum,
     path::{Path, PathBuf},
 };
 
@@ -8,19 +7,41 @@ use bytesize::ByteSize;
 
 use super::{
     Error,
-    root_mount_facts::{Compression, KernelDevice},
+    block_filesystem_mounts::{Compression, KernelDevice},
+    filesystem_device_errors::{DeviceErrors, ErrorCount},
 };
 use crate::system_protocol_clients::sysfs_attribute_reads::list_dir;
 
 const SYS_FS_BTRFS: &str = "/sys/fs/btrfs";
 const SECTOR_BYTES: u64 = 512;
 const BLOCK_GROUP_KINDS: [&str; 3] = ["data", "metadata", "system"];
+const FALLBACK_METADATA_CHUNK: ByteSize = ByteSize::mib(256);
+const ERROR_RESET_COMMAND: &str = "btrfs device stats -z /";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BtrfsSpace {
     pub compression: Compression,
     pub unallocated: ByteSize,
     pub metadata: Allocation,
+    pub global_reserve: ByteSize,
+    pub metadata_chunk: ByteSize,
+}
+
+impl BtrfsSpace {
+    #[must_use]
+    pub fn metadata_slack(&self) -> ByteSize {
+        ByteSize::b(
+            self.metadata
+                .allocated
+                .as_u64()
+                .saturating_sub(self.metadata.used.as_u64()),
+        )
+    }
+
+    #[must_use]
+    pub fn can_allocate_metadata_chunk(&self) -> bool {
+        self.unallocated >= self.metadata_chunk
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,12 +51,12 @@ pub struct Allocation {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct DeviceErrors {
-    pub write: u64,
-    pub read: u64,
-    pub flush: u64,
-    pub corruption: u64,
-    pub generation: u64,
+struct ErrorStats {
+    write: u64,
+    read: u64,
+    flush: u64,
+    corruption: u64,
+    generation: u64,
 }
 
 pub struct BtrfsFilesystem {
@@ -43,12 +64,21 @@ pub struct BtrfsFilesystem {
 }
 
 impl BtrfsFilesystem {
-    pub fn containing(device: &KernelDevice) -> Result<Self, Error> {
+    pub fn containing(devices: &[KernelDevice]) -> Result<Self, Error> {
         list_dir(SYS_FS_BTRFS)
             .into_iter()
-            .find(|dir| dir.join("devices").join(&device.name).exists())
+            .find(|dir| {
+                devices
+                    .iter()
+                    .any(|device| dir.join("devices").join(&device.name).exists())
+            })
             .map(|dir| BtrfsFilesystem { dir })
-            .ok_or_else(|| Error::NoBtrfsFilesystemOn(device.name.clone()))
+            .ok_or_else(|| Error::NoFilesystemOn {
+                fs_type: "btrfs",
+                device: devices
+                    .first()
+                    .map_or_else(String::new, |device| device.name.clone()),
+            })
     }
 
     pub fn space(&self, compression: Compression) -> Result<BtrfsSpace, Error> {
@@ -59,17 +89,34 @@ impl BtrfsFilesystem {
                 used: self.allocation_bytes("metadata", "bytes_used")?,
                 allocated: self.allocation_bytes("metadata", "total_bytes")?,
             },
+            global_reserve: read_u64(&self.dir.join("allocation").join("global_rsv_size"))
+                .map(ByteSize::b)?,
+            metadata_chunk: self
+                .allocation_bytes("metadata", "chunk_size")
+                .unwrap_or(FALLBACK_METADATA_CHUNK),
         })
     }
 
     pub fn device_errors(&self) -> Result<DeviceErrors, Error> {
-        list_dir(self.dir.join("devinfo"))
+        let summed = list_dir(self.dir.join("devinfo"))
             .iter()
             .map(|device| {
                 let path = device.join("error_stats");
-                read_text(&path).map(|stats| DeviceErrors::parse(&stats))
+                read_text(&path).map(|stats| ErrorStats::parse(&stats))
             })
-            .sum()
+            .try_fold(ErrorStats::default(), |total, device| {
+                device.map(|device| total.plus(device))
+            })?;
+        Ok(DeviceErrors {
+            counted_on: self
+                .dir
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_owned(),
+            counts: summed.by_kind().to_vec(),
+            reset_command: ERROR_RESET_COMMAND.to_owned(),
+        })
     }
 
     fn unallocated(&self) -> Result<ByteSize, Error> {
@@ -94,7 +141,7 @@ impl BtrfsFilesystem {
     }
 }
 
-impl DeviceErrors {
+impl ErrorStats {
     fn parse(stats: &str) -> Self {
         stats
             .lines()
@@ -102,7 +149,7 @@ impl DeviceErrors {
                 let (name, count) = line.split_once(' ')?;
                 Some((name, count.trim().parse().ok()?))
             })
-            .fold(DeviceErrors::default(), |errors, (name, count)| {
+            .fold(ErrorStats::default(), |errors, (name, count)| {
                 errors.counted(name, count)
             })
     }
@@ -119,8 +166,17 @@ impl DeviceErrors {
         self
     }
 
-    #[must_use]
-    pub fn by_kind(&self) -> [ErrorCount; 5] {
+    fn plus(self, other: Self) -> Self {
+        ErrorStats {
+            write: self.write + other.write,
+            read: self.read + other.read,
+            flush: self.flush + other.flush,
+            corruption: self.corruption + other.corruption,
+            generation: self.generation + other.generation,
+        }
+    }
+
+    fn by_kind(&self) -> [ErrorCount; 5] {
         [
             ErrorCount::new("Write", self.write),
             ErrorCount::new("Read", self.read),
@@ -128,35 +184,6 @@ impl DeviceErrors {
             ErrorCount::new("Corruption", self.corruption),
             ErrorCount::new("Generation", self.generation),
         ]
-    }
-
-    #[must_use]
-    pub fn total(&self) -> u64 {
-        self.by_kind().iter().map(|error| error.count).sum()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ErrorCount {
-    pub kind: &'static str,
-    pub count: u64,
-}
-
-impl ErrorCount {
-    fn new(kind: &'static str, count: u64) -> Self {
-        ErrorCount { kind, count }
-    }
-}
-
-impl Sum for DeviceErrors {
-    fn sum<I: Iterator<Item = Self>>(devices: I) -> Self {
-        devices.fold(DeviceErrors::default(), |total, device| DeviceErrors {
-            write: total.write + device.write,
-            read: total.read + device.read,
-            flush: total.flush + device.flush,
-            corruption: total.corruption + device.corruption,
-            generation: total.generation + device.generation,
-        })
     }
 }
 
@@ -177,21 +204,27 @@ mod tests {
 
     #[test]
     fn error_stats_are_parsed_per_kind() {
-        let errors = DeviceErrors::parse(
+        let errors = ErrorStats::parse(
             "write_errs 0\nread_errs 3\nflush_errs 0\ncorruption_errs 1\ngeneration_errs 0\n",
         );
         assert_eq!(errors.read, 3);
         assert_eq!(errors.corruption, 1);
-        assert_eq!(errors.total(), 4);
+        assert_eq!(
+            errors
+                .by_kind()
+                .iter()
+                .map(|error| error.count)
+                .sum::<u64>(),
+            4
+        );
     }
 
     #[test]
     fn device_errors_sum_across_devices() {
-        let one = DeviceErrors {
+        let one = ErrorStats {
             write: 1,
-            ..DeviceErrors::default()
+            ..ErrorStats::default()
         };
-        let total: DeviceErrors = [one, one].into_iter().sum();
-        assert_eq!(total.write, 2);
+        assert_eq!(one.plus(one).write, 2);
     }
 }

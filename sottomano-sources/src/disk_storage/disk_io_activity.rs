@@ -12,7 +12,7 @@ use uom::si::{
     time::{millisecond, second},
 };
 
-use super::{Error, root_mount_facts::RootMount};
+use super::{Error, block_filesystem_mounts::KernelDevice};
 use crate::{SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling};
 
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
@@ -41,22 +41,22 @@ pub struct DiskActivity {
 
 impl SnapshotSource for DiskActivity {
     type Error = Error;
-    type StreamInputs = ();
+    type StreamInputs = KernelDevice;
 
     const NAME: &'static str = "Disk activity";
 
     fn delivery_stream(
-        (): Self::StreamInputs,
+        disk: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(SAMPLE_INTERVAL).poll_deliveries(move || Self::poll(()))
+        PeriodicPolling::every(SAMPLE_INTERVAL).poll_deliveries(move || Self::poll(disk.clone()))
     }
 }
 
 impl DiskActivity {
-    async fn poll(_key: ()) -> Result<Self, Error> {
-        let earlier = CounterSample::take()?;
+    async fn poll(disk: KernelDevice) -> Result<Self, Error> {
+        let earlier = CounterSample::take(&disk)?;
         sleep(SAMPLE_WINDOW).await;
-        let later = CounterSample::take()?;
+        let later = CounterSample::take(&disk)?;
         Ok(later
             .counters
             .activity_since(&earlier.counters, later.at - earlier.at, later.disk))
@@ -70,15 +70,14 @@ struct CounterSample {
 }
 
 impl CounterSample {
-    fn take() -> Result<Self, Error> {
-        let disk = RootMount::current()?.device()?.whole_disk();
+    fn take(disk: &KernelDevice) -> Result<Self, Error> {
         let stat = disk.sysfs_dir().join("stat");
         let line =
             fs::read_to_string(&stat).map_err(|_| Error::Unreadable(stat.display().to_string()))?;
         Ok(CounterSample {
             counters: BlockCounters::parse(&line)
                 .ok_or_else(|| Error::Unparsable(stat.display().to_string()))?,
-            disk: disk.name,
+            disk: disk.name.clone(),
             at: Instant::now(),
         })
     }

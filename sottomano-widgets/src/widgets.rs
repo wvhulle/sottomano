@@ -34,6 +34,7 @@ pub mod localized_time;
 pub mod marker_track;
 pub mod markup_body;
 pub mod most_used_model;
+pub mod named_reading;
 pub mod ongoing_toast;
 pub mod pager_slot;
 pub mod panel_frame;

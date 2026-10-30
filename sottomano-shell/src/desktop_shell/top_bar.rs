@@ -53,7 +53,12 @@ impl DesktopShell {
                     .map(|group| group.map(Message::Gpu)),
             )
             .chain([
-                self.disk_group.group_content().map(Message::Disk),
+                self.storage_space_group
+                    .group_content()
+                    .map(Message::Storage),
+                self.physical_drive_group
+                    .group_content()
+                    .map(Message::Drive),
                 self.net_interfaces_group
                     .group_content(self.clock)
                     .map(Message::NetInterfaces),

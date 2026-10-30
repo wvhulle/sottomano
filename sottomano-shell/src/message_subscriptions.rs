@@ -26,13 +26,12 @@ use sottomano_widgets::{
         audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
         clock_group::ClockGroup, compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        disk_group::DiskGroup, gamepad_group::GamepadGroup,
-        journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
-        memory_board_group::MemoryBoardGroup, monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        window_group::WindowGroup,
+        gamepad_group::GamepadGroup, journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
+        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup, window_group::WindowGroup,
     },
 };
 use tokio::sync::mpsc;
@@ -97,8 +96,14 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(Message::Compute),
         MemoryBoardGroup::subscription().map(Message::MemoryBoard),
         state.gpu_group.subscription().map(Message::Gpu),
-        DiskGroup::subscription(&state.config.widget_groups.temperature_sensors.drive)
-            .map(Message::Disk),
+        state
+            .storage_space_group
+            .subscription()
+            .map(Message::Storage),
+        state
+            .physical_drive_group
+            .subscription(&state.config.widget_groups.temperature_sensors.drive)
+            .map(Message::Drive),
         ClockGroup::subscription(&state.config).map(Message::Clock),
         JournalEventsGroup::subscription().map(Message::JournalEvents),
         DarkModeGroup::subscription().map(Message::DarkMode),

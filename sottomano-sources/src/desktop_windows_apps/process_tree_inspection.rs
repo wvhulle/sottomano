@@ -1,7 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Display, Formatter, Result as FmtResult},
-    mem::zeroed,
     ops::Add,
     path::PathBuf,
     time::{Duration, Instant},
@@ -14,6 +13,7 @@ use procfs::{
     process::{Process as Proc, Stat, all_processes},
     ticks_per_second,
 };
+use rustix::time::{ClockId, clock_gettime};
 use tokio::{task::spawn_blocking, time::sleep};
 use uom::si::{f64::Ratio, ratio::ratio};
 
@@ -395,11 +395,7 @@ fn scope(process: &Proc) -> Option<String> {
 
 #[must_use]
 pub fn monotonic() -> Option<Duration> {
-    let mut spec = unsafe { zeroed::<libc::timespec>() };
-    let rc = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &raw mut spec) };
-    if rc != 0 {
-        return None;
-    }
+    let spec = clock_gettime(ClockId::Monotonic);
     let secs = u64::try_from(spec.tv_sec).ok()?;
     let nanos = u32::try_from(spec.tv_nsec).ok()?;
     Some(Duration::new(secs, nanos))

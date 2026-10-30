@@ -64,7 +64,6 @@ use sottomano_widgets::{
         compute_group::{ComputeGroup, ComputeMessage},
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::DarkModeGroup,
-        disk_group::DiskGroup,
         ethernet_ports_group::EthernetPortsGroup,
         gamepad_group::{self, GamepadGroup, GamepadMessage},
         gpu_group::GpuGroup,
@@ -82,12 +81,14 @@ use sottomano_widgets::{
         overlay_settings_group::{self, OverlaySettingsGroup, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsGroup, PanelSettingsMessage},
         pending_upgrades_group::PendingUpgradesGroup,
+        physical_drive_group::PhysicalDriveGroup,
         power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup,
         reachability_group::ReachabilityGroup,
         session_focus_group::SessionFocusGroup,
         session_menu::{self, SessionMenu, SessionMessage},
         sidebar_settings_group::SidebarSettingsGroup,
+        storage_space_group::StorageSpaceGroup,
         systemd_manager_group::SystemdManagerGroup,
         tray_group::{self, TrayGroup, TrayMessage},
         voice_dictation_group::VoiceDictationGroup,
@@ -128,7 +129,8 @@ pub struct DesktopShell {
     pub compute_group: ComputeGroup,
     pub memory_board_group: MemoryBoardGroup,
     pub gpu_group: GpuGroup,
-    pub disk_group: DiskGroup,
+    pub storage_space_group: StorageSpaceGroup,
+    pub physical_drive_group: PhysicalDriveGroup,
     pub panel_settings_group: PanelSettingsGroup,
     pub sidebar_settings_group: SidebarSettingsGroup,
     pub overlay_settings_group: OverlaySettingsGroup,
@@ -200,7 +202,8 @@ impl DesktopShell {
             compute_group: ComputeGroup::default(),
             memory_board_group: MemoryBoardGroup::default(),
             gpu_group: GpuGroup::default(),
-            disk_group: DiskGroup::default(),
+            storage_space_group: StorageSpaceGroup::default(),
+            physical_drive_group: PhysicalDriveGroup::default(),
             panel_settings_group: PanelSettingsGroup::default(),
             sidebar_settings_group: SidebarSettingsGroup::default(),
             overlay_settings_group: OverlaySettingsGroup::default(),
@@ -388,7 +391,14 @@ impl DesktopShell {
                     .map(Message::MemoryBoard),
             ]),
             Message::Gpu(msg) => self.gpu_group.update(msg, self.clock).map(Message::Gpu),
-            Message::Disk(msg) => self.disk_group.update(msg, self.clock).map(Message::Disk),
+            Message::Storage(msg) => self
+                .storage_space_group
+                .update(msg, self.clock)
+                .map(Message::Storage),
+            Message::Drive(msg) => self
+                .physical_drive_group
+                .update(msg, self.clock)
+                .map(Message::Drive),
             Message::PanelSettings(msg) => self.update_panel_settings(msg),
             Message::SidebarSettings(msg) => self
                 .sidebar_settings_group
@@ -847,7 +857,8 @@ impl DesktopShell {
         self.compute_group.collapse();
         self.memory_board_group.collapse();
         self.gpu_group.collapse();
-        self.disk_group.collapse();
+        self.storage_space_group.collapse();
+        self.physical_drive_group.collapse();
         self.media_group.collapse();
         self.reachability_group.collapse();
         self.vpn_group.collapse();
