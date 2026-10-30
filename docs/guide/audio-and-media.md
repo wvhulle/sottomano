@@ -15,7 +15,7 @@ What is playing, and the speaker and microphone it plays through.
 
 The playing track from any MPRIS player, with where to find it.
 
-<img src="../../recordings/media_track.webp" width="406" alt="Hovering the playing track">
+<img src="../../recordings/media_track.webp" width="409" alt="Hovering the playing track">
 
 ## Audio: Volume
 
