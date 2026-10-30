@@ -1,14 +1,10 @@
-use futures::{
-    Stream,
-    future::{join_all, try_join_all},
-    try_join,
-};
+use futures::{Stream, future::try_join_all, try_join};
 use uom::si::f64::InformationRate;
 use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    host_machine_identity::udev_hardware_identity::Adapter,
+    host_machine_identity::udev_hardware_identity::{Adapter, BusId},
     network_connectivity::{
         ReadingError, device_or_absent, network_manager_proxies, nm_readings,
         sysfs_interface_faults::InterfaceFaultCounters,
@@ -28,9 +24,26 @@ pub struct Link {
     pub fault_counters: InterfaceFaultCounters,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PortAttachment {
+    BuiltIn,
+    Usb,
+}
+
+impl PortAttachment {
+    #[must_use]
+    pub fn of_interface(interface: &str) -> Self {
+        match Adapter::of_net_interface(interface).map(|adapter| adapter.bus_id) {
+            Some(BusId::Usb { .. }) => PortAttachment::Usb,
+            Some(BusId::Pci { .. }) | None => PortAttachment::BuiltIn,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct PortState {
     pub name: String,
+    pub attachment: PortAttachment,
     pub connected: bool,
     pub switching: bool,
 }
@@ -125,6 +138,7 @@ async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
             .await?
             .into_iter()
             .map(|device| PortState {
+                attachment: PortAttachment::of_interface(&device.interface),
                 connected: device.connected,
                 switching: device.switching,
                 name: device.interface,
@@ -189,27 +203,21 @@ impl SnapshotSource for EthernetDetails {
     }
 }
 
-pub async fn toggle_ethernet_ports() -> zbus::Result<()> {
+pub async fn toggle_ethernet_port(port_name: &str) -> zbus::Result<()> {
     let system = Connection::system().await?;
-    let ethernet_ports: Vec<network_manager_proxies::DeviceInfo> =
-        network_manager_proxies::devices(&system)
-            .await?
-            .into_iter()
-            .filter(|device| device.kind == network_manager_proxies::DeviceKind::Ethernet)
-            .collect();
-    let any_connected = ethernet_ports.iter().any(|device| device.connected);
-    let port_switches = ethernet_ports
-        .iter()
-        .filter(|device| device.connected == any_connected)
-        .map(|device| {
-            let system = system.clone();
-            async move {
-                if any_connected {
-                    network_manager_proxies::disconnect_device(device).await
-                } else {
-                    network_manager_proxies::connect_device(&system, device).await
-                }
-            }
-        });
-    join_all(port_switches).await.into_iter().collect()
+    let Some(port_device) = network_manager_proxies::devices(&system)
+        .await?
+        .into_iter()
+        .find(|device| {
+            device.kind == network_manager_proxies::DeviceKind::Ethernet
+                && device.interface == port_name
+        })
+    else {
+        return Ok(());
+    };
+    if port_device.connected {
+        network_manager_proxies::disconnect_device(&port_device).await
+    } else {
+        network_manager_proxies::connect_device(&system, &port_device).await
+    }
 }

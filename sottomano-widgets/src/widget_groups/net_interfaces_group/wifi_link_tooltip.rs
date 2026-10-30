@@ -3,7 +3,7 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    widget_groups::net_interfaces_group::interface_sections::{
+    widget_groups::interface_address_sections::{
         address_section, dns_section, link_stats_section, signal_level,
     },
     widgets::{
@@ -69,15 +69,13 @@ impl BarWidget for Wifi {
 
 impl ReadingSections for WifiDetails {
     fn sections(&self, _clock: Clock) -> Vec<Section> {
-        let key = |label: &str| label.to_string();
         let addressing = self.addressing.iter().flat_map(|addressing| {
             [
                 Section::dictionary([LabeledValue::new("MAC Address", addressing.mac.as_str())]),
-                address_section(&key, "IPv4", addressing.ipv4.as_ref()),
-                address_section(&key, "IPv6", addressing.ipv6.as_ref()),
-                dns_section(&key, &addressing.dns),
+                address_section("IPv4", addressing.ipv4.as_ref()),
+                address_section("IPv6", addressing.ipv6.as_ref()),
+                dns_section(&addressing.dns),
                 link_stats_section(
-                    &key,
                     "Radio",
                     "Radio Speed",
                     addressing.bitrate,

@@ -59,6 +59,12 @@ impl DesktopShell {
                     .map(Message::NetInterfaces),
             ])
             .chain(
+                self.ethernet_ports_group
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::EthernetPorts)),
+            )
+            .chain(
                 self.bluetooth_adapters_group
                     .group_contents(
                         &|hardware_address| {

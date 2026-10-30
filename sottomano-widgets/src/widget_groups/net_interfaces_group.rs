@@ -1,7 +1,5 @@
 use iced::{Subscription, Task};
 
-mod ethernet_link_tooltip;
-mod interface_sections;
 mod mobile_modem_tooltip;
 mod wifi_link_tooltip;
 
@@ -9,7 +7,6 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SnapshotDelivery,
     network_connectivity::{
-        ethernet_connection::{Ethernet, EthernetDetails, toggle_ethernet_ports},
         icmp_gateway_latency::GatewayLatencies,
         modem_manager_mobile::{Mobile, ModemState, toggle_mobile_radio},
         wifi_connection::{Wifi, WifiDetails, toggle_wifi_radio},
@@ -21,7 +18,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::echo_probe_window_rows::probe_window_section,
+    widget_groups::interface_address_sections::gateway_latency_sections,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -36,7 +33,6 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetInterfaceTarget {
-    Ethernet,
     Wifi,
     Mobile,
 }
@@ -49,22 +45,18 @@ impl From<NetInterfaceTarget> for HoverTarget {
 
 #[derive(Default)]
 pub struct NetInterfacesGroup {
-    ethernet: LatestSnapshot<Ethernet>,
     wifi: LatestSnapshot<Wifi>,
     mobile: LatestSnapshot<Mobile>,
     wifi_details: HoverFetchedSnapshot<WifiDetails>,
-    ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
     gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
     expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum NetInterfacesMessage {
-    Ethernet(SnapshotDelivery<Ethernet>),
     Wifi(SnapshotDelivery<Wifi>),
     Mobile(Box<SnapshotDelivery<Mobile>>),
     WifiDetailsFetched(Box<SnapshotDelivery<WifiDetails>>),
-    EthernetDetailsFetched(SnapshotDelivery<EthernetDetails>),
     GatewayLatencies(SnapshotDelivery<GatewayLatencies>),
     ToggleRadio(NetInterfaceTarget),
     Expansion(ExpansionMessage),
@@ -77,10 +69,6 @@ impl NetInterfacesGroup {
 
     pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<NetInterfacesMessage> {
         Subscription::batch([
-            self.expansion.while_expanded(
-                snapshot_subscription::<Ethernet>(buses.clone())
-                    .map(NetInterfacesMessage::Ethernet),
-            ),
             self.expansion.while_expanded(
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(NetInterfacesMessage::GatewayLatencies),
@@ -97,18 +85,12 @@ impl NetInterfacesGroup {
         clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         match msg {
-            NetInterfacesMessage::Ethernet(delivery) => {
-                self.ethernet.receive(delivery, clock);
-            }
             NetInterfacesMessage::Wifi(delivery) => self.wifi.receive(delivery, clock),
             NetInterfacesMessage::Mobile(delivery) => {
                 self.mobile.receive(*delivery, clock);
             }
             NetInterfacesMessage::WifiDetailsFetched(fetched) => {
                 self.wifi_details.receive(*fetched, clock);
-            }
-            NetInterfacesMessage::EthernetDetailsFetched(fetched) => {
-                self.ethernet_details.receive(fetched, clock);
             }
             NetInterfacesMessage::GatewayLatencies(delivery) => {
                 self.gateway_latencies.receive(delivery, clock);
@@ -136,20 +118,11 @@ impl NetInterfacesGroup {
         clock: Clock,
     ) -> Task<NetInterfacesMessage> {
         self.wifi_details.stop();
-        self.ethernet_details.stop();
         match hovered {
             Some(HoverTarget::NetInterface(NetInterfaceTarget::Wifi)) => {
                 self.wifi_details.start_hover_fetch(
                     buses.clone(),
                     |fetched| NetInterfacesMessage::WifiDetailsFetched(Box::new(fetched)),
-                    config,
-                    clock,
-                )
-            }
-            Some(HoverTarget::NetInterface(NetInterfaceTarget::Ethernet)) => {
-                self.ethernet_details.start_hover_fetch(
-                    buses.clone(),
-                    NetInterfacesMessage::EthernetDetailsFetched,
                     config,
                     clock,
                 )
@@ -161,33 +134,16 @@ impl NetInterfacesGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: NetInterfaceTarget, clock: Clock) -> Option<Tooltip> {
         match target {
-            NetInterfaceTarget::Ethernet => {
-                let port_names: Vec<&str> = self
-                    .ethernet
-                    .get()
-                    .map(|ethernet| {
-                        ethernet
-                            .ports
-                            .iter()
-                            .map(|port| port.name.as_str())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                self.ethernet.tooltip_with_groups(
-                    self.ethernet_details
-                        .sections(clock)
-                        .into_iter()
-                        .chain(self.gateway_sections(&port_names)),
-                    clock,
-                )
-            }
             NetInterfaceTarget::Wifi => {
-                let wifi_device = self.wifi.get().map(|wifi| wifi.device.as_str());
+                let wifi_gateway_sections = self
+                    .wifi
+                    .get()
+                    .and_then(|wifi| self.gateway_sections(&wifi.device));
                 self.wifi.tooltip_with_groups(
                     self.wifi_details
                         .sections(clock)
                         .into_iter()
-                        .chain(self.gateway_sections(wifi_device.as_slice())),
+                        .chain(wifi_gateway_sections),
                     clock,
                 )
             }
@@ -195,36 +151,13 @@ impl NetInterfacesGroup {
         }
     }
 
-    fn gateway_sections(&self, interfaces: &[&str]) -> Option<SourcedSections> {
-        let prefixed = interfaces.len() > 1;
-        self.gateway_latencies.sections_described_by(|latencies| {
-            latencies
-                .gateways
-                .iter()
-                .filter(|gateway_latency| interfaces.contains(&gateway_latency.interface.as_str()))
-                .map(|gateway_latency| {
-                    let family = if gateway_latency.window.host.is_ipv4() {
-                        "IPv4 Router"
-                    } else {
-                        "IPv6 Router"
-                    };
-                    let title = if prefixed {
-                        format!("{} {family}", gateway_latency.interface)
-                    } else {
-                        family.to_owned()
-                    };
-                    probe_window_section(&gateway_latency.window).titled(title)
-                })
-                .collect()
-        })
+    fn gateway_sections(&self, interface: &str) -> Option<SourcedSections> {
+        self.gateway_latencies
+            .sections_described_by(|latencies| gateway_latency_sections(latencies, interface))
     }
 
     fn radio_on(&self, target: NetInterfaceTarget) -> bool {
         match target {
-            NetInterfaceTarget::Ethernet => self
-                .ethernet
-                .get()
-                .is_some_and(|ethernet| ethernet.connected_count() > 0),
             NetInterfaceTarget::Wifi => self.wifi.get().is_some_and(|wifi| wifi.radio_enabled),
             NetInterfaceTarget::Mobile => self
                 .mobile
@@ -250,8 +183,6 @@ impl NetInterfacesGroup {
     fn press_does(&self, target: NetInterfaceTarget) -> &'static str {
         let radio_on = self.radio_on(target);
         match target {
-            NetInterfaceTarget::Ethernet if radio_on => "disconnect Ethernet",
-            NetInterfaceTarget::Ethernet => "connect Ethernet",
             NetInterfaceTarget::Wifi if radio_on => "turn Wi-Fi off",
             NetInterfaceTarget::Wifi => "turn Wi-Fi on",
             NetInterfaceTarget::Mobile if radio_on => "turn mobile data off",
@@ -273,7 +204,6 @@ impl NetInterfacesGroup {
             &self.expansion,
             NetInterfacesMessage::Expansion,
             [
-                self.radio_item(self.ethernet.display(), NetInterfaceTarget::Ethernet),
                 self.radio_item(self.wifi.display(), NetInterfaceTarget::Wifi)
                     .map(|item| item.previewed_on_handle_if(wifi_is_uplink)),
                 self.radio_item(self.mobile.display(), NetInterfaceTarget::Mobile)
@@ -295,7 +225,6 @@ fn shows_uplink_signal(widget: &dyn BarWidget, clock: Clock) -> bool {
 
 async fn toggle_radio(target: NetInterfaceTarget) -> zbus::Result<()> {
     match target {
-        NetInterfaceTarget::Ethernet => toggle_ethernet_ports().await,
         NetInterfaceTarget::Wifi => toggle_wifi_radio().await,
         NetInterfaceTarget::Mobile => toggle_mobile_radio().await,
     }

@@ -4,7 +4,7 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    widget_groups::net_interfaces_group::interface_sections::signal_level,
+    widget_groups::interface_address_sections::signal_level,
     widgets::{
         bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,

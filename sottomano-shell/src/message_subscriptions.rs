@@ -161,6 +161,10 @@ fn desktop_bus_subscriptions(state: &DesktopShell, buses: &DesktopBuses) -> Subs
             .net_interfaces_group
             .subscription(buses)
             .map(Message::NetInterfaces),
+        state
+            .ethernet_ports_group
+            .subscription(buses)
+            .map(Message::EthernetPorts),
         BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
         GamepadGroup::network_subscription(buses).map(Message::Gamepad),
         MonitorGroup::subscription(buses).map(Message::Monitor),

@@ -195,6 +195,9 @@ impl DesktopShell {
             HoverTarget::NetInterface(target) => {
                 self.net_interfaces_group.tooltip_for(*target, self.clock)
             }
+            HoverTarget::EthernetPort(target) => {
+                self.ethernet_ports_group.tooltip_for(target, self.clock)
+            }
             HoverTarget::Bluetooth(target) => self.bluetooth_tooltip_for(target),
             HoverTarget::Audio(kind) => self.audio_group.tooltip_for(*kind, self.clock),
             HoverTarget::Monitor(target) => {
@@ -338,6 +341,7 @@ impl DesktopShell {
             | HoverTarget::Journal(_)
             | HoverTarget::PendingUpgrades(_)
             | HoverTarget::NetInterface(_)
+            | HoverTarget::EthernetPort(_)
             | HoverTarget::Bluetooth(_)
             | HoverTarget::Audio(_)
             | HoverTarget::IdleTimeout(_)
@@ -375,6 +379,13 @@ impl DesktopShell {
                     self.net_interfaces_group
                         .hover(hovered, &self.config, buses, self.clock)
                         .map(Message::NetInterfaces)
+                }),
+            self.desktop_buses
+                .as_ref()
+                .map_or_else(Task::none, |buses| {
+                    self.ethernet_ports_group
+                        .hover(hovered, &self.config, buses, self.clock)
+                        .map(Message::EthernetPorts)
                 }),
             self.vpn_group
                 .hover(hovered, &self.config, buses, self.clock)

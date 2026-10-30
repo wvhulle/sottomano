@@ -1,11 +1,13 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::{
-    network_manager_proxies::AddressBlock, sysfs_interface_faults::InterfaceFaultCounters,
+    icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
+    sysfs_interface_faults::InterfaceFaultCounters,
 };
 use uom::si::f64::InformationRate;
 
-use crate::widgets::{
-    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
+use crate::{
+    widget_groups::echo_probe_window_rows::probe_window_section,
+    widgets::{localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue},
 };
 
 pub fn signal_level(quality: i64) -> Severity {
@@ -16,11 +18,7 @@ pub fn signal_level(quality: i64) -> Severity {
     }
 }
 
-pub fn address_section(
-    key: &impl Fn(&str) -> String,
-    label: &str,
-    block: Option<&AddressBlock>,
-) -> Section {
+pub fn address_section(label: &str, block: Option<&AddressBlock>) -> Section {
     let mask_label = if label == "IPv6" {
         "Prefix Length"
     } else {
@@ -38,20 +36,19 @@ pub fn address_section(
         .into_iter()
         .chain(gateway)
     });
-    Section::dictionary(entries).titled(key(label))
+    Section::dictionary(entries).titled(label)
 }
 
-pub fn dns_section(key: &impl Fn(&str) -> String, servers: &[String]) -> Section {
+pub fn dns_section(servers: &[String]) -> Section {
     Section::dictionary(
         servers
             .iter()
             .map(|server| LabeledValue::new("Server", server.as_str())),
     )
-    .titled(key("DNS"))
+    .titled("DNS")
 }
 
 pub fn link_stats_section(
-    key: &impl Fn(&str) -> String,
     title: &str,
     rate_label: &str,
     rate: InformationRate,
@@ -89,6 +86,21 @@ pub fn link_stats_section(
     .map(|(fault_label, fault_count, fault_level)| {
         LabeledValue::new(fault_label, Quantity::count(fault_count)).level(fault_level)
     });
-    Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries))
-        .titled(key(title))
+    Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries)).titled(title)
+}
+
+pub fn gateway_latency_sections(latencies: &GatewayLatencies, interface: &str) -> Vec<Section> {
+    latencies
+        .gateways
+        .iter()
+        .filter(|gateway_latency| gateway_latency.interface == interface)
+        .map(|gateway_latency| {
+            let family = if gateway_latency.window.host.is_ipv4() {
+                "IPv4 Router"
+            } else {
+                "IPv6 Router"
+            };
+            probe_window_section(&gateway_latency.window).titled(family)
+        })
+        .collect()
 }
