@@ -5,7 +5,7 @@ use sottomano_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},
-        memory_usage::{Memory, MemoryProcess, MemoryProcesses},
+        memory_usage::{Memory, MemoryProcess, MemoryProcesses, Swap},
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
 };
@@ -54,6 +54,10 @@ fn memory_reading(tick: u32) -> MemoryBoardMessage {
         Ok(Memory {
             used: ByteSize::mib(cycled(MEMORY_USED_MEBIBYTES, tick)),
             total: ByteSize::gib(64),
+            swap: Swap::Configured {
+                used: ByteSize::mib(512),
+                total: ByteSize::gib(8),
+            },
         }),
         DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(5))),
     ))

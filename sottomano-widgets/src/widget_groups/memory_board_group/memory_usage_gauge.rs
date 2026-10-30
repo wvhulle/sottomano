@@ -1,7 +1,7 @@
 use sottomano_config::severity::Severity;
 use sottomano_sources::cpu_memory_compute::{
     memory_module_temperatures::MemoryModuleTemperatures,
-    memory_usage::{Memory, MemoryProcesses},
+    memory_usage::{Memory, MemoryProcesses, Swap},
 };
 use uom::si::f64::Ratio;
 
@@ -66,10 +66,21 @@ impl BarWidget for Memory {
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
-            LabeledValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
-            LabeledValue::new("Used", Quantity::size(self.used)),
-            LabeledValue::new("Total", Quantity::size(self.total)),
-        ])
+        let swap_entries = match self.swap {
+            Swap::NotConfigured => vec![LabeledValue::new("Swap", "none")],
+            Swap::Configured { used, total } => vec![
+                LabeledValue::new("Swap used", Quantity::size(used)),
+                LabeledValue::new("Swap total", Quantity::size(total)),
+            ],
+        };
+        TooltipBody::dictionary(
+            [
+                LabeledValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
+                LabeledValue::new("Used", Quantity::size(self.used)),
+                LabeledValue::new("Total", Quantity::size(self.total)),
+            ]
+            .into_iter()
+            .chain(swap_entries),
+        )
     }
 }
