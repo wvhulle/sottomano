@@ -147,6 +147,12 @@ impl<Routed> Default for NotificationLayer<Routed> {
 }
 
 impl<Routed: Clone> NotificationLayer<Routed> {
+    pub fn occupied_outputs(&self) -> impl Iterator<Item = &str> {
+        self.live
+            .iter()
+            .filter_map(|notification| notification.place.output.as_deref())
+    }
+
     #[must_use]
     pub fn anchored_toasts<'a>(
         &'a self,

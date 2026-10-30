@@ -1,7 +1,19 @@
-use iced::{Element, Length, Point, Rectangle, Renderer, Theme, mouse::Cursor, widget::canvas};
+use iced::{
+    Element, Length, Point, Rectangle, Size, Theme,
+    advanced::{
+        Layout, Widget,
+        layout::{Limits, Node},
+        renderer,
+        widget::Tree,
+    },
+    mouse::Cursor,
+};
 use sottomano_config::screen_edges::Position;
 
-use crate::widgets::configured_theme::ThemedColor;
+use crate::widgets::{
+    configured_theme::ThemedColor,
+    rounded_quads::{CircleQuad, QuadOutline},
+};
 
 pub struct MarkerTrack {
     markers: Vec<ThemedColor<'static>>,
@@ -21,13 +33,16 @@ impl MarkerTrack {
 
     #[must_use]
     pub fn view<'a, Message: 'a>(self) -> Element<'a, Message> {
+        Element::new(self)
+    }
+
+    fn track_size(&self) -> Size<Length> {
         let thickness = Length::Fixed(self.max_diameter);
-        let (width, height) = if self.along_vertical_edge {
-            (thickness, Length::Fill)
+        if self.along_vertical_edge {
+            Size::new(thickness, Length::Fill)
         } else {
-            (Length::Fill, thickness)
-        };
-        canvas(self).width(width).height(height).into()
+            Size::new(Length::Fill, thickness)
+        }
     }
 
     fn marker_and_gap_slots(&self) -> f32 {
@@ -46,21 +61,30 @@ impl MarkerTrack {
     }
 }
 
-impl<Message> canvas::Program<Message> for MarkerTrack {
-    type State = ();
+impl<Message> Widget<Message, Theme, iced::Renderer> for MarkerTrack {
+    fn size(&self) -> Size<Length> {
+        self.track_size()
+    }
+
+    fn layout(&mut self, _tree: &mut Tree, _renderer: &iced::Renderer, limits: &Limits) -> Node {
+        let track_size = self.track_size();
+        Node::new(limits.resolve(track_size.width, track_size.height, Size::ZERO))
+    }
 
     fn draw(
         &self,
-        (): &Self::State,
-        renderer: &Renderer,
+        _tree: &Tree,
+        renderer: &mut iced::Renderer,
         theme: &Theme,
-        bounds: Rectangle,
+        _style: &renderer::Style,
+        layout: Layout<'_>,
         _cursor: Cursor,
-    ) -> Vec<canvas::Geometry> {
-        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        _viewport: &Rectangle,
+    ) {
         if self.markers.is_empty() {
-            return vec![frame.into_geometry()];
+            return;
         }
+        let bounds = layout.bounds();
         let (track_length, cross) = if self.along_vertical_edge {
             (bounds.height, bounds.width / 2.0)
         } else {
@@ -70,13 +94,16 @@ impl<Message> canvas::Program<Message> for MarkerTrack {
         self.marker_centres(track_length)
             .zip(&self.markers)
             .for_each(|(along, color)| {
-                let centre = if self.along_vertical_edge {
+                let offset_centre = if self.along_vertical_edge {
                     Point::new(cross, along)
                 } else {
                     Point::new(along, cross)
                 };
-                frame.fill(&canvas::Path::circle(centre, radius), color(theme));
+                CircleQuad {
+                    centre: offset_centre + (bounds.position() - Point::ORIGIN),
+                    radius,
+                }
+                .draw(renderer, color(theme), QuadOutline::NONE);
             });
-        vec![frame.into_geometry()]
     }
 }

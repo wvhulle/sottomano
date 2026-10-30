@@ -322,7 +322,14 @@ impl DesktopShell {
                 self.clock,
             ),
         );
-        Task::batch([dispatched, reheated, hover_readings, widget_toasts])
+        let overlay_surfaces = self.reconcile_overlay_surfaces();
+        Task::batch([
+            dispatched,
+            reheated,
+            hover_readings,
+            widget_toasts,
+            overlay_surfaces,
+        ])
     }
 
     #[allow(clippy::too_many_lines)]
@@ -538,7 +545,8 @@ impl DesktopShell {
                 self.notifications.prune(self.clock.instant);
                 Task::none()
             }
-            Message::LayoutChange { .. }
+            Message::TooltipFadeElapsed
+            | Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
             | Message::PopUpReposition { .. }
             | Message::SetInputRegion { .. }

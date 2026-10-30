@@ -135,6 +135,16 @@
 
       runtimeLibraryPath = "${pkgs.lib.makeLibraryPath commonArgs.buildInputs}:${pkgs.addDriverRunpath.driverLink}/lib";
 
+      allocatorEnv = {
+        MALLOC_ARENA_MAX = "2";
+      };
+
+      allocatorWrapperFlags = pkgs.lib.concatStringsSep " " (
+        pkgs.lib.mapAttrsToList (
+          name: value: "--set-default ${name} ${pkgs.lib.escapeShellArg value}"
+        ) allocatorEnv
+      );
+
       sottomano = craneLib.buildPackage (
         shellArgs
         // {
@@ -142,6 +152,7 @@
           nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
           postInstall = ''
             wrapProgram $out/bin/sottomano \
+              ${allocatorWrapperFlags} \
               --prefix PATH : ${gsettingsRuntime.binPath} \
               --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps} \
               --prefix LD_LIBRARY_PATH : ${runtimeLibraryPath} \
@@ -243,11 +254,13 @@
           ++ [ pkgs.glib.bin ]
           ++ formatters
           ++ runtimeDeps;
-        env.LD_LIBRARY_PATH = runtimeLibraryPath;
-        env.WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
-        env.PHOSPHOR_SVG = "${phosphorCore}/assets";
-        env.SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
-        env.SHOWCASE_APP_ICONS = showcaseAppIcons;
+        env = allocatorEnv // {
+          LD_LIBRARY_PATH = runtimeLibraryPath;
+          WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
+          PHOSPHOR_SVG = "${phosphorCore}/assets";
+          SIMPLE_ICONS_SVG = "${simpleIcons}/icons";
+          SHOWCASE_APP_ICONS = showcaseAppIcons;
+        };
         shellHook = ''
           export XDG_DATA_DIRS="${gsettingsRuntime.schemaDir}:${soundThemeShare}''${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}"
           export GIO_EXTRA_MODULES="${gsettingsRuntime.gioModules}''${GIO_EXTRA_MODULES:+:$GIO_EXTRA_MODULES}"

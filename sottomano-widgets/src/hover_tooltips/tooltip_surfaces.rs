@@ -158,13 +158,13 @@ impl TooltipHost {
 
     pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
         if self.transition.is_leaving() && self.hide_due.take_if(|due| *due <= now).is_some() {
-            self.transition.hide(departing);
+            self.transition.hide(departing, now);
         }
     }
 
-    pub fn dismiss(&mut self, departing: Option<Departed>) {
+    pub fn dismiss(&mut self, departing: Option<Departed>, now: Instant) {
         if self.transition.current().is_some() {
-            self.transition.hide(departing);
+            self.transition.hide(departing, now);
         }
     }
 
@@ -181,6 +181,38 @@ impl TooltipHost {
             }),
             Task::done(input_regions(id, Vec::new())),
         ])
+    }
+
+    #[must_use]
+    pub fn is_hiding(&self) -> bool {
+        self.transition.hiding_since().is_some()
+    }
+
+    pub fn reconcile_surfaces(&mut self, now: Instant, fade: Duration) -> Task<SurfaceRequest> {
+        if self
+            .transition
+            .hiding_since()
+            .is_some_and(|since| now >= since + fade)
+        {
+            self.transition.reset();
+        }
+        let wanted_output = self
+            .transition
+            .placement()
+            .map(|placement| placement.output.clone());
+        let stale_surfaces: Vec<(String, Id)> = self
+            .surfaces
+            .iter()
+            .filter(|(output, _)| wanted_output.as_ref() != Some(*output))
+            .map(|(output, surface)| (output.clone(), *surface))
+            .collect();
+        let closes = stale_surfaces.into_iter().map(|(output, surface)| {
+            self.surfaces.remove(&output);
+            Task::done(SurfaceRequest::Close { surface })
+        });
+        let closes: Vec<Task<SurfaceRequest>> = closes.collect();
+        let open = wanted_output.map_or_else(Task::none, |output| self.open_surface(&output));
+        Task::batch(closes.into_iter().chain([open]))
     }
 
     pub fn forget(&mut self, surface: Id) {

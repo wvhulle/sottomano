@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -263,6 +265,52 @@ impl DesktopShell {
         ])
     }
 
+    pub fn reconcile_overlay_surfaces(&mut self) -> Task<Message> {
+        let tooltip_surfaces = self
+            .tooltip
+            .reconcile_surfaces(self.clock.instant, self.config.tooltips.popup_morph)
+            .map(Message::from);
+        Task::batch([
+            tooltip_surfaces,
+            self.reconcile_notification_toasts_surfaces(),
+        ])
+    }
+
+    fn reconcile_notification_toasts_surfaces(&mut self) -> Task<Message> {
+        let occupied_outputs: BTreeSet<String> = self
+            .notifications
+            .occupied_outputs()
+            .filter(|output| {
+                self.panels()
+                    .any(|(_, panel_output)| panel_output == *output)
+            })
+            .map(str::to_owned)
+            .collect();
+        let emptied_surfaces: Vec<Id> = self
+            .notification_toast_surfaces()
+            .filter(|(_, output)| !occupied_outputs.contains(*output))
+            .map(|(id, _)| id)
+            .collect();
+        let closes = emptied_surfaces.into_iter().map(|id| {
+            self.surfaces.remove(&id);
+            Task::done(Message::RemoveWindow(id))
+        });
+        let closes: Vec<Task<Message>> = closes.collect();
+        let missing_outputs: Vec<String> = occupied_outputs
+            .into_iter()
+            .filter(|output| {
+                !self
+                    .notification_toast_surfaces()
+                    .any(|(_, surface_output)| surface_output == output)
+            })
+            .collect();
+        let opens: Vec<Task<Message>> = missing_outputs
+            .iter()
+            .map(|output| self.open_notification_toasts_surface(output))
+            .collect();
+        Task::batch(closes.into_iter().chain(opens))
+    }
+
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
         let height = self.config.layout.panel.height as u32;
         let settings = backdrop_settings(output, position, height);
@@ -297,11 +345,7 @@ impl DesktopShell {
         {
             return Task::none();
         }
-        let mut opens = vec![
-            self.open_panel_and_reservations(output),
-            self.open_notification_toasts_surface(output),
-        ];
-        opens.push(self.tooltip.open_surface(output).map(Message::from));
+        let mut opens = vec![self.open_panel_and_reservations(output)];
         opens.extend(
             Position::BARS
                 .into_iter()

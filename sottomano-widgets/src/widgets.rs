@@ -44,6 +44,7 @@ pub mod pressable_text;
 pub mod refresh_dial;
 pub mod region_reporter;
 pub mod reveal;
+pub mod rounded_quads;
 pub mod shell_layer_appearance;
 pub mod simple_icons;
 pub mod slider_control;
