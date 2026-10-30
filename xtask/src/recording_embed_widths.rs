@@ -9,18 +9,18 @@ use std::{
 use image::ImageReader;
 
 const RECORDINGS_DIRECTORY: &str = "recordings";
+const PUBLISHED_RECORDINGS_URL: &str =
+    "https://codeberg.org/wvhulle/sottomano/raw/branch/recordings";
 const RECORDING_EXTENSION: &str = "webp";
 const RECORDING_PIXELS_PER_LOGICAL_PIXEL: u32 = 2;
 const WIDTH_ATTRIBUTE: &str = r#" width=""#;
 
 const README_DOCUMENT: &str = "README.md";
 const GUIDE_DIRECTORY: &str = "docs/guide";
-const GUIDE_RECORDINGS_PREFIX: &str = "../../";
 const MARKDOWN_EXTENSION: &str = "md";
 
 struct TourDocument {
     path: PathBuf,
-    recordings_prefix: &'static str,
 }
 
 fn tour_documents(workspace_root: &Path) -> io::Result<Vec<TourDocument>> {
@@ -38,15 +38,10 @@ fn tour_documents(workspace_root: &Path) -> io::Result<Vec<TourDocument>> {
         })
         .collect();
     guide_pages.sort();
-    Ok(once(TourDocument {
-        path: PathBuf::from(README_DOCUMENT),
-        recordings_prefix: "",
-    })
-    .chain(guide_pages.into_iter().map(|path| TourDocument {
-        path,
-        recordings_prefix: GUIDE_RECORDINGS_PREFIX,
-    }))
-    .collect())
+    Ok(once(PathBuf::from(README_DOCUMENT))
+        .chain(guide_pages)
+        .map(|path| TourDocument { path })
+        .collect())
 }
 
 struct RenderedRecording {
@@ -54,19 +49,19 @@ struct RenderedRecording {
     logical_width: u32,
 }
 
-impl TourDocument {
-    fn recording_source(&self, recording: &RenderedRecording) -> String {
+impl RenderedRecording {
+    fn recording_source(&self) -> String {
         format!(
-            r#"<img src="{}{RECORDINGS_DIRECTORY}/{}.{RECORDING_EXTENSION}""#,
-            self.recordings_prefix, recording.name
+            r#"<img src="{PUBLISHED_RECORDINGS_URL}/{}.{RECORDING_EXTENSION}""#,
+            self.name
         )
     }
 
-    fn embedding(&self, recording: &RenderedRecording) -> String {
+    fn embedding(&self) -> String {
         format!(
             r#"{}{WIDTH_ATTRIBUTE}{}""#,
-            self.recording_source(recording),
-            recording.logical_width
+            self.recording_source(),
+            self.logical_width
         )
     }
 }
@@ -137,17 +132,13 @@ pub fn update_recording_embeds(
     let unembedded: Vec<String> = recordings
         .iter()
         .filter(|recording| {
-            !documents.iter().any(|(document, markdown)| {
-                markdown.contains(&document.recording_source(recording))
-            })
+            !documents
+                .iter()
+                .any(|(_, markdown)| markdown.contains(&recording.recording_source()))
         })
         .flat_map(|recording| {
             documents.iter().map(move |(document, _)| {
-                format!(
-                    "{}: {}",
-                    document.path.display(),
-                    document.embedding(recording)
-                )
+                format!("{}: {}", document.path.display(), recording.embedding())
             })
         })
         .collect();
@@ -166,7 +157,7 @@ pub fn update_recording_embeds(
                 .fold(markdown.clone(), |resized, recording| {
                     with_logical_width(
                         &resized,
-                        &document.recording_source(recording),
+                        &recording.recording_source(),
                         recording.logical_width,
                     )
                 });
@@ -213,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn guide_pages_follow_the_readme_with_their_deeper_prefix() {
+    fn guide_pages_follow_the_readme() {
         let workspace = env::temp_dir().join(format!("sottomano-tour-{}", process::id()));
         fs::create_dir_all(workspace.join("docs/guide")).unwrap();
         fs::write(workspace.join("docs/guide/weather.md"), "").unwrap();
@@ -221,16 +212,16 @@ mod tests {
         fs::write(workspace.join("docs/guide/notes.txt"), "").unwrap();
         let documents = tour_documents(&workspace).unwrap();
         fs::remove_dir_all(&workspace).unwrap();
-        let listed: Vec<(PathBuf, &str)> = documents
+        let listed: Vec<PathBuf> = documents
             .into_iter()
-            .map(|document| (document.path, document.recordings_prefix))
+            .map(|document| document.path)
             .collect();
         assert_eq!(
             listed,
             [
-                (PathBuf::from("README.md"), ""),
-                (PathBuf::from("docs/guide/compute.md"), "../../"),
-                (PathBuf::from("docs/guide/weather.md"), "../../"),
+                PathBuf::from("README.md"),
+                PathBuf::from("docs/guide/compute.md"),
+                PathBuf::from("docs/guide/weather.md"),
             ]
         );
     }

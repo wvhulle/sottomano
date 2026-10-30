@@ -99,8 +99,9 @@ Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy and
 format) on pull requests and on `main`. It also checks pull request commits
 against Conventional Commits
 (locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
-checks pass on `main`, the `readme-recordings` pipeline re-renders the tour and
-opens a pull request when the recordings changed. The `config-docs` pipeline
+checks pass on `main`, the `readme-recordings` pipeline re-renders the tour,
+force-pushes it as the single commit of the orphan `recordings` branch and opens
+a pull request when the embed widths changed. The `config-docs` pipeline
 does the same for the full default config in `docs/configuration.md` when the
 config crate changes.
 
@@ -118,9 +119,11 @@ flowchart LR
 
   subgraph recordings_pipeline [".woodpecker/readme-recordings.yaml"]
     render_recordings["render-readme-recordings<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
+    push_orphan_recordings["push-recordings-orphan-branch<br>replace the single commit of recordings"]
     push_recordings_branch["push-readme-recordings-branch<br>force-push to Codeberg"]
     open_recordings_pull_request["open-readme-recordings-pr<br>open, update or close"]
-    render_recordings -->|"recordings/, resized embeds"| push_recordings_branch
+    render_recordings -->|"recordings/*.webp"| push_orphan_recordings
+    render_recordings -->|resized embeds| push_recordings_branch
     push_recordings_branch --> open_recordings_pull_request
   end
 
@@ -142,8 +145,7 @@ flowchart LR
   open_config_docs_pull_request -->|config-docs PR| main_branch
 ```
 
-The `readme-recordings` pipeline skips pushes that only touch `recordings/**`
-and its own commits. The `config-docs` pipeline only runs when
+The `readme-recordings` pipeline skips its own commits. The `config-docs` pipeline only runs when
 `sottomano-config/`, `xtask/` or `docs/configuration.md` change, and skips its
 own commits.
 
