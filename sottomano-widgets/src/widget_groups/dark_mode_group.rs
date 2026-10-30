@@ -41,7 +41,7 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::tooltip_source_delivery::Tooltip,
         weather_icons::WeatherIcon,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -88,9 +88,11 @@ pub enum DarkModeMessage {
     Expansion(ExpansionMessage),
 }
 
-impl DarkModeGroup {
-    pub const NAME: &str = "Dark mode";
+impl WidgetGroup for DarkModeGroup {
+    const TITLE: &'static str = "Dark mode";
+}
 
+impl DarkModeGroup {
     #[must_use]
     pub fn new(clock: Clock) -> Self {
         Self {
@@ -324,8 +326,7 @@ impl DarkModeGroup {
                 DarkModeMessage::OffsetSlider.with(edge),
             )
         };
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             DarkModeMessage::Expansion,
             [

@@ -33,7 +33,7 @@ use crate::{
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::{LabeledValue, ValueCell},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -92,9 +92,11 @@ pub enum ClaudeUsageMessage {
     Expansion(ExpansionMessage),
 }
 
-impl ClaudeUsageGroup {
-    pub const NAME: &str = "Claude usage";
+impl WidgetGroup for ClaudeUsageGroup {
+    const TITLE: &'static str = "Claude usage";
+}
 
+impl ClaudeUsageGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -287,8 +289,7 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ClaudeUsageMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             ClaudeUsageMessage::Expansion,
             [

@@ -37,7 +37,7 @@ use crate::{
             Section,
             tooltip_source_delivery::{SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -100,9 +100,11 @@ pub struct EthernetPortsGroup {
     sessions: BTreeMap<String, PortSession>,
 }
 
-impl EthernetPortsGroup {
-    pub const NAME: &str = "Ethernet";
+impl WidgetGroup for EthernetPortsGroup {
+    const TITLE: &'static str = "Ethernet";
+}
 
+impl EthernetPortsGroup {
     pub fn collapse(&mut self) {
         self.sessions.values_mut().for_each(|session| {
             session.expansion.collapse();
@@ -342,8 +344,7 @@ impl EthernetPortsGroup {
             )
         });
         let port_name = port_state.name.clone();
-        Some(GroupContent::new(
-            Self::NAME,
+        Some(Self::expandable_group(
             &session.expansion,
             move |expansion| EthernetPortsMessage::Expansion {
                 port_name: port_name.clone(),

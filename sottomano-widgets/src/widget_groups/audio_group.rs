@@ -23,7 +23,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -119,9 +119,11 @@ impl Default for AudioGroup {
     }
 }
 
-impl AudioGroup {
-    pub const NAME: &str = "Audio";
+impl WidgetGroup for AudioGroup {
+    const TITLE: &'static str = "Audio";
+}
 
+impl AudioGroup {
     #[must_use]
     pub fn window_audio(&self) -> Option<&HashMap<i32, WindowAudio>> {
         self.state.get().map(|state| state.windows.as_ref())
@@ -296,8 +298,7 @@ impl AudioGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, AudioMessage> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             AudioMessage::Expansion,
             [

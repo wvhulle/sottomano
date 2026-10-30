@@ -21,7 +21,9 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace},
+        widget_group::{
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+        },
     },
 };
 
@@ -41,9 +43,11 @@ pub enum QuickLaunchMessage {
     Launch(String),
 }
 
-impl QuickLaunch {
-    pub const NAME: &str = "Quick launch";
+impl WidgetGroup for QuickLaunch {
+    const TITLE: &'static str = "Quick launch";
+}
 
+impl QuickLaunch {
     pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
         self.desktop_entries = Some(entries);
     }
@@ -94,8 +98,7 @@ impl QuickLaunch {
         config: &'a Config,
     ) -> GroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             QuickLaunchMessage::Expansion,
             app_ids

@@ -32,7 +32,7 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -68,9 +68,11 @@ pub enum MonitorMessage {
     AutoBrightness(ToggleMessage<AutoBrightness>),
 }
 
-impl MonitorGroup {
-    pub const NAME: &str = "Monitor";
+impl WidgetGroup for MonitorGroup {
+    const TITLE: &'static str = "Monitor";
+}
 
+impl MonitorGroup {
     pub fn subscription(buses: &DesktopBuses) -> Subscription<MonitorMessage> {
         Subscription::batch([
             snapshot_subscription::<Vec<Backlight>>(buses.clone()).map(MonitorMessage::Backlights),
@@ -228,8 +230,7 @@ impl MonitorGroup {
             })
             .previewed_on_handle()
         });
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             MonitorMessage::Expansion,
             backlight_items.chain(

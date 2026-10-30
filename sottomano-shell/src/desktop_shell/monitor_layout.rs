@@ -25,13 +25,13 @@ fn anchor_tooltips_on_surface(
         Message::Tooltip(TooltipMessage::EnterAnchor {
             target,
             anchor,
-            press_hints,
+            announcement,
         }) => Message::Tooltip(TooltipMessage::Enter {
             surface,
             position,
             target,
             anchor: anchor + origin_in_overlay,
-            press_hints,
+            announcement,
         }),
         unanchored => unanchored,
     })

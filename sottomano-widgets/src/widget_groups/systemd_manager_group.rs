@@ -35,7 +35,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -124,9 +124,11 @@ pub enum SystemdManagerMessage {
     Expansion(ExpansionMessage),
 }
 
-impl SystemdManagerGroup {
-    pub const NAME: &str = "Systemd";
+impl WidgetGroup for SystemdManagerGroup {
+    const TITLE: &'static str = "Systemd";
+}
 
+impl SystemdManagerGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -233,8 +235,7 @@ impl SystemdManagerGroup {
         clock: Clock,
     ) -> GroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [

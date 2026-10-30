@@ -32,7 +32,7 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -77,9 +77,11 @@ pub enum VpnMessage {
     OpenTailscale,
 }
 
-impl VpnGroup {
-    pub const NAME: &str = "VPN";
+impl WidgetGroup for VpnGroup {
+    const TITLE: &'static str = "VPN";
+}
 
+impl VpnGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -254,8 +256,7 @@ impl VpnGroup {
             .is_none()
             .then(|| self.previewed_tunnel_interface())
             .flatten();
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             VpnMessage::Expansion,
             vpn_connections

@@ -52,17 +52,22 @@ impl DesktopShell {
                     .group_contents()
                     .map(|group| group.map(Message::Gpu)),
             )
-            .chain([
+            .chain(
                 self.storage_space_group
-                    .group_content()
-                    .map(Message::Storage),
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::Storage)),
+            )
+            .chain(
                 self.physical_drive_group
-                    .group_content()
-                    .map(Message::Drive),
-                self.net_interfaces_group
-                    .group_content(self.clock)
-                    .map(Message::NetInterfaces),
-            ])
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::Drive)),
+            )
+            .chain([self
+                .net_interfaces_group
+                .group_content(self.clock)
+                .map(Message::NetInterfaces)])
             .chain(
                 self.ethernet_ports_group
                     .group_contents()

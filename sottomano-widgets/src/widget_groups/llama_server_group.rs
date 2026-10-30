@@ -25,7 +25,7 @@ use crate::{
         toggle_control::SwitchPresses,
         tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::UnitSwitchFace,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -92,9 +92,11 @@ pub enum LlamaServerMessage {
     Expansion(ExpansionMessage),
 }
 
-impl LlamaServerGroup {
-    pub const NAME: &str = "Llama server";
+impl WidgetGroup for LlamaServerGroup {
+    const TITLE: &'static str = "Llama server";
+}
 
+impl LlamaServerGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -220,8 +222,7 @@ impl LlamaServerGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, LlamaServerMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             LlamaServerMessage::Expansion,
             self.user

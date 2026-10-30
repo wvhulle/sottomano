@@ -35,7 +35,7 @@ use crate::{
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -74,9 +74,11 @@ pub enum PowerMessage {
     Expansion(ExpansionMessage),
 }
 
-impl PowerGroup {
-    pub const NAME: &str = "Power";
+impl WidgetGroup for PowerGroup {
+    const TITLE: &'static str = "Power";
+}
 
+impl PowerGroup {
     pub fn collapse(&mut self) {
         if self.expansion.collapse() {
             self.power_profile.close();
@@ -229,8 +231,7 @@ impl PowerGroup {
                         PowerProfileMessage::SwitchToProfile(profile),
                     ),
                 });
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             PowerMessage::Expansion,
             [

@@ -31,7 +31,7 @@ use crate::{
             ReadingSections, Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -142,9 +142,11 @@ pub enum GpuMessage {
     Expansion(PciBusId, ExpansionMessage),
 }
 
-impl GpuGroup {
-    pub const NAME: &str = "GPU";
+impl WidgetGroup for GpuGroup {
+    const TITLE: &'static str = "GPU";
+}
 
+impl GpuGroup {
     pub fn collapse(&mut self) {
         for device in self.devices.values_mut() {
             device.expansion.collapse();
@@ -321,8 +323,7 @@ impl GpuGroup {
                         .power_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
                 ];
-                GroupContent::new(
-                    Self::NAME,
+                Self::expandable_group(
                     &device.expansion,
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),

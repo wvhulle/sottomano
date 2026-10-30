@@ -15,7 +15,8 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        GroupHandle, HoverTarget, PressHints, hoverable, tooltip_content::TOOLTIP_COLUMN_GAP_PX,
+        GroupHandle, HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable,
+        tooltip_content::TOOLTIP_COLUMN_GAP_PX,
     },
     widgets::{
         aligned_quantity::AlignedQuantity,
@@ -31,7 +32,7 @@ use crate::{
 
 pub struct GroupDrawer<'a, M> {
     drawer: GroupHandle,
-    group_name: &'static str,
+    group_title: &'static str,
     glyph: Glyph,
     members: Vec<GroupContent<'a, M>>,
 }
@@ -39,13 +40,13 @@ pub struct GroupDrawer<'a, M> {
 impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
     pub fn new(
         drawer: GroupHandle,
-        group_name: &'static str,
+        group_title: &'static str,
         glyph: impl Into<Glyph>,
         members: impl IntoIterator<Item = GroupContent<'a, M>>,
     ) -> Self {
         Self {
             drawer,
-            group_name,
+            group_title,
             glyph: glyph.into(),
             members: members.into_iter().collect(),
         }
@@ -76,13 +77,10 @@ impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
             .map(|member| member.highest_alert_severity(clock))
             .max()
             .unwrap_or_default();
-        let handle = hoverable(
+        let handle = announcing_hoverable(
             self.glyph.view(config.theme.font.icon_size_px, text_color),
-            HoverTarget::GroupHandle {
-                handle: self.drawer,
-                group_name: self.group_name,
-            },
-            PressHints::default(),
+            HoverTarget::GroupHandle(self.drawer),
+            HoverAnnouncement::from_group_handle(self.group_title, PressHints::default()),
             GroupEvent::Tooltip,
         );
         let indicator = EdgeIndicator {
@@ -138,7 +136,7 @@ fn sheet_view<'a, M: Clone + 'a>(
         .into_iter()
         .map(|cells| {
             (
-                drawer_column_header(config, cells.face, cells.group_name),
+                drawer_column_header(config, cells.face, cells.group_title),
                 MemberRemainder {
                     aligned: cells.aligned,
                     unaligned: cells.unaligned.into_iter(),
@@ -208,9 +206,9 @@ fn aligned_quantity_rows(
 fn drawer_column_header<'a, M: 'a>(
     config: &Config,
     face: Element<'a, M>,
-    group_name: &'static str,
+    group_title: &'static str,
 ) -> Element<'a, M> {
-    Row::with_children([face, column_heading(&config.theme.font, group_name).into()])
+    Row::with_children([face, column_heading(&config.theme.font, group_title).into()])
         .spacing(config.layout.panel.widget_spacing)
         .align_y(Alignment::Center)
         .into()

@@ -10,7 +10,7 @@ use iced::{
     },
 };
 
-use crate::hover_tooltips::{HoverTarget, PressHints, TooltipMessage};
+use crate::hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, TooltipMessage};
 
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
@@ -18,10 +18,24 @@ pub fn hoverable<'a, M: 'a>(
     press_hints: PressHints,
     wrap: impl Fn(TooltipMessage) -> M + 'a,
 ) -> Element<'a, M> {
+    announcing_hoverable(
+        content,
+        target,
+        HoverAnnouncement::from_reading(press_hints),
+        wrap,
+    )
+}
+
+pub fn announcing_hoverable<'a, M: 'a>(
+    content: Element<'a, M>,
+    target: HoverTarget,
+    announcement: HoverAnnouncement,
+    wrap: impl Fn(TooltipMessage) -> M + 'a,
+) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
         target,
-        press_hints,
+        announcement,
         wrap: Box::new(wrap),
     })
 }
@@ -29,23 +43,23 @@ pub fn hoverable<'a, M: 'a>(
 struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
-    press_hints: PressHints,
+    announcement: HoverAnnouncement,
     wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
 }
 
 #[derive(Default)]
 struct HoverState {
     hovered: bool,
-    announced: PressHints,
+    announced: HoverAnnouncement,
 }
 
 impl<M> HoverArea<'_, M> {
     fn enter(&self, state: &mut HoverState, anchor: Rectangle) -> M {
-        state.announced = self.press_hints;
+        state.announced = self.announcement;
         (self.wrap)(TooltipMessage::EnterAnchor {
             target: self.target.clone(),
             anchor,
-            press_hints: self.press_hints,
+            announcement: self.announcement,
         })
     }
 
@@ -55,14 +69,14 @@ impl<M> HoverArea<'_, M> {
         })
     }
 
-    fn revised_hints(&self, state: &mut HoverState) -> Option<M> {
-        if !state.hovered || state.announced == self.press_hints {
+    fn revised_announcement(&self, state: &mut HoverState) -> Option<M> {
+        if !state.hovered || state.announced == self.announcement {
             return None;
         }
-        state.announced = self.press_hints;
-        Some((self.wrap)(TooltipMessage::PressHintsChanged {
+        state.announced = self.announcement;
+        Some((self.wrap)(TooltipMessage::AnnouncementChanged {
             target: self.target.clone(),
-            press_hints: self.press_hints,
+            announcement: self.announcement,
         }))
     }
 
@@ -159,7 +173,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverArea<'_, M> {
         let hovered = cursor.is_over(anchor);
         let published = self
             .on_hover_change(state, hovered, anchor)
-            .or_else(|| self.revised_hints(state));
+            .or_else(|| self.revised_announcement(state));
         if let Some(message) = published {
             shell.publish(message);
         }

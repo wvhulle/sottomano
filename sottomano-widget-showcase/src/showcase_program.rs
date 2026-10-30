@@ -166,7 +166,7 @@ impl ShowcaseState {
             ShowcaseMessage::Tooltip(TooltipMessage::EnterAnchor {
                 target,
                 anchor,
-                press_hints,
+                announcement,
             }) => {
                 let due = self.clock.instant + HOVER_FETCH_LATENCY;
                 self.pending_hover_replies = self
@@ -176,7 +176,7 @@ impl ShowcaseState {
                     .map(|reply| PendingHoverReply { due, reply })
                     .collect();
                 let panel_edge = self.panel_edge();
-                self.tooltip.open(&panel_edge, target, anchor, press_hints);
+                self.tooltip.open(&panel_edge, target, anchor, announcement);
                 Task::none()
             }
             ShowcaseMessage::Tooltip(message) => {

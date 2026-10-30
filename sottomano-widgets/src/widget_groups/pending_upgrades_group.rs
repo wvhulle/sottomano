@@ -23,7 +23,7 @@ use crate::{
         phosphor::Phosphor,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -53,9 +53,11 @@ pub enum PendingUpgradesMessage {
     Expansion(ExpansionMessage),
 }
 
-impl PendingUpgradesGroup {
-    pub const NAME: &str = "Pending upgrades";
+impl WidgetGroup for PendingUpgradesGroup {
+    const TITLE: &'static str = "Pending upgrades";
+}
 
+impl PendingUpgradesGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -95,8 +97,7 @@ impl PendingUpgradesGroup {
         config: &'a Config,
     ) -> GroupContent<'a, PendingUpgradesMessage> {
         let has_categories = self.categories().iter().any(Option::is_some);
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             PendingUpgradesMessage::Expansion,
             [

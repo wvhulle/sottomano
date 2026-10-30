@@ -24,7 +24,7 @@ use crate::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{GroupContent, GroupEvent},
+        widget_group::{GroupContent, GroupEvent, WidgetGroup},
         widget_state::{StateTint, WidgetState},
     },
 };
@@ -117,9 +117,11 @@ pub enum Action {
     Performed(Task<SessionMessage>),
 }
 
-impl SessionMenu {
-    pub const NAME: &str = "Session";
+impl WidgetGroup for SessionMenu {
+    const TITLE: &'static str = "Session";
+}
 
+impl SessionMenu {
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
             blocking("logind permissions", logind_action_permissions::read),
@@ -186,24 +188,21 @@ impl SessionMenu {
     #[must_use]
     pub fn group_content<'a>(&self, config: &'a Config) -> GroupContent<'a, SessionMessage> {
         let glyph = Glyph::from(Phosphor::Power(Weight::Regular));
-        GroupContent::single(
-            Self::NAME,
-            (!self.permissions.allowed.is_empty()).then(|| {
-                GroupItem::element(move |reveal| {
-                    hoverable(
-                        glyph.view(config.theme.font.icon_size_px, {
-                            let tint = StateTint {
-                                state: WidgetState::Idle,
-                                opacity: reveal,
-                            };
-                            move |theme| tint.color(theme)
-                        }),
-                        SessionTarget::Menu.into(),
-                        PressHints::default(),
-                        GroupEvent::Tooltip,
-                    )
-                })
-            }),
-        )
+        Self::fixed_group((!self.permissions.allowed.is_empty()).then(|| {
+            GroupItem::element(move |reveal| {
+                hoverable(
+                    glyph.view(config.theme.font.icon_size_px, {
+                        let tint = StateTint {
+                            state: WidgetState::Idle,
+                            opacity: reveal,
+                        };
+                        move |theme| tint.color(theme)
+                    }),
+                    SessionTarget::Menu.into(),
+                    PressHints::default(),
+                    GroupEvent::Tooltip,
+                )
+            })
+        }))
     }
 }

@@ -54,7 +54,7 @@ use crate::{
             Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -170,9 +170,11 @@ fn niri_control_toggle(driving_niri: bool) -> IconToggle {
     )
 }
 
-impl GamepadGroup {
-    pub const NAME: &str = "Gamepads";
+impl WidgetGroup for GamepadGroup {
+    const TITLE: &'static str = "Gamepads";
+}
 
+impl GamepadGroup {
     pub fn collapse(&mut self) {
         for session in self.sessions.values_mut() {
             session.expansion.collapse();
@@ -620,8 +622,7 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => item,
             }
         });
-        Some(GroupContent::new(
-            Self::NAME,
+        Some(Self::expandable_group(
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [

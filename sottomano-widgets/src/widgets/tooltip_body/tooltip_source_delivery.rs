@@ -5,7 +5,7 @@ use sottomano_sources::{
 };
 
 use super::{Heading, Section, TooltipBody};
-use crate::{clock::Clock, hover_tooltips::PressHints};
+use crate::{clock::Clock, hover_tooltips::HoverAnnouncement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionsDeliveryState {
@@ -152,7 +152,7 @@ impl DeliveryTiming {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tooltip {
     pub groups: Vec<SourcedSections>,
-    pub press_hints: PressHints,
+    pub announcement: HoverAnnouncement,
 }
 
 impl Tooltip {
@@ -164,7 +164,7 @@ impl Tooltip {
     pub fn grouped(groups: impl IntoIterator<Item = SourcedSections>) -> Self {
         Self {
             groups: groups.into_iter().collect(),
-            press_hints: PressHints::default(),
+            announcement: HoverAnnouncement::default(),
         }
     }
 
@@ -184,8 +184,8 @@ impl Tooltip {
     }
 
     #[must_use]
-    pub fn with_press_hints(mut self, press_hints: PressHints) -> Self {
-        self.press_hints = press_hints;
+    pub fn with_announcement(mut self, announcement: HoverAnnouncement) -> Self {
+        self.announcement = announcement;
         self
     }
 

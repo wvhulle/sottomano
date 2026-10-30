@@ -38,7 +38,7 @@ use crate::{
         group_item::GroupItem,
         ongoing_toast::OngoingToastActionButton,
         tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -76,9 +76,11 @@ pub enum SessionFocusMessage {
     Expansion(ExpansionMessage),
 }
 
-impl SessionFocusGroup {
-    pub const NAME: &str = "Focus session";
+impl WidgetGroup for SessionFocusGroup {
+    const TITLE: &'static str = "Focus session";
+}
 
+impl SessionFocusGroup {
     #[must_use]
     pub fn started_at(config: &FocusTimeConfig, now: DateTime<Utc>) -> Self {
         let tracker = FocusTracker::started_at(now);
@@ -266,8 +268,7 @@ impl SessionFocusGroup {
             self.context_switch_rate(config),
             SessionFocusTarget::ContextSwitches,
         );
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             SessionFocusMessage::Expansion,
             [session, breaks, focus_run, totals, switches],

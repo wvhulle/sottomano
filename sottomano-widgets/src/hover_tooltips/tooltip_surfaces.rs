@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverTarget, PopupMessage, PressHints, TooltipMessage,
+        HoverAnnouncement, HoverTarget, PopupMessage, TooltipMessage,
         tooltip_content::TooltipContent,
         tooltip_transition::{Departed, DepartedContent, Occupant, Placement, TooltipTransition},
     },
@@ -34,7 +34,7 @@ pub struct PendingSwitch {
     pub parent: PanelEdge,
     pub target: HoverTarget,
     pub anchor: Rectangle,
-    pub press_hints: PressHints,
+    pub announcement: HoverAnnouncement,
     _intent_timer: task::Handle,
 }
 
@@ -57,11 +57,11 @@ impl TooltipHost {
                 None
             }
             TooltipMessage::ExitTooltip => Some(self.leave_after_grace(now)),
-            TooltipMessage::PressHintsChanged {
+            TooltipMessage::AnnouncementChanged {
                 target,
-                press_hints,
+                announcement,
             } => {
-                self.transition.revise_press_hints(&target, press_hints);
+                self.transition.revise_announcement(&target, announcement);
                 None
             }
             TooltipMessage::Enter { .. }
@@ -80,7 +80,7 @@ impl TooltipHost {
         parent: &PanelEdge,
         target: &HoverTarget,
         anchor: Rectangle,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     ) -> Option<Task<TooltipMessage>> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
@@ -94,7 +94,7 @@ impl TooltipHost {
             parent: parent.clone(),
             target: target.clone(),
             anchor,
-            press_hints,
+            announcement,
             _intent_timer: handle.abort_on_drop(),
         });
         Some(intent_elapsed)
@@ -109,7 +109,7 @@ impl TooltipHost {
         parent: &PanelEdge,
         target: HoverTarget,
         anchor: Rectangle,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     ) {
         self.pending_switch = None;
         self.transition.cancel_leave();
@@ -122,7 +122,7 @@ impl TooltipHost {
         }
         self.transition.show(Occupant {
             target,
-            press_hints,
+            announcement,
             placement: Placement {
                 anchor,
                 position: parent.position,
@@ -256,7 +256,7 @@ impl TooltipHost {
     #[must_use]
     pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
         let current = self.transition.current()?;
-        let departed_content = match content.with_press_hints(current.press_hints) {
+        let departed_content = match content.with_announcement(current.announcement) {
             HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
             HoverContent::Interactive { .. } => DepartedContent::Interactive,
         };
@@ -318,7 +318,7 @@ impl TooltipHost {
         }
         if let Some(current) = self.transition.current() {
             renderings.push(Rendering::incoming(hoverable_content(render(
-                content_of(&current.target).with_press_hints(current.press_hints),
+                content_of(&current.target).with_announcement(current.announcement),
             ))));
         }
         Some(
@@ -346,22 +346,22 @@ pub enum HoverContent<'a, Message> {
 
 impl<Message> HoverContent<'_, Message> {
     #[must_use]
-    pub fn with_press_hints(self, press_hints: PressHints) -> Self {
+    pub fn with_announcement(self, announcement: HoverAnnouncement) -> Self {
         match self {
             HoverContent::Described(tooltip) => {
-                HoverContent::Described(tooltip.with_press_hints(press_hints))
+                HoverContent::Described(tooltip.with_announcement(announcement))
             }
             HoverContent::Interactive { described, panel } => HoverContent::Interactive {
-                described: described.with_press_hints(press_hints),
+                described: described.with_announcement(announcement),
                 panel,
             },
         }
     }
 
     #[must_use]
-    pub fn shows_anything(&self, press_hints: PressHints) -> bool {
+    pub fn shows_anything(&self, announcement: HoverAnnouncement) -> bool {
         match self {
-            HoverContent::Described(tooltip) => !tooltip.is_empty() || !press_hints.is_empty(),
+            HoverContent::Described(tooltip) => !tooltip.is_empty() || !announcement.is_empty(),
             HoverContent::Interactive { .. } => true,
         }
     }

@@ -1,10 +1,12 @@
 mod filesystem_usage_gauge;
 
-use std::{cmp::Reverse, collections::BTreeMap, path::PathBuf};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
-use filesystem_usage_gauge::SpaceSeverity;
+use chrono::Locale;
 use iced::{Subscription, Task};
-use sottomano_config::severity::Severity;
 use sottomano_sources::{
     SnapshotDelivery,
     disk_storage::{
@@ -22,20 +24,23 @@ use crate::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
         latest_snapshot::LatestSnapshot,
-        named_reading::NamedReading,
+        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_state::WidgetState,
     },
 };
-
-const ROOT_MOUNT_POINT: &str = "/";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageTarget {
     MountDiscovery,
     Usage(PathBuf),
+    MountPoint {
+        filesystem: PathBuf,
+        mount_point: PathBuf,
+    },
 }
 
 impl From<disk_storage::Error> for Section {
@@ -56,7 +61,7 @@ impl BarWidget for BlockFilesystemDiscovery {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Database(Weight::Regular).into()
+        Phosphor::Folders(Weight::Regular).into()
     }
 
     fn visible_in_bar(&self) -> bool {
@@ -73,51 +78,85 @@ impl BarWidget for BlockFilesystemDiscovery {
     }
 }
 
+struct MountPointLabel<'a> {
+    mount: &'a FilesystemMount,
+    usage: &'a FilesystemUsage,
+    mount_point: &'a Path,
+}
+
+impl BarWidget for MountPointLabel<'_> {
+    fn name(&self) -> &'static str {
+        "Mount point"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::FolderSimple(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some(self.mount_point.display().to_string())
+    }
+
+    fn state(&self, clock: Clock) -> WidgetState {
+        self.usage.state(clock)
+    }
+
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        let sharing_mount_points = self
+            .mount
+            .mount_points
+            .iter()
+            .filter(|other| other.as_path() != self.mount_point)
+            .map(|other| other.display().to_string())
+            .collect::<Vec<_>>();
+        let sharing_entry = (!sharing_mount_points.is_empty())
+            .then(|| LabeledValue::new("Shares space with", sharing_mount_points.join("  ")));
+        TooltipBody::dictionary(
+            [
+                LabeledValue::new("Mount point", self.mount_point.display().to_string()),
+                LabeledValue::new("Filesystem", self.mount.fs_type.clone()),
+                LabeledValue::new("Free", Quantity::size(self.usage.free)),
+            ]
+            .into_iter()
+            .chain(sharing_entry),
+        )
+    }
+}
+
 struct MountedFilesystem {
     mount: FilesystemMount,
     usage: LatestSnapshot<FilesystemUsage>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-struct SpacePressure {
-    severity: Severity,
-    used_pct: i64,
-}
-
-impl MountedFilesystem {
-    fn space_pressure(&self) -> SpacePressure {
-        self.usage.get().map_or(
-            SpacePressure {
-                severity: Severity::Normal,
-                used_pct: 0,
-            },
-            |usage| SpacePressure {
-                severity: usage.space_severity(),
-                used_pct: usage.used_pct(),
-            },
-        )
-    }
+    expansion: GroupExpansion,
 }
 
 #[derive(Default)]
 pub struct StorageSpaceGroup {
     discovery: LatestSnapshot<BlockFilesystemDiscovery>,
     filesystems: BTreeMap<PathBuf, MountedFilesystem>,
-    expansion: GroupExpansion,
+    discovery_expansion: GroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum StorageMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     Usage(PathBuf, Box<SnapshotDelivery<FilesystemUsage>>),
-    Expansion(ExpansionMessage),
+    DiscoveryExpansion(ExpansionMessage),
+    MountExpansion {
+        mount_point: PathBuf,
+        expansion: ExpansionMessage,
+    },
+}
+
+impl WidgetGroup for StorageSpaceGroup {
+    const TITLE: &'static str = "Filesystem";
 }
 
 impl StorageSpaceGroup {
-    pub const NAME: &str = "Storage";
-
     pub fn collapse(&mut self) {
-        self.expansion.collapse();
+        self.discovery_expansion.collapse();
+        self.filesystems.values_mut().for_each(|filesystem| {
+            filesystem.expansion.collapse();
+        });
     }
 
     pub fn subscription(&self) -> Subscription<StorageMessage> {
@@ -139,15 +178,21 @@ impl StorageSpaceGroup {
     pub fn refresh(&self, target: &StorageTarget) -> Task<StorageMessage> {
         let discover =
             || first_delivery::<BlockFilesystemDiscovery>(()).map(StorageMessage::Discovered);
-        let StorageTarget::Usage(mount_point) = target else {
+        let primary_mount_point = match target {
+            StorageTarget::MountDiscovery => return discover(),
+            StorageTarget::Usage(primary_mount_point)
+            | StorageTarget::MountPoint {
+                filesystem: primary_mount_point,
+                ..
+            } => primary_mount_point,
+        };
+        let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
             return discover();
         };
-        let Some(filesystem) = self.filesystems.get(mount_point) else {
-            return discover();
-        };
-        let mount_point = mount_point.clone();
-        first_delivery::<FilesystemUsage>(filesystem.mount.clone())
-            .map(move |reading| StorageMessage::Usage(mount_point.clone(), Box::new(reading)))
+        let primary_mount_point = primary_mount_point.clone();
+        first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |reading| {
+            StorageMessage::Usage(primary_mount_point.clone(), Box::new(reading))
+        })
     }
 
     pub fn update(&mut self, msg: StorageMessage, clock: Clock) -> Task<StorageMessage> {
@@ -160,15 +205,15 @@ impl StorageSpaceGroup {
                         .iter()
                         .map(|mount| {
                             let mount_point = mount.primary_mount_point().to_path_buf();
-                            let usage = self
-                                .filesystems
-                                .remove(&mount_point)
-                                .filter(|known| &known.mount == mount)
-                                .map(|known| known.usage)
-                                .unwrap_or_default();
-                            let filesystem = MountedFilesystem {
-                                mount: mount.clone(),
-                                usage,
+                            let filesystem = match self.filesystems.remove(&mount_point) {
+                                Some(known) if &known.mount == mount => known,
+                                known => MountedFilesystem {
+                                    mount: mount.clone(),
+                                    usage: LatestSnapshot::default(),
+                                    expansion: known
+                                        .map(|known| known.expansion)
+                                        .unwrap_or_default(),
+                                },
                             };
                             (mount_point, filesystem)
                         })
@@ -180,47 +225,68 @@ impl StorageSpaceGroup {
                     filesystem.usage.receive(*reading, clock);
                 }
             }
-            StorageMessage::Expansion(m) => {
-                self.expansion.update(m);
+            StorageMessage::DiscoveryExpansion(expansion) => {
+                self.discovery_expansion.update(expansion);
+            }
+            StorageMessage::MountExpansion {
+                mount_point,
+                expansion,
+            } => {
+                if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
+                    filesystem.expansion.update(expansion);
+                }
             }
         }
         Task::none()
     }
 
-    fn filesystems_most_pressing_first(&self) -> Vec<&MountedFilesystem> {
-        let mut ordered: Vec<&MountedFilesystem> = self.filesystems.values().collect();
-        ordered.sort_by_key(|filesystem| Reverse(filesystem.space_pressure()));
-        ordered
+    fn mount_group(filesystem: &MountedFilesystem) -> GroupContent<'_, StorageMessage> {
+        let primary_mount_point = filesystem.mount.primary_mount_point();
+        let mount_point_items = filesystem.usage.get().into_iter().flat_map(move |usage| {
+            filesystem
+                .mount
+                .mount_points
+                .iter()
+                .map(move |mount_point| {
+                    GroupItem::reading(
+                        MountPointLabel {
+                            mount: &filesystem.mount,
+                            usage,
+                            mount_point,
+                        },
+                        StorageTarget::MountPoint {
+                            filesystem: primary_mount_point.to_path_buf(),
+                            mount_point: mount_point.clone(),
+                        },
+                    )
+                })
+        });
+        let owned_mount_point = primary_mount_point.to_path_buf();
+        Self::expandable_group(
+            &filesystem.expansion,
+            move |expansion| StorageMessage::MountExpansion {
+                mount_point: owned_mount_point.clone(),
+                expansion,
+            },
+            filesystem
+                .usage
+                .group_item(StorageTarget::Usage(primary_mount_point.to_path_buf()))
+                .into_iter()
+                .chain(mount_point_items),
+        )
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, StorageMessage> {
-        let names_mount_points = self.filesystems.len() > 1;
-        let usage_items = self
-            .filesystems_most_pressing_first()
+    #[must_use]
+    pub fn group_contents(&self) -> Vec<GroupContent<'_, StorageMessage>> {
+        let discovery_group = Self::expandable_group(
+            &self.discovery_expansion,
+            StorageMessage::DiscoveryExpansion,
+            self.discovery.group_item(StorageTarget::MountDiscovery),
+        );
+        [discovery_group]
             .into_iter()
-            .filter_map(move |filesystem| {
-                let mount_point = filesystem.mount.primary_mount_point();
-                let target = StorageTarget::Usage(mount_point.to_path_buf());
-                match filesystem.usage.get() {
-                    Some(usage) if names_mount_points => Some(GroupItem::reading(
-                        NamedReading {
-                            reading: usage,
-                            shown_name: mount_point.to_str().unwrap_or(ROOT_MOUNT_POINT),
-                        },
-                        target,
-                    )),
-                    _ => filesystem.usage.group_item(target),
-                }
-            });
-        GroupContent::new(
-            Self::NAME,
-            &self.expansion,
-            StorageMessage::Expansion,
-            self.discovery
-                .group_item(StorageTarget::MountDiscovery)
-                .into_iter()
-                .chain(usage_items),
-        )
+            .chain(self.filesystems.values().map(Self::mount_group))
+            .collect()
     }
 
     #[must_use]
@@ -229,6 +295,26 @@ impl StorageSpaceGroup {
             StorageTarget::MountDiscovery => self.discovery.tooltip(clock),
             StorageTarget::Usage(mount_point) => {
                 self.filesystems.get(mount_point)?.usage.tooltip(clock)
+            }
+            StorageTarget::MountPoint {
+                filesystem,
+                mount_point,
+            } => {
+                let filesystem = self.filesystems.get(filesystem)?;
+                let usage = filesystem.usage.get()?;
+                let mount_point = filesystem
+                    .mount
+                    .mount_points
+                    .iter()
+                    .find(|known| *known == mount_point)?;
+                filesystem.usage.tooltip_with(
+                    MountPointLabel {
+                        mount: &filesystem.mount,
+                        usage,
+                        mount_point,
+                    }
+                    .tooltip(clock),
+                )
             }
         }
     }

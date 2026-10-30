@@ -23,7 +23,7 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -57,9 +57,11 @@ pub enum MemoryBoardMessage {
     Expansion(ExpansionMessage),
 }
 
-impl MemoryBoardGroup {
-    pub const NAME: &str = "Memory";
+impl WidgetGroup for MemoryBoardGroup {
+    const TITLE: &'static str = "Memory";
+}
 
+impl MemoryBoardGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -115,8 +117,7 @@ impl MemoryBoardGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, MemoryBoardMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             MemoryBoardMessage::Expansion,
             [

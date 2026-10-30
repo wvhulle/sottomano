@@ -5,6 +5,7 @@ pub mod disk_io_activity;
 pub mod drive_temperature_health;
 pub mod filesystem_device_errors;
 pub mod mounted_filesystem_usage;
+pub mod whole_disk_space_occupancy;
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 

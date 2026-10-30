@@ -27,7 +27,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -157,9 +157,11 @@ fn lifted_to_player<'a>(
     element.map(move |event| event.map(|message| player_message(bus, message)))
 }
 
-impl MediaGroup {
-    pub const NAME: &str = "Media";
+impl WidgetGroup for MediaGroup {
+    const TITLE: &'static str = "Media";
+}
 
+impl MediaGroup {
     pub fn collapse(&mut self) {
         for session in self.sessions.values_mut() {
             session.expansion.collapse();
@@ -407,8 +409,7 @@ fn player_group<'a>(
             lifted_to_player(bus, session_controls(config, media, session, reveal).into())
         })
     });
-    GroupContent::new(
-        MediaGroup::NAME,
+    MediaGroup::expandable_group(
         &session.expansion,
         move |expansion| player_message(bus, PlayerMessage::Expansion(expansion)),
         [

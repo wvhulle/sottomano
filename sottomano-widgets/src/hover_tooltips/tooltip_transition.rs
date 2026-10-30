@@ -2,7 +2,7 @@ use iced::{Rectangle, time::Instant};
 use sottomano_config::screen_edges::Position;
 
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints},
+    hover_tooltips::{HoverAnnouncement, HoverTarget},
     widgets::tooltip_body::tooltip_source_delivery::Tooltip,
 };
 
@@ -15,7 +15,7 @@ pub struct Placement {
 
 pub struct Occupant {
     pub target: HoverTarget,
-    pub press_hints: PressHints,
+    pub announcement: HoverAnnouncement,
     pub placement: Placement,
 }
 
@@ -115,11 +115,11 @@ impl TooltipTransition {
         matches!(self.stage, Stage::Showing { leaving: true, .. })
     }
 
-    pub fn revise_press_hints(&mut self, target: &HoverTarget, press_hints: PressHints) {
+    pub fn revise_announcement(&mut self, target: &HoverTarget, announcement: HoverAnnouncement) {
         if let Stage::Showing { current, .. } = &mut self.stage
             && current.target == *target
         {
-            current.press_hints = press_hints;
+            current.announcement = announcement;
         }
     }
 

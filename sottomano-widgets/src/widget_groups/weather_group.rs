@@ -31,7 +31,7 @@ use crate::{
         group_item::GroupItem,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -82,9 +82,11 @@ pub enum WeatherMessage {
     Expansion(ExpansionMessage),
 }
 
-impl WeatherGroup {
-    pub const NAME: &str = "Weather";
+impl WidgetGroup for WeatherGroup {
+    const TITLE: &'static str = "Weather";
+}
 
+impl WeatherGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -223,8 +225,7 @@ impl WeatherGroup {
                 )
             })
         });
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             WeatherMessage::Expansion,
             [

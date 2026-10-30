@@ -26,7 +26,7 @@ use crate::{
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -65,9 +65,11 @@ pub enum ColorTemperatureMessage {
     Auto(UnitSwitchMessage),
 }
 
-impl ColorTemperatureGroup {
-    pub const NAME: &str = "Color temperature";
+impl WidgetGroup for ColorTemperatureGroup {
+    const TITLE: &'static str = "Color temperature";
+}
 
+impl ColorTemperatureGroup {
     #[must_use]
     pub fn new(unit: String) -> Self {
         Self {
@@ -225,8 +227,7 @@ impl ColorTemperatureGroup {
         config: &'a Config,
     ) -> GroupContent<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             ColorTemperatureMessage::Expansion,
             [

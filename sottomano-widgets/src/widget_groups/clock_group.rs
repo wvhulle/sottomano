@@ -17,7 +17,7 @@ use crate::{
     widgets::{
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
     },
 };
 
@@ -52,9 +52,11 @@ pub enum ClockMessage {
     Expansion(ExpansionMessage),
 }
 
-impl ClockGroup {
-    pub const NAME: &str = "Clock";
+impl WidgetGroup for ClockGroup {
+    const TITLE: &'static str = "Clock";
+}
 
+impl ClockGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -127,8 +129,7 @@ impl ClockGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, ClockMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             ClockMessage::Expansion,
             [

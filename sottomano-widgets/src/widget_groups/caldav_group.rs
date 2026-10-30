@@ -26,7 +26,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -62,9 +62,11 @@ pub enum CaldavMessage {
     Expansion(ExpansionMessage),
 }
 
-impl CaldavGroup {
-    pub const NAME: &str = "Calendar";
+impl WidgetGroup for CaldavGroup {
+    const TITLE: &'static str = "Calendar";
+}
 
+impl CaldavGroup {
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -141,8 +143,7 @@ impl CaldavGroup {
     }
 
     pub fn group_content(&self) -> GroupContent<'_, CaldavMessage> {
-        GroupContent::new(
-            Self::NAME,
+        Self::expandable_group(
             &self.expansion,
             CaldavMessage::Expansion,
             [

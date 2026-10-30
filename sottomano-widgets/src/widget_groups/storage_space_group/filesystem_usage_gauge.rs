@@ -117,7 +117,7 @@ impl BarWidget for FilesystemUsage {
     }
 
     fn icon(&self) -> Glyph {
-        Phosphor::Database(Weight::Regular).into()
+        Phosphor::Folders(Weight::Regular).into()
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {

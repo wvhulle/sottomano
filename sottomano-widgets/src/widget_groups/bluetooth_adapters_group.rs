@@ -34,7 +34,7 @@ use crate::{
         input_report_sections::MeasuredReportTiming,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
         widget_state::WidgetState,
     },
 };
@@ -90,9 +90,11 @@ async fn logged_bus_call(action: &'static str, bus_call: impl Future<Output = zb
     }
 }
 
-impl BluetoothAdaptersGroup {
-    pub const NAME: &str = "Bluetooth";
+impl WidgetGroup for BluetoothAdaptersGroup {
+    const TITLE: &'static str = "Bluetooth";
+}
 
+impl BluetoothAdaptersGroup {
     pub fn collapse(&mut self) {
         self.sessions.values_mut().for_each(|session| {
             session.expansion.collapse();
@@ -304,8 +306,7 @@ impl BluetoothAdaptersGroup {
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
-        Some(GroupContent::new(
-            Self::NAME,
+        Some(Self::expandable_group(
             &session.expansion,
             move |expansion| BluetoothMessage::Expansion {
                 controller_name: controller_name.clone(),
