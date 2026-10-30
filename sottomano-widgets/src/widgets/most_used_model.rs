@@ -1,5 +1,5 @@
 use chrono::Locale;
-use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sottomano_sources::ai_usage_spend::{
     model_spend_ranking::{ModelRanking, ModelSpend},
     spend_money::{Money, usd},
@@ -74,11 +74,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                     .filter(|spend| !listed.contains(&spend.model.as_str()))
                     .map(|spend| *spend.cost.amount())
                     .sum());
-                if unlisted.is_positive() {
-                    ValueCell::from(Quantity::spend(unlisted))
-                } else {
-                    ValueCell::Blank
-                }
+                ValueCell::from(Quantity::spend(unlisted))
             }),
         );
         TooltipBody::sections([Section::column_table(
@@ -90,9 +86,12 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                     TableRecord::new(
                         *model,
                         self.narrowest_to_widest.map(|span| {
-                            span.models
-                                .cost_of(model)
-                                .map_or(ValueCell::Blank, |cost| Quantity::spend(cost).into())
+                            Quantity::spend(
+                                span.models
+                                    .cost_of(model)
+                                    .unwrap_or_else(|| usd(Decimal::ZERO)),
+                            )
+                            .into()
                         }),
                     )
                 })

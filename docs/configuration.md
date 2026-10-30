@@ -132,6 +132,7 @@ monthly_budget_usd = 40
 [widget_groups.openrouter_credit]
 monthly_budget_usd = 20
 daily_warning_usd = 5
+max_blended_usd_per_million = 4.0
 
 [widget_groups.focus_time]
 idle_detection_delay = "30s"
