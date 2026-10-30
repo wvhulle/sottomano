@@ -2,8 +2,6 @@ when:
   - repo: wvhulle/sottomano
     event: [push, manual]
     branch: main
-    path:
-      exclude: ["recordings/**"]
     evaluate: 'not (CI_COMMIT_MESSAGE contains "update README recordings")'
 
 depends_on:
@@ -27,6 +25,20 @@ steps:
       - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#readme-recordings
       - cp -r --no-preserve=mode result/. .
       - nix develop --command cargo xtask update-recording-embeds
+
+  - name: push-recordings-orphan-branch
+    image: alpine/git
+    environment:
+      CODEBERG_TOKEN:
+        from_secret: codeberg_token
+    commands:
+      - cd recordings
+      - git init --quiet --initial-branch recordings
+      - git add --all
+      - git -c user.name=sottomano-ci -c user.email=willemvanhulle@protonmail.com commit --quiet --message "docs: README recordings of $${CI_COMMIT_SHA}"
+      - git remote add origin "https://wvhulle:$${CODEBERG_TOKEN}@codeberg.org/$${CI_REPO}.git"
+      - published_tree=$(git fetch --quiet --depth 1 origin recordings && git rev-parse 'FETCH_HEAD^{tree}' || true)
+      - if [ "$published_tree" = "$(git rev-parse 'HEAD^{tree}')" ]; then echo "recordings unchanged"; else git push --force origin recordings; fi
 
   - name: push-readme-recordings-branch
     image: appleboy/drone-git-push

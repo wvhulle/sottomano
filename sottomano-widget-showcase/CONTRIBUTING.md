@@ -6,8 +6,8 @@ root `CONTRIBUTING.md`; this file covers what only applies here.
 
 ## Tour recordings
 
-The tour recordings in the root `recordings/` are rendered offscreen by this
-crate (`nix build .#readme-recordings` renders them all the way CI does). Each
+The tour recordings are rendered offscreen by this crate into the untracked
+root `recordings/` (`nix build .#readme-recordings` renders them all the way CI does). Each
 entry of `DEMOS` in `src/demo_script.rs` shows one widget, is named
 `<group>_<widget>` and sits under its heading on a page of `docs/guide/`,
 unless the README shows it. The name is also the demo's iced `Preset`, which boots its
@@ -53,9 +53,11 @@ which switches between presets and records interactions as `.ice` scenarios.
 Scenarios saved in `tests/ice/` run with `cargo test` (and so in CI); `expect`
 sees plain text widgets, not rich text such as toast bodies.
 
-Each recording appears either in the root `README.md` (a few highlights, as
-`<img src="recordings/<name>.webp" width="<w>">`) or on a page of `docs/guide/`
-(the rest, as `<img src="../../recordings/<name>.webp" width="<w>">`). `<w>` is the recording's cropped
+The recordings are not part of `main`: CI publishes them as the single commit of
+the orphan `recordings` branch, so the history of `main` stays free of media.
+Each recording appears either in the root `README.md` (a few highlights) or on
+a page of `docs/guide/` (the rest), as
+`<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/<name>.webp" width="<w>">`. `<w>` is the recording's cropped
 width in logical pixels, so all demos show at the same scale. After rendering,
 `cargo xtask update-recording-embeds` rewrites `<w>` from the files in
 `recordings/`; it fails with the expected tag only when a recording is embedded
