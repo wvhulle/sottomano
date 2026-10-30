@@ -7,7 +7,7 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     clock::Clock,
     widgets::{
-        amount_text::{percent_text, spend_text},
+        amount_text::spend_text,
         bar_widget::{BarWidget, Glyph},
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
@@ -103,16 +103,15 @@ impl BarWidget for OpenRouterModelRankings {
 
 impl From<&ScoredModel> for TableRecord<6> {
     fn from(scored: &ScoredModel) -> Self {
-        let analysis_page = scored.analysis_page();
         TableRecord::new(
             ValueCell::Link {
                 label: scored.model.clone(),
                 url: scored.openrouter_page(),
             },
             [
-                benchmark_cell(scored.benchmarks.terminal_bench_v4, &analysis_page),
-                benchmark_cell(scored.benchmarks.terminal_bench_v2, &analysis_page),
-                benchmark_cell(scored.benchmarks.scicode, &analysis_page),
+                benchmark_cell(scored.benchmarks.terminal_bench_v4),
+                benchmark_cell(scored.benchmarks.terminal_bench_v2),
+                benchmark_cell(scored.benchmarks.scicode),
                 Quantity::spend(scored.input_per_million).into(),
                 Quantity::spend(scored.output_per_million).into(),
                 Quantity::compact_count(scored.context_tokens).into(),
@@ -121,9 +120,8 @@ impl From<&ScoredModel> for TableRecord<6> {
     }
 }
 
-fn benchmark_cell(score: Option<f64>, analysis_page: &str) -> ValueCell {
-    score.map_or(ValueCell::Blank, |score| ValueCell::Link {
-        label: percent_text(Ratio::new::<ratio>(score)),
-        url: analysis_page.to_owned(),
+fn benchmark_cell(score: Option<f64>) -> ValueCell {
+    score.map_or(ValueCell::Blank, |score| {
+        Quantity::share(Ratio::new::<ratio>(score)).into()
     })
 }
