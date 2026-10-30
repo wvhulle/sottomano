@@ -65,6 +65,7 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::DarkModeGroup,
         disk_group::DiskGroup,
+        ethernet_ports_group::EthernetPortsGroup,
         gamepad_group::{self, GamepadGroup, GamepadMessage},
         gpu_group::GpuGroup,
         idle_timeouts_group::{IdleTimeoutsGroup, IdleTimeoutsMessage},
@@ -142,6 +143,7 @@ pub struct DesktopShell {
     pub reachability_group: ReachabilityGroup,
     pub vpn_group: VpnGroup,
     pub net_interfaces_group: NetInterfacesGroup,
+    pub ethernet_ports_group: EthernetPortsGroup,
     pub bluetooth_adapters_group: BluetoothAdaptersGroup,
     pub monitor_group: MonitorGroup,
     pub color_temperature_group: ColorTemperatureGroup,
@@ -213,6 +215,7 @@ impl DesktopShell {
             reachability_group: ReachabilityGroup::default(),
             vpn_group: VpnGroup::default(),
             net_interfaces_group: NetInterfacesGroup::default(),
+            ethernet_ports_group: EthernetPortsGroup::default(),
             bluetooth_adapters_group: BluetoothAdaptersGroup::default(),
             monitor_group: MonitorGroup::default(),
             color_temperature_group: ColorTemperatureGroup::new(
@@ -413,6 +416,10 @@ impl DesktopShell {
                 .net_interfaces_group
                 .update(msg, self.clock)
                 .map(Message::NetInterfaces),
+            Message::EthernetPorts(msg) => self
+                .ethernet_ports_group
+                .update(msg, self.clock)
+                .map(Message::EthernetPorts),
             Message::BluetoothAdapters(msg) => self
                 .bluetooth_adapters_group
                 .update(msg, self.clock)
@@ -845,6 +852,7 @@ impl DesktopShell {
         self.reachability_group.collapse();
         self.vpn_group.collapse();
         self.net_interfaces_group.collapse();
+        self.ethernet_ports_group.collapse();
         self.bluetooth_adapters_group.collapse();
         self.window_group.collapse();
         self.tray_group.collapse();
