@@ -35,7 +35,7 @@ recordings are in [docs/development.md](docs/development.md).
 - Widget state lives in its widget and routes through its group's `Action` —
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
-- `README.md` holds the pitch, a short tour linking to `docs/showcase.md` and
+- `README.md` holds the pitch, a short tour linking to `docs/guide/` and
   pointers into `docs/`. Installation, configuration, development and the full
   tour live in `docs/`. No user instructions beyond those: the UX should be
   intuitive. Where help or explanation is needed, keep it next to the widget in

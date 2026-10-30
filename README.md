@@ -51,8 +51,9 @@ When the sending window is visible, the toast sits in its top corner.
 
 <img src="recordings/toast_window_anchored.webp" width="688" alt="A build toast placed in the corner of the terminal that sent it">
 
-The other groups are in [docs/showcase.md](docs/showcase.md). The recordings
-use fixtures, so the numbers are made up.
+The other groups, and every look side by side, are in the
+[guide](docs/guide/README.md). The recordings use fixtures, so the numbers are
+made up.
 
 ## Built on
 

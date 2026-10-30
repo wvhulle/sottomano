@@ -40,11 +40,9 @@ impl DesktopShell {
                 sidebar_column::vertical_view(
                     snapshot,
                     output,
-                    config,
-                    &self.drag_view(),
                     self.configured_workspaces.as_ref(),
                     frame_style.drawn_corners(outlined_sides),
-                    self.clock,
+                    self.bar_slot_context(Position::Left),
                 )
             })
             .map(|workspaces| {

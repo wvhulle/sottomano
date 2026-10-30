@@ -6835,6 +6835,7 @@ dependencies = [
  "iced",
  "iced_controller_diagram",
  "iced_exwlshell",
+ "iced_test",
  "icu_decimal",
  "icu_experimental",
  "icu_locale_core",

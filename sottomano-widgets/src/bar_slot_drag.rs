@@ -1,4 +1,9 @@
-use crate::widgets::pointer_drag::{self, DragEvent, DragView, DraggedBarSlot, ForeignHover};
+use sottomano_config::{Config, screen_edges::Position};
+
+use crate::{
+    clock::Clock,
+    widgets::pointer_drag::{self, DragEvent, DragView, DraggedBarSlot, ForeignHover},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum SlotClick {
@@ -9,6 +14,14 @@ pub enum SlotClick {
 
 pub type SlotPress = pointer_drag::SlotPress<SlotClick>;
 pub type SlotDragEvent = DragEvent<SlotClick>;
+
+#[derive(Clone, Copy)]
+pub struct BarSlotContext<'a> {
+    pub config: &'a Config,
+    pub edge: Position,
+    pub drag: DragView,
+    pub clock: Clock,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum DragMessage {
@@ -31,3 +44,6 @@ impl DragView {
             && self.hovers(DraggedBarSlot::Workspace(workspace)).is_some()
     }
 }
+
+#[cfg(test)]
+pub(crate) mod pager_drag_simulation;

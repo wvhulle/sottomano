@@ -1,102 +1,62 @@
-use iced::{
-    Alignment, Element, Length,
-    border::Radius,
-    widget::{Column, column, container, row},
-};
-use sottomano_config::{Config, screen_edges::Position};
+use iced::{Alignment, Element, border::Radius, widget::Column};
+use sottomano_config::screen_edges::Position;
 use sottomano_sources::desktop_windows_apps::{
     niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
 };
 
 use super::{
-    WorkspacesMessage, dragged,
-    inline_strip::inline_label,
-    order_restore,
-    workspace_slot::{drop_tint, edge_line, hit_area, indicated, slot_tone, window_markers},
+    WorkspacesMessage, dragged, order_restore,
+    workspace_slot::{
+        WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
+    },
 };
 use crate::{
-    clock::Clock,
+    bar_slot_drag::BarSlotContext,
     widgets::{
         list_end_corners::ListEndCorners,
-        pointer_drag::{
-            BarSlotList, DragView, DraggedBarSlot, draggable_slot::draggable_slot_list,
-            keyed_slot_list::keyed_slot_list,
-        },
+        pointer_drag::{BarSlotList, slot_pager::slot_pager},
     },
 };
 
 pub fn vertical_view<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
-    config: &Config,
-    drag: &DragView,
     configured: Option<&ConfiguredWorkspaces>,
     frame_corners: Radius,
-    clock: Clock,
+    slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
+    let slot_context = BarSlotContext {
+        edge: Position::Left,
+        ..slot_context
+    };
+    let BarSlotContext { config, drag, .. } = slot_context;
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
         return None;
     }
-    let order = drag.previewed(workspaces, |p| DraggedBarSlot::Workspace(p.id));
+    let order = drag.previewed(workspaces, workspace_slot_key);
     let end_corners = ListEndCorners::new(order.len(), frame_corners);
-    let rows = order.iter().enumerate().map(|(position, p)| {
-        let row = sidebar_row(
-            config,
-            niri,
-            p,
-            drag,
-            end_corners.radius_at(position),
-            clock,
-        );
-        (
-            DraggedBarSlot::Workspace(p.id),
-            hit_area(p, position, row, drag),
-        )
-    });
-    let list = keyed_slot_list(rows, Position::Left, config)
+    let rows = order
+        .iter()
+        .enumerate()
+        .map(|(position_in_bar, workspace)| {
+            let workspace_slot = WorkspaceSlot::new(workspace, niri, position_in_bar, slot_context);
+            (
+                workspace_slot.key(),
+                workspace_slot.sidebar_view(end_corners.radius_at(position_in_bar)),
+            )
+        });
+    let pager = slot_pager(rows, Position::Left, config)
         .spacing(config.layout.panel.widget_spacing)
-        .into();
-    let draggable = draggable_slot_list(
-        indicated(list, &order, config, Position::Left, frame_corners),
-        BarSlotList::Workspaces,
-        drag,
-        dragged,
-    );
+        .highlight(active_workspace_key(&order), active_highlight_color(&order))
+        .frame_corners(frame_corners)
+        .draggable(BarSlotList::Workspaces, &drag, dragged);
     Some(
         Column::new()
             .extend(order_restore(configured, workspaces, output, config))
-            .push(draggable)
+            .push(pager)
             .spacing(config.layout.panel.widget_spacing)
             .align_x(Alignment::Center)
             .into(),
     )
-}
-
-pub(super) fn sidebar_row<'a>(
-    config: &Config,
-    niri: &niri_window_snapshot::Snapshot,
-    p: &niri_window_snapshot::WorkspaceIndicator,
-    drag: &DragView,
-    highlight_radius: Radius,
-    clock: Clock,
-) -> Element<'a, WorkspacesMessage> {
-    let tone = slot_tone(p, drag);
-    let label_over_markers = column![
-        inline_label(config, p, tone),
-        window_markers(config, niri, p.id, Position::Bottom, drag, tone).view()
-    ]
-    .width(Length::Shrink)
-    .align_x(Alignment::Center);
-    let label_with_edge = row![
-        label_over_markers,
-        edge_line(config, p, Position::Left, tone, drag, clock)
-    ]
-    .spacing(config.layout.panel.widget_spacing)
-    .height(config.layout.panel.height)
-    .align_y(Alignment::Center);
-    container(label_with_edge)
-        .align_right(Length::Fill)
-        .style(drop_tint(p, drag, highlight_radius))
-        .into()
 }

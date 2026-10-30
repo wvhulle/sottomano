@@ -1,6 +1,7 @@
 use std::{
     error::Error,
     fs, io,
+    iter::once,
     path::{Path, PathBuf},
     process::ExitCode,
 };
@@ -12,21 +13,41 @@ const RECORDING_EXTENSION: &str = "webp";
 const RECORDING_PIXELS_PER_LOGICAL_PIXEL: u32 = 2;
 const WIDTH_ATTRIBUTE: &str = r#" width=""#;
 
+const README_DOCUMENT: &str = "README.md";
+const GUIDE_DIRECTORY: &str = "docs/guide";
+const GUIDE_RECORDINGS_PREFIX: &str = "../../";
+const MARKDOWN_EXTENSION: &str = "md";
+
 struct TourDocument {
-    path: &'static str,
+    path: PathBuf,
     recordings_prefix: &'static str,
 }
 
-const TOUR_DOCUMENTS: &[TourDocument] = &[
-    TourDocument {
-        path: "README.md",
+fn tour_documents(workspace_root: &Path) -> io::Result<Vec<TourDocument>> {
+    let mut guide_pages: Vec<PathBuf> = fs::read_dir(workspace_root.join(GUIDE_DIRECTORY))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == MARKDOWN_EXTENSION)
+        })
+        .filter_map(|path| {
+            path.strip_prefix(workspace_root)
+                .ok()
+                .map(Path::to_path_buf)
+        })
+        .collect();
+    guide_pages.sort();
+    Ok(once(TourDocument {
+        path: PathBuf::from(README_DOCUMENT),
         recordings_prefix: "",
-    },
-    TourDocument {
-        path: "docs/showcase.md",
-        recordings_prefix: "../",
-    },
-];
+    })
+    .chain(guide_pages.into_iter().map(|path| TourDocument {
+        path,
+        recordings_prefix: GUIDE_RECORDINGS_PREFIX,
+    }))
+    .collect())
+}
 
 struct RenderedRecording {
     name: String,
@@ -103,12 +124,13 @@ pub fn update_recording_embeds(
     check: bool,
 ) -> Result<ExitCode, Box<dyn Error>> {
     let recordings = rendered_recordings(workspace_root)?;
-    let documents: Vec<(&TourDocument, String)> = TOUR_DOCUMENTS
+    let tour = tour_documents(workspace_root)?;
+    let documents: Vec<(&TourDocument, String)> = tour
         .iter()
         .map(|document| {
             Ok((
                 document,
-                fs::read_to_string(workspace_root.join(document.path))?,
+                fs::read_to_string(workspace_root.join(&document.path))?,
             ))
         })
         .collect::<Result<_, io::Error>>()?;
@@ -121,7 +143,11 @@ pub fn update_recording_embeds(
         })
         .flat_map(|recording| {
             documents.iter().map(move |(document, _)| {
-                format!("{}: {}", document.path, document.embedding(recording))
+                format!(
+                    "{}: {}",
+                    document.path.display(),
+                    document.embedding(recording)
+                )
             })
         })
         .collect();
@@ -156,23 +182,25 @@ pub fn update_recording_embeds(
             eprintln!(
                 "{} embeds recordings at outdated widths; run `cargo xtask \
                  update-recording-embeds`",
-                document.path
+                document.path.display()
             );
         });
         return Ok(ExitCode::FAILURE);
     }
     stale_documents.iter().try_for_each(|(document, resized)| {
-        fs::write(workspace_root.join(document.path), resized)
+        fs::write(workspace_root.join(&document.path), resized)
     })?;
-    stale_documents
-        .iter()
-        .for_each(|(document, _)| println!("updated recording widths in {}", document.path));
+    stale_documents.iter().for_each(|(document, _)| {
+        println!("updated recording widths in {}", document.path.display());
+    });
     Ok(ExitCode::SUCCESS)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::with_logical_width;
+    use std::{env, fs, path::PathBuf, process};
+
+    use super::{tour_documents, with_logical_width};
 
     #[test]
     fn rewrites_only_the_width_of_the_named_recording() {
@@ -181,6 +209,29 @@ mod tests {
         assert_eq!(
             with_logical_width(markdown, r#"<img src="recordings/a.webp""#, 42),
             r#"<img src="recordings/a.webp" width="42"> <img src="recordings/b.webp" width="20">"#
+        );
+    }
+
+    #[test]
+    fn guide_pages_follow_the_readme_with_their_deeper_prefix() {
+        let workspace = env::temp_dir().join(format!("sottomano-tour-{}", process::id()));
+        fs::create_dir_all(workspace.join("docs/guide")).unwrap();
+        fs::write(workspace.join("docs/guide/weather.md"), "").unwrap();
+        fs::write(workspace.join("docs/guide/compute.md"), "").unwrap();
+        fs::write(workspace.join("docs/guide/notes.txt"), "").unwrap();
+        let documents = tour_documents(&workspace).unwrap();
+        fs::remove_dir_all(&workspace).unwrap();
+        let listed: Vec<(PathBuf, &str)> = documents
+            .into_iter()
+            .map(|document| (document.path, document.recordings_prefix))
+            .collect();
+        assert_eq!(
+            listed,
+            [
+                (PathBuf::from("README.md"), ""),
+                (PathBuf::from("docs/guide/compute.md"), "../../"),
+                (PathBuf::from("docs/guide/weather.md"), "../../"),
+            ]
         );
     }
 }

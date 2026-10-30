@@ -2,10 +2,11 @@ use std::mem;
 
 use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
+use sottomano_config::screen_edges::Position;
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_widgets::{
     background_work::niri_action,
-    bar_slot_drag::{DragMessage, SlotClick},
+    bar_slot_drag::{BarSlotContext, DragMessage, SlotClick},
     widget_groups::sidebar_settings_group::WorkspacesPlacement,
     widgets::{
         panel_frame::LayerFrameStyle,
@@ -46,6 +47,16 @@ impl DesktopShell {
             &self.pointer_drag,
             LayerFrameStyle::new(&ghost_layer, &self.config),
         )
+    }
+
+    #[must_use]
+    pub fn bar_slot_context(&self, edge: Position) -> BarSlotContext<'_> {
+        BarSlotContext {
+            config: &self.config,
+            edge,
+            drag: self.drag_view(),
+            clock: self.clock,
+        }
     }
 
     #[must_use]

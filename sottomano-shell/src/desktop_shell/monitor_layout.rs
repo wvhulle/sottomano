@@ -66,12 +66,13 @@ impl DesktopShell {
     }
 
     fn drag_ghost_layer<'a>(&'a self, window: Id, output: &'a str) -> Option<Element<'a, Message>> {
-        let view = self.drag_view();
+        let slot_context = self.bar_slot_context(Position::Bottom);
+        let view = slot_context.drag;
         let drag = view.drag.filter(|drag| drag.surface == window)?;
         let snapshot = &self.niri_snapshot;
         let card = match drag.item {
             DraggedBarSlot::Workspace(workspace) => {
-                workspaces_group::drag_ghost(snapshot, output, workspace, &self.config, &view)?
+                workspaces_group::drag_ghost(snapshot, output, workspace, slot_context)?
                     .map(Message::from)
             }
             DraggedBarSlot::Window { window, .. } => self
@@ -83,8 +84,7 @@ impl DesktopShell {
                     self.window_assets(),
                     self.widget_groups.audio_group.window_audio(),
                     window,
-                    &self.config,
-                    &view,
+                    slot_context,
                 )?
                 .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
         };

@@ -3,7 +3,7 @@ use iced::{
     widget::{MouseArea, mouse_area},
 };
 
-use crate::widgets::pointer_drag::{BarSlotList, DragEvent, DragView, SlotPress};
+use crate::widgets::pointer_drag::{DragEvent, DragView, SlotPress};
 
 pub fn draggable_slot<'a, Message: Clone + 'a, Click: Copy>(
     content: impl Into<Element<'a, Message>>,
@@ -26,19 +26,5 @@ pub fn draggable_slot<'a, Message: Clone + 'a, Click: Copy>(
         }))
     } else {
         area
-    }
-}
-
-pub fn draggable_slot_list<'a, Message: Clone + 'a, Click>(
-    slots: impl Into<Element<'a, Message>>,
-    list: BarSlotList,
-    drag: &DragView,
-    on_drag: impl Fn(DragEvent<Click>) -> Message,
-) -> Element<'a, Message> {
-    let area = mouse_area(slots);
-    if drag.is_active() {
-        area.on_exit(on_drag(DragEvent::LeftList(list))).into()
-    } else {
-        area.into()
     }
 }

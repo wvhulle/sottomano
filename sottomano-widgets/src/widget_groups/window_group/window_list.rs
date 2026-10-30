@@ -4,7 +4,7 @@ use iced::{
     Alignment, Element, Subscription, Task, border,
     widget::{Row, container, progress_bar, right, stack, text},
 };
-use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
+use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
@@ -21,7 +21,7 @@ use sottomano_sources::{
 };
 
 use crate::{
-    bar_slot_drag::{DragMessage, SlotClick, SlotDragEvent, SlotPress},
+    bar_slot_drag::{BarSlotContext, DragMessage, SlotClick, SlotDragEvent, SlotPress},
     clock::Clock,
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
     widget_groups::window_group::{WindowTarget, process_tree::Folding},
@@ -32,15 +32,12 @@ use crate::{
         configured_theme::{
             background_color, background_strong_color, danger_color, primary_color, warning_color,
         },
-        focus_indicator::focus_indicator,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         pager_slot::PagerSlot,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            BarSlotList, DragView, DraggedBarSlot,
-            draggable_slot::{draggable_slot, draggable_slot_list},
-            keyed_slot_list::keyed_slot_list,
+            BarSlotList, DraggedBarSlot, draggable_slot::draggable_slot, slot_pager::slot_pager,
         },
         text::FontFaces,
         tooltip_body::{Section, tooltip_source_delivery::SourcedSections},
@@ -220,17 +217,17 @@ impl WindowList {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
         niri: &niri_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
-        config: &Config,
-        position: Position,
-        drag: &DragView,
+        slot_context: BarSlotContext<'_>,
     ) -> Option<Element<'a, WindowListMessage>> {
+        let BarSlotContext {
+            config, edge, drag, ..
+        } = slot_context;
         let workspace = drag
             .window_source_workspace()
             .filter(|source| {
@@ -243,48 +240,53 @@ impl WindowList {
         if windows.is_empty() {
             return None;
         }
-        let dragged_item = |win: &niri_window_snapshot::WinEntry| DraggedBarSlot::Window {
-            window: win.id,
-            workspace,
-        };
-        let order = drag.previewed(windows, dragged_item);
-        let focused_index = order.iter().position(|win| win.is_focused);
-        let slots = order.iter().enumerate().map(|(position_in_bar, win)| {
-            let item = dragged_item(win);
-            let dimming = if drag.is_dragging(item) {
-                DISABLED_ALPHA
-            } else {
-                1.0
-            };
-            let opacity = self.metrics.item_opacity(self.scroll, position_in_bar) * dimming;
-            let slot = WindowSlot {
-                win,
-                item,
-                extras: self.extras(win, audio, config),
-                position_in_bar,
-                opacity,
-            };
-            (item, slot.view(config, icons, position, drag))
+        let order = drag.previewed(windows, |window_entry| {
+            window_slot_key(window_entry, workspace)
         });
-        let focus_opacity =
-            focused_index.map_or(1.0, |i| self.metrics.item_opacity(self.scroll, i));
-        let indicated = focus_indicator(
-            keyed_slot_list(slots, position, config),
-            focused_index,
-            move |theme| primary_color(theme).scale_alpha(focus_opacity),
-            config,
-        )
-        .edge(position);
+        let focused_position = order
+            .iter()
+            .position(|window_entry| window_entry.is_focused);
+        let slots = order
+            .iter()
+            .enumerate()
+            .map(|(position_in_bar, window_entry)| {
+                let item = window_slot_key(window_entry, workspace);
+                let dimming = if drag.is_dragging(item) {
+                    DISABLED_ALPHA
+                } else {
+                    1.0
+                };
+                let window_slot = WindowSlot {
+                    window_entry,
+                    item,
+                    extras: self.extras(window_entry, audio, config),
+                    position_in_bar,
+                    opacity: self.metrics.item_opacity(self.scroll, position_in_bar) * dimming,
+                    slot_context,
+                };
+                (item, window_slot.view(icons))
+            });
+        let focus_opacity = focused_position.map_or(1.0, |focused_position| {
+            self.metrics.item_opacity(self.scroll, focused_position)
+        });
+        let focused_key = order
+            .iter()
+            .find(|window_entry| window_entry.is_focused)
+            .map(|window_entry| window_slot_key(window_entry, workspace));
+        let pager = slot_pager(slots, edge, config)
+            .highlight(focused_key, move |theme| {
+                primary_color(theme).scale_alpha(focus_opacity)
+            })
+            .draggable(BarSlotList::Windows, &drag, dragged);
         Some(window_list_viewport(
-            draggable_slot_list(indicated, BarSlotList::Windows, drag, dragged),
+            pager,
             self.scroll,
-            focused_index,
+            focused_position,
             WindowListMessage::Scrolled,
             WindowListMessage::MetricsChanged,
         ))
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[must_use]
     pub fn drag_ghost<'a>(
         &'a self,
@@ -292,25 +294,38 @@ impl WindowList {
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         window: u64,
-        config: &Config,
-        drag: &DragView,
+        slot_context: BarSlotContext<'_>,
     ) -> Option<Element<'a, WindowListMessage>> {
-        let win = niri
-            .windows_on_workspace(drag.window_source_workspace()?)
+        let BarSlotContext { config, drag, .. } = slot_context;
+        let workspace = drag.window_source_workspace()?;
+        let window_entry = niri
+            .windows_on_workspace(workspace)
             .iter()
-            .find(|win| win.id == window)?;
+            .find(|window_entry| window_entry.id == window)?;
+        let window_slot = WindowSlot {
+            window_entry,
+            item: window_slot_key(window_entry, workspace),
+            extras: self.extras(window_entry, audio, config),
+            position_in_bar: 0,
+            opacity: 1.0,
+            slot_context,
+        };
         if drag.has_left_its_list() {
-            let icon = resolved_icon(config, icons, win, 1.0)?;
             let inset = config.layout.overlay.content_inset;
             let circle = drag
                 .ghost_frame
                 .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
-            return Some(panel_frame(container(icon).padding(inset), circle).into());
+            return Some(
+                panel_frame(
+                    container(window_slot.resolved_icon(icons)?).padding(inset),
+                    circle,
+                )
+                .into(),
+            );
         }
-        let content = button_content(config, icons, win, self.extras(win, audio, config), 1.0);
         Some(
             panel_frame(
-                container(content)
+                container(window_slot.button_content(icons))
                     .padding([0.0, config.layout.panel.group_padding])
                     .center_y(config.layout.panel.height),
                 drag.ghost_frame,
@@ -321,33 +336,36 @@ impl WindowList {
 
     fn extras(
         &self,
-        win: &niri_window_snapshot::WinEntry,
+        window_entry: &niri_window_snapshot::WinEntry,
         audio: Option<&HashMap<i32, WindowAudio>>,
         config: &Config,
     ) -> Extras<'_> {
+        let app_id = window_entry.app_id.as_deref();
         Extras {
             audio: config
                 .widget_groups
                 .window_list
                 .audio_indicator
-                .then(|| win.pid.and_then(|pid| audio?.get(&pid)).copied())
+                .then(|| window_entry.pid.and_then(|pid| audio?.get(&pid)).copied())
                 .flatten(),
-            launcher: win.app_id.as_deref().and_then(|id| self.launcher.get(id)),
-            job: win.app_id.as_deref().and_then(|id| self.jobs.get(id)),
+            launcher: app_id.and_then(|app_id| self.launcher.get(app_id)),
+            job: app_id.and_then(|app_id| self.jobs.get(app_id)),
         }
+    }
+}
+
+fn window_slot_key(
+    window_entry: &niri_window_snapshot::WinEntry,
+    workspace: u64,
+) -> DraggedBarSlot {
+    DraggedBarSlot::Window {
+        window: window_entry.id,
+        workspace,
     }
 }
 
 fn dragged(event: SlotDragEvent) -> WindowListMessage {
     WindowListMessage::Drag(DragMessage::Pointer(event))
-}
-
-struct WindowSlot<'w, 'e> {
-    win: &'w niri_window_snapshot::WinEntry,
-    item: DraggedBarSlot,
-    extras: Extras<'e>,
-    position_in_bar: usize,
-    opacity: f32,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -381,261 +399,306 @@ impl Extras<'_> {
     }
 }
 
-impl WindowSlot<'_, '_> {
-    fn view<'a>(
-        self,
-        config: &Config,
-        icons: WindowAssets<'a>,
-        position: Position,
-        drag: &DragView,
-    ) -> Element<'a, WindowListMessage> {
-        let WindowSlot {
-            win,
-            item,
-            extras,
-            position_in_bar,
-            opacity,
-        } = self;
-        let maximize_toggles = win.is_focused && !win.layout.is_floating;
+struct WindowSlot<'s> {
+    window_entry: &'s niri_window_snapshot::WinEntry,
+    item: DraggedBarSlot,
+    extras: Extras<'s>,
+    position_in_bar: usize,
+    opacity: f32,
+    slot_context: BarSlotContext<'s>,
+}
+
+impl WindowSlot<'_> {
+    fn maximize_toggles(&self) -> bool {
+        self.window_entry.is_focused && !self.window_entry.layout.is_floating
+    }
+
+    fn audio_pid(&self) -> Option<i32> {
+        self.window_entry
+            .pid
+            .filter(|_| self.extras.audio.is_some())
+    }
+
+    fn press_hints(&self) -> PressHints {
+        PressHints {
+            left: Some(if self.maximize_toggles() {
+                "maximize or restore"
+            } else {
+                "focus the window"
+            }),
+            middle: self.audio_pid().map(|_| "mute or unmute its audio"),
+            ..PressHints::default()
+        }
+    }
+
+    fn view<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
         let press = SlotPress {
-            item,
-            position: position_in_bar,
-            click: if maximize_toggles {
+            item: self.item,
+            position: self.position_in_bar,
+            click: if self.maximize_toggles() {
                 SlotClick::MaximizeColumn
             } else {
-                SlotClick::FocusWindow(win.id)
+                SlotClick::FocusWindow(self.window_entry.id)
             },
         };
-        let tiled = win.layout.column.is_some() && !win.layout.is_floating;
+        let tiled =
+            self.window_entry.layout.column.is_some() && !self.window_entry.layout.is_floating;
         let pressable = draggable_slot(
-            window_slot_content(config, icons, win, extras, position, opacity),
+            self.pager_slot(icons),
             press,
             tiled,
-            drag,
+            &self.slot_context.drag,
             dragged,
         );
-        match win.pid.filter(|_| extras.audio.is_some()) {
+        match self.audio_pid() {
             Some(pid) => pressable
                 .on_middle_press(WindowListMessage::ToggleAudio(pid))
                 .into(),
             None => pressable.into(),
         }
     }
-}
 
-fn window_slot_content<'a>(
-    config: &Config,
-    icons: WindowAssets<'a>,
-    win: &niri_window_snapshot::WinEntry,
-    extras: Extras<'_>,
-    position: Position,
-    opacity: f32,
-) -> Element<'a, WindowListMessage> {
-    let maximize_toggles = win.is_focused && !win.layout.is_floating;
-    let audio_pid = win.pid.filter(|_| extras.audio.is_some());
-    let press_hints = PressHints {
-        left: Some(if maximize_toggles {
-            "maximize or restore"
+    fn pager_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+        let config = self.slot_context.config;
+        let window = self.window_entry.id;
+        let press_hints = self.press_hints();
+        let picking = hoverable(
+            self.button_content(icons),
+            WindowTarget::Pick(window).into(),
+            press_hints,
+            WindowListMessage::Tooltip,
+        );
+        let usage = self.window_entry.is_focused.then(|| {
+            hoverable(
+                self.secondary_glyph(Phosphor::UserFocus),
+                WindowTarget::Usage(window).into(),
+                press_hints,
+                WindowListMessage::Tooltip,
+            )
+        });
+        let inspecting = self.window_entry.is_focused.then(|| {
+            hoverable(
+                self.secondary_glyph(Phosphor::Package),
+                WindowTarget::Inspect(window).into(),
+                press_hints,
+                WindowListMessage::Tooltip,
+            )
+        });
+        let content = Row::new()
+            .push(picking)
+            .extend(usage)
+            .extend(inspecting)
+            .spacing(config.layout.panel.widget_spacing)
+            .align_y(Alignment::Center);
+        let pager_slot = PagerSlot::new(content.into(), self.indicator_line())
+            .spaced_by(config.layout.panel.group_spacing);
+        match self.progress_ticks() {
+            Some(ticks) => pager_slot.ticks(ticks),
+            None => pager_slot,
+        }
+        .view(config, self.slot_context.edge)
+    }
+
+    fn secondary_glyph<'a>(&self, icon: fn(Weight) -> Phosphor) -> Element<'a, WindowListMessage> {
+        let tint = StateTint {
+            state: WidgetState::Off,
+            opacity: self.opacity,
+        };
+        Glyph::from(icon(tint.state.weight())).view(
+            self.slot_context.config.theme.font.icon_size_px,
+            move |theme| tint.color(theme),
+        )
+    }
+
+    fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+        let config = self.slot_context.config;
+        let title = self
+            .window_entry
+            .label
+            .as_ref()
+            .map(|label| WindowTitle::new(label, config).opacity(self.opacity));
+        Row::new()
+            .extend(self.badged_icon(icons))
+            .extend(title.map(Element::from))
+            .extend(self.audio_glyph())
+            .spacing(config.layout.panel.widget_spacing)
+            .align_y(Alignment::Center)
+            .into()
+    }
+
+    fn audio_glyph<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+        let audio = self.extras.audio?;
+        if !audio.playing && !audio.muted {
+            return None;
+        }
+        let state = WidgetState::of_toggle(!audio.muted);
+        let icon = if audio.muted {
+            Phosphor::SpeakerX(Weight::Regular)
         } else {
-            "focus the window"
-        }),
-        middle: audio_pid.map(|_| "mute or unmute its audio"),
-        ..PressHints::default()
-    };
-    let picking = hoverable(
-        button_content(config, icons, win, extras, opacity),
-        WindowTarget::Pick(win.id).into(),
-        press_hints,
-        WindowListMessage::Tooltip,
-    );
-    let usage = win.is_focused.then(|| {
-        hoverable(
-            secondary_glyph(config, Phosphor::UserFocus, opacity),
-            WindowTarget::Usage(win.id).into(),
-            press_hints,
-            WindowListMessage::Tooltip,
-        )
-    });
-    let inspecting = win.is_focused.then(|| {
-        hoverable(
-            secondary_glyph(config, Phosphor::Package, opacity),
-            WindowTarget::Inspect(win.id).into(),
-            press_hints,
-            WindowListMessage::Tooltip,
-        )
-    });
-    let content = Row::new()
-        .push(picking)
-        .extend(usage)
-        .extend(inspecting)
-        .spacing(config.layout.panel.widget_spacing)
-        .align_y(Alignment::Center);
-    let indicator = indicator_line(config, win, extras, opacity);
-    let slot =
-        PagerSlot::new(content.into(), indicator).spaced_by(config.layout.panel.group_spacing);
-    let slot = match progress_ticks(config, extras, opacity) {
-        Some(ticks) => slot.ticks(ticks),
-        None => slot,
-    };
-    slot.view(config, position)
-}
-
-fn secondary_glyph<'a>(
-    config: &Config,
-    icon: fn(Weight) -> Phosphor,
-    opacity: f32,
-) -> Element<'a, WindowListMessage> {
-    let tint = StateTint {
-        state: WidgetState::Off,
-        opacity,
-    };
-    Glyph::from(icon(tint.state.weight())).view(config.theme.font.icon_size_px, move |theme| {
-        tint.color(theme)
-    })
-}
-
-fn button_content<'a>(
-    config: &Config,
-    icons: WindowAssets<'a>,
-    win: &niri_window_snapshot::WinEntry,
-    extras: Extras<'_>,
-    opacity: f32,
-) -> Element<'a, WindowListMessage> {
-    let icon = badged_icon(config, icons, win, extras, opacity);
-    let title = win
-        .label
-        .as_ref()
-        .map(|label| WindowTitle::new(label, config).opacity(opacity));
-    Row::new()
-        .extend(icon)
-        .extend(title.map(Element::from))
-        .extend(audio_glyph(config, extras, opacity))
-        .spacing(config.layout.panel.widget_spacing)
-        .align_y(Alignment::Center)
-        .into()
-}
-
-fn audio_glyph<'a>(
-    config: &Config,
-    extras: Extras<'_>,
-    opacity: f32,
-) -> Option<Element<'a, WindowListMessage>> {
-    let audio = extras.audio?;
-    if !audio.playing && !audio.muted {
-        return None;
+            Phosphor::SpeakerHigh(Weight::Regular)
+        };
+        let tint = StateTint {
+            state,
+            opacity: self.opacity,
+        };
+        Some(Glyph::from(icon.with_weight(state.weight())).view(
+            self.slot_context.config.theme.font.icon_size_px,
+            move |theme| tint.color(theme),
+        ))
     }
-    let state = WidgetState::of_toggle(!audio.muted);
-    let icon = if audio.muted {
-        Phosphor::SpeakerX(Weight::Regular)
-    } else {
-        Phosphor::SpeakerHigh(Weight::Regular)
-    };
-    let tint = StateTint { state, opacity };
-    Some(
-        Glyph::from(icon.with_weight(state.weight()))
-            .view(config.theme.font.icon_size_px, move |theme| {
-                tint.color(theme)
-            }),
-    )
+
+    fn indicator_line<'a>(&self) -> Element<'a, WindowListMessage> {
+        let severity = if self.window_entry.is_urgent || self.extras.is_urgent() {
+            1.0
+        } else {
+            0.0
+        };
+        activity_line(
+            danger_color,
+            severity * self.opacity,
+            self.slot_context.config.panel_bar.indicator_thickness,
+        )
+    }
+
+    fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+        let config = self.slot_context.config;
+        let fraction = self.extras.progress(config)?;
+        let thickness = config.panel_bar.indicator_thickness;
+        let opacity = self.opacity;
+        Some(
+            progress_bar(0.0..=1.0, fraction)
+                .girth(thickness)
+                .style(move |theme| progress_bar::Style {
+                    background: background_strong_color(theme).scale_alpha(opacity).into(),
+                    bar: warning_color(theme).scale_alpha(opacity).into(),
+                    border: border::rounded(thickness),
+                })
+                .into(),
+        )
+    }
+
+    fn count_badge<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
+        let config = self.slot_context.config;
+        let count = self.extras.count(config).filter(|count| *count > 0)?;
+        let label = if count > 99 {
+            "99+".to_owned()
+        } else {
+            count.to_string()
+        };
+        let size = config.theme.font.text_size_px;
+        let opacity = self.opacity;
+        let badge = container(
+            text(label)
+                .size(size)
+                .font(FontFaces::from(&config.theme.font).regular)
+                .style(move |theme| text::Style {
+                    color: Some(background_color(theme).scale_alpha(opacity)),
+                }),
+        )
+        .padding([0.0, config.layout.panel.widget_spacing])
+        .style(move |theme| {
+            container::Style::default()
+                .background(danger_color(theme).scale_alpha(opacity))
+                .border(border::rounded(size))
+        });
+        Some(right(badge).into())
+    }
+
+    fn badged_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListMessage>> {
+        let icon = self.resolved_icon(icons)?;
+        Some(match self.count_badge() {
+            Some(badge) => stack([icon, badge]).into(),
+            None => icon,
+        })
+    }
+
+    fn resolved_icon<'a>(&self, icons: WindowAssets<'a>) -> Option<Element<'a, WindowListMessage>> {
+        let icon_path = icons.path_for(self.window_entry);
+        window_icon(
+            icons.favicons,
+            self.window_entry.favicon_key(),
+            icon_path.as_deref(),
+            self.slot_context.config.theme.font.icon_size_px,
+            self.opacity,
+        )
+    }
 }
 
-fn indicator_line<'a>(
-    config: &Config,
-    win: &niri_window_snapshot::WinEntry,
-    extras: Extras<'_>,
-    opacity: f32,
-) -> Element<'a, WindowListMessage> {
-    let severity = if win.is_urgent || extras.is_urgent() {
-        1.0
-    } else {
-        0.0
-    };
-    activity_line(
-        danger_color,
-        severity * opacity,
-        config.panel_bar.indicator_thickness,
-    )
-}
+#[cfg(test)]
+mod tests {
+    use iced_controller_diagram::ControllerArtwork;
+    use sottomano_config::{Config, screen_edges::Position};
 
-fn progress_ticks<'a>(
-    config: &Config,
-    extras: Extras<'_>,
-    opacity: f32,
-) -> Option<Element<'a, WindowListMessage>> {
-    let fraction = extras.progress(config)?;
-    let thickness = config.panel_bar.indicator_thickness;
-    Some(
-        progress_bar(0.0..=1.0, fraction)
-            .girth(thickness)
-            .style(move |theme| progress_bar::Style {
-                background: background_strong_color(theme).scale_alpha(opacity).into(),
-                bar: warning_color(theme).scale_alpha(opacity).into(),
-                border: border::rounded(thickness),
+    use super::{WindowList, WindowListMessage};
+    use crate::{
+        bar_slot_drag::{
+            BarSlotContext, DragMessage,
+            pager_drag_simulation::{
+                SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
+                dragging_from_start, sweep_across_bar, three_workspaces_three_windows,
+            },
+        },
+        clock::Clock,
+        desktop_index::DesktopIndex,
+        widgets::{
+            favicon::Favicons,
+            pointer_drag::{BarSlotList, DragEvent, DraggedBarSlot},
+            window_icon::WindowAssets,
+        },
+    };
+
+    #[test]
+    fn dragging_a_window_across_the_list_enters_each_slot_then_leaves() {
+        let config = Config::default();
+        let niri_snapshot = three_workspaces_three_windows();
+        let dragged_window = DraggedBarSlot::Window {
+            window: SIMULATED_WINDOW_IDS[0],
+            workspace: SIMULATED_WORKSPACE_IDS[0],
+        };
+        let drag_view = dragging_from_start(dragged_window, &config);
+        let desktop_entries = DesktopIndex::default();
+        let favicons = Favicons::default();
+        let controller_artwork = ControllerArtwork::decoded();
+        let window_assets = WindowAssets {
+            entries: &desktop_entries,
+            favicons: &favicons,
+            controller_artwork: &controller_artwork,
+        };
+        let window_list = WindowList::default();
+        let slot_context = BarSlotContext {
+            config: &config,
+            edge: Position::Bottom,
+            drag: drag_view,
+            clock: Clock::real(),
+        };
+        let pager_element = window_list
+            .view(
+                &niri_snapshot,
+                window_assets,
+                None,
+                SIMULATED_OUTPUT,
+                slot_context,
+            )
+            .expect("three windows on the active workspace");
+        let drag_events: Vec<DragEvent<_>> =
+            sweep_across_bar(pager_element, config.layout.panel.height)
+                .into_iter()
+                .filter_map(|window_list_message| match window_list_message {
+                    WindowListMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),
+                    _ => None,
+                })
+                .collect();
+        let entered_positions: Vec<usize> = drag_events
+            .iter()
+            .filter_map(|drag_event| match drag_event {
+                DragEvent::EnteredSlot { position, .. } => Some(*position),
+                _ => None,
             })
-            .into(),
-    )
-}
-
-fn count_badge<'a>(
-    config: &Config,
-    count: i64,
-    opacity: f32,
-) -> Option<Element<'a, WindowListMessage>> {
-    if count <= 0 {
-        return None;
+            .collect();
+        assert_eq!(entered_positions, [0, 1, 2]);
+        assert!(matches!(
+            drag_events.last(),
+            Some(DragEvent::LeftList(BarSlotList::Windows))
+        ));
     }
-    let label = if count > 99 {
-        "99+".to_owned()
-    } else {
-        count.to_string()
-    };
-    let size = config.theme.font.text_size_px;
-    let badge = container(
-        text(label)
-            .size(size)
-            .font(FontFaces::from(&config.theme.font).regular)
-            .style(move |theme| text::Style {
-                color: Some(background_color(theme).scale_alpha(opacity)),
-            }),
-    )
-    .padding([0.0, config.layout.panel.widget_spacing])
-    .style(move |theme| {
-        container::Style::default()
-            .background(danger_color(theme).scale_alpha(opacity))
-            .border(border::rounded(size))
-    });
-    Some(right(badge).into())
-}
-
-fn badged_icon<'a>(
-    config: &Config,
-    icons: WindowAssets<'a>,
-    win: &niri_window_snapshot::WinEntry,
-    extras: Extras<'_>,
-    opacity: f32,
-) -> Option<Element<'a, WindowListMessage>> {
-    let icon = resolved_icon(config, icons, win, opacity)?;
-    let badge = extras
-        .count(config)
-        .and_then(|count| count_badge(config, count, opacity));
-    Some(match badge {
-        Some(badge) => stack([icon, badge]).into(),
-        None => icon,
-    })
-}
-
-fn resolved_icon<'a>(
-    config: &Config,
-    icons: WindowAssets<'a>,
-    win: &niri_window_snapshot::WinEntry,
-    opacity: f32,
-) -> Option<Element<'a, WindowListMessage>> {
-    let path = icons.path_for(win);
-    window_icon(
-        icons.favicons,
-        win.favicon_key(),
-        path.as_deref(),
-        config.theme.font.icon_size_px,
-        opacity,
-    )
 }
