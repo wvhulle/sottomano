@@ -50,6 +50,8 @@ pub enum WallpaperMessage {
 }
 
 impl WallpaperGroup {
+    pub const NAME: &str = "Wallpaper";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -100,6 +102,7 @@ impl WallpaperGroup {
     pub fn group_content(&self) -> GroupContent<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             WallpaperMessage::Expansion,
             [

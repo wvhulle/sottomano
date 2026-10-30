@@ -78,6 +78,8 @@ impl Default for IdleTimeoutsGroup {
 }
 
 impl IdleTimeoutsGroup {
+    pub const NAME: &str = "Idle timeouts";
+
     pub fn load() -> Task<IdleTimeoutsMessage> {
         Task::perform(sqlite_idle_timeouts::load(), IdleTimeoutsMessage::Loaded)
     }
@@ -225,6 +227,7 @@ impl IdleTimeoutsGroup {
         config: &'a Config,
     ) -> GroupContent<'a, IdleTimeoutsMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
             self.entries().map(|(kind, timer)| {

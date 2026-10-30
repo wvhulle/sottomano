@@ -148,6 +148,8 @@ impl Default for PanelSettingsGroup {
 }
 
 impl PanelSettingsGroup {
+    pub const NAME: &str = "Panels";
+
     pub fn load() -> Task<PanelSettingsMessage> {
         Task::batch([
             Task::perform(load_panel_layout(), PanelSettingsMessage::LayoutLoaded),
@@ -273,6 +275,7 @@ impl PanelSettingsGroup {
         config: &'a Config,
     ) -> GroupContent<'a, PanelSettingsMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [

@@ -54,6 +54,8 @@ pub enum PendingUpgradesMessage {
 }
 
 impl PendingUpgradesGroup {
+    pub const NAME: &str = "Pending upgrades";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -94,6 +96,7 @@ impl PendingUpgradesGroup {
     ) -> GroupContent<'a, PendingUpgradesMessage> {
         let has_categories = self.categories().iter().any(Option::is_some);
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             PendingUpgradesMessage::Expansion,
             [

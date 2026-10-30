@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
-    widget::{Column, container, mouse_area},
+    widget::{container, mouse_area},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -282,10 +282,13 @@ impl TooltipHost {
         };
         let render = |content: HoverContent<'a, Message>| match content {
             HoverContent::Described(tooltip) => describe(&tooltip),
-            HoverContent::Interactive { described, panel } => Column::new()
-                .extend((!described.is_empty()).then(|| describe(&described)))
-                .push(panel)
-                .into(),
+            HoverContent::Interactive { described, panel } => {
+                if described.is_empty() {
+                    panel
+                } else {
+                    TooltipContent::new(&described, config, assets, clock).view_enclosing(panel)
+                }
+            }
         };
         if !self.hosts(surface) {
             return None;

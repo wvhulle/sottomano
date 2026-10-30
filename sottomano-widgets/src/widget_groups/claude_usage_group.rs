@@ -93,6 +93,8 @@ pub enum ClaudeUsageMessage {
 }
 
 impl ClaudeUsageGroup {
+    pub const NAME: &str = "Claude usage";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -286,6 +288,7 @@ impl ClaudeUsageGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, ClaudeUsageMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             ClaudeUsageMessage::Expansion,
             [

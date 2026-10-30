@@ -78,6 +78,8 @@ pub enum VpnMessage {
 }
 
 impl VpnGroup {
+    pub const NAME: &str = "VPN";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -253,6 +255,7 @@ impl VpnGroup {
             .then(|| self.previewed_tunnel_interface())
             .flatten();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             VpnMessage::Expansion,
             vpn_connections

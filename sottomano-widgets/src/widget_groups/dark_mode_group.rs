@@ -89,6 +89,8 @@ pub enum DarkModeMessage {
 }
 
 impl DarkModeGroup {
+    pub const NAME: &str = "Dark mode";
+
     #[must_use]
     pub fn new(clock: Clock) -> Self {
         Self {
@@ -323,6 +325,7 @@ impl DarkModeGroup {
             )
         };
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             DarkModeMessage::Expansion,
             [

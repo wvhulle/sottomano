@@ -125,6 +125,8 @@ pub enum SystemdManagerMessage {
 }
 
 impl SystemdManagerGroup {
+    pub const NAME: &str = "Systemd";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -232,6 +234,7 @@ impl SystemdManagerGroup {
     ) -> GroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [

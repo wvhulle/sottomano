@@ -98,7 +98,10 @@ pub enum HoverTarget {
     Window(WindowTarget),
     Workspace(u64),
     WorkspaceOrder,
-    GroupHandle(GroupHandle),
+    GroupHandle {
+        handle: GroupHandle,
+        group_name: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

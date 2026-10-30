@@ -1,5 +1,5 @@
 use std::{
-    iter::once,
+    iter::{empty, once},
     time::{Duration, SystemTime},
 };
 
@@ -102,26 +102,52 @@ impl<'a> TooltipContent<'a> {
 
     #[must_use]
     pub fn view(self) -> Element<'static, PopupMessage> {
+        self.arranged_around(empty())
+    }
+
+    #[must_use]
+    pub fn view_enclosing<'panel, Message: From<PopupMessage> + 'panel>(
+        self,
+        panel: Element<'panel, Message>,
+    ) -> Element<'panel, Message> {
+        self.arranged_around(once(panel))
+    }
+
+    fn arranged_around<'panel, Message: From<PopupMessage> + 'panel>(
+        self,
+        enclosed_panel: impl IntoIterator<Item = Element<'panel, Message>>,
+    ) -> Element<'panel, Message> {
+        let lift = |element: Element<'static, PopupMessage>| -> Element<'panel, Message> {
+            let element: Element<'panel, PopupMessage> = element;
+            element.map(Message::from)
+        };
         let groups: Vec<&SourcedSections> = self.tooltip.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
-            return container(uniform_width_column([self.closing_row(None)]))
-                .padding(self.shell_padding())
-                .into();
+            return container(uniform_width_column(
+                enclosed_panel
+                    .into_iter()
+                    .chain(once(lift(self.closing_row(None)))),
+            ))
+            .padding(self.shell_padding())
+            .into();
         };
-        let leading = leading_groups
-            .iter()
-            .map(|group| -> Element<'static, PopupMessage> {
+        let leading = leading_groups.iter().map(|group| {
+            lift(
                 uniform_width_column([
                     self.group_sections(group),
                     self.footer_row(None, Some(self.delivery_state_view(group.delivery_state()))),
                 ])
                 .spacing(self.config.layout.overlay.row_spacing)
-                .into()
-            });
-        let closing: Element<'static, PopupMessage> = uniform_width_column([
-            self.group_sections(closing_group),
-            self.closing_row(Some(closing_group.delivery_state())),
-        ])
+                .into(),
+            )
+        });
+        let closing: Element<'panel, Message> = uniform_width_column(
+            once(lift(self.group_sections(closing_group)))
+                .chain(enclosed_panel)
+                .chain(once(lift(
+                    self.closing_row(Some(closing_group.delivery_state())),
+                ))),
+        )
         .spacing(SECTION_SEPARATION_PX / 2.0)
         .into();
         container(uniform_width_column(leading.chain(once(closing))).spacing(SECTION_SEPARATION_PX))

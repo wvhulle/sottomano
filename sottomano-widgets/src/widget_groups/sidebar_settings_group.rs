@@ -105,6 +105,8 @@ impl Default for SidebarSettingsGroup {
 }
 
 impl SidebarSettingsGroup {
+    pub const NAME: &str = "Sidebar";
+
     pub fn load() -> Task<SidebarSettingsMessage> {
         Task::batch([
             Task::perform(
@@ -174,6 +176,7 @@ impl SidebarSettingsGroup {
     ) -> GroupContent<'a, SidebarSettingsMessage> {
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             SidebarSettingsMessage::Expansion,
             [GroupItem::toggle(

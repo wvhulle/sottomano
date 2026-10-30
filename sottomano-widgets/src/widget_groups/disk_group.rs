@@ -62,6 +62,8 @@ pub enum DiskMessage {
 }
 
 impl DiskGroup {
+    pub const NAME: &str = "Disks";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -102,6 +104,7 @@ impl DiskGroup {
     pub fn group_content(&self) -> GroupContent<'_, DiskMessage> {
         let activity = self.activity.get();
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             DiskMessage::Expansion,
             [

@@ -58,6 +58,8 @@ pub enum MemoryBoardMessage {
 }
 
 impl MemoryBoardGroup {
+    pub const NAME: &str = "Memory";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -114,6 +116,7 @@ impl MemoryBoardGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, MemoryBoardMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             MemoryBoardMessage::Expansion,
             [

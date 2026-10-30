@@ -102,6 +102,8 @@ impl Default for VoiceDictationGroup {
 }
 
 impl VoiceDictationGroup {
+    pub const NAME: &str = "Voice dictation";
+
     #[must_use]
     pub fn new() -> Self {
         let dictation_unit = ScopedSystemdUnit {
@@ -279,6 +281,7 @@ impl VoiceDictationGroup {
         let runtime_glyph =
             engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             VoiceDictationMessage::Expansion,
             [

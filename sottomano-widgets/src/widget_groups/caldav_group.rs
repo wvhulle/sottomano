@@ -63,6 +63,8 @@ pub enum CaldavMessage {
 }
 
 impl CaldavGroup {
+    pub const NAME: &str = "Calendar";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -140,6 +142,7 @@ impl CaldavGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, CaldavMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             CaldavMessage::Expansion,
             [

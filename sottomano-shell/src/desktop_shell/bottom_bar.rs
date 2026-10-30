@@ -59,6 +59,7 @@ impl DesktopShell {
         let config = &self.config;
         GroupDrawer::new(
             GroupHandle::SettingsDrawer,
+            "Settings",
             Phosphor::SlidersHorizontal(Weight::Regular),
             [
                 self.panel_settings_group

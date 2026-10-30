@@ -76,6 +76,8 @@ impl Default for OverlaySettingsGroup {
 }
 
 impl OverlaySettingsGroup {
+    pub const NAME: &str = "Overlays";
+
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
@@ -151,6 +153,7 @@ impl OverlaySettingsGroup {
         config: &'a Config,
     ) -> GroupContent<'a, OverlaySettingsMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(

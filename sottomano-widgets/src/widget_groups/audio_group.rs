@@ -120,6 +120,8 @@ impl Default for AudioGroup {
 }
 
 impl AudioGroup {
+    pub const NAME: &str = "Audio";
+
     #[must_use]
     pub fn window_audio(&self) -> Option<&HashMap<i32, WindowAudio>> {
         self.state.get().map(|state| state.windows.as_ref())
@@ -295,6 +297,7 @@ impl AudioGroup {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             AudioMessage::Expansion,
             [

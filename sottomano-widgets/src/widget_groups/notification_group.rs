@@ -79,6 +79,8 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
 }
 
 impl NotificationGroup {
+    pub const NAME: &str = "Notifications";
+
     pub fn load() -> Task<NotificationGroupMessage> {
         Task::perform(
             sqlite_shell_settings_row::load_stored_flag(
@@ -143,6 +145,7 @@ impl NotificationGroup {
     ) -> GroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [

@@ -23,7 +23,7 @@ use sottomano_widgets::{
         workspaces_group::workspace_tooltip,
     },
     widgets::tooltip_body::{
-        TooltipBody,
+        Section, TooltipBody,
         tooltip_source_delivery::{DeliveryTiming, Tooltip},
     },
 };
@@ -133,8 +133,8 @@ impl DesktopShell {
                 self.clock,
             )),
             HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::tooltip_for(app_id)),
-            HoverTarget::GroupHandle(_) => Some(Tooltip::sourced(
-                TooltipBody::sections([]),
+            HoverTarget::GroupHandle { group_name, .. } => Some(Tooltip::sourced(
+                TooltipBody::sections([Section::note(*group_name)]),
                 DeliveryTiming::LivePush,
             )),
             HoverTarget::Session(target) => Some(self.session_menu.tooltip_for(*target)),
@@ -265,7 +265,7 @@ impl DesktopShell {
             | HoverTarget::OverlaySettings(_)
             | HoverTarget::Notification(_)
             | HoverTarget::QuickLaunch(_)
-            | HoverTarget::GroupHandle(_)
+            | HoverTarget::GroupHandle { .. }
             | HoverTarget::Session(_)
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
@@ -352,7 +352,7 @@ impl DesktopShell {
             | HoverTarget::LlamaServer(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::QuickLaunch(_)
-            | HoverTarget::GroupHandle(_)
+            | HoverTarget::GroupHandle { .. }
             | HoverTarget::Notification(_)
             | HoverTarget::QuietSchedule(_)
             | HoverTarget::Session(_)

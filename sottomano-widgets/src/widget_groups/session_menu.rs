@@ -118,6 +118,8 @@ pub enum Action {
 }
 
 impl SessionMenu {
+    pub const NAME: &str = "Session";
+
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
             blocking("logind permissions", logind_action_permissions::read),
@@ -184,21 +186,24 @@ impl SessionMenu {
     #[must_use]
     pub fn group_content<'a>(&self, config: &'a Config) -> GroupContent<'a, SessionMessage> {
         let glyph = Glyph::from(Phosphor::Power(Weight::Regular));
-        GroupContent::single((!self.permissions.allowed.is_empty()).then(|| {
-            GroupItem::element(move |reveal| {
-                hoverable(
-                    glyph.view(config.theme.font.icon_size_px, {
-                        let tint = StateTint {
-                            state: WidgetState::Idle,
-                            opacity: reveal,
-                        };
-                        move |theme| tint.color(theme)
-                    }),
-                    SessionTarget::Menu.into(),
-                    PressHints::default(),
-                    GroupEvent::Tooltip,
-                )
-            })
-        }))
+        GroupContent::single(
+            Self::NAME,
+            (!self.permissions.allowed.is_empty()).then(|| {
+                GroupItem::element(move |reveal| {
+                    hoverable(
+                        glyph.view(config.theme.font.icon_size_px, {
+                            let tint = StateTint {
+                                state: WidgetState::Idle,
+                                opacity: reveal,
+                            };
+                            move |theme| tint.color(theme)
+                        }),
+                        SessionTarget::Menu.into(),
+                        PressHints::default(),
+                        GroupEvent::Tooltip,
+                    )
+                })
+            }),
+        )
     }
 }

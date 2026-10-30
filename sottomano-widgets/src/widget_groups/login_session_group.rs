@@ -84,6 +84,8 @@ pub enum LoginSessionMessage {
 }
 
 impl LoginSessionGroup {
+    pub const NAME: &str = "Login session";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -212,6 +214,7 @@ impl LoginSessionGroup {
             .get()
             .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),

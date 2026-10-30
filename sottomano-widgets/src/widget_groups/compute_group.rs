@@ -97,6 +97,8 @@ pub enum ComputeMessage {
 }
 
 impl ComputeGroup {
+    pub const NAME: &str = "Compute";
+
     pub fn collapse(&mut self) {
         self.expansion.collapse();
     }
@@ -207,6 +209,7 @@ impl ComputeGroup {
 
     pub fn group_content(&self) -> GroupContent<'_, ComputeMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             ComputeMessage::Expansion,
             [

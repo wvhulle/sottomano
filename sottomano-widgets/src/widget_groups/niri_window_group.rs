@@ -76,6 +76,8 @@ pub struct NiriWindowGroup {
 }
 
 impl NiriWindowGroup {
+    pub const NAME: &str = "Niri";
+
     #[must_use]
     pub fn new(rules_file: NiriRulesFile) -> Self {
         let defaults = NiriStyling::default();
@@ -251,6 +253,7 @@ impl NiriWindowGroup {
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
         GroupContent::new(
+            Self::NAME,
             &self.expansion,
             NiriWindowMessage::Expansion,
             [
