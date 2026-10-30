@@ -81,8 +81,16 @@ pub struct ClaudeUsageWindows {
 
 impl ClaudeUsageWindows {
     #[must_use]
-    pub fn session_used(&self) -> Ratio {
-        self.session.utilization
+    pub fn fullest_window_used(&self) -> Ratio {
+        self.all_usage_windows()
+            .map(|window| window.utilization)
+            .fold(Ratio::new::<percent>(0.0), Ratio::max)
+    }
+
+    fn all_usage_windows(&self) -> impl Iterator<Item = &WindowUsage> {
+        [&self.session, &self.weekly]
+            .into_iter()
+            .chain(&self.sonnet)
     }
 
     #[must_use]
@@ -103,9 +111,7 @@ impl ClaudeUsageWindows {
     }
 
     fn subscription_exhausted(&self) -> bool {
-        [&self.session, &self.weekly]
-            .into_iter()
-            .chain(&self.sonnet)
+        self.all_usage_windows()
             .any(|window| window.utilization >= Ratio::new::<percent>(100.0))
     }
 }
@@ -313,5 +319,12 @@ mod tests {
     fn extra_usage_only_counts_once_a_subscription_window_is_used_up() {
         assert!(!has_extra_quota(&windows_with_weekly_use(27.0)));
         assert!(has_extra_quota(&windows_with_weekly_use(100.0)));
+    }
+
+    #[test]
+    fn idle_session_still_reports_weekly_use() {
+        let mut windows = windows_with_weekly_use(15.0);
+        windows.session.utilization = Ratio::new::<percent>(0.0);
+        assert!((windows.fullest_window_used().get::<percent>() - 15.0).abs() < 1e-9);
     }
 }
