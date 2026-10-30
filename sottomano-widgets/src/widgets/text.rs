@@ -23,6 +23,13 @@ pub fn column_heading<'a>(
         .style(text::secondary)
 }
 
+pub fn row_key_label<'a>(
+    font: &ResolvedFont,
+    title: impl IntoFragment<'a>,
+) -> Text<'a, iced::Theme, iced::Renderer> {
+    bar_text(font, title).font(FontFaces::from(font).italic)
+}
+
 pub fn bar_text<'a>(
     font: &ResolvedFont,
     content: impl IntoFragment<'a>,

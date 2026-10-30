@@ -383,7 +383,7 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
     }
 }
 
-fn separator_rule<Message: 'static>() -> Element<'static, Message> {
+pub fn separator_rule<'a, Message: 'a>() -> Element<'a, Message> {
     rule::horizontal(SEPARATOR_RULE_THICKNESS_PX)
         .style(rule::default)
         .into()

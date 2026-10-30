@@ -6,23 +6,25 @@ use std::{
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element, Length,
+    Alignment, Element, Padding,
     alignment::Horizontal,
-    widget::{Row, Space, container, text},
+    widget::{Row, Space, container},
 };
 use sottomano_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},
+    hover_tooltips::{
+        GroupHandle, HoverTarget, PressHints, hoverable, tooltip_content::TOOLTIP_COLUMN_GAP_PX,
+    },
     widgets::{
-        activity_line::activity_line,
         aligned_quantity::AlignedQuantity,
         bar_widget::Glyph,
-        configured_theme::{background_strong_color, text_color},
-        content_sized_table::content_sized_grid,
+        configured_theme::text_color,
+        content_sized_table::{SpannableRow, content_sized_spanning_grid},
+        keyed_record_table::separator_rule,
         pager_slot::PagerSlot,
-        text::bar_text,
+        text::{column_heading, row_key_label},
         widget_group::{DrawerCells, EdgeIndicator, GroupContent, GroupEvent, GroupToastRequests},
     },
 };
@@ -131,7 +133,7 @@ fn sheet_view<'a, M: Clone + 'a>(
         .map(|cells| cells.unaligned.len())
         .max()
         .unwrap_or_default();
-    let member_count = member_cells.len();
+    let column_count = member_cells.len() + 1;
     let (faces, mut remainders): (Vec<_>, Vec<_>) = member_cells
         .into_iter()
         .map(|cells| {
@@ -144,17 +146,12 @@ fn sheet_view<'a, M: Clone + 'a>(
             )
         })
         .unzip();
-    let rule_row = || {
-        (0..=member_count)
-            .map(|_| drawer_rule(config))
-            .collect::<Vec<_>>()
-    };
     let header_row: Vec<Element<'a, GroupEvent<M>>> =
         once(Space::new().into()).chain(faces).collect();
     let aligned_rows: Vec<Vec<Element<'a, GroupEvent<M>>>> = quantity_rows
         .iter()
         .map(|quantity| {
-            once(quantity_label(config, *quantity))
+            once(row_key_label(&config.theme.font, quantity.to_string()).into())
                 .chain(remainders.iter_mut().map(|remainder| {
                     remainder
                         .aligned
@@ -176,26 +173,23 @@ fn sheet_view<'a, M: Clone + 'a>(
                 .collect()
         })
         .collect();
-    let section_rule = (!aligned_rows.is_empty() && !unaligned_rows.is_empty()).then(rule_row);
-    let at_least_bar_height =
-        |row: Vec<Element<'a, GroupEvent<M>>>| -> Vec<Element<'a, GroupEvent<M>>> {
-            row.into_iter()
-                .map(|cell| at_least_height(config.layout.panel.height, cell))
-                .collect()
-        };
-    let grid = content_sized_grid(
-        vec![Horizontal::Left; member_count + 1],
-        once(at_least_bar_height(header_row))
-            .chain(once(rule_row()))
-            .chain(aligned_rows.into_iter().map(at_least_bar_height))
-            .chain(section_rule)
-            .chain(unaligned_rows.into_iter().map(at_least_bar_height)),
+    let section_separator = (!aligned_rows.is_empty() && !unaligned_rows.is_empty())
+        .then(|| SpannableRow::FullWidth(separator_rule()));
+    let grid = content_sized_spanning_grid(
+        once(Horizontal::Right)
+            .chain(vec![Horizontal::Left; column_count - 1])
+            .collect(),
+        once(header_row)
+            .chain(aligned_rows)
+            .map(SpannableRow::Columned)
+            .chain(section_separator)
+            .chain(unaligned_rows.into_iter().map(SpannableRow::Columned)),
     )
-    .padding_x(config.layout.panel.widget_spacing)
+    .padding_x(TOOLTIP_COLUMN_GAP_PX / 2.0)
     .padding_y(config.layout.overlay.row_spacing / 2.0);
     Some(
         container(grid)
-            .padding(config.layout.panel.group_padding)
+            .padding(Padding::ZERO.horizontal(config.layout.overlay.content_inset))
             .into(),
     )
 }
@@ -211,43 +205,15 @@ fn aligned_quantity_rows(
         .collect()
 }
 
-fn at_least_height<'a, M: 'a>(minimum_height: f32, cell: Element<'a, M>) -> Element<'a, M> {
-    Row::with_children([Space::new().height(minimum_height).into(), cell])
-        .align_y(Alignment::Center)
-        .into()
-}
-
 fn drawer_column_header<'a, M: 'a>(
     config: &Config,
     face: Element<'a, M>,
     group_name: &'static str,
 ) -> Element<'a, M> {
-    container(
-        Row::with_children([
-            face,
-            bar_text(&config.theme.font, group_name)
-                .style(text::secondary)
-                .into(),
-        ])
+    Row::with_children([face, column_heading(&config.theme.font, group_name).into()])
         .spacing(config.layout.panel.widget_spacing)
-        .align_y(Alignment::Center),
-    )
-    .center_x(Length::Fill)
-    .into()
-}
-
-fn quantity_label<'a, M: 'a>(config: &Config, quantity: AlignedQuantity) -> Element<'a, M> {
-    bar_text(&config.theme.font, quantity.to_string())
-        .style(text::secondary)
+        .align_y(Alignment::Center)
         .into()
-}
-
-fn drawer_rule<'a, M: 'a>(config: &Config) -> Element<'a, M> {
-    activity_line(
-        background_strong_color,
-        1.0,
-        config.panel_bar.indicator_thickness,
-    )
 }
 
 #[cfg(test)]
