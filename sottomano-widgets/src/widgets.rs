@@ -15,7 +15,6 @@ pub mod device_setting;
 pub mod ellipsis_rule;
 pub mod expand_animation;
 pub mod favicon;
-pub mod focus_indicator;
 pub mod gauge;
 pub mod group_drawer;
 pub mod group_item;

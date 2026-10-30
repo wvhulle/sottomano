@@ -26,7 +26,7 @@ enum MaintenanceTask {
         check: bool,
     },
     #[command(about = "Set the width of every recording embedded in README.md and \
-                       docs/showcase.md to its logical width.")]
+                       docs/guide/*.md to its logical width.")]
     UpdateRecordingEmbeds {
         #[arg(
             long,

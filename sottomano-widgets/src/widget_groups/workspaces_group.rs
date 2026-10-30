@@ -10,16 +10,15 @@ use sottomano_sources::desktop_windows_apps::{
     niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
 };
 
-use self::{inline_strip::inline_label, workspace_slot::SlotTone};
+use self::workspace_slot::WorkspaceSlot;
 use crate::{
-    bar_slot_drag::{DragMessage, SlotDragEvent},
+    bar_slot_drag::{BarSlotContext, DragMessage, SlotDragEvent},
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         configured_theme::secondary_text_color,
         glyph_button,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
-        pointer_drag::DragView,
     },
 };
 
@@ -34,17 +33,17 @@ pub enum WorkspacesMessage {
 pub fn drag_ghost<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
-    workspace: u64,
-    config: &Config,
-    drag: &DragView,
+    workspace_id: u64,
+    slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    let p = niri
+    let BarSlotContext { config, drag, .. } = slot_context;
+    let workspace = niri
         .workspaces_for_output(output)
         .iter()
-        .find(|p| p.id == workspace)?;
+        .find(|workspace| workspace.id == workspace_id)?;
     Some(
         panel_frame(
-            container(inline_label(config, p, SlotTone::Regular))
+            container(WorkspaceSlot::ghost(workspace, niri, slot_context).label())
                 .padding([0.0, config.layout.panel.group_padding])
                 .center_y(config.layout.panel.height),
             drag.ghost_frame,

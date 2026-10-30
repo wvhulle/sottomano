@@ -13,6 +13,7 @@ use sottomano_sources::{
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
 };
 use sottomano_widgets::{
+    bar_slot_drag::BarSlotContext,
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
@@ -68,10 +69,15 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
         .collect()
 }
 
-fn undragged(config: &Config) -> DragView {
-    DragView {
-        drag: None,
-        ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance(), config),
+fn undragged_slot_context(config: &Config, edge: Position, clock: Clock) -> BarSlotContext<'_> {
+    BarSlotContext {
+        config,
+        edge,
+        drag: DragView {
+            drag: None,
+            ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance(), config),
+        },
+        clock,
     }
 }
 
@@ -201,14 +207,12 @@ impl ShowcasedNiriSession {
         sidebar_column::vertical_view(
             &self.snapshot,
             SHOWCASE_OUTPUT,
-            config,
-            &undragged(config),
             Some(&configured_in_fixture_order(&self.snapshot)),
             LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance(), config).drawn_corners(
                 OutlinedSides::inward_of(Position::Left)
                     .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
             ),
-            clock,
+            undragged_slot_context(config, Position::Left, clock),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from))
         .into_iter()
@@ -224,11 +228,8 @@ impl ShowcasedNiriSession {
         let workspaces = inline_strip::inline_view(
             snapshot,
             SHOWCASE_OUTPUT,
-            config,
-            Position::Bottom,
-            &undragged(config),
             Some(&configured_in_fixture_order(snapshot)),
-            clock,
+            undragged_slot_context(config, Position::Bottom, clock),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from));
         let windows = self
@@ -242,10 +243,7 @@ impl ShowcasedNiriSession {
                 },
                 None,
                 SHOWCASE_OUTPUT,
-                config,
-                Position::Bottom,
-                &undragged(config),
-                clock,
+                undragged_slot_context(config, Position::Bottom, clock),
             )
             .map(|element| {
                 element.map(|event| ShowcaseMessage::from(event.map(ShowcaseMessage::WindowGroup)))

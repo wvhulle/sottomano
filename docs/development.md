@@ -149,7 +149,7 @@ own commits.
 
 ## Tour recordings
 
-The recordings in [showcase.md](showcase.md) and the README are rendered by
+The recordings in the [guide](guide/README.md) and the README are rendered by
 `sottomano-widget-showcase`.
 [sottomano-widget-showcase/CONTRIBUTING.md](../sottomano-widget-showcase/CONTRIBUTING.md)
 describes how they are scripted, added and checked.
@@ -171,7 +171,7 @@ flowchart LR
   embedding_update["cargo xtask update-recording-embeds"]
 
   recorded_webp[/"recordings/&lt;name&gt;.webp"/]
-  showcase_document["docs/showcase.md<br>embeds the rest, widths rewritten"]
+  showcase_document["docs/guide/*.md<br>embeds the rest, widths rewritten"]
   readme_document["README.md<br>widths rewritten for the recordings it embeds"]
 
   animation_recording -->|lossless animated webp| recorded_webp

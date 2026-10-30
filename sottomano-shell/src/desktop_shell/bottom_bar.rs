@@ -164,11 +164,8 @@ impl DesktopShell {
             WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
                 &self.niri_snapshot,
                 output,
-                &self.config,
-                Position::Bottom,
-                &self.drag_view(),
                 self.configured_workspaces.as_ref(),
-                self.clock,
+                self.bar_slot_context(Position::Bottom),
             )
             .map(|workspaces| workspaces.map(Message::from)),
         }
@@ -182,10 +179,7 @@ impl DesktopShell {
                 self.window_assets(),
                 self.widget_groups.audio_group.window_audio(),
                 output,
-                &self.config,
-                Position::Bottom,
-                &self.drag_view(),
-                self.clock,
+                self.bar_slot_context(Position::Bottom),
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }

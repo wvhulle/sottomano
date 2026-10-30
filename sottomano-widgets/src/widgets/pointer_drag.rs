@@ -1,6 +1,6 @@
 pub mod drag_ghost;
 pub mod draggable_slot;
-pub mod keyed_slot_list;
+pub mod slot_pager;
 
 use std::{fmt::Debug, hash::Hash};
 
@@ -330,5 +330,152 @@ impl DragView {
         let moved = order.remove(from);
         order.insert(to.min(order.len()), moved);
         order
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::clock::Clock;
+
+    const START_DISTANCE: f32 = 4.0;
+
+    fn first_window() -> DraggedBarSlot {
+        DraggedBarSlot::Window {
+            window: 10,
+            workspace: 1,
+        }
+    }
+
+    fn third_window() -> DraggedBarSlot {
+        DraggedBarSlot::Window {
+            window: 30,
+            workspace: 1,
+        }
+    }
+
+    fn dragging_first_window(surface: window::Id, now: Instant) -> PointerDrag<()> {
+        let press = SlotPress {
+            item: first_window(),
+            position: 0,
+            click: (),
+        };
+        let pressed = advance(
+            PointerDrag::Idle,
+            DragEvent::Pressed(press),
+            START_DISTANCE,
+            now,
+        );
+        let held = advance(
+            pressed.drag,
+            DragEvent::PointerMoved {
+                surface,
+                position: Point::ORIGIN,
+            },
+            START_DISTANCE,
+            now,
+        );
+        let started = advance(
+            held.drag,
+            DragEvent::PointerMoved {
+                surface,
+                position: Point::new(START_DISTANCE * 2.0, 0.0),
+            },
+            START_DISTANCE,
+            now,
+        );
+        assert!(matches!(started.outcome, DragOutcome::Started));
+        started.drag
+    }
+
+    fn dropped_drag(outcome: DragOutcome<()>) -> ActiveDrag {
+        match outcome {
+            DragOutcome::Dropped(active) => active,
+            other => panic!("expected a drop, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn entering_a_slot_of_the_own_list_reorders_on_release() {
+        let now = Clock::real().instant;
+        let dragging = dragging_first_window(window::Id::unique(), now);
+        let entered = advance(
+            dragging,
+            DragEvent::EnteredSlot {
+                item: third_window(),
+                position: 2,
+            },
+            START_DISTANCE,
+            now,
+        );
+        let released = advance(entered.drag, DragEvent::Released, START_DISTANCE, now);
+        assert_eq!(dropped_drag(released.outcome).reordered_to(), Some(2));
+    }
+
+    #[test]
+    fn entering_a_workspace_while_dragging_a_window_hovers_it() {
+        let now = Clock::real().instant;
+        let dragging = dragging_first_window(window::Id::unique(), now);
+        let entered = advance(
+            dragging,
+            DragEvent::EnteredSlot {
+                item: DraggedBarSlot::Workspace(2),
+                position: 1,
+            },
+            START_DISTANCE,
+            now,
+        );
+        assert!(matches!(
+            entered.outcome,
+            DragOutcome::HoveringForeign(ForeignHover {
+                item: DraggedBarSlot::Workspace(2),
+                ..
+            })
+        ));
+        let released = advance(entered.drag, DragEvent::Released, START_DISTANCE, now);
+        assert_eq!(dropped_drag(released.outcome).reordered_to(), None);
+    }
+
+    #[test]
+    fn leaving_the_own_list_cancels_the_reorder() {
+        let now = Clock::real().instant;
+        let dragging = dragging_first_window(window::Id::unique(), now);
+        let entered = advance(
+            dragging,
+            DragEvent::EnteredSlot {
+                item: third_window(),
+                position: 2,
+            },
+            START_DISTANCE,
+            now,
+        );
+        let left = advance(
+            entered.drag,
+            DragEvent::LeftList(BarSlotList::Windows),
+            START_DISTANCE,
+            now,
+        );
+        let released = advance(left.drag, DragEvent::Released, START_DISTANCE, now);
+        let dropped = dropped_drag(released.outcome);
+        assert_eq!(dropped.target, DragTarget::Outside);
+        assert_eq!(dropped.reordered_to(), None);
+    }
+
+    #[test]
+    fn a_short_press_is_a_click() {
+        let now = Clock::real().instant;
+        let press = SlotPress {
+            item: first_window(),
+            position: 0,
+            click: (),
+        };
+        let pressed = advance(
+            PointerDrag::Idle,
+            DragEvent::Pressed(press),
+            START_DISTANCE,
+            now,
+        );
+        let released = advance(pressed.drag, DragEvent::Released, START_DISTANCE, now);
+        assert!(matches!(released.outcome, DragOutcome::Clicked(())));
     }
 }

@@ -9,7 +9,7 @@ root `CONTRIBUTING.md`; this file covers what only applies here.
 The tour recordings in the root `recordings/` are rendered offscreen by this
 crate (`nix build .#readme-recordings` renders them all the way CI does). Each
 entry of `DEMOS` in `src/demo_script.rs` shows one widget, is named
-`<group>_<widget>` and sits under the heading of its panel in `docs/showcase.md`,
+`<group>_<widget>` and sits under its heading on a page of `docs/guide/`,
 unless the README shows it. The name is also the demo's iced `Preset`, which boots its
 fixture for the recorder, the `.ice` scenarios and the windowed tester alike. It
 names a fixture and a script of steps: `Hover` / `Press` / `Drag` on
@@ -53,11 +53,17 @@ which switches between presets and records interactions as `.ice` scenarios.
 Scenarios saved in `tests/ice/` run with `cargo test` (and so in CI); `expect`
 sees plain text widgets, not rich text such as toast bodies.
 
-Each recording appears once, either in
-the root `README.md` (a few highlights, as `<img src="recordings/<name>.webp"
-width="<w>">`) or in `docs/showcase.md` (the rest, as `<img
-src="../recordings/<name>.webp" width="<w>">`). `<w>` is the recording's cropped
+Each recording appears either in the root `README.md` (a few highlights, as
+`<img src="recordings/<name>.webp" width="<w>">`) or on a page of `docs/guide/`
+(the rest, as `<img src="../../recordings/<name>.webp" width="<w>">`). `<w>` is the recording's cropped
 width in logical pixels, so all demos show at the same scale. After rendering,
 `cargo xtask update-recording-embeds` rewrites `<w>` from the files in
 `recordings/`; it fails with the expected tag only when a recording is embedded
 nowhere. CI runs it right after the render.
+
+The demos in `THEMED_DEMOS` are also recorded in every `AppearancePreset` that
+differs from the default look, as `recordings/<name>_<preset>.webp`
+(`RecordedLook` in `src/demo_script.rs`). Each guide page opens with its lead
+demo in every look, side by side in a table whose images carry `alt` before
+`width="100%"`, so the width rewrite leaves them alone. The canvas is
+transparent, so clear and translucent panels show the page behind them.

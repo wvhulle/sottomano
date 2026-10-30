@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use iced::{Alignment, Element, Subscription, Task, widget::Row};
 use niri_ipc::state::EventStreamState;
 use quick_launch::{QuickLaunch, QuickLaunchMessage};
-use sottomano_config::{Config, screen_edges::Position, widget_groups::WindowAgentsConfig};
+use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
     desktop_windows_apps::{
         desktop_entry_app_icons::DesktopEntries, kitty_terminal_windows::WindowProcesses,
@@ -20,10 +20,10 @@ use sottomano_sources::{
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
+    bar_slot_drag::BarSlotContext,
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        pointer_drag::DragView,
         tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::GroupEvent,
         window_icon::WindowAssets,
@@ -110,13 +110,13 @@ impl WindowGroup {
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
         match msg {
-            WindowGroupMessage::QuickLaunch(m) => Action::Run(
+            WindowGroupMessage::QuickLaunch(quick_launch_message) => Action::Run(
                 self.quick_launch
-                    .update(m)
+                    .update(quick_launch_message)
                     .map(WindowGroupMessage::QuickLaunch),
             ),
-            WindowGroupMessage::WindowList(m) => {
-                Action::WindowList(self.window_list.update(m, clock))
+            WindowGroupMessage::WindowList(window_list_message) => {
+                Action::WindowList(self.window_list.update(window_list_message, clock))
             }
         }
     }
@@ -139,26 +139,23 @@ impl WindowGroup {
         self.quick_launch.icon_keys()
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn view<'a>(
         &'a self,
         niri: &niri_window_snapshot::Snapshot,
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
-        config: &'a Config,
-        position: Position,
-        drag: &DragView,
-        clock: Clock,
+        slot_context: BarSlotContext<'a>,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
+        let config = slot_context.config;
         let quick_launch = self
             .quick_launch
             .group_content(icons.entries, output, config)
             .map(WindowGroupMessage::QuickLaunch)
-            .view(config, position, clock);
+            .view(config, slot_context.edge, slot_context.clock);
         let window_list = self
             .window_list
-            .view(niri, icons, audio, output, config, position, drag)
+            .view(niri, icons, audio, output, slot_context)
             .map(|element| {
                 element.map(|message| match message {
                     WindowListMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),

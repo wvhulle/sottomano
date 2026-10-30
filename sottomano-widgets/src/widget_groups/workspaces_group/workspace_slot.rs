@@ -1,84 +1,36 @@
 use iced::{
-    Border, Color, Element, Theme,
+    Alignment, Border, Color, Element, Length, Theme,
     border::{self, Radius},
-    widget::{container, progress_bar},
+    widget::{Text, column, container, progress_bar, row, text},
 };
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_config::screen_edges::Position;
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{
-    bar_slot_drag::{SlotClick, SlotPress},
-    clock::Clock,
+    bar_slot_drag::{BarSlotContext, SlotClick, SlotPress},
     hover_tooltips::{HoverTarget, PressHints, hoverable},
     widgets::{
         activity_line::edge_activity_line,
         configured_theme::{
             ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
-            secondary_text_color,
+            secondary_text_color, text_color,
         },
-        focus_indicator::focus_indicator,
         marker_track::MarkerTrack,
-        pointer_drag::{DragView, DraggedBarSlot, draggable_slot::draggable_slot},
+        pager_slot::PagerSlot,
+        pointer_drag::{DraggedBarSlot, draggable_slot::draggable_slot},
+        text::bar_text,
     },
 };
 
-pub(super) fn drop_tint(
-    p: &niri_window_snapshot::WorkspaceIndicator,
-    drag: &DragView,
-    highlight_radius: Radius,
-) -> impl Fn(&Theme) -> container::Style + 'static {
-    let awaits_window = drag.awaits_window_on(p.id);
-    move |theme| {
-        if awaits_window {
-            container::background(primary_weak_color(theme)).border(Border {
-                radius: highlight_radius,
-                ..Border::default()
-            })
-        } else {
-            container::Style::default()
-        }
-    }
-}
-
-pub(super) fn edge_line<'a>(
-    config: &Config,
-    p: &niri_window_snapshot::WorkspaceIndicator,
-    position: Position,
-    tone: SlotTone,
-    drag: &DragView,
-    clock: Clock,
-) -> Element<'a, WorkspacesMessage> {
-    let Some(charge) = drag.hover_charge(
-        DraggedBarSlot::Workspace(p.id),
-        config.panel_bar.drag_spring_load,
-        clock.instant,
-    ) else {
-        return urgency_line(config, p, position, tone);
-    };
-    let thickness = config.panel_bar.indicator_thickness;
-    let bar = progress_bar(0.0..=1.0, charge)
-        .girth(thickness)
-        .style(move |theme| progress_bar::Style {
-            background: primary_weak_color(theme).into(),
-            bar: primary_color(theme).into(),
-            border: border::rounded(thickness),
-        });
-    if position.is_vertical() {
-        bar.vertical().into()
-    } else {
-        bar.into()
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
-pub(super) enum SlotTone {
+enum SlotTone {
     Regular,
     Dragged,
 }
 
 impl SlotTone {
-    pub(super) fn tint(
+    fn tint(
         self,
         regular: impl Fn(&Theme) -> Color + Copy + 'static,
     ) -> impl Fn(&Theme) -> Color + Copy + 'static {
@@ -89,110 +41,264 @@ impl SlotTone {
     }
 }
 
-pub(super) fn slot_tone(p: &niri_window_snapshot::WorkspaceIndicator, drag: &DragView) -> SlotTone {
-    if drag.is_dragging(DraggedBarSlot::Workspace(p.id)) {
-        SlotTone::Dragged
-    } else {
-        SlotTone::Regular
+fn tinted_text(color: impl Fn(&Theme) -> Color + Copy + 'static) -> impl Fn(&Theme) -> text::Style {
+    move |theme| text::Style {
+        color: Some(color(theme)),
     }
 }
 
-pub(super) fn indicated<'a>(
-    slots: Element<'a, WorkspacesMessage>,
-    workspaces: &[&niri_window_snapshot::WorkspaceIndicator],
-    config: &Config,
-    position: Position,
-    frame_corners: Radius,
-) -> Element<'a, WorkspacesMessage> {
-    let active = workspaces.iter().position(|p| p.is_active);
-    let active_is_urgent = workspaces.iter().any(|p| p.is_active && p.is_urgent);
-    let color = if active_is_urgent {
-        danger_color
-    } else {
-        primary_color
-    };
-    focus_indicator(slots, active, color, config)
-        .edge(position)
-        .frame_corners(frame_corners)
-        .into()
-}
-
-pub(super) fn hit_area<'a>(
-    p: &niri_window_snapshot::WorkspaceIndicator,
-    position: usize,
-    content: Element<'a, WorkspacesMessage>,
-    drag: &DragView,
-) -> Element<'a, WorkspacesMessage> {
-    let press = SlotPress {
-        item: DraggedBarSlot::Workspace(p.id),
-        position,
-        click: SlotClick::Workspace {
-            id: p.id,
-            is_active: p.is_active,
-        },
-    };
-    let pressable = draggable_slot(content, press, true, drag, dragged);
-    hoverable(
-        pressable.into(),
-        HoverTarget::Workspace(p.id),
-        PressHints {
-            left: Some(if p.is_active {
-                "toggle the overview"
-            } else {
-                "switch to this workspace"
-            }),
-            ..PressHints::default()
-        },
-        WorkspacesMessage::Tooltip,
-    )
-}
-
-pub(super) fn window_color(
-    w: &niri_window_snapshot::WinEntry,
+fn window_marker_color(
+    window_entry: &niri_window_snapshot::WinEntry,
     unfocused: fn(&Theme) -> Color,
 ) -> fn(&Theme) -> Color {
-    if w.is_urgent {
+    if window_entry.is_urgent {
         danger_color
-    } else if w.is_focused {
+    } else if window_entry.is_focused {
         primary_color
     } else {
         unfocused
     }
 }
 
-pub(super) fn window_markers(
-    config: &Config,
-    niri: &niri_window_snapshot::Snapshot,
-    workspace: u64,
-    position: Position,
-    drag: &DragView,
-    tone: SlotTone,
-) -> MarkerTrack {
-    let incoming = drag
-        .awaits_window_on(workspace)
-        .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
-    let colors = niri
-        .windows_on_workspace(workspace)
-        .iter()
-        .map(|w| -> ThemedColor<'static> {
-            Box::new(tone.tint(window_color(w, secondary_text_color)))
-        })
-        .chain(incoming)
-        .collect();
-    MarkerTrack::new(colors, config.panel_bar.indicator_thickness, position)
+pub(super) fn workspace_slot_key(
+    workspace: &niri_window_snapshot::WorkspaceIndicator,
+) -> DraggedBarSlot {
+    DraggedBarSlot::Workspace(workspace.id)
 }
 
-pub(super) fn urgency_line<'a>(
-    config: &Config,
-    p: &niri_window_snapshot::WorkspaceIndicator,
-    position: Position,
+pub(super) fn active_workspace_key(
+    order: &[&niri_window_snapshot::WorkspaceIndicator],
+) -> Option<DraggedBarSlot> {
+    order
+        .iter()
+        .find(|workspace| workspace.is_active)
+        .map(|workspace| workspace_slot_key(workspace))
+}
+
+pub(super) fn active_highlight_color(
+    order: &[&niri_window_snapshot::WorkspaceIndicator],
+) -> fn(&Theme) -> Color {
+    if order
+        .iter()
+        .any(|workspace| workspace.is_active && workspace.is_urgent)
+    {
+        danger_color
+    } else {
+        primary_color
+    }
+}
+
+pub(super) struct WorkspaceSlot<'s> {
+    workspace: &'s niri_window_snapshot::WorkspaceIndicator,
+    niri: &'s niri_window_snapshot::Snapshot,
     tone: SlotTone,
-) -> Element<'a, WorkspacesMessage> {
-    let opacity = if p.is_urgent { 1.0 } else { 0.0 };
-    edge_activity_line(
-        position,
-        tone.tint(danger_color),
-        opacity,
-        config.panel_bar.indicator_thickness,
-    )
+    position_in_bar: usize,
+    slot_context: BarSlotContext<'s>,
+}
+
+impl<'s> WorkspaceSlot<'s> {
+    pub(super) fn new(
+        workspace: &'s niri_window_snapshot::WorkspaceIndicator,
+        niri: &'s niri_window_snapshot::Snapshot,
+        position_in_bar: usize,
+        slot_context: BarSlotContext<'s>,
+    ) -> Self {
+        let tone = if slot_context.drag.is_dragging(workspace_slot_key(workspace)) {
+            SlotTone::Dragged
+        } else {
+            SlotTone::Regular
+        };
+        Self {
+            workspace,
+            niri,
+            tone,
+            position_in_bar,
+            slot_context,
+        }
+    }
+
+    pub(super) fn ghost(
+        workspace: &'s niri_window_snapshot::WorkspaceIndicator,
+        niri: &'s niri_window_snapshot::Snapshot,
+        slot_context: BarSlotContext<'s>,
+    ) -> Self {
+        Self {
+            tone: SlotTone::Regular,
+            ..Self::new(workspace, niri, 0, slot_context)
+        }
+    }
+
+    pub(super) fn key(&self) -> DraggedBarSlot {
+        workspace_slot_key(self.workspace)
+    }
+
+    fn given_name(&self) -> Option<&str> {
+        self.workspace
+            .name
+            .as_deref()
+            .filter(|name| !name.is_empty())
+    }
+
+    fn display_name(&self) -> String {
+        self.given_name()
+            .map_or_else(|| self.workspace.idx.to_string(), str::to_string)
+    }
+
+    fn has_superscript(&self) -> bool {
+        self.given_name().is_some() && self.workspace.idx <= 9
+    }
+
+    fn superscript<'a>(&self) -> Text<'a> {
+        let font = &self.slot_context.config.theme.font;
+        bar_text(font, self.workspace.idx.to_string())
+            .size(font.small_text_size_px)
+            .style(tinted_text(self.tone.tint(secondary_text_color)))
+    }
+
+    pub(super) fn label<'a>(&self) -> Element<'a, WorkspacesMessage> {
+        let name = bar_text(&self.slot_context.config.theme.font, self.display_name())
+            .style(tinted_text(self.tone.tint(text_color)));
+        if !self.has_superscript() {
+            return name.into();
+        }
+        row![self.superscript(), name]
+            .align_y(Alignment::Start)
+            .into()
+    }
+
+    fn drop_tint(&self, highlight_radius: Radius) -> impl Fn(&Theme) -> container::Style + 'static {
+        let awaits_window = self.slot_context.drag.awaits_window_on(self.workspace.id);
+        move |theme| {
+            if awaits_window {
+                container::background(primary_weak_color(theme)).border(Border {
+                    radius: highlight_radius,
+                    ..Border::default()
+                })
+            } else {
+                container::Style::default()
+            }
+        }
+    }
+
+    fn edge_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
+        let BarSlotContext {
+            config,
+            edge,
+            drag,
+            clock,
+        } = self.slot_context;
+        let Some(charge) =
+            drag.hover_charge(self.key(), config.panel_bar.drag_spring_load, clock.instant)
+        else {
+            return self.urgency_line();
+        };
+        let thickness = config.panel_bar.indicator_thickness;
+        let charge_bar = progress_bar(0.0..=1.0, charge)
+            .girth(thickness)
+            .style(move |theme| progress_bar::Style {
+                background: primary_weak_color(theme).into(),
+                bar: primary_color(theme).into(),
+                border: border::rounded(thickness),
+            });
+        if edge.is_vertical() {
+            charge_bar.vertical().into()
+        } else {
+            charge_bar.into()
+        }
+    }
+
+    fn urgency_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
+        let opacity = if self.workspace.is_urgent { 1.0 } else { 0.0 };
+        edge_activity_line(
+            self.slot_context.edge,
+            self.tone.tint(danger_color),
+            opacity,
+            self.slot_context.config.panel_bar.indicator_thickness,
+        )
+    }
+
+    fn window_markers(&self, marker_edge: Position) -> MarkerTrack {
+        let incoming = self
+            .slot_context
+            .drag
+            .awaits_window_on(self.workspace.id)
+            .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
+        let tone = self.tone;
+        let colors = self
+            .niri
+            .windows_on_workspace(self.workspace.id)
+            .iter()
+            .map(|window_entry| -> ThemedColor<'static> {
+                Box::new(tone.tint(window_marker_color(window_entry, secondary_text_color)))
+            })
+            .chain(incoming)
+            .collect();
+        MarkerTrack::new(
+            colors,
+            self.slot_context.config.panel_bar.indicator_thickness,
+            marker_edge,
+        )
+    }
+
+    fn hit_area<'a>(
+        &self,
+        content: Element<'a, WorkspacesMessage>,
+    ) -> Element<'a, WorkspacesMessage> {
+        let press = SlotPress {
+            item: self.key(),
+            position: self.position_in_bar,
+            click: SlotClick::Workspace {
+                id: self.workspace.id,
+                is_active: self.workspace.is_active,
+            },
+        };
+        let pressable = draggable_slot(content, press, true, &self.slot_context.drag, dragged);
+        hoverable(
+            pressable.into(),
+            HoverTarget::Workspace(self.workspace.id),
+            PressHints {
+                left: Some(if self.workspace.is_active {
+                    "toggle the overview"
+                } else {
+                    "switch to this workspace"
+                }),
+                ..PressHints::default()
+            },
+            WorkspacesMessage::Tooltip,
+        )
+    }
+
+    pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
+        let BarSlotContext { config, edge, .. } = self.slot_context;
+        let pager_slot = PagerSlot::new(self.label(), self.edge_line())
+            .ticks(self.window_markers(edge).view())
+            .spaced_by(config.layout.panel.widget_spacing)
+            .view(config, edge);
+        self.hit_area(
+            container(pager_slot)
+                .style(self.drop_tint(Radius::default()))
+                .into(),
+        )
+    }
+
+    pub(super) fn sidebar_view<'a>(
+        &self,
+        highlight_radius: Radius,
+    ) -> Element<'a, WorkspacesMessage> {
+        let config = self.slot_context.config;
+        let label_over_markers =
+            column![self.label(), self.window_markers(Position::Bottom).view()]
+                .width(Length::Shrink)
+                .align_x(Alignment::Center);
+        let label_with_edge = row![label_over_markers, self.edge_line()]
+            .spacing(config.layout.panel.widget_spacing)
+            .height(config.layout.panel.height)
+            .align_y(Alignment::Center);
+        self.hit_area(
+            container(label_with_edge)
+                .align_right(Length::Fill)
+                .style(self.drop_tint(highlight_radius))
+                .into(),
+        )
+    }
 }
