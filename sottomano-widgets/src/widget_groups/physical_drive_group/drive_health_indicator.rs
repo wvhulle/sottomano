@@ -3,8 +3,8 @@ use sottomano_config::severity::Severity;
 use sottomano_sources::{
     cpu_memory_compute::temperature_thresholds::celsius_text,
     disk_storage::{
-        btrfs_filesystem_space::DeviceErrors,
         drive_temperature_health::{DriveHealth, DriveTemperature, MissingSensor},
+        filesystem_device_errors::DeviceErrors,
     },
 };
 
@@ -20,8 +20,6 @@ use crate::{
     },
 };
 
-const ERROR_RESET_COMMAND: &str = "btrfs device stats -z /";
-
 impl BarWidget for DriveHealth {
     fn name(&self) -> &'static str {
         "Drive health"
@@ -32,7 +30,7 @@ impl BarWidget for DriveHealth {
     }
 
     fn state(&self, _clock: Clock) -> WidgetState {
-        let error_level = if self.errors.is_some_and(|errors| errors.total() > 0) {
+        let error_level = if self.errors.iter().any(|errors| errors.total() > 0) {
             Severity::Critical
         } else {
             Severity::Normal
@@ -77,12 +75,14 @@ impl BarWidget for DriveHealth {
                 ]
             }))
             .titled("Thresholds");
-        TooltipBody::sections([
-            summary,
-            threshold_section,
-            Section::from(&self.identity),
-            Section::dictionary(self.errors.iter().flat_map(error_entries)).titled("I/O errors"),
-        ])
+        TooltipBody::sections(
+            [summary, threshold_section, Section::from(&self.identity)]
+                .into_iter()
+                .chain(self.errors.iter().map(|errors| {
+                    Section::dictionary(error_entries(errors))
+                        .titled(format!("I/O errors on {}", errors.counted_on))
+                })),
+        )
     }
 }
 
@@ -91,10 +91,11 @@ fn error_entries(errors: &DeviceErrors) -> Vec<LabeledValue> {
         return vec![LabeledValue::new("Since reset", "none")];
     }
     errors
-        .by_kind()
-        .into_iter()
-        .filter(|error| error.count > 0)
+        .nonzero_counts()
         .map(|error| LabeledValue::new(error.kind, Quantity::count(error.count)))
-        .chain([LabeledValue::new("Reset with", ERROR_RESET_COMMAND)])
+        .chain([LabeledValue::new(
+            "Reset with",
+            errors.reset_command.clone(),
+        )])
         .collect()
 }

@@ -11,7 +11,6 @@ use sottomano_widgets::{
         color_temperature_group::ColorTemperatureGroup,
         compute_group::ComputeGroup,
         dark_mode_group::DarkModeGroup,
-        disk_group::DiskGroup,
         login_session_group::LoginSessionGroup,
         memory_board_group::MemoryBoardGroup,
         monitor_group::MonitorGroup,
@@ -171,6 +170,7 @@ impl DesktopShell {
         )
     }
 
+    #[allow(clippy::too_many_lines)]
     fn source_group_tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
         match target {
             HoverTarget::Compute(target) => self.compute_group.tooltip_for(*target, self.clock),
@@ -178,7 +178,10 @@ impl DesktopShell {
                 self.memory_board_group.tooltip_for(*target, self.clock)
             }
             HoverTarget::Gpu(target) => self.gpu_group.tooltip_for(target, self.clock),
-            HoverTarget::Disk(target) => self.disk_group.tooltip_for(*target, self.clock),
+            HoverTarget::Storage(target) => {
+                self.storage_space_group.tooltip_for(target, self.clock)
+            }
+            HoverTarget::Drive(target) => self.physical_drive_group.tooltip_for(target, self.clock),
             HoverTarget::Power(target) => self.power_group.tooltip_for(*target, self.clock),
             HoverTarget::NiriWindow(target) => {
                 Some(self.niri_window_group.tooltip_for(*target, self.clock))
@@ -295,9 +298,14 @@ impl DesktopShell {
                 MemoryBoardGroup::refresh(*target, buses).map(Message::MemoryBoard)
             }
             HoverTarget::Gpu(target) => self.gpu_group.refresh(target).map(Message::Gpu),
-            HoverTarget::Disk(target) => {
-                DiskGroup::refresh(*target, &sensors.drive).map(Message::Disk)
-            }
+            HoverTarget::Storage(target) => self
+                .storage_space_group
+                .refresh(target)
+                .map(Message::Storage),
+            HoverTarget::Drive(target) => self
+                .physical_drive_group
+                .refresh(target, &sensors.drive)
+                .map(Message::Drive),
             HoverTarget::Clock(target) => ClockGroup::refresh(target).map(Message::Clock),
             HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),
             HoverTarget::VoiceDictation(target) => on_buses(&|buses| {

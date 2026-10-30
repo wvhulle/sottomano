@@ -9,8 +9,10 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use super::{
     Error,
-    btrfs_filesystem_space::{BtrfsFilesystem, DeviceErrors},
-    root_mount_facts::{KernelDevice, RootMount},
+    bcachefs_filesystem_space::BcachefsFilesystem,
+    block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount, KernelDevice},
+    btrfs_filesystem_space::BtrfsFilesystem,
+    filesystem_device_errors::DeviceErrors,
 };
 use crate::{
     SnapshotDelivery, SnapshotSource,
@@ -34,7 +36,13 @@ pub struct DriveHealth {
     pub identity: DriveIdentity,
     pub temperature: DriveTemperature,
     pub overrides: ThresholdOverrides,
-    pub errors: Option<DeviceErrors>,
+    pub errors: Vec<DeviceErrors>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct DriveHealthInputs {
+    pub disk: KernelDevice,
+    pub sensor: SensorConfig,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -110,7 +118,7 @@ impl DriveTemperature {
 
 impl SnapshotSource for DriveHealth {
     type Error = Error;
-    type StreamInputs = SensorConfig;
+    type StreamInputs = DriveHealthInputs;
 
     const NAME: &'static str = "Drive health";
 
@@ -123,28 +131,57 @@ impl SnapshotSource for DriveHealth {
 }
 
 impl DriveHealth {
-    async fn poll(config: SensorConfig) -> Result<Self, Error> {
-        blocking_poll(move || read_drive_health(&config)).await
+    async fn poll(inputs: DriveHealthInputs) -> Result<Self, Error> {
+        blocking_poll(move || read_drive_health(&inputs)).await
     }
 }
 
-fn read_drive_health(config: &SensorConfig) -> Result<DriveHealth, Error> {
-    let mount = RootMount::current()?;
-    let device = mount.device()?;
-    let disk = device.whole_disk();
+fn read_drive_health(inputs: &DriveHealthInputs) -> Result<DriveHealth, Error> {
+    let disk = &inputs.disk;
     let controller = disk.sysfs_dir().join("device");
-    let errors = if mount.fs_type == "btrfs" {
-        Some(BtrfsFilesystem::containing(&device)?.device_errors()?)
+    let discovery = BlockFilesystemDiscovery::read_mountinfo()?;
+    let sensor_choice = if discovery.root_disks().contains(disk) {
+        inputs.sensor.sensor.clone()
     } else {
-        None
+        SensorChoice::Automatic
     };
+    let errors = discovery
+        .filesystems
+        .iter()
+        .filter(|filesystem| filesystem.sits_on_disk(disk))
+        .map(|filesystem| errors_on_disk(filesystem, disk))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .flatten()
+        .collect();
     Ok(DriveHealth {
         device_name: disk.name.clone(),
         identity: DriveIdentity::of_controller(&controller),
-        temperature: DriveTemperature::read(&config.sensor, &disk, &controller),
-        overrides: config.overrides(),
+        temperature: DriveTemperature::read(&sensor_choice, disk, &controller),
+        overrides: inputs.sensor.overrides(),
         errors,
     })
+}
+
+fn errors_on_disk(
+    filesystem: &FilesystemMount,
+    disk: &KernelDevice,
+) -> Result<Vec<DeviceErrors>, Error> {
+    match filesystem.fs_type.as_str() {
+        "btrfs" => Ok(vec![
+            BtrfsFilesystem::containing(&filesystem.devices)?.device_errors()?,
+        ]),
+        "bcachefs" => {
+            let bcachefs = BcachefsFilesystem::containing(&filesystem.devices)?;
+            filesystem
+                .devices
+                .iter()
+                .filter(|partition| &partition.whole_disk() == disk)
+                .map(|partition| bcachefs.device_errors(partition))
+                .collect()
+        }
+        _ => Ok(Vec::new()),
+    }
 }
 
 impl DriveTemperature {
