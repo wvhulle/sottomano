@@ -18,7 +18,6 @@ use crate::{
 const OPENROUTER_MODELS_URL: &str = "https://openrouter.ai/api/v1/models";
 const ANALYSIS_MODELS_URL: &str = "https://artificialanalysis.ai/api/v2/data/llms/models";
 const OPENROUTER_SITE_URL: &str = "https://openrouter.ai";
-const ANALYSIS_MODEL_PAGES_URL: &str = "https://artificialanalysis.ai/models";
 const TOOL_CALLING_PARAMETER: &str = "tools";
 const AGENTIC_MINIMUM_CONTEXT_TOKENS: u64 = 131_072;
 const DATE_SUFFIX_LENGTHS: [usize; 3] = [4, 6, 8];
@@ -44,7 +43,6 @@ pub struct ModelRankingInputs {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScoredModel {
     pub model: String,
-    pub analysis_slug: String,
     pub benchmarks: CodingBenchmarks,
     pub input_per_million: Money,
     pub output_per_million: Money,
@@ -161,17 +159,11 @@ impl OpenRouterModel {
             .map_or(self.id.as_str(), |(_, model)| model);
         let comparable_model = normalized_model_name(model_without_provider);
         let undated_model = without_trailing_date(&comparable_model);
-        let (analysis_slug, benchmarks) = [comparable_model.as_str(), undated_model]
+        let benchmarks = [comparable_model.as_str(), undated_model]
             .into_iter()
-            .map(|candidate_name| {
-                (
-                    candidate_name,
-                    benchmarks_named(candidate_name, analysis_models),
-                )
-            })
-            .find(|(_, benchmarks)| benchmarks.any_scored())?;
+            .map(|candidate_name| benchmarks_named(candidate_name, analysis_models))
+            .find(CodingBenchmarks::any_scored)?;
         Some(ScoredModel {
-            analysis_slug: analysis_slug.to_owned(),
             benchmarks,
             input_per_million: self.pricing.input_per_million,
             output_per_million: self.pricing.output_per_million,
@@ -185,11 +177,6 @@ impl ScoredModel {
     #[must_use]
     pub fn openrouter_page(&self) -> String {
         format!("{OPENROUTER_SITE_URL}/{}", self.model)
-    }
-
-    #[must_use]
-    pub fn analysis_page(&self) -> String {
-        format!("{ANALYSIS_MODEL_PAGES_URL}/{}", self.analysis_slug)
     }
 }
 
@@ -429,10 +416,6 @@ mod tests {
         assert_eq!(flash_snapshot.benchmarks.terminal_bench_v4, Some(0.338));
         let pro_snapshot = scored_model(&rankings, "deepseek/deepseek-v4-pro-0813");
         assert_eq!(pro_snapshot.benchmarks.terminal_bench_v4, Some(0.14));
-        assert_eq!(
-            pro_snapshot.analysis_page(),
-            "https://artificialanalysis.ai/models/deepseek-v4-pro"
-        );
         assert_eq!(
             pro_snapshot.openrouter_page(),
             "https://openrouter.ai/deepseek/deepseek-v4-pro-0813"
