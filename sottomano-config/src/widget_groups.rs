@@ -1,6 +1,7 @@
 pub mod caldav_account;
 pub mod focus_time;
 pub mod gamepad_bindings;
+pub mod media_lyrics;
 pub mod rain_alerts;
 pub mod reachability;
 pub mod spend_budget;
@@ -14,6 +15,7 @@ use crate::widget_groups::{
     caldav_account::CaldavAccountConfig,
     focus_time::FocusTimeConfig,
     gamepad_bindings::GamepadBindingsConfig,
+    media_lyrics::MediaLyricsConfig,
     rain_alerts::RainAlertsConfig,
     reachability::ReachabilityConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
@@ -38,6 +40,7 @@ pub struct WidgetGroupsConfig {
     pub reachability: ReachabilityConfig,
     pub gamepad: GamepadBindingsConfig,
     pub caldav: CaldavAccountConfig,
+    pub media_lyrics: MediaLyricsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

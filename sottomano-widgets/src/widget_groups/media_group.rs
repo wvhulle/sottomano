@@ -1,16 +1,20 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
+    iter,
     time::{Duration, Instant},
 };
 
 use iced::{Element, Subscription, Task, time::every, widget::Row};
-use sottomano_config::Config;
+use sottomano_config::{Config, widget_groups::media_lyrics::MediaLyricsConfig};
 use sottomano_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::niri_window_placement::WindowOwner,
-    media_playback_audio::mpris_players::{self, Command, Media, Progress, Status},
+    media_playback_audio::{
+        lrclib_synced_lyrics::{LyricsQuery, TimedLyricLine, TrackLyrics},
+        mpris_players::{self, Command, Media, Progress, Status},
+    },
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
 
@@ -25,7 +29,7 @@ use crate::{
         group_item::GroupItem,
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
+        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, WidgetGroup},
     },
@@ -33,6 +37,7 @@ use crate::{
 
 mod seek_bar;
 mod session_controls;
+mod synced_lyrics_view;
 mod track_face;
 mod track_tooltip;
 mod transport_controls;
@@ -40,18 +45,21 @@ mod transport_controls;
 use self::{
     seek_bar::{SeekBar, SeekMessage},
     session_controls::{SessionControls, SessionMessages},
+    synced_lyrics_view::{current_lyric_line, lyrics_section},
     track_face::{player_face, track_cover, track_label},
     track_tooltip::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
 
 const PROGRESS_TICK: Duration = Duration::from_secs(1);
+const LYRICS_TICK: Duration = Duration::from_millis(250);
 const RAISE_PLAYER_HINT: &str = "bring the player's window forward";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MediaTarget {
     Player,
     Track,
+    Lyrics,
     Seek,
     Shuffle,
     Previous,
@@ -88,6 +96,7 @@ impl From<PlayerTarget> for HoverTarget {
 pub struct MediaGroup {
     players: LatestSnapshot<Vec<Media>, HidesFetchFailures>,
     sessions: HashMap<String, PlayerSession>,
+    track_lyrics: HashMap<LyricsQuery, TrackLyrics>,
 }
 
 struct PlayerSession {
@@ -116,6 +125,10 @@ struct CoverArt {
 #[derive(Debug, Clone)]
 pub enum MediaMessage {
     Reading(SnapshotDelivery<Vec<Media>>),
+    LyricsReading {
+        query: LyricsQuery,
+        delivery: SnapshotDelivery<TrackLyrics>,
+    },
     ArtLoaded {
         bus: String,
         url: String,
@@ -168,17 +181,53 @@ impl MediaGroup {
         }
     }
 
-    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<MediaMessage> {
+    pub fn subscription(
+        &self,
+        buses: &DesktopBuses,
+        lyrics_config: &MediaLyricsConfig,
+    ) -> Subscription<MediaMessage> {
         let readings =
             snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
-        if self.is_progressing() {
-            Subscription::batch([
-                readings,
-                every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced),
-            ])
+        let lyrics_lookups = self
+            .unfetched_lyrics_queries()
+            .filter(|_| lyrics_config.lrclib_lookup)
+            .map(|query| {
+                snapshot_subscription::<TrackLyrics>(query.clone())
+                    .with(query)
+                    .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })
+            });
+        let progress_tick = if self.is_singing() {
+            Some(every(LYRICS_TICK).map(|_| MediaMessage::ProgressAdvanced))
+        } else if self.is_progressing() {
+            Some(every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced))
         } else {
-            readings
-        }
+            None
+        };
+        Subscription::batch(
+            iter::once(readings)
+                .chain(lyrics_lookups)
+                .chain(progress_tick),
+        )
+    }
+
+    fn playing_lyrics_queries(&self) -> impl Iterator<Item = LyricsQuery> {
+        self.all_players()
+            .filter(|media| media.status == Status::Playing)
+            .filter_map(Media::lyrics_query)
+    }
+
+    fn unfetched_lyrics_queries(&self) -> impl Iterator<Item = LyricsQuery> {
+        self.playing_lyrics_queries()
+            .filter(|query| !self.track_lyrics.contains_key(query))
+    }
+
+    fn is_singing(&self) -> bool {
+        self.playing_lyrics_queries()
+            .any(|query| matches!(self.track_lyrics.get(&query), Some(TrackLyrics::Synced(_))))
+    }
+
+    fn lyrics_of(&self, media: &Media) -> Option<&TrackLyrics> {
+        self.track_lyrics.get(&media.lyrics_query()?)
     }
 
     fn is_progressing(&self) -> bool {
@@ -206,7 +255,16 @@ impl MediaGroup {
 
     pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
         match msg {
-            MediaMessage::ProgressAdvanced => {}
+            MediaMessage::LyricsReading {
+                query,
+                delivery: SnapshotDelivery::SnapshotDelivered { snapshot_fetch, .. },
+            } => match snapshot_fetch {
+                Ok(track_lyrics) => {
+                    self.track_lyrics.insert(query, track_lyrics);
+                }
+                Err(fetch_error) => tracing::debug!("lyrics for {}: {fetch_error}", query.title),
+            },
+            MediaMessage::ProgressAdvanced | MediaMessage::LyricsReading { .. } => {}
             MediaMessage::Reading(delivery) => {
                 self.players.receive(delivery, clock);
                 self.follow_players(clock.instant);
@@ -233,6 +291,10 @@ impl MediaGroup {
         let players: Vec<Media> = self.all_players().cloned().collect();
         self.sessions
             .retain(|bus, _| players.iter().any(|media| &media.bus == bus));
+        let current_queries: Vec<LyricsQuery> =
+            players.iter().filter_map(Media::lyrics_query).collect();
+        self.track_lyrics
+            .retain(|query, _| current_queries.contains(query));
         for media in &players {
             let session = self.sessions.entry(media.bus.clone()).or_default();
             session.seek_bar.player_reported(media, now);
@@ -310,11 +372,19 @@ impl MediaGroup {
                 LabeledValue::new("Player", media.identity.clone()),
                 LabeledValue::new("State", media.status.label()),
             ])),
-            MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
-                track_section(media, index),
-                playback_section(media, clock.instant),
-                search_section(media, index),
-            ])),
+            MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections(
+                [
+                    Some(track_section(media, index)),
+                    self.lyrics_section_of(media, clock.instant),
+                    Some(playback_section(media, clock.instant)),
+                    Some(search_section(media, index)),
+                ]
+                .into_iter()
+                .flatten(),
+            )),
+            MediaTarget::Lyrics => self.players.tooltip_with(TooltipBody::sections(
+                self.lyrics_section_of(media, clock.instant),
+            )),
             MediaTarget::Seek
             | MediaTarget::Shuffle
             | MediaTarget::Previous
@@ -326,6 +396,11 @@ impl MediaGroup {
         }
     }
 
+    fn lyrics_section_of(&self, media: &Media, now: Instant) -> Option<Section> {
+        let played = media.progress.played(media.status, now)?;
+        Some(lyrics_section(self.lyrics_of(media)?, played))
+    }
+
     pub fn group_contents<'a>(
         &'a self,
         config: &'a Config,
@@ -333,7 +408,10 @@ impl MediaGroup {
     ) -> impl Iterator<Item = GroupContent<'a, MediaMessage>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
-            Some(player_group(config, clock, media, session))
+            let lyric_line = self.lyrics_of(media).and_then(|track_lyrics| {
+                track_lyrics.current_line(media.progress.played(media.status, clock.instant)?)
+            });
+            Some(player_group(config, clock, media, session, lyric_line))
         })
     }
 }
@@ -343,6 +421,7 @@ fn player_group<'a>(
     clock: Clock,
     media: &'a Media,
     session: &'a PlayerSession,
+    lyric_line: Option<&'a TimedLyricLine>,
 ) -> GroupContent<'a, MediaMessage> {
     let bus = media.bus.as_str();
     let opacity = if media.status == Status::Playing {
@@ -416,6 +495,8 @@ fn player_group<'a>(
             Some(face),
             Some(cover),
             Some(track_label(config, media)),
+            lyric_line
+                .map(|timed_line| current_lyric_line(config, media, timed_line, clock.instant)),
             seek,
             Some(transport),
             session_buttons,
@@ -510,7 +591,7 @@ mod tests {
             identity: bus.to_owned(),
             desktop_entry: None,
             title: Some("track".to_owned()),
-            artist: None,
+            artists: Vec::new(),
             album: None,
             url: None,
             status,
@@ -584,5 +665,48 @@ mod tests {
             group.sessions.keys().collect::<Vec<_>>(),
             ["org.mpris.MediaPlayer2.spotify"]
         );
+    }
+
+    fn singing_player(title: &str, clock: Clock) -> Media {
+        Media {
+            title: Some(title.to_owned()),
+            artists: vec!["The Harbour Lights".to_owned()],
+            progress: Progress::Timed {
+                position: Duration::from_secs(15),
+                sampled_at: clock.instant,
+                length: Duration::from_secs(241),
+                rate: 1.0,
+            },
+            ..titled_player("org.mpris.MediaPlayer2.spotify", Status::Playing)
+        }
+    }
+
+    fn lyrics_delivered(group: &mut MediaGroup, media: &Media, clock: Clock) {
+        let _ = group.update(
+            MediaMessage::LyricsReading {
+                query: media
+                    .lyrics_query()
+                    .expect("a timed, titled track has a query"),
+                delivery: SnapshotDelivery::single_read(Ok(TrackLyrics::synced_from_lrc(
+                    "[00:10.00]Low tide, low tide",
+                ))),
+            },
+            clock,
+        );
+    }
+
+    #[test]
+    fn delivered_lyrics_follow_the_track_and_drop_on_a_track_change() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        let low_tide = singing_player("Low Tide", clock);
+        reported(&mut group, vec![low_tide.clone()], clock);
+        assert_eq!(group.unfetched_lyrics_queries().count(), 1);
+        lyrics_delivered(&mut group, &low_tide, clock);
+        assert!(group.is_singing());
+        assert_eq!(group.unfetched_lyrics_queries().count(), 0);
+        reported(&mut group, vec![singing_player("High Water", clock)], clock);
+        assert!(group.track_lyrics.is_empty());
+        assert!(!group.is_singing());
     }
 }

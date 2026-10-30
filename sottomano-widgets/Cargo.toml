@@ -24,6 +24,7 @@ icu_provider.workspace = true
 jiff.workspace = true
 kdl.workspace = true
 iced.workspace = true
+unicode-segmentation.workspace = true
 iced_controller_diagram.workspace = true
 iced_exwlshell.workspace = true
 image.workspace = true
