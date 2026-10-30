@@ -28,7 +28,7 @@ impl From<&CpuModel> for Section {
             .identity
             .name
             .as_deref()
-            .map(|name| LabeledValue::keyed_by_logo("Model", vendor_logo, name));
+            .map(|name| LabeledValue::logo_prefixed("Model", vendor_logo, name));
         let identity = [
             ("Microarchitecture", &model.architecture.microarchitecture),
             ("Process", &model.architecture.process),
@@ -108,7 +108,7 @@ impl From<&DriveIdentity> for Section {
         let named_model = drive
             .model
             .as_deref()
-            .map(|model| LabeledValue::keyed_by_logo("Model", vendor_logo, model));
+            .map(|model| LabeledValue::logo_prefixed("Model", vendor_logo, model));
         Section::hardware_identity(
             named_model.into_iter().chain(
                 [("Serial", &drive.serial), ("Firmware", &drive.firmware)]
@@ -152,7 +152,7 @@ impl From<&ModemIdentity> for Section {
 impl From<&Adapter> for Section {
     fn from(adapter: &Adapter) -> Self {
         let named_vendor = adapter.vendor.as_deref().map(|vendor| {
-            LabeledValue::keyed_by_logo("Vendor", adapter.bus_id.vendor_logo(), vendor)
+            LabeledValue::logo_prefixed("Vendor", adapter.bus_id.vendor_logo(), vendor)
         });
         let model = adapter
             .model
@@ -171,12 +171,12 @@ impl From<&GpuModel> for Section {
     fn from(model: &GpuModel) -> Self {
         let logo = model.vendor.vendor_logo();
         let name_entries = match &model.names {
-            GpuNames::Chip(chip) => vec![LabeledValue::keyed_by_logo("Chip", logo, chip.as_str())],
+            GpuNames::Chip(chip) => vec![LabeledValue::logo_prefixed("Chip", logo, chip.as_str())],
             GpuNames::Product(product) => {
-                vec![LabeledValue::keyed_by_logo("Model", logo, product.as_str())]
+                vec![LabeledValue::logo_prefixed("Model", logo, product.as_str())]
             }
             GpuNames::ChipWithProduct { chip, product } => vec![
-                LabeledValue::keyed_by_logo("Model", logo, product.as_str()),
+                LabeledValue::logo_prefixed("Model", logo, product.as_str()),
                 LabeledValue::new("Chip", chip.as_str()),
             ],
         };
