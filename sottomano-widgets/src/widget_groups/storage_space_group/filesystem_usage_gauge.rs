@@ -22,6 +22,8 @@ use crate::{
 
 const FREE_WARN: ByteSize = ByteSize::gb(100);
 const FREE_CRITICAL: ByteSize = ByteSize::gb(2);
+const FREE_WARN_SHARE: f64 = 0.2;
+const FREE_CRITICAL_SHARE: f64 = 0.05;
 const BTRFS_UNALLOCATED_WARN: ByteSize = ByteSize::gib(1);
 const BTRFS_CROWDED_UNALLOCATED: ByteSize = ByteSize::gib(4);
 const BTRFS_CROWDED_METADATA_SHARE: f64 = 0.9;
@@ -97,9 +99,14 @@ pub trait SpaceSeverity {
 
 impl SpaceSeverity for FilesystemUsage {
     fn free_space_severity(&self) -> Severity {
-        if self.free < FREE_CRITICAL {
+        let capped_by_capacity = |absolute_threshold: ByteSize, capacity_share: f64| {
+            absolute_threshold.min(ByteSize::b(
+                (self.total.as_u64() as f64 * capacity_share) as u64,
+            ))
+        };
+        if self.free < capped_by_capacity(FREE_CRITICAL, FREE_CRITICAL_SHARE) {
             Severity::Critical
-        } else if self.free < FREE_WARN {
+        } else if self.free < capped_by_capacity(FREE_WARN, FREE_WARN_SHARE) {
             Severity::Warning
         } else {
             Severity::Normal
@@ -253,7 +260,8 @@ fn bcachefs_sections(space: &BcachefsSpace, pressure: MetadataPressure) -> Vec<S
 #[cfg(test)]
 mod tests {
     use sottomano_sources::disk_storage::{
-        block_filesystem_mounts::Compression, btrfs_filesystem_space::Allocation,
+        block_filesystem_mounts::{Compression, FilesystemMount},
+        btrfs_filesystem_space::Allocation,
     };
 
     use super::*;
@@ -266,6 +274,40 @@ mod tests {
             global_reserve: ByteSize::mib(512),
             metadata_chunk: ByteSize::mib(256),
         }
+    }
+
+    fn vfat_usage_with(total: ByteSize, free: ByteSize) -> FilesystemUsage {
+        FilesystemUsage {
+            mount: FilesystemMount {
+                devices: Vec::new(),
+                mount_points: vec!["/boot".into()],
+                fs_type: "vfat".to_owned(),
+                compression: Compression::Disabled,
+            },
+            total,
+            free,
+            filesystem: Filesystem::Other {
+                fs_type: "vfat".to_owned(),
+            },
+        }
+    }
+
+    #[test]
+    fn small_boot_partition_mostly_free_is_normal() {
+        let usage = vfat_usage_with(ByteSize::gib(2), ByteSize::mib(1700));
+        assert_eq!(usage.free_space_severity(), Severity::Normal);
+    }
+
+    #[test]
+    fn small_boot_partition_nearly_full_is_critical() {
+        let usage = vfat_usage_with(ByteSize::gib(2), ByteSize::mib(50));
+        assert_eq!(usage.free_space_severity(), Severity::Critical);
+    }
+
+    #[test]
+    fn large_disk_below_absolute_thresholds_still_warns() {
+        let usage = vfat_usage_with(ByteSize::tb(2), ByteSize::gb(50));
+        assert_eq!(usage.free_space_severity(), Severity::Warning);
     }
 
     #[test]
