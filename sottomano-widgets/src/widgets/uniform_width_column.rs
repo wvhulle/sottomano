@@ -74,7 +74,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for UniformWidthColum
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let width = self.widest_intrinsic_width(&mut tree.children, renderer, limits);
+        let width = self
+            .widest_intrinsic_width(&mut tree.children, renderer, limits)
+            .ceil();
         let stretched = Limits::new(Size::new(width, 0.0), Size::new(width, limits.max().height));
         let mut top = 0.0;
         let nodes = self

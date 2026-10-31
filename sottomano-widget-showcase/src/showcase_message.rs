@@ -69,7 +69,8 @@ impl From<PopupMessage> for ShowcaseMessage {
             PopupMessage::CopyText(_)
             | PopupMessage::OpenUrl(_)
             | PopupMessage::FocusWindow(_)
-            | PopupMessage::RefreshHoveredReading => ShowcaseMessage::OutsideShowcase,
+            | PopupMessage::RefreshHoveredReading
+            | PopupMessage::ToggleGroupMenuPin { .. } => ShowcaseMessage::OutsideShowcase,
         }
     }
 }

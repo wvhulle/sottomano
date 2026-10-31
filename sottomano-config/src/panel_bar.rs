@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::layout::spacing::Spacing;
+use crate::{layout::spacing::Spacing, severity::Severity};
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(
@@ -25,6 +25,7 @@ pub struct PanelBarConfig<L = f32> {
     pub slider_expansion: Duration,
     #[serde(with = "humantime_serde")]
     pub focus_indicator_motion: Duration,
+    pub group_menu_promotion_severity: Severity,
 }
 
 impl<L: From<f32>> Default for PanelBarConfig<L> {
@@ -40,6 +41,7 @@ impl<L: From<f32>> Default for PanelBarConfig<L> {
             group_expansion: Duration::from_millis(90),
             slider_expansion: Duration::from_millis(90),
             focus_indicator_motion: Duration::from_millis(160),
+            group_menu_promotion_severity: Severity::Warning,
         }
     }
 }
@@ -58,6 +60,7 @@ impl PanelBarConfig<Spacing> {
             group_expansion: self.group_expansion,
             slider_expansion: self.slider_expansion,
             focus_indicator_motion: self.focus_indicator_motion,
+            group_menu_promotion_severity: self.group_menu_promotion_severity,
         }
     }
 }

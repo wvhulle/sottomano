@@ -57,6 +57,7 @@ use sottomano_widgets::{
     widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
+        group_menu::{GroupMenuSurfaces, MenuInspection},
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -243,6 +244,11 @@ impl DesktopShell {
                 .idle_timeouts_group
                 .update(msg)
                 .map(Message::IdleTimeouts),
+            Message::GroupMenuPins(msg) => self
+                .widget_groups
+                .group_menu_pins
+                .update(msg)
+                .map(Message::GroupMenuPins),
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
@@ -370,6 +376,16 @@ impl DesktopShell {
     }
 
     pub(super) fn hover_content(&self, target: &HoverTarget) -> Option<HoverContent<'_, Message>> {
+        if let Some(GroupMenuSurfaces {
+            primary,
+            satellites,
+        }) = self.group_menu_surfaces(target)
+        {
+            return Some(HoverContent::Cascade {
+                primary,
+                satellites,
+            });
+        }
         match self.interactive_panel(target) {
             Some(panel) => Some(HoverContent::Interactive {
                 described: self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
@@ -377,6 +393,37 @@ impl DesktopShell {
             }),
             None => self.tooltip_for(target).map(HoverContent::Described),
         }
+    }
+
+    fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {
+        let HoverTarget::GroupHandle(handle) = target else {
+            return None;
+        };
+        let group_menu = self
+            .bar_group_menus()
+            .find(|group_menu| group_menu.handle() == *handle)?;
+        let inspected_row = self.tooltip.inspected_row();
+        let card = inspected_row
+            .and_then(|row| {
+                self.tooltip_for(&row.target)
+                    .map(|tooltip| tooltip.with_announcement(row.announcement))
+            })
+            .unwrap_or_else(Tooltip::empty);
+        let inspection = MenuInspection {
+            open_member: self.tooltip.inspected_member(),
+            inspected_row,
+            card: &card,
+        };
+        group_menu.surfaces(
+            &self.config,
+            self.window_assets(),
+            self.clock,
+            &self
+                .widget_groups
+                .overlay_settings_group
+                .overlay_appearance(),
+            &inspection,
+        )
     }
 
     fn interactive_panel(&self, target: &HoverTarget) -> Option<Element<'_, Message>> {
@@ -387,20 +434,6 @@ impl DesktopShell {
                 .corner_radius_px,
         );
         match target {
-            HoverTarget::GroupHandle(handle) => {
-                let inspected = self
-                    .tooltip
-                    .inspected_row()
-                    .and_then(|row| {
-                        self.tooltip_for(&row.target)
-                            .map(|tooltip| tooltip.with_announcement(row.announcement))
-                    })
-                    .unwrap_or_else(Tooltip::empty);
-                self.bar_drawers()
-                    .into_iter()
-                    .find(|drawer| drawer.drawer() == *handle)?
-                    .inspecting_sheet(&self.config, self.window_assets(), self.clock, &inspected)
-            }
             HoverTarget::Tray(address) => self
                 .widget_groups
                 .tray_group

@@ -81,7 +81,7 @@ fn disconnected_toggle(groups_disconnected: bool) -> IconToggle {
 
 fn pinned_groups_toggle(groups_auto_collapse: bool) -> IconToggle {
     IconToggle::new(
-        "Pinned groups",
+        "Stay expanded",
         Phosphor::PushPin(Weight::Regular),
         !groups_auto_collapse,
         SwitchPresses {

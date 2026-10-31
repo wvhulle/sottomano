@@ -4,12 +4,23 @@ use iced::{
     widget::{Row, column, container, mouse_area, row},
 };
 use sottomano_config::screen_edges::Position;
-use sottomano_widgets::widgets::{
-    panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
-    region_reporter::{RegionRoles, region_reporter},
+use sottomano_widgets::{
+    hover_tooltips::GroupHandle,
+    widget_groups::group_menu_pins::GroupMenuPinsMessage,
+    widgets::{
+        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+        region_reporter::{RegionRoles, region_reporter},
+    },
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
+
+pub(super) fn toggle_group_menu_pin(group_menu: GroupHandle, group_title: &'static str) -> Message {
+    Message::GroupMenuPins(GroupMenuPinsMessage::Toggle {
+        group_menu,
+        group_title,
+    })
+}
 
 impl DesktopShell {
     pub(super) fn panel_bar<'a>(

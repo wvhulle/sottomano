@@ -3,7 +3,7 @@ use std::rc::Rc;
 use chrono::Locale;
 use iced::{
     Element,
-    widget::{button, mouse_area},
+    widget::{Space, button, mouse_area},
 };
 use sottomano_config::{Config, severity::Severity};
 
@@ -24,13 +24,14 @@ use crate::{
             widget_state_alert_severity,
         },
         slider_control::{ControlMessage, SliderControl},
-        source_reading::source_reading,
+        source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
         widget_group::GroupEvent,
+        widget_state::StateTint,
     },
 };
 
-const DRAWER_ICON_GAP_EMS: f32 = 0.75;
+const TABLE_ICON_GAP_EMS: f32 = 0.75;
 
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
@@ -38,7 +39,13 @@ type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, G
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ItemPlacement {
     Bar,
-    Drawer,
+    Table,
+    Menu,
+}
+
+pub(super) struct MenuParts<'a, M> {
+    pub icon: Element<'a, GroupEvent<M>>,
+    pub value: Element<'a, GroupEvent<M>>,
 }
 
 enum ItemKind<'a, M> {
@@ -186,9 +193,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 let on_control = Rc::clone(&on_control);
                 let slider_view = match placement {
                     ItemPlacement::Bar => slider.view(config, reveal, clock),
-                    ItemPlacement::Drawer => {
-                        slider.always_open_view(config, clock, drawer_icon_gap(config))
+                    ItemPlacement::Table => {
+                        slider.always_open_view(config, clock, table_icon_gap(config))
                     }
+                    ItemPlacement::Menu => slider.menu_view(config, table_icon_gap(config)),
                 };
                 slider_view.map(move |message| match message {
                     ControlMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
@@ -413,11 +421,15 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self.placed_view(config, reveal, clock, ItemPlacement::Bar)
     }
 
-    pub(super) fn drawer_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>>
+    pub(super) fn table_cell_view(
+        &self,
+        config: &Config,
+        clock: Clock,
+    ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
-        let item_view = self.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
+        let item_view = self.placed_view(config, 1.0, clock, ItemPlacement::Table);
         match &self.kind {
             ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
                 mouse_area(item_view)
@@ -431,7 +443,57 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(super) fn drawer_name(&self) -> Option<&'static str> {
+    pub(super) fn inspected_row(&self) -> Option<InspectedRow> {
+        match &self.kind {
+            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
+                Some(InspectedRow {
+                    target: target.clone(),
+                    announcement: self.announcement(),
+                })
+            }
+            ItemKind::Control { .. } | ItemKind::Element { .. } => None,
+        }
+    }
+
+    pub(super) fn press_message(&self) -> Option<M>
+    where
+        M: Clone,
+    {
+        self.on_press.as_ref().map(|press| press.message.clone())
+    }
+
+    pub(super) fn menu_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
+    where
+        M: Clone,
+    {
+        let tint_of = |widget: &dyn BarWidget| StateTint::opaque(widget.state(clock));
+        let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
+        match &self.kind {
+            ItemKind::Reading { widget, .. } => MenuParts {
+                icon: reading_icon(config, widget.as_ref(), tint_of(widget.as_ref()), clock),
+                value: reading_value(config, widget.as_ref(), tint_of(widget.as_ref()), clock)
+                    .unwrap_or_else(empty),
+            },
+            ItemKind::Control { widget, draw, .. } => MenuParts {
+                icon: reading_icon(config, *widget, tint_of(*widget), clock),
+                value: draw(1.0, clock, ItemPlacement::Menu),
+            },
+            ItemKind::Element { draw } | ItemKind::HoverableElement { draw, .. } => MenuParts {
+                icon: empty(),
+                value: draw(1.0),
+            },
+        }
+    }
+
+    pub(super) fn glance_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
+        match &self.kind {
+            ItemKind::Reading { widget, .. } => source_reading(config, widget.as_ref(), 1.0, clock),
+            ItemKind::Control { widget, .. } => source_reading(config, *widget, 1.0, clock),
+            ItemKind::Element { draw } | ItemKind::HoverableElement { draw, .. } => draw(1.0),
+        }
+    }
+
+    pub(super) fn menu_name(&self) -> Option<&'static str> {
         self.kind.announcing_widget().map(BarWidget::name)
     }
 
@@ -453,7 +515,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 self.announcement(),
                 GroupEvent::Tooltip,
             ),
-            ItemPlacement::Drawer => element,
+            ItemPlacement::Table | ItemPlacement::Menu => element,
         };
         let mut element = match &self.kind {
             ItemKind::Reading { widget, target } => explained(
@@ -480,6 +542,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 }
 
-fn drawer_icon_gap(config: &Config) -> f32 {
-    DRAWER_ICON_GAP_EMS * config.theme.font.text_size_px
+fn table_icon_gap(config: &Config) -> f32 {
+    TABLE_ICON_GAP_EMS * config.theme.font.text_size_px
 }

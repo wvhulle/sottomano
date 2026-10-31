@@ -27,12 +27,12 @@ use sottomano_widgets::{
         color_temperature_group::ColorTemperatureMessage, compute_group::ComputeMessage,
         copilot_usage_group::CopilotUsageMessage, dark_mode_group::DarkModeMessage,
         ethernet_ports_group::EthernetPortsMessage, gamepad_group::GamepadMessage,
-        gpu_group::GpuMessage, idle_timeouts_group::IdleTimeoutsMessage,
-        journal_events_group::JournalEventsMessage, llama_server_group::LlamaServerMessage,
-        login_session_group::LoginSessionMessage, media_group::MediaMessage,
-        memory_board_group::MemoryBoardMessage, monitor_group::MonitorMessage,
-        net_interfaces_group::NetInterfacesMessage, niri_window_group::NiriWindowMessage,
-        notification_group::NotificationGroupMessage,
+        gpu_group::GpuMessage, group_menu_pins::GroupMenuPinsMessage,
+        idle_timeouts_group::IdleTimeoutsMessage, journal_events_group::JournalEventsMessage,
+        llama_server_group::LlamaServerMessage, login_session_group::LoginSessionMessage,
+        media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
+        monitor_group::MonitorMessage, net_interfaces_group::NetInterfacesMessage,
+        niri_window_group::NiriWindowMessage, notification_group::NotificationGroupMessage,
         openrouter_credit_group::OpenRouterCreditMessage,
         overlay_settings_group::OverlaySettingsMessage, panel_settings_group::PanelSettingsMessage,
         pending_upgrades_group::PendingUpgradesMessage, physical_drive_group::DriveMessage,
@@ -91,6 +91,7 @@ pub enum Message {
     DarkMode(DarkModeMessage),
     VoiceDictation(VoiceDictationMessage),
     IdleTimeouts(IdleTimeoutsMessage),
+    GroupMenuPins(GroupMenuPinsMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
     ConfigFileChanged,
@@ -157,6 +158,13 @@ impl From<PopupMessage> for Message {
             PopupMessage::FocusWindow(window) => Message::FocusWindow(window),
             PopupMessage::RefreshHoveredReading => Message::RefreshHoveredReading,
             PopupMessage::WindowGroup(window_group) => Message::WindowGroup(window_group),
+            PopupMessage::ToggleGroupMenuPin {
+                group_menu,
+                group_title,
+            } => Message::GroupMenuPins(GroupMenuPinsMessage::Toggle {
+                group_menu,
+                group_title,
+            }),
         }
     }
 }

@@ -1,5 +1,6 @@
 pub mod core_grid;
 pub mod hover_area;
+pub mod panel_row_inspection;
 pub mod tooltip_content;
 pub mod tooltip_surfaces;
 pub mod tooltip_transition;
@@ -110,11 +111,12 @@ pub enum HoverTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupHandle {
-    AppearanceDrawer,
+    AppearanceMenu,
     Audio,
-    BehaviourDrawer,
+    BehaviourMenu,
     Caldav,
     ClaudeUsage,
+    HardwareMenu,
     ColorTemperature,
     CopilotUsage,
     DarkMode,
@@ -213,7 +215,15 @@ pub enum HoverOrigin {
     Reading,
     GroupHandle {
         group_title: &'static str,
+        panel_pin: PanelPin,
     },
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PanelPin {
+    #[default]
+    Unpinned,
+    PinnedFrom(GroupHandle),
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -235,7 +245,24 @@ impl HoverAnnouncement {
     pub fn from_group_handle(group_title: &'static str, press_hints: PressHints) -> Self {
         HoverAnnouncement {
             press_hints,
-            origin: HoverOrigin::GroupHandle { group_title },
+            origin: HoverOrigin::GroupHandle {
+                group_title,
+                panel_pin: PanelPin::Unpinned,
+            },
+        }
+    }
+
+    #[must_use]
+    pub fn pinned_by(self, panel_pin: PanelPin) -> Self {
+        match self.origin {
+            HoverOrigin::GroupHandle { group_title, .. } => HoverAnnouncement {
+                origin: HoverOrigin::GroupHandle {
+                    group_title,
+                    panel_pin,
+                },
+                ..self
+            },
+            HoverOrigin::Reading => self,
         }
     }
 
@@ -266,6 +293,7 @@ pub enum TooltipMessage {
         target: HoverTarget,
         announcement: HoverAnnouncement,
     },
+    InspectMember(usize),
     Inspect(InspectedRow),
     EnterTooltip,
     ExitTooltip,
@@ -286,6 +314,10 @@ pub enum PopupMessage {
     FocusWindow(u64),
     RefreshHoveredReading,
     WindowGroup(WindowGroupMessage),
+    ToggleGroupMenuPin {
+        group_menu: GroupHandle,
+        group_title: &'static str,
+    },
 }
 
 #[cfg(test)]
