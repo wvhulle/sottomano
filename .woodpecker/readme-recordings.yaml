@@ -27,18 +27,16 @@ steps:
       - nix develop --command cargo xtask update-recording-embeds
 
   - name: push-recordings-orphan-branch
-    image: alpine/git
+    image: nixos/nix:latest
     environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        extra-substituters = https://wvhulle.cachix.org
+        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - cd recordings
-      - git init --quiet --initial-branch recordings
-      - git add --all
-      - 'git -c user.name=sottomano-ci -c user.email=willemvanhulle@protonmail.com commit --quiet --message "docs: README recordings of $${CI_COMMIT_SHA}"'
-      - git remote add origin "https://wvhulle:$${CODEBERG_TOKEN}@codeberg.org/$${CI_REPO}.git"
-      - published_tree=$(git fetch --quiet --depth 1 origin recordings && git rev-parse 'FETCH_HEAD^{tree}' || true)
-      - if [ "$published_tree" = "$(git rev-parse 'HEAD^{tree}')" ]; then echo "recordings unchanged"; else git push --force origin recordings; fi
+      - nix develop --command cargo xtask publish-recordings
 
   - name: push-readme-recordings-branch
     image: appleboy/drone-git-push
