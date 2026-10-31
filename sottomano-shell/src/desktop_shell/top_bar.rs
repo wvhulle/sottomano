@@ -15,8 +15,7 @@ use crate::{
 };
 
 pub(super) struct TopBarGroups<'a> {
-    pub hardware_menu: GroupMenu<'a, Message>,
-    pub start: Vec<GroupContent<'a, Message>>,
+    pub start_menus: [GroupMenu<'a, Message>; 2],
     pub center: [GroupContent<'a, Message>; 6],
     pub end: Vec<GroupContent<'a, Message>>,
 }
@@ -25,17 +24,16 @@ impl DesktopShell {
     pub(super) fn top_bar<'a>(&'a self) -> Element<'a, Message> {
         let config = &self.config;
         let TopBarGroups {
-            hardware_menu,
-            start,
-            end,
+            start_menus,
             center,
+            end,
         } = self.top_bar_groups();
         let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top, self.clock);
         self.panel_bar(
             Position::Top,
-            hardware_menu
-                .bar_views(config, Position::Top, self.clock)
-                .chain(start.into_iter().map(view)),
+            start_menus
+                .into_iter()
+                .flat_map(|group_menu| group_menu.bar_views(config, Position::Top, self.clock)),
             center.map(view),
             end.into_iter().map(view),
         )
@@ -51,48 +49,56 @@ impl DesktopShell {
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {
         TopBarGroups {
-            hardware_menu: self.hardware_menu(),
-            start: [self
-                .widget_groups
-                .net_interfaces_group
-                .group_content(self.clock)
-                .map(Message::NetInterfaces)]
-            .into_iter()
-            .chain(
-                self.widget_groups
-                    .ethernet_ports_group
-                    .group_contents()
-                    .into_iter()
-                    .map(|group| group.map(Message::EthernetPorts)),
-            )
-            .chain(
-                self.widget_groups
-                    .bluetooth_adapters_group
-                    .group_contents(
-                        &|hardware_address| {
-                            self.widget_groups
-                                .gamepad_group
-                                .report_timing_for_address(hardware_address)
-                        },
-                        self.clock,
-                    )
-                    .into_iter()
-                    .map(|group| group.map(Message::BluetoothAdapters)),
-            )
-            .chain([
-                self.widget_groups
-                    .reachability_group
-                    .group_content()
-                    .map(Message::Reachability),
-                self.widget_groups
-                    .vpn_group
-                    .group_content()
-                    .map(Message::Vpn),
-            ])
-            .collect(),
+            start_menus: [self.hardware_menu(), self.network_menu()],
             center: self.top_bar_center_groups(),
             end: self.top_bar_end_groups(),
         }
+    }
+
+    pub(super) fn network_menu(&self) -> GroupMenu<'_, Message> {
+        let members = [self
+            .widget_groups
+            .net_interfaces_group
+            .group_content(self.clock)
+            .map(Message::NetInterfaces)]
+        .into_iter()
+        .chain(
+            self.widget_groups
+                .ethernet_ports_group
+                .group_contents()
+                .into_iter()
+                .map(|group| group.map(Message::EthernetPorts)),
+        )
+        .chain(
+            self.widget_groups
+                .bluetooth_adapters_group
+                .group_contents(
+                    &|hardware_address| {
+                        self.widget_groups
+                            .gamepad_group
+                            .report_timing_for_address(hardware_address)
+                    },
+                    self.clock,
+                )
+                .into_iter()
+                .map(|group| group.map(Message::BluetoothAdapters)),
+        )
+        .chain([
+            self.widget_groups
+                .reachability_group
+                .group_content()
+                .map(Message::Reachability),
+            self.widget_groups
+                .vpn_group
+                .group_content()
+                .map(Message::Vpn),
+        ]);
+        self.group_menu(
+            GroupMenuKind::Network,
+            "Network",
+            Phosphor::Network(Weight::Regular),
+            members,
+        )
     }
 
     pub(super) fn hardware_menu(&self) -> GroupMenu<'_, Message> {

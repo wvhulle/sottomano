@@ -34,7 +34,7 @@ use sottomano_widgets::{
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
-        workspaces_group::{inline_strip, sidebar_column, workspace_tooltip},
+        workspaces_group::{EmptyWorkspaces, inline_strip, sidebar_column, workspace_tooltip},
     },
     widgets::{
         appearance_presets::ShellAppearance,
@@ -208,6 +208,7 @@ impl ShowcasedNiriSession {
             &self.snapshot,
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(&self.snapshot)),
+            EmptyWorkspaces::Shown,
             LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance(), config).drawn_corners(
                 OutlinedSides::inward_of(Position::Left)
                     .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
@@ -229,6 +230,7 @@ impl ShowcasedNiriSession {
             snapshot,
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(snapshot)),
+            EmptyWorkspaces::Shown,
             undragged_slot_context(config, Position::Bottom, clock),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from));

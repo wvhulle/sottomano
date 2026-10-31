@@ -221,6 +221,9 @@ impl From<WorkspacesMessage> for Message {
             WorkspacesMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
             WorkspacesMessage::Drag(drag) => Message::PointerDrag(drag),
             WorkspacesMessage::RestoreOrder { output } => Message::RestoreWorkspaceOrder { output },
+            WorkspacesMessage::ToggleEmptyWorkspaces => {
+                Message::SidebarSettings(SidebarSettingsMessage::ToggleEmptyWorkspaces)
+            }
         }
     }
 }

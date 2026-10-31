@@ -54,9 +54,9 @@ impl From<WorkspacesMessage> for ShowcaseMessage {
     fn from(workspaces_message: WorkspacesMessage) -> Self {
         match workspaces_message {
             WorkspacesMessage::Tooltip(tooltip) => ShowcaseMessage::Tooltip(tooltip),
-            WorkspacesMessage::Drag(_) | WorkspacesMessage::RestoreOrder { .. } => {
-                ShowcaseMessage::OutsideShowcase
-            }
+            WorkspacesMessage::Drag(_)
+            | WorkspacesMessage::RestoreOrder { .. }
+            | WorkspacesMessage::ToggleEmptyWorkspaces => ShowcaseMessage::OutsideShowcase,
         }
     }
 }

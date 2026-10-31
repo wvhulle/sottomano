@@ -65,6 +65,9 @@ pub(crate) fn rounded_blur_rows(rect: Rectangle, radius: Radius) -> Vec<BlurRegi
     let y = rect.y.ceil() as i32;
     let width = (rect.x + rect.width).floor() as i32 - x;
     let height = (rect.y + rect.height).floor() as i32 - y;
+    if width <= 0 || height <= 0 {
+        return Vec::new();
+    }
     let fitted = |corner: f32| (corner.round() as i32).clamp(0, width.min(height) / 2);
     let top_left = fitted(radius.top_left);
     let top_right = fitted(radius.top_right);
@@ -299,6 +302,17 @@ mod tests {
             width: 60.0,
             height: 24.0,
         }
+    }
+
+    #[test]
+    fn a_frame_thinner_than_a_pixel_blurs_nothing() {
+        let collapsed = Rectangle {
+            x: 10.4,
+            y: 0.0,
+            width: 0.3,
+            height: 24.0,
+        };
+        assert!(rounded_blur_rows(collapsed, Radius::from(8.0)).is_empty());
     }
 
     #[test]

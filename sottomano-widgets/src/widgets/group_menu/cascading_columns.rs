@@ -12,7 +12,7 @@ use crate::{
         glyph_button,
         group_item::{MenuItemAction, MenuParts},
         group_menu::{
-            GroupMenuSurfaces, InspectionCard, MenuMessenger,
+            CascadeDirection, GroupMenuSurfaces, InspectionCard, MenuMessenger,
             menu_row::{
                 MenuRowContent, MenuRowLook, hovered_menu_row, inert_menu_row, menu_row_height,
                 pressable_menu_row,
@@ -49,6 +49,7 @@ pub(super) fn merged_by_title<'a, M>(
 
 pub(super) struct CascadeLayout<'p, 'a, M> {
     pub config: &'a Config,
+    pub direction: CascadeDirection,
     pub menu: &'p MenuMessenger<'a, M>,
     pub group_menus: &'p GroupMenus,
     pub satellite_panels: &'p SatellitePanels,
@@ -159,15 +160,29 @@ fn group_row<'a, M: Clone + 'a>(
     } else {
         secondary_text_color
     };
-    let caret = Glyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color);
+    let content = match layout.direction {
+        CascadeDirection::Rightward => MenuRowContent {
+            leading: Vec::new(),
+            parts: entry.face,
+            name: entry.group_title,
+            trailing: vec![
+                pin,
+                Glyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
+            ],
+        },
+        CascadeDirection::Leftward => MenuRowContent {
+            leading: vec![
+                Glyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
+            ],
+            parts: entry.face,
+            name: entry.group_title,
+            trailing: vec![pin],
+        },
+    };
     let inspect_member = layout.menu.inspect_member(member);
     hovered_menu_row(
         layout.config,
-        MenuRowContent {
-            parts: entry.face,
-            name: entry.group_title,
-            trailing: vec![pin, caret],
-        },
+        content,
         look,
         inspect_member.clone(),
         inspect_member,
@@ -197,6 +212,7 @@ fn item_row<'a, M: Clone + 'a>(
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let content = MenuRowContent {
+        leading: Vec::new(),
         parts: item.parts,
         name: item.name,
         trailing: Vec::new(),

@@ -23,6 +23,7 @@ use crate::{
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
     widgets::{
         anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
+        group_menu::CascadeDirection,
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -199,6 +200,11 @@ impl TooltipHost {
     }
 
     #[must_use]
+    pub fn placement(&self) -> Option<&Placement> {
+        self.transition.placement()
+    }
+
+    #[must_use]
     pub fn is_morphing(&self, now: Instant, morph: Duration) -> bool {
         self.transition.morph_progress(now, morph) < 1.0
     }
@@ -318,9 +324,19 @@ impl TooltipHost {
             HoverContent::Cascade {
                 primary,
                 satellites,
+                direction: CascadeDirection::Rightward,
             } => Rendered {
                 element: Row::with_children(once(primary).chain(satellites)).into(),
                 framing: PopupFraming::FirstChild,
+            },
+            HoverContent::Cascade {
+                primary,
+                satellites,
+                direction: CascadeDirection::Leftward,
+            } => Rendered {
+                element: Row::with_children(satellites.into_iter().rev().chain(once(primary)))
+                    .into(),
+                framing: PopupFraming::LastChild,
             },
         };
         if !self.hosts(surface) {
@@ -387,6 +403,7 @@ pub enum HoverContent<'a, Message> {
     Cascade {
         primary: Element<'a, Message>,
         satellites: Vec<Element<'a, Message>>,
+        direction: CascadeDirection,
     },
 }
 

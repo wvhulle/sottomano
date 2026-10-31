@@ -13,20 +13,39 @@ use iced::{
     time::Duration,
     window,
 };
-use sottomano_config::screen_edges::Position;
 
 use crate::widgets::{
     panel_frame::LayerFrameStyle,
-    popup_connector::{ConnectorTriangle, FramedSurface},
+    popup_connector::{ConnectorSide, ConnectorTriangle, FramedSurface},
     rectangle_morph::RectangleMorph,
     region_reporter::RegionRoles,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotchSide {
+    Left,
+    Right,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PanelGrowth {
+    Downward,
+    Upward,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct NotchPlacement {
-    pub top_offset: f32,
-    pub notch_center: f32,
+    pub side: NotchSide,
+    pub growth: PanelGrowth,
+    pub row_top: f32,
+    pub row_height: f32,
     pub notch_depth: f32,
+}
+
+impl NotchPlacement {
+    fn row_center(self) -> f32 {
+        self.row_top + self.row_height / 2.0
+    }
 }
 
 pub struct NotchedPanel<'a, Message> {
@@ -68,32 +87,64 @@ fn notch_side_radius(corner_radius: f32, panel_height: f32) -> f32 {
 }
 
 #[must_use]
-pub fn notched_corners(corner_radius: f32, panel_height: f32) -> Radius {
+pub fn notched_corners(side: NotchSide, corner_radius: f32, panel_height: f32) -> Radius {
     let notch_side = notch_side_radius(corner_radius, panel_height);
-    Radius {
-        top_left: notch_side,
-        top_right: corner_radius,
-        bottom_right: corner_radius,
-        bottom_left: notch_side,
+    match side {
+        NotchSide::Left => Radius {
+            top_left: notch_side,
+            top_right: corner_radius,
+            bottom_right: corner_radius,
+            bottom_left: notch_side,
+        },
+        NotchSide::Right => Radius {
+            top_left: corner_radius,
+            top_right: notch_side,
+            bottom_right: notch_side,
+            bottom_left: corner_radius,
+        },
     }
 }
 
 impl<Message> NotchedPanel<'_, Message> {
     fn panel_target(&self, content_size: Size) -> Rectangle {
-        Rectangle::new(
-            Point::new(self.placement.notch_depth, self.placement.top_offset),
-            content_size,
-        )
+        let panel_x = match self.placement.side {
+            NotchSide::Left => self.placement.notch_depth,
+            NotchSide::Right => 0.0,
+        };
+        let panel_y = match self.placement.growth {
+            PanelGrowth::Downward => self.placement.row_top,
+            PanelGrowth::Upward => {
+                self.placement.row_top + self.placement.row_height - content_size.height
+            }
+        };
+        Rectangle::new(Point::new(panel_x, panel_y), content_size)
     }
 
     fn folded_into_notch(&self, target: Rectangle) -> Rectangle {
+        let notch_edge_x = match self.placement.side {
+            NotchSide::Left => target.x,
+            NotchSide::Right => target.x + target.width,
+        };
         Rectangle::new(
             Point::new(
-                target.x,
-                target.y + self.placement.notch_center - self.corner_radius,
+                notch_edge_x,
+                self.placement.row_center() - self.corner_radius,
             ),
             Size::new(0.0, 2.0 * self.corner_radius),
         )
+    }
+
+    fn node_origin_from_notch_edge(&self, node_width: f32) -> Vector {
+        match self.placement.side {
+            NotchSide::Left => Vector::ZERO,
+            NotchSide::Right => Vector::new(-node_width, 0.0),
+        }
+    }
+
+    fn drawn_panel(&self, panel_morph: &PanelMorph, node_bounds: Rectangle) -> Rectangle {
+        let notch_edge = Vector::new(node_bounds.x, node_bounds.y)
+            - self.node_origin_from_notch_edge(node_bounds.width);
+        panel_morph.morph.current() + notch_edge
     }
 
     fn notch_side_radius(&self, panel: Rectangle) -> f32 {
@@ -101,17 +152,24 @@ impl<Message> NotchedPanel<'_, Message> {
     }
 
     fn panel_corners(&self, panel: Rectangle) -> Radius {
-        notched_corners(self.corner_radius, panel.height)
+        notched_corners(self.placement.side, self.corner_radius, panel.height)
     }
 
     fn connector(&self, panel: Rectangle, origin: Vector) -> ConnectorTriangle {
-        let notch_y = origin.y + self.placement.top_offset + self.placement.notch_center;
-        let apex_x = panel.x - self.placement.notch_depth;
+        let notch_y = origin.y + self.placement.row_center();
+        let apex_x = match self.placement.side {
+            NotchSide::Left => panel.x - self.placement.notch_depth,
+            NotchSide::Right => panel.x + panel.width + self.placement.notch_depth,
+        };
+        let side = match self.placement.side {
+            NotchSide::Left => ConnectorSide::Left,
+            NotchSide::Right => ConnectorSide::Right,
+        };
         ConnectorTriangle::between(
             Rectangle::new(Point::new(apex_x, notch_y), Size::ZERO),
             apex_x,
             panel,
-            Position::Left,
+            side,
             self.notch_side_radius(panel),
         )
     }
@@ -144,16 +202,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             .as_widget_mut()
             .layout(&mut tree.children[0], renderer, limits);
         let target = self.panel_target(content.size());
+        let node_size = Size::new(
+            target.width + self.placement.notch_depth,
+            target.y + target.height,
+        );
+        let from_notch_edge = self.node_origin_from_notch_edge(node_size.width);
+        let edge_target = target + from_notch_edge;
         let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
-        if panel_morph.target != target {
-            panel_morph.target = target;
-            panel_morph.morph.begin(self.folded_into_notch(target));
+        if panel_morph.target != edge_target {
+            panel_morph.target = edge_target;
+            panel_morph
+                .morph
+                .begin(self.folded_into_notch(target) + from_notch_edge);
         }
-        panel_morph.morph.follow(target);
-        Node::with_children(
-            Size::new(target.x + target.width, target.y + target.height),
-            vec![content.move_to(target.position())],
-        )
+        panel_morph.morph.follow(edge_target);
+        Node::with_children(node_size, vec![content.move_to(target.position())])
     }
 
     fn draw(
@@ -168,7 +231,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
     ) {
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let panel = panel_morph.morph.current() + origin;
+        let panel = self.drawn_panel(panel_morph, layout.bounds());
         if panel.width <= 0.0 || panel.height <= 0.0 {
             return;
         }
@@ -212,7 +275,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
     ) {
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let panel = panel_morph.morph.current() + origin;
+        let panel = self.drawn_panel(panel_morph, layout.bounds());
         let rects: Vec<Rectangle> = once(panel)
             .chain(self.connector(panel, origin).blur_rows())
             .collect();

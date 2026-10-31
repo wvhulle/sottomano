@@ -9,6 +9,7 @@ pub struct OutputInfo {
     pub serial: Option<String>,
     pub mode: Option<OutputMode>,
     pub scale: f64,
+    pub logical_width: u32,
     pub logical_height: u32,
 }
 
@@ -72,6 +73,7 @@ pub fn output_info() -> HashMap<String, OutputInfo> {
                         serial: output.serial.and_then(product_field),
                         mode,
                         scale: logical.scale,
+                        logical_width: logical.width,
                         logical_height: logical.height,
                     },
                 ))

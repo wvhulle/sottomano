@@ -4,7 +4,8 @@ use sottomano_sources::desktop_windows_apps::{
 };
 
 use super::{
-    WorkspacesMessage, dragged, order_restore,
+    EmptyWorkspaces, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
+    shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },
@@ -18,6 +19,7 @@ pub fn inline_view<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
+    empty_workspaces: EmptyWorkspaces,
     slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let BarSlotContext {
@@ -27,7 +29,12 @@ pub fn inline_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let order = drag.previewed(workspaces, workspace_slot_key);
+    let shown = shown_workspaces(niri, output, empty_workspaces);
+    let order: Vec<_> = drag
+        .previewed(&shown, |workspace| workspace_slot_key(workspace))
+        .into_iter()
+        .copied()
+        .collect();
     let slots = order
         .iter()
         .enumerate()
@@ -41,6 +48,12 @@ pub fn inline_view<'a>(
     Some(
         Row::new()
             .push(pager)
+            .extend(empty_workspaces_toggle(
+                niri,
+                output,
+                empty_workspaces,
+                config,
+            ))
             .extend(order_restore(configured, workspaces, output, config))
             .spacing(config.layout.panel.widget_spacing)
             .height(Length::Fill)
@@ -63,7 +76,7 @@ mod tests {
             },
         },
         clock::Clock,
-        widget_groups::workspaces_group::WorkspacesMessage,
+        widget_groups::workspaces_group::{EmptyWorkspaces, WorkspacesMessage},
         widgets::pointer_drag::{BarSlotList, DragEvent, DraggedBarSlot},
     };
 
@@ -81,8 +94,14 @@ mod tests {
             drag: drag_view,
             clock: Clock::real(),
         };
-        let pager_element = inline_view(&niri_snapshot, SIMULATED_OUTPUT, None, slot_context)
-            .expect("three workspaces on the output");
+        let pager_element = inline_view(
+            &niri_snapshot,
+            SIMULATED_OUTPUT,
+            None,
+            EmptyWorkspaces::Shown,
+            slot_context,
+        )
+        .expect("three workspaces on the output");
         let drag_events: Vec<DragEvent<_>> =
             sweep_across_bar(pager_element, config.layout.panel.height)
                 .into_iter()

@@ -162,7 +162,7 @@ impl DesktopShell {
                 self.widget_groups.niri_window_group.niri_layout(),
                 *workspace,
             ),
-            HoverTarget::WorkspaceOrder => Some(Tooltip::empty()),
+            HoverTarget::WorkspaceOrder | HoverTarget::WorkspaceFolding => Some(Tooltip::empty()),
             source_target => self.source_group_tooltip_for(source_target),
         }
     }
@@ -334,7 +334,8 @@ impl DesktopShell {
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
-            | HoverTarget::WorkspaceOrder => None,
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => None,
         }
     }
 
