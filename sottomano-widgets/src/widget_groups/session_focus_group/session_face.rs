@@ -7,7 +7,7 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 
 use crate::{
     clock::Clock,
-    widget_groups::session_focus_group::BreakPledge,
+    widget_groups::session_focus_group::WarningSnooze,
     widgets::{
         bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         localized_durations::duration_text,
@@ -22,22 +22,14 @@ use crate::{
 
 pub struct SessionFace<'a> {
     pub accounting: Accounting<'a>,
-    pub pledge: Option<BreakPledge>,
+    pub snooze: Option<WarningSnooze>,
 }
 
 impl SessionFace<'_> {
-    fn pledge_broken(&self, now: DateTime<Utc>) -> bool {
-        let Some(pledge) = self.pledge else {
-            return false;
-        };
-        let grace =
-            TimeDelta::from_std(self.accounting.config.break_grace).unwrap_or(TimeDelta::MAX);
-        let honoured = self
-            .accounting
-            .last_break(now)
-            .is_some_and(|gap| gap.until >= pledge.at)
-            || self.accounting.screen_run(now).is_none();
-        !honoured && now - pledge.at >= grace
+    fn snoozed_until(&self, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+        self.snooze
+            .map(|WarningSnooze { until }| until)
+            .filter(|until| now < *until)
     }
 
     fn run_length(&self, now: DateTime<Utc>) -> Option<TimeDelta> {
@@ -51,7 +43,7 @@ impl SessionFace<'_> {
         let critical = TimeDelta::from_std(config.session_critical).unwrap_or(TimeDelta::MAX);
         let warning = TimeDelta::from_std(config.session_warning).unwrap_or(TimeDelta::MAX);
         match self.run_length(now) {
-            _ if self.pledge_broken(now) => Severity::Critical,
+            _ if self.snoozed_until(now).is_some() => Severity::Normal,
             Some(run) if run >= critical => Severity::Critical,
             Some(run) if run >= warning => Severity::Warning,
             _ => Severity::Normal,
@@ -110,15 +102,13 @@ impl SessionFace<'_> {
                 "Critical after active for",
                 ValueCell::duration(config.session_critical),
             ),
-            LabeledValue::new(
-                "Break must start within",
-                ValueCell::duration(config.break_grace),
-            ),
+            LabeledValue::new("Snooze lasts", ValueCell::duration(config.warning_snooze)),
         ])
         .titled((
             "Session alerts".to_owned(),
-            "Alerts follow 'Active since last break'. After you press 'Taking a break', a break \
-             must start within the time shown or the session turns critical."
+            "Alerts follow 'Active since last break'. From the alert, 'Screen off' starts a break \
+             at once, 'Lock screen' starts one once input stays idle, and 'Snooze' silences the \
+             alert for the time shown."
                 .to_owned(),
         ))
     }
@@ -139,6 +129,15 @@ impl SessionFace<'_> {
                     "Screen off since",
                     ValueCell::Time {
                         at: since,
+                        format: LocalizedTimeFormat::TimeOfDay,
+                    },
+                )
+            }),
+            self.snoozed_until(now).map(|until| {
+                LabeledValue::new(
+                    "Alert snoozed until",
+                    ValueCell::Time {
+                        at: until,
                         format: LocalizedTimeFormat::TimeOfDay,
                     },
                 )
@@ -200,9 +199,8 @@ mod tests {
     use std::time::Duration;
 
     use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
-    use sottomano_sources::login_session_presence::{
-        focus_time_ledger::{FocusLedger, FocusSignal, Focused},
-        wayland_idle_notify::{IdleEdge, InputIdleEdge},
+    use sottomano_sources::login_session_presence::focus_time_ledger::{
+        FocusLedger, FocusSignal, Focused,
     };
 
     use super::*;
@@ -230,42 +228,23 @@ mod tests {
     fn config() -> FocusTimeConfig {
         FocusTimeConfig {
             idle_after: Duration::from_mins(3),
-            break_grace: Duration::from_mins(5),
             ..FocusTimeConfig::default()
         }
     }
 
     #[test]
-    fn a_pledge_without_a_break_turns_critical_after_the_grace() {
-        let config = config();
+    fn a_snooze_silences_a_long_session_until_it_ends() {
+        let config = FocusTimeConfig {
+            session_warning: Duration::from_mins(45),
+            ..config()
+        };
         let ledger = ledger_after([(focused(1, "kitty"), 0)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            pledge: Some(BreakPledge { at: at(10) }),
+            snooze: Some(WarningSnooze { until: at(60) }),
         };
-        assert_eq!(face.severity(at(12)), Severity::Normal);
-        assert_eq!(face.severity(at(16)), Severity::Critical);
-    }
-
-    #[test]
-    fn a_break_after_the_pledge_honours_it() {
-        let config = config();
-        let ledger = ledger_after([
-            (focused(1, "kitty"), 0),
-            (
-                FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Idled)),
-                11,
-            ),
-            (
-                FocusSignal::Idle(InputIdleEdge::simulated(IdleEdge::Resumed)),
-                15,
-            ),
-        ]);
-        let face = SessionFace {
-            accounting: ledger.accounted(&config),
-            pledge: Some(BreakPledge { at: at(10) }),
-        };
-        assert_eq!(face.severity(at(30)), Severity::Normal);
+        assert_eq!(face.severity(at(50)), Severity::Normal);
+        assert_eq!(face.severity(at(61)), Severity::Warning);
     }
 
     #[test]
@@ -274,7 +253,7 @@ mod tests {
         let ledger = ledger_after([(focused(1, "firefox"), 0), (focused(2, "kitty"), 40)]);
         let face = SessionFace {
             accounting: ledger.accounted(&config),
-            pledge: None,
+            snooze: None,
         };
         let summary = face.screen_run_summary(at(41), Locale::en_US).unwrap();
         assert!(summary.contains("<dt>App</dt><dd>firefox · 40m</dd>"));

@@ -16,7 +16,7 @@ pub struct FocusTimeConfig {
     #[serde(with = "humantime_serde")]
     pub session_critical: Duration,
     #[serde(with = "humantime_serde")]
-    pub break_grace: Duration,
+    pub warning_snooze: Duration,
     pub switches_per_hour_warning: u32,
     pub switches_per_hour_critical: u32,
     #[serde(with = "humantime_serde")]
@@ -36,7 +36,7 @@ impl Default for FocusTimeConfig {
             idle_after: Duration::from_mins(3),
             session_warning: Duration::from_mins(45),
             session_critical: Duration::from_mins(90),
-            break_grace: Duration::from_mins(5),
+            warning_snooze: Duration::from_mins(15),
             switches_per_hour_warning: 100,
             switches_per_hour_critical: 300,
             switch_heat_span: Duration::from_mins(30),
