@@ -206,10 +206,16 @@ impl<'a, M: 'a> Handle<'a, M> {
 }
 
 pub(super) struct DrawerCells<'a, M> {
-    pub face: Element<'a, GroupEvent<M>>,
+    pub column_face: Element<'a, GroupEvent<M>>,
+    pub section_face: Element<'a, GroupEvent<M>>,
     pub group_title: &'static str,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
-    pub unaligned: Vec<Element<'a, GroupEvent<M>>>,
+    pub unaligned: Vec<NamedDrawerCell<'a, M>>,
+}
+
+pub(super) struct NamedDrawerCell<'a, M> {
+    pub name: &'static str,
+    pub view: Element<'a, GroupEvent<M>>,
 }
 
 pub trait WidgetGroup {
@@ -278,6 +284,21 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         {
             *current = scroll_does;
         }
+        self
+    }
+
+    #[must_use]
+    pub fn only_aligned_items(self) -> Self {
+        self.retaining_items(|alignment| alignment != ItemAlignment::Unaligned)
+    }
+
+    #[must_use]
+    pub fn only_unaligned_items(self) -> Self {
+        self.retaining_items(|alignment| alignment == ItemAlignment::Unaligned)
+    }
+
+    fn retaining_items(mut self, keeps_alignment: impl Fn(ItemAlignment) -> bool) -> Self {
+        self.items.retain(|item| keeps_alignment(item.alignment()));
         self
     }
 
@@ -350,7 +371,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         };
         let face_item =
             face.into_face_item(config, &mut items, HoverAnnouncement::default(), clock);
-        let face_view = face_item.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
+        let face_view = || face_item.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
         let (aligned, unaligned) = items.iter().fold(
             (BTreeMap::new(), Vec::new()),
             |(mut aligned, mut unaligned), item| {
@@ -359,13 +380,17 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                     ItemAlignment::Aligned(quantity) => {
                         aligned.insert(quantity, item_view);
                     }
-                    ItemAlignment::Unaligned => unaligned.push(item_view),
+                    ItemAlignment::Unaligned => unaligned.push(NamedDrawerCell {
+                        name: item.drawer_name().unwrap_or_default(),
+                        view: item_view,
+                    }),
                 }
                 (aligned, unaligned)
             },
         );
         Some(DrawerCells {
-            face: face_view,
+            column_face: face_view(),
+            section_face: face_view(),
             group_title,
             aligned,
             unaligned,

@@ -13,7 +13,7 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
-    pub settings_drawer: GroupDrawer<'a, Message>,
+    pub settings_drawers: [GroupDrawer<'a, Message>; 2],
     pub start: [GroupContent<'a, Message>; 6],
     pub end: [GroupContent<'a, Message>; 9],
 }
@@ -22,7 +22,7 @@ impl DesktopShell {
     pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let config = &self.config;
         let BottomBarGroups {
-            settings_drawer,
+            settings_drawers,
             start,
             end,
         } = self.bottom_bar_groups();
@@ -30,14 +30,11 @@ impl DesktopShell {
             |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
         self.panel_bar(
             Position::Bottom,
-            [Some(settings_drawer.handle_view(
-                config,
-                Position::Bottom,
-                self.clock,
-            ))]
-            .into_iter()
-            .chain(start.map(view))
-            .chain([self.inline_workspaces(output)]),
+            settings_drawers
+                .map(|drawer| Some(drawer.handle_view(config, Position::Bottom, self.clock)))
+                .into_iter()
+                .chain(start.map(view))
+                .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
             end.map(view),
         )
@@ -45,41 +42,50 @@ impl DesktopShell {
 
     pub(super) fn bottom_bar_groups(&self) -> BottomBarGroups<'_> {
         BottomBarGroups {
-            settings_drawer: self.settings_drawer(),
+            settings_drawers: self.bar_drawers(),
             start: self.bottom_bar_start_groups(),
             end: self.bottom_bar_end_groups(),
         }
     }
 
-    pub(super) fn bar_drawers(&self) -> [GroupDrawer<'_, Message>; 1] {
-        [self.settings_drawer()]
+    pub(super) fn bar_drawers(&self) -> [GroupDrawer<'_, Message>; 2] {
+        [
+            GroupDrawer::new(
+                GroupHandle::AppearanceDrawer,
+                "Appearance",
+                Phosphor::SlidersHorizontal(Weight::Regular),
+                self.settings_groups().map(GroupContent::only_aligned_items),
+            ),
+            GroupDrawer::new(
+                GroupHandle::BehaviourDrawer,
+                "Behaviour",
+                Phosphor::ToggleRight(Weight::Regular),
+                self.settings_groups()
+                    .map(GroupContent::only_unaligned_items),
+            ),
+        ]
     }
 
-    fn settings_drawer(&self) -> GroupDrawer<'_, Message> {
+    fn settings_groups(&self) -> [GroupContent<'_, Message>; 4] {
         let config = &self.config;
-        GroupDrawer::new(
-            GroupHandle::SettingsDrawer,
-            "Settings",
-            Phosphor::SlidersHorizontal(Weight::Regular),
-            [
-                self.widget_groups
-                    .panel_settings_group
-                    .group_content(config)
-                    .map(Message::PanelSettings),
-                self.widget_groups
-                    .sidebar_settings_group
-                    .group_content(config)
-                    .map(Message::SidebarSettings),
-                self.widget_groups
-                    .overlay_settings_group
-                    .group_content(config)
-                    .map(Message::OverlaySettings),
-                self.widget_groups
-                    .niri_window_group
-                    .group_content(config)
-                    .map(Message::NiriWindow),
-            ],
-        )
+        [
+            self.widget_groups
+                .panel_settings_group
+                .group_content(config)
+                .map(Message::PanelSettings),
+            self.widget_groups
+                .sidebar_settings_group
+                .group_content(config)
+                .map(Message::SidebarSettings),
+            self.widget_groups
+                .overlay_settings_group
+                .group_content(config)
+                .map(Message::OverlaySettings),
+            self.widget_groups
+                .niri_window_group
+                .group_content(config)
+                .map(Message::NiriWindow),
+        ]
     }
 
     fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 6] {

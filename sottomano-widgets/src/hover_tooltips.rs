@@ -110,7 +110,9 @@ pub enum HoverTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupHandle {
+    AppearanceDrawer,
     Audio,
+    BehaviourDrawer,
     Caldav,
     ClaudeUsage,
     ColorTemperature,
@@ -129,7 +131,6 @@ pub enum GroupHandle {
     Power,
     QuickLaunch,
     QuietSchedule,
-    SettingsDrawer,
     SidebarSettings,
     Systemd,
     Tray,
@@ -265,9 +266,16 @@ pub enum TooltipMessage {
         target: HoverTarget,
         announcement: HoverAnnouncement,
     },
+    Inspect(InspectedRow),
     EnterTooltip,
     ExitTooltip,
     SwitchIntentElapsed,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct InspectedRow {
+    pub target: HoverTarget,
+    pub announcement: HoverAnnouncement,
 }
 
 #[derive(Debug, Clone)]

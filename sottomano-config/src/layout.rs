@@ -40,6 +40,7 @@ pub struct OverlayLayout<L = f32> {
     pub row_spacing: L,
     pub column_spacing: L,
     pub section_spacing: L,
+    pub drawer_detail_width: L,
 }
 
 impl<L: From<f32>> Default for LayoutConfig<L> {
@@ -70,6 +71,7 @@ impl<L: From<f32>> Default for OverlayLayout<L> {
             row_spacing: L::from(4.0),
             column_spacing: L::from(14.0),
             section_spacing: L::from(16.0),
+            drawer_detail_width: L::from(320.0),
         }
     }
 }
@@ -105,6 +107,7 @@ impl OverlayLayout<Spacing> {
             row_spacing: self.row_spacing.resolve(em_px),
             column_spacing: self.column_spacing.resolve(em_px),
             section_spacing: self.section_spacing.resolve(em_px),
+            drawer_detail_width: self.drawer_detail_width.resolve(em_px),
         }
     }
 }
