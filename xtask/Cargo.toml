@@ -12,3 +12,4 @@ workspace = true
 sottomano-config = { path = "../sottomano-config" }
 clap.workspace = true
 image.workspace = true
+git2.workspace = true
