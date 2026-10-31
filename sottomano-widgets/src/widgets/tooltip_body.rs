@@ -198,6 +198,11 @@ impl Section {
     }
 
     #[must_use]
+    pub fn without_blank_columns(self) -> Self {
+        self.with_changed_table(KeyedRecordTable::without_blank_columns)
+    }
+
+    #[must_use]
     pub fn marked_as_continuing(self) -> Self {
         self.with_changed_table(KeyedRecordTable::marked_as_continuing)
     }

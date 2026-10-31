@@ -165,6 +165,15 @@ pub enum KeyedTableRow {
 }
 
 impl KeyedTableRow {
+    fn filled_cells(&self) -> Option<&RecordCells> {
+        match self {
+            KeyedTableRow::Record(record) | KeyedTableRow::TotalRecord(record) => Some(record),
+            KeyedTableRow::GroupSeparator
+            | KeyedTableRow::ContinuationMarker
+            | KeyedTableRow::OmittedRecordCount(_) => None,
+        }
+    }
+
     fn record(&self) -> Option<&RecordCells> {
         match self {
             KeyedTableRow::Record(record) => Some(record),
@@ -189,6 +198,11 @@ fn record_rows<const COLUMNS: usize>(
         .into_iter()
         .map(|record| KeyedTableRow::Record(RecordCells::from(record.into_table_record())))
         .collect()
+}
+
+fn retain_filled_columns<Column>(columns: &mut Vec<Column>, filled_columns: &[bool]) {
+    let mut filled_flags = filled_columns.iter();
+    columns.retain(|_| filled_flags.next().copied().unwrap_or(true));
 }
 
 impl KeyedRecordTable {
@@ -247,6 +261,30 @@ impl KeyedRecordTable {
             .chain(once(KeyedTableRow::OmittedRecordCount(omitted_count)))
             .collect();
         Self { rows, ..self }
+    }
+
+    #[must_use]
+    pub fn without_blank_columns(mut self) -> Self {
+        let filled_columns: Vec<bool> = (0..self.columns.headings().len())
+            .map(|position| {
+                self.rows
+                    .iter()
+                    .filter_map(KeyedTableRow::filled_cells)
+                    .any(|record| !matches!(record.cell(position), ValueCell::Blank))
+            })
+            .collect();
+        match &mut self.columns {
+            TableColumns::Headed(headings) => retain_filled_columns(headings, &filled_columns),
+            TableColumns::Unheaded(alignments) => {
+                retain_filled_columns(alignments, &filled_columns);
+            }
+        }
+        self.rows.iter_mut().for_each(|row| {
+            if let KeyedTableRow::Record(record) | KeyedTableRow::TotalRecord(record) = row {
+                retain_filled_columns(&mut record.cells, &filled_columns);
+            }
+        });
+        self
     }
 
     #[must_use]
@@ -458,6 +496,23 @@ mod tests {
                 KeyedTableRow::OmittedRecordCount(_) => "omitted",
             })
             .collect()
+    }
+
+    #[test]
+    fn columns_blank_in_every_displayed_record_are_dropped() {
+        let table = KeyedRecordTable::new(moon_columns(), &planets(&["Mars", "Venus"]))
+            .without_blank_columns();
+        assert_eq!(
+            table.columns(),
+            &TableColumns::Headed(vec![ColumnHeading::titled("Moons")])
+        );
+        assert_eq!(
+            table.rows(),
+            [
+                KeyedTableRow::Record(TableRecord::new("Mars", ["1".into()]).into()),
+                KeyedTableRow::Record(TableRecord::new("Venus", ["1".into()]).into()),
+            ]
+        );
     }
 
     #[test]

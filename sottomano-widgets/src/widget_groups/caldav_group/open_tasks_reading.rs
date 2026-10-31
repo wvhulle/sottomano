@@ -67,7 +67,7 @@ impl IntoTableRecord<5> for &TaskRow<'_> {
                 self.task.priority.band().map_or(ValueCell::Blank, |band| {
                     ValueCell::Hint(band.name().to_owned())
                 }),
-                ValueCell::Hint(progress_hint(self.task)),
+                progress_cell(self.task),
                 ValueCell::Hint(self.task.calendar.clone()),
             ],
         )
@@ -86,11 +86,11 @@ fn task_severity(task: &OpenTask, now: DateTime<Local>) -> Severity {
     }
 }
 
-fn progress_hint(task: &OpenTask) -> String {
+fn progress_cell(task: &OpenTask) -> ValueCell {
     match task.progress {
-        TaskProgress::PercentComplete(percent) => format!("{percent} %"),
-        TaskProgress::Started => "started".to_owned(),
-        TaskProgress::NotStarted => String::new(),
+        TaskProgress::PercentComplete(percent) => ValueCell::Hint(format!("{percent} %")),
+        TaskProgress::Started => ValueCell::Hint("started".to_owned()),
+        TaskProgress::NotStarted => ValueCell::Blank,
     }
 }
 
@@ -149,6 +149,7 @@ impl BarWidget for OpenTaskList {
                 rows.chunk_by(|earlier, later| earlier.due_on() == later.due_on()),
             )
             .truncated_to(LISTED_TASKS)
+            .without_blank_columns()
             .titled((
                 "Open tasks",
                 format!(
