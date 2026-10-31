@@ -161,7 +161,7 @@ impl DesktopShell {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
         self.clock = Clock::real();
-        let hovered_before = self.tooltip.target().cloned();
+        let hovered_before = self.tooltip.reading_target().cloned();
         let reheat_due = reheats_switch_heat(&message);
         let dispatched = self.dispatch_message(message);
         self.widget_groups
@@ -173,7 +173,7 @@ impl DesktopShell {
         } else {
             Task::none()
         };
-        let hover_readings = if self.tooltip.target() == hovered_before.as_ref() {
+        let hover_readings = if self.tooltip.reading_target() == hovered_before.as_ref() {
             Task::none()
         } else {
             self.retarget_hover_readings()
@@ -387,11 +387,20 @@ impl DesktopShell {
                 .corner_radius_px,
         );
         match target {
-            HoverTarget::GroupHandle(handle) => self
-                .bar_drawers()
-                .into_iter()
-                .find(|drawer| drawer.drawer() == *handle)?
-                .sheet(&self.config, self.clock),
+            HoverTarget::GroupHandle(handle) => {
+                let inspected = self
+                    .tooltip
+                    .inspected_row()
+                    .and_then(|row| {
+                        self.tooltip_for(&row.target)
+                            .map(|tooltip| tooltip.with_announcement(row.announcement))
+                    })
+                    .unwrap_or_else(Tooltip::empty);
+                self.bar_drawers()
+                    .into_iter()
+                    .find(|drawer| drawer.drawer() == *handle)?
+                    .inspecting_sheet(&self.config, self.window_assets(), self.clock, &inspected)
+            }
             HoverTarget::Tray(address) => self
                 .widget_groups
                 .tray_group

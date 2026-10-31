@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverAnnouncement, HoverTarget, PopupMessage, TooltipMessage,
+        HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, TooltipMessage,
         tooltip_content::TooltipContent,
         tooltip_transition::{Departed, DepartedContent, Occupant, Placement, TooltipTransition},
     },
@@ -39,12 +39,23 @@ pub struct PendingSwitch {
 }
 
 #[derive(Default)]
+enum PanelRowInspection {
+    #[default]
+    Nothing,
+    Row {
+        within: HoverTarget,
+        row: InspectedRow,
+    },
+}
+
+#[derive(Default)]
 pub struct TooltipHost {
     surfaces: HashMap<String, Id>,
     transition: TooltipTransition,
     pending_switch: Option<PendingSwitch>,
     hide_due: Option<Instant>,
     pointer_over_tooltip: bool,
+    inspection: PanelRowInspection,
 }
 
 impl TooltipHost {
@@ -67,6 +78,16 @@ impl TooltipHost {
                 announcement,
             } => {
                 self.transition.revise_announcement(&target, announcement);
+                None
+            }
+            TooltipMessage::Inspect(row) => {
+                self.inspection = match self.target() {
+                    Some(within) => PanelRowInspection::Row {
+                        within: within.clone(),
+                        row,
+                    },
+                    None => PanelRowInspection::Nothing,
+                };
                 None
             }
             TooltipMessage::Enter { .. }
@@ -261,6 +282,21 @@ impl TooltipHost {
     #[must_use]
     pub fn target(&self) -> Option<&HoverTarget> {
         self.transition.current().map(|current| &current.target)
+    }
+
+    #[must_use]
+    pub fn inspected_row(&self) -> Option<&InspectedRow> {
+        match &self.inspection {
+            PanelRowInspection::Row { within, row } if self.target() == Some(within) => Some(row),
+            PanelRowInspection::Row { .. } | PanelRowInspection::Nothing => None,
+        }
+    }
+
+    #[must_use]
+    pub fn reading_target(&self) -> Option<&HoverTarget> {
+        self.inspected_row()
+            .map(|row| &row.target)
+            .or_else(|| self.target())
     }
     #[must_use]
     pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {

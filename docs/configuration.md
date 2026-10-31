@@ -52,6 +52,7 @@ content_inset = "10px"
 row_spacing = "4px"
 column_spacing = "14px"
 section_spacing = "16px"
+drawer_detail_width = "320px"
 
 [panel_bar]
 slider_width = "60px"

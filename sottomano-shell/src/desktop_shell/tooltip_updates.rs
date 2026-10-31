@@ -337,7 +337,7 @@ impl DesktopShell {
     }
 
     pub fn refresh_hovered_reading(&self) -> Task<Message> {
-        let Some(target) = self.tooltip.target() else {
+        let Some(target) = self.tooltip.reading_target() else {
             return Task::none();
         };
         self.widget_groups
@@ -345,7 +345,7 @@ impl DesktopShell {
     }
 
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
-        let hovered = self.tooltip.target();
+        let hovered = self.tooltip.reading_target();
         let buses = self.desktop_buses.as_ref();
         Task::batch([
             self.widget_groups

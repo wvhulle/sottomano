@@ -1,12 +1,8 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    iter::once,
-    vec,
-};
+use std::{collections::BTreeSet, iter::once};
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element, Padding,
+    Alignment, Element,
     alignment::Horizontal,
     widget::{Row, Space, container},
 };
@@ -15,7 +11,8 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        GroupHandle, HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable,
+        GroupHandle, HoverAnnouncement, HoverTarget, PopupMessage, PressHints,
+        announcing_hoverable, tooltip_content::TooltipContent,
     },
     widgets::{
         aligned_quantity::AlignedQuantity,
@@ -25,7 +22,12 @@ use crate::{
         keyed_record_table::separator_rule,
         pager_slot::PagerSlot,
         text::{column_heading, row_key_label},
-        widget_group::{DrawerCells, EdgeIndicator, GroupContent, GroupEvent, GroupToastRequests},
+        tooltip_body::tooltip_source_delivery::Tooltip,
+        widget_group::{
+            DrawerCells, EdgeIndicator, GroupContent, GroupEvent, GroupToastRequests,
+            NamedDrawerCell,
+        },
+        window_icon::WindowAssets,
     },
 };
 
@@ -101,11 +103,40 @@ impl<'a, M: Clone + 'a> GroupDrawer<'a, M> {
     ) -> Option<Element<'a, Outer>> {
         sheet_view(self.members, config, clock).map(|sheet| sheet.map(Outer::from))
     }
+
+    pub fn inspecting_sheet<Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a>(
+        self,
+        config: &'a Config,
+        assets: WindowAssets<'a>,
+        clock: Clock,
+        inspected: &Tooltip,
+    ) -> Option<Element<'a, Outer>> {
+        let sheet = self.sheet(config, clock)?;
+        if inspected.is_empty() {
+            return Some(sheet);
+        }
+        let detail_pane =
+            Element::from(TooltipContent::new(inspected, config, assets, clock).view())
+                .map(Outer::from);
+        Some(
+            Row::with_children([
+                sheet,
+                container(detail_pane)
+                    .width(config.layout.overlay.drawer_detail_width)
+                    .into(),
+            ])
+            .spacing(config.layout.overlay.column_spacing)
+            .into(),
+        )
+    }
 }
 
-struct MemberRemainder<'a, M> {
-    aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
-    unaligned: vec::IntoIter<Element<'a, GroupEvent<M>>>,
+type GridCells<'a, M> = Vec<Element<'a, GroupEvent<M>>>;
+type GridRow<'a, M> = SpannableRow<'a, GridCells<'a, M>, GroupEvent<M>>;
+
+struct PivotAndSectionRows<'a, M> {
+    pivot_rows: Vec<GridCells<'a, M>>,
+    section_rows: Vec<GridRow<'a, M>>,
 }
 
 fn sheet_view<'a, M: Clone + 'a>(
@@ -125,70 +156,101 @@ fn sheet_view<'a, M: Clone + 'a>(
             .iter()
             .map(|cells| cells.aligned.keys().copied()),
     );
-    let unaligned_depth = member_cells
+    let pivot_column_count = member_cells
         .iter()
-        .map(|cells| cells.unaligned.len())
-        .max()
-        .unwrap_or_default();
-    let column_count = member_cells.len() + 1;
-    let (faces, mut remainders): (Vec<_>, Vec<_>) = member_cells
-        .into_iter()
-        .map(|cells| {
-            (
-                drawer_column_header(config, cells.face, cells.group_title),
-                MemberRemainder {
-                    aligned: cells.aligned,
-                    unaligned: cells.unaligned.into_iter(),
-                },
-            )
-        })
-        .unzip();
-    let header_row: Vec<Element<'a, GroupEvent<M>>> =
-        once(Space::new().into()).chain(faces).collect();
-    let aligned_rows: Vec<Vec<Element<'a, GroupEvent<M>>>> = quantity_rows
-        .iter()
-        .map(|quantity| {
-            once(row_key_label(&config.theme.font, quantity.to_string()).into())
-                .chain(remainders.iter_mut().map(|remainder| {
-                    remainder
-                        .aligned
-                        .remove(quantity)
-                        .unwrap_or_else(|| Space::new().into())
-                }))
-                .collect()
-        })
-        .collect();
-    let unaligned_rows: Vec<Vec<Element<'a, GroupEvent<M>>>> = (0..unaligned_depth)
-        .map(|_| {
-            once(Space::new().into())
-                .chain(remainders.iter_mut().map(|remainder| {
-                    remainder
-                        .unaligned
-                        .next()
-                        .unwrap_or_else(|| Space::new().into())
-                }))
-                .collect()
-        })
-        .collect();
-    let section_separator = (!aligned_rows.is_empty() && !unaligned_rows.is_empty())
+        .filter(|cells| !cells.aligned.is_empty())
+        .count();
+    let column_count = pivot_column_count.max(1) + 1;
+    let pads_row = move |cells: GridCells<'a, M>| -> GridCells<'a, M> {
+        let padding = column_count.saturating_sub(cells.len());
+        cells
+            .into_iter()
+            .chain((0..padding).map(|_| Space::new().into()))
+            .collect()
+    };
+    let PivotAndSectionRows {
+        pivot_rows,
+        section_rows,
+    } = pivot_and_section_rows(member_cells, &quantity_rows, config, pivot_column_count);
+    let section_separator = (!pivot_rows.is_empty() && !section_rows.is_empty())
         .then(|| SpannableRow::FullWidth(separator_rule()));
     let grid = content_sized_spanning_grid(
         once(Horizontal::Right)
             .chain(vec![Horizontal::Left; column_count - 1])
             .collect(),
-        once(header_row)
-            .chain(aligned_rows)
+        pivot_rows
+            .into_iter()
+            .map(pads_row)
             .map(SpannableRow::Columned)
             .chain(section_separator)
-            .chain(unaligned_rows.into_iter().map(SpannableRow::Columned)),
+            .chain(section_rows.into_iter().map(|row| match row {
+                SpannableRow::Columned(cells) => SpannableRow::Columned(pads_row(cells)),
+                full_width @ SpannableRow::FullWidth(_) => full_width,
+            })),
     )
     .padding_x(config.layout.overlay.row_spacing)
     .padding_y(config.layout.overlay.row_spacing / 2.0);
     Some(
         container(grid)
-            .padding(Padding::ZERO.horizontal(config.layout.overlay.content_inset))
+            .padding(config.layout.overlay.content_inset)
             .into(),
     )
+}
+
+fn pivot_and_section_rows<'a, M: Clone + 'a>(
+    member_cells: Vec<DrawerCells<'a, M>>,
+    quantity_rows: &[AlignedQuantity],
+    config: &'a Config,
+    pivot_column_count: usize,
+) -> PivotAndSectionRows<'a, M> {
+    let font = &config.theme.font;
+    let mut pivot_faces = Vec::with_capacity(pivot_column_count);
+    let mut pivot_columns = Vec::with_capacity(pivot_column_count);
+    let mut section_rows: Vec<GridRow<'a, M>> = Vec::new();
+    for cells in member_cells {
+        let DrawerCells {
+            column_face,
+            section_face,
+            group_title,
+            aligned,
+            unaligned,
+        } = cells;
+        if !aligned.is_empty() {
+            pivot_faces.push(drawer_column_header(config, column_face, group_title));
+            pivot_columns.push(aligned);
+        }
+        if unaligned.is_empty() {
+            continue;
+        }
+        section_rows.push(SpannableRow::FullWidth(drawer_column_header(
+            config,
+            section_face,
+            group_title,
+        )));
+        section_rows.extend(unaligned.into_iter().map(|cell: NamedDrawerCell<'a, M>| {
+            SpannableRow::Columned(vec![row_key_label(font, cell.name).into(), cell.view])
+        }));
+    }
+    if pivot_columns.is_empty() {
+        return PivotAndSectionRows {
+            pivot_rows: Vec::new(),
+            section_rows,
+        };
+    }
+    let header_row = once(Space::new().into()).chain(pivot_faces).collect();
+    let quantity_cells = quantity_rows.iter().map(|quantity| {
+        once(row_key_label(font, quantity.to_string()).into())
+            .chain(pivot_columns.iter_mut().map(|column| {
+                column
+                    .remove(quantity)
+                    .unwrap_or_else(|| Space::new().into())
+            }))
+            .collect()
+    });
+    PivotAndSectionRows {
+        pivot_rows: once(header_row).chain(quantity_cells).collect(),
+        section_rows,
+    }
 }
 
 fn aligned_quantity_rows(

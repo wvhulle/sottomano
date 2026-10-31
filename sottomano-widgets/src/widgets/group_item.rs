@@ -2,14 +2,17 @@ use std::rc::Rc;
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element,
-    widget::{Row, button, mouse_area, text, text::Wrapping},
+    Element,
+    widget::{button, mouse_area},
 };
 use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable},
+    hover_tooltips::{
+        HoverAnnouncement, HoverTarget, InspectedRow, PressHints, TooltipMessage,
+        announcing_hoverable,
+    },
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
@@ -22,13 +25,11 @@ use crate::{
         },
         slider_control::{ControlMessage, SliderControl},
         source_reading::source_reading,
-        text::bar_text,
         toggle_control::IconToggle,
         widget_group::GroupEvent,
     },
 };
 
-const PRESS_DESCRIPTION_WIDTH_EMS: f32 = 13.0;
 const DRAWER_ICON_GAP_EMS: f32 = 0.75;
 
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
@@ -417,13 +418,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let item_view = self.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
-        match &self.on_press {
-            Some(press) => Row::with_children([item_view, press_description(config, press.does)])
-                .spacing(drawer_icon_gap(config))
-                .align_y(Alignment::Center)
-                .into(),
-            None => item_view,
+        match &self.kind {
+            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
+                mouse_area(item_view)
+                    .on_enter(GroupEvent::Tooltip(TooltipMessage::Inspect(InspectedRow {
+                        target: target.clone(),
+                        announcement: self.announcement(),
+                    })))
+                    .into()
+            }
+            ItemKind::Control { .. } | ItemKind::Element { .. } => item_view,
         }
+    }
+
+    pub(super) fn drawer_name(&self) -> Option<&'static str> {
+        self.kind.announcing_widget().map(BarWidget::name)
     }
 
     pub(super) fn placed_view(
@@ -473,14 +482,4 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
 fn drawer_icon_gap(config: &Config) -> f32 {
     DRAWER_ICON_GAP_EMS * config.theme.font.text_size_px
-}
-
-fn press_description<'a, Message: 'a>(config: &Config, does: &'static str) -> Element<'a, Message> {
-    let font = &config.theme.font;
-    bar_text(font, does)
-        .size(font.small_text_size_px)
-        .width(PRESS_DESCRIPTION_WIDTH_EMS * font.text_size_px)
-        .wrapping(Wrapping::Word)
-        .style(text::secondary)
-        .into()
 }
