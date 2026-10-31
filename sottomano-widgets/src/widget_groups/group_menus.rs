@@ -11,6 +11,8 @@ use crate::hover_tooltips::InspectedRow;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupMenuKind {
     Hardware,
+    Network,
+    Services,
     Appearance,
     Behaviour,
 }
@@ -19,6 +21,8 @@ impl GroupMenuKind {
     const fn storage_key(self) -> &'static str {
         match self {
             GroupMenuKind::Hardware => "HardwareMenu",
+            GroupMenuKind::Network => "NetworkMenu",
+            GroupMenuKind::Services => "ServicesMenu",
             GroupMenuKind::Appearance => "AppearanceMenu",
             GroupMenuKind::Behaviour => "BehaviourMenu",
         }

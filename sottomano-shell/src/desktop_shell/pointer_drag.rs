@@ -7,7 +7,9 @@ use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_widgets::{
     background_work::niri_action,
     bar_slot_drag::{BarSlotContext, DragMessage, SlotClick},
-    widget_groups::sidebar_settings_group::WorkspacesPlacement,
+    widget_groups::{
+        sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
+    },
     widgets::{
         panel_frame::LayerFrameStyle,
         pointer_drag::{
@@ -145,7 +147,15 @@ impl DesktopShell {
                 let Some(index) = self
                     .surfaces
                     .get(&drag.surface)
-                    .and_then(|surface| snapshot.workspaces_for_output(&surface.output).get(to))
+                    .and_then(|surface| {
+                        shown_workspaces(
+                            snapshot,
+                            &surface.output,
+                            self.widget_groups.sidebar_settings_group.empty_workspaces(),
+                        )
+                        .get(to)
+                        .copied()
+                    })
                     .map(|target| usize::from(target.idx))
                 else {
                     return Task::none();

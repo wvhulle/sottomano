@@ -18,6 +18,16 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
+    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenu<'_, Message>> {
+        [
+            self.hardware_menu(),
+            self.network_menu(),
+            self.services_menu(),
+        ]
+        .into_iter()
+        .chain(self.settings_menus())
+    }
+
     pub(super) fn group_menu<'a>(
         &'a self,
         kind: GroupMenuKind,

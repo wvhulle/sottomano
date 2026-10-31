@@ -98,6 +98,7 @@ mod tests {
                     refresh_hz: 60.0,
                 }),
                 scale: 1.2,
+                logical_width: 1600,
                 logical_height: 1000,
             },
         )])

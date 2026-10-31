@@ -5,7 +5,10 @@ use sottomano_sources::sqlite_state_store::Columns;
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
+    widget_groups::{
+        sqlite_shell_settings_row::{self, ShellSetting},
+        workspaces_group::EmptyWorkspaces,
+    },
     widgets::{
         group_item::GroupItem,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -82,6 +85,7 @@ impl From<SidebarSettingsTarget> for HoverTarget {
 pub enum SidebarSettingsMessage {
     Expansion(ExpansionMessage),
     ToggleWorkspacesPlacement,
+    ToggleEmptyWorkspaces,
     Appearance(AppearanceMessage),
     PlacementLoaded(WorkspacesPlacement),
 }
@@ -89,6 +93,7 @@ pub enum SidebarSettingsMessage {
 pub struct SidebarSettingsGroup {
     expansion: GroupExpansion,
     workspaces_placement: WorkspacesPlacement,
+    empty_workspaces: EmptyWorkspaces,
     appearance: LayerAppearanceControls,
 }
 
@@ -97,6 +102,7 @@ impl Default for SidebarSettingsGroup {
         Self {
             expansion: GroupExpansion::default(),
             workspaces_placement: WorkspacesPlacement::Sidebar,
+            empty_workspaces: EmptyWorkspaces::default(),
             appearance: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
                 SidebarSettingsTarget::Appearance(target).into()
             }),
@@ -123,6 +129,11 @@ impl SidebarSettingsGroup {
     #[must_use]
     pub fn workspaces_placement(&self) -> WorkspacesPlacement {
         self.workspaces_placement
+    }
+
+    #[must_use]
+    pub fn empty_workspaces(&self) -> EmptyWorkspaces {
+        self.empty_workspaces
     }
 
     #[must_use]
@@ -160,6 +171,10 @@ impl SidebarSettingsGroup {
                     ShellSetting::WorkspacesPlacement(self.workspaces_placement),
                 ))
                 .discard()
+            }
+            SidebarSettingsMessage::ToggleEmptyWorkspaces => {
+                self.empty_workspaces = self.empty_workspaces.toggled();
+                Task::none()
             }
             SidebarSettingsMessage::Appearance(msg) => self
                 .appearance

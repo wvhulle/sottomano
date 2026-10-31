@@ -19,8 +19,26 @@ pub struct FramedSurface {
     pub shadow: Shadow,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectorSide {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl From<Position> for ConnectorSide {
+    fn from(position: Position) -> Self {
+        match position {
+            Position::Top => ConnectorSide::Top,
+            Position::Bottom => ConnectorSide::Bottom,
+            Position::Left => ConnectorSide::Left,
+        }
+    }
+}
+
 pub struct ConnectorTriangle {
-    position: Position,
+    side: ConnectorSide,
     apex: Point,
     base_start: Point,
     base_end: Point,
@@ -51,13 +69,13 @@ impl ConnectorTriangle {
         anchor: Rectangle,
         bar_edge: f32,
         popup: Rectangle,
-        position: Position,
+        side: ConnectorSide,
         corner_radius: f32,
     ) -> Self {
         let inset = Self::half_span() + corner_radius;
-        match position {
-            Position::Top | Position::Bottom => {
-                let base_y = if position == Position::Top {
+        match side {
+            ConnectorSide::Top | ConnectorSide::Bottom => {
+                let base_y = if side == ConnectorSide::Top {
                     popup.y
                 } else {
                     popup.y + popup.height
@@ -65,20 +83,25 @@ impl ConnectorTriangle {
                 let base_center =
                     centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
                 Self {
-                    position,
+                    side,
                     apex: Point::new(anchor.center_x(), bar_edge),
                     base_start: Point::new(base_center - BASE_HALF_WIDTH_PX, base_y),
                     base_end: Point::new(base_center + BASE_HALF_WIDTH_PX, base_y),
                 }
             }
-            Position::Left => {
+            ConnectorSide::Left | ConnectorSide::Right => {
+                let base_x = if side == ConnectorSide::Left {
+                    popup.x
+                } else {
+                    popup.x + popup.width
+                };
                 let base_center =
                     centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
                 Self {
-                    position,
+                    side,
                     apex: Point::new(bar_edge, anchor.center_y()),
-                    base_start: Point::new(popup.x, base_center - BASE_HALF_WIDTH_PX),
-                    base_end: Point::new(popup.x, base_center + BASE_HALF_WIDTH_PX),
+                    base_start: Point::new(base_x, base_center - BASE_HALF_WIDTH_PX),
+                    base_end: Point::new(base_x, base_center + BASE_HALF_WIDTH_PX),
                 }
             }
         }
@@ -87,7 +110,7 @@ impl ConnectorTriangle {
     #[must_use]
     pub fn translated(&self, offset: Vector) -> Self {
         Self {
-            position: self.position,
+            side: self.side,
             apex: self.apex + offset,
             base_start: self.base_start + offset,
             base_end: self.base_end + offset,
@@ -124,9 +147,9 @@ impl ConnectorTriangle {
     }
 
     fn depth(&self) -> f32 {
-        match self.position {
-            Position::Top | Position::Bottom => (self.base_start.y - self.apex.y).abs(),
-            Position::Left => (self.base_start.x - self.apex.x).abs(),
+        match self.side {
+            ConnectorSide::Top | ConnectorSide::Bottom => (self.base_start.y - self.apex.y).abs(),
+            ConnectorSide::Left | ConnectorSide::Right => (self.base_start.x - self.apex.x).abs(),
         }
     }
 
@@ -142,13 +165,13 @@ impl ConnectorTriangle {
     #[must_use]
     pub fn blur_rows(&self) -> Vec<Rectangle> {
         let bounds = self.bounds();
-        match self.position {
-            Position::Top | Position::Bottom => {
+        match self.side {
+            ConnectorSide::Top | ConnectorSide::Bottom => {
                 let top = bounds.y.ceil() as i32;
                 let bottom = (bounds.y + bounds.height).floor() as i32;
                 (top..bottom)
                     .map(|row| {
-                        let from_apex = if self.position == Position::Top {
+                        let from_apex = if self.side == ConnectorSide::Top {
                             row as f32 + 1.0 - self.apex.y
                         } else {
                             self.apex.y - row as f32
@@ -161,12 +184,17 @@ impl ConnectorTriangle {
                     })
                     .collect()
             }
-            Position::Left => {
+            ConnectorSide::Left | ConnectorSide::Right => {
                 let left = bounds.x.ceil() as i32;
                 let right = (bounds.x + bounds.width).floor() as i32;
                 (left..right)
                     .map(|column| {
-                        let [start, end] = self.cross_section(column as f32 + 1.0 - self.apex.x);
+                        let from_apex = if self.side == ConnectorSide::Left {
+                            column as f32 + 1.0 - self.apex.x
+                        } else {
+                            self.apex.x - column as f32
+                        };
+                        let [start, end] = self.cross_section(from_apex);
                         Rectangle::new(
                             Point::new(column as f32, start.y),
                             Size::new(1.0, end.y - start.y),
@@ -214,7 +242,7 @@ impl ConnectorTriangle {
         };
         Path::new(|path| {
             path.move_to(Point::new(left + corners.top_left, top));
-            if self.position == Position::Top {
+            if self.side == ConnectorSide::Top {
                 self.trace_sides(path, false);
             }
             path.line_to(Point::new(right - corners.top_right, top));
@@ -224,6 +252,9 @@ impl ConnectorTriangle {
                 Point::new(right, top + corners.top_right),
                 corners.top_right,
             );
+            if self.side == ConnectorSide::Right {
+                self.trace_sides(path, false);
+            }
             path.line_to(Point::new(right, bottom - corners.bottom_right));
             corner(
                 path,
@@ -231,7 +262,7 @@ impl ConnectorTriangle {
                 Point::new(right - corners.bottom_right, bottom),
                 corners.bottom_right,
             );
-            if self.position == Position::Bottom {
+            if self.side == ConnectorSide::Bottom {
                 self.trace_sides(path, true);
             }
             path.line_to(Point::new(left + corners.bottom_left, bottom));
@@ -241,7 +272,7 @@ impl ConnectorTriangle {
                 Point::new(left, bottom - corners.bottom_left),
                 corners.bottom_left,
             );
-            if self.position == Position::Left {
+            if self.side == ConnectorSide::Left {
                 self.trace_sides(path, true);
             }
             path.line_to(Point::new(left, top + corners.top_left));

@@ -41,6 +41,7 @@ impl DesktopShell {
                     snapshot,
                     output,
                     self.configured_workspaces.as_ref(),
+                    self.widget_groups.sidebar_settings_group.empty_workspaces(),
                     frame_style.drawn_corners(outlined_sides),
                     self.bar_slot_context(Position::Left),
                 )

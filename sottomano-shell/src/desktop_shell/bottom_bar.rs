@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
@@ -19,7 +17,8 @@ use crate::{desktop_shell::DesktopShell, shell_message::Message};
 pub(super) struct BottomBarGroups<'a> {
     pub settings_menus: [GroupMenu<'a, Message>; 2],
     pub start: [GroupContent<'a, Message>; 6],
-    pub end: [GroupContent<'a, Message>; 9],
+    pub services_menu: GroupMenu<'a, Message>,
+    pub end: [GroupContent<'a, Message>; 2],
 }
 
 impl DesktopShell {
@@ -28,6 +27,7 @@ impl DesktopShell {
         let BottomBarGroups {
             settings_menus,
             start,
+            services_menu,
             end,
         } = self.bottom_bar_groups();
         let view =
@@ -40,7 +40,9 @@ impl DesktopShell {
                 .chain(start.map(view))
                 .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
-            end.map(view),
+            services_menu
+                .bar_views(config, Position::Bottom, self.clock)
+                .chain(end.map(view)),
         )
     }
 
@@ -48,15 +50,12 @@ impl DesktopShell {
         BottomBarGroups {
             settings_menus: self.settings_menus(),
             start: self.bottom_bar_start_groups(),
+            services_menu: self.services_menu(),
             end: self.bottom_bar_end_groups(),
         }
     }
 
-    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenu<'_, Message>> {
-        once(self.hardware_menu()).chain(self.settings_menus())
-    }
-
-    fn settings_menus(&self) -> [GroupMenu<'_, Message>; 2] {
+    pub(super) fn settings_menus(&self) -> [GroupMenu<'_, Message>; 2] {
         [
             self.group_menu(
                 GroupMenuKind::Appearance,
@@ -126,37 +125,48 @@ impl DesktopShell {
         ]
     }
 
-    fn bottom_bar_end_groups(&self) -> [GroupContent<'_, Message>; 9] {
+    pub(super) fn services_menu(&self) -> GroupMenu<'_, Message> {
+        let config = &self.config;
+        self.group_menu(
+            GroupMenuKind::Services,
+            "Services",
+            Phosphor::Stack(Weight::Regular),
+            [
+                self.widget_groups
+                    .llama_server_group
+                    .group_content()
+                    .map(Message::LlamaServer),
+                self.widget_groups
+                    .claude_usage_group
+                    .group_content()
+                    .map(Message::ClaudeUsage),
+                self.widget_groups
+                    .copilot_usage_group
+                    .group_content()
+                    .map(Message::CopilotUsage),
+                self.widget_groups
+                    .openrouter_credit_group
+                    .group_content()
+                    .map(Message::OpenRouterCredit),
+                self.widget_groups
+                    .systemd_manager_group
+                    .group_content(config, self.clock)
+                    .map(Message::SystemdManager),
+                self.widget_groups
+                    .journal_events_group
+                    .group_content(config)
+                    .map(Message::JournalEvents),
+                self.widget_groups
+                    .pending_upgrades_group
+                    .group_content(config)
+                    .map(Message::PendingUpgrades),
+            ],
+        )
+    }
+
+    fn bottom_bar_end_groups(&self) -> [GroupContent<'_, Message>; 2] {
         let config = &self.config;
         [
-            self.widget_groups
-                .llama_server_group
-                .group_content()
-                .map(Message::LlamaServer),
-            self.widget_groups
-                .claude_usage_group
-                .group_content()
-                .map(Message::ClaudeUsage),
-            self.widget_groups
-                .copilot_usage_group
-                .group_content()
-                .map(Message::CopilotUsage),
-            self.widget_groups
-                .openrouter_credit_group
-                .group_content()
-                .map(Message::OpenRouterCredit),
-            self.widget_groups
-                .systemd_manager_group
-                .group_content(config, self.clock)
-                .map(Message::SystemdManager),
-            self.widget_groups
-                .journal_events_group
-                .group_content(config)
-                .map(Message::JournalEvents),
-            self.widget_groups
-                .pending_upgrades_group
-                .group_content(config)
-                .map(Message::PendingUpgrades),
             self.widget_groups
                 .login_session_group
                 .group_content()
@@ -179,6 +189,7 @@ impl DesktopShell {
                 &self.niri_snapshot,
                 output,
                 self.configured_workspaces.as_ref(),
+                self.widget_groups.sidebar_settings_group.empty_workspaces(),
                 self.bar_slot_context(Position::Bottom),
             )
             .map(|workspaces| workspaces.map(Message::from)),

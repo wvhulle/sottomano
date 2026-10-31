@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::once};
+use std::collections::HashMap;
 
 use iced::{Task, window::Id};
 use sottomano_widgets::{
@@ -19,27 +19,20 @@ use crate::{
 impl DesktopShell {
     pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {
         let locale = self.config.calendar.locale;
-        let TopBarGroups {
-            hardware_menu,
-            start,
-            center,
-            end,
-        } = self.top_bar_groups();
+        let TopBarGroups { center, end, .. } = self.top_bar_groups();
         let BottomBarGroups {
-            settings_menus,
             start: bottom_start,
             end: bottom_end,
+            ..
         } = self.bottom_bar_groups();
-        start
+        center
             .iter()
-            .chain(&center)
             .chain(&end)
             .chain(&bottom_start)
             .chain(&bottom_end)
             .map(|group| group.toast_requests(locale, self.clock))
             .chain(
-                once(&hardware_menu)
-                    .chain(&settings_menus)
+                self.bar_group_menus()
                     .map(|group_menu| group_menu.toast_requests(locale, self.clock)),
             )
             .collect()

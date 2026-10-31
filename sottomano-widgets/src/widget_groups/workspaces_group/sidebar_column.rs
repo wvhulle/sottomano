@@ -5,7 +5,8 @@ use sottomano_sources::desktop_windows_apps::{
 };
 
 use super::{
-    WorkspacesMessage, dragged, order_restore,
+    EmptyWorkspaces, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
+    shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
     },
@@ -22,6 +23,7 @@ pub fn vertical_view<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
+    empty_workspaces: EmptyWorkspaces,
     frame_corners: Radius,
     slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
@@ -34,7 +36,12 @@ pub fn vertical_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let order = drag.previewed(workspaces, workspace_slot_key);
+    let shown = shown_workspaces(niri, output, empty_workspaces);
+    let order: Vec<_> = drag
+        .previewed(&shown, |workspace| workspace_slot_key(workspace))
+        .into_iter()
+        .copied()
+        .collect();
     let end_corners = ListEndCorners::new(order.len(), frame_corners);
     let rows = order
         .iter()
@@ -55,6 +62,12 @@ pub fn vertical_view<'a>(
         Column::new()
             .extend(order_restore(configured, workspaces, output, config))
             .push(pager)
+            .extend(empty_workspaces_toggle(
+                niri,
+                output,
+                empty_workspaces,
+                config,
+            ))
             .spacing(config.layout.panel.widget_spacing)
             .align_x(Alignment::Center)
             .into(),

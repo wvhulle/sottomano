@@ -27,6 +27,7 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         configured_theme::text_color,
+        notched_panel::PanelGrowth,
         pager_slot::PagerSlot,
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -41,6 +42,18 @@ pub struct GroupMenu<'a, M> {
     group_menus: &'a GroupMenus,
     messenger: MenuMessenger<'a, M>,
     members: Vec<GroupContent<'a, M>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CascadeDirection {
+    Rightward,
+    Leftward,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CascadeOrientation {
+    pub direction: CascadeDirection,
+    pub growth: PanelGrowth,
 }
 
 pub struct GroupMenuSurfaces<'a, Message> {
@@ -218,6 +231,7 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         config: &'a Config,
         appearance: &LayerAppearance,
         card: &InspectionCard<'_, 'a>,
+        orientation: CascadeOrientation,
     ) -> Option<GroupMenuSurfaces<'a, Outer>> {
         let GroupMenu {
             group_menus,
@@ -237,11 +251,12 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             Element::from(container(table).padding(config.layout.overlay.content_inset))
                 .map(Outer::from)
         });
-        let satellite_panels = SatellitePanels::new(appearance, config);
+        let satellite_panels = SatellitePanels::new(appearance, config, orientation);
         let cascade = cascading_columns(
             merged_by_title(cascade_entries),
             &CascadeLayout {
                 config,
+                direction: orientation.direction,
                 menu: &messenger,
                 group_menus,
                 satellite_panels: &satellite_panels,

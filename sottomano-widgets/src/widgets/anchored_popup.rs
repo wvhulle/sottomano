@@ -41,17 +41,18 @@ impl PopupFrame {
 pub enum PopupFraming {
     WholeContent,
     FirstChild,
+    LastChild,
 }
 
 impl PopupFraming {
-    fn framed_size(self, node: &Node) -> Size {
-        match self {
-            PopupFraming::WholeContent => node.size(),
-            PopupFraming::FirstChild => node
-                .children()
-                .first()
-                .map_or_else(|| node.size(), Node::size),
-        }
+    fn framed_bounds(self, node: &Node) -> Rectangle {
+        let whole = Rectangle::new(Point::ORIGIN, node.size());
+        let framed_child = match self {
+            PopupFraming::WholeContent => None,
+            PopupFraming::FirstChild => node.children().first(),
+            PopupFraming::LastChild => node.children().last(),
+        };
+        framed_child.map_or(whole, Node::bounds)
     }
 }
 
@@ -167,7 +168,7 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
                 .max(self.popup_gap)
         };
         let horizontal = |extent: f32, room: f32| {
-            if self.frames_first_child() {
+            if self.frames_one_child() {
                 (self.anchor.center_x() - self.leading_icon_center)
                     .min(room - extent)
                     .max(0.0)
@@ -228,10 +229,10 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         }
     }
 
-    fn frames_first_child(&self) -> bool {
+    fn frames_one_child(&self) -> bool {
         self.renderings
             .iter()
-            .any(|rendering| rendering.incoming && rendering.framing == PopupFraming::FirstChild)
+            .any(|rendering| rendering.incoming && rendering.framing != PopupFraming::WholeContent)
     }
 
     fn is_live(&self) -> bool {
@@ -283,7 +284,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 self.anchor,
                 0.0,
                 Rectangle::default(),
-                self.position,
+                self.position.into(),
                 self.radius,
             ),
         })
@@ -329,7 +330,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .iter()
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
-            .map(|(rendering, node)| rendering.framing.framed_size(node));
+            .map(|(rendering, node)| rendering.framing.framed_bounds(node).size());
         let at_anchor = self.resting(Size::ZERO, surface);
 
         let state: &mut MorphState = tree.state.downcast_mut();
@@ -348,7 +349,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             self.anchor,
             self.bar_edge(surface),
             popup,
-            self.position,
+            self.position.into(),
             self.radius,
         );
 
@@ -357,8 +358,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .iter()
             .zip(nodes)
             .map(|(rendering, node)| {
-                let framed_height = rendering.framing.framed_size(&node).height;
-                node.move_to(self.content_origin(popup, framed_height))
+                let framed = rendering.framing.framed_bounds(&node);
+                let framed_origin = self.content_origin(popup, framed.height);
+                node.move_to(framed_origin - Vector::new(framed.x, framed.y))
             })
             .collect();
         Node::with_children(surface, placed)
@@ -391,7 +393,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 shadow: self.shadow,
             },
         );
-        let content_clip = if self.frames_first_child() && self.is_settled() {
+        let content_clip = if self.frames_one_child() && self.is_settled() {
             *viewport
         } else {
             box_bounds

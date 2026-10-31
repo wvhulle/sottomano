@@ -58,7 +58,8 @@ use sottomano_widgets::{
     widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{GroupMenuSurfaces, InspectionCard},
+        group_menu::{CascadeDirection, CascadeOrientation, GroupMenuSurfaces, InspectionCard},
+        notched_panel::PanelGrowth,
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -392,6 +393,7 @@ impl DesktopShell {
             return Some(HoverContent::Cascade {
                 primary,
                 satellites,
+                direction: self.group_menu_orientation().direction,
             });
         }
         match self.interactive_panel(target) {
@@ -401,6 +403,28 @@ impl DesktopShell {
             }),
             None => self.tooltip_for(target).map(HoverContent::Described),
         }
+    }
+
+    fn group_menu_orientation(&self) -> CascadeOrientation {
+        let Some(placement) = self.tooltip.placement() else {
+            return CascadeOrientation {
+                direction: CascadeDirection::Rightward,
+                growth: PanelGrowth::Downward,
+            };
+        };
+        let growth = match placement.position {
+            Position::Bottom => PanelGrowth::Upward,
+            Position::Top | Position::Left => PanelGrowth::Downward,
+        };
+        let right_of_middle = self.outputs.get(&placement.output).is_some_and(|output| {
+            f64::from(placement.anchor.center_x()) > f64::from(output.logical_width) / 2.0
+        });
+        let direction = if right_of_middle {
+            CascadeDirection::Leftward
+        } else {
+            CascadeDirection::Rightward
+        };
+        CascadeOrientation { direction, growth }
     }
 
     fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {
@@ -430,6 +454,7 @@ impl DesktopShell {
                 assets: self.window_assets(),
                 clock: self.clock,
             },
+            self.group_menu_orientation(),
         )
     }
 

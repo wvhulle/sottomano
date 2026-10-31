@@ -106,6 +106,7 @@ pub enum HoverTarget {
     Window(WindowTarget),
     Workspace(u64),
     WorkspaceOrder,
+    WorkspaceFolding,
     GroupHandle(GroupHandle),
 }
 

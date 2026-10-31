@@ -109,7 +109,8 @@ impl ShellWidgetGroups {
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
             | HoverTarget::Workspace(_)
-            | HoverTarget::WorkspaceOrder => Task::none(),
+            | HoverTarget::WorkspaceOrder
+            | HoverTarget::WorkspaceFolding => Task::none(),
         }
     }
 }

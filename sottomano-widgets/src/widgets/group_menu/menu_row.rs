@@ -13,6 +13,7 @@ use crate::widgets::{
 };
 
 pub(super) struct MenuRowContent<'a, M> {
+    pub leading: Vec<Element<'a, GroupEvent<M>>>,
     pub parts: MenuParts<'a, M>,
     pub name: &'static str,
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
@@ -71,11 +72,13 @@ fn menu_line<'a, M: 'a>(
     content: MenuRowContent<'a, M>,
 ) -> Row<'a, GroupEvent<M>> {
     let MenuRowContent {
+        leading,
         parts,
         name,
         trailing,
     } = content;
     Row::new()
+        .extend(leading)
         .push(leading_icon_slot(config, parts.icon))
         .push(bar_text(&config.theme.font, name))
         .push(space::horizontal())
