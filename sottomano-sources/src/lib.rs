@@ -30,7 +30,10 @@ use std::{
 
 use futures::Stream;
 
-use crate::delivery_cadence_drivers::StampedCadence;
+use crate::{
+    delivery_cadence_drivers::StampedCadence,
+    network_connectivity::internet_connectivity_gate::InternetUnreachable,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceCaption {
@@ -53,6 +56,7 @@ pub trait SnapshotSource: Clone + Debug + Sized + Send + 'static {
 #[derive(Debug, Clone)]
 pub enum SnapshotDelivery<S: SnapshotSource> {
     SourceUnavailable,
+    InternetUnreachable(InternetUnreachable),
     SnapshotDelivered {
         snapshot_fetch: Result<S, S::Error>,
         stamped_cadence: StampedCadence,
@@ -66,6 +70,10 @@ impl<S: SnapshotSource + PartialEq> PartialEq for SnapshotDelivery<S> {
             SnapshotDelivery::SourceUnavailable => {
                 matches!(other, SnapshotDelivery::SourceUnavailable)
             }
+            SnapshotDelivery::InternetUnreachable(reason) => matches!(
+                other,
+                SnapshotDelivery::InternetUnreachable(known_reason) if known_reason == reason
+            ),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch: Ok(snapshot),
                 stamped_cadence,

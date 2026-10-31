@@ -28,9 +28,10 @@ impl ShellWidgetGroups {
         let sensors = &config.widget_groups.temperature_sensors;
         let working_days = self.quiet_schedule_group.working_days();
         match target {
-            HoverTarget::Weather(target) => {
-                self.weather_group.refresh(*target).map(Message::Weather)
-            }
+            HoverTarget::Weather(target) => self
+                .weather_group
+                .refresh(*target, buses)
+                .map(Message::Weather),
             HoverTarget::Compute(target) => {
                 ComputeGroup::refresh(*target, &sensors.cpu).map(Message::Compute)
             }
@@ -53,7 +54,7 @@ impl ShellWidgetGroups {
             }),
             HoverTarget::ClaudeUsage(target) => self
                 .claude_usage_group
-                .refresh(*target, config, working_days)
+                .refresh(*target, config, working_days, buses)
                 .map(Message::ClaudeUsage),
             HoverTarget::CopilotUsage(target) => self
                 .copilot_usage_group
@@ -61,7 +62,7 @@ impl ShellWidgetGroups {
                 .map(Message::CopilotUsage),
             HoverTarget::OpenRouterCredit(target) => self
                 .openrouter_credit_group
-                .refresh(*target, config)
+                .refresh(*target, config, buses)
                 .map(Message::OpenRouterCredit),
             HoverTarget::Power(target) => {
                 on_buses(&|buses| PowerGroup::refresh(*target, buses).map(Message::Power))

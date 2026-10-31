@@ -449,6 +449,7 @@ mod tests {
                         ..
                     }
                     | SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::InternetUnreachable(_)
                     | SnapshotDelivery::SnapshotUnchanged => None,
                 })
                 .collect(),

@@ -19,7 +19,6 @@ use crate::{
     },
 };
 
-const FETCH_TIMEOUT_SECS: u64 = 3;
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 const PROGRAM_NAME: &str = "llama-server";
 const DEFAULT_HOST: &str = "127.0.0.1";
@@ -248,23 +247,20 @@ impl From<ListedSlot> for LlamaSlot {
 
 async fn fetch_server(endpoint: &str) -> Result<LlamaServer, http_json_client::Error> {
     let listed: ModelList =
-        http_json_client::get_json(&format!("{endpoint}/v1/models"), &[], FETCH_TIMEOUT_SECS)
-            .await?;
+        http_json_client::get_json(&format!("{endpoint}/v1/models"), &[]).await?;
     let models: Vec<LlamaModel> = listed.data.into_iter().map(LlamaModel::from).collect();
     let serving = models
         .iter()
         .filter(|model| model.status == LlamaModelStatus::Loaded)
         .find_map(|model| model.instance.as_ref());
     let slots = match serving {
-        Some(instance) => http_json_client::get_json::<Vec<ListedSlot>>(
-            &instance.url("slots"),
-            &[],
-            FETCH_TIMEOUT_SECS,
-        )
-        .await?
-        .into_iter()
-        .map(LlamaSlot::from)
-        .collect(),
+        Some(instance) => {
+            http_json_client::get_json::<Vec<ListedSlot>>(&instance.url("slots"), &[])
+                .await?
+                .into_iter()
+                .map(LlamaSlot::from)
+                .collect()
+        }
         None => Vec::new(),
     };
     Ok(LlamaServer {
@@ -355,7 +351,7 @@ impl SnapshotSource for LlamaModelProps {
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         stream::once(async move {
             SnapshotDelivery::single_read(
-                http_json_client::get_json(&instance.url("props"), &[], FETCH_TIMEOUT_SECS).await,
+                http_json_client::get_json(&instance.url("props"), &[]).await,
             )
         })
     }

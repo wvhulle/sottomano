@@ -17,7 +17,7 @@ use crate::{
 fn severity(connectivity: Connectivity) -> Severity {
     match connectivity {
         Connectivity::Full => Severity::Normal,
-        Connectivity::Limited => Severity::Warning,
+        Connectivity::Portal | Connectivity::Limited => Severity::Warning,
         Connectivity::Offline => Severity::Critical,
     }
 }
@@ -30,7 +30,7 @@ impl BarWidget for UplinkConnectivity {
     fn icon(&self) -> Glyph {
         match self.connectivity {
             Connectivity::Full => Phosphor::CloudCheck(Weight::Regular),
-            Connectivity::Limited => Phosphor::Cloud(Weight::Regular),
+            Connectivity::Portal | Connectivity::Limited => Phosphor::Cloud(Weight::Regular),
             Connectivity::Offline => Phosphor::CloudSlash(Weight::Regular),
         }
         .into()

@@ -20,6 +20,7 @@ use crate::{
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     secret_file_reads::read_secret,
     system_protocol_clients::http_json_client,
 };
@@ -159,15 +160,21 @@ impl OpenRouterSpend {
 
 impl SnapshotSource for OpenRouterSpend {
     type Error = Error;
-    type StreamInputs = OpenRouterAccount;
+    type StreamInputs = OnlineSourceInputs<OpenRouterAccount>;
 
     const NAME: &'static str = "OpenRouter spend";
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        OnlineSourceInputs {
+            buses,
+            source_inputs: inputs,
+        }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_mins(1))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
+        internet_connectivity_gate::while_online(buses, move || {
+            let inputs = inputs.clone();
+            PeriodicPolling::every(Duration::from_mins(1))
+                .poll_deliveries(move || Self::poll(inputs.clone()))
+        })
     }
 }
 
@@ -261,15 +268,21 @@ impl OpenRouterStrictBudget {
 
 impl SnapshotSource for OpenRouterStrictBudget {
     type Error = Error;
-    type StreamInputs = PathBuf;
+    type StreamInputs = OnlineSourceInputs<PathBuf>;
 
     const NAME: &'static str = "OpenRouter strict budget";
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        OnlineSourceInputs {
+            buses,
+            source_inputs: inputs,
+        }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(300))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
+        internet_connectivity_gate::while_online(buses, move || {
+            let inputs = inputs.clone();
+            PeriodicPolling::every(Duration::from_secs(300))
+                .poll_deliveries(move || Self::poll(inputs.clone()))
+        })
     }
 }
 
@@ -294,8 +307,7 @@ async fn hourly_usage_since(key: &str, first_day: CalendarSpan) -> Result<Vec<Us
     });
     let auth = format!("Bearer {key}");
     let resp =
-        http_json_client::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload, 15)
-            .await?;
+        http_json_client::post_json(ANALYTICS_URL, &[("Authorization", &auth)], &payload).await?;
     if resp.status != 200 {
         return Err(http_json_client::Error::status(resp.status, resp.body).into());
     }
@@ -313,14 +325,14 @@ fn utc_hour<'de, D: Deserializer<'de>>(deserializer: D) -> Result<DateTime<Utc>,
 async fn credits(key: &str) -> Result<Credits, Error> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Credits> =
-        http_json_client::get_json(CREDITS_URL, &[("Authorization", &auth)], 10).await?;
+        http_json_client::get_json(CREDITS_URL, &[("Authorization", &auth)]).await?;
     Ok(envelope.data)
 }
 
 async fn key_limits(key: &str) -> Result<Vec<KeyLimit>, Error> {
     let auth = format!("Bearer {key}");
     let envelope: Envelope<Vec<ApiKey>> =
-        http_json_client::get_json(KEYS_URL, &[("Authorization", &auth)], 10).await?;
+        http_json_client::get_json(KEYS_URL, &[("Authorization", &auth)]).await?;
     Ok(envelope
         .data
         .into_iter()

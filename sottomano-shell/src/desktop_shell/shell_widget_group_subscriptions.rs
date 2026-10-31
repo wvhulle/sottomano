@@ -26,13 +26,16 @@ impl ShellWidgetGroups {
         &self,
         config: &Config,
         focused_app_id: Option<&str>,
+        buses: Option<&DesktopBuses>,
     ) -> Subscription<Message> {
         let working_days = self.quiet_schedule_group.working_days();
         Subscription::batch([
-            self.weather_group.subscription().map(Message::Weather),
-            self.wallpaper_group.subscription().map(Message::Wallpaper),
+            self.weather_group.subscription(buses).map(Message::Weather),
+            self.wallpaper_group
+                .subscription(buses)
+                .map(Message::Wallpaper),
             self.caldav_group
-                .subscription(&config.widget_groups.caldav)
+                .subscription(&config.widget_groups.caldav, buses)
                 .map(Message::Caldav),
             ComputeGroup::subscription(&config.widget_groups.temperature_sensors.cpu)
                 .map(Message::Compute),
@@ -53,11 +56,11 @@ impl ShellWidgetGroups {
                 .subscription(&config.widget_groups.gamepad, focused_app_id)
                 .map(Message::Gamepad),
             self.claude_usage_group
-                .subscription(config, working_days)
+                .subscription(config, working_days, buses)
                 .map(Message::ClaudeUsage),
             CopilotUsageGroup::subscription(config, working_days).map(Message::CopilotUsage),
             self.openrouter_credit_group
-                .subscription(config)
+                .subscription(config, buses)
                 .map(Message::OpenRouterCredit),
             WindowGroup::subscription(&config.widget_groups.window_list.agents)
                 .map(Message::WindowGroup),

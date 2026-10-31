@@ -13,6 +13,7 @@ use crate::{
         caldav_server_provider::CaldavProvider,
         caldav_task_query::{OpenTask, query_open_tasks},
     },
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,16 +66,15 @@ impl AgendaSnapshotPolling for OpenTaskPoller {
 
 impl SnapshotSource for OpenTaskList {
     type Error = Error;
-    type StreamInputs = CaldavAccount;
+    type StreamInputs = OnlineSourceInputs<CaldavAccount>;
 
     const NAME: &'static str = "CalDAV tasks";
 
     fn delivery_stream(
-        account: CaldavAccount,
+        account: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        push_or_poll_deliveries(
-            &account,
-            OpenTaskPoller(CalendarHomePoller::new(account.clone())),
-        )
+        push_or_poll_deliveries(account, |account| {
+            OpenTaskPoller(CalendarHomePoller::new(account))
+        })
     }
 }

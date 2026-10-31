@@ -3,18 +3,16 @@ use std::{iter, time::Duration};
 use futures::Stream;
 use serde::Deserialize;
 
-use crate::{SnapshotDelivery, SnapshotSource, system_protocol_clients::http_json_client};
+use crate::{
+    SnapshotDelivery, SnapshotSource,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
+    system_protocol_clients::http_json_client,
+};
 
-const FETCH_TIMEOUT_SECS: u64 = 10;
 const LRCLIB_GET_API: &str = "https://lrclib.net/api/get";
 const LRCLIB_SEARCH_API: &str = "https://lrclib.net/api/search";
 const USER_AGENT: &str = "sottomano/0.1 (https://codeberg.org/wvhulle/sottomano)";
 const NOT_FOUND_STATUS: u16 = 404;
-const RETRY_DELAYS: [Duration; 3] = [
-    Duration::from_secs(2),
-    Duration::from_secs(10),
-    Duration::from_secs(30),
-];
 const DURATION_TOLERANCE_SECS: f64 = 2.0;
 const LONGEST_ESTIMATED_LINE: Duration = Duration::from_secs(6);
 
@@ -382,7 +380,6 @@ async fn fetch_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_jso
     let exact_lookup = http_json_client::get_json::<LrclibRecord>(
         &query.lookup_url(),
         &[("User-Agent", USER_AGENT)],
-        FETCH_TIMEOUT_SECS,
     )
     .await;
     if exact_lookup.as_ref().is_err_and(needs_search_fallback) {
@@ -395,7 +392,6 @@ async fn search_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_js
     let candidate_records = http_json_client::get_json::<Vec<LrclibRecord>>(
         &query.search_url(),
         &[("User-Agent", USER_AGENT)],
-        FETCH_TIMEOUT_SECS,
     )
     .await?;
     Ok(closest_search_match(candidate_records, query))
@@ -403,19 +399,22 @@ async fn search_track_lyrics(query: &LyricsQuery) -> Result<TrackLyrics, http_js
 
 impl SnapshotSource for TrackLyrics {
     type Error = http_json_client::Error;
-    type StreamInputs = LyricsQuery;
+    type StreamInputs = OnlineSourceInputs<LyricsQuery>;
 
     const NAME: &'static str = "On LRCLIB";
 
-    fn delivery_stream(query: LyricsQuery) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::read_until_answered_deliveries(
-            move || {
-                let query = query.clone();
-                async move { fetch_track_lyrics(&query).await }
-            },
-            RETRY_DELAYS,
-            http_json_client::Error::is_temporary,
-        )
+    fn delivery_stream(
+        OnlineSourceInputs {
+            buses,
+            source_inputs: query,
+        }: Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+        internet_connectivity_gate::while_online(buses, move || {
+            let query = query.clone();
+            SnapshotDelivery::single_read_deliveries(
+                async move { fetch_track_lyrics(&query).await },
+            )
+        })
     }
 }
 

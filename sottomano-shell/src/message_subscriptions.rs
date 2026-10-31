@@ -63,9 +63,11 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             )])
         })
         .map(|()| Message::ConfigFileChanged),
-        state
-            .widget_groups
-            .subscription(&state.config, focused_app_id(&state.niri)),
+        state.widget_groups.subscription(
+            &state.config,
+            focused_app_id(&state.niri),
+            state.desktop_buses.as_ref(),
+        ),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),
         state
             .desktop_buses

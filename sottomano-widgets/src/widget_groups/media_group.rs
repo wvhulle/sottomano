@@ -15,6 +15,7 @@ use sottomano_sources::{
         lrclib_synced_lyrics::{LyricsQuery, TrackLyrics},
         mpris_players::{self, Command, Media, Progress, Status},
     },
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
 
@@ -192,9 +193,12 @@ impl MediaGroup {
             .unfetched_lyrics_queries()
             .filter(|_| lyrics_config.lrclib_lookup)
             .map(|query| {
-                snapshot_subscription::<TrackLyrics>(query.clone())
-                    .with(query)
-                    .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })
+                snapshot_subscription::<TrackLyrics>(OnlineSourceInputs {
+                    buses: buses.clone(),
+                    source_inputs: query.clone(),
+                })
+                .with(query)
+                .map(|(query, delivery)| MediaMessage::LyricsReading { query, delivery })
             });
         let progress_tick = if self.is_singing() {
             Some(every(LYRICS_TICK).map(|_| MediaMessage::ProgressAdvanced))

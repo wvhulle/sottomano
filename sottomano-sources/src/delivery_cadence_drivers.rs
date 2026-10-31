@@ -1,7 +1,6 @@
 use std::{
     convert::identity,
     future::{Future, ready},
-    iter,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -223,7 +222,9 @@ where
                 SnapshotDelivery::SnapshotDelivered {
                     stamped_cadence, ..
                 } => stamped_cadence.recheck_deadline(),
-                SnapshotDelivery::SourceUnavailable | SnapshotDelivery::SnapshotUnchanged => None,
+                SnapshotDelivery::SourceUnavailable
+                | SnapshotDelivery::InternetUnreachable(_)
+                | SnapshotDelivery::SnapshotUnchanged => None,
             },
         )
     }
@@ -276,30 +277,6 @@ impl<S: SnapshotSource> SnapshotDelivery<S> {
     ) -> impl Stream<Item = Self> + Send {
         stream::once(read).map(SnapshotDelivery::single_read)
     }
-
-    pub fn read_until_answered_deliveries<F>(
-        read: impl Fn() -> F + Clone + Send + 'static,
-        retry_delays: impl IntoIterator<Item = Duration, IntoIter: Send + 'static>,
-        is_temporary: fn(&S::Error) -> bool,
-    ) -> impl Stream<Item = Self> + Send
-    where
-        F: Future<Output = Result<S, S::Error>> + Send,
-    {
-        let attempt_delays = iter::once(Duration::ZERO).chain(retry_delays);
-        stream::unfold(Some(attempt_delays), move |remaining_delays| {
-            let read = read.clone();
-            async move {
-                let mut remaining_delays = remaining_delays?;
-                sleep(remaining_delays.next()?).await;
-                let attempt = read().await;
-                let still_unanswered = attempt.as_ref().is_err_and(is_temporary);
-                Some((
-                    SnapshotDelivery::single_read(attempt),
-                    still_unanswered.then_some(remaining_delays),
-                ))
-            }
-        })
-    }
 }
 
 fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
@@ -316,8 +293,7 @@ fn until_next_boundary(now: DateTime<Local>, period: Duration) -> Duration {
 mod tests {
     use std::{
         fmt::{Display, Formatter, Result as FmtResult},
-        future::Ready,
-        sync::atomic::{AtomicBool, AtomicUsize, Ordering},
+        sync::atomic::{AtomicBool, Ordering},
     };
 
     use chrono::TimeZone;
@@ -452,99 +428,5 @@ mod tests {
             until_next_boundary(now, Duration::from_secs(1)),
             Duration::from_secs(1)
         );
-    }
-
-    #[derive(Debug, Clone, PartialEq)]
-    struct FlakySnapshot;
-
-    #[derive(Debug, Clone, PartialEq)]
-    enum FlakyFailure {
-        Overloaded,
-        Rejected,
-    }
-
-    impl Display for FlakyFailure {
-        fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-            write!(f, "{self:?}")
-        }
-    }
-
-    impl SnapshotSource for FlakySnapshot {
-        type Error = FlakyFailure;
-        type StreamInputs = ();
-
-        const NAME: &'static str = "Flaky snapshot";
-
-        fn delivery_stream(_inputs: ()) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-            stream::empty()
-        }
-    }
-
-    fn fetch_of(delivery: &SnapshotDelivery<FlakySnapshot>) -> Result<FlakySnapshot, FlakyFailure> {
-        let SnapshotDelivery::SnapshotDelivered { snapshot_fetch, .. } = delivery else {
-            panic!("expected a delivered snapshot, got {delivery:?}");
-        };
-        snapshot_fetch.clone()
-    }
-
-    fn scripted_attempts(
-        attempt_outcomes: Vec<Result<FlakySnapshot, FlakyFailure>>,
-    ) -> impl Fn() -> Ready<Result<FlakySnapshot, FlakyFailure>> + Clone + Send + 'static {
-        let next_attempt = Arc::new(AtomicUsize::new(0));
-        move || {
-            let attempt_index = next_attempt.fetch_add(1, Ordering::SeqCst);
-            ready(attempt_outcomes[attempt_index].clone())
-        }
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn temporary_failures_are_delivered_and_retried_until_an_answer() {
-        let deliveries: Vec<_> = SnapshotDelivery::read_until_answered_deliveries(
-            scripted_attempts(vec![
-                Err(FlakyFailure::Overloaded),
-                Err(FlakyFailure::Overloaded),
-                Ok(FlakySnapshot),
-            ]),
-            [
-                Duration::from_secs(2),
-                Duration::from_secs(10),
-                Duration::from_secs(30),
-            ],
-            |failure| *failure == FlakyFailure::Overloaded,
-        )
-        .collect()
-        .await;
-        let fetches: Vec<_> = deliveries.iter().map(fetch_of).collect();
-        assert_eq!(
-            fetches,
-            [
-                Err(FlakyFailure::Overloaded),
-                Err(FlakyFailure::Overloaded),
-                Ok(FlakySnapshot)
-            ]
-        );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn a_lasting_failure_ends_the_reads_and_retries_run_out() {
-        let rejected: Vec<_> = SnapshotDelivery::read_until_answered_deliveries(
-            scripted_attempts(vec![Err(FlakyFailure::Rejected)]),
-            [Duration::from_secs(2)],
-            |failure| *failure == FlakyFailure::Overloaded,
-        )
-        .collect()
-        .await;
-        assert_eq!(rejected.len(), 1);
-        let exhausted: Vec<_> = SnapshotDelivery::read_until_answered_deliveries(
-            scripted_attempts(vec![
-                Err(FlakyFailure::Overloaded),
-                Err(FlakyFailure::Overloaded),
-            ]),
-            [Duration::from_secs(2)],
-            |failure| *failure == FlakyFailure::Overloaded,
-        )
-        .collect()
-        .await;
-        assert_eq!(exhausted.len(), 2);
     }
 }

@@ -12,7 +12,9 @@ use super::{
     open_meteo_temperature::{Daylight, WeatherCondition, open_meteo_time, open_meteo_times},
 };
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     system_protocol_clients::http_json_client,
 };
 
@@ -103,14 +105,20 @@ impl From<ModelResponse> for PrecipitationModel {
 
 impl SnapshotSource for PrecipitationModel {
     type Error = Error;
-    type StreamInputs = GeoCoordinates;
+    type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
 
     const NAME: &'static str = "Precipitation model";
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        OnlineSourceInputs {
+            buses,
+            source_inputs: inputs,
+        }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_mins(15)).poll_deliveries(move || Self::poll(inputs))
+        internet_connectivity_gate::while_online(buses, move || {
+            PeriodicPolling::every(Duration::from_mins(15))
+                .poll_deliveries(move || Self::poll(inputs))
+        })
     }
 }
 
@@ -121,7 +129,7 @@ impl PrecipitationModel {
             here.latitude_degrees(),
             here.longitude_degrees()
         );
-        let response: ModelResponse = http_json_client::get_json(&url, &[], 10).await?;
+        let response: ModelResponse = http_json_client::get_json(&url, &[]).await?;
         Ok(response.into())
     }
 }

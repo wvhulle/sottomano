@@ -21,6 +21,7 @@ use crate::{
         webcal_feed_expansion::download_feed_events,
     },
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,20 +183,17 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
 
 impl SnapshotSource for UpcomingEventList {
     type Error = Error;
-    type StreamInputs = CaldavAccount;
+    type StreamInputs = OnlineSourceInputs<CaldavAccount>;
 
     const NAME: &'static str = "CalDAV events";
 
     fn delivery_stream(
-        account: CaldavAccount,
+        account: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        push_or_poll_deliveries(
-            &account,
-            UpcomingEventPoller {
-                calendar_home: CalendarHomePoller::new(account.clone()),
-                http_client: reqwest::Client::new(),
-                fetched_subscriptions: HashMap::new(),
-            },
-        )
+        push_or_poll_deliveries(account, |account| UpcomingEventPoller {
+            calendar_home: CalendarHomePoller::new(account),
+            http_client: reqwest::Client::new(),
+            fetched_subscriptions: HashMap::new(),
+        })
     }
 }

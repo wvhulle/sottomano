@@ -318,6 +318,7 @@ impl GamepadGroup {
                         ..
                     } => self.wifi_band_use = WifiBandUse::of_wifi(&wifi),
                     SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::InternetUnreachable(_)
                     | SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Err(_),
                         ..
@@ -339,6 +340,7 @@ impl GamepadGroup {
                         };
                     }
                     SnapshotDelivery::SourceUnavailable
+                    | SnapshotDelivery::InternetUnreachable(_)
                     | SnapshotDelivery::SnapshotDelivered {
                         snapshot_fetch: Err(_),
                         ..

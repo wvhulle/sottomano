@@ -109,7 +109,9 @@ impl DeliveryTiming {
                 stamped_cadence.delivery_cadence(),
                 clock,
             )),
-            SnapshotDelivery::SourceUnavailable | SnapshotDelivery::SnapshotUnchanged => None,
+            SnapshotDelivery::SourceUnavailable
+            | SnapshotDelivery::InternetUnreachable(_)
+            | SnapshotDelivery::SnapshotUnchanged => None,
         }
     }
 

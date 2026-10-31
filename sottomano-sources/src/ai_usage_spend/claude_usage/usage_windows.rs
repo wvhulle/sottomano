@@ -18,6 +18,7 @@ use crate::{
         usage_quota::Quota,
     },
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
 };
 
 const SESSION_LENGTH: TimeDelta = TimeDelta::hours(5);
@@ -152,11 +153,13 @@ impl ClaudeUsageWindows {
 
 impl SnapshotSource for ClaudeUsageWindows {
     type Error = Error;
-    type StreamInputs = PathBuf;
+    type StreamInputs = OnlineSourceInputs<PathBuf>;
 
     const NAME: &'static str = "Claude usage windows";
 
-    fn delivery_stream(inputs: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
+    fn delivery_stream(
+        inputs: Self::StreamInputs,
+    ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
         login_polls(
             PeriodicPolling::every(Duration::from_mins(1)),
             inputs,

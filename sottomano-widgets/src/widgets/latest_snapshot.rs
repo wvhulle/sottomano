@@ -1,6 +1,9 @@
-use std::{convert::Infallible, mem::take};
+use std::{convert::Infallible, marker::PhantomData, mem::take};
 
-use sottomano_sources::{SnapshotDelivery, SnapshotSource};
+use sottomano_sources::{
+    SnapshotDelivery, SnapshotSource,
+    network_connectivity::internet_connectivity_gate::InternetUnreachable,
+};
 
 use crate::{
     clock::Clock,
@@ -8,6 +11,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        offline_internet_reading::{OfflinePlaceholder, OfflineSnapshot},
         tooltip_body::{
             ReadingSections, Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
@@ -99,6 +103,13 @@ where
         fetch_failure: Policy::ShownFailure,
         delivery_timing: DeliveryTiming,
     },
+    SnapshotHeldOffline {
+        offline_snapshot: OfflineSnapshot<S>,
+        delivery_timing: DeliveryTiming,
+    },
+    OfflineBeforeSnapshot {
+        offline_placeholder: OfflinePlaceholder<S>,
+    },
 }
 
 impl<S: SnapshotSource + BarWidget> FetchFailurePolicy<S> for ShowsFetchFailures
@@ -113,11 +124,15 @@ where
         delivery_timing: DeliveryTiming,
     ) -> LatestSnapshot<S, Self> {
         let icon = match &latest {
-            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => held_snapshot.icon(),
+            LatestSnapshot::SnapshotHeld { held_snapshot, .. }
+            | LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
+                ..
+            } => held_snapshot.icon(),
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => fetch_failure.icon,
-            LatestSnapshot::AwaitingFirstSnapshot | LatestSnapshot::SourceUnavailable => {
-                S::fallback_icon()
-            }
+            LatestSnapshot::AwaitingFirstSnapshot
+            | LatestSnapshot::SourceUnavailable
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => S::fallback_icon(),
         };
         LatestSnapshot::SnapshotFetchFailed {
             fetch_failure: FailedSnapshotFetch { icon, error },
@@ -138,7 +153,11 @@ where
         delivery_timing: DeliveryTiming,
     ) -> LatestSnapshot<S, Self> {
         match latest {
-            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => {
+            LatestSnapshot::SnapshotHeld { held_snapshot, .. }
+            | LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
+                ..
+            } => {
                 tracing::warn!("{}: {error}", S::NAME);
                 LatestSnapshot::SnapshotHeld {
                     held_snapshot,
@@ -154,15 +173,15 @@ where
                     delivery_timing,
                 }
             }
-            LatestSnapshot::AwaitingFirstSnapshot | LatestSnapshot::SourceUnavailable => {
-                LatestSnapshot::SnapshotFetchFailed {
-                    fetch_failure: FailedSnapshotFetch {
-                        icon: S::fallback_icon(),
-                        error,
-                    },
-                    delivery_timing,
-                }
-            }
+            LatestSnapshot::AwaitingFirstSnapshot
+            | LatestSnapshot::SourceUnavailable
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => LatestSnapshot::SnapshotFetchFailed {
+                fetch_failure: FailedSnapshotFetch {
+                    icon: S::fallback_icon(),
+                    error,
+                },
+                delivery_timing,
+            },
         }
     }
 }
@@ -177,7 +196,11 @@ impl<S: SnapshotSource> FetchFailurePolicy<S> for HidesFetchFailures {
     ) -> LatestSnapshot<S, Self> {
         tracing::warn!("{}: {error}", S::NAME);
         match latest {
-            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => LatestSnapshot::SnapshotHeld {
+            LatestSnapshot::SnapshotHeld { held_snapshot, .. }
+            | LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
+                ..
+            } => LatestSnapshot::SnapshotHeld {
                 held_snapshot,
                 delivery_timing,
             },
@@ -190,20 +213,30 @@ impl<S: SnapshotSource> FetchFailurePolicy<S> for HidesFetchFailures {
 impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy> {
     pub fn get(&self) -> Option<&S> {
         match self {
-            LatestSnapshot::SnapshotHeld { held_snapshot, .. } => Some(held_snapshot),
+            LatestSnapshot::SnapshotHeld { held_snapshot, .. }
+            | LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
+                ..
+            } => Some(held_snapshot),
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
-            | LatestSnapshot::SnapshotFetchFailed { .. } => None,
+            | LatestSnapshot::SnapshotFetchFailed { .. }
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => None,
         }
     }
 
     fn delivery_timing(&self) -> Option<DeliveryTiming> {
         match self {
-            LatestSnapshot::AwaitingFirstSnapshot | LatestSnapshot::SourceUnavailable => None,
+            LatestSnapshot::AwaitingFirstSnapshot
+            | LatestSnapshot::SourceUnavailable
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => None,
             LatestSnapshot::SnapshotHeld {
                 delivery_timing, ..
             }
             | LatestSnapshot::SnapshotFetchFailed {
+                delivery_timing, ..
+            }
+            | LatestSnapshot::SnapshotHeldOffline {
                 delivery_timing, ..
             } => Some(*delivery_timing),
         }
@@ -225,6 +258,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
             SnapshotDelivery::SourceUnavailable => LatestSnapshot::SourceUnavailable,
+            SnapshotDelivery::InternetUnreachable(offline_reason) => self.offline(offline_reason),
             SnapshotDelivery::SnapshotUnchanged => self.redelivered(clock),
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
@@ -240,6 +274,36 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
                         delivery_timing,
                     },
                     Err(error) => Policy::after_failed_fetch(self, error, delivery_timing),
+                }
+            }
+        }
+    }
+
+    fn offline(self, offline_reason: InternetUnreachable) -> Self {
+        match self {
+            LatestSnapshot::SnapshotHeld {
+                held_snapshot,
+                delivery_timing,
+            }
+            | LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot { held_snapshot, .. },
+                delivery_timing,
+            } => LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot: OfflineSnapshot {
+                    held_snapshot,
+                    offline_reason: Box::new(offline_reason),
+                },
+                delivery_timing,
+            },
+            LatestSnapshot::AwaitingFirstSnapshot
+            | LatestSnapshot::SourceUnavailable
+            | LatestSnapshot::SnapshotFetchFailed { .. }
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => {
+                LatestSnapshot::OfflineBeforeSnapshot {
+                    offline_placeholder: OfflinePlaceholder {
+                        offline_reason,
+                        placeholder_source: PhantomData,
+                    },
                 }
             }
         }
@@ -274,28 +338,45 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
                 fetch_failure,
                 delivery_timing: delivery_timing.redelivered(clock),
             },
-            LatestSnapshot::AwaitingFirstSnapshot | LatestSnapshot::SourceUnavailable => self,
+            LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot,
+                delivery_timing,
+            } => LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot,
+                delivery_timing: delivery_timing.redelivered(clock),
+            },
+            LatestSnapshot::AwaitingFirstSnapshot
+            | LatestSnapshot::SourceUnavailable
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => self,
         }
     }
 
     pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
-        Some(Tooltip::sourced(body, self.delivery_timing()?))
+        match self {
+            LatestSnapshot::OfflineBeforeSnapshot { .. } => Some(Tooltip::grouped([
+                SourcedSections::source_awaiting_delivery::<S>(body),
+            ])),
+            _ => Some(Tooltip::sourced(body, self.delivery_timing()?)),
+        }
+    }
+
+    fn offline_sections(&self) -> Vec<Section> {
+        match self {
+            LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot, ..
+            } => vec![(*offline_snapshot.offline_reason).clone().into()],
+            _ => Vec::new(),
+        }
     }
 
     pub fn sections_described_by(
         &self,
         describe: impl FnOnce(&S) -> Vec<Section>,
     ) -> Option<SourcedSections> {
-        let LatestSnapshot::SnapshotHeld {
-            held_snapshot,
-            delivery_timing,
-        } = self
-        else {
-            return None;
-        };
+        let held_snapshot = self.get()?;
         Some(SourcedSections::delivered(
-            TooltipBody::sections(describe(held_snapshot)),
-            *delivery_timing,
+            TooltipBody::sections(describe(held_snapshot)).with_sections(self.offline_sections()),
+            self.delivery_timing()?,
         ))
     }
 
@@ -304,23 +385,20 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
             LatestSnapshot::AwaitingFirstSnapshot
             | LatestSnapshot::SourceUnavailable
-            | LatestSnapshot::SnapshotHeld { .. } => None,
+            | LatestSnapshot::SnapshotHeld { .. }
+            | LatestSnapshot::SnapshotHeldOffline { .. }
+            | LatestSnapshot::OfflineBeforeSnapshot { .. } => None,
         }
     }
 }
 
 impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy> {
     pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
-        let LatestSnapshot::SnapshotHeld {
-            held_snapshot,
-            delivery_timing,
-        } = self
-        else {
-            return None;
-        };
+        let held_snapshot = self.get()?;
         Some(SourcedSections::source_delivered::<S>(
-            TooltipBody::sections(held_snapshot.sections(clock)),
-            *delivery_timing,
+            TooltipBody::sections(held_snapshot.sections(clock))
+                .with_sections(self.offline_sections()),
+            self.delivery_timing()?,
         ))
     }
 }
@@ -337,6 +415,14 @@ impl<S: SnapshotSource + BarWidget, Policy: FetchFailurePolicy<S>> LatestSnapsho
                 .visible_in_bar()
                 .then_some(held_snapshot as &dyn BarWidget),
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
+            LatestSnapshot::SnapshotHeldOffline {
+                offline_snapshot, ..
+            } => offline_snapshot
+                .visible_in_bar()
+                .then_some(offline_snapshot as &dyn BarWidget),
+            LatestSnapshot::OfflineBeforeSnapshot {
+                offline_placeholder,
+            } => Some(offline_placeholder),
             LatestSnapshot::AwaitingFirstSnapshot | LatestSnapshot::SourceUnavailable => None,
         }
     }
@@ -499,5 +585,34 @@ mod tests {
                 delivered_at: SystemTime::UNIX_EPOCH + Duration::from_secs(10),
             })
         );
+    }
+
+    #[test]
+    fn going_offline_keeps_the_held_snapshot_with_its_reason() {
+        let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
+        latest.receive(polled_delivery(Ok(CountedSnapshot(1))), clock_at(10));
+        latest.receive(
+            SnapshotDelivery::InternetUnreachable(InternetUnreachable::NoConnection),
+            clock_at(13),
+        );
+        assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
+        assert_eq!(
+            latest.display().map(|widget| widget.state(clock_at(13))),
+            Some(WidgetState::Off)
+        );
+        latest.receive(polled_delivery(Ok(CountedSnapshot(2))), clock_at(16));
+        assert!(matches!(latest, LatestSnapshot::SnapshotHeld { .. }));
+    }
+
+    #[test]
+    fn going_offline_before_any_snapshot_shows_a_placeholder() {
+        let mut latest: LatestSnapshot<CountedSnapshot> = LatestSnapshot::default();
+        latest.receive(
+            SnapshotDelivery::InternetUnreachable(InternetUnreachable::WirelessRadioOff),
+            clock_at(10),
+        );
+        assert!(latest.get().is_none());
+        assert!(latest.display().is_some());
+        assert!(latest.tooltip(clock_at(10)).is_some());
     }
 }
