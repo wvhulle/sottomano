@@ -7,14 +7,18 @@ mod session_face;
 mod sqlite_focus_spans;
 mod window_usage;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, widget_groups::focus_time::FocusTimeConfig};
 use sottomano_sources::{
+    blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
-    login_session_presence::focus_time_ledger::{FocusSignal, ScreenEdge},
+    login_session_presence::{
+        focus_time_ledger::{FocusSignal, ScreenEdge},
+        session_power_actions::SessionAction,
+    },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
@@ -58,13 +62,13 @@ impl From<SessionFocusTarget> for HoverTarget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BreakPledge {
-    pub at: DateTime<Utc>,
+pub struct WarningSnooze {
+    pub until: DateTime<Utc>,
 }
 
 pub struct SessionFocusGroup {
     tracker: FocusTracker,
-    pledge: Option<BreakPledge>,
+    snooze: Option<WarningSnooze>,
     expansion: GroupExpansion,
     daily_totals: DailyTotalsGauge,
 }
@@ -72,7 +76,8 @@ pub struct SessionFocusGroup {
 #[derive(Debug, Clone)]
 pub enum SessionFocusMessage {
     Tracker(TrackerMessage),
-    BreakPledged,
+    BreakStarted(SessionAction),
+    WarningSnoozed,
     Expansion(ExpansionMessage),
 }
 
@@ -87,7 +92,7 @@ impl SessionFocusGroup {
         let daily_totals = DailyTotalsGauge::new(&tracker.ledger().accounted(config), now);
         Self {
             tracker,
-            pledge: None,
+            snooze: None,
             expansion: GroupExpansion::default(),
             daily_totals,
         }
@@ -162,8 +167,15 @@ impl SessionFocusGroup {
                 self.recompute_daily_totals(config, clock.utc());
                 Task::future(span_writes).discard()
             }
-            SessionFocusMessage::BreakPledged => {
-                self.pledge = Some(BreakPledge { at: clock.utc() });
+            SessionFocusMessage::BreakStarted(action) => {
+                Task::future(blocking("break session action", move || action.perform())).discard()
+            }
+            SessionFocusMessage::WarningSnoozed => {
+                let snooze_length =
+                    TimeDelta::from_std(config.warning_snooze).unwrap_or(TimeDelta::MAX);
+                self.snooze = Some(WarningSnooze {
+                    until: clock.utc() + snooze_length,
+                });
                 Task::none()
             }
             SessionFocusMessage::Expansion(expansion) => {
@@ -179,7 +191,7 @@ impl SessionFocusGroup {
                 .tracker
                 .ledger()
                 .accounted(&config.widget_groups.focus_time),
-            pledge: self.pledge,
+            snooze: self.snooze,
         }
     }
 
@@ -255,11 +267,23 @@ impl SessionFocusGroup {
         config: &'a Config,
     ) -> GroupContent<'a, SessionFocusMessage> {
         let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
-            .ongoing_toast_action_buttons([OngoingToastActionButton {
-                button_label: "Taking a break".to_owned(),
-                tint: ActionTint::Proceed,
-                on_button_pressed: SessionFocusMessage::BreakPledged,
-            }]);
+            .ongoing_toast_action_buttons([
+                OngoingToastActionButton {
+                    button_label: "Lock screen".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::Lock),
+                },
+                OngoingToastActionButton {
+                    button_label: "Screen off".to_owned(),
+                    tint: ActionTint::Proceed,
+                    on_button_pressed: SessionFocusMessage::BreakStarted(SessionAction::ScreenOff),
+                },
+                OngoingToastActionButton {
+                    button_label: "Snooze".to_owned(),
+                    tint: ActionTint::Hold,
+                    on_button_pressed: SessionFocusMessage::WarningSnoozed,
+                },
+            ]);
         let breaks = GroupItem::reading(self.break_log(config), SessionFocusTarget::Breaks);
         let focus_run =
             GroupItem::reading(self.focus_run_reading(config), SessionFocusTarget::FocusRun);
