@@ -9,7 +9,7 @@ use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 pub use crate::hover_tooltips::{
-    hover_area::{announcing_hoverable, hoverable},
+    hover_area::{announcing_hoverable, hoverable, marked_by_hover_target},
     tooltip_surfaces::TooltipHost,
 };
 use crate::{

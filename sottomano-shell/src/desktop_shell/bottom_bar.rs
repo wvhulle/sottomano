@@ -5,11 +5,7 @@ use sottomano_widgets::{
         group_menus::GroupMenuKind, sidebar_settings_group::WorkspacesPlacement,
         workspaces_group::inline_strip,
     },
-    widgets::{
-        group_menu::GroupMenu,
-        phosphor::{Phosphor, Weight},
-        widget_group::GroupContent,
-    },
+    widgets::{group_menu::GroupMenu, widget_group::GroupContent},
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
@@ -69,14 +65,10 @@ impl DesktopShell {
         [
             self.group_menu(
                 GroupMenuKind::Appearance,
-                "Appearance",
-                Phosphor::SlidersHorizontal(Weight::Regular),
                 self.settings_groups().map(GroupContent::only_aligned_items),
             ),
             self.group_menu(
                 GroupMenuKind::Behaviour,
-                "Behaviour",
-                Phosphor::ToggleRight(Weight::Regular),
                 self.settings_groups()
                     .map(GroupContent::only_unaligned_items),
             ),
@@ -109,8 +101,6 @@ impl DesktopShell {
         let config = &self.config;
         self.group_menu(
             GroupMenuKind::Display,
-            "Display",
-            Phosphor::Monitor(Weight::Regular),
             [
                 self.widget_groups
                     .monitor_group
@@ -135,8 +125,6 @@ impl DesktopShell {
     pub(super) fn session_group_menu(&self) -> GroupMenu<'_, Message> {
         self.group_menu(
             GroupMenuKind::Session,
-            "Session",
-            Phosphor::UserCircle(Weight::Regular),
             [
                 self.widget_groups
                     .idle_timeouts_group
@@ -154,8 +142,6 @@ impl DesktopShell {
         let config = &self.config;
         self.group_menu(
             GroupMenuKind::Services,
-            "Services",
-            Phosphor::Stack(Weight::Regular),
             [
                 self.widget_groups
                     .llama_server_group

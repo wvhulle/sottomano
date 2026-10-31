@@ -134,15 +134,13 @@ impl<'a, M> MenuSections<'a, M> {
 impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
     pub fn new(
         kind: GroupMenuKind,
-        title: &'static str,
-        glyph: impl Into<Glyph>,
         group_menus: &'a GroupMenus,
         on_message: impl Fn(GroupMenuMessage) -> M + 'a,
         members: impl IntoIterator<Item = GroupContent<'a, M>>,
     ) -> Self {
         Self {
-            title,
-            glyph: glyph.into(),
+            title: kind.title(),
+            glyph: kind.glyph().into(),
             group_menus,
             messenger: MenuMessenger {
                 kind,

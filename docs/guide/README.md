@@ -4,9 +4,27 @@ Every group that has a recording and is not already in the [README](../../README
 
 Each page opens with its first recording in every [look](appearance.md), side by side.
 
+## Group menus
+
+Most groups live in menus behind a single icon on a panel, so the panels stay short. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open toward the side of the screen with more room, downward from the top panel and upward from the bottom panel.
+
+The pin on a row puts that group back on the panel, next to its menu icon; the unpin button in its card returns it to the menu. Pins are remembered across restarts. A group whose alert reaches `panel_bar.group_menu_promotion_severity` also shows on the panel until the alert clears.
+
+| Menu | Panel | Groups |
+|---|---|---|
+| Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |
+| Network | top, left | interfaces, ethernet ports, Bluetooth, reachability, VPN |
+| Agenda | top, middle | calendar, quiet schedule, focus session |
+| Media | top, right | media players, audio, dictation, game controllers |
+| Appearance | bottom, left | panel, sidebar, overlay and window settings with a unit |
+| Behaviour | bottom, left | the remaining panel, sidebar, overlay and window settings |
+| Display | bottom, left | monitors, dark mode, colour temperature, wallpaper |
+| Services | bottom, right | local models, AI usage, systemd units, journal, upgrades |
+| Session | bottom, right | idle timeouts, login session |
+
 ## Top panel
 
-The panel I look at most: the machine on the left, the day in the middle, sound and input on the right. Each group sits folded to a few glyphs and expands on hover or click.
+The panel I look at most: the Hardware and Network menus on the left; the clock, weather, Agenda menu and notifications in the middle; the Media menu and the power menu on the right.
 
 - [Compute](compute.md): load, clock, temperature and caches.
 - [Memory and board](memory-and-board.md): memory use, modules and firmware.
@@ -16,7 +34,7 @@ The panel I look at most: the machine on the left, the day in the middle, sound 
 
 ## Bottom panel
 
-Where the windows live, with the desktop's settings on the left and the software running in the background on the right.
+Where the windows live: the Appearance, Behaviour and Display menus, the looks and the workspaces on the left; the windows in the middle; the Services and Session menus and the system tray on the right.
 
 - [Windows and workspaces](windows-and-workspaces.md): previews, the window list and the process inspector.
 - [Wallpaper](wallpaper.md): the place in the wallpaper and its article.

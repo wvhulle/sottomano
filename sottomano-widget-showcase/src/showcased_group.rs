@@ -44,6 +44,7 @@ use sottomano_widgets::{
         pointer_drag::DragView,
         shell_layer_appearance::ShellLayer,
         tooltip_body::tooltip_source_delivery::Tooltip,
+        widget_group::GroupContent,
         window_icon::WindowAssets,
     },
 };
@@ -295,91 +296,85 @@ impl ShowcasedGroup {
         }
     }
 
+    pub fn group_contents<'a>(
+        &'a self,
+        config: &'a Config,
+        clock: Clock,
+    ) -> Vec<GroupContent<'a, ShowcaseMessage>> {
+        match self {
+            ShowcasedGroup::Compute(group) => {
+                vec![group.group_content().map(ShowcaseMessage::Compute)]
+            }
+            ShowcasedGroup::MemoryBoard(group) => {
+                vec![group.group_content().map(ShowcaseMessage::MemoryBoard)]
+            }
+            ShowcasedGroup::Weather(group) => {
+                vec![group.group_content(config).map(ShowcaseMessage::Weather)]
+            }
+            ShowcasedGroup::ClaudeUsage(group) => {
+                vec![group.group_content().map(ShowcaseMessage::ClaudeUsage)]
+            }
+            ShowcasedGroup::Media(media) => media
+                .group
+                .group_contents(config, clock)
+                .map(|group| group.map(ShowcaseMessage::Media))
+                .collect(),
+            ShowcasedGroup::IdleTimeouts(group) => {
+                vec![
+                    group
+                        .group_content(config)
+                        .map(ShowcaseMessage::IdleTimeouts),
+                ]
+            }
+            ShowcasedGroup::Wallpaper(group) => {
+                vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
+            }
+            ShowcasedGroup::AppearancePresets(menu) => {
+                vec![
+                    menu.group_content(config)
+                        .map(ShowcaseMessage::AppearancePresets),
+                ]
+            }
+            ShowcasedGroup::Audio(group) => {
+                vec![group.group_content(config).map(ShowcaseMessage::Audio)]
+            }
+            ShowcasedGroup::Gamepad(gamepad) => gamepad
+                .group
+                .group_contents(&gamepad.bindings, None)
+                .into_iter()
+                .map(|group| group.map(ShowcaseMessage::Gamepad))
+                .collect(),
+            ShowcasedGroup::VoiceDictation(group) => {
+                vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
+            }
+            ShowcasedGroup::Caldav(group) => {
+                vec![group.group_content().map(ShowcaseMessage::Caldav)]
+            }
+            ShowcasedGroup::Vpn(group) => vec![group.group_content().map(ShowcaseMessage::Vpn)],
+            ShowcasedGroup::LoginSession(group) => {
+                vec![group.group_content().map(ShowcaseMessage::LoginSession)]
+            }
+            ShowcasedGroup::BottomBar(_)
+            | ShowcasedGroup::WorkspaceSidebar(_)
+            | ShowcasedGroup::Toasts(_) => Vec::new(),
+        }
+    }
+
     pub fn panel_groups<'a>(
         &'a self,
         config: &'a Config,
         clock: Clock,
     ) -> Vec<Element<'a, ShowcaseMessage>> {
         let position = self.position();
-        let single = match self {
-            ShowcasedGroup::Compute(group) => group
-                .group_content()
-                .map(ShowcaseMessage::Compute)
-                .view(config, position, clock),
-            ShowcasedGroup::MemoryBoard(group) => group
-                .group_content()
-                .map(ShowcaseMessage::MemoryBoard)
-                .view(config, position, clock),
-            ShowcasedGroup::Weather(group) => group
-                .group_content(config)
-                .map(ShowcaseMessage::Weather)
-                .view(config, position, clock),
-            ShowcasedGroup::ClaudeUsage(group) => group
-                .group_content()
-                .map(ShowcaseMessage::ClaudeUsage)
-                .view(config, position, clock),
-            ShowcasedGroup::Media(media) => {
-                return media
-                    .group
-                    .group_contents(config, clock)
-                    .filter_map(|group| {
-                        group
-                            .map(ShowcaseMessage::Media)
-                            .view(config, position, clock)
-                    })
-                    .collect();
-            }
-            ShowcasedGroup::IdleTimeouts(group) => group
-                .group_content(config)
-                .map(ShowcaseMessage::IdleTimeouts)
-                .view(config, position, clock),
-            ShowcasedGroup::Wallpaper(group) => group
-                .group_content()
-                .map(ShowcaseMessage::Wallpaper)
-                .view(config, position, clock),
-            ShowcasedGroup::AppearancePresets(menu) => menu
-                .group_content(config)
-                .map(ShowcaseMessage::AppearancePresets)
-                .view(config, position, clock),
-            ShowcasedGroup::Audio(group) => group
-                .group_content(config)
-                .map(ShowcaseMessage::Audio)
-                .view(config, position, clock),
-            ShowcasedGroup::Gamepad(gamepad) => {
-                return gamepad
-                    .group
-                    .group_contents(&gamepad.bindings, None)
-                    .into_iter()
-                    .filter_map(|group| {
-                        group
-                            .map(ShowcaseMessage::Gamepad)
-                            .view(config, position, clock)
-                    })
-                    .collect();
-            }
-            ShowcasedGroup::VoiceDictation(group) => group
-                .group_content()
-                .map(ShowcaseMessage::VoiceDictation)
-                .view(config, position, clock),
-            ShowcasedGroup::Caldav(group) => group
-                .group_content()
-                .map(ShowcaseMessage::Caldav)
-                .view(config, position, clock),
-            ShowcasedGroup::Vpn(group) => group
-                .group_content()
-                .map(ShowcaseMessage::Vpn)
-                .view(config, position, clock),
-            ShowcasedGroup::LoginSession(group) => group
-                .group_content()
-                .map(ShowcaseMessage::LoginSession)
-                .view(config, position, clock),
-            ShowcasedGroup::BottomBar(session) => return session.bottom_bar_groups(config, clock),
-            ShowcasedGroup::WorkspaceSidebar(session) => {
-                return session.sidebar_groups(config, clock);
-            }
-            ShowcasedGroup::Toasts(_) => return Vec::new(),
-        };
-        single.into_iter().collect()
+        match self {
+            ShowcasedGroup::BottomBar(session) => session.bottom_bar_groups(config, clock),
+            ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),
+            _ => self
+                .group_contents(config, clock)
+                .into_iter()
+                .filter_map(|group| group.view(config, position, clock))
+                .collect(),
+        }
     }
 
     pub fn update(&mut self, message: ShowcaseMessage, clock: Clock) {
