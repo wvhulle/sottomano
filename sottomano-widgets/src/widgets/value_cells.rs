@@ -221,7 +221,7 @@ impl<Message: 'static> ValueCellView<Message> {
     pub fn key_view(&self) -> Self {
         Self {
             figure_font: self.prose_font.clone(),
-            wrapping: Wrapping::None,
+            wrapping: Wrapping::Word,
             font_style: FontStyle::Italic,
             transition: TransitionStyle {
                 presence: TextPresence::Shown,

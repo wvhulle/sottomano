@@ -1,9 +1,9 @@
-use std::{collections::HashMap, iter::once};
+use std::collections::HashMap;
 
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
-    widget::{Row, container, mouse_area},
+    widget::{container, mouse_area},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -23,7 +23,7 @@ use crate::{
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
     widgets::{
         anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
-        group_menu::CascadeDirection,
+        cascade_row::{CascadeOrientation, cascade_row},
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -324,19 +324,10 @@ impl TooltipHost {
             HoverContent::Cascade {
                 primary,
                 satellites,
-                direction: CascadeDirection::Rightward,
+                orientation,
             } => Rendered {
-                element: Row::with_children(once(primary).chain(satellites)).into(),
-                framing: PopupFraming::FirstChild,
-            },
-            HoverContent::Cascade {
-                primary,
-                satellites,
-                direction: CascadeDirection::Leftward,
-            } => Rendered {
-                element: Row::with_children(satellites.into_iter().rev().chain(once(primary)))
-                    .into(),
-                framing: PopupFraming::LastChild,
+                element: cascade_row(primary, satellites, orientation),
+                framing: PopupFraming::Cascade(orientation),
             },
         };
         if !self.hosts(surface) {
@@ -403,7 +394,7 @@ pub enum HoverContent<'a, Message> {
     Cascade {
         primary: Element<'a, Message>,
         satellites: Vec<Element<'a, Message>>,
-        direction: CascadeDirection,
+        orientation: CascadeOrientation,
     },
 }
 

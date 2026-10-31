@@ -12,7 +12,11 @@ use crate::hover_tooltips::InspectedRow;
 pub enum GroupMenuKind {
     Hardware,
     Network,
+    Agenda,
+    Media,
+    Display,
     Services,
+    Session,
     Appearance,
     Behaviour,
 }
@@ -22,7 +26,11 @@ impl GroupMenuKind {
         match self {
             GroupMenuKind::Hardware => "HardwareMenu",
             GroupMenuKind::Network => "NetworkMenu",
+            GroupMenuKind::Agenda => "AgendaMenu",
+            GroupMenuKind::Media => "MediaMenu",
+            GroupMenuKind::Display => "DisplayMenu",
             GroupMenuKind::Services => "ServicesMenu",
+            GroupMenuKind::Session => "SessionMenu",
             GroupMenuKind::Appearance => "AppearanceMenu",
             GroupMenuKind::Behaviour => "BehaviourMenu",
         }

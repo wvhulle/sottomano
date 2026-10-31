@@ -8,11 +8,12 @@ use crate::{
     widget_groups::group_menus::GroupMenus,
     widgets::{
         bar_widget::Glyph,
+        cascade_row::CascadeDirection,
         configured_theme::{secondary_text_color, text_color},
         glyph_button,
         group_item::{MenuItemAction, MenuParts},
         group_menu::{
-            CascadeDirection, GroupMenuSurfaces, InspectionCard, MenuMessenger,
+            GroupMenuSurfaces, InspectionCard, MenuMessenger,
             menu_row::{
                 MenuRowContent, MenuRowLook, hovered_menu_row, inert_menu_row, menu_row_height,
                 pressable_menu_row,

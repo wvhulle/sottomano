@@ -26,8 +26,8 @@ use crate::{
     widget_groups::group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus},
     widgets::{
         bar_widget::Glyph,
+        cascade_row::CascadeOrientation,
         configured_theme::text_color,
-        notched_panel::PanelGrowth,
         pager_slot::PagerSlot,
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -42,18 +42,6 @@ pub struct GroupMenu<'a, M> {
     group_menus: &'a GroupMenus,
     messenger: MenuMessenger<'a, M>,
     members: Vec<GroupContent<'a, M>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CascadeDirection {
-    Rightward,
-    Leftward,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CascadeOrientation {
-    pub direction: CascadeDirection,
-    pub growth: PanelGrowth,
 }
 
 pub struct GroupMenuSurfaces<'a, Message> {

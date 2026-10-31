@@ -22,7 +22,11 @@ impl DesktopShell {
         [
             self.hardware_menu(),
             self.network_menu(),
+            self.agenda_menu(),
+            self.media_menu(),
+            self.display_menu(),
             self.services_menu(),
+            self.session_group_menu(),
         ]
         .into_iter()
         .chain(self.settings_menus())

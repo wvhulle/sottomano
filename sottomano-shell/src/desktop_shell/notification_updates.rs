@@ -19,7 +19,12 @@ use crate::{
 impl DesktopShell {
     pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {
         let locale = self.config.calendar.locale;
-        let TopBarGroups { center, end, .. } = self.top_bar_groups();
+        let TopBarGroups {
+            center,
+            notifications,
+            end,
+            ..
+        } = self.top_bar_groups();
         let BottomBarGroups {
             start: bottom_start,
             end: bottom_end,
@@ -27,6 +32,7 @@ impl DesktopShell {
         } = self.bottom_bar_groups();
         center
             .iter()
+            .chain([&notifications])
             .chain(&end)
             .chain(&bottom_start)
             .chain(&bottom_end)
