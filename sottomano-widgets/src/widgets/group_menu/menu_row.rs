@@ -1,7 +1,7 @@
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Theme,
     border::Radius,
-    widget::{Row, button, container, mouse_area, space},
+    widget::{Row, button, container, mouse_area, text::Wrapping},
 };
 use sottomano_config::Config;
 
@@ -80,8 +80,11 @@ fn menu_line<'a, M: 'a>(
     Row::new()
         .extend(leading)
         .push(leading_icon_slot(config, parts.icon))
-        .push(bar_text(&config.theme.font, name))
-        .push(space::horizontal())
+        .push(
+            container(bar_text(&config.theme.font, name).wrapping(Wrapping::None))
+                .width(Length::Fill)
+                .clip(true),
+        )
         .push(parts.value)
         .extend(trailing)
         .spacing(config.layout.overlay.column_spacing)

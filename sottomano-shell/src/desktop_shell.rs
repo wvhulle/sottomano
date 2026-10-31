@@ -56,9 +56,10 @@ use sottomano_widgets::{
         session_menu::{self},
     },
     widgets::{
+        cascade_row::{CascadeDirection, CascadeOrientation},
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{CascadeDirection, CascadeOrientation, GroupMenuSurfaces, InspectionCard},
+        group_menu::{GroupMenuSurfaces, InspectionCard},
         notched_panel::PanelGrowth,
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -393,7 +394,7 @@ impl DesktopShell {
             return Some(HoverContent::Cascade {
                 primary,
                 satellites,
-                direction: self.group_menu_orientation().direction,
+                orientation: self.group_menu_orientation(),
             });
         }
         match self.interactive_panel(target) {

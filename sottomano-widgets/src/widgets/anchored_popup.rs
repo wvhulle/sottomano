@@ -16,7 +16,9 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::{
     hover_tooltips::tooltip_transition::ShownTarget,
     widgets::{
+        cascade_row::{CascadeDirection, CascadeOrientation},
         child_view::{ChildView, ChildViewMut},
+        notched_panel::PanelGrowth,
         panel_frame::LayerFrameStyle,
         popup_connector::{ConnectorTriangle, FramedSurface},
         rectangle_morph::interpolated,
@@ -40,19 +42,16 @@ impl PopupFrame {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PopupFraming {
     WholeContent,
-    FirstChild,
-    LastChild,
+    Cascade(CascadeOrientation),
 }
 
 impl PopupFraming {
     fn framed_bounds(self, node: &Node) -> Rectangle {
         let whole = Rectangle::new(Point::ORIGIN, node.size());
-        let framed_child = match self {
-            PopupFraming::WholeContent => None,
-            PopupFraming::FirstChild => node.children().first(),
-            PopupFraming::LastChild => node.children().last(),
-        };
-        framed_child.map_or(whole, Node::bounds)
+        match self {
+            PopupFraming::WholeContent => whole,
+            PopupFraming::Cascade(_) => node.children().first().map_or(whole, Node::bounds),
+        }
     }
 }
 
@@ -222,6 +221,30 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
             })
     }
 
+    fn cascade_limits(
+        &self,
+        orientation: CascadeOrientation,
+        primary: Size,
+        surface: Size,
+    ) -> Limits {
+        let resting = self.resting(primary, surface);
+        let room_beside = match orientation.direction {
+            CascadeDirection::Rightward => surface.width - (resting.x + resting.width),
+            CascadeDirection::Leftward => resting.x,
+        } - self.popup_gap;
+        let room_along_growth = match orientation.growth {
+            PanelGrowth::Downward => surface.height - resting.y,
+            PanelGrowth::Upward => resting.y + resting.height,
+        } - self.popup_gap;
+        Limits::new(
+            Size::ZERO,
+            Size::new(
+                primary.width + room_beside.max(0.0),
+                room_along_growth.max(primary.height),
+            ),
+        )
+    }
+
     fn content_origin(&self, popup: Rectangle, framed_height: f32) -> Point {
         match self.position {
             Position::Top | Position::Left => popup.position(),
@@ -230,9 +253,9 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
     }
 
     fn frames_one_child(&self) -> bool {
-        self.renderings
-            .iter()
-            .any(|rendering| rendering.incoming && rendering.framing != PopupFraming::WholeContent)
+        self.renderings.iter().any(|rendering| {
+            rendering.incoming && matches!(rendering.framing, PopupFraming::Cascade(_))
+        })
     }
 
     fn is_live(&self) -> bool {
@@ -313,7 +336,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let surface = limits.max();
         let rendering_limits = Limits::new(Size::ZERO, surface);
-        let nodes: Vec<Node> = self
+        let natural_nodes: Vec<Node> = self
             .renderings
             .iter_mut()
             .zip(&mut tree.children)
@@ -323,6 +346,34 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                     .as_widget_mut()
                     .layout(child, renderer, &rendering_limits)
             })
+            .collect();
+        let fitted_limits: Vec<Limits> = self
+            .renderings
+            .iter()
+            .zip(&natural_nodes)
+            .map(|(rendering, natural)| match rendering.framing {
+                PopupFraming::WholeContent => rendering_limits,
+                PopupFraming::Cascade(orientation) => self.cascade_limits(
+                    orientation,
+                    rendering.framing.framed_bounds(natural).size(),
+                    surface,
+                ),
+            })
+            .collect();
+        let nodes: Vec<Node> = self
+            .renderings
+            .iter_mut()
+            .zip(&mut tree.children)
+            .zip(natural_nodes.into_iter().zip(fitted_limits))
+            .map(
+                |((rendering, child), (natural, fitted))| match rendering.framing {
+                    PopupFraming::WholeContent => natural,
+                    PopupFraming::Cascade(_) => rendering
+                        .element
+                        .as_widget_mut()
+                        .layout(child, renderer, &fitted),
+                },
+            )
             .collect();
 
         let arriving = self

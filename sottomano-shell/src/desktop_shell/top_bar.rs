@@ -16,8 +16,11 @@ use crate::{
 
 pub(super) struct TopBarGroups<'a> {
     pub start_menus: [GroupMenu<'a, Message>; 2],
-    pub center: [GroupContent<'a, Message>; 6],
-    pub end: Vec<GroupContent<'a, Message>>,
+    pub center: [GroupContent<'a, Message>; 2],
+    pub agenda_menu: GroupMenu<'a, Message>,
+    pub notifications: GroupContent<'a, Message>,
+    pub media_menu: GroupMenu<'a, Message>,
+    pub end: [GroupContent<'a, Message>; 1],
 }
 
 impl DesktopShell {
@@ -26,6 +29,9 @@ impl DesktopShell {
         let TopBarGroups {
             start_menus,
             center,
+            agenda_menu,
+            notifications,
+            media_menu,
             end,
         } = self.top_bar_groups();
         let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top, self.clock);
@@ -34,8 +40,14 @@ impl DesktopShell {
             start_menus
                 .into_iter()
                 .flat_map(|group_menu| group_menu.bar_views(config, Position::Top, self.clock)),
-            center.map(view),
-            end.into_iter().map(view),
+            center
+                .map(view)
+                .into_iter()
+                .chain(agenda_menu.bar_views(config, Position::Top, self.clock))
+                .chain([view(notifications)]),
+            media_menu
+                .bar_views(config, Position::Top, self.clock)
+                .chain(end.map(view)),
         )
     }
 
@@ -48,10 +60,31 @@ impl DesktopShell {
     }
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {
+        let config = &self.config;
         TopBarGroups {
             start_menus: [self.hardware_menu(), self.network_menu()],
-            center: self.top_bar_center_groups(),
-            end: self.top_bar_end_groups(),
+            center: [
+                self.widget_groups
+                    .clock_group
+                    .group_content()
+                    .map(Message::Clock),
+                self.widget_groups
+                    .weather_group
+                    .group_content(config)
+                    .map(Message::Weather),
+            ],
+            agenda_menu: self.agenda_menu(),
+            notifications: self
+                .widget_groups
+                .notification_group
+                .group_content(self.notification_status())
+                .map(Message::NotificationGroup),
+            media_menu: self.media_menu(),
+            end: [self
+                .widget_groups
+                .session_menu
+                .group_content(config)
+                .map(Message::Session)],
         }
     }
 
@@ -146,37 +179,30 @@ impl DesktopShell {
         )
     }
 
-    fn top_bar_center_groups(&self) -> [GroupContent<'_, Message>; 6] {
+    pub(super) fn agenda_menu(&self) -> GroupMenu<'_, Message> {
         let config = &self.config;
-        [
-            self.widget_groups
-                .clock_group
-                .group_content()
-                .map(Message::Clock),
-            self.widget_groups
-                .weather_group
-                .group_content(config)
-                .map(Message::Weather),
-            self.widget_groups
-                .caldav_group
-                .group_content()
-                .map(Message::Caldav),
-            self.widget_groups
-                .notification_group
-                .group_content(self.notification_status())
-                .map(Message::NotificationGroup),
-            self.widget_groups
-                .quiet_schedule_group
-                .group_content(config)
-                .map(Message::QuietSchedule),
-            self.widget_groups
-                .session_focus_group
-                .group_content(config)
-                .map(Message::SessionFocus),
-        ]
+        self.group_menu(
+            GroupMenuKind::Agenda,
+            "Agenda",
+            Phosphor::CalendarBlank(Weight::Regular),
+            [
+                self.widget_groups
+                    .caldav_group
+                    .group_content()
+                    .map(Message::Caldav),
+                self.widget_groups
+                    .quiet_schedule_group
+                    .group_content(config)
+                    .map(Message::QuietSchedule),
+                self.widget_groups
+                    .session_focus_group
+                    .group_content(config)
+                    .map(Message::SessionFocus),
+            ],
+        )
     }
 
-    fn top_bar_end_groups(&self) -> Vec<GroupContent<'_, Message>> {
+    pub(super) fn media_menu(&self) -> GroupMenu<'_, Message> {
         let config = &self.config;
         let media_groups = self
             .widget_groups
@@ -189,7 +215,7 @@ impl DesktopShell {
             .group_contents(&config.widget_groups.gamepad, focused_app_id(&self.niri))
             .into_iter()
             .map(|group| group.map(Message::Gamepad));
-        media_groups
+        let members = media_groups
             .chain([
                 self.widget_groups
                     .audio_group
@@ -200,12 +226,12 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::VoiceDictation),
             ])
-            .chain(gamepad_groups)
-            .chain([self
-                .widget_groups
-                .session_menu
-                .group_content(config)
-                .map(Message::Session)])
-            .collect()
+            .chain(gamepad_groups);
+        self.group_menu(
+            GroupMenuKind::Media,
+            "Media",
+            Phosphor::MusicNotes(Weight::Regular),
+            members,
+        )
     }
 }

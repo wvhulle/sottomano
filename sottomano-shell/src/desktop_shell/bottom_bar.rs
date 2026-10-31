@@ -15,43 +15,53 @@ use sottomano_widgets::{
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
-    pub settings_menus: [GroupMenu<'a, Message>; 2],
-    pub start: [GroupContent<'a, Message>; 6],
-    pub services_menu: GroupMenu<'a, Message>,
-    pub end: [GroupContent<'a, Message>; 2],
+    pub start_menus: [GroupMenu<'a, Message>; 3],
+    pub start: [GroupContent<'a, Message>; 1],
+    pub end_menus: [GroupMenu<'a, Message>; 2],
+    pub end: [GroupContent<'a, Message>; 1],
 }
 
 impl DesktopShell {
     pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let config = &self.config;
         let BottomBarGroups {
-            settings_menus,
+            start_menus,
             start,
-            services_menu,
+            end_menus,
             end,
         } = self.bottom_bar_groups();
         let view =
             |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
         self.panel_bar(
             Position::Bottom,
-            settings_menus
+            start_menus
                 .into_iter()
                 .flat_map(|group_menu| group_menu.bar_views(config, Position::Bottom, self.clock))
                 .chain(start.map(view))
                 .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
-            services_menu
-                .bar_views(config, Position::Bottom, self.clock)
+            end_menus
+                .into_iter()
+                .flat_map(|group_menu| group_menu.bar_views(config, Position::Bottom, self.clock))
                 .chain(end.map(view)),
         )
     }
 
     pub(super) fn bottom_bar_groups(&self) -> BottomBarGroups<'_> {
+        let [appearance_menu, behaviour_menu] = self.settings_menus();
         BottomBarGroups {
-            settings_menus: self.settings_menus(),
-            start: self.bottom_bar_start_groups(),
-            services_menu: self.services_menu(),
-            end: self.bottom_bar_end_groups(),
+            start_menus: [appearance_menu, behaviour_menu, self.display_menu()],
+            start: [self
+                .widget_groups
+                .appearance_presets_menu
+                .group_content(&self.config)
+                .map(Message::AppearancePresets)],
+            end_menus: [self.services_menu(), self.session_group_menu()],
+            end: [self
+                .widget_groups
+                .tray_group
+                .group_content(&self.config)
+                .map(Message::Tray)],
         }
     }
 
@@ -95,34 +105,49 @@ impl DesktopShell {
         ]
     }
 
-    fn bottom_bar_start_groups(&self) -> [GroupContent<'_, Message>; 6] {
+    pub(super) fn display_menu(&self) -> GroupMenu<'_, Message> {
         let config = &self.config;
-        [
-            self.widget_groups
-                .monitor_group
-                .group_content(config)
-                .map(Message::Monitor),
-            self.widget_groups
-                .dark_mode_group
-                .group_content(config)
-                .map(Message::DarkMode),
-            self.widget_groups
-                .appearance_presets_menu
-                .group_content(config)
-                .map(Message::AppearancePresets),
-            self.widget_groups
-                .color_temperature_group
-                .group_content(config)
-                .map(Message::ColorTemperature),
-            self.widget_groups
-                .wallpaper_group
-                .group_content()
-                .map(Message::Wallpaper),
-            self.widget_groups
-                .idle_timeouts_group
-                .group_content(config)
-                .map(Message::IdleTimeouts),
-        ]
+        self.group_menu(
+            GroupMenuKind::Display,
+            "Display",
+            Phosphor::Monitor(Weight::Regular),
+            [
+                self.widget_groups
+                    .monitor_group
+                    .group_content(config)
+                    .map(Message::Monitor),
+                self.widget_groups
+                    .dark_mode_group
+                    .group_content(config)
+                    .map(Message::DarkMode),
+                self.widget_groups
+                    .color_temperature_group
+                    .group_content(config)
+                    .map(Message::ColorTemperature),
+                self.widget_groups
+                    .wallpaper_group
+                    .group_content()
+                    .map(Message::Wallpaper),
+            ],
+        )
+    }
+
+    pub(super) fn session_group_menu(&self) -> GroupMenu<'_, Message> {
+        self.group_menu(
+            GroupMenuKind::Session,
+            "Session",
+            Phosphor::UserCircle(Weight::Regular),
+            [
+                self.widget_groups
+                    .idle_timeouts_group
+                    .group_content(&self.config)
+                    .map(Message::IdleTimeouts),
+                self.widget_groups
+                    .login_session_group
+                    .group_content()
+                    .map(Message::LoginSession),
+            ],
+        )
     }
 
     pub(super) fn services_menu(&self) -> GroupMenu<'_, Message> {
@@ -162,20 +187,6 @@ impl DesktopShell {
                     .map(Message::PendingUpgrades),
             ],
         )
-    }
-
-    fn bottom_bar_end_groups(&self) -> [GroupContent<'_, Message>; 2] {
-        let config = &self.config;
-        [
-            self.widget_groups
-                .login_session_group
-                .group_content()
-                .map(Message::LoginSession),
-            self.widget_groups
-                .tray_group
-                .group_content(config)
-                .map(Message::Tray),
-        ]
     }
 
     fn inline_workspaces<'a>(&'a self, output: &'a str) -> Option<Element<'a, Message>> {

@@ -2,10 +2,8 @@ use iced::{Element, border::Radius, time::Duration};
 use sottomano_config::Config;
 
 use crate::widgets::{
-    group_menu::{
-        CascadeDirection, CascadeOrientation, cascading_columns::cascade_offset,
-        menu_row::menu_row_height,
-    },
+    cascade_row::{CascadeDirection, CascadeOrientation},
+    group_menu::{cascading_columns::cascade_offset, menu_row::menu_row_height},
     notched_panel::{NotchPlacement, NotchSide, PanelGrowth, notched_corners, notched_panel},
     panel_frame::LayerFrameStyle,
     shell_layer_appearance::LayerAppearance,

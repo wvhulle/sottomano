@@ -77,7 +77,9 @@ pub fn notched_panel<'a, Message: 'a>(
 
 #[derive(Default)]
 struct PanelMorph {
-    target: Rectangle,
+    laid_out: Rectangle,
+    laid_out_folded: Rectangle,
+    morphing_toward: Rectangle,
     morph: RectangleMorph,
 }
 
@@ -197,10 +199,22 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let content = self
-            .content
-            .as_widget_mut()
-            .layout(&mut tree.children[0], renderer, limits);
+        let room = limits.max();
+        let content_height = match self.placement.growth {
+            PanelGrowth::Downward => room.height - self.placement.row_top,
+            PanelGrowth::Upward => room.height + self.placement.row_top + self.placement.row_height,
+        };
+        let content_limits = Limits::new(
+            Size::ZERO,
+            Size::new(
+                (room.width - self.placement.notch_depth).max(0.0),
+                content_height.max(self.placement.row_height),
+            ),
+        );
+        let content =
+            self.content
+                .as_widget_mut()
+                .layout(&mut tree.children[0], renderer, &content_limits);
         let target = self.panel_target(content.size());
         let node_size = Size::new(
             target.width + self.placement.notch_depth,
@@ -209,13 +223,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let from_notch_edge = self.node_origin_from_notch_edge(node_size.width);
         let edge_target = target + from_notch_edge;
         let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
-        if panel_morph.target != edge_target {
-            panel_morph.target = edge_target;
-            panel_morph
-                .morph
-                .begin(self.folded_into_notch(target) + from_notch_edge);
-        }
-        panel_morph.morph.follow(edge_target);
+        panel_morph.laid_out = edge_target;
+        panel_morph.laid_out_folded = self.folded_into_notch(target) + from_notch_edge;
+        panel_morph.morph.follow(panel_morph.morphing_toward);
         Node::with_children(node_size, vec![content.move_to(target.position())])
     }
 
@@ -320,6 +330,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             return;
         };
         let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
+        if panel_morph.laid_out != panel_morph.morphing_toward {
+            panel_morph.morphing_toward = panel_morph.laid_out;
+            panel_morph.morph.begin(panel_morph.laid_out_folded);
+        }
         panel_morph.morph.tick(*now, self.morph);
         if !panel_morph.morph.is_settled() {
             shell.invalidate_layout();

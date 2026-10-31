@@ -13,6 +13,8 @@ use iced::{
     widget::Space,
 };
 
+use crate::widgets::fair_widths::fair_widths;
+
 pub struct ContentSizedColumn<'a, Row, Message> {
     header: Element<'a, Message>,
     view: Box<dyn Fn(Row) -> Element<'a, Message> + 'a>,
@@ -229,6 +231,34 @@ impl<Message> ContentSizedTable<'_, Message> {
         Self { padding_y, ..self }
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    fn fitted_column_widths(
+        &self,
+        placed_cells: &[PlacedCell],
+        nodes: &[Node],
+        max_width: f32,
+    ) -> Vec<f32> {
+        let natural_widths: Vec<f32> = (0..self.column_count())
+            .map(|column| {
+                placed_cells
+                    .iter()
+                    .filter(|placed| {
+                        placed.row_span == RowSpan::Columned && placed.column == column
+                    })
+                    .filter_map(|placed| nodes.get(placed.position))
+                    .map(|node| node.size().width)
+                    .fold(0.0, f32::max)
+            })
+            .collect();
+        let cell_padding = 2.0 * self.padding_x * natural_widths.len() as f32;
+        let room_for_cells = max_width - cell_padding;
+        if natural_widths.iter().sum::<f32>() > room_for_cells {
+            fair_widths(&natural_widths, room_for_cells)
+        } else {
+            natural_widths
+        }
+    }
+
     fn column_count(&self) -> usize {
         self.alignments.len().max(1)
     }
@@ -275,7 +305,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let column_count = self.column_count();
         let row_count = self.row_spans.len();
         let placed_cells = self.placed_cells();
         let intrinsic = Limits::with_compression(Size::ZERO, limits.max(), Size::new(true, true));
@@ -285,18 +314,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
             .zip(&mut tree.children)
             .map(|(cell, cell_tree)| cell.as_widget_mut().layout(cell_tree, renderer, &intrinsic))
             .collect();
-        let column_widths: Vec<f32> = (0..column_count)
-            .map(|column| {
-                placed_cells
-                    .iter()
-                    .filter(|placed| {
-                        placed.row_span == RowSpan::Columned && placed.column == column
-                    })
-                    .filter_map(|placed| nodes.get(placed.position))
-                    .map(|node| node.size().width)
-                    .fold(0.0, f32::max)
-            })
-            .collect();
+        let column_widths = self.fitted_column_widths(&placed_cells, &nodes, limits.max().width);
         let span = |extents: &[f32], padding: f32| {
             extents.iter().sum::<f32>() + 2.0 * padding * extents.len() as f32
         };
@@ -307,6 +325,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
                 RowSpan::FullWidth => table_width,
                 RowSpan::Columned if cell.as_widget().size().width.is_fill() => {
                     column_widths[placed.column]
+                }
+                RowSpan::Columned
+                    if nodes[placed.position].size().width > column_widths[placed.column] =>
+                {
+                    let narrowed = Limits::new(
+                        Size::ZERO,
+                        Size::new(column_widths[placed.column], limits.max().height),
+                    );
+                    nodes[placed.position] = cell.as_widget_mut().layout(
+                        &mut tree.children[placed.position],
+                        renderer,
+                        &narrowed,
+                    );
+                    return;
                 }
                 RowSpan::Columned => return,
             };
