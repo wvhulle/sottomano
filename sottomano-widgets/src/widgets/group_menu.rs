@@ -13,7 +13,7 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position};
 
 use self::{
-    cascading_columns::{CascadeDevice, cascading_columns, merged_by_title},
+    cascading_columns::{CascadeEntry, CascadeLayout, cascading_columns, merged_by_title},
     quantity_table::{QuantityTableColumn, quantity_table},
     satellite_panels::SatellitePanels,
 };
@@ -23,7 +23,7 @@ use crate::{
         GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, PressHints,
         announcing_hoverable, tooltip_content::TooltipContent,
     },
-    widget_groups::group_menu_pins::GroupMenuPins,
+    widget_groups::group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus},
     widgets::{
         bar_widget::Glyph,
         configured_theme::text_color,
@@ -35,45 +35,125 @@ use crate::{
     },
 };
 
-pub(super) type PinToggle<'a, M> = Rc<dyn Fn(&'static str) -> M + 'a>;
-
 pub struct GroupMenu<'a, M> {
-    handle: GroupHandle,
-    group_title: &'static str,
+    title: &'static str,
     glyph: Glyph,
-    pins: &'a GroupMenuPins,
-    on_pin_toggle: PinToggle<'a, M>,
+    group_menus: &'a GroupMenus,
+    messenger: MenuMessenger<'a, M>,
     members: Vec<GroupContent<'a, M>>,
 }
 
-pub struct MenuInspection<'i> {
-    pub open_member: Option<usize>,
-    pub inspected_row: Option<&'i InspectedRow>,
-    pub card: &'i Tooltip,
+pub struct GroupMenuSurfaces<'a, Message> {
+    pub primary: Element<'a, Message>,
+    pub satellites: Vec<Element<'a, Message>>,
+}
+
+pub struct InspectionCard<'c, 'a> {
+    pub tooltip: &'c Tooltip,
+    pub assets: WindowAssets<'a>,
+    pub clock: Clock,
+}
+
+impl InspectionCard<'_, '_> {
+    fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
+        (!self.tooltip.is_empty())
+            .then(|| TooltipContent::new(self.tooltip, config, self.assets, self.clock).view())
+    }
+}
+
+pub(super) struct MenuMessenger<'a, M> {
+    kind: GroupMenuKind,
+    on_message: Rc<dyn Fn(GroupMenuMessage) -> M + 'a>,
+}
+
+impl<M> MenuMessenger<'_, M> {
+    fn sent(&self, message: GroupMenuMessage) -> GroupEvent<M> {
+        GroupEvent::Group((self.on_message)(message))
+    }
+
+    pub(super) fn toggle_pin(&self, group_title: &'static str) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::TogglePin {
+            menu: self.kind,
+            group_title,
+        })
+    }
+
+    pub(super) fn inspect_member(&self, member: usize) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::InspectMember {
+            menu: self.kind,
+            member,
+        })
+    }
+
+    pub(super) fn inspect_row(&self, row: InspectedRow) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::InspectRow {
+            menu: self.kind,
+            row,
+        })
+    }
+}
+
+struct MenuSections<'a, M> {
+    table_columns: Vec<QuantityTableColumn<'a, M>>,
+    cascade_entries: Vec<CascadeEntry<'a, M>>,
+}
+
+impl<'a, M> MenuSections<'a, M> {
+    fn empty() -> Self {
+        Self {
+            table_columns: Vec::new(),
+            cascade_entries: Vec::new(),
+        }
+    }
+
+    fn with_member(mut self, member: MenuMember<'a, M>) -> Self {
+        let MenuMember {
+            group_title,
+            face,
+            aligned,
+            cascade_items,
+        } = member;
+        if !aligned.is_empty() {
+            self.table_columns.push(QuantityTableColumn {
+                group_title,
+                aligned,
+            });
+        }
+        if !cascade_items.is_empty() {
+            self.cascade_entries.push(CascadeEntry {
+                group_title,
+                face,
+                items: cascade_items,
+            });
+        }
+        self
+    }
 }
 
 impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
     pub fn new(
-        handle: GroupHandle,
-        group_title: &'static str,
+        kind: GroupMenuKind,
+        title: &'static str,
         glyph: impl Into<Glyph>,
-        pins: &'a GroupMenuPins,
-        on_pin_toggle: impl Fn(GroupHandle, &'static str) -> M + 'a,
+        group_menus: &'a GroupMenus,
+        on_message: impl Fn(GroupMenuMessage) -> M + 'a,
         members: impl IntoIterator<Item = GroupContent<'a, M>>,
     ) -> Self {
         Self {
-            handle,
-            group_title,
+            title,
             glyph: glyph.into(),
-            pins,
-            on_pin_toggle: Rc::new(move |member_title| on_pin_toggle(handle, member_title)),
+            group_menus,
+            messenger: MenuMessenger {
+                kind,
+                on_message: Rc::new(on_message),
+            },
             members: members.into_iter().collect(),
         }
     }
 
     #[must_use]
-    pub fn handle(&self) -> GroupHandle {
-        self.handle
+    pub fn kind(&self) -> GroupMenuKind {
+        self.messenger.kind
     }
 
     #[must_use]
@@ -84,7 +164,7 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             .collect()
     }
 
-    pub fn handle_view<Outer: From<GroupEvent<M>> + 'a>(
+    fn handle_view<Outer: From<GroupEvent<M>> + 'a>(
         &self,
         config: &'a Config,
         bar_position: Position,
@@ -98,8 +178,8 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             .unwrap_or_default();
         let handle = announcing_hoverable(
             self.glyph.view(config.theme.font.icon_size_px, text_color),
-            HoverTarget::GroupHandle(self.handle),
-            HoverAnnouncement::from_group_handle(self.group_title, PressHints::default()),
+            HoverTarget::GroupHandle(GroupHandle::GroupMenu(self.messenger.kind)),
+            HoverAnnouncement::from_group_handle(self.title, PressHints::default()),
             GroupEvent::Tooltip,
         );
         let indicator = EdgeIndicator {
@@ -121,16 +201,11 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
     ) -> impl Iterator<Item = Option<Element<'a, Outer>>> + 'a {
         let handle_slot = self.handle_view(config, bar_position, clock);
         let promotion_severity = config.panel_bar.group_menu_promotion_severity;
-        let GroupMenu {
-            handle,
-            pins,
-            members,
-            ..
-        } = self;
-        once(Some(handle_slot)).chain(members.into_iter().filter_map(move |member| {
-            let member_title = member.group_title();
-            if pins.is_pinned(handle, member_title) {
-                return Some(member.pinned_from(handle).view(config, bar_position, clock));
+        let kind = self.messenger.kind;
+        let group_menus = self.group_menus;
+        once(Some(handle_slot)).chain(self.members.into_iter().filter_map(move |member| {
+            if group_menus.is_pinned(kind, member.group_title()) {
+                return Some(member.pinned_from(kind).view(config, bar_position, clock));
             }
             (member.highest_alert_severity(clock) >= promotion_severity)
                 .then(|| member.view(config, bar_position, clock))
@@ -141,60 +216,36 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
     pub fn surfaces<Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a>(
         self,
         config: &'a Config,
-        assets: WindowAssets<'a>,
-        clock: Clock,
         appearance: &LayerAppearance,
-        inspection: &MenuInspection<'_>,
+        card: &InspectionCard<'_, 'a>,
     ) -> Option<GroupMenuSurfaces<'a, Outer>> {
-        let satellite_panels = SatellitePanels::new(appearance, config);
         let GroupMenu {
-            handle,
-            pins,
-            on_pin_toggle,
+            group_menus,
+            messenger,
             members,
             ..
         } = self;
-        let mut table_columns = Vec::new();
-        let mut cascade_devices = Vec::new();
-        for member in members
+        let MenuSections {
+            table_columns,
+            cascade_entries,
+        } = members
             .into_iter()
-            .filter(|member| !pins.is_pinned(handle, member.group_title()))
-            .filter_map(|member| member.menu_member(config, clock))
-        {
-            let MenuMember {
-                group_title,
-                face,
-                aligned,
-                cascade_items,
-            } = member;
-            if !aligned.is_empty() {
-                table_columns.push(QuantityTableColumn {
-                    group_title,
-                    aligned,
-                });
-            }
-            if !cascade_items.is_empty() {
-                cascade_devices.push(CascadeDevice {
-                    group_title,
-                    face,
-                    items: cascade_items,
-                });
-            }
-        }
-        let card = (!inspection.card.is_empty()).then(|| {
-            Element::from(TooltipContent::new(inspection.card, config, assets, clock).view())
-                .map(Outer::from)
-        });
+            .filter(|member| !group_menus.is_pinned(messenger.kind, member.group_title()))
+            .filter_map(|member| member.menu_member(config, card.clock))
+            .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| {
             Element::from(container(table).padding(config.layout.overlay.content_inset))
                 .map(Outer::from)
         });
+        let satellite_panels = SatellitePanels::new(appearance, config);
         let cascade = cascading_columns(
-            merged_by_title(cascade_devices),
-            &on_pin_toggle,
-            config,
-            &satellite_panels,
-            inspection,
+            merged_by_title(cascade_entries),
+            &CascadeLayout {
+                config,
+                menu: &messenger,
+                group_menus,
+                satellite_panels: &satellite_panels,
+            },
             card,
         );
         match (table, cascade) {
@@ -210,9 +261,4 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             }),
         }
     }
-}
-
-pub struct GroupMenuSurfaces<'a, Message> {
-    pub primary: Element<'a, Message>,
-    pub satellites: Vec<Element<'a, Message>>,
 }

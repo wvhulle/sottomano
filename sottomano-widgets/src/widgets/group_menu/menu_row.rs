@@ -5,14 +5,11 @@ use iced::{
 };
 use sottomano_config::Config;
 
-use crate::{
-    hover_tooltips::{InspectedRow, TooltipMessage},
-    widgets::{
-        configured_theme::{primary_weak_color, text_color},
-        group_item::MenuParts,
-        text::bar_text,
-        widget_group::GroupEvent,
-    },
+use crate::widgets::{
+    configured_theme::{primary_weak_color, text_color},
+    group_item::MenuParts,
+    text::bar_text,
+    widget_group::GroupEvent,
 };
 
 pub(super) struct MenuRowContent<'a, M> {
@@ -21,18 +18,55 @@ pub(super) struct MenuRowContent<'a, M> {
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
 }
 
-pub(super) struct MenuRowAction<M> {
-    pub message: GroupEvent<M>,
-    pub on_enter: Option<GroupEvent<M>>,
+#[derive(Clone, Copy)]
+pub(super) struct MenuRowLook {
     pub highlighted: bool,
     pub corners: Radius,
 }
 
-pub(super) fn inspect_row_message<M>(inspected_row: InspectedRow) -> GroupEvent<M> {
-    GroupEvent::Tooltip(TooltipMessage::Inspect(inspected_row))
+pub(super) fn menu_row_height(config: &Config) -> f32 {
+    config.layout.panel.height + config.layout.overlay.row_spacing
 }
 
-pub(super) fn menu_line<'a, M: 'a>(
+pub(super) fn inert_menu_row<'a, M: 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+) -> Element<'a, GroupEvent<M>> {
+    container(menu_line(config, content))
+        .width(Length::Fill)
+        .height(menu_row_height(config))
+        .padding(menu_row_padding(config))
+        .into()
+}
+
+pub(super) fn pressable_menu_row<'a, M: Clone + 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+    look: MenuRowLook,
+    press: GroupEvent<M>,
+) -> Element<'a, GroupEvent<M>> {
+    button(menu_line(config, content))
+        .width(Length::Fill)
+        .height(menu_row_height(config))
+        .padding(menu_row_padding(config))
+        .style(move |theme, status| menu_row_style(theme, status, look))
+        .on_press(press)
+        .into()
+}
+
+pub(super) fn hovered_menu_row<'a, M: Clone + 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+    look: MenuRowLook,
+    press: GroupEvent<M>,
+    hover: GroupEvent<M>,
+) -> Element<'a, GroupEvent<M>> {
+    mouse_area(pressable_menu_row(config, content, look, press))
+        .on_enter(hover)
+        .into()
+}
+
+fn menu_line<'a, M: 'a>(
     config: &'a Config,
     content: MenuRowContent<'a, M>,
 ) -> Row<'a, GroupEvent<M>> {
@@ -64,60 +98,18 @@ fn leading_icon_slot<'a, M: 'a>(
         .into()
 }
 
-pub(super) fn menu_row_height(config: &Config) -> f32 {
-    config.layout.panel.height + config.layout.overlay.row_spacing
-}
-
-pub(super) fn menu_row_padding(config: &Config) -> Padding {
+fn menu_row_padding(config: &Config) -> Padding {
     Padding::ZERO.horizontal(config.layout.overlay.content_inset)
 }
 
-pub(super) fn inert_menu_row<'a, M: 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, M>,
-) -> Element<'a, GroupEvent<M>> {
-    container(menu_line(config, content))
-        .width(Length::Fill)
-        .height(menu_row_height(config))
-        .padding(menu_row_padding(config))
-        .into()
-}
-
-pub(super) fn menu_row<'a, M: Clone + 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, M>,
-    action: MenuRowAction<M>,
-) -> Element<'a, GroupEvent<M>> {
-    let MenuRowAction {
-        message,
-        on_enter,
-        highlighted,
-        corners,
-    } = action;
-    let pressable = button(menu_line(config, content))
-        .width(Length::Fill)
-        .height(menu_row_height(config))
-        .padding(menu_row_padding(config))
-        .style(move |theme, status| highlighted_row_style(theme, status, highlighted, corners))
-        .on_press(message);
-    match on_enter {
-        Some(on_enter) => mouse_area(pressable).on_enter(on_enter).into(),
-        None => pressable.into(),
-    }
-}
-
-pub(super) fn highlighted_row_style(
-    theme: &Theme,
-    status: button::Status,
-    open: bool,
-    corners: Radius,
-) -> button::Style {
+fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {
     let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
     button::Style {
-        background: (open || hovered).then(|| Background::Color(primary_weak_color(theme))),
+        background: (look.highlighted || hovered)
+            .then(|| Background::Color(primary_weak_color(theme))),
         text_color: text_color(theme),
         border: Border {
-            radius: corners,
+            radius: look.corners,
             ..Border::default()
         },
         ..button::Style::default()

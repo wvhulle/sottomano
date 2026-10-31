@@ -46,6 +46,7 @@ pub mod phosphor;
 pub mod pointer_drag;
 pub mod popup_connector;
 pub mod pressable_text;
+pub mod rectangle_morph;
 pub mod refresh_dial;
 pub mod region_reporter;
 pub mod reveal;

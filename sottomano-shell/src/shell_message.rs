@@ -27,7 +27,7 @@ use sottomano_widgets::{
         color_temperature_group::ColorTemperatureMessage, compute_group::ComputeMessage,
         copilot_usage_group::CopilotUsageMessage, dark_mode_group::DarkModeMessage,
         ethernet_ports_group::EthernetPortsMessage, gamepad_group::GamepadMessage,
-        gpu_group::GpuMessage, group_menu_pins::GroupMenuPinsMessage,
+        gpu_group::GpuMessage, group_menus::GroupMenuMessage,
         idle_timeouts_group::IdleTimeoutsMessage, journal_events_group::JournalEventsMessage,
         llama_server_group::LlamaServerMessage, login_session_group::LoginSessionMessage,
         media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
@@ -91,7 +91,7 @@ pub enum Message {
     DarkMode(DarkModeMessage),
     VoiceDictation(VoiceDictationMessage),
     IdleTimeouts(IdleTimeoutsMessage),
-    GroupMenuPins(GroupMenuPinsMessage),
+    GroupMenus(GroupMenuMessage),
     Media(MediaMessage),
     Tray(TrayMessage),
     ConfigFileChanged,
@@ -158,13 +158,9 @@ impl From<PopupMessage> for Message {
             PopupMessage::FocusWindow(window) => Message::FocusWindow(window),
             PopupMessage::RefreshHoveredReading => Message::RefreshHoveredReading,
             PopupMessage::WindowGroup(window_group) => Message::WindowGroup(window_group),
-            PopupMessage::ToggleGroupMenuPin {
-                group_menu,
-                group_title,
-            } => Message::GroupMenuPins(GroupMenuPinsMessage::Toggle {
-                group_menu,
-                group_title,
-            }),
+            PopupMessage::ToggleGroupMenuPin { menu, group_title } => {
+                Message::GroupMenus(GroupMenuMessage::TogglePin { menu, group_title })
+            }
         }
     }
 }

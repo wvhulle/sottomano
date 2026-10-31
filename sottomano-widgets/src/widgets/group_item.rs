@@ -10,8 +10,7 @@ use sottomano_config::{Config, severity::Severity};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverAnnouncement, HoverTarget, InspectedRow, PressHints, TooltipMessage,
-        announcing_hoverable,
+        HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable,
     },
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
@@ -46,6 +45,26 @@ pub(super) enum ItemPlacement {
 pub(super) struct MenuParts<'a, M> {
     pub icon: Element<'a, GroupEvent<M>>,
     pub value: Element<'a, GroupEvent<M>>,
+}
+
+pub(super) enum MenuItemAction<M> {
+    Inert,
+    Inspect(InspectedRow),
+    Press(M),
+    PressAndInspect {
+        press: M,
+        inspected_row: InspectedRow,
+    },
+}
+
+impl<M> MenuItemAction<M> {
+    pub(super) fn inspected_target(&self) -> Option<&HoverTarget> {
+        match self {
+            MenuItemAction::Inspect(inspected_row)
+            | MenuItemAction::PressAndInspect { inspected_row, .. } => Some(&inspected_row.target),
+            MenuItemAction::Inert | MenuItemAction::Press(_) => None,
+        }
+    }
 }
 
 enum ItemKind<'a, M> {
@@ -429,37 +448,34 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let item_view = self.placed_view(config, 1.0, clock, ItemPlacement::Table);
-        match &self.kind {
-            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
-                mouse_area(item_view)
-                    .on_enter(GroupEvent::Tooltip(TooltipMessage::Inspect(InspectedRow {
-                        target: target.clone(),
-                        announcement: self.announcement(),
-                    })))
-                    .into()
-            }
-            ItemKind::Control { .. } | ItemKind::Element { .. } => item_view,
-        }
+        self.placed_view(config, 1.0, clock, ItemPlacement::Table)
     }
 
-    pub(super) fn inspected_row(&self) -> Option<InspectedRow> {
-        match &self.kind {
-            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
-                Some(InspectedRow {
-                    target: target.clone(),
-                    announcement: self.announcement(),
-                })
-            }
-            ItemKind::Control { .. } | ItemKind::Element { .. } => None,
-        }
-    }
-
-    pub(super) fn press_message(&self) -> Option<M>
+    pub(super) fn menu_action(&self) -> MenuItemAction<M>
     where
         M: Clone,
     {
-        self.on_press.as_ref().map(|press| press.message.clone())
+        let inspected_row = match &self.kind {
+            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
+                InspectedRow {
+                    target: target.clone(),
+                    announcement: self.announcement(),
+                }
+            }
+            ItemKind::Control { .. } | ItemKind::Element { .. } => {
+                return match &self.on_press {
+                    Some(press) => MenuItemAction::Press(press.message.clone()),
+                    None => MenuItemAction::Inert,
+                };
+            }
+        };
+        match &self.on_press {
+            Some(press) => MenuItemAction::PressAndInspect {
+                press: press.message.clone(),
+                inspected_row,
+            },
+            None => MenuItemAction::Inspect(inspected_row),
+        }
     }
 
     pub(super) fn menu_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
@@ -482,14 +498,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 icon: empty(),
                 value: draw(1.0),
             },
-        }
-    }
-
-    pub(super) fn glance_view(&self, config: &Config, clock: Clock) -> Element<'a, GroupEvent<M>> {
-        match &self.kind {
-            ItemKind::Reading { widget, .. } => source_reading(config, widget.as_ref(), 1.0, clock),
-            ItemKind::Control { widget, .. } => source_reading(config, *widget, 1.0, clock),
-            ItemKind::Element { draw } | ItemKind::HoverableElement { draw, .. } => draw(1.0),
         }
     }
 

@@ -1,28 +1,28 @@
-use std::{iter::once, mem};
+use std::iter::once;
 
 use iced::{
-    Animation, Background, Border, Color, Element, Event, Length, Point, Rectangle, Shadow, Size,
-    Vector,
+    Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         mouse, renderer,
         widget::{Operation, Tree, tree},
     },
-    animation::Easing,
     border::Radius,
     mouse::Cursor,
-    time::{Duration, Instant},
-    window,
 };
 use sottomano_config::{Config, screen_edges::Position};
 
-use crate::widgets::{
-    child_view::{ChildView, ChildViewMut},
-    panel_frame::LayerFrameStyle,
-    popup_connector::ConnectorTriangle,
-    region_reporter::RegionRoles,
-    shell_layer_appearance::LayerAppearance,
+use crate::{
+    hover_tooltips::tooltip_transition::ShownTarget,
+    widgets::{
+        child_view::{ChildView, ChildViewMut},
+        panel_frame::LayerFrameStyle,
+        popup_connector::{ConnectorTriangle, FramedSurface},
+        rectangle_morph::interpolated,
+        region_reporter::RegionRoles,
+        shell_layer_appearance::LayerAppearance,
+    },
 };
 
 struct PopupFrame {
@@ -41,6 +41,18 @@ impl PopupFrame {
 pub enum PopupFraming {
     WholeContent,
     FirstChild,
+}
+
+impl PopupFraming {
+    fn framed_size(self, node: &Node) -> Size {
+        match self {
+            PopupFraming::WholeContent => node.size(),
+            PopupFraming::FirstChild => node
+                .children()
+                .first()
+                .map_or_else(|| node.size(), Node::size),
+        }
+    }
 }
 
 pub struct Rendering<'a, Message> {
@@ -79,7 +91,7 @@ pub fn anchored_popup<'a, Message: 'a>(
     renderings: Vec<Rendering<'a, Message>>,
     anchor: Rectangle,
     position: Position,
-    seq: u64,
+    morph: PopupMorph,
     config: &Config,
     overlay_appearance: LayerAppearance,
 ) -> Element<'a, Message> {
@@ -92,8 +104,7 @@ pub fn anchored_popup<'a, Message: 'a>(
         popup_gap: config.layout.overlay.panel_gap,
         leading_icon_center: config.layout.overlay.content_inset + config.layout.panel.height / 2.0,
         position,
-        seq,
-        morph: config.tooltips.popup_morph,
+        morph,
         frame: overlay_frame,
         radius: overlay_appearance.corner_radius_px,
         blurred: overlay_appearance.blurred,
@@ -109,33 +120,24 @@ struct AnchoredPopup<'a, Message> {
     popup_gap: f32,
     leading_icon_center: f32,
     position: Position,
-    seq: u64,
-    morph: Duration,
+    morph: PopupMorph,
     frame: LayerFrameStyle,
     radius: f32,
     blurred: bool,
     shadow: Shadow,
 }
 
-struct MorphState {
-    seq: u64,
-    morph: Animation<bool>,
-    morph_pending: bool,
-    now: Option<Instant>,
-    progress: f32,
-    from: Rectangle,
-    current: Rectangle,
-    connector: ConnectorTriangle,
+#[derive(Debug, Clone)]
+pub struct PopupMorph {
+    pub progress: f32,
+    pub shown: ShownTarget,
 }
 
-pub(super) fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
-    let mix = |start: f32, end: f32| start + (end - start) * fraction;
-    Rectangle {
-        x: mix(from.x, to.x),
-        y: mix(from.y, to.y),
-        width: mix(from.width, to.width),
-        height: mix(from.height, to.height),
-    }
+struct MorphState {
+    shown: ShownTarget,
+    origin: Rectangle,
+    current: Rectangle,
+    connector: ConnectorTriangle,
 }
 
 impl<'a, Message> AnchoredPopup<'a, Message> {
@@ -219,6 +221,13 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
             })
     }
 
+    fn content_origin(&self, popup: Rectangle, framed_height: f32) -> Point {
+        match self.position {
+            Position::Top | Position::Left => popup.position(),
+            Position::Bottom => Point::new(popup.x, popup.y + popup.height - framed_height),
+        }
+    }
+
     fn frames_first_child(&self) -> bool {
         self.renderings
             .iter()
@@ -229,8 +238,8 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         self.renderings.iter().any(|rendering| rendering.incoming)
     }
 
-    fn is_settled(&self, state: &MorphState) -> bool {
-        state.progress >= 1.0 && self.is_live()
+    fn is_settled(&self) -> bool {
+        self.morph.progress >= 1.0 && self.is_live()
     }
 
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
@@ -238,7 +247,7 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         PopupFrame {
             bounds: state.current + origin,
             notch_rows: state.connector.translated(origin).blur_rows(),
-            settled: self.is_settled(state),
+            settled: self.is_settled(),
         }
     }
 
@@ -267,12 +276,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
 
     fn state(&self) -> tree::State {
         tree::State::new(MorphState {
-            seq: self.seq,
-            morph: Animation::new(true),
-            morph_pending: false,
-            now: None,
-            progress: 1.0,
-            from: Rectangle::default(),
+            shown: ShownTarget::Nothing,
+            origin: Rectangle::default(),
             current: Rectangle::default(),
             connector: ConnectorTriangle::between(
                 self.anchor,
@@ -289,7 +294,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
     }
 
     fn diff(&self, tree: &mut Tree) {
-        let switched = tree.state.downcast_ref::<MorphState>().seq != self.seq;
+        let switched = tree.state.downcast_ref::<MorphState>().shown != self.morph.shown;
         tree.diff_children(&self.child_elements());
         if switched {
             self.renderings
@@ -324,34 +329,20 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .iter()
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
-            .map(|(rendering, node)| match rendering.framing {
-                PopupFraming::WholeContent => node.size(),
-                PopupFraming::FirstChild => node
-                    .children()
-                    .first()
-                    .map_or_else(|| node.size(), Node::size),
-            });
+            .map(|(rendering, node)| rendering.framing.framed_size(node));
         let at_anchor = self.resting(Size::ZERO, surface);
 
         let state: &mut MorphState = tree.state.downcast_mut();
-        if state.seq != self.seq {
-            state.seq = self.seq;
-            state.from = if state.current.width > 0.0 {
+        if state.shown != self.morph.shown {
+            state.shown = self.morph.shown.clone();
+            state.origin = if state.current.width > 0.0 {
                 state.current
             } else {
                 at_anchor
             };
-            state.morph_pending = true;
         }
-        state.progress = if state.morph_pending {
-            0.0
-        } else {
-            state
-                .now
-                .map_or(1.0, |now| state.morph.interpolate(0.0, 1.0, now))
-        };
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
-        state.current = lerp(state.from, target, state.progress);
+        state.current = interpolated(state.origin, target, self.morph.progress);
         let popup = state.current;
         state.connector = ConnectorTriangle::between(
             self.anchor,
@@ -361,13 +352,16 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             self.radius,
         );
 
-        Node::with_children(
-            surface,
-            nodes
-                .into_iter()
-                .map(|node| node.move_to(popup.position()))
-                .collect(),
-        )
+        let placed = self
+            .renderings
+            .iter()
+            .zip(nodes)
+            .map(|(rendering, node)| {
+                let framed_height = rendering.framing.framed_size(&node).height;
+                node.move_to(self.content_origin(popup, framed_height))
+            })
+            .collect();
+        Node::with_children(surface, placed)
     }
 
     fn draw(
@@ -387,36 +381,17 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
-        let background =
-            self.frame
-                .container_style(theme)
-                .background
-                .map_or(Color::TRANSPARENT, |fill| match fill {
-                    Background::Color(color) => color,
-                    Background::Gradient(_) => Color::TRANSPARENT,
-                });
-        let outline = self.frame.outline_border(theme);
-        renderer.fill_quad(
-            renderer::Quad {
-                bounds: box_bounds,
-                border: Border {
-                    color: Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: self.radius.into(),
-                },
-                shadow: self.shadow,
-                ..Default::default()
-            },
-            Color::TRANSPARENT,
-        );
-        state.connector.translated(origin).draw_joined(
+        state.connector.translated(origin).draw_framed_surface(
             renderer,
-            box_bounds,
-            Radius::from(self.radius),
-            background,
-            outline,
+            theme,
+            FramedSurface {
+                frame: self.frame,
+                bounds: box_bounds,
+                corners: Radius::from(self.radius),
+                shadow: self.shadow,
+            },
         );
-        let content_clip = if self.frames_first_child() && self.is_settled(state) {
+        let content_clip = if self.frames_first_child() && self.is_settled() {
             *viewport
         } else {
             box_bounds
@@ -487,21 +462,6 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 shell,
                 viewport,
             );
-        }
-        let Event::Window(window::Event::RedrawRequested(now)) = event else {
-            return;
-        };
-        let state: &mut MorphState = tree.state.downcast_mut();
-        state.now = Some(*now);
-        if mem::take(&mut state.morph_pending) {
-            state.morph = Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(self.morph)
-                .go(true, *now);
-        }
-        if state.progress < 1.0 {
-            shell.invalidate_layout();
-            shell.request_redraw();
         }
     }
 

@@ -46,10 +46,11 @@ use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{HoverTarget, TooltipHost, tooltip_surfaces::HoverContent},
+    hover_tooltips::{GroupHandle, HoverTarget, TooltipHost, tooltip_surfaces::HoverContent},
     notification_toasts::NotificationLayer,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
+        group_menus::GroupMenuMessage,
         idle_timeouts_group::IdleTimeoutsMessage,
         niri_window_group::niri_kdl_rules::NiriRulesFile,
         session_menu::{self},
@@ -57,7 +58,7 @@ use sottomano_widgets::{
     widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{GroupMenuSurfaces, MenuInspection},
+        group_menu::{GroupMenuSurfaces, InspectionCard},
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -162,7 +163,8 @@ impl DesktopShell {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
         self.clock = Clock::real();
-        let hovered_before = self.tooltip.reading_target().cloned();
+        let tooltip_target_before = self.tooltip.target().cloned();
+        let hovered_before = self.hovered_reading_target().cloned();
         let reheat_due = reheats_switch_heat(&message);
         let dispatched = self.dispatch_message(message);
         self.widget_groups
@@ -174,7 +176,13 @@ impl DesktopShell {
         } else {
             Task::none()
         };
-        let hover_readings = if self.tooltip.reading_target() == hovered_before.as_ref() {
+        if self.tooltip.target() != tooltip_target_before.as_ref() {
+            let _closed = self
+                .widget_groups
+                .group_menus
+                .update(GroupMenuMessage::Closed);
+        }
+        let hover_readings = if self.hovered_reading_target() == hovered_before.as_ref() {
             Task::none()
         } else {
             self.retarget_hover_readings()
@@ -244,11 +252,11 @@ impl DesktopShell {
                 .idle_timeouts_group
                 .update(msg)
                 .map(Message::IdleTimeouts),
-            Message::GroupMenuPins(msg) => self
+            Message::GroupMenus(msg) => self
                 .widget_groups
-                .group_menu_pins
+                .group_menus
                 .update(msg)
-                .map(Message::GroupMenuPins),
+                .map(Message::GroupMenus),
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
@@ -396,33 +404,32 @@ impl DesktopShell {
     }
 
     fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {
-        let HoverTarget::GroupHandle(handle) = target else {
+        let HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind)) = target else {
             return None;
         };
         let group_menu = self
             .bar_group_menus()
-            .find(|group_menu| group_menu.handle() == *handle)?;
-        let inspected_row = self.tooltip.inspected_row();
-        let card = inspected_row
+            .find(|group_menu| group_menu.kind() == *kind)?;
+        let card_tooltip = self
+            .widget_groups
+            .group_menus
+            .inspected_row(*kind)
             .and_then(|row| {
                 self.tooltip_for(&row.target)
                     .map(|tooltip| tooltip.with_announcement(row.announcement))
             })
             .unwrap_or_else(Tooltip::empty);
-        let inspection = MenuInspection {
-            open_member: self.tooltip.inspected_member(),
-            inspected_row,
-            card: &card,
-        };
         group_menu.surfaces(
             &self.config,
-            self.window_assets(),
-            self.clock,
             &self
                 .widget_groups
                 .overlay_settings_group
                 .overlay_appearance(),
-            &inspection,
+            &InspectionCard {
+                tooltip: &card_tooltip,
+                assets: self.window_assets(),
+                clock: self.clock,
+            },
         )
     }
 

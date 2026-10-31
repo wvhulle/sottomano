@@ -175,9 +175,9 @@ impl<'a> TooltipContent<'a> {
                         .into();
                 let unpin = match panel_pin {
                     PanelPin::Unpinned => None,
-                    PanelPin::PinnedFrom(group_menu) => {
+                    PanelPin::PinnedFrom(menu) => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
-                            group_menu,
+                            menu,
                             group_title,
                         }))
                     }

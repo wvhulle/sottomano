@@ -1,6 +1,5 @@
 pub mod core_grid;
 pub mod hover_area;
-pub mod panel_row_inspection;
 pub mod tooltip_content;
 pub mod tooltip_surfaces;
 pub mod tooltip_transition;
@@ -28,6 +27,7 @@ use crate::{
         ethernet_ports_group::EthernetPortTarget,
         gamepad_group::GamepadTarget,
         gpu_group::GpuTarget,
+        group_menus::GroupMenuKind,
         journal_events_group::JournalTarget,
         llama_server_group::LlamaServerTarget,
         login_session_group::LoginSessionTarget,
@@ -111,12 +111,10 @@ pub enum HoverTarget {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupHandle {
-    AppearanceMenu,
     Audio,
-    BehaviourMenu,
     Caldav,
     ClaudeUsage,
-    HardwareMenu,
+    GroupMenu(GroupMenuKind),
     ColorTemperature,
     CopilotUsage,
     DarkMode,
@@ -223,7 +221,7 @@ pub enum HoverOrigin {
 pub enum PanelPin {
     #[default]
     Unpinned,
-    PinnedFrom(GroupHandle),
+    PinnedFrom(GroupMenuKind),
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -293,8 +291,6 @@ pub enum TooltipMessage {
         target: HoverTarget,
         announcement: HoverAnnouncement,
     },
-    InspectMember(usize),
-    Inspect(InspectedRow),
     EnterTooltip,
     ExitTooltip,
     SwitchIntentElapsed,
@@ -315,7 +311,7 @@ pub enum PopupMessage {
     RefreshHoveredReading,
     WindowGroup(WindowGroupMessage),
     ToggleGroupMenuPin {
-        group_menu: GroupHandle,
+        menu: GroupMenuKind,
         group_title: &'static str,
     },
 }

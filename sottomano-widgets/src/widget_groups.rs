@@ -12,7 +12,7 @@ mod echo_probe_window_rows;
 pub mod ethernet_ports_group;
 pub mod gamepad_group;
 pub mod gpu_group;
-pub mod group_menu_pins;
+pub mod group_menus;
 pub mod idle_timeouts_group;
 mod interface_address_sections;
 pub mod journal_events_group;

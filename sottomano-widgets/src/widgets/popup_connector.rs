@@ -1,14 +1,23 @@
 use iced::{
-    Border, Color, Point, Rectangle, Size, Vector,
-    advanced::graphics::geometry::Renderer as _,
+    Border, Color, Point, Rectangle, Shadow, Size, Theme, Vector,
+    advanced::{Renderer as _, graphics::geometry::Renderer as _, renderer},
     border::Radius,
     widget::canvas::{Frame, Path, Stroke, path::Builder},
 };
 use sottomano_config::screen_edges::Position;
 
+use crate::widgets::panel_frame::LayerFrameStyle;
+
 const BASE_HALF_WIDTH_PX: f32 = 6.0;
 const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
-const ROUNDED_TIP_SHARE: f32 = 0.3;
+
+#[derive(Debug, Clone, Copy)]
+pub struct FramedSurface {
+    pub frame: LayerFrameStyle,
+    pub bounds: Rectangle,
+    pub corners: Radius,
+    pub shadow: Shadow,
+}
 
 pub struct ConnectorTriangle {
     position: Position,
@@ -168,6 +177,11 @@ impl ConnectorTriangle {
         }
     }
 
+    fn rounded_tip_share(&self) -> f32 {
+        let flank = self.base_start - self.apex;
+        (SHOULDER_PX / flank.x.hypot(flank.y).max(f32::EPSILON)).min(0.5)
+    }
+
     fn trace_sides(&self, path: &mut Builder, reversed: bool) {
         let [shoulder_start, shoulder_end] = self.shoulders();
         let (near_base, far_base, near_shoulder, far_shoulder) = if reversed {
@@ -175,13 +189,14 @@ impl ConnectorTriangle {
         } else {
             (self.base_start, self.base_end, shoulder_start, shoulder_end)
         };
+        let tip_share = self.rounded_tip_share();
         path.line_to(near_shoulder);
         path.bezier_curve_to(
             near_base,
             toward(near_base, self.apex, 0.5),
-            toward(self.apex, near_base, ROUNDED_TIP_SHARE),
+            toward(self.apex, near_base, tip_share),
         );
-        path.quadratic_curve_to(self.apex, toward(self.apex, far_base, ROUNDED_TIP_SHARE));
+        path.quadratic_curve_to(self.apex, toward(self.apex, far_base, tip_share));
         path.bezier_curve_to(toward(far_base, self.apex, 0.5), far_base, far_shoulder);
     }
 
@@ -240,7 +255,40 @@ impl ConnectorTriangle {
         })
     }
 
-    pub fn draw_joined(
+    pub fn draw_framed_surface(
+        &self,
+        renderer: &mut iced::Renderer,
+        theme: &Theme,
+        surface: FramedSurface,
+    ) {
+        let FramedSurface {
+            frame,
+            bounds,
+            corners,
+            shadow,
+        } = surface;
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds,
+                border: Border {
+                    radius: corners,
+                    ..Border::default()
+                },
+                shadow,
+                ..renderer::Quad::default()
+            },
+            Color::TRANSPARENT,
+        );
+        self.draw_joined(
+            renderer,
+            bounds,
+            corners,
+            frame.fill_color(theme),
+            frame.outline_border(theme),
+        );
+    }
+
+    fn draw_joined(
         &self,
         renderer: &mut iced::Renderer,
         panel: Rectangle,

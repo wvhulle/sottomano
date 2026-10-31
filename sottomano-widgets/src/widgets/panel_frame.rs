@@ -57,13 +57,18 @@ impl LayerFrameStyle {
     #[must_use]
     pub fn container_style(self, theme: &Theme) -> container::Style {
         container::Style::default()
-            .background(background_color(theme).scale_alpha(self.appearance.opacity))
+            .background(self.fill_color(theme))
             .border(Border {
                 radius: self.corner_radius(),
                 ..self.outline_border(theme)
             })
             .shadow(self.drop_shadow())
             .color(text_color(theme))
+    }
+
+    #[must_use]
+    pub fn fill_color(self, theme: &Theme) -> Color {
+        background_color(theme).scale_alpha(self.appearance.opacity)
     }
 
     #[must_use]

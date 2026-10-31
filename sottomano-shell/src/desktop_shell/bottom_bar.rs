@@ -3,8 +3,10 @@ use std::iter::once;
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_tooltips::GroupHandle,
-    widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
+    widget_groups::{
+        group_menus::GroupMenuKind, sidebar_settings_group::WorkspacesPlacement,
+        workspaces_group::inline_strip,
+    },
     widgets::{
         group_menu::GroupMenu,
         phosphor::{Phosphor, Weight},
@@ -12,10 +14,7 @@ use sottomano_widgets::{
     },
 };
 
-use crate::{
-    desktop_shell::{DesktopShell, panel_bar::toggle_group_menu_pin},
-    shell_message::Message,
-};
+use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
     pub settings_menus: [GroupMenu<'a, Message>; 2],
@@ -59,20 +58,16 @@ impl DesktopShell {
 
     fn settings_menus(&self) -> [GroupMenu<'_, Message>; 2] {
         [
-            GroupMenu::new(
-                GroupHandle::AppearanceMenu,
+            self.group_menu(
+                GroupMenuKind::Appearance,
                 "Appearance",
                 Phosphor::SlidersHorizontal(Weight::Regular),
-                &self.widget_groups.group_menu_pins,
-                toggle_group_menu_pin,
                 self.settings_groups().map(GroupContent::only_aligned_items),
             ),
-            GroupMenu::new(
-                GroupHandle::BehaviourMenu,
+            self.group_menu(
+                GroupMenuKind::Behaviour,
                 "Behaviour",
                 Phosphor::ToggleRight(Weight::Regular),
-                &self.widget_groups.group_menu_pins,
-                toggle_group_menu_pin,
                 self.settings_groups()
                     .map(GroupContent::only_unaligned_items),
             ),

@@ -199,7 +199,13 @@ impl ShowcaseState {
                     .map(|reply| PendingHoverReply { due, reply })
                     .collect();
                 let panel_edge = self.panel_edge();
-                self.tooltip.open(&panel_edge, target, anchor, announcement);
+                self.tooltip.open(
+                    &panel_edge,
+                    target,
+                    anchor,
+                    announcement,
+                    self.clock.instant,
+                );
                 Task::none()
             }
             ShowcaseMessage::Tooltip(message) => {

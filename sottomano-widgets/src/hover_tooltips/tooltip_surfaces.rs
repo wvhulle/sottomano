@@ -1,4 +1,4 @@
-use std::{collections::HashMap, iter::once, mem::take};
+use std::{collections::HashMap, iter::once};
 
 use iced::{
     Element, Rectangle, Task, task,
@@ -13,15 +13,16 @@ use tokio::time::sleep;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, TooltipMessage,
-        panel_row_inspection::PanelRowInspection,
+        HoverAnnouncement, HoverTarget, PopupMessage, TooltipMessage,
         tooltip_content::TooltipContent,
-        tooltip_transition::{Departed, DepartedContent, Occupant, Placement, TooltipTransition},
+        tooltip_transition::{
+            Departed, DepartedContent, Occupant, Placement, ShownTarget, TooltipTransition,
+        },
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
     widgets::{
-        anchored_popup::{PopupFraming, Rendering, anchored_popup},
+        anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -46,7 +47,6 @@ pub struct TooltipHost {
     pending_switch: Option<PendingSwitch>,
     hide_due: Option<Instant>,
     pointer_over_tooltip: bool,
-    inspection: PanelRowInspection,
 }
 
 impl TooltipHost {
@@ -69,18 +69,6 @@ impl TooltipHost {
                 announcement,
             } => {
                 self.transition.revise_announcement(&target, announcement);
-                None
-            }
-            TooltipMessage::InspectMember(member) => {
-                if let Some(within) = self.target().cloned() {
-                    self.inspection = take(&mut self.inspection).inspecting_member(&within, member);
-                }
-                None
-            }
-            TooltipMessage::Inspect(row) => {
-                if let Some(within) = self.target().cloned() {
-                    self.inspection = take(&mut self.inspection).inspecting_row(&within, row);
-                }
                 None
             }
             TooltipMessage::Enter { .. }
@@ -129,6 +117,7 @@ impl TooltipHost {
         target: HoverTarget,
         anchor: Rectangle,
         announcement: HoverAnnouncement,
+        now: Instant,
     ) {
         self.pending_switch = None;
         self.pointer_over_tooltip = false;
@@ -140,15 +129,18 @@ impl TooltipHost {
         {
             return;
         }
-        self.transition.show(Occupant {
-            target,
-            announcement,
-            placement: Placement {
-                anchor,
-                position: parent.position,
-                output: parent.output.clone(),
+        self.transition.show(
+            Occupant {
+                target,
+                announcement,
+                placement: Placement {
+                    anchor,
+                    position: parent.position,
+                    output: parent.output.clone(),
+                },
             },
-        });
+            now,
+        );
     }
 
     fn exit(&mut self, target: &HoverTarget, now: Instant) -> Option<Instant> {
@@ -204,6 +196,11 @@ impl TooltipHost {
             }),
             Task::done(input_regions(id, Vec::new())),
         ])
+    }
+
+    #[must_use]
+    pub fn is_morphing(&self, now: Instant, morph: Duration) -> bool {
+        self.transition.morph_progress(now, morph) < 1.0
     }
 
     #[must_use]
@@ -278,22 +275,6 @@ impl TooltipHost {
     }
 
     #[must_use]
-    pub fn inspected_member(&self) -> Option<usize> {
-        self.inspection.member_within(self.target())
-    }
-
-    #[must_use]
-    pub fn inspected_row(&self) -> Option<&InspectedRow> {
-        self.inspection.row_within(self.target())
-    }
-
-    #[must_use]
-    pub fn reading_target(&self) -> Option<&HoverTarget> {
-        self.inspected_row()
-            .map(|row| &row.target)
-            .or_else(|| self.target())
-    }
-    #[must_use]
     pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
         let current = self.transition.current()?;
         let departed_content = match content.with_announcement(current.announcement) {
@@ -354,7 +335,10 @@ impl TooltipHost {
                 Vec::new(),
                 Rectangle::default(),
                 Position::Top,
-                self.transition.seq(),
+                PopupMorph {
+                    progress: 1.0,
+                    shown: ShownTarget::Nothing,
+                },
                 config,
                 surface_style.overlay_appearance,
             ));
@@ -379,7 +363,12 @@ impl TooltipHost {
                 renderings,
                 placement.anchor,
                 placement.position,
-                self.transition.seq(),
+                PopupMorph {
+                    progress: self
+                        .transition
+                        .morph_progress(clock.instant, config.tooltips.popup_morph),
+                    shown: self.transition.shown_target(),
+                },
                 config,
                 surface_style.overlay_appearance,
             ))

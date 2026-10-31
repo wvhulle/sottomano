@@ -1,4 +1,8 @@
-use iced::{Rectangle, time::Instant};
+use iced::{
+    Animation, Rectangle,
+    animation::Easing,
+    time::{Duration, Instant},
+};
 use sottomano_config::screen_edges::Position;
 
 use crate::{
@@ -41,33 +45,42 @@ impl Departed {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ShownTarget {
+    Nothing,
+    Target(HoverTarget),
+}
+
 enum Stage {
     Idle,
-    Showing { current: Occupant, leaving: bool },
-    Hiding { previous: Departed, since: Instant },
+    Showing {
+        current: Occupant,
+        leaving: bool,
+        since: Instant,
+    },
+    Hiding {
+        previous: Departed,
+        since: Instant,
+    },
 }
 
 pub struct TooltipTransition {
     stage: Stage,
-    seq: u64,
 }
 
 impl Default for TooltipTransition {
     fn default() -> Self {
-        Self {
-            stage: Stage::Idle,
-            seq: 0,
-        }
+        Self { stage: Stage::Idle }
     }
 }
 
 impl TooltipTransition {
-    pub fn show(&mut self, current: Occupant) {
+    pub fn show(&mut self, current: Occupant, now: Instant) {
         self.stage = Stage::Showing {
             current,
             leaving: false,
+            since: now,
         };
-        self.restart();
     }
 
     pub fn hide(&mut self, previous: Option<Departed>, now: Instant) {
@@ -78,16 +91,30 @@ impl TooltipTransition {
             },
             None => Stage::Idle,
         };
-        self.restart();
     }
 
     pub fn reset(&mut self) {
         self.stage = Stage::Idle;
-        self.restart();
     }
 
-    fn restart(&mut self) {
-        self.seq += 1;
+    #[must_use]
+    pub fn morph_progress(&self, now: Instant, morph: Duration) -> f32 {
+        match self.stage {
+            Stage::Idle => 1.0,
+            Stage::Showing { since, .. } | Stage::Hiding { since, .. } => Animation::new(false)
+                .easing(Easing::EaseOutCubic)
+                .duration(morph)
+                .go(true, since)
+                .interpolate(0.0, 1.0, now),
+        }
+    }
+
+    #[must_use]
+    pub fn shown_target(&self) -> ShownTarget {
+        match &self.stage {
+            Stage::Showing { current, .. } => ShownTarget::Target(current.target.clone()),
+            Stage::Idle | Stage::Hiding { .. } => ShownTarget::Nothing,
+        }
     }
 
     pub fn request_leave(&mut self) {
@@ -146,10 +173,5 @@ impl TooltipTransition {
             Stage::Hiding { previous, .. } => Some(&previous.placement),
             Stage::Idle => None,
         }
-    }
-
-    #[must_use]
-    pub fn seq(&self) -> u64 {
-        self.seq
     }
 }
