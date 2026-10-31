@@ -196,7 +196,6 @@ async fn advertised_websocket(login: &PushLogin, password: &str) -> Result<Strin
             ("Accept", "application/json"),
             ("Authorization", &authorization),
         ],
-        HANDSHAKE_TIMEOUT.as_secs(),
     )
     .await?;
     let Some(notify_push) = capabilities.ocs.data.capabilities.notify_push else {

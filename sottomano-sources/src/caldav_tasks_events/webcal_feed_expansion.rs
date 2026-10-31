@@ -2,7 +2,6 @@ use std::{
     collections::BTreeSet,
     fmt::{Display, Formatter, Result as FmtResult},
     str::FromStr,
-    time::Duration,
 };
 
 use calcard::{
@@ -14,13 +13,15 @@ use calcard::{
 };
 use chrono::{DateTime, TimeDelta, Utc};
 
-use crate::caldav_tasks_events::{
-    agenda_moment_zones::AgendaMoment,
-    caldav_event_query::{EventOrigin, EventWindow, UpcomingEvent, displayed_summary},
-    caldav_home_listing::SubscribedCalendar,
+use crate::{
+    caldav_tasks_events::{
+        agenda_moment_zones::AgendaMoment,
+        caldav_event_query::{EventOrigin, EventWindow, UpcomingEvent, displayed_summary},
+        caldav_home_listing::SubscribedCalendar,
+    },
+    system_protocol_clients::http_json_client,
 };
 
-const FEED_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 const SERIES_EXPANSION_LIMIT: usize = 50_000;
 
 type ExpandedOccurrence =
@@ -54,7 +55,7 @@ pub async fn download_feed_events(
 ) -> Result<Vec<UpcomingEvent>, FeedExpansionError> {
     let feed_text = http_client
         .get(&subscription.source_url)
-        .timeout(FEED_DOWNLOAD_TIMEOUT)
+        .timeout(http_json_client::REQUEST_TIMEOUT)
         .send()
         .await?
         .error_for_status()?

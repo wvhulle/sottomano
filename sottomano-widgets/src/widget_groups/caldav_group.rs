@@ -13,6 +13,8 @@ use sottomano_sources::{
         caldav_server_provider::CaldavProvider,
         caldav_upcoming_events::UpcomingEventList,
     },
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
@@ -93,15 +95,25 @@ impl CaldavGroup {
         })
     }
 
-    pub fn subscription(&self, config: &CaldavAccountConfig) -> Subscription<CaldavMessage> {
-        match self.account(config) {
-            Some(account) => Subscription::batch([
-                snapshot_subscription::<UpcomingEventList>(account.clone())
-                    .map(|delivery| CaldavMessage::UpcomingEvents(Box::new(delivery))),
-                snapshot_subscription::<OpenTaskList>(account)
-                    .map(|delivery| CaldavMessage::OpenTasks(Box::new(delivery))),
-            ]),
-            None => Subscription::none(),
+    pub fn subscription(
+        &self,
+        config: &CaldavAccountConfig,
+        buses: Option<&DesktopBuses>,
+    ) -> Subscription<CaldavMessage> {
+        match (self.account(config), buses) {
+            (Some(account), Some(buses)) => {
+                let online_account = OnlineSourceInputs {
+                    buses: buses.clone(),
+                    source_inputs: account,
+                };
+                Subscription::batch([
+                    snapshot_subscription::<UpcomingEventList>(online_account.clone())
+                        .map(|delivery| CaldavMessage::UpcomingEvents(Box::new(delivery))),
+                    snapshot_subscription::<OpenTaskList>(online_account)
+                        .map(|delivery| CaldavMessage::OpenTasks(Box::new(delivery))),
+                ])
+            }
+            _ => Subscription::none(),
         }
     }
 

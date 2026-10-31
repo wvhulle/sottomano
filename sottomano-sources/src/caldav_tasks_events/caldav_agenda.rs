@@ -29,6 +29,7 @@ use crate::{
         nextcloud_notify_push::{PushLogin, activity_pings},
     },
     delivery_cadence_drivers::{AdaptiveCadence, PeriodicPolling, TriggeredRereadCadence},
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     secret_file_reads::read_secret,
     stream_operators::StreamOperators,
 };
@@ -125,6 +126,18 @@ pub(super) trait AgendaSnapshotPolling: Send + 'static {
 }
 
 pub(super) fn push_or_poll_deliveries<Poller: AgendaSnapshotPolling>(
+    OnlineSourceInputs {
+        buses,
+        source_inputs: account,
+    }: OnlineSourceInputs<CaldavAccount>,
+    new_poller: impl Fn(CaldavAccount) -> Poller + Send + 'static,
+) -> impl Stream<Item = SnapshotDelivery<Poller::Snapshot>> + Send {
+    internet_connectivity_gate::while_online(buses, move || {
+        push_or_poll_session(&account, new_poller(account.clone()))
+    })
+}
+
+fn push_or_poll_session<Poller: AgendaSnapshotPolling>(
     account: &CaldavAccount,
     poller: Poller,
 ) -> impl Stream<Item = SnapshotDelivery<Poller::Snapshot>> + Send + use<Poller> {

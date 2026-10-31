@@ -10,6 +10,8 @@ mod wind_speed;
 
 use sottomano_sources::{
     SnapshotDelivery,
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     weather::{
         self,
         buienradar_rain::Rain,
@@ -91,21 +93,27 @@ impl WeatherGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self) -> Subscription<WeatherMessage> {
+    pub fn subscription(&self, buses: Option<&DesktopBuses>) -> Subscription<WeatherMessage> {
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
-        let Some(here) = self.location.get().map(Location::position) else {
+        let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
             return location;
+        };
+        let online_here = || OnlineSourceInputs {
+            buses: buses.clone(),
+            source_inputs: here,
         };
         Subscription::batch([
             location,
-            snapshot_subscription::<Temperature>(here).map(WeatherMessage::Temperature),
-            snapshot_subscription::<Rain>(here).map(WeatherMessage::Rain),
-            snapshot_subscription::<PrecipitationModel>(here)
+            snapshot_subscription::<Temperature>(online_here()).map(WeatherMessage::Temperature),
+            snapshot_subscription::<Rain>(online_here()).map(WeatherMessage::Rain),
+            snapshot_subscription::<PrecipitationModel>(online_here())
                 .map(WeatherMessage::PrecipitationModel),
-            self.expansion
-                .while_expanded(snapshot_subscription::<Wind>(here).map(WeatherMessage::Wind)),
-            self.expansion
-                .while_expanded(snapshot_subscription::<Pollen>(here).map(WeatherMessage::Pollen)),
+            self.expansion.while_expanded(
+                snapshot_subscription::<Wind>(online_here()).map(WeatherMessage::Wind),
+            ),
+            self.expansion.while_expanded(
+                snapshot_subscription::<Pollen>(online_here()).map(WeatherMessage::Pollen),
+            ),
         ])
     }
 
@@ -128,23 +136,38 @@ impl WeatherGroup {
         Task::none()
     }
 
-    pub fn refresh(&self, target: WeatherTarget) -> Task<WeatherMessage> {
+    pub fn refresh(
+        &self,
+        target: WeatherTarget,
+        buses: Option<&DesktopBuses>,
+    ) -> Task<WeatherMessage> {
         let Some(here) = self.location.get().map(Location::position) else {
             return first_delivery::<Location>(()).map(WeatherMessage::Location);
         };
+        if let WeatherTarget::Location = target {
+            return first_delivery::<Location>(()).map(WeatherMessage::Location);
+        }
+        let Some(buses) = buses else {
+            return Task::none();
+        };
+        let online_here = || OnlineSourceInputs {
+            buses: buses.clone(),
+            source_inputs: here,
+        };
         match target {
             WeatherTarget::Temperature => {
-                first_delivery::<Temperature>(here).map(WeatherMessage::Temperature)
+                first_delivery::<Temperature>(online_here()).map(WeatherMessage::Temperature)
             }
-            WeatherTarget::Wind => first_delivery::<Wind>(here).map(WeatherMessage::Wind),
+            WeatherTarget::Wind => first_delivery::<Wind>(online_here()).map(WeatherMessage::Wind),
             WeatherTarget::Rain => Task::batch([
-                first_delivery::<Rain>(here).map(WeatherMessage::Rain),
-                first_delivery::<PrecipitationModel>(here).map(WeatherMessage::PrecipitationModel),
+                first_delivery::<Rain>(online_here()).map(WeatherMessage::Rain),
+                first_delivery::<PrecipitationModel>(online_here())
+                    .map(WeatherMessage::PrecipitationModel),
             ]),
             WeatherTarget::Pollen | WeatherTarget::Allergen(_) => {
-                first_delivery::<Pollen>(here).map(WeatherMessage::Pollen)
+                first_delivery::<Pollen>(online_here()).map(WeatherMessage::Pollen)
             }
-            WeatherTarget::Location => first_delivery::<Location>(()).map(WeatherMessage::Location),
+            WeatherTarget::Location => Task::none(),
         }
     }
 

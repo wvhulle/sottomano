@@ -8,7 +8,9 @@ use uom::si::f64::Velocity;
 
 use super::Error;
 use crate::{
-    SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
+    SnapshotDelivery, SnapshotSource,
+    delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     system_protocol_clients::http_json_client,
 };
 
@@ -137,14 +139,20 @@ impl From<RadarSlot> for Downpour {
 
 impl SnapshotSource for Rain {
     type Error = Error;
-    type StreamInputs = GeoCoordinates;
+    type StreamInputs = OnlineSourceInputs<GeoCoordinates>;
 
     const NAME: &'static str = "Rain radar";
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        OnlineSourceInputs {
+            buses,
+            source_inputs: inputs,
+        }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_secs(60)).poll_deliveries(move || Self::poll(inputs))
+        internet_connectivity_gate::while_online(buses, move || {
+            PeriodicPolling::every(Duration::from_secs(60))
+                .poll_deliveries(move || Self::poll(inputs))
+        })
     }
 }
 
@@ -156,7 +164,7 @@ impl Rain {
             here.longitude_degrees()
         );
         let nowcast: RadarNowcast =
-            http_json_client::get_json(&url, &[], 5)
+            http_json_client::get_json(&url, &[])
                 .await
                 .map_err(|error| match error {
                     http_json_client::Error::Status { status: 404, .. } => Error::OutsideRainRadar,

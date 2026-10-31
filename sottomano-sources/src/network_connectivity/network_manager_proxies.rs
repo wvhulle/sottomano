@@ -22,10 +22,7 @@ use zbus::{
     zvariant::{ObjectPath, OwnedObjectPath, OwnedValue},
 };
 
-use crate::{
-    network_connectivity::ReadingError, non_empty_text::non_empty,
-    stream_operators::connected_until_failure,
-};
+use crate::{network_connectivity::ReadingError, non_empty_text::non_empty};
 
 pub const SERVICE: &str = "org.freedesktop.NetworkManager";
 
@@ -53,6 +50,7 @@ impl From<u32> for DeviceKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Connectivity {
     Full,
+    Portal,
     Limited,
     Offline,
 }
@@ -63,7 +61,8 @@ impl TryFrom<u32> for Connectivity {
     fn try_from(state_code: u32) -> Result<Self, Self::Error> {
         match state_code {
             4 => Ok(Self::Full),
-            2 | 3 => Ok(Self::Limited),
+            3 => Ok(Self::Limited),
+            2 => Ok(Self::Portal),
             1 => Ok(Self::Offline),
             unknown => Err(unknown),
         }
@@ -75,6 +74,7 @@ impl Connectivity {
     pub fn label(self) -> &'static str {
         match self {
             Self::Full => "full",
+            Self::Portal => "portal login",
             Self::Limited => "limited",
             Self::Offline => "none",
         }
@@ -97,6 +97,14 @@ trait Manager {
     ) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn connectivity(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn state(&self) -> zbus::Result<u32>;
+    #[zbus(property)]
+    fn networking_enabled(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn primary_connection(&self) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(property)]
+    fn activating_connection(&self) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
     fn metered(&self) -> zbus::Result<u32>;
     #[zbus(property)]
@@ -191,6 +199,8 @@ trait ActiveConnection {
     fn vpn(&self) -> zbus::Result<bool>;
     #[zbus(property)]
     fn connection(&self) -> zbus::Result<OwnedObjectPath>;
+    #[zbus(property)]
+    fn devices(&self) -> zbus::Result<Vec<OwnedObjectPath>>;
     #[zbus(property)]
     fn ip4_config(&self) -> zbus::Result<OwnedObjectPath>;
     #[zbus(property)]
@@ -312,26 +322,98 @@ pub struct DeviceGateway {
 const METERED_YES: u32 = 1;
 const METERED_GUESS_YES: u32 = 3;
 
-pub fn connected(system: Connection) -> impl Stream<Item = bool> + Send {
-    connected_until_failure(connectivity_changes(system)).map(|connected| {
-        connected.unwrap_or_else(|e| {
-            tracing::warn!("network connectivity watch: {e}");
-            false
-        })
-    })
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveConnectionUplink {
+    pub connection_name: String,
+    pub interface: String,
 }
 
-async fn connectivity_changes(
-    system: Connection,
-) -> zbus::Result<impl Stream<Item = zbus::Result<bool>> + Send> {
-    let manager = ManagerProxy::new(&system).await?;
-    let full = |code: u32| Connectivity::try_from(code) == Ok(Connectivity::Full);
-    let now = full(manager.connectivity().await?);
-    let changes = manager
-        .receive_connectivity_changed()
-        .await
-        .then(move |change| async move { change.get().await.map(full) });
-    Ok(stream::iter([Ok(now)]).chain(changes))
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UplinkIdentity {
+    Named(ActiveConnectionUplink),
+    Unnamed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectedScope {
+    Local,
+    Site,
+    Global,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ManagerState {
+    Asleep,
+    Disconnected,
+    Disconnecting,
+    Connecting,
+    Connected(ConnectedScope),
+    Unknown,
+}
+
+impl From<u32> for ManagerState {
+    fn from(state_code: u32) -> Self {
+        match state_code {
+            10 => Self::Asleep,
+            20 => Self::Disconnected,
+            30 => Self::Disconnecting,
+            40 => Self::Connecting,
+            50 => Self::Connected(ConnectedScope::Local),
+            60 => Self::Connected(ConnectedScope::Site),
+            70 => Self::Connected(ConnectedScope::Global),
+            _ => Self::Unknown,
+        }
+    }
+}
+
+pub async fn networking_enabled(connection: &Connection) -> zbus::Result<bool> {
+    manager(connection).await?.networking_enabled().await
+}
+
+pub async fn manager_state(connection: &Connection) -> zbus::Result<ManagerState> {
+    Ok(ManagerState::from(
+        manager(connection).await?.state().await?,
+    ))
+}
+
+pub async fn checked_connectivity(
+    connection: &Connection,
+) -> zbus::Result<Result<Connectivity, u32>> {
+    Ok(Connectivity::try_from(
+        manager(connection).await?.connectivity().await?,
+    ))
+}
+
+pub async fn primary_uplink(connection: &Connection) -> zbus::Result<UplinkIdentity> {
+    let primary_connection = manager(connection).await?.primary_connection().await?;
+    uplink_identity(connection, primary_connection).await
+}
+
+pub async fn activating_uplink(connection: &Connection) -> zbus::Result<UplinkIdentity> {
+    let activating_connection = manager(connection).await?.activating_connection().await?;
+    uplink_identity(connection, activating_connection).await
+}
+
+async fn uplink_identity(
+    connection: &Connection,
+    active_connection: OwnedObjectPath,
+) -> zbus::Result<UplinkIdentity> {
+    if is_unset(&active_connection) {
+        return Ok(UplinkIdentity::Unnamed);
+    }
+    let active: ActiveConnectionProxy = uncached(connection, active_connection).await?;
+    let (connection_name, device_paths) = try_join!(active.id(), active.devices())?;
+    let interface = match device_paths.into_iter().next() {
+        Some(device_path) => {
+            let device: DeviceProxy = uncached(connection, device_path).await?;
+            device.interface().await?
+        }
+        None => String::new(),
+    };
+    Ok(UplinkIdentity::Named(ActiveConnectionUplink {
+        connection_name,
+        interface,
+    }))
 }
 
 pub async fn uplink(connection: Connection) -> Result<Uplink, ReadingError> {
@@ -924,6 +1006,7 @@ pub const SETTINGS_PROPERTIES: &str = "org.freedesktop.NetworkManager.Settings";
 
 pub const UPLINK_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, DEVICE_PROPERTIES];
 pub const CONNECTIVITY_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES];
+pub const INTERNET_ACCESS_PROPERTIES: &[&str] = &[MANAGER_PROPERTIES, ACTIVE_CONNECTION_PROPERTIES];
 pub const GATEWAY_PROPERTIES: &[&str] = &[
     MANAGER_PROPERTIES,
     DEVICE_PROPERTIES,

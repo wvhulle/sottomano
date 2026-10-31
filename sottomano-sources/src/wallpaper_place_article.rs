@@ -382,7 +382,6 @@ async fn describe_photo(file_name: String, id: &str, secret: &str) -> Result<Wal
             ("Authorization", authorization.as_str()),
             ("User-Agent", USER_AGENT),
         ],
-        10,
     )
     .await?;
     let location = response.location;
@@ -441,7 +440,7 @@ async fn nearby_search(
         .append_pair("format", "json")
         .finish();
     let url = format!("https://{language}.wikipedia.org/w/api.php?{query}");
-    Ok(http_json_client::get_json(&url, &[("User-Agent", USER_AGENT)], 10).await?)
+    Ok(http_json_client::get_json(&url, &[("User-Agent", USER_AGENT)]).await?)
 }
 
 fn best_article(found: SearchEnvelope, language: &str) -> Option<WikipediaArticle> {

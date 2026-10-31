@@ -18,6 +18,8 @@ use sottomano_sources::{
         },
         working_time_forecast::{SpendBudget, SpendPacing, WorkingTime},
     },
+    network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
 use crate::{
@@ -119,17 +121,21 @@ impl ClaudeUsageGroup {
         &mut self,
         hovered: Option<&HoverTarget>,
         config: &Config,
+        buses: Option<&DesktopBuses>,
         clock: Clock,
     ) -> Task<ClaudeUsageMessage> {
         self.organization.stop();
         let Some(HoverTarget::ClaudeUsage(ClaudeUsageTarget::EnterpriseSpend)) = hovered else {
             return Task::none();
         };
-        let Some(credentials) = self.oauth_credentials.clone() else {
+        let (Some(credentials), Some(buses)) = (self.oauth_credentials.clone(), buses) else {
             return Task::none();
         };
         self.organization.start_hover_fetch(
-            credentials,
+            OnlineSourceInputs {
+                buses: buses.clone(),
+                source_inputs: credentials,
+            },
             ClaudeUsageMessage::OrganizationFetched,
             config,
             clock,
@@ -151,21 +157,28 @@ impl ClaudeUsageGroup {
         target: ClaudeUsageTarget,
         config: &Config,
         working_days: WeekdaySet,
+        buses: Option<&DesktopBuses>,
     ) -> Task<ClaudeUsageMessage> {
-        let account = self.oauth_credentials.clone();
+        let account = self.oauth_credentials.clone().zip(buses);
         match target {
-            ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |key| {
-                first_delivery::<ClaudeUsageWindows>(key)
-                    .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
+            ClaudeUsageTarget::UsageWindows => account.map_or_else(Task::none, |(key, buses)| {
+                first_delivery::<ClaudeUsageWindows>(OnlineSourceInputs {
+                    buses: buses.clone(),
+                    source_inputs: key,
+                })
+                .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading)))
             }),
-            ClaudeUsageTarget::EnterpriseSpend => account.map_or_else(Task::none, |key| {
-                first_delivery::<ClaudeEnterpriseSpend>(enterprise_account(
-                    key,
-                    config,
-                    working_days,
-                ))
-                .map(ClaudeUsageMessage::EnterpriseSpend)
-            }),
+            ClaudeUsageTarget::EnterpriseSpend => {
+                account.map_or_else(Task::none, |(key, buses)| {
+                    first_delivery::<ClaudeEnterpriseSpend>(enterprise_account(
+                        key,
+                        config,
+                        working_days,
+                        buses,
+                    ))
+                    .map(ClaudeUsageMessage::EnterpriseSpend)
+                })
+            }
             ClaudeUsageTarget::CcusagePeriods => {
                 first_delivery::<ClaudeCcusagePeriods>(self.local_logs(config))
                     .map(ClaudeUsageMessage::CcusagePeriods)
@@ -185,19 +198,29 @@ impl ClaudeUsageGroup {
         &self,
         config: &Config,
         working_days: WeekdaySet,
+        buses: Option<&DesktopBuses>,
     ) -> Subscription<ClaudeUsageMessage> {
-        let account = self.oauth_credentials.clone().into_iter().flat_map(|key| {
-            [
-                snapshot_subscription::<ClaudeUsageWindows>(key.clone())
+        let account = self
+            .oauth_credentials
+            .clone()
+            .zip(buses)
+            .into_iter()
+            .flat_map(|(key, buses)| {
+                [
+                    snapshot_subscription::<ClaudeUsageWindows>(OnlineSourceInputs {
+                        buses: buses.clone(),
+                        source_inputs: key.clone(),
+                    })
                     .map(|reading| ClaudeUsageMessage::UsageWindows(Box::new(reading))),
-                snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
-                    key,
-                    config,
-                    working_days,
-                ))
-                .map(ClaudeUsageMessage::EnterpriseSpend),
-            ]
-        });
+                    snapshot_subscription::<ClaudeEnterpriseSpend>(enterprise_account(
+                        key,
+                        config,
+                        working_days,
+                        buses,
+                    ))
+                    .map(ClaudeUsageMessage::EnterpriseSpend),
+                ]
+            });
         let local_logs = self.local_logs(config);
         Subscription::batch(
             account.chain([
@@ -326,9 +349,13 @@ fn enterprise_account(
     credentials: PathBuf,
     config: &Config,
     working_days: WeekdaySet,
-) -> ClaudeEnterpriseAccount {
-    ClaudeEnterpriseAccount {
-        credentials,
-        working_time: WorkingTime::new(config, working_days),
+    buses: &DesktopBuses,
+) -> OnlineSourceInputs<ClaudeEnterpriseAccount> {
+    OnlineSourceInputs {
+        buses: buses.clone(),
+        source_inputs: ClaudeEnterpriseAccount {
+            credentials,
+            working_time: WorkingTime::new(config, working_days),
+        },
     }
 }

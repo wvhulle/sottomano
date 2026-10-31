@@ -6,7 +6,10 @@ use iced::{
     task::Handle,
 };
 use sottomano_config::Config;
-use sottomano_sources::{SnapshotDelivery, SnapshotSource};
+use sottomano_sources::{
+    SnapshotDelivery, SnapshotSource,
+    network_connectivity::internet_connectivity_gate::InternetUnreachable,
+};
 use tokio::time::sleep;
 
 use crate::{
@@ -34,6 +37,7 @@ pub enum HoverFetchProgress<S: SnapshotSource> {
     ServingRemembered,
     AwaitingFirstDelivery,
     SourceUnavailable,
+    InternetUnreachable(InternetUnreachable),
     Delivered {
         snapshot_fetch: Result<S, S::Error>,
         delivery_timing: DeliveryTiming,
@@ -93,6 +97,9 @@ impl<S: SnapshotSource> HoverFetchProgress<S> {
     fn delivered(self, delivery: SnapshotDelivery<S>, clock: Clock) -> Self {
         match delivery {
             SnapshotDelivery::SourceUnavailable => HoverFetchProgress::SourceUnavailable,
+            SnapshotDelivery::InternetUnreachable(offline_reason) => {
+                HoverFetchProgress::InternetUnreachable(offline_reason)
+            }
             SnapshotDelivery::SnapshotDelivered {
                 snapshot_fetch,
                 stamped_cadence,
@@ -193,6 +200,7 @@ where
             }
             HoverFetchProgress::ServingRemembered
             | HoverFetchProgress::AwaitingFirstDelivery
+            | HoverFetchProgress::InternetUnreachable(_)
             | HoverFetchProgress::Delivered {
                 snapshot_fetch: Err(_),
                 ..
@@ -217,11 +225,12 @@ where
                 snapshot_fetch: Ok(delivered_snapshot),
                 ..
             } => Some(delivered_snapshot),
-            HoverFetchProgress::ServingRemembered | HoverFetchProgress::AwaitingFirstDelivery => {
-                self.remembered_by_inputs
-                    .get(inputs)
-                    .map(|remembered| &remembered.remembered_snapshot)
-            }
+            HoverFetchProgress::ServingRemembered
+            | HoverFetchProgress::AwaitingFirstDelivery
+            | HoverFetchProgress::InternetUnreachable(_) => self
+                .remembered_by_inputs
+                .get(inputs)
+                .map(|remembered| &remembered.remembered_snapshot),
             HoverFetchProgress::SourceUnavailable
             | HoverFetchProgress::Delivered {
                 snapshot_fetch: Err(_),
@@ -261,6 +270,21 @@ where
                 ))
             }
             HoverFetchProgress::SourceUnavailable => None,
+            HoverFetchProgress::InternetUnreachable(offline_reason) => {
+                let offline_section = Section::from(offline_reason.clone());
+                Some(match remembered {
+                    Some(remembered) => SourcedSections::source_delivered::<S>(
+                        TooltipBody::sections(describe(&remembered.remembered_snapshot))
+                            .with_sections([offline_section]),
+                        remembered.delivery_timing,
+                    ),
+                    None => {
+                        SourcedSections::source_awaiting_delivery::<S>(TooltipBody::sections([
+                            offline_section,
+                        ]))
+                    }
+                })
+            }
             HoverFetchProgress::Delivered {
                 snapshot_fetch,
                 delivery_timing,

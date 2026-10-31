@@ -484,7 +484,7 @@ impl ShowcasedGroup {
                     .collect()
             }
             ShowcasedGroup::ClaudeUsage(group) => {
-                let _ = group.hover(Some(target), config, clock);
+                let _ = group.hover(Some(target), config, None, clock);
                 let HoverTarget::ClaudeUsage(target) = target else {
                     return Vec::new();
                 };

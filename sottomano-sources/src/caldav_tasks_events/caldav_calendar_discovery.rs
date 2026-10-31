@@ -1,10 +1,9 @@
-use std::time::Duration;
-
 use fast_dav_rs::{CalDavClient, CalendarInfo, WebDavClient, discover_caldav};
 
-use crate::caldav_tasks_events::caldav_agenda::Error;
-
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+use crate::{
+    caldav_tasks_events::caldav_agenda::Error,
+    system_protocol_clients::http_json_client::REQUEST_TIMEOUT,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CaldavLogin<'a> {

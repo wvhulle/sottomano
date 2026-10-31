@@ -25,6 +25,7 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     ai_usage_spend::ccusage_cli_reports,
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     stream_operators::StreamOperators,
     system_protocol_clients::{http_json_client, inotify_file_presence::path_present},
 };
@@ -132,7 +133,10 @@ fn logins(credentials: PathBuf) -> impl Stream<Item = Option<LoginKind>> + Send 
 
 fn login_polls<S, F>(
     polling: PeriodicPolling,
-    credentials: PathBuf,
+    OnlineSourceInputs {
+        buses,
+        source_inputs: credentials,
+    }: OnlineSourceInputs<PathBuf>,
     wanted: LoginKind,
     poll: impl Fn(PathBuf) -> F + Send + Clone + 'static,
 ) -> impl Stream<Item = SnapshotDelivery<S>> + Send
@@ -146,7 +150,11 @@ where
             move || {
                 let credentials = credentials.clone();
                 let poll = poll.clone();
-                polling.poll_deliveries(move || poll(credentials.clone()))
+                internet_connectivity_gate::while_online(buses.clone(), move || {
+                    let credentials = credentials.clone();
+                    let poll = poll.clone();
+                    polling.poll_deliveries(move || poll(credentials.clone()))
+                })
             },
             SnapshotDelivery::SourceUnavailable,
         )

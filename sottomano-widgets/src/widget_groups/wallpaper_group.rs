@@ -7,7 +7,10 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::SecretPaths;
-use sottomano_sources::SnapshotDelivery;
+use sottomano_sources::{
+    SnapshotDelivery, network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
+    system_protocol_clients::dbus_desktop_buses::DesktopBuses,
+};
 
 use self::wallpaper_lookup::Lookup;
 use crate::{
@@ -67,11 +70,16 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn subscription(&self) -> Subscription<WallpaperMessage> {
-        match &self.unsplash_key {
-            Some(unsplash_key) => snapshot_subscription::<Lookup>(unsplash_key.clone())
-                .map(|reading| WallpaperMessage::Lookup(Box::new(reading))),
-            None => Subscription::none(),
+    pub fn subscription(&self, buses: Option<&DesktopBuses>) -> Subscription<WallpaperMessage> {
+        match (&self.unsplash_key, buses) {
+            (Some(unsplash_key), Some(buses)) => {
+                snapshot_subscription::<Lookup>(OnlineSourceInputs {
+                    buses: buses.clone(),
+                    source_inputs: unsplash_key.clone(),
+                })
+                .map(|reading| WallpaperMessage::Lookup(Box::new(reading)))
+            }
+            _ => Subscription::none(),
         }
     }
 

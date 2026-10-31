@@ -5,6 +5,7 @@ pub mod icmp_echo_probes;
 pub mod icmp_gateway_latency;
 pub mod icmp_internet_latency;
 pub mod interface_throughput;
+pub mod internet_connectivity_gate;
 pub mod modem_manager_mobile;
 pub mod network_manager_proxies;
 pub mod network_manager_vpn_connections;

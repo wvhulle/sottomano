@@ -35,7 +35,6 @@ pub async fn fetch<Reply: DeserializeOwned>(
             ("anthropic-beta", OAUTH_BETA),
             ("User-Agent", CLAUDE_CODE_USER_AGENT),
         ],
-        10,
     )
     .await?;
     let body = resp.body.take().unwrap_or(Value::Null);

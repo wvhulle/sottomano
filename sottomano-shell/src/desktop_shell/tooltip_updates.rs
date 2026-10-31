@@ -390,7 +390,7 @@ impl DesktopShell {
                 .map(Message::Power),
             self.widget_groups
                 .claude_usage_group
-                .hover(hovered, &self.config, self.clock)
+                .hover(hovered, &self.config, buses, self.clock)
                 .map(Message::ClaudeUsage),
             self.widget_groups
                 .login_session_group

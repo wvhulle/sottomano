@@ -11,6 +11,7 @@ use crate::{
         spend_money::{Money, usd},
     },
     delivery_cadence_drivers::PeriodicPolling,
+    network_connectivity::internet_connectivity_gate::{self, OnlineSourceInputs},
     secret_file_reads::read_secret,
     system_protocol_clients::http_json_client,
 };
@@ -210,15 +211,10 @@ impl OpenRouterModelRankings {
         let analysis_key = read_secret(&inputs.analysis_key).ok_or(Error::Secret)?;
         let analysis_headers = [("x-api-key", analysis_key.as_str())];
         let (openrouter_listing, analysis_listing) = try_join!(
-            http_json_client::get_json::<ModelListing<OpenRouterModel>>(
-                OPENROUTER_MODELS_URL,
-                &[],
-                15
-            ),
+            http_json_client::get_json::<ModelListing<OpenRouterModel>>(OPENROUTER_MODELS_URL, &[]),
             http_json_client::get_json::<ModelListing<AnalysisModel>>(
                 ANALYSIS_MODELS_URL,
                 &analysis_headers,
-                15
             ),
         )?;
         Ok(Self::ranked(
@@ -231,15 +227,21 @@ impl OpenRouterModelRankings {
 
 impl SnapshotSource for OpenRouterModelRankings {
     type Error = Error;
-    type StreamInputs = ModelRankingInputs;
+    type StreamInputs = OnlineSourceInputs<ModelRankingInputs>;
 
     const NAME: &'static str = "OpenRouter model rankings";
 
     fn delivery_stream(
-        inputs: Self::StreamInputs,
+        OnlineSourceInputs {
+            buses,
+            source_inputs: inputs,
+        }: Self::StreamInputs,
     ) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        PeriodicPolling::every(Duration::from_hours(6))
-            .poll_deliveries(move || Self::poll(inputs.clone()))
+        internet_connectivity_gate::while_online(buses, move || {
+            let inputs = inputs.clone();
+            PeriodicPolling::every(Duration::from_hours(6))
+                .poll_deliveries(move || Self::poll(inputs.clone()))
+        })
     }
 }
 

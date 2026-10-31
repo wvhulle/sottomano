@@ -1,10 +1,9 @@
 use chrono::{DateTime, Utc};
-use futures::{Stream, stream};
+use futures::Stream;
 use serde::Deserialize;
 
 use crate::{SnapshotDelivery, SnapshotSource, system_protocol_clients::http_json_client};
 
-const FETCH_TIMEOUT_SECS: u64 = 5;
 const HUGGING_FACE_MODELS_API: &str = "https://huggingface.co/api/models";
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -39,11 +38,8 @@ impl SnapshotSource for HuggingFaceModelCard {
     const NAME: &'static str = "On Hugging Face";
 
     fn delivery_stream(repository: String) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        stream::once(async move {
-            SnapshotDelivery::single_read(
-                http_json_client::get_json(&model_card_url(&repository), &[], FETCH_TIMEOUT_SECS)
-                    .await,
-            )
+        SnapshotDelivery::single_read_deliveries(async move {
+            http_json_client::get_json(&model_card_url(&repository), &[]).await
         })
     }
 }
