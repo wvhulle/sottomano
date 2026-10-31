@@ -363,9 +363,9 @@ impl TooltipHost {
         if let Some(current) = self.transition.current() {
             let Rendered { element, framing } =
                 render(content_of(&current.target).with_announcement(current.announcement));
-            renderings.push(Rendering::incoming(element).framing(framing));
+            renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
         }
-        Some(hoverable_content(
+        Some(
             container(anchored_popup(
                 renderings,
                 placement.anchor,
@@ -381,7 +381,7 @@ impl TooltipHost {
             ))
             .padding(surface_style.float_offset_px)
             .into(),
-        ))
+        )
     }
 }
 

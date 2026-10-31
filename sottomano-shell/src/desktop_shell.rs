@@ -413,19 +413,11 @@ impl DesktopShell {
                 growth: PanelGrowth::Downward,
             };
         };
-        let growth = match placement.position {
-            Position::Bottom => PanelGrowth::Upward,
-            Position::Top | Position::Left => PanelGrowth::Downward,
-        };
-        let right_of_middle = self.outputs.get(&placement.output).is_some_and(|output| {
-            f64::from(placement.anchor.center_x()) > f64::from(output.logical_width) / 2.0
-        });
-        let direction = if right_of_middle {
-            CascadeDirection::Leftward
-        } else {
-            CascadeDirection::Rightward
-        };
-        CascadeOrientation { direction, growth }
+        let output_width = self
+            .outputs
+            .get(&placement.output)
+            .map_or(0.0, |output| output.logical_width as f32);
+        CascadeOrientation::toward_room(placement.anchor, placement.position, output_width)
     }
 
     fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {

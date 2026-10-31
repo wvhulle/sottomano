@@ -37,13 +37,13 @@ Pressing the temperature opens the forecast for the coming hours.
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="646" alt="Expanding the VPN group and hovering Tailscale">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="646" alt="Opening the VPN group from the Network menu and hovering Tailscale">
 
 ### Dictation: Speech model
 
 The speech model the dictation daemon loaded and the device it runs on.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="682" alt="Expanding the dictation group and hovering the speech model and compute device">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="682" alt="Opening the dictation group from the Media menu and hovering the speech model and compute device">
 
 ### Toast: Next to its window
 

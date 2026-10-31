@@ -2,11 +2,7 @@ use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
     widget_groups::{group_menus::GroupMenuKind, notification_group::NotificationStatus},
-    widgets::{
-        group_menu::GroupMenu,
-        phosphor::{Phosphor, Weight},
-        widget_group::GroupContent,
-    },
+    widgets::{group_menu::GroupMenu, widget_group::GroupContent},
 };
 
 use crate::{
@@ -126,12 +122,7 @@ impl DesktopShell {
                 .group_content()
                 .map(Message::Vpn),
         ]);
-        self.group_menu(
-            GroupMenuKind::Network,
-            "Network",
-            Phosphor::Network(Weight::Regular),
-            members,
-        )
+        self.group_menu(GroupMenuKind::Network, members)
     }
 
     pub(super) fn hardware_menu(&self) -> GroupMenu<'_, Message> {
@@ -171,20 +162,13 @@ impl DesktopShell {
                 .into_iter()
                 .map(|group| group.map(Message::Drive)),
         );
-        self.group_menu(
-            GroupMenuKind::Hardware,
-            "Hardware",
-            Phosphor::Cpu(Weight::Regular),
-            members,
-        )
+        self.group_menu(GroupMenuKind::Hardware, members)
     }
 
     pub(super) fn agenda_menu(&self) -> GroupMenu<'_, Message> {
         let config = &self.config;
         self.group_menu(
             GroupMenuKind::Agenda,
-            "Agenda",
-            Phosphor::CalendarBlank(Weight::Regular),
             [
                 self.widget_groups
                     .caldav_group
@@ -227,11 +211,6 @@ impl DesktopShell {
                     .map(Message::VoiceDictation),
             ])
             .chain(gamepad_groups);
-        self.group_menu(
-            GroupMenuKind::Media,
-            "Media",
-            Phosphor::MusicNotes(Weight::Regular),
-            members,
-        )
+        self.group_menu(GroupMenuKind::Media, members)
     }
 }

@@ -4,7 +4,7 @@ use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::PopupMessage,
+    hover_tooltips::{PopupMessage, marked_by_hover_target},
     widget_groups::group_menus::GroupMenus,
     widgets::{
         bar_widget::Glyph,
@@ -215,6 +215,19 @@ fn item_menu<'a, M: Clone + 'a>(
 }
 
 fn item_row<'a, M: Clone + 'a>(
+    layout: &CascadeLayout<'_, 'a, M>,
+    item: CascadeItem<'a, M>,
+    look: MenuRowLook,
+) -> Element<'a, GroupEvent<M>> {
+    let marked_target = item.action.inspected_target().cloned();
+    let row = unmarked_item_row(layout, item, look);
+    match marked_target {
+        Some(target) => marked_by_hover_target(row, target),
+        None => row,
+    }
+}
+
+fn unmarked_item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,

@@ -4,7 +4,7 @@ use std::{
 };
 
 use iced::{
-    Color, Element, Length, Padding, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
     alignment::Vertical,
     executor,
     theme::Style,
@@ -21,17 +21,22 @@ use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{
-        HoverTarget, TooltipHost, TooltipMessage,
+        GroupHandle, HoverTarget, TooltipHost, TooltipMessage,
         tooltip_surfaces::{HoverContent, TooltipSurfaceStyle},
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
-    widget_groups::appearance_presets_group::AppearancePresetsMessage,
+    widget_groups::{
+        appearance_presets_group::AppearancePresetsMessage,
+        group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus},
+    },
     widgets::{
         appearance_presets::ShellAppearance,
+        cascade_row::CascadeOrientation,
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
+        group_menu::{GroupMenu, GroupMenuSurfaces, InspectionCard},
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -41,7 +46,7 @@ use sottomano_widgets::{
 
 use crate::{
     animation_recording::{CANVAS, FRAME_INTERVAL},
-    demo_script::{DEMOS, Demo},
+    demo_script::{DEMOS, Demo, GroupShown},
     fixtures::{sample, showcase_epoch},
     scripted_frames::scripted_frames,
     showcase_message::ShowcaseMessage,
@@ -131,6 +136,7 @@ pub struct ShowcaseState {
     controller_artwork: ControllerArtwork,
     theme: Theme,
     group: ShowcasedGroup,
+    group_menus: GroupMenus,
     tooltip: TooltipHost,
     notifications: NotificationLayer<ShowcaseMessage>,
     clock: Clock,
@@ -174,6 +180,7 @@ impl ShowcaseState {
             controller_artwork: ControllerArtwork::decoded(),
             theme: configured_theme(&scheme_palette(config, appearance.scheme)),
             group,
+            group_menus: GroupMenus::default(),
             tooltip,
             notifications: NotificationLayer::default(),
             clock,
@@ -191,13 +198,10 @@ impl ShowcaseState {
                 anchor,
                 announcement,
             }) => {
-                let due = self.clock.instant + HOVER_FETCH_LATENCY;
-                self.pending_hover_replies = self
-                    .group
-                    .hover(&target, &self.config, self.clock)
-                    .into_iter()
-                    .map(|reply| PendingHoverReply { due, reply })
-                    .collect();
+                if self.tooltip.target() != Some(&target) {
+                    let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
+                }
+                self.schedule_hover_replies(&target);
                 let panel_edge = self.panel_edge();
                 self.tooltip.open(
                     &panel_edge,
@@ -210,6 +214,14 @@ impl ShowcaseState {
             }
             ShowcaseMessage::Tooltip(message) => {
                 let _hide_due = self.tooltip.update(message, self.clock.instant);
+                Task::none()
+            }
+            ShowcaseMessage::GroupMenus(GroupMenuMessage::TogglePin { .. }) => Task::none(),
+            ShowcaseMessage::GroupMenus(message) => {
+                if let GroupMenuMessage::InspectRow { row, .. } = &message {
+                    self.schedule_hover_replies(&row.target);
+                }
+                let _menu_task = self.group_menus.update(message);
                 Task::none()
             }
             ShowcaseMessage::TooltipHideElapsed => {
@@ -236,6 +248,83 @@ impl ShowcaseState {
                 self.group.update(other, self.clock);
                 Task::none()
             }
+        }
+    }
+
+    fn schedule_hover_replies(&mut self, target: &HoverTarget) {
+        let due = self.clock.instant + HOVER_FETCH_LATENCY;
+        self.pending_hover_replies = self
+            .group
+            .hover(target, &self.config, self.clock)
+            .into_iter()
+            .map(|reply| PendingHoverReply { due, reply })
+            .collect();
+    }
+
+    fn group_menu(&self, kind: GroupMenuKind) -> GroupMenu<'_, ShowcaseMessage> {
+        GroupMenu::new(
+            kind,
+            &self.group_menus,
+            ShowcaseMessage::GroupMenus,
+            self.group.group_contents(&self.config, self.clock),
+        )
+    }
+
+    fn strip_groups(&self) -> Vec<Element<'_, ShowcaseMessage>> {
+        match self.demo.shown {
+            GroupShown::InMenu(kind) => self
+                .group_menu(kind)
+                .bar_views(&self.config, self.group.position(), self.clock)
+                .flatten()
+                .collect(),
+            GroupShown::OnBar => self.group.panel_groups(&self.config, self.clock),
+        }
+    }
+
+    fn menu_cascade(&self, kind: GroupMenuKind) -> HoverContent<'_, ShowcaseMessage> {
+        let card_tooltip = self
+            .group_menus
+            .inspected_row(kind)
+            .and_then(|row| {
+                self.group
+                    .tooltip_for(&row.target, &self.config, self.clock)
+                    .map(|tooltip| tooltip.with_announcement(row.announcement))
+            })
+            .unwrap_or_else(Tooltip::empty);
+        let anchor = self
+            .tooltip
+            .placement()
+            .map_or_else(Rectangle::default, |placement| placement.anchor);
+        let orientation =
+            CascadeOrientation::toward_room(anchor, self.group.position(), CANVAS.width);
+        let surfaces = self.group_menu(kind).surfaces(
+            &self.config,
+            &self.appearance.overlays,
+            &InspectionCard {
+                tooltip: &card_tooltip,
+                assets: self.window_assets(),
+                clock: self.clock,
+            },
+            orientation,
+        );
+        match surfaces {
+            Some(GroupMenuSurfaces {
+                primary,
+                satellites,
+            }) => HoverContent::Cascade {
+                primary,
+                satellites,
+                orientation,
+            },
+            None => HoverContent::Described(Tooltip::empty()),
+        }
+    }
+
+    fn window_assets(&self) -> WindowAssets<'_> {
+        WindowAssets {
+            entries: &self.desktop_entries,
+            favicons: &self.favicons,
+            controller_artwork: &self.controller_artwork,
         }
     }
 
@@ -327,22 +416,18 @@ impl ShowcaseState {
         let frame_style = LayerFrameStyle::new(&layer, &self.config);
         let outlined_sides =
             OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
-        let framed = self
-            .group
-            .panel_groups(&self.config, self.clock)
-            .into_iter()
-            .map(|group| {
-                let content = match position {
-                    Position::Left => container(group),
-                    Position::Top | Position::Bottom => container(group)
-                        .height(Length::Fixed(panel.height))
-                        .align_y(Vertical::Center)
-                        .padding([0.0, layer.frame_corner_inset() + panel.group_padding]),
-                };
-                panel_frame(content, frame_style)
-                    .outlined_sides(outlined_sides)
-                    .into()
-            });
+        let framed = self.strip_groups().into_iter().map(|group| {
+            let content = match position {
+                Position::Left => container(group),
+                Position::Top | Position::Bottom => container(group)
+                    .height(Length::Fixed(panel.height))
+                    .align_y(Vertical::Center)
+                    .padding([0.0, layer.frame_corner_inset() + panel.group_padding]),
+            };
+            panel_frame(content, frame_style)
+                .outlined_sides(outlined_sides)
+                .into()
+        });
         match position {
             Position::Left => Column::with_children(framed)
                 .spacing(panel.widget_spacing)
@@ -362,12 +447,11 @@ impl ShowcaseState {
                 overlay_appearance: self.appearance.overlays,
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
-            WindowAssets {
-                entries: &self.desktop_entries,
-                favicons: &self.favicons,
-                controller_artwork: &self.controller_artwork,
-            },
+            self.window_assets(),
             |target: &HoverTarget| {
+                if let HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind)) = target {
+                    return self.menu_cascade(*kind);
+                }
                 let described = self
                     .group
                     .tooltip_for(target, &self.config, self.clock)

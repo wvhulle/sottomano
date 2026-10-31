@@ -27,4 +27,4 @@ Clicking the speaker opens a slider in place; dragging sets the level.
 
 The microphone with its live level meter, straight from PipeWire.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/audio_microphone.webp" width="423" alt="Expanding the audio group and hovering the microphone">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/audio_microphone.webp" width="423" alt="Opening the audio group from the Media menu and hovering the microphone">

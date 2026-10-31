@@ -6,7 +6,10 @@ use std::{collections::BTreeSet, mem::take};
 use iced::Task;
 
 use self::{menu_inspection::MenuInspection, sqlite_group_menu_pins::StoredGroupMenuPin};
-use crate::hover_tooltips::InspectedRow;
+use crate::{
+    hover_tooltips::InspectedRow,
+    widgets::phosphor::{Phosphor, Weight},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupMenuKind {
@@ -22,6 +25,36 @@ pub enum GroupMenuKind {
 }
 
 impl GroupMenuKind {
+    #[must_use]
+    pub const fn title(self) -> &'static str {
+        match self {
+            GroupMenuKind::Hardware => "Hardware",
+            GroupMenuKind::Network => "Network",
+            GroupMenuKind::Agenda => "Agenda",
+            GroupMenuKind::Media => "Media",
+            GroupMenuKind::Display => "Display",
+            GroupMenuKind::Services => "Services",
+            GroupMenuKind::Session => "Session",
+            GroupMenuKind::Appearance => "Appearance",
+            GroupMenuKind::Behaviour => "Behaviour",
+        }
+    }
+
+    #[must_use]
+    pub const fn glyph(self) -> Phosphor {
+        match self {
+            GroupMenuKind::Hardware => Phosphor::Cpu(Weight::Regular),
+            GroupMenuKind::Network => Phosphor::Network(Weight::Regular),
+            GroupMenuKind::Agenda => Phosphor::CalendarBlank(Weight::Regular),
+            GroupMenuKind::Media => Phosphor::MusicNotes(Weight::Regular),
+            GroupMenuKind::Display => Phosphor::Monitor(Weight::Regular),
+            GroupMenuKind::Services => Phosphor::Stack(Weight::Regular),
+            GroupMenuKind::Session => Phosphor::UserCircle(Weight::Regular),
+            GroupMenuKind::Appearance => Phosphor::SlidersHorizontal(Weight::Regular),
+            GroupMenuKind::Behaviour => Phosphor::ToggleRight(Weight::Regular),
+        }
+    }
+
     const fn storage_key(self) -> &'static str {
         match self {
             GroupMenuKind::Hardware => "HardwareMenu",

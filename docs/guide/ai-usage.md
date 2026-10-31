@@ -15,16 +15,16 @@ Subscription windows, the current billing block and spend against the monthly bu
 
 How much of each subscription window is used, and where it is heading by reset.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_windows.webp" width="445" alt="Expanding the AI usage group and hovering the Claude usage windows">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_windows.webp" width="445" alt="Opening the AI usage group from the Services menu and hovering the Claude usage windows">
 
 ## AI usage: Billing block
 
 The current five-hour block: spend so far, burn rate and where it will end.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_block.webp" width="445" alt="Expanding the AI usage group and hovering the billing block">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_block.webp" width="445" alt="Opening the AI usage group from the Services menu and hovering the billing block">
 
 ## AI usage: Periods
 
 Spend today, this week and this month against the monthly budget.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_periods.webp" width="552" alt="Expanding the AI usage group and hovering the spend periods">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/ai_usage_periods.webp" width="552" alt="Opening the AI usage group from the Services menu and hovering the spend periods">

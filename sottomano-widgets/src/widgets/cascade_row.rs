@@ -10,6 +10,7 @@ use iced::{
     },
     mouse::{Cursor, Interaction},
 };
+use sottomano_config::screen_edges::Position;
 
 use crate::widgets::{fair_widths::fair_widths, notched_panel::PanelGrowth};
 
@@ -25,9 +26,32 @@ pub struct CascadeOrientation {
     pub growth: PanelGrowth,
 }
 
+impl CascadeOrientation {
+    #[must_use]
+    pub fn toward_room(anchor: Rectangle, bar: Position, surface_width: f32) -> Self {
+        let direction = if anchor.center_x() > surface_width / 2.0 {
+            CascadeDirection::Leftward
+        } else {
+            CascadeDirection::Rightward
+        };
+        let growth = match bar {
+            Position::Bottom => PanelGrowth::Upward,
+            Position::Top | Position::Left => PanelGrowth::Downward,
+        };
+        CascadeOrientation { direction, growth }
+    }
+}
+
 pub struct CascadeRow<'a, Message> {
     panels: Vec<Element<'a, Message>>,
     orientation: CascadeOrientation,
+}
+
+fn drawn_extent(panel: &Node) -> Rectangle {
+    panel.children().iter().map(Node::bounds).fold(
+        Rectangle::new(Point::ORIGIN, panel.size()),
+        |extent, child| extent.union(&child),
+    )
 }
 
 #[must_use]
@@ -92,10 +116,18 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
             .collect();
         let nodes: Vec<Node> = once(primary).chain(satellites).collect();
         let total_width: f32 = nodes.iter().map(|node| node.size().width).sum();
+        let overhang_above = nodes
+            .iter()
+            .map(|node| -drawn_extent(node).y)
+            .fold(0.0, f32::max);
         let height = nodes
             .iter()
-            .map(|node| node.size().height)
-            .fold(0.0, f32::max);
+            .map(|node| {
+                let extent = drawn_extent(node);
+                extent.y + extent.height
+            })
+            .fold(0.0, f32::max)
+            + overhang_above;
         let placed = nodes
             .into_iter()
             .scan(0.0, |extent_so_far: &mut f32, node| {
@@ -105,7 +137,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
                     CascadeDirection::Leftward => total_width - *extent_so_far - width,
                 };
                 *extent_so_far += width;
-                Some(node.move_to(Point::new(x, 0.0)))
+                Some(node.move_to(Point::new(x, overhang_above)))
             })
             .collect();
         Node::with_children(Size::new(total_width, height), placed)

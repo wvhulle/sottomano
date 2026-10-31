@@ -7,7 +7,6 @@ use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
     widget_groups::group_menus::GroupMenuKind,
     widgets::{
-        bar_widget::Glyph,
         group_menu::GroupMenu,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
@@ -35,14 +34,10 @@ impl DesktopShell {
     pub(super) fn group_menu<'a>(
         &'a self,
         kind: GroupMenuKind,
-        title: &'static str,
-        glyph: impl Into<Glyph>,
         members: impl IntoIterator<Item = GroupContent<'a, Message>>,
     ) -> GroupMenu<'a, Message> {
         GroupMenu::new(
             kind,
-            title,
-            glyph,
             &self.widget_groups.group_menus,
             Message::GroupMenus,
             members,
