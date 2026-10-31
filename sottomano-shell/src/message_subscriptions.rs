@@ -44,7 +44,11 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.notifications.is_transitioning(state.clock.instant) {
+    let animation = if state.notifications.is_transitioning(state.clock.instant)
+        || state
+            .tooltip
+            .is_morphing(state.clock.instant, state.config.tooltips.popup_morph)
+    {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()

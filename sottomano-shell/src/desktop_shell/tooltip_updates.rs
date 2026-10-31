@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use iced::Task;
 use sottomano_widgets::{
-    hover_tooltips::{HoverTarget, TooltipMessage, tooltip_transition::Departed},
+    hover_tooltips::{GroupHandle, HoverTarget, TooltipMessage, tooltip_transition::Departed},
     layer_surfaces::PanelEdge,
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
@@ -57,7 +57,8 @@ impl DesktopShell {
                 {
                     return intent_elapsed.map(Message::Tooltip);
                 }
-                self.tooltip.open(&parent, target, anchor, announcement);
+                self.tooltip
+                    .open(&parent, target, anchor, announcement, self.clock.instant);
                 Task::none()
             }
             TooltipMessage::SwitchIntentElapsed => {
@@ -67,6 +68,7 @@ impl DesktopShell {
                         pending.target,
                         pending.anchor,
                         pending.announcement,
+                        self.clock.instant,
                     );
                 }
                 Task::none()
@@ -336,8 +338,21 @@ impl DesktopShell {
         }
     }
 
+    pub(super) fn hovered_reading_target(&self) -> Option<&HoverTarget> {
+        let open_target = self.tooltip.target();
+        let inspected_in_menu = match open_target {
+            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind))) => self
+                .widget_groups
+                .group_menus
+                .inspected_row(*kind)
+                .map(|row| &row.target),
+            _ => None,
+        };
+        inspected_in_menu.or(open_target)
+    }
+
     pub fn refresh_hovered_reading(&self) -> Task<Message> {
-        let Some(target) = self.tooltip.reading_target() else {
+        let Some(target) = self.hovered_reading_target() else {
             return Task::none();
         };
         self.widget_groups
@@ -345,7 +360,8 @@ impl DesktopShell {
     }
 
     pub fn retarget_hover_readings(&mut self) -> Task<Message> {
-        let hovered = self.tooltip.reading_target();
+        let hovered_target = self.hovered_reading_target().cloned();
+        let hovered = hovered_target.as_ref();
         let buses = self.desktop_buses.as_ref();
         Task::batch([
             self.widget_groups

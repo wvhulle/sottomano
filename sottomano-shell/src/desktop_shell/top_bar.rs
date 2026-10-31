@@ -1,8 +1,7 @@
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_tooltips::GroupHandle,
-    widget_groups::notification_group::NotificationStatus,
+    widget_groups::{group_menus::GroupMenuKind, notification_group::NotificationStatus},
     widgets::{
         group_menu::GroupMenu,
         phosphor::{Phosphor, Weight},
@@ -11,7 +10,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, focused_app_id, panel_bar::toggle_group_menu_pin},
+    desktop_shell::{DesktopShell, focused_app_id},
     shell_message::Message,
 };
 
@@ -133,12 +132,10 @@ impl DesktopShell {
                 .into_iter()
                 .map(|group| group.map(Message::Drive)),
         );
-        GroupMenu::new(
-            GroupHandle::HardwareMenu,
+        self.group_menu(
+            GroupMenuKind::Hardware,
             "Hardware",
             Phosphor::Cpu(Weight::Regular),
-            &self.widget_groups.group_menu_pins,
-            toggle_group_menu_pin,
             members,
         )
     }

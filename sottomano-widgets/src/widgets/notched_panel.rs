@@ -1,23 +1,24 @@
-use std::{iter::once, mem::replace, slice};
+use std::{iter::once, slice};
 
 use iced::{
-    Animation, Background, Border, Color, Element, Event, Length, Point, Rectangle, Size, Vector,
+    Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
         mouse, renderer,
         widget::{Operation, Tree, tree},
     },
-    animation::Easing,
     border::Radius,
     mouse::Cursor,
-    time::{Duration, Instant},
+    time::Duration,
     window,
 };
 use sottomano_config::screen_edges::Position;
 
 use crate::widgets::{
-    anchored_popup::lerp, panel_frame::LayerFrameStyle, popup_connector::ConnectorTriangle,
+    panel_frame::LayerFrameStyle,
+    popup_connector::{ConnectorTriangle, FramedSurface},
+    rectangle_morph::RectangleMorph,
     region_reporter::RegionRoles,
 };
 
@@ -55,35 +56,10 @@ pub fn notched_panel<'a, Message: 'a>(
     })
 }
 
+#[derive(Default)]
 struct PanelMorph {
-    from: Rectangle,
     target: Rectangle,
-    current: Rectangle,
-    animation: Animation<bool>,
-    now: Option<Instant>,
-}
-
-impl Default for PanelMorph {
-    fn default() -> Self {
-        Self {
-            from: Rectangle::default(),
-            target: Rectangle::default(),
-            current: Rectangle::default(),
-            animation: Animation::new(true),
-            now: None,
-        }
-    }
-}
-
-impl PanelMorph {
-    fn progress(&self) -> f32 {
-        self.now
-            .map_or(1.0, |now| self.animation.interpolate(0.0, 1.0, now))
-    }
-
-    fn is_settled(&self) -> bool {
-        self.progress() >= 1.0
-    }
+    morph: RectangleMorph,
 }
 
 fn notch_side_radius(corner_radius: f32, panel_height: f32) -> f32 {
@@ -168,23 +144,12 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             .as_widget_mut()
             .layout(&mut tree.children[0], renderer, limits);
         let target = self.panel_target(content.size());
-        let morph: &mut PanelMorph = tree.state.downcast_mut();
-        if morph.target != target {
-            morph.from = if morph.current.width > 0.0 {
-                morph.current
-            } else {
-                self.folded_into_notch(target)
-            };
-            morph.target = target;
-            morph.animation = Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(self.morph);
-            morph.now = None;
+        let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
+        if panel_morph.target != target {
+            panel_morph.target = target;
+            panel_morph.morph.begin(self.folded_into_notch(target));
         }
-        morph.current = match morph.now {
-            Some(_) => lerp(morph.from, morph.target, morph.progress()),
-            None => morph.from,
-        };
+        panel_morph.morph.follow(target);
         Node::with_children(
             Size::new(target.x + target.width, target.y + target.height),
             vec![content.move_to(target.position())],
@@ -201,37 +166,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let morph: &PanelMorph = tree.state.downcast_ref();
+        let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let panel = morph.current + origin;
+        let panel = panel_morph.morph.current() + origin;
         if panel.width <= 0.0 || panel.height <= 0.0 {
             return;
         }
         let frame_style = self.frame.container_style(theme);
-        let fill =
-            frame_style
-                .background
-                .map_or(Color::TRANSPARENT, |background| match background {
-                    Background::Color(color) => color,
-                    Background::Gradient(_) => Color::TRANSPARENT,
-                });
-        let outline = self.frame.outline_border(theme);
-        let corners = self.panel_corners(panel);
-        renderer.fill_quad(
-            renderer::Quad {
+        self.connector(panel, origin).draw_framed_surface(
+            renderer,
+            theme,
+            FramedSurface {
+                frame: self.frame,
                 bounds: panel,
-                border: Border {
-                    color: Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: corners,
-                },
+                corners: self.panel_corners(panel),
                 shadow: frame_style.shadow,
-                ..Default::default()
             },
-            Color::TRANSPARENT,
         );
-        self.connector(panel, origin)
-            .draw_joined(renderer, panel, corners, fill, outline);
         let Some(content_clip) = panel.intersection(viewport) else {
             return;
         };
@@ -259,9 +210,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        let morph: &PanelMorph = tree.state.downcast_ref();
+        let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let panel = morph.current + origin;
+        let panel = panel_morph.morph.current() + origin;
         let rects: Vec<Rectangle> = once(panel)
             .chain(self.connector(panel, origin).blur_rows())
             .collect();
@@ -305,13 +256,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let Event::Window(window::Event::RedrawRequested(now)) = event else {
             return;
         };
-        let morph: &mut PanelMorph = tree.state.downcast_mut();
-        if morph.now.is_none() {
-            let resting = replace(&mut morph.animation, Animation::new(true));
-            morph.animation = resting.go(true, *now);
-        }
-        morph.now = Some(*now);
-        if !morph.is_settled() {
+        let panel_morph: &mut PanelMorph = tree.state.downcast_mut();
+        panel_morph.morph.tick(*now, self.morph);
+        if !panel_morph.morph.is_settled() {
             shell.invalidate_layout();
             shell.request_redraw();
         }

@@ -1,18 +1,21 @@
+use std::mem::take;
+
 use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::{HoverTarget, TooltipMessage},
+    hover_tooltips::PopupMessage,
+    widget_groups::group_menus::GroupMenus,
     widgets::{
         bar_widget::Glyph,
         configured_theme::{secondary_text_color, text_color},
         glyph_button,
-        group_item::MenuParts,
+        group_item::{MenuItemAction, MenuParts},
         group_menu::{
-            GroupMenuSurfaces, MenuInspection, PinToggle,
+            GroupMenuSurfaces, InspectionCard, MenuMessenger,
             menu_row::{
-                MenuRowAction, MenuRowContent, inert_menu_row, inspect_row_message, menu_row,
-                menu_row_height,
+                MenuRowContent, MenuRowLook, hovered_menu_row, inert_menu_row, menu_row_height,
+                pressable_menu_row,
             },
             satellite_panels::SatellitePanels,
         },
@@ -23,193 +26,200 @@ use crate::{
     },
 };
 
-pub(super) struct CascadeDevice<'a, M> {
+pub(super) struct CascadeEntry<'a, M> {
     pub group_title: &'static str,
     pub face: MenuParts<'a, M>,
     pub items: Vec<CascadeItem<'a, M>>,
 }
 
 pub(super) fn merged_by_title<'a, M>(
-    devices: Vec<CascadeDevice<'a, M>>,
-) -> Vec<CascadeDevice<'a, M>> {
-    devices.into_iter().fold(Vec::new(), |mut entries, device| {
-        match entries
+    entries: impl IntoIterator<Item = CascadeEntry<'a, M>>,
+) -> Vec<CascadeEntry<'a, M>> {
+    entries.into_iter().fold(Vec::new(), |mut merged, entry| {
+        match merged
             .iter_mut()
-            .find(|entry: &&mut CascadeDevice<'a, M>| entry.group_title == device.group_title)
+            .find(|existing: &&mut CascadeEntry<'a, M>| existing.group_title == entry.group_title)
         {
-            Some(entry) => entry.items.extend(device.items),
-            None => entries.push(device),
+            Some(existing) => existing.items.extend(entry.items),
+            None => merged.push(entry),
         }
-        entries
+        merged
     })
 }
 
-pub(super) fn cascading_columns<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
-    entries: Vec<CascadeDevice<'a, M>>,
-    on_pin_toggle: &PinToggle<'a, M>,
-    config: &'a Config,
-    satellite_panels: &SatellitePanels,
-    inspection: &MenuInspection<'_>,
-    card: Option<Element<'a, Outer>>,
+pub(super) struct CascadeLayout<'p, 'a, M> {
+    pub config: &'a Config,
+    pub menu: &'p MenuMessenger<'a, M>,
+    pub group_menus: &'p GroupMenus,
+    pub satellite_panels: &'p SatellitePanels,
+}
+
+struct OpenGroup<'a, M> {
+    member: usize,
+    items: Vec<CascadeItem<'a, M>>,
+}
+
+pub(super) fn cascading_columns<
+    'a,
+    M: Clone + 'a,
+    Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
+>(
+    mut entries: Vec<CascadeEntry<'a, M>>,
+    layout: &CascadeLayout<'_, 'a, M>,
+    card: &InspectionCard<'_, 'a>,
 ) -> Option<GroupMenuSurfaces<'a, Outer>> {
     if entries.is_empty() {
         return None;
     }
-    let open_member = inspection
-        .open_member
-        .filter(|member| *member < entries.len());
-    let group_corners = ListEndCorners::new(entries.len(), satellite_panels.frame_corners);
-    let (group_rows, mut item_lists): (Vec<_>, Vec<_>) = entries
-        .into_iter()
-        .enumerate()
-        .map(|(member, entry)| {
-            let CascadeDevice {
-                group_title,
-                face,
-                items,
-            } = entry;
-            let row = group_row(
-                config,
-                member,
-                GroupRowFace { group_title, face },
-                GroupRowState {
-                    open: open_member == Some(member),
-                    corners: group_corners.radius_at(member),
-                },
-                on_pin_toggle(group_title),
-            );
-            (row, items)
-        })
-        .unzip();
-    let mut satellites: Vec<Element<'a, Outer>> = Vec::new();
-    if let Some(member) = open_member {
-        let items = item_lists.swap_remove(member);
-        let item_count = items.len();
-        let inspected_target = inspection.inspected_row.map(|row| &row.target);
-        let inspected_position = inspected_target.and_then(|target| {
-            items.iter().position(|item| {
-                item.inspected_row
-                    .as_ref()
-                    .is_some_and(|row| &row.target == target)
-            })
+    let open_group = layout
+        .group_menus
+        .open_member(layout.menu.kind)
+        .filter(|member| *member < entries.len())
+        .map(|member| OpenGroup {
+            member,
+            items: take(&mut entries[member].items),
         });
-        let item_menu = item_menu(
-            config,
-            items,
-            inspected_target,
-            satellite_panels.corners_for_rows(config, item_count),
-        );
-        satellites.push(satellite_panels.beside_row(config, item_menu.map(Outer::from), member));
-        if let (Some(card), Some(item_position)) = (card, inspected_position) {
-            satellites.push(satellite_panels.beside_row(config, card, member + item_position));
-        }
-    }
+    let open_member = open_group.as_ref().map(|open| open.member);
+    let group_corners = ListEndCorners::new(entries.len(), layout.satellite_panels.frame_corners);
+    let group_rows = entries.into_iter().enumerate().map(|(member, entry)| {
+        let look = MenuRowLook {
+            highlighted: open_member == Some(member),
+            corners: group_corners.radius_at(member),
+        };
+        group_row(layout, member, entry, look)
+    });
     Some(GroupMenuSurfaces {
         primary: Element::from(uniform_width_column(group_rows)).map(Outer::from),
-        satellites,
+        satellites: open_group
+            .map(|open| open_group_satellites(layout, open, card))
+            .unwrap_or_default(),
     })
+}
+
+fn open_group_satellites<
+    'a,
+    M: Clone + 'a,
+    Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
+>(
+    layout: &CascadeLayout<'_, 'a, M>,
+    open: OpenGroup<'a, M>,
+    card: &InspectionCard<'_, 'a>,
+) -> Vec<Element<'a, Outer>> {
+    let OpenGroup { member, items } = open;
+    let inspected_target = layout
+        .group_menus
+        .inspected_row(layout.menu.kind)
+        .map(|row| &row.target);
+    let inspected_position = inspected_target.and_then(|target| {
+        items
+            .iter()
+            .position(|item| item.action.inspected_target() == Some(target))
+    });
+    let item_corners = layout
+        .satellite_panels
+        .corners_for_rows(layout.config, items.len());
+    let is_inspected = |item: &CascadeItem<'a, M>| {
+        inspected_target.is_some_and(|target| item.action.inspected_target() == Some(target))
+    };
+    let item_list = item_menu(layout, items, &is_inspected, item_corners).map(Outer::from);
+    let item_panel = layout
+        .satellite_panels
+        .beside_row(layout.config, item_list, member);
+    let card_panel = inspected_position.and_then(|position| {
+        card.view(layout.config).map(|card_view| {
+            layout.satellite_panels.beside_row(
+                layout.config,
+                card_view.map(Outer::from),
+                member + position,
+            )
+        })
+    });
+    [item_panel].into_iter().chain(card_panel).collect()
 }
 
 pub(super) fn cascade_offset(config: &Config, rows_above: usize) -> f32 {
     menu_row_height(config) * rows_above as f32
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct GroupRowState {
-    open: bool,
-    corners: Radius,
-}
-
-pub(super) struct GroupRowFace<'a, M> {
-    pub group_title: &'static str,
-    pub face: MenuParts<'a, M>,
-}
-
-pub(super) fn group_row<'a, M: Clone + 'a>(
-    config: &'a Config,
+fn group_row<'a, M: Clone + 'a>(
+    layout: &CascadeLayout<'_, 'a, M>,
     member: usize,
-    row_face: GroupRowFace<'a, M>,
-    row_state: GroupRowState,
-    pin_toggle: M,
+    entry: CascadeEntry<'a, M>,
+    look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let GroupRowState { open, corners } = row_state;
-    let icon_size = config.theme.font.icon_size_px;
-    let inspect_member = GroupEvent::Tooltip(TooltipMessage::InspectMember(member));
+    let icon_size = layout.config.theme.font.icon_size_px;
     let pin = glyph_button(
         Phosphor::PushPin(Weight::Regular),
         icon_size,
         secondary_text_color,
-        GroupEvent::Group(pin_toggle),
+        layout.menu.toggle_pin(entry.group_title),
     );
-    let caret_color = if open {
+    let caret_color = if look.highlighted {
         text_color
     } else {
         secondary_text_color
     };
     let caret = Glyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color);
-    menu_row(
-        config,
+    let inspect_member = layout.menu.inspect_member(member);
+    hovered_menu_row(
+        layout.config,
         MenuRowContent {
-            parts: row_face.face,
-            name: row_face.group_title,
+            parts: entry.face,
+            name: entry.group_title,
             trailing: vec![pin, caret],
         },
-        MenuRowAction {
-            message: inspect_member.clone(),
-            on_enter: Some(inspect_member),
-            highlighted: open,
-            corners,
-        },
+        look,
+        inspect_member.clone(),
+        inspect_member,
     )
 }
 
-pub(super) fn item_menu<'a, M: Clone + 'a>(
-    config: &'a Config,
+fn item_menu<'a, M: Clone + 'a>(
+    layout: &CascadeLayout<'_, 'a, M>,
     items: Vec<CascadeItem<'a, M>>,
-    inspected_target: Option<&HoverTarget>,
-    frame_corners: Radius,
+    is_inspected: &dyn Fn(&CascadeItem<'a, M>) -> bool,
+    panel_corners: Radius,
 ) -> Element<'a, GroupEvent<M>> {
-    let end_corners = ListEndCorners::new(items.len(), frame_corners);
+    let end_corners = ListEndCorners::new(items.len(), panel_corners);
     uniform_width_column(items.into_iter().enumerate().map(|(position, item)| {
-        item_row(
-            config,
-            item,
-            inspected_target,
-            end_corners.radius_at(position),
-        )
+        let look = MenuRowLook {
+            highlighted: is_inspected(&item),
+            corners: end_corners.radius_at(position),
+        };
+        item_row(layout, item, look)
     }))
     .into()
 }
 
 fn item_row<'a, M: Clone + 'a>(
-    config: &'a Config,
+    layout: &CascadeLayout<'_, 'a, M>,
     item: CascadeItem<'a, M>,
-    inspected_target: Option<&HoverTarget>,
-    corners: Radius,
+    look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let highlighted = item
-        .inspected_row
-        .as_ref()
-        .is_some_and(|row| Some(&row.target) == inspected_target);
     let content = MenuRowContent {
         parts: item.parts,
         name: item.name,
         trailing: Vec::new(),
     };
-    let action = match (item.press, item.inspected_row) {
-        (Some(press), inspected_row) => MenuRowAction {
-            message: GroupEvent::Group(press),
-            on_enter: inspected_row.map(inspect_row_message),
-            highlighted,
-            corners,
-        },
-        (None, Some(inspected_row)) => MenuRowAction {
-            message: inspect_row_message(inspected_row.clone()),
-            on_enter: Some(inspect_row_message(inspected_row)),
-            highlighted,
-            corners,
-        },
-        (None, None) => return inert_menu_row(config, content),
-    };
-    menu_row(config, content, action)
+    let config = layout.config;
+    match item.action {
+        MenuItemAction::Inert => inert_menu_row(config, content),
+        MenuItemAction::Press(press) => {
+            pressable_menu_row(config, content, look, GroupEvent::Group(press))
+        }
+        MenuItemAction::Inspect(inspected_row) => {
+            let inspect = layout.menu.inspect_row(inspected_row);
+            hovered_menu_row(config, content, look, inspect.clone(), inspect)
+        }
+        MenuItemAction::PressAndInspect {
+            press,
+            inspected_row,
+        } => hovered_menu_row(
+            config,
+            content,
+            look,
+            GroupEvent::Group(press),
+            layout.menu.inspect_row(inspected_row),
+        ),
+    }
 }

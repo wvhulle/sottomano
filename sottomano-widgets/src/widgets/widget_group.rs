@@ -11,9 +11,10 @@ use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PanelPin, PressHints,
-        TooltipMessage, announcing_hoverable,
+        GroupHandle, HoverAnnouncement, HoverTarget, PanelPin, PressHints, TooltipMessage,
+        announcing_hoverable,
     },
+    widget_groups::group_menus::GroupMenuKind,
     widgets::{
         activity_line::activity_line,
         aligned_quantity::{AlignedQuantity, ItemAlignment},
@@ -22,7 +23,7 @@ use crate::{
         configured_theme::{primary_color, secondary_text_color, text_color},
         expand_animation::expand_animation,
         flat_button,
-        group_item::{GroupItem, MenuParts},
+        group_item::{GroupItem, MenuItemAction, MenuParts},
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
         reveal::reveal_x,
@@ -126,15 +127,60 @@ impl<'a> HandleFace<'a> {
     ) -> GroupItem<'a, M> {
         match self {
             HandleFace::Icon { glyph, .. } => {
-                GroupItem::element(move |_| glyph.view(config.theme.font.icon_size_px, text_color))
+                GroupItem::element(move |_| icon_face_glyph(config, glyph, FaceGlyphTint::Text))
             }
             HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
-                glyph.view(config.theme.font.icon_size_px, {
-                    let state = reading.state(clock);
-                    move |theme: &iced::Theme| state.color(theme)
-                })
+                icon_face_glyph(
+                    config,
+                    glyph,
+                    FaceGlyphTint::ReadingState(reading.state(clock)),
+                )
             }),
             HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
+        }
+    }
+
+    fn into_menu_parts<M: Clone + 'a>(
+        self,
+        config: &'a Config,
+        items: &[GroupItem<'a, M>],
+        clock: Clock,
+    ) -> MenuParts<'a, M> {
+        let preview = || collapsing_previewed_value(config, items, 0.0, clock);
+        match self {
+            HandleFace::Icon { glyph, .. } => MenuParts {
+                icon: icon_face_glyph(config, glyph, FaceGlyphTint::Text),
+                value: preview(),
+            },
+            HandleFace::IconColoredBy { glyph, reading, .. } => MenuParts {
+                icon: icon_face_glyph(
+                    config,
+                    glyph,
+                    FaceGlyphTint::ReadingState(reading.state(clock)),
+                ),
+                value: preview(),
+            },
+            HandleFace::FirstItem => items[0].menu_parts(config, clock),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum FaceGlyphTint {
+    Text,
+    ReadingState(WidgetState),
+}
+
+fn icon_face_glyph<'a, Message: 'a>(
+    config: &Config,
+    glyph: Glyph,
+    tint: FaceGlyphTint,
+) -> Element<'a, Message> {
+    let icon_size = config.theme.font.icon_size_px;
+    match tint {
+        FaceGlyphTint::Text => glyph.view(icon_size, text_color),
+        FaceGlyphTint::ReadingState(state) => {
+            glyph.view(icon_size, move |theme| state.color(theme))
         }
     }
 }
@@ -214,8 +260,7 @@ pub(super) struct MenuMember<'a, M> {
 
 pub(super) struct CascadeItem<'a, M> {
     pub name: &'static str,
-    pub inspected_row: Option<InspectedRow>,
-    pub press: Option<M>,
+    pub action: MenuItemAction<M>,
     pub parts: MenuParts<'a, M>,
 }
 
@@ -272,9 +317,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn pinned_from(self, group_menu: GroupHandle) -> Self {
+    pub fn pinned_from(self, menu: GroupMenuKind) -> Self {
         Self {
-            panel_pin: PanelPin::PinnedFrom(group_menu),
+            panel_pin: PanelPin::PinnedFrom(menu),
             ..self
         }
     }
@@ -376,46 +421,29 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         let GroupContent {
             group_title,
             handle,
-            mut items,
+            items,
             ..
         } = self;
         let face = match handle {
             Handle::Expandable { face, .. } => face,
             Handle::Fixed => HandleFace::FirstItem,
-        };
-        let face_item = match face {
-            HandleFace::FirstItem => None,
-            icon_face => Some(icon_face.into_face_item(
-                config,
-                &mut items,
-                HoverAnnouncement::default(),
-                clock,
-            )),
-        };
-        let face = match &face_item {
-            None => items[0].menu_parts(config, clock),
-            Some(icon_item) => MenuParts {
-                icon: icon_item.glance_view(config, clock),
-                value: collapsing_previewed_value(config, &items, 0.0, clock),
-            },
-        };
-        let (aligned, cascade_items) = items.iter().fold(
-            (BTreeMap::new(), Vec::new()),
-            |(mut aligned, mut cascade_items), item| {
-                match item.alignment() {
-                    ItemAlignment::Aligned(quantity) => {
-                        aligned.insert(quantity, item.table_cell_view(config, clock));
-                    }
-                    ItemAlignment::Unaligned => cascade_items.push(CascadeItem {
-                        name: item.menu_name().unwrap_or_default(),
-                        inspected_row: item.inspected_row(),
-                        press: item.press_message(),
-                        parts: item.menu_parts(config, clock),
-                    }),
-                }
-                (aligned, cascade_items)
-            },
-        );
+        }
+        .into_menu_parts(config, &items, clock);
+        let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
+            if let ItemAlignment::Aligned(quantity) = item.alignment() {
+                aligned.insert(quantity, item.table_cell_view(config, clock));
+            }
+            aligned
+        });
+        let cascade_items = items
+            .iter()
+            .filter(|item| item.alignment() == ItemAlignment::Unaligned)
+            .map(|item| CascadeItem {
+                name: item.menu_name().unwrap_or_default(),
+                action: item.menu_action(),
+                parts: item.menu_parts(config, clock),
+            })
+            .collect();
         Some(MenuMember {
             group_title,
             face,
