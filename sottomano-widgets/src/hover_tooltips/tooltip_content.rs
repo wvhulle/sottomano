@@ -4,11 +4,11 @@ use std::{
 };
 
 use iced::{
-    Element, Length, Padding, Pixels,
+    Background, Element, Length, Padding, Pixels,
     alignment::Vertical,
     font::Style as FontStyle,
     mouse::Interaction,
-    widget::{Column, Space, Text, container, row, text, text::Wrapping},
+    widget::{Column, Space, Text, button, container, row, text, text::Wrapping},
 };
 use iced_controller_diagram::{Style as DiagramStyle, controller_diagram};
 use sottomano_config::Config;
@@ -25,10 +25,9 @@ use crate::{
     widgets::{
         bar_widget::Glyph,
         configured_theme::{
-            primary_color, primary_shades, secondary_text_color, success_color, success_shades,
-            text_color,
+            primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
+            success_shades, text_color,
         },
-        glyph_button,
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -170,32 +169,51 @@ impl<'a> TooltipContent<'a> {
                 group_title,
                 panel_pin,
             } => {
-                let title = self.small_dim_text(group_title.to_owned()).into();
+                let title: Element<'static, PopupMessage> =
+                    container(self.small_dim_text(group_title.to_owned()))
+                        .padding(self.edge_row_padding())
+                        .into();
                 let unpin = match panel_pin {
                     PanelPin::Unpinned => None,
-                    PanelPin::PinnedFrom(group_menu) => Some(glyph_button(
-                        Phosphor::PushPin(Weight::Fill),
-                        self.config.theme.font.small_text_size_px,
-                        text_color,
-                        PopupMessage::ToggleGroupMenuPin {
+                    PanelPin::PinnedFrom(group_menu) => {
+                        Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             group_menu,
                             group_title,
-                        },
-                    )),
+                        }))
+                    }
                 };
                 Some(
-                    container(
-                        row(once(title)
-                            .chain(once(Space::new().width(Length::Fill).into()))
-                            .chain(unpin))
-                        .align_y(Vertical::Center),
-                    )
-                    .padding(self.edge_row_padding())
-                    .into(),
+                    Column::with_children(once(title).chain(unpin))
+                        .spacing(self.config.layout.overlay.row_spacing)
+                        .into(),
                 )
             }
             HoverOrigin::Reading => None,
         }
+    }
+
+    fn unpin_action_row(&self, unpin: PopupMessage) -> Element<'static, PopupMessage> {
+        let font = &self.config.theme.font;
+        let label = row([
+            Glyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
+            bar_text(font, "unpin from the panel").into(),
+        ])
+        .spacing(self.config.layout.overlay.row_spacing)
+        .align_y(Vertical::Center);
+        button(label)
+            .width(Length::Fill)
+            .padding(
+                self.edge_row_padding()
+                    .vertical(self.config.layout.overlay.row_spacing),
+            )
+            .style(|theme, status| button::Style {
+                background: matches!(status, button::Status::Hovered | button::Status::Pressed)
+                    .then(|| Background::Color(primary_weak_color(theme))),
+                text_color: text_color(theme),
+                ..button::Style::default()
+            })
+            .on_press(unpin)
+            .into()
     }
 
     fn group_sections(&self, group: &SourcedSections) -> Element<'static, PopupMessage> {
