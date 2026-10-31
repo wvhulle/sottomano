@@ -25,9 +25,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
@@ -234,16 +232,9 @@ impl IdleTimeoutsGroup {
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
             self.entries().map(|(kind, timer)| {
-                GroupItem::control(
-                    timer.reading(),
-                    timer.target().clone(),
-                    move |reveal, clock| {
-                        timer.view(config, reveal, clock).map(move |m| match m {
-                            ControlMessage::Tooltip(t) => GroupEvent::Tooltip(t),
-                            m => GroupEvent::Group(IdleTimeoutsMessage::Timer(kind, m)),
-                        })
-                    },
-                )
+                GroupItem::slider(timer.slider(), config, move |message| {
+                    IdleTimeoutsMessage::Timer(kind, message)
+                })
                 .previewed_on_handle_if(kind == IdleAction::Lock)
             }),
         )

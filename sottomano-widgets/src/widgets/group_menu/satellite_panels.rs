@@ -47,11 +47,29 @@ impl SatellitePanels {
         )
     }
 
+    #[allow(clippy::cast_precision_loss)]
+    pub(super) fn item_row_top(
+        &self,
+        config: &Config,
+        member: usize,
+        position: usize,
+        item_count: usize,
+    ) -> f32 {
+        let pitch = menu_row_height(config);
+        let member_row_top = cascade_offset(config, member);
+        match self.growth {
+            PanelGrowth::Downward => member_row_top + pitch * position as f32,
+            PanelGrowth::Upward => {
+                member_row_top + pitch * (position as f32 + 1.0 - item_count as f32)
+            }
+        }
+    }
+
     pub(super) fn beside_row<'a, Message: 'a>(
         &self,
         config: &Config,
         content: Element<'a, Message>,
-        rows_above: usize,
+        row_top: f32,
     ) -> Element<'a, Message> {
         notched_panel(
             content,
@@ -60,7 +78,7 @@ impl SatellitePanels {
             NotchPlacement {
                 side: self.notch_side,
                 growth: self.growth,
-                row_top: cascade_offset(config, rows_above),
+                row_top,
                 row_height: menu_row_height(config),
                 notch_depth: self.notch_depth,
             },

@@ -149,6 +149,17 @@ impl<Message> NotchedPanel<'_, Message> {
         panel_morph.morph.current() + notch_edge
     }
 
+    fn panel_with_gap(&self, panel: Rectangle) -> Rectangle {
+        let gap_left_x = match self.placement.side {
+            NotchSide::Left => panel.x - self.placement.notch_depth,
+            NotchSide::Right => panel.x,
+        };
+        Rectangle::new(
+            Point::new(gap_left_x, panel.y),
+            Size::new(panel.width + self.placement.notch_depth, panel.height),
+        )
+    }
+
     fn notch_side_radius(&self, panel: Rectangle) -> f32 {
         notch_side_radius(self.corner_radius, panel.height)
     }
@@ -286,15 +297,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let panel = self.drawn_panel(panel_morph, layout.bounds());
-        let rects: Vec<Rectangle> = once(panel)
+        let drawn_surface: Vec<Rectangle> = once(panel)
             .chain(self.connector(panel, origin).blur_rows())
             .collect();
         RegionRoles {
-            takes_input: true,
+            takes_input: false,
             blurred: self.blurred,
             corner_radius: self.panel_corners(panel),
         }
-        .report(&rects, layout.bounds(), operation);
+        .report(&drawn_surface, layout.bounds(), operation);
+        RegionRoles {
+            takes_input: true,
+            blurred: false,
+            corner_radius: Radius::default(),
+        }
+        .report(&[self.panel_with_gap(panel)], layout.bounds(), operation);
         let content_layout = layout.children().next().unwrap();
         self.content.as_widget_mut().operate(
             &mut tree.children[0],

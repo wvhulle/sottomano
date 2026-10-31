@@ -1,7 +1,5 @@
 use std::time::Duration;
 
-use iced::Element;
-use sottomano_config::Config;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 use crate::{
@@ -150,12 +148,7 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn view<'a>(
-        &'a self,
-        config: &'a Config,
-        reveal: f32,
-        clock: Clock,
-    ) -> Element<'a, ControlMessage> {
-        self.control.view(config, reveal, clock)
+    pub fn slider(&self) -> &SliderControl {
+        &self.control
     }
 }

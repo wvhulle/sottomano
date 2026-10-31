@@ -187,18 +187,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub fn control(
-        widget: &'a dyn BarWidget,
-        target: impl Into<HoverTarget>,
-        draw: impl Fn(f32, Clock) -> Element<'a, GroupEvent<M>> + 'a,
-    ) -> Self {
-        Self::of_kind(ItemKind::Control {
-            widget,
-            target: target.into(),
-            draw: Box::new(move |reveal, clock, _| draw(reveal, clock)),
-        })
-    }
-
     pub fn slider(
         slider: &'a SliderControl,
         config: &'a Config,
@@ -456,13 +444,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let inspected_row = match &self.kind {
-            ItemKind::Reading { target, .. } | ItemKind::HoverableElement { target, .. } => {
-                InspectedRow {
-                    target: target.clone(),
-                    announcement: self.announcement(),
-                }
-            }
-            ItemKind::Control { .. } | ItemKind::Element { .. } => {
+            ItemKind::Reading { target, .. }
+            | ItemKind::Control { target, .. }
+            | ItemKind::HoverableElement { target, .. } => InspectedRow {
+                target: target.clone(),
+                announcement: self.announcement(),
+            },
+            ItemKind::Element { .. } => {
                 return match &self.on_press {
                     Some(press) => MenuItemAction::Press(press.message.clone()),
                     None => MenuItemAction::Inert,

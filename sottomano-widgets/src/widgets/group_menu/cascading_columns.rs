@@ -112,27 +112,34 @@ fn open_group_satellites<
         .group_menus
         .inspected_row(layout.menu.kind)
         .map(|row| &row.target);
-    let inspected_position = inspected_target.and_then(|target| {
+    let card_position = inspected_target.and_then(|target| {
         items
             .iter()
             .position(|item| item.action.inspected_target() == Some(target))
     });
+    let item_count = items.len();
     let item_corners = layout
         .satellite_panels
-        .corners_for_rows(layout.config, items.len());
+        .corners_for_rows(layout.config, item_count);
     let is_inspected = |item: &CascadeItem<'a, M>| {
         inspected_target.is_some_and(|target| item.action.inspected_target() == Some(target))
     };
     let item_list = item_menu(layout, items, &is_inspected, item_corners).map(Outer::from);
-    let item_panel = layout
-        .satellite_panels
-        .beside_row(layout.config, item_list, member);
-    let card_panel = inspected_position.and_then(|position| {
+    let item_panel = layout.satellite_panels.beside_row(
+        layout.config,
+        item_list,
+        cascade_offset(layout.config, member),
+    );
+    let card_panel = card_position.and_then(|position| {
         card.view(layout.config).map(|card_view| {
+            let card_row_top =
+                layout
+                    .satellite_panels
+                    .item_row_top(layout.config, member, position, item_count);
             layout.satellite_panels.beside_row(
                 layout.config,
                 card_view.map(Outer::from),
-                member + position,
+                card_row_top,
             )
         })
     });
