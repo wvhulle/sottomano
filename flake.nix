@@ -70,6 +70,7 @@
           vulkan-loader
           systemd
           pipewire
+          openssl
         ];
         WEATHER_ICONS_SVG = "${pkgs.weather-icons.src}/svg";
         PHOSPHOR_SVG = "${phosphorCore}/assets";
@@ -126,6 +127,7 @@
           inxi
           wireplumber
           pipewire
+          openssl
           wireguard-tools
           tailscale
           xdg-utils
