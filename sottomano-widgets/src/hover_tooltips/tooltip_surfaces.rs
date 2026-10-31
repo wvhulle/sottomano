@@ -1,9 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, iter::once, mem::take};
 
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
-    widget::{container, mouse_area},
+    widget::{Row, container, mouse_area},
     window::Id,
 };
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
@@ -14,13 +14,14 @@ use crate::{
     clock::Clock,
     hover_tooltips::{
         HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, TooltipMessage,
+        panel_row_inspection::PanelRowInspection,
         tooltip_content::TooltipContent,
         tooltip_transition::{Departed, DepartedContent, Occupant, Placement, TooltipTransition},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
     widgets::{
-        anchored_popup::{Rendering, anchored_popup},
+        anchored_popup::{PopupFraming, Rendering, anchored_popup},
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
@@ -36,16 +37,6 @@ pub struct PendingSwitch {
     pub anchor: Rectangle,
     pub announcement: HoverAnnouncement,
     _intent_timer: task::Handle,
-}
-
-#[derive(Default)]
-enum PanelRowInspection {
-    #[default]
-    Nothing,
-    Row {
-        within: HoverTarget,
-        row: InspectedRow,
-    },
 }
 
 #[derive(Default)]
@@ -80,14 +71,16 @@ impl TooltipHost {
                 self.transition.revise_announcement(&target, announcement);
                 None
             }
+            TooltipMessage::InspectMember(member) => {
+                if let Some(within) = self.target().cloned() {
+                    self.inspection = take(&mut self.inspection).inspecting_member(&within, member);
+                }
+                None
+            }
             TooltipMessage::Inspect(row) => {
-                self.inspection = match self.target() {
-                    Some(within) => PanelRowInspection::Row {
-                        within: within.clone(),
-                        row,
-                    },
-                    None => PanelRowInspection::Nothing,
-                };
+                if let Some(within) = self.target().cloned() {
+                    self.inspection = take(&mut self.inspection).inspecting_row(&within, row);
+                }
                 None
             }
             TooltipMessage::Enter { .. }
@@ -285,11 +278,13 @@ impl TooltipHost {
     }
 
     #[must_use]
+    pub fn inspected_member(&self) -> Option<usize> {
+        self.inspection.member_within(self.target())
+    }
+
+    #[must_use]
     pub fn inspected_row(&self) -> Option<&InspectedRow> {
-        match &self.inspection {
-            PanelRowInspection::Row { within, row } if self.target() == Some(within) => Some(row),
-            PanelRowInspection::Row { .. } | PanelRowInspection::Nothing => None,
-        }
+        self.inspection.row_within(self.target())
     }
 
     #[must_use]
@@ -303,7 +298,9 @@ impl TooltipHost {
         let current = self.transition.current()?;
         let departed_content = match content.with_announcement(current.announcement) {
             HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
-            HoverContent::Interactive { .. } => DepartedContent::Interactive,
+            HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => {
+                DepartedContent::Interactive
+            }
         };
         Some(Departed::new(
             current.target.clone(),
@@ -326,14 +323,24 @@ impl TooltipHost {
                 .map(Message::from)
         };
         let render = |content: HoverContent<'a, Message>| match content {
-            HoverContent::Described(tooltip) => describe(&tooltip),
+            HoverContent::Described(tooltip) => Rendered::framed(describe(&tooltip)),
             HoverContent::Interactive { described, panel } => {
                 if described.is_empty() {
-                    panel
+                    Rendered::framed(panel)
                 } else {
-                    TooltipContent::new(&described, config, assets, clock).view_enclosing(panel)
+                    Rendered::framed(
+                        TooltipContent::new(&described, config, assets, clock)
+                            .view_enclosing(panel),
+                    )
                 }
             }
+            HoverContent::Cascade {
+                primary,
+                satellites,
+            } => Rendered {
+                element: Row::with_children(once(primary).chain(satellites)).into(),
+                framing: PopupFraming::FirstChild,
+            },
         };
         if !self.hosts(surface) {
             return None;
@@ -359,12 +366,13 @@ impl TooltipHost {
                 DepartedContent::Described(tooltip) => HoverContent::Described(tooltip.clone()),
                 DepartedContent::Interactive => content_of(&previous.target),
             };
-            renderings.push(Rendering::outgoing(render(departed)));
+            let Rendered { element, framing } = render(departed);
+            renderings.push(Rendering::outgoing(element).framing(framing));
         }
         if let Some(current) = self.transition.current() {
-            renderings.push(Rendering::incoming(hoverable_content(render(
-                content_of(&current.target).with_announcement(current.announcement),
-            ))));
+            let Rendered { element, framing } =
+                render(content_of(&current.target).with_announcement(current.announcement));
+            renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
         }
         Some(
             container(anchored_popup(
@@ -387,6 +395,24 @@ pub enum HoverContent<'a, Message> {
         described: Tooltip,
         panel: Element<'a, Message>,
     },
+    Cascade {
+        primary: Element<'a, Message>,
+        satellites: Vec<Element<'a, Message>>,
+    },
+}
+
+struct Rendered<'a, Message> {
+    element: Element<'a, Message>,
+    framing: PopupFraming,
+}
+
+impl<'a, Message> Rendered<'a, Message> {
+    fn framed(element: Element<'a, Message>) -> Self {
+        Self {
+            element,
+            framing: PopupFraming::WholeContent,
+        }
+    }
 }
 
 impl<Message> HoverContent<'_, Message> {
@@ -400,6 +426,7 @@ impl<Message> HoverContent<'_, Message> {
                 described: described.with_announcement(announcement),
                 panel,
             },
+            cascade @ HoverContent::Cascade { .. } => cascade,
         }
     }
 
@@ -407,7 +434,7 @@ impl<Message> HoverContent<'_, Message> {
     pub fn shows_anything(&self, announcement: HoverAnnouncement) -> bool {
         match self {
             HoverContent::Described(tooltip) => !tooltip.is_empty() || !announcement.is_empty(),
-            HoverContent::Interactive { .. } => true,
+            HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => true,
         }
     }
 }

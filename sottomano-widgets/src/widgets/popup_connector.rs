@@ -1,11 +1,14 @@
 use iced::{
     Border, Color, Point, Rectangle, Size, Vector,
     advanced::graphics::geometry::Renderer as _,
-    widget::canvas::{Frame, Path, Stroke},
+    border::Radius,
+    widget::canvas::{Frame, Path, Stroke, path::Builder},
 };
 use sottomano_config::screen_edges::Position;
 
 const BASE_HALF_WIDTH_PX: f32 = 6.0;
+const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
+const ROUNDED_TIP_SHARE: f32 = 0.3;
 
 pub struct ConnectorTriangle {
     position: Position,
@@ -30,6 +33,11 @@ fn toward(from: Point, to: Point, fraction: f32) -> Point {
 
 impl ConnectorTriangle {
     #[must_use]
+    pub const fn half_span() -> f32 {
+        BASE_HALF_WIDTH_PX + SHOULDER_PX
+    }
+
+    #[must_use]
     pub fn between(
         anchor: Rectangle,
         bar_edge: f32,
@@ -37,7 +45,7 @@ impl ConnectorTriangle {
         position: Position,
         corner_radius: f32,
     ) -> Self {
-        let inset = BASE_HALF_WIDTH_PX + corner_radius;
+        let inset = Self::half_span() + corner_radius;
         match position {
             Position::Top | Position::Bottom => {
                 let base_y = if position == Position::Top {
@@ -77,8 +85,16 @@ impl ConnectorTriangle {
         }
     }
 
+    fn shoulders(&self) -> [Point; 2] {
+        let base = self.base_end - self.base_start;
+        let length = base.x.hypot(base.y).max(f32::EPSILON);
+        let along = base * (SHOULDER_PX / length);
+        [self.base_start - along, self.base_end + along]
+    }
+
     fn bounds(&self) -> Rectangle {
-        let corners = [self.apex, self.base_start, self.base_end];
+        let [shoulder_start, shoulder_end] = self.shoulders();
+        let corners = [self.apex, shoulder_start, shoulder_end];
         let left = corners
             .iter()
             .map(|corner| corner.x)
@@ -111,30 +127,6 @@ impl ConnectorTriangle {
             toward(self.apex, self.base_start, fraction),
             toward(self.apex, self.base_end, fraction),
         ]
-    }
-
-    #[must_use]
-    pub fn base_span(&self, reach: f32) -> Rectangle {
-        match self.position {
-            Position::Top => Rectangle {
-                x: self.base_start.x,
-                y: self.base_start.y,
-                width: self.base_end.x - self.base_start.x,
-                height: reach,
-            },
-            Position::Bottom => Rectangle {
-                x: self.base_start.x,
-                y: self.base_start.y - reach,
-                width: self.base_end.x - self.base_start.x,
-                height: reach,
-            },
-            Position::Left => Rectangle {
-                x: self.base_start.x,
-                y: self.base_start.y,
-                width: reach,
-                height: self.base_end.y - self.base_start.y,
-            },
-        }
     }
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -176,17 +168,94 @@ impl ConnectorTriangle {
         }
     }
 
-    pub fn draw(&self, renderer: &mut iced::Renderer, fill: Color, outline: Border) {
-        let mut frame = Frame::with_bounds(renderer, self.bounds());
-        let slanted_sides = Path::new(|path| {
-            path.move_to(self.base_start);
-            path.line_to(self.apex);
-            path.line_to(self.base_end);
-        });
-        frame.fill(&slanted_sides, fill);
+    fn trace_sides(&self, path: &mut Builder, reversed: bool) {
+        let [shoulder_start, shoulder_end] = self.shoulders();
+        let (near_base, far_base, near_shoulder, far_shoulder) = if reversed {
+            (self.base_end, self.base_start, shoulder_end, shoulder_start)
+        } else {
+            (self.base_start, self.base_end, shoulder_start, shoulder_end)
+        };
+        path.line_to(near_shoulder);
+        path.bezier_curve_to(
+            near_base,
+            toward(near_base, self.apex, 0.5),
+            toward(self.apex, near_base, ROUNDED_TIP_SHARE),
+        );
+        path.quadratic_curve_to(self.apex, toward(self.apex, far_base, ROUNDED_TIP_SHARE));
+        path.bezier_curve_to(toward(far_base, self.apex, 0.5), far_base, far_shoulder);
+    }
+
+    fn joined_outline(&self, panel: Rectangle, corners: Radius) -> Path {
+        let left = panel.x;
+        let top = panel.y;
+        let right = panel.x + panel.width;
+        let bottom = panel.y + panel.height;
+        let corner = |path: &mut Builder, vertex: Point, leaving: Point, radius: f32| {
+            if radius > 0.0 {
+                path.arc_to(vertex, leaving, radius);
+            } else {
+                path.line_to(vertex);
+            }
+        };
+        Path::new(|path| {
+            path.move_to(Point::new(left + corners.top_left, top));
+            if self.position == Position::Top {
+                self.trace_sides(path, false);
+            }
+            path.line_to(Point::new(right - corners.top_right, top));
+            corner(
+                path,
+                Point::new(right, top),
+                Point::new(right, top + corners.top_right),
+                corners.top_right,
+            );
+            path.line_to(Point::new(right, bottom - corners.bottom_right));
+            corner(
+                path,
+                Point::new(right, bottom),
+                Point::new(right - corners.bottom_right, bottom),
+                corners.bottom_right,
+            );
+            if self.position == Position::Bottom {
+                self.trace_sides(path, true);
+            }
+            path.line_to(Point::new(left + corners.bottom_left, bottom));
+            corner(
+                path,
+                Point::new(left, bottom),
+                Point::new(left, bottom - corners.bottom_left),
+                corners.bottom_left,
+            );
+            if self.position == Position::Left {
+                self.trace_sides(path, true);
+            }
+            path.line_to(Point::new(left, top + corners.top_left));
+            corner(
+                path,
+                Point::new(left, top),
+                Point::new(left + corners.top_left, top),
+                corners.top_left,
+            );
+            path.close();
+        })
+    }
+
+    pub fn draw_joined(
+        &self,
+        renderer: &mut iced::Renderer,
+        panel: Rectangle,
+        corners: Radius,
+        fill: Color,
+        outline: Border,
+    ) {
+        let reach = outline.width.max(1.0);
+        let drawn = panel.union(&self.bounds()).expand(reach);
+        let mut frame = Frame::with_bounds(renderer, drawn);
+        let surface = self.joined_outline(panel, corners);
+        frame.fill(&surface, fill);
         if outline.width > 0.0 {
             frame.stroke(
-                &slanted_sides,
+                &surface,
                 Stroke::default()
                     .with_color(outline.color)
                     .with_width(outline.width),

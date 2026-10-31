@@ -11,8 +11,8 @@ use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        GroupHandle, HoverAnnouncement, HoverTarget, PressHints, TooltipMessage,
-        announcing_hoverable,
+        GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PanelPin, PressHints,
+        TooltipMessage, announcing_hoverable,
     },
     widgets::{
         activity_line::activity_line,
@@ -22,7 +22,7 @@ use crate::{
         configured_theme::{primary_color, secondary_text_color, text_color},
         expand_animation::expand_animation,
         flat_button,
-        group_item::{GroupItem, ItemPlacement},
+        group_item::{GroupItem, MenuParts},
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
         reveal::reveal_x,
@@ -205,17 +205,18 @@ impl<'a, M: 'a> Handle<'a, M> {
     }
 }
 
-pub(super) struct DrawerCells<'a, M> {
-    pub column_face: Element<'a, GroupEvent<M>>,
-    pub section_face: Element<'a, GroupEvent<M>>,
+pub(super) struct MenuMember<'a, M> {
     pub group_title: &'static str,
+    pub face: MenuParts<'a, M>,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
-    pub unaligned: Vec<NamedDrawerCell<'a, M>>,
+    pub cascade_items: Vec<CascadeItem<'a, M>>,
 }
 
-pub(super) struct NamedDrawerCell<'a, M> {
+pub(super) struct CascadeItem<'a, M> {
     pub name: &'static str,
-    pub view: Element<'a, GroupEvent<M>>,
+    pub inspected_row: Option<InspectedRow>,
+    pub press: Option<M>,
+    pub parts: MenuParts<'a, M>,
 }
 
 pub trait WidgetGroup {
@@ -238,6 +239,7 @@ pub struct GroupContent<'a, M> {
     group_title: &'static str,
     handle: Handle<'a, M>,
     items: Vec<GroupItem<'a, M>>,
+    panel_pin: PanelPin,
 }
 
 impl<'a, M: Clone + 'a> GroupContent<'a, M> {
@@ -256,6 +258,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 scroll_does: None,
             },
             items: items.into_iter().collect(),
+            panel_pin: PanelPin::Unpinned,
         }
     }
 
@@ -264,6 +267,15 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             group_title,
             handle: Handle::Fixed,
             items: item.into_iter().collect(),
+            panel_pin: PanelPin::Unpinned,
+        }
+    }
+
+    #[must_use]
+    pub fn pinned_from(self, group_menu: GroupHandle) -> Self {
+        Self {
+            panel_pin: PanelPin::PinnedFrom(group_menu),
+            ..self
         }
     }
 
@@ -307,6 +319,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             group_title: self.group_title,
             handle: self.handle.map(lift),
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
+            panel_pin: self.panel_pin,
         }
     }
 
@@ -352,11 +365,11 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .unwrap_or_default()
     }
 
-    pub(super) fn drawer_cells(
-        self,
-        config: &'a Config,
-        clock: Clock,
-    ) -> Option<DrawerCells<'a, M>> {
+    pub(super) fn group_title(&self) -> &'static str {
+        self.group_title
+    }
+
+    pub(super) fn menu_member(self, config: &'a Config, clock: Clock) -> Option<MenuMember<'a, M>> {
         if self.items.is_empty() {
             return None;
         }
@@ -364,36 +377,50 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             group_title,
             handle,
             mut items,
+            ..
         } = self;
         let face = match handle {
             Handle::Expandable { face, .. } => face,
             Handle::Fixed => HandleFace::FirstItem,
         };
-        let face_item =
-            face.into_face_item(config, &mut items, HoverAnnouncement::default(), clock);
-        let face_view = || face_item.placed_view(config, 1.0, clock, ItemPlacement::Drawer);
-        let (aligned, unaligned) = items.iter().fold(
+        let face_item = match face {
+            HandleFace::FirstItem => None,
+            icon_face => Some(icon_face.into_face_item(
+                config,
+                &mut items,
+                HoverAnnouncement::default(),
+                clock,
+            )),
+        };
+        let face = match &face_item {
+            None => items[0].menu_parts(config, clock),
+            Some(icon_item) => MenuParts {
+                icon: icon_item.glance_view(config, clock),
+                value: collapsing_previewed_value(config, &items, 0.0, clock),
+            },
+        };
+        let (aligned, cascade_items) = items.iter().fold(
             (BTreeMap::new(), Vec::new()),
-            |(mut aligned, mut unaligned), item| {
-                let item_view = item.drawer_view(config, clock);
+            |(mut aligned, mut cascade_items), item| {
                 match item.alignment() {
                     ItemAlignment::Aligned(quantity) => {
-                        aligned.insert(quantity, item_view);
+                        aligned.insert(quantity, item.table_cell_view(config, clock));
                     }
-                    ItemAlignment::Unaligned => unaligned.push(NamedDrawerCell {
-                        name: item.drawer_name().unwrap_or_default(),
-                        view: item_view,
+                    ItemAlignment::Unaligned => cascade_items.push(CascadeItem {
+                        name: item.menu_name().unwrap_or_default(),
+                        inspected_row: item.inspected_row(),
+                        press: item.press_message(),
+                        parts: item.menu_parts(config, clock),
                     }),
                 }
-                (aligned, unaligned)
+                (aligned, cascade_items)
             },
         );
-        Some(DrawerCells {
-            column_face: face_view(),
-            section_face: face_view(),
+        Some(MenuMember {
             group_title,
+            face,
             aligned,
-            unaligned,
+            cascade_items,
         })
     }
 
@@ -411,6 +438,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             group_title,
             handle,
             mut items,
+            panel_pin,
         } = self;
         let Handle::Expandable {
             expansion,
@@ -430,7 +458,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         let handle_announcement = HoverAnnouncement::from_group_handle(
             group_title,
             PressHints::group_handle(expansion.expanded, scroll_does),
-        );
+        )
+        .pinned_by(panel_pin);
         let face_target = face.hover_target();
         let face = face.into_face_item(config, &mut items, handle_announcement, clock);
         let handle_target = items

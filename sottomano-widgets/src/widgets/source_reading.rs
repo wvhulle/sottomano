@@ -45,23 +45,7 @@ fn composed_reading<'a, Message: 'a>(
         state: widget.state(clock),
         opacity,
     };
-    let bare_icon = widget
-        .icon_at(clock)
-        .view(config.theme.font.icon_size_px, move |theme| {
-            tint.color(theme)
-        });
-    let icon = match widget.identity_ordinal() {
-        Some(ordinal) => superscripted(
-            config,
-            bare_icon,
-            ordinal.to_string(),
-            StateTint {
-                state: WidgetState::Off,
-                opacity,
-            },
-        ),
-        None => bare_icon,
-    };
+    let icon = reading_icon(config, widget, tint, clock);
 
     let reading = match value(config, widget, tint, clock) {
         Some(value) => row![icon, value]
@@ -75,6 +59,31 @@ fn composed_reading<'a, Message: 'a>(
         return reading;
     }
     badged(config, reading, widget.badge(), tint)
+}
+
+pub fn reading_icon<'a, Message: 'a>(
+    config: &Config,
+    widget: &dyn BarWidget,
+    tint: StateTint,
+    clock: Clock,
+) -> Element<'a, Message> {
+    let bare_icon = widget
+        .icon_at(clock)
+        .view(config.theme.font.icon_size_px, move |theme| {
+            tint.color(theme)
+        });
+    match widget.identity_ordinal() {
+        Some(ordinal) => superscripted(
+            config,
+            bare_icon,
+            ordinal.to_string(),
+            StateTint {
+                state: WidgetState::Off,
+                opacity: tint.opacity,
+            },
+        ),
+        None => bare_icon,
+    }
 }
 
 #[must_use]

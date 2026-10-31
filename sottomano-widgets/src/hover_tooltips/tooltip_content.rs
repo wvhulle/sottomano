@@ -16,7 +16,7 @@ use sottomano_config::Config;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverOrigin, MouseGesture, PopupMessage, PressHints, core_grid::CoreCellGrid,
+        HoverOrigin, MouseGesture, PanelPin, PopupMessage, PressHints, core_grid::CoreCellGrid,
     },
     widget_groups::{
         window_group::process_tree::ProcessTree,
@@ -28,6 +28,7 @@ use crate::{
             primary_color, primary_shades, secondary_text_color, success_color, success_shades,
             text_color,
         },
+        glyph_button,
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -165,11 +166,34 @@ impl<'a> TooltipContent<'a> {
 
     fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
         match self.tooltip.announcement.origin {
-            HoverOrigin::GroupHandle { group_title } => Some(
-                container(self.small_dim_text(group_title.to_owned()))
+            HoverOrigin::GroupHandle {
+                group_title,
+                panel_pin,
+            } => {
+                let title = self.small_dim_text(group_title.to_owned()).into();
+                let unpin = match panel_pin {
+                    PanelPin::Unpinned => None,
+                    PanelPin::PinnedFrom(group_menu) => Some(glyph_button(
+                        Phosphor::PushPin(Weight::Fill),
+                        self.config.theme.font.small_text_size_px,
+                        text_color,
+                        PopupMessage::ToggleGroupMenuPin {
+                            group_menu,
+                            group_title,
+                        },
+                    )),
+                };
+                Some(
+                    container(
+                        row(once(title)
+                            .chain(once(Space::new().width(Length::Fill).into()))
+                            .chain(unpin))
+                        .align_y(Vertical::Center),
+                    )
                     .padding(self.edge_row_padding())
                     .into(),
-            ),
+                )
+            }
             HoverOrigin::Reading => None,
         }
     }

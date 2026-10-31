@@ -1,19 +1,24 @@
+use std::iter::once;
+
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_tooltips::GroupHandle,
     widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
     widgets::{
-        group_drawer::GroupDrawer,
+        group_menu::GroupMenu,
         phosphor::{Phosphor, Weight},
         widget_group::GroupContent,
     },
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{DesktopShell, panel_bar::toggle_group_menu_pin},
+    shell_message::Message,
+};
 
 pub(super) struct BottomBarGroups<'a> {
-    pub settings_drawers: [GroupDrawer<'a, Message>; 2],
+    pub settings_menus: [GroupMenu<'a, Message>; 2],
     pub start: [GroupContent<'a, Message>; 6],
     pub end: [GroupContent<'a, Message>; 9],
 }
@@ -22,7 +27,7 @@ impl DesktopShell {
     pub(super) fn bottom_bar<'a>(&'a self, output: &'a str) -> Element<'a, Message> {
         let config = &self.config;
         let BottomBarGroups {
-            settings_drawers,
+            settings_menus,
             start,
             end,
         } = self.bottom_bar_groups();
@@ -30,9 +35,9 @@ impl DesktopShell {
             |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
         self.panel_bar(
             Position::Bottom,
-            settings_drawers
-                .map(|drawer| Some(drawer.handle_view(config, Position::Bottom, self.clock)))
+            settings_menus
                 .into_iter()
+                .flat_map(|group_menu| group_menu.bar_views(config, Position::Bottom, self.clock))
                 .chain(start.map(view))
                 .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
@@ -42,24 +47,32 @@ impl DesktopShell {
 
     pub(super) fn bottom_bar_groups(&self) -> BottomBarGroups<'_> {
         BottomBarGroups {
-            settings_drawers: self.bar_drawers(),
+            settings_menus: self.settings_menus(),
             start: self.bottom_bar_start_groups(),
             end: self.bottom_bar_end_groups(),
         }
     }
 
-    pub(super) fn bar_drawers(&self) -> [GroupDrawer<'_, Message>; 2] {
+    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenu<'_, Message>> {
+        once(self.hardware_menu()).chain(self.settings_menus())
+    }
+
+    fn settings_menus(&self) -> [GroupMenu<'_, Message>; 2] {
         [
-            GroupDrawer::new(
-                GroupHandle::AppearanceDrawer,
+            GroupMenu::new(
+                GroupHandle::AppearanceMenu,
                 "Appearance",
                 Phosphor::SlidersHorizontal(Weight::Regular),
+                &self.widget_groups.group_menu_pins,
+                toggle_group_menu_pin,
                 self.settings_groups().map(GroupContent::only_aligned_items),
             ),
-            GroupDrawer::new(
-                GroupHandle::BehaviourDrawer,
+            GroupMenu::new(
+                GroupHandle::BehaviourMenu,
                 "Behaviour",
                 Phosphor::ToggleRight(Weight::Regular),
+                &self.widget_groups.group_menu_pins,
+                toggle_group_menu_pin,
                 self.settings_groups()
                     .map(GroupContent::only_unaligned_items),
             ),

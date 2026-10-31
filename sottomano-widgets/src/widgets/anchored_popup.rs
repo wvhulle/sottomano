@@ -37,9 +37,16 @@ impl PopupFrame {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopupFraming {
+    WholeContent,
+    FirstChild,
+}
+
 pub struct Rendering<'a, Message> {
     element: Element<'a, Message>,
     incoming: bool,
+    framing: PopupFraming,
 }
 
 impl<'a, Message> Rendering<'a, Message> {
@@ -48,6 +55,7 @@ impl<'a, Message> Rendering<'a, Message> {
         Self {
             element,
             incoming: true,
+            framing: PopupFraming::WholeContent,
         }
     }
 
@@ -56,7 +64,13 @@ impl<'a, Message> Rendering<'a, Message> {
         Self {
             element,
             incoming: false,
+            framing: PopupFraming::WholeContent,
         }
+    }
+
+    #[must_use]
+    pub fn framing(self, framing: PopupFraming) -> Self {
+        Self { framing, ..self }
     }
 }
 
@@ -76,6 +90,7 @@ pub fn anchored_popup<'a, Message: 'a>(
         edge_inset: config.layout.panel.height + config.layout.overlay.panel_gap,
         bar_thickness: config.layout.panel.height,
         popup_gap: config.layout.overlay.panel_gap,
+        leading_icon_center: config.layout.overlay.content_inset + config.layout.panel.height / 2.0,
         position,
         seq,
         morph: config.tooltips.popup_morph,
@@ -92,6 +107,7 @@ struct AnchoredPopup<'a, Message> {
     edge_inset: f32,
     bar_thickness: f32,
     popup_gap: f32,
+    leading_icon_center: f32,
     position: Position,
     seq: u64,
     morph: Duration,
@@ -112,43 +128,7 @@ struct MorphState {
     connector: ConnectorTriangle,
 }
 
-fn around_hole(outer: Rectangle, hole: Rectangle) -> Vec<Rectangle> {
-    let outer_right = outer.x + outer.width;
-    let outer_bottom = outer.y + outer.height;
-    let hole_right = hole.x + hole.width;
-    let hole_bottom = hole.y + hole.height;
-    [
-        Rectangle {
-            x: outer.x,
-            y: outer.y,
-            width: outer.width,
-            height: hole.y - outer.y,
-        },
-        Rectangle {
-            x: outer.x,
-            y: hole_bottom,
-            width: outer.width,
-            height: outer_bottom - hole_bottom,
-        },
-        Rectangle {
-            x: outer.x,
-            y: hole.y,
-            width: hole.x - outer.x,
-            height: hole.height,
-        },
-        Rectangle {
-            x: hole_right,
-            y: hole.y,
-            width: outer_right - hole_right,
-            height: hole.height,
-        },
-    ]
-    .into_iter()
-    .filter(|part| part.width > 0.0 && part.height > 0.0)
-    .collect()
-}
-
-fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
+pub(super) fn lerp(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle {
     let mix = |start: f32, end: f32| start + (end - start) * fraction;
     Rectangle {
         x: mix(from.x, to.x),
@@ -184,13 +164,19 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
                 .min(room - extent - self.popup_gap)
                 .max(self.popup_gap)
         };
+        let horizontal = |extent: f32, room: f32| {
+            if self.frames_first_child() {
+                (self.anchor.center_x() - self.leading_icon_center)
+                    .min(room - extent)
+                    .max(0.0)
+            } else {
+                centered_on_anchor(self.anchor.center_x(), extent, room)
+            }
+        };
         let top_left = match self.position {
-            Position::Top => Point::new(
-                centered_on_anchor(self.anchor.center_x(), size.width, surface.width),
-                self.edge_inset,
-            ),
+            Position::Top => Point::new(horizontal(size.width, surface.width), self.edge_inset),
             Position::Bottom => Point::new(
-                centered_on_anchor(self.anchor.center_x(), size.width, surface.width),
+                horizontal(size.width, surface.width),
                 surface.height - self.edge_inset - size.height,
             ),
             Position::Left => Point::new(
@@ -233,6 +219,12 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
             })
     }
 
+    fn frames_first_child(&self) -> bool {
+        self.renderings
+            .iter()
+            .any(|rendering| rendering.incoming && rendering.framing == PopupFraming::FirstChild)
+    }
+
     fn is_live(&self) -> bool {
         self.renderings.iter().any(|rendering| rendering.incoming)
     }
@@ -241,45 +233,12 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         state.progress >= 1.0 && self.is_live()
     }
 
-    fn draw_outline(
-        &self,
-        renderer: &mut iced::Renderer,
-        outline: Border,
-        box_bounds: Rectangle,
-        notch_join: Option<Rectangle>,
-    ) {
-        if outline.width <= 0.0 {
-            return;
-        }
-        let quad = renderer::Quad {
-            bounds: box_bounds,
-            border: Border {
-                radius: self.radius.into(),
-                ..outline
-            },
-            ..Default::default()
-        };
-        let clips =
-            notch_join.map_or_else(|| vec![box_bounds], |join| around_hole(box_bounds, join));
-        for clip in clips {
-            renderer.with_layer(clip, |renderer| {
-                renderer.fill_quad(quad, Color::TRANSPARENT);
-            });
-        }
-    }
-
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
-        let settled = self.is_settled(state);
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        let notch_rows = if settled {
-            state.connector.translated(origin).blur_rows()
-        } else {
-            Vec::new()
-        };
         PopupFrame {
             bounds: state.current + origin,
-            notch_rows,
-            settled,
+            notch_rows: state.connector.translated(origin).blur_rows(),
+            settled: self.is_settled(state),
         }
     }
 
@@ -365,7 +324,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .iter()
             .zip(&nodes)
             .find(|(rendering, _)| rendering.incoming)
-            .map(|(_, node)| node.size());
+            .map(|(rendering, node)| match rendering.framing {
+                PopupFraming::WholeContent => node.size(),
+                PopupFraming::FirstChild => node
+                    .children()
+                    .first()
+                    .map_or_else(|| node.size(), Node::size),
+            });
         let at_anchor = self.resting(Size::ZERO, surface);
 
         let state: &mut MorphState = tree.state.downcast_mut();
@@ -442,15 +407,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 shadow: self.shadow,
                 ..Default::default()
             },
-            background,
+            Color::TRANSPARENT,
         );
-        let notch_join = self.is_settled(state).then(|| {
-            let connector = state.connector.translated(origin);
-            connector.draw(renderer, background, outline);
-            connector.base_span(2.0 * outline.width)
-        });
-        self.draw_outline(renderer, outline, box_bounds, notch_join);
-        let Some(clipped_viewport) = box_bounds.intersection(viewport) else {
+        state.connector.translated(origin).draw_joined(
+            renderer,
+            box_bounds,
+            Radius::from(self.radius),
+            background,
+            outline,
+        );
+        let content_clip = if self.frames_first_child() && self.is_settled(state) {
+            *viewport
+        } else {
+            box_bounds
+        };
+        let Some(clipped_viewport) = content_clip.intersection(viewport) else {
             return;
         };
         renderer.with_layer(clipped_viewport, |renderer| {

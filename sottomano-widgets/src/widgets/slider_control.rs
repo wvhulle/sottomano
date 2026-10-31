@@ -424,6 +424,15 @@ impl SliderControl {
         area.into()
     }
 
+    #[must_use]
+    pub fn menu_view<'a>(&self, config: &Config, gap: f32) -> Element<'a, ControlMessage> {
+        let opened =
+            Row::with_children([self.inline_slider_view(config), self.readout_view(config)])
+                .spacing(gap)
+                .align_y(Alignment::Center);
+        mouse_area(opened).on_scroll(ControlMessage::Scroll).into()
+    }
+
     fn expanded_view<'a>(
         &self,
         config: &Config,
