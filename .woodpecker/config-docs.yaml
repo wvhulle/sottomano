@@ -6,6 +6,9 @@ when:
       include: ["sottomano-config/**", "xtask/**", "docs/configuration.md"]
     evaluate: 'not (CI_COMMIT_MESSAGE contains "update default config")'
 
+labels:
+  host: ryzen
+
 depends_on:
   - checks
 

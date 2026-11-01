@@ -6,6 +6,9 @@ when:
     event: manual
     branch: main
 
+labels:
+  host: ryzen
+
 variables:
   - &dependency_updates_branch dependency-updates
   - &dependency_updates_title "chore(deps): update lockfiles"

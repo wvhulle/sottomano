@@ -5,6 +5,9 @@ when:
     event: [push, manual]
     branch: main
 
+labels:
+  host: ryzen
+
 variables:
   - &nix_config
     NIX_CONFIG: |
@@ -29,7 +32,8 @@ steps:
     when: *on_trusted_events
     environment: *cache_writing_env
     commands:
-      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#checks.x86_64-linux.tests .#checks.x86_64-linux.clippy
+      - nix build --quiet --no-link .#checks.x86_64-linux.tests .#checks.x86_64-linux.clippy
+      - nix-store --query --requisites --include-outputs $(nix path-info --derivation .#checks.x86_64-linux.tests .#checks.x86_64-linux.clippy) | grep -v '\.drv' | nix run --inputs-from . nixpkgs#cachix -- push wvhulle > /dev/null
 
   - name: cargo-checks-pr
     image: nixos/nix:latest
@@ -37,14 +41,14 @@ steps:
     when: *on_pull_requests
     environment: *nix_config
     commands:
-      - nix build --print-build-logs .#checks.x86_64-linux.tests .#checks.x86_64-linux.clippy
+      - nix build --quiet --no-link .#checks.x86_64-linux.tests .#checks.x86_64-linux.clippy
 
   - name: format
     image: nixos/nix:latest
     depends_on: []
     environment: *nix_config
     commands:
-      - nix build --print-build-logs .#checks.x86_64-linux.format
+      - nix build --quiet --no-link .#checks.x86_64-linux.format
 
   - name: conventional-commits
     image: nixos/nix:latest
