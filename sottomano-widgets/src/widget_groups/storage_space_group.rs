@@ -286,6 +286,7 @@ impl StorageSpaceGroup {
         [discovery_group]
             .into_iter()
             .chain(self.filesystems.values().map(Self::mount_group))
+            .map(GroupContent::sharing_title_row)
             .collect()
     }
 

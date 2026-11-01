@@ -12,10 +12,11 @@ use sottomano_widgets::{
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
         gamepad_group::GamepadGroup, journal_events_group::JournalEventsGroup,
         login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
-        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup, window_group::WindowGroup,
+        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
+        window_group::WindowGroup,
     },
 };
 
@@ -84,9 +85,10 @@ impl ShellWidgetGroups {
                 .subscription(&config.widget_groups.reachability, buses)
                 .map(Message::Reachability),
             self.vpn_group.subscription(buses).map(Message::Vpn),
-            self.net_interfaces_group
+            self.wifi_adapters_group
                 .subscription(buses)
-                .map(Message::NetInterfaces),
+                .map(Message::WifiAdapters),
+            MobileModemsGroup::subscription(buses).map(Message::MobileModems),
             self.ethernet_ports_group
                 .subscription(buses)
                 .map(Message::EthernetPorts),

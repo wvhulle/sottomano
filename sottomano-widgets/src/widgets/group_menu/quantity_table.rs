@@ -10,11 +10,11 @@ use crate::widgets::{
     aligned_quantity::AlignedQuantity,
     content_sized_table::{SpannableRow, content_sized_spanning_grid},
     text::{column_heading, row_key_label},
-    widget_group::GroupEvent,
+    widget_group::{GroupEvent, GroupTitle},
 };
 
 pub(super) struct QuantityTableColumn<'a, M> {
-    pub group_title: &'static str,
+    pub group_title: GroupTitle,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
 }
 
@@ -33,7 +33,7 @@ pub(super) fn quantity_table<'a, M: 'a>(
         .chain(
             members
                 .iter()
-                .map(|member| column_heading(font, member.group_title).into()),
+                .map(|member| column_heading(font, member.group_title.to_string()).into()),
         )
         .collect();
     let mut columns: Vec<_> = members.into_iter().map(|member| member.aligned).collect();

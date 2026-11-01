@@ -328,6 +328,7 @@ impl GpuGroup {
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),
                 )
+                .sharing_title_row()
             })
     }
 

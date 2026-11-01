@@ -4,6 +4,7 @@ pub mod hid_sysfs_bluetooth_peripherals;
 pub mod icmp_echo_probes;
 pub mod icmp_gateway_latency;
 pub mod icmp_internet_latency;
+pub mod interface_bus_attachment;
 pub mod interface_throughput;
 pub mod internet_connectivity_gate;
 pub mod modem_manager_mobile;

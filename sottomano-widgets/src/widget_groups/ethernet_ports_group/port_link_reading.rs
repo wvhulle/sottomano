@@ -1,5 +1,6 @@
-use sottomano_sources::network_connectivity::ethernet_connection::{
-    Link, Port, PortAttachment, PortState,
+use sottomano_sources::network_connectivity::{
+    ethernet_connection::{Link, Port, PortState},
+    interface_bus_attachment::InterfaceAttachment,
 };
 
 use crate::{
@@ -46,22 +47,22 @@ fn connection_state(port_state: &PortState) -> WidgetState {
     WidgetState::of_toggle(port_state.connected)
 }
 
-fn attachment_description(attachment: PortAttachment) -> &'static str {
+fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
     match attachment {
-        PortAttachment::BuiltIn => "built-in",
-        PortAttachment::Usb => "USB adapter",
+        InterfaceAttachment::BuiltIn => "built-in",
+        InterfaceAttachment::Usb => "USB adapter",
     }
 }
 
 impl BarWidget for PortLinkReading<'_> {
     fn name(&self) -> &'static str {
-        "Ethernet"
+        "Link"
     }
 
     fn icon(&self) -> Glyph {
         match self.port_state.attachment {
-            PortAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
-            PortAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
+            InterfaceAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
+            InterfaceAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
         }
     }
 
@@ -101,7 +102,7 @@ impl PortConnectionSwitch<'_> {
 
 impl BarWidget for PortConnectionSwitch<'_> {
     fn name(&self) -> &'static str {
-        "Ethernet connection"
+        "Connection"
     }
 
     fn icon(&self) -> Glyph {

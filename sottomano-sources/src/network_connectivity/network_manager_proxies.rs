@@ -34,6 +34,7 @@ const STATE_DEACTIVATING: u32 = 110;
 pub enum DeviceKind {
     Ethernet,
     Wifi,
+    Modem,
     Other,
 }
 
@@ -42,6 +43,7 @@ impl From<u32> for DeviceKind {
         match code {
             1 => Self::Ethernet,
             2 => Self::Wifi,
+            8 => Self::Modem,
             _ => Self::Other,
         }
     }
@@ -129,6 +131,8 @@ trait Device {
     fn device_type(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn interface(&self) -> zbus::Result<String>;
+    #[zbus(property)]
+    fn udi(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn state(&self) -> zbus::Result<u32>;
     #[zbus(property)]
@@ -291,6 +295,38 @@ pub struct DeviceInfo {
 pub async fn devices(connection: &Connection) -> zbus::Result<Vec<DeviceInfo>> {
     let paths = manager(connection).await?.get_devices().await?;
     try_join_all(paths.into_iter().map(|path| device_info(connection, path))).await
+}
+
+pub async fn devices_of_kind(
+    connection: &Connection,
+    kind: DeviceKind,
+) -> Result<Vec<DeviceInfo>, ReadingError> {
+    let mut matching_devices: Vec<DeviceInfo> = devices(connection)
+        .await?
+        .into_iter()
+        .filter(|device| device.kind == kind)
+        .collect();
+    if matching_devices.is_empty() {
+        return Err(ReadingError::Absent);
+    }
+    matching_devices.sort_by(|left, right| left.interface.cmp(&right.interface));
+    Ok(matching_devices)
+}
+
+pub async fn modem_device_at(
+    connection: &Connection,
+    modem_path: &str,
+) -> zbus::Result<Option<DeviceInfo>> {
+    let modem_devices = devices(connection)
+        .await?
+        .into_iter()
+        .filter(|device| device.kind == DeviceKind::Modem);
+    for modem_device in modem_devices {
+        if modem_device.proxy.udi().await? == modem_path {
+            return Ok(Some(modem_device));
+        }
+    }
+    Ok(None)
 }
 
 async fn device_info(connection: &Connection, path: OwnedObjectPath) -> zbus::Result<DeviceInfo> {
@@ -779,6 +815,17 @@ pub async fn connect_device(connection: &Connection, device: &DeviceInfo) -> zbu
         .activate_connection(&unset.clone().into(), &device.path, &unset)
         .await
         .map(drop)
+}
+
+pub async fn toggle_device_connection(
+    connection: &Connection,
+    device: &DeviceInfo,
+) -> zbus::Result<()> {
+    if device.connected {
+        disconnect_device(device).await
+    } else {
+        connect_device(connection, device).await
+    }
 }
 
 #[must_use]

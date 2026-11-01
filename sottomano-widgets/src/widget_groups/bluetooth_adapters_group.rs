@@ -328,6 +328,7 @@ impl BluetoothAdaptersGroup {
             .unwrap_or_default()
             .iter()
             .filter_map(|adapter| self.adapter_group(adapter, report_timing_for, clock))
+            .map(GroupContent::sharing_title_row)
             .collect()
     }
 }

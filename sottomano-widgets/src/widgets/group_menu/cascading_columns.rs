@@ -23,29 +23,49 @@ use crate::{
         list_end_corners::ListEndCorners,
         phosphor::{Phosphor, Weight},
         uniform_width_column::uniform_width_column,
-        widget_group::{CascadeItem, GroupEvent},
+        widget_group::{CascadeItem, GroupEvent, GroupTitle, GroupTitleClaim, TitleRow},
     },
 };
 
 pub(super) struct CascadeEntry<'a, M> {
-    pub group_title: &'static str,
+    pub title_claim: GroupTitleClaim,
     pub face: MenuParts<'a, M>,
     pub items: Vec<CascadeItem<'a, M>>,
 }
 
-pub(super) fn merged_by_title<'a, M>(
+pub(super) fn merged_where_requested<'a, M>(
     entries: impl IntoIterator<Item = CascadeEntry<'a, M>>,
 ) -> Vec<CascadeEntry<'a, M>> {
     entries.into_iter().fold(Vec::new(), |mut merged, entry| {
         match merged
             .iter_mut()
-            .find(|existing: &&mut CascadeEntry<'a, M>| existing.group_title == entry.group_title)
-        {
+            .find(|existing: &&mut CascadeEntry<'a, M>| {
+                entry.title_claim.title_row == TitleRow::SharedWithSameTitle
+                    && existing.title_claim == entry.title_claim
+            }) {
             Some(existing) => existing.items.extend(entry.items),
             None => merged.push(entry),
         }
         merged
     })
+}
+
+pub(super) fn duplicate_group_titles(
+    title_claims: impl IntoIterator<Item = GroupTitleClaim>,
+) -> Vec<GroupTitle> {
+    let title_claims: Vec<GroupTitleClaim> = title_claims.into_iter().collect();
+    title_claims
+        .iter()
+        .enumerate()
+        .filter(|(position, claim)| {
+            title_claims[..*position].iter().any(|earlier_claim| {
+                earlier_claim.group_title == claim.group_title
+                    && (earlier_claim.title_row == TitleRow::OwnRow
+                        || claim.title_row == TitleRow::OwnRow)
+            })
+        })
+        .map(|(_, claim)| claim.group_title)
+        .collect()
 }
 
 pub(super) struct CascadeLayout<'p, 'a, M> {
@@ -58,7 +78,7 @@ pub(super) struct CascadeLayout<'p, 'a, M> {
 
 struct OpenGroup<'a, M> {
     member: usize,
-    group_title: &'static str,
+    group_title: GroupTitle,
     items: Vec<CascadeItem<'a, M>>,
 }
 
@@ -80,7 +100,7 @@ pub(super) fn cascading_columns<
         .filter(|member| *member < entries.len())
         .map(|member| OpenGroup {
             member,
-            group_title: entries[member].group_title,
+            group_title: entries[member].title_claim.group_title,
             items: take(&mut entries[member].items),
         });
     let open_member = open_group.as_ref().map(|open| open.member);
@@ -162,9 +182,8 @@ fn group_row<'a, M: Clone + 'a>(
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
-    let pinned_entry = PinnedEntry::Group {
-        group_title: entry.group_title,
-    };
+    let group_title = entry.title_claim.group_title;
+    let pinned_entry = PinnedEntry::Group { group_title };
     let pin = marked_by_menu_pin(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
@@ -183,7 +202,7 @@ fn group_row<'a, M: Clone + 'a>(
         CascadeDirection::Rightward => MenuRowContent {
             leading: Vec::new(),
             parts: entry.face,
-            name: entry.group_title,
+            name: group_title.to_string().into(),
             trailing: vec![
                 pin,
                 Glyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
@@ -194,7 +213,7 @@ fn group_row<'a, M: Clone + 'a>(
                 Glyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
             ],
             parts: entry.face,
-            name: entry.group_title,
+            name: group_title.to_string().into(),
             trailing: vec![pin],
         },
     };
@@ -210,7 +229,7 @@ fn group_row<'a, M: Clone + 'a>(
 
 fn item_menu<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &'static str,
+    group_title: GroupTitle,
     items: Vec<CascadeItem<'a, M>>,
     is_inspected: &dyn Fn(&CascadeItem<'a, M>) -> bool,
     panel_corners: Radius,
@@ -228,7 +247,7 @@ fn item_menu<'a, M: Clone + 'a>(
 
 fn item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &'static str,
+    group_title: GroupTitle,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
@@ -242,7 +261,7 @@ fn item_row<'a, M: Clone + 'a>(
 
 fn unmarked_item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &'static str,
+    group_title: GroupTitle,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
@@ -260,7 +279,7 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
     let content = MenuRowContent {
         leading: Vec::new(),
         parts: item.parts,
-        name: item.name,
+        name: item.name.into(),
         trailing: item_pin.into_iter().collect(),
     };
     let config = layout.config;
@@ -283,5 +302,88 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
             GroupEvent::Group(press),
             layout.menu.inspect_row(inspected_row),
         ),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::widget::Space;
+
+    use super::{
+        CascadeEntry, GroupTitle, GroupTitleClaim, TitleRow, duplicate_group_titles,
+        merged_where_requested,
+    };
+    use crate::widgets::group_item::MenuParts;
+
+    const ETHERNET_TITLE: GroupTitle = GroupTitle::Fixed("Ethernet");
+    const DRIVE_TITLE: GroupTitle = GroupTitle::Fixed("Drive");
+
+    fn own_row(group_title: GroupTitle) -> GroupTitleClaim {
+        GroupTitleClaim {
+            group_title,
+            title_row: TitleRow::OwnRow,
+        }
+    }
+
+    fn shared_row(group_title: GroupTitle) -> GroupTitleClaim {
+        GroupTitleClaim {
+            group_title,
+            title_row: TitleRow::SharedWithSameTitle,
+        }
+    }
+
+    fn entry_claiming(title_claim: GroupTitleClaim) -> CascadeEntry<'static, ()> {
+        CascadeEntry {
+            title_claim,
+            face: MenuParts {
+                icon: Space::new().into(),
+                value: Space::new().into(),
+            },
+            items: Vec::new(),
+        }
+    }
+
+    fn merged_row_count(title_claims: [GroupTitleClaim; 2]) -> usize {
+        merged_where_requested(title_claims.map(entry_claiming)).len()
+    }
+
+    #[test]
+    fn an_own_row_duplicate_is_flagged() {
+        assert_eq!(
+            duplicate_group_titles([own_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
+            [ETHERNET_TITLE]
+        );
+    }
+
+    #[test]
+    fn a_duplicate_with_only_one_side_sharing_is_flagged() {
+        assert_eq!(
+            duplicate_group_titles([shared_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
+            [ETHERNET_TITLE]
+        );
+    }
+
+    #[test]
+    fn requested_sharing_and_distinct_titles_are_not_flagged() {
+        assert!(
+            duplicate_group_titles([shared_row(DRIVE_TITLE), shared_row(DRIVE_TITLE)]).is_empty()
+        );
+        assert!(duplicate_group_titles([own_row(DRIVE_TITLE), own_row(ETHERNET_TITLE)]).is_empty());
+    }
+
+    #[test]
+    fn only_groups_requesting_it_share_a_row() {
+        assert_eq!(
+            merged_row_count([shared_row(DRIVE_TITLE), shared_row(DRIVE_TITLE)]),
+            1
+        );
+        assert_eq!(
+            merged_row_count([own_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
+            2
+        );
+        assert_eq!(
+            merged_row_count([shared_row(DRIVE_TITLE), own_row(DRIVE_TITLE)]),
+            2
+        );
     }
 }

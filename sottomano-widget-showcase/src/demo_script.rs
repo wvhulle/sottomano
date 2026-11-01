@@ -23,6 +23,7 @@ use sottomano_widgets::{
         weather_group::WeatherTarget,
         window_group::WindowTarget,
     },
+    widgets::widget_group::GroupTitle,
 };
 
 use crate::{
@@ -41,7 +42,7 @@ pub enum GroupShown {
     InMenu(GroupMenuKind),
     PinnedFrom {
         menu: GroupMenuKind,
-        group_title: &'static str,
+        group_title: GroupTitle,
     },
 }
 
@@ -580,7 +581,7 @@ pub const DEMOS: &[Demo] = &[
                 GroupMenuKind::Hardware,
             ))),
             Step::PressPin(PinnedEntry::Group {
-                group_title: "Memory",
+                group_title: GroupTitle::Fixed("Memory"),
             }),
             Step::RestFor(Duration::from_millis(1500)),
         ],
@@ -612,7 +613,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Hardware,
-            group_title: "Compute",
+            group_title: GroupTitle::Fixed("Compute"),
         },
         script: &[
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
@@ -626,7 +627,7 @@ pub const DEMOS: &[Demo] = &[
         live: memory_board::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Hardware,
-            group_title: "Memory",
+            group_title: GroupTitle::Fixed("Memory"),
         },
         script: &[
             Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
@@ -640,7 +641,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Network,
-            group_title: "VPN",
+            group_title: GroupTitle::Fixed("VPN"),
         },
         script: &[
             Step::Hover(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
@@ -660,7 +661,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Display,
-            group_title: "Wallpaper",
+            group_title: GroupTitle::Fixed("Wallpaper"),
         },
         script: &[
             Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
@@ -674,7 +675,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Session,
-            group_title: "Idle timeouts",
+            group_title: GroupTitle::Fixed("Idle timeouts"),
         },
         script: &[
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
@@ -688,7 +689,7 @@ pub const DEMOS: &[Demo] = &[
         live: claude_usage::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Services,
-            group_title: "Claude usage",
+            group_title: GroupTitle::Fixed("Claude usage"),
         },
         script: &[
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
@@ -702,7 +703,7 @@ pub const DEMOS: &[Demo] = &[
         live: audio::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuKind::Media,
-            group_title: "Audio",
+            group_title: GroupTitle::Fixed("Audio"),
         },
         script: &[
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),

@@ -170,7 +170,7 @@ impl<'a> TooltipContent<'a> {
                 panel_pin,
             } => {
                 let title: Element<'static, PopupMessage> =
-                    container(self.small_dim_text(group_title.to_owned()))
+                    container(self.small_dim_text(group_title.to_string()))
                         .padding(self.edge_row_padding())
                         .into();
                 let unpin = match panel_pin {

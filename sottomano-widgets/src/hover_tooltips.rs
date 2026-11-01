@@ -33,8 +33,8 @@ use crate::{
         login_session_group::LoginSessionTarget,
         media_group::PlayerTarget,
         memory_board_group::MemoryBoardTarget,
+        mobile_modems_group::MobileModemTarget,
         monitor_group::MonitorTarget,
-        net_interfaces_group::NetInterfaceTarget,
         niri_window_group::NiriWindowTarget,
         notification_group::NotificationTarget,
         openrouter_credit_group::OpenRouterCreditTarget,
@@ -54,9 +54,13 @@ use crate::{
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
+        wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupMessage, WindowTarget},
     },
-    widgets::phosphor::{Phosphor, Weight},
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        widget_group::GroupTitle,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,7 +79,8 @@ pub enum HoverTarget {
     Systemd(SystemdTarget),
     Journal(JournalTarget),
     PendingUpgrades(PendingUpgradesTarget),
-    NetInterface(NetInterfaceTarget),
+    WifiAdapter(WifiAdapterTarget),
+    MobileModem(MobileModemTarget),
     EthernetPort(EthernetPortTarget),
     Bluetooth(BluetoothTarget),
     Audio(AudioTarget),
@@ -124,7 +129,6 @@ pub enum GroupHandle {
     LlamaServer,
     LoginSession,
     Monitor,
-    NetInterfaces,
     NiriWindow,
     OpenRouterCredit,
     OverlaySettings,
@@ -213,7 +217,7 @@ pub enum HoverOrigin {
     #[default]
     Reading,
     GroupHandle {
-        group_title: &'static str,
+        group_title: GroupTitle,
         panel_pin: PanelPin,
     },
 }
@@ -245,7 +249,7 @@ impl HoverAnnouncement {
     }
 
     #[must_use]
-    pub fn from_group_handle(group_title: &'static str, press_hints: PressHints) -> Self {
+    pub fn from_group_handle(group_title: GroupTitle, press_hints: PressHints) -> Self {
         HoverAnnouncement {
             press_hints,
             origin: HoverOrigin::GroupHandle {

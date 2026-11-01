@@ -8,7 +8,10 @@ use iced::Task;
 use self::{menu_inspection::MenuInspection, sqlite_group_menu_pins::StoredGroupMenuPin};
 use crate::{
     hover_tooltips::InspectedRow,
-    widgets::phosphor::{Phosphor, Weight},
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        widget_group::GroupTitle,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,10 +76,10 @@ impl GroupMenuKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PinnedEntry {
     Group {
-        group_title: &'static str,
+        group_title: GroupTitle,
     },
     Item {
-        group_title: &'static str,
+        group_title: GroupTitle,
         item_name: &'static str,
     },
 }
@@ -87,14 +90,14 @@ impl PinnedEntry {
         match self {
             PinnedEntry::Group { group_title } => StoredGroupMenuPin::Group {
                 group_menu,
-                group_title: group_title.to_owned(),
+                group_title: group_title.to_string(),
             },
             PinnedEntry::Item {
                 group_title,
                 item_name,
             } => StoredGroupMenuPin::Item {
                 group_menu,
-                group_title: group_title.to_owned(),
+                group_title: group_title.to_string(),
                 item_name: item_name.to_owned(),
             },
         }
@@ -187,11 +190,13 @@ impl GroupMenus {
 
 #[cfg(test)]
 mod tests {
-    use super::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry};
+    use super::{GroupMenuKind, GroupMenuMessage, GroupMenus, GroupTitle, PinnedEntry};
 
-    const GPU_GROUP: PinnedEntry = PinnedEntry::Group { group_title: "GPU" };
+    const GPU_GROUP: PinnedEntry = PinnedEntry::Group {
+        group_title: GroupTitle::Fixed("GPU"),
+    };
     const GPU_LOAD_ITEM: PinnedEntry = PinnedEntry::Item {
-        group_title: "GPU",
+        group_title: GroupTitle::Fixed("GPU"),
         item_name: "GPU load",
     };
 
@@ -222,6 +227,20 @@ mod tests {
         let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
         assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, GPU_LOAD_ITEM));
         assert!(group_menus.is_pinned(GroupMenuKind::Hardware, GPU_GROUP));
+    }
+
+    #[test]
+    fn pinning_a_numbered_group_leaves_its_first_sibling_unpinned() {
+        let first_port = PinnedEntry::Group {
+            group_title: GroupTitle::numbered_from_second("USB Ethernet", 0),
+        };
+        let second_port = PinnedEntry::Group {
+            group_title: GroupTitle::numbered_from_second("USB Ethernet", 1),
+        };
+        let mut group_menus = GroupMenus::default();
+        let _ = group_menus.update(toggle_in_hardware(second_port));
+        assert!(group_menus.is_pinned(GroupMenuKind::Hardware, second_port));
+        assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, first_port));
     }
 
     #[test]

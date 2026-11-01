@@ -271,6 +271,7 @@ impl PhysicalDriveGroup {
                     .iter()
                     .map(|(disk, readings)| self.disk_group(disk, readings)),
             )
+            .map(GroupContent::sharing_title_row)
             .collect()
     }
 

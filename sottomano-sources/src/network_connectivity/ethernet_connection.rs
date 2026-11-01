@@ -4,10 +4,10 @@ use zbus::Connection;
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
-    host_machine_identity::udev_hardware_identity::{Adapter, BusId},
+    host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        ReadingError, device_or_absent, network_manager_proxies, nm_readings,
-        sysfs_interface_faults::InterfaceFaultCounters,
+        ReadingError, device_or_absent, interface_bus_attachment::InterfaceAttachment,
+        network_manager_proxies, nm_readings, sysfs_interface_faults::InterfaceFaultCounters,
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
@@ -24,26 +24,10 @@ pub struct Link {
     pub fault_counters: InterfaceFaultCounters,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PortAttachment {
-    BuiltIn,
-    Usb,
-}
-
-impl PortAttachment {
-    #[must_use]
-    pub fn of_interface(interface: &str) -> Self {
-        match Adapter::of_net_interface(interface).map(|adapter| adapter.bus_id) {
-            Some(BusId::Usb { .. }) => PortAttachment::Usb,
-            Some(BusId::Pci { .. }) | None => PortAttachment::BuiltIn,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct PortState {
     pub name: String,
-    pub attachment: PortAttachment,
+    pub attachment: InterfaceAttachment,
     pub connected: bool,
     pub switching: bool,
 }
@@ -120,16 +104,11 @@ async fn link(
 async fn ethernet_devices(
     connection: &Connection,
 ) -> Result<Vec<network_manager_proxies::DeviceInfo>, ReadingError> {
-    let devices: Vec<network_manager_proxies::DeviceInfo> =
-        network_manager_proxies::devices(connection)
-            .await?
-            .into_iter()
-            .filter(|device| device.kind == network_manager_proxies::DeviceKind::Ethernet)
-            .collect();
-    if devices.is_empty() {
-        return Err(ReadingError::Absent);
-    }
-    Ok(devices)
+    network_manager_proxies::devices_of_kind(
+        connection,
+        network_manager_proxies::DeviceKind::Ethernet,
+    )
+    .await
 }
 
 async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
@@ -138,7 +117,7 @@ async fn read(connection: Connection) -> Result<Ethernet, ReadingError> {
             .await?
             .into_iter()
             .map(|device| PortState {
-                attachment: PortAttachment::of_interface(&device.interface),
+                attachment: InterfaceAttachment::of_interface(&device.interface),
                 connected: device.connected,
                 switching: device.switching,
                 name: device.interface,
@@ -215,9 +194,5 @@ pub async fn toggle_ethernet_port(port_name: &str) -> zbus::Result<()> {
     else {
         return Ok(());
     };
-    if port_device.connected {
-        network_manager_proxies::disconnect_device(&port_device).await
-    } else {
-        network_manager_proxies::connect_device(&system, &port_device).await
-    }
+    network_manager_proxies::toggle_device_connection(&system, &port_device).await
 }

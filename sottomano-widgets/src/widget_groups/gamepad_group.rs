@@ -141,8 +141,11 @@ enum WifiBandUse {
 
 impl WifiBandUse {
     fn of_wifi(wifi: &Wifi) -> Self {
-        match &wifi.link {
-            Some(link) if shares_bluetooth_band(link.frequency) => {
+        wifi.adapters
+            .iter()
+            .filter_map(|adapter| adapter.link.as_ref())
+            .find(|link| shares_bluetooth_band(link.frequency))
+            .map_or(WifiBandUse::ClearOfBluetooth, |link| {
                 WifiBandUse::SharingBluetoothBand {
                     network_name: link
                         .ssid
@@ -150,9 +153,7 @@ impl WifiBandUse {
                         .unwrap_or_else(|| "hidden network".to_owned()),
                     frequency: link.frequency,
                 }
-            }
-            _ => WifiBandUse::ClearOfBluetooth,
-        }
+            })
     }
 }
 
@@ -673,6 +674,7 @@ impl GamepadGroup {
             .filter_map(|(gamepad, link)| {
                 self.controller_group(gamepad, link, bindings, focused_app_id)
             })
+            .map(GroupContent::sharing_title_row)
             .collect()
     }
 }

@@ -80,43 +80,50 @@ impl DesktopShell {
     }
 
     pub(super) fn network_menu(&self) -> GroupMenu<'_, Message> {
-        let members = [self
+        let members = self
             .widget_groups
-            .net_interfaces_group
-            .group_content(self.clock)
-            .map(Message::NetInterfaces)]
-        .into_iter()
-        .chain(
-            self.widget_groups
-                .ethernet_ports_group
-                .group_contents()
-                .into_iter()
-                .map(|group| group.map(Message::EthernetPorts)),
-        )
-        .chain(
-            self.widget_groups
-                .bluetooth_adapters_group
-                .group_contents(
-                    &|hardware_address| {
-                        self.widget_groups
-                            .gamepad_group
-                            .report_timing_for_address(hardware_address)
-                    },
-                    self.clock,
-                )
-                .into_iter()
-                .map(|group| group.map(Message::BluetoothAdapters)),
-        )
-        .chain([
-            self.widget_groups
-                .reachability_group
-                .group_content()
-                .map(Message::Reachability),
-            self.widget_groups
-                .vpn_group
-                .group_content()
-                .map(Message::Vpn),
-        ]);
+            .wifi_adapters_group
+            .group_contents()
+            .into_iter()
+            .map(|group| group.map(Message::WifiAdapters))
+            .chain(
+                self.widget_groups
+                    .mobile_modems_group
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::MobileModems)),
+            )
+            .chain(
+                self.widget_groups
+                    .ethernet_ports_group
+                    .group_contents()
+                    .into_iter()
+                    .map(|group| group.map(Message::EthernetPorts)),
+            )
+            .chain(
+                self.widget_groups
+                    .bluetooth_adapters_group
+                    .group_contents(
+                        &|hardware_address| {
+                            self.widget_groups
+                                .gamepad_group
+                                .report_timing_for_address(hardware_address)
+                        },
+                        self.clock,
+                    )
+                    .into_iter()
+                    .map(|group| group.map(Message::BluetoothAdapters)),
+            )
+            .chain([
+                self.widget_groups
+                    .reachability_group
+                    .group_content()
+                    .map(Message::Reachability),
+                self.widget_groups
+                    .vpn_group
+                    .group_content()
+                    .map(Message::Vpn),
+            ]);
         self.group_menu(GroupMenuKind::Network, members)
     }
 
