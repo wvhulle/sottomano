@@ -70,12 +70,43 @@ impl GroupMenuKind {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PinnedEntry {
+    Group {
+        group_title: &'static str,
+    },
+    Item {
+        group_title: &'static str,
+        item_name: &'static str,
+    },
+}
+
+impl PinnedEntry {
+    fn stored_in(self, menu: GroupMenuKind) -> StoredGroupMenuPin {
+        let group_menu = menu.storage_key().to_owned();
+        match self {
+            PinnedEntry::Group { group_title } => StoredGroupMenuPin::Group {
+                group_menu,
+                group_title: group_title.to_owned(),
+            },
+            PinnedEntry::Item {
+                group_title,
+                item_name,
+            } => StoredGroupMenuPin::Item {
+                group_menu,
+                group_title: group_title.to_owned(),
+                item_name: item_name.to_owned(),
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum GroupMenuMessage {
     PinsLoaded(BTreeSet<StoredGroupMenuPin>),
     TogglePin {
         menu: GroupMenuKind,
-        group_title: &'static str,
+        entry: PinnedEntry,
     },
     PinSaved(bool),
     InspectMember {
@@ -101,8 +132,8 @@ impl GroupMenus {
     }
 
     #[must_use]
-    pub fn is_pinned(&self, menu: GroupMenuKind, group_title: &str) -> bool {
-        self.pinned.contains(&stored_pin(menu, group_title))
+    pub fn is_pinned(&self, menu: GroupMenuKind, entry: PinnedEntry) -> bool {
+        self.pinned.contains(&entry.stored_in(menu))
     }
 
     #[must_use]
@@ -121,8 +152,8 @@ impl GroupMenus {
                 self.pinned = pinned;
                 Task::none()
             }
-            GroupMenuMessage::TogglePin { menu, group_title } => {
-                let pin = stored_pin(menu, group_title);
+            GroupMenuMessage::TogglePin { menu, entry } => {
+                let pin = entry.stored_in(menu);
                 let pinned = !self.pinned.remove(&pin);
                 if pinned {
                     self.pinned.insert(pin.clone());
@@ -154,29 +185,43 @@ impl GroupMenus {
     }
 }
 
-fn stored_pin(menu: GroupMenuKind, group_title: &str) -> StoredGroupMenuPin {
-    StoredGroupMenuPin {
-        group_menu: menu.storage_key().to_owned(),
-        group_title: group_title.to_owned(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{GroupMenuKind, GroupMenuMessage, GroupMenus};
+    use super::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry};
+
+    const GPU_GROUP: PinnedEntry = PinnedEntry::Group { group_title: "GPU" };
+    const GPU_LOAD_ITEM: PinnedEntry = PinnedEntry::Item {
+        group_title: "GPU",
+        item_name: "GPU load",
+    };
+
+    fn toggle_in_hardware(entry: PinnedEntry) -> GroupMenuMessage {
+        GroupMenuMessage::TogglePin {
+            menu: GroupMenuKind::Hardware,
+            entry,
+        }
+    }
 
     #[test]
     fn toggling_twice_unpins_the_group() {
         let mut group_menus = GroupMenus::default();
-        let toggle_gpu = || GroupMenuMessage::TogglePin {
-            menu: GroupMenuKind::Hardware,
-            group_title: "GPU",
-        };
-        let _ = group_menus.update(toggle_gpu());
-        assert!(group_menus.is_pinned(GroupMenuKind::Hardware, "GPU"));
-        assert!(!group_menus.is_pinned(GroupMenuKind::Behaviour, "GPU"));
-        let _ = group_menus.update(toggle_gpu());
-        assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, "GPU"));
+        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
+        assert!(group_menus.is_pinned(GroupMenuKind::Hardware, GPU_GROUP));
+        assert!(!group_menus.is_pinned(GroupMenuKind::Behaviour, GPU_GROUP));
+        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
+        assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, GPU_GROUP));
+    }
+
+    #[test]
+    fn pinning_an_item_leaves_its_group_unpinned() {
+        let mut group_menus = GroupMenus::default();
+        let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
+        assert!(group_menus.is_pinned(GroupMenuKind::Hardware, GPU_LOAD_ITEM));
+        assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, GPU_GROUP));
+        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
+        let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
+        assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, GPU_LOAD_ITEM));
+        assert!(group_menus.is_pinned(GroupMenuKind::Hardware, GPU_GROUP));
     }
 
     #[test]

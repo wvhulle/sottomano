@@ -5,7 +5,7 @@ use sottomano_config::Config;
 
 use crate::{
     hover_tooltips::{PopupMessage, marked_by_hover_target},
-    widget_groups::group_menus::GroupMenus,
+    widget_groups::group_menus::{GroupMenus, PinnedEntry},
     widgets::{
         bar_widget::Glyph,
         cascade_row::CascadeDirection,
@@ -58,6 +58,7 @@ pub(super) struct CascadeLayout<'p, 'a, M> {
 
 struct OpenGroup<'a, M> {
     member: usize,
+    group_title: &'static str,
     items: Vec<CascadeItem<'a, M>>,
 }
 
@@ -79,6 +80,7 @@ pub(super) fn cascading_columns<
         .filter(|member| *member < entries.len())
         .map(|member| OpenGroup {
             member,
+            group_title: entries[member].group_title,
             items: take(&mut entries[member].items),
         });
     let open_member = open_group.as_ref().map(|open| open.member);
@@ -107,7 +109,11 @@ fn open_group_satellites<
     open: OpenGroup<'a, M>,
     card: &InspectionCard<'_, 'a>,
 ) -> Vec<Element<'a, Outer>> {
-    let OpenGroup { member, items } = open;
+    let OpenGroup {
+        member,
+        group_title,
+        items,
+    } = open;
     let inspected_target = layout
         .group_menus
         .inspected_row(layout.menu.kind)
@@ -124,7 +130,8 @@ fn open_group_satellites<
     let is_inspected = |item: &CascadeItem<'a, M>| {
         inspected_target.is_some_and(|target| item.action.inspected_target() == Some(target))
     };
-    let item_list = item_menu(layout, items, &is_inspected, item_corners).map(Outer::from);
+    let item_list =
+        item_menu(layout, group_title, items, &is_inspected, item_corners).map(Outer::from);
     let item_panel = layout.satellite_panels.beside_row(
         layout.config,
         item_list,
@@ -161,7 +168,9 @@ fn group_row<'a, M: Clone + 'a>(
         Phosphor::PushPin(Weight::Regular),
         icon_size,
         secondary_text_color,
-        layout.menu.toggle_pin(entry.group_title),
+        layout.menu.toggle_pin(PinnedEntry::Group {
+            group_title: entry.group_title,
+        }),
     );
     let caret_color = if look.highlighted {
         text_color
@@ -199,6 +208,7 @@ fn group_row<'a, M: Clone + 'a>(
 
 fn item_menu<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
+    group_title: &'static str,
     items: Vec<CascadeItem<'a, M>>,
     is_inspected: &dyn Fn(&CascadeItem<'a, M>) -> bool,
     panel_corners: Radius,
@@ -209,18 +219,19 @@ fn item_menu<'a, M: Clone + 'a>(
             highlighted: is_inspected(&item),
             corners: end_corners.radius_at(position),
         };
-        item_row(layout, item, look)
+        item_row(layout, group_title, item, look)
     }))
     .into()
 }
 
 fn item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
+    group_title: &'static str,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let marked_target = item.action.inspected_target().cloned();
-    let row = unmarked_item_row(layout, item, look);
+    let row = unmarked_item_row(layout, group_title, item, look);
     match marked_target {
         Some(target) => marked_by_hover_target(row, target),
         None => row,
@@ -229,14 +240,26 @@ fn item_row<'a, M: Clone + 'a>(
 
 fn unmarked_item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
+    group_title: &'static str,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
+    let item_pin = item.pinnable.then(|| {
+        glyph_button(
+            Phosphor::PushPin(Weight::Regular),
+            layout.config.theme.font.icon_size_px,
+            secondary_text_color,
+            layout.menu.toggle_pin(PinnedEntry::Item {
+                group_title,
+                item_name: item.name,
+            }),
+        )
+    });
     let content = MenuRowContent {
         leading: Vec::new(),
         parts: item.parts,
         name: item.name,
-        trailing: Vec::new(),
+        trailing: item_pin.into_iter().collect(),
     };
     let config = layout.config;
     match item.action {

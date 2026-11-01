@@ -19,7 +19,7 @@ use crate::{
         HoverOrigin, MouseGesture, PanelPin, PopupMessage, PressHints, core_grid::CoreCellGrid,
     },
     widget_groups::{
-        window_group::process_tree::ProcessTree,
+        group_menus::PinnedEntry, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
@@ -175,10 +175,19 @@ impl<'a> TooltipContent<'a> {
                         .into();
                 let unpin = match panel_pin {
                     PanelPin::Unpinned => None,
-                    PanelPin::PinnedFrom(menu) => {
+                    PanelPin::GroupPinnedFrom(menu) => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             menu,
-                            group_title,
+                            entry: PinnedEntry::Group { group_title },
+                        }))
+                    }
+                    PanelPin::ItemPinnedFrom { menu, item_name } => {
+                        Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
+                            menu,
+                            entry: PinnedEntry::Item {
+                                group_title,
+                                item_name,
+                            },
                         }))
                     }
                 };

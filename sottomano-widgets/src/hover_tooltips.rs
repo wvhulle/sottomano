@@ -27,7 +27,7 @@ use crate::{
         ethernet_ports_group::EthernetPortTarget,
         gamepad_group::GamepadTarget,
         gpu_group::GpuTarget,
-        group_menus::GroupMenuKind,
+        group_menus::{GroupMenuKind, PinnedEntry},
         journal_events_group::JournalTarget,
         llama_server_group::LlamaServerTarget,
         login_session_group::LoginSessionTarget,
@@ -222,7 +222,11 @@ pub enum HoverOrigin {
 pub enum PanelPin {
     #[default]
     Unpinned,
-    PinnedFrom(GroupMenuKind),
+    GroupPinnedFrom(GroupMenuKind),
+    ItemPinnedFrom {
+        menu: GroupMenuKind,
+        item_name: &'static str,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -313,7 +317,7 @@ pub enum PopupMessage {
     WindowGroup(WindowGroupMessage),
     ToggleGroupMenuPin {
         menu: GroupMenuKind,
-        group_title: &'static str,
+        entry: PinnedEntry,
     },
 }
 

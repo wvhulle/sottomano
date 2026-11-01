@@ -23,7 +23,7 @@ use crate::{
         GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, PressHints,
         announcing_hoverable, tooltip_content::TooltipContent,
     },
-    widget_groups::group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus},
+    widget_groups::group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry},
     widgets::{
         bar_widget::Glyph,
         cascade_row::CascadeOrientation,
@@ -72,10 +72,10 @@ impl<M> MenuMessenger<'_, M> {
         GroupEvent::Group((self.on_message)(message))
     }
 
-    pub(super) fn toggle_pin(&self, group_title: &'static str) -> GroupEvent<M> {
+    pub(super) fn toggle_pin(&self, entry: PinnedEntry) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::TogglePin {
             menu: self.kind,
-            group_title,
+            entry,
         })
     }
 
@@ -202,12 +202,17 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         let promotion_severity = config.panel_bar.group_menu_promotion_severity;
         let kind = self.messenger.kind;
         let group_menus = self.group_menus;
-        once(Some(handle_slot)).chain(self.members.into_iter().filter_map(move |member| {
-            if group_menus.is_pinned(kind, member.group_title()) {
-                return Some(member.pinned_from(kind).view(config, bar_position, clock));
+        once(Some(handle_slot)).chain(self.members.into_iter().flat_map(move |member| {
+            let group_entry = PinnedEntry::Group {
+                group_title: member.group_title(),
+            };
+            if group_menus.is_pinned(kind, group_entry) {
+                return vec![member.pinned_from(kind).view(config, bar_position, clock)];
             }
-            (member.highest_alert_severity(clock) >= promotion_severity)
-                .then(|| member.view(config, bar_position, clock))
+            if member.highest_alert_severity(clock) >= promotion_severity {
+                return vec![member.view(config, bar_position, clock)];
+            }
+            member.pinned_item_views(group_menus, kind, config, bar_position, clock)
         }))
     }
 
@@ -230,8 +235,15 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             cascade_entries,
         } = members
             .into_iter()
-            .filter(|member| !group_menus.is_pinned(messenger.kind, member.group_title()))
-            .filter_map(|member| member.menu_member(config, card.clock))
+            .filter(|member| {
+                let group_entry = PinnedEntry::Group {
+                    group_title: member.group_title(),
+                };
+                !group_menus.is_pinned(messenger.kind, group_entry)
+            })
+            .filter_map(|member| {
+                member.menu_member(config, card.clock, group_menus, messenger.kind)
+            })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| {
             Element::from(container(table).padding(config.layout.overlay.content_inset))

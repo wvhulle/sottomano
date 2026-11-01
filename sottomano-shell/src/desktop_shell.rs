@@ -259,6 +259,13 @@ impl DesktopShell {
                 .group_menus
                 .update(msg)
                 .map(Message::GroupMenus),
+            Message::UnpinFromPanel { menu, entry } => Task::batch([
+                self.dismiss_tooltip(),
+                self.widget_groups
+                    .group_menus
+                    .update(GroupMenuMessage::TogglePin { menu, entry })
+                    .map(Message::GroupMenus),
+            ]),
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
                 Task::none()
