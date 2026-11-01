@@ -1138,7 +1138,7 @@ checksum = "fe6d2e5af09e8c8ad56c969f2157a3d4238cebc7c55f0a517728c38f7b200f81"
 dependencies = [
  "serde",
  "termcolor",
- "unicode-width 0.2.2",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]
@@ -2798,7 +2798,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_core",
  "iced_debug",
@@ -2814,7 +2814,7 @@ dependencies = [
 [[package]]
 name = "iced_beacon"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bincode",
  "futures",
@@ -2837,7 +2837,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bitflags 2.13.2",
  "bytes",
@@ -2855,7 +2855,7 @@ dependencies = [
 [[package]]
 name = "iced_debug"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_beacon",
  "iced_core",
@@ -2866,7 +2866,7 @@ dependencies = [
 [[package]]
 name = "iced_devtools"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -2928,7 +2928,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "futures",
  "iced_core",
@@ -2942,7 +2942,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -2963,7 +2963,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -2972,7 +2972,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -2984,7 +2984,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bytes",
  "iced_core",
@@ -2996,7 +2996,7 @@ dependencies = [
 [[package]]
 name = "iced_selector"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_core",
 ]
@@ -3004,7 +3004,7 @@ dependencies = [
 [[package]]
 name = "iced_test"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_futures",
  "iced_program",
@@ -3020,7 +3020,7 @@ dependencies = [
 [[package]]
 name = "iced_tester"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_test",
  "iced_widget",
@@ -3031,7 +3031,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -3063,7 +3063,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -3084,7 +3084,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.14.2"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_renderer",
  "log",
@@ -3097,7 +3097,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.14.1"
-source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#90593a5a912c8f1c3ee9142e0be68be7fe3679d3"
+source = "git+https://github.com/wvhulle/iced.git?branch=sottomano#fb9b834ee696e2a823fe54bd08c166ee6fd41a10"
 dependencies = [
  "iced_debug",
  "iced_program",
@@ -8659,7 +8659,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

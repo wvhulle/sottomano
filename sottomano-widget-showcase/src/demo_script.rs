@@ -234,18 +234,25 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_conditions",
         group: weather::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
-        script: &[Step::Press(HoverTarget::Weather(
-            WeatherTarget::Temperature,
-        ))],
+        shown: GroupShown::InMenu(GroupMenuKind::Agenda),
+        script: &[
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Agenda,
+            ))),
+            Step::HoverText("Weather"),
+            Step::Hover(HoverTarget::Weather(WeatherTarget::Temperature)),
+        ],
     },
     Demo {
         name: "weather_location",
         group: weather::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::InMenu(GroupMenuKind::Agenda),
         script: &[
-            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Agenda,
+            ))),
+            Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Location)),
         ],
     },
@@ -253,9 +260,12 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_wind",
         group: weather::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::InMenu(GroupMenuKind::Agenda),
         script: &[
-            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Agenda,
+            ))),
+            Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Wind)),
         ],
     },
@@ -263,9 +273,12 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_precipitation",
         group: weather::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::InMenu(GroupMenuKind::Agenda),
         script: &[
-            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Agenda,
+            ))),
+            Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
         ],
     },
@@ -273,9 +286,12 @@ pub const DEMOS: &[Demo] = &[
         name: "weather_pollen",
         group: weather::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::InMenu(GroupMenuKind::Agenda),
         script: &[
-            Step::Press(HoverTarget::Weather(WeatherTarget::Temperature)),
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Agenda,
+            ))),
+            Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Allergen(
                 Allergen::Grass,
             ))),
