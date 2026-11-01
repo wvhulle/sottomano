@@ -135,6 +135,10 @@ impl BarWidget for UpcomingEventList {
     }
 
     fn icon(&self) -> Glyph {
+        Self::fallback_icon()
+    }
+
+    fn fallback_icon() -> Glyph {
         Phosphor::CalendarDots(Weight::Regular).into()
     }
 
@@ -211,7 +215,10 @@ mod tests {
 
     use crate::{
         clock::Clock,
-        widgets::{bar_widget::BarWidget, widget_state::WidgetState},
+        widget_groups::caldav_group::CaldavTarget,
+        widgets::{
+            bar_widget::BarWidget, latest_snapshot::LatestSnapshot, widget_state::WidgetState,
+        },
     };
 
     fn event_list_without_events(failed_subscription_names: Vec<String>) -> UpcomingEventList {
@@ -221,6 +228,22 @@ mod tests {
             failed_subscription_names,
             provider: CaldavProvider::Unrecognised,
         }
+    }
+
+    #[test]
+    fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
+        let pending_events = LatestSnapshot::<UpcomingEventList>::default();
+        assert!(pending_events.tooltip(Clock::real()).is_none());
+        assert!(
+            pending_events
+                .tooltip_while_pending(Clock::real())
+                .is_some()
+        );
+        assert!(
+            pending_events
+                .group_item_while_pending::<()>(CaldavTarget::UpcomingEvents)
+                .is_some()
+        );
     }
 
     #[test]

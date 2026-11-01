@@ -11,7 +11,7 @@ use crate::{
     widgets::{
         bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
-        offline_internet_reading::{OfflinePlaceholder, OfflineSnapshot},
+        offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
         tooltip_body::{
             ReadingSections, Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
@@ -108,7 +108,7 @@ where
         delivery_timing: DeliveryTiming,
     },
     OfflineBeforeSnapshot {
-        offline_placeholder: OfflinePlaceholder<S>,
+        offline_placeholder: SnapshotPlaceholder<S>,
     },
 }
 
@@ -300,8 +300,8 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
             | LatestSnapshot::SnapshotFetchFailed { .. }
             | LatestSnapshot::OfflineBeforeSnapshot { .. } => {
                 LatestSnapshot::OfflineBeforeSnapshot {
-                    offline_placeholder: OfflinePlaceholder {
-                        offline_reason,
+                    offline_placeholder: SnapshotPlaceholder {
+                        placeholder_cause: PlaceholderCause::Offline(offline_reason),
                         placeholder_source: PhantomData,
                     },
                 }
@@ -403,6 +403,13 @@ impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> LatestS
     }
 }
 
+fn awaiting_snapshot_placeholder<S>() -> SnapshotPlaceholder<S> {
+    SnapshotPlaceholder {
+        placeholder_cause: PlaceholderCause::AwaitingFirstSnapshot,
+        placeholder_source: PhantomData,
+    }
+}
+
 impl<S: SnapshotSource + BarWidget, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy> {
     pub fn visible_reading(&self) -> Option<&S> {
         self.get()
@@ -435,8 +442,35 @@ impl<S: SnapshotSource + BarWidget, Policy: FetchFailurePolicy<S>> LatestSnapsho
             .map(|widget| GroupItem::reading(widget, target))
     }
 
+    pub fn group_item_while_pending<M: 'static>(
+        &self,
+        target: impl Into<HoverTarget>,
+    ) -> Option<GroupItem<'_, M>>
+    where
+        S: 'static,
+    {
+        if matches!(self, LatestSnapshot::AwaitingFirstSnapshot) {
+            return Some(GroupItem::reading(
+                awaiting_snapshot_placeholder::<S>(),
+                target,
+            ));
+        }
+        self.group_item(target)
+    }
+
     pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
         self.tooltip_with(self.display()?.tooltip(clock))
+    }
+
+    pub fn tooltip_while_pending(&self, clock: Clock) -> Option<Tooltip> {
+        if matches!(self, LatestSnapshot::AwaitingFirstSnapshot) {
+            return Some(Tooltip::grouped([
+                SourcedSections::source_awaiting_delivery::<S>(
+                    awaiting_snapshot_placeholder::<S>().tooltip(clock),
+                ),
+            ]));
+        }
+        self.tooltip(clock)
     }
 
     pub fn tooltip_with_groups(

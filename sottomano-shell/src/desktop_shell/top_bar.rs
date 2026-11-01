@@ -174,7 +174,7 @@ impl DesktopShell {
             [
                 self.widget_groups
                     .caldav_group
-                    .group_content()
+                    .group_content(&config.widget_groups.caldav)
                     .map(Message::Caldav),
                 self.widget_groups
                     .weather_group

@@ -277,10 +277,11 @@ impl DesktopShell {
                 .widget_groups
                 .wallpaper_group
                 .tooltip_for(*target, self.clock),
-            HoverTarget::Caldav(target) => self
-                .widget_groups
-                .caldav_group
-                .tooltip_for(*target, self.clock),
+            HoverTarget::Caldav(target) => self.widget_groups.caldav_group.tooltip_for(
+                *target,
+                &self.config.widget_groups.caldav,
+                self.clock,
+            ),
             HoverTarget::Media(target) => self.widget_groups.media_group.tooltip_for(
                 target,
                 &self.desktop_entries,

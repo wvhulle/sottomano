@@ -18,6 +18,8 @@ use crate::{
     },
 };
 
+const AWAITING_SNAPSHOT_LABEL: &str = "Loading…";
+
 impl From<InternetUnreachable> for Section {
     fn from(offline_reason: InternetUnreachable) -> Self {
         Section::dictionary([
@@ -75,12 +77,17 @@ impl<S: BarWidget> BarWidget for OfflineSnapshot<S> {
     }
 }
 
-pub struct OfflinePlaceholder<S> {
-    pub offline_reason: InternetUnreachable,
+pub enum PlaceholderCause {
+    Offline(InternetUnreachable),
+    AwaitingFirstSnapshot,
+}
+
+pub struct SnapshotPlaceholder<S> {
+    pub placeholder_cause: PlaceholderCause,
     pub placeholder_source: PhantomData<S>,
 }
 
-impl<S: SnapshotSource + BarWidget> BarWidget for OfflinePlaceholder<S> {
+impl<S: SnapshotSource + BarWidget> BarWidget for SnapshotPlaceholder<S> {
     fn name(&self) -> &'static str {
         S::NAME
     }
@@ -89,11 +96,21 @@ impl<S: SnapshotSource + BarWidget> BarWidget for OfflinePlaceholder<S> {
         S::fallback_icon()
     }
 
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        match self.placeholder_cause {
+            PlaceholderCause::Offline(_) => None,
+            PlaceholderCause::AwaitingFirstSnapshot => Some(AWAITING_SNAPSHOT_LABEL.to_owned()),
+        }
+    }
+
     fn state(&self, _clock: Clock) -> WidgetState {
         WidgetState::Off
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([self.offline_reason.clone().into()])
+        TooltipBody::sections([match &self.placeholder_cause {
+            PlaceholderCause::Offline(offline_reason) => offline_reason.clone().into(),
+            PlaceholderCause::AwaitingFirstSnapshot => Section::note(AWAITING_SNAPSHOT_LABEL),
+        }])
     }
 }
