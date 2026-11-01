@@ -1,4 +1,4 @@
-use std::{iter::once, slice};
+use std::slice;
 
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
@@ -83,30 +83,6 @@ struct PanelMorph {
     morph: RectangleMorph,
 }
 
-fn notch_side_radius(corner_radius: f32, panel_height: f32) -> f32 {
-    let straight_half = panel_height / 2.0 - ConnectorTriangle::half_span();
-    corner_radius.min(straight_half).max(0.0)
-}
-
-#[must_use]
-pub fn notched_corners(side: NotchSide, corner_radius: f32, panel_height: f32) -> Radius {
-    let notch_side = notch_side_radius(corner_radius, panel_height);
-    match side {
-        NotchSide::Left => Radius {
-            top_left: notch_side,
-            top_right: corner_radius,
-            bottom_right: corner_radius,
-            bottom_left: notch_side,
-        },
-        NotchSide::Right => Radius {
-            top_left: corner_radius,
-            top_right: notch_side,
-            bottom_right: notch_side,
-            bottom_left: corner_radius,
-        },
-    }
-}
-
 impl<Message> NotchedPanel<'_, Message> {
     fn panel_target(&self, content_size: Size) -> Rectangle {
         let panel_x = match self.placement.side {
@@ -160,12 +136,8 @@ impl<Message> NotchedPanel<'_, Message> {
         )
     }
 
-    fn notch_side_radius(&self, panel: Rectangle) -> f32 {
-        notch_side_radius(self.corner_radius, panel.height)
-    }
-
-    fn panel_corners(&self, panel: Rectangle) -> Radius {
-        notched_corners(self.placement.side, self.corner_radius, panel.height)
+    fn panel_corners(&self) -> Radius {
+        Radius::from(self.corner_radius)
     }
 
     fn connector(&self, panel: Rectangle, origin: Vector) -> ConnectorTriangle {
@@ -183,7 +155,7 @@ impl<Message> NotchedPanel<'_, Message> {
             apex_x,
             panel,
             side,
-            self.notch_side_radius(panel),
+            0.0,
         )
     }
 }
@@ -263,7 +235,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             FramedSurface {
                 frame: self.frame,
                 bounds: panel,
-                corners: self.panel_corners(panel),
+                corners: self.panel_corners(),
                 shadow: frame_style.shadow,
             },
         );
@@ -297,13 +269,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
         let panel_morph: &PanelMorph = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let panel = self.drawn_panel(panel_morph, layout.bounds());
-        let drawn_surface: Vec<Rectangle> = once(panel)
-            .chain(self.connector(panel, origin).blur_rows())
-            .collect();
+        let drawn_surface = self
+            .connector(panel, origin)
+            .surface_rows(panel, self.panel_corners());
         RegionRoles {
             takes_input: false,
             blurred: self.blurred,
-            corner_radius: self.panel_corners(panel),
+            corner_radius: Radius::default(),
         }
         .report(&drawn_surface, layout.bounds(), operation);
         RegionRoles {

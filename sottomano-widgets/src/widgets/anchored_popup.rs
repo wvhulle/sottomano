@@ -1,5 +1,3 @@
-use std::iter::once;
-
 use iced::{
     Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
     advanced::{
@@ -28,15 +26,8 @@ use crate::{
 };
 
 struct PopupFrame {
-    bounds: Rectangle,
-    notch_rows: Vec<Rectangle>,
+    surface_rows: Vec<Rectangle>,
     settled: bool,
-}
-
-impl PopupFrame {
-    fn rects(&self) -> impl Iterator<Item = Rectangle> {
-        once(self.bounds).chain(self.notch_rows.iter().copied())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,8 +260,10 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         PopupFrame {
-            bounds: state.current + origin,
-            notch_rows: state.connector.translated(origin).blur_rows(),
+            surface_rows: state
+                .connector
+                .translated(origin)
+                .surface_rows(state.current + origin, Radius::from(self.radius)),
             settled: self.is_settled(),
         }
     }
@@ -479,10 +472,9 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
         let roles = RegionRoles {
             takes_input: frame.settled,
             blurred: self.blurred,
-            corner_radius: Radius::from(self.radius),
+            corner_radius: Radius::default(),
         };
-        let rects: Vec<Rectangle> = frame.rects().collect();
-        roles.report(&rects, layout.bounds(), operation);
+        roles.report(&frame.surface_rows, layout.bounds(), operation);
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(
                 rendering.state,
