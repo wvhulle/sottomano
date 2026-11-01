@@ -108,6 +108,14 @@ pub(super) fn nextcloud_footer(
     }))
 }
 
+fn empty_agenda_label(failed_subscription_names: &[String]) -> String {
+    if failed_subscription_names.is_empty() {
+        "No upcoming events".to_owned()
+    } else {
+        format!("{} unavailable", failed_subscription_names.join(", "))
+    }
+}
+
 fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> String {
     let begins = start.starts_at();
     if begins <= now {
@@ -132,7 +140,9 @@ impl BarWidget for UpcomingEventList {
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
         let now = clock.local();
-        let event = self.next_event(now)?;
+        let Some(event) = self.next_event(now) else {
+            return Some(empty_agenda_label(&self.failed_subscription_names));
+        };
         let summary: String = event.summary.chars().take(LABEL_CHARACTERS).collect();
         Some(format!(
             "{}: {summary}",
@@ -144,8 +154,10 @@ impl BarWidget for UpcomingEventList {
         let now = clock.local();
         if self.events.iter().any(|event| event.is_ongoing(now)) {
             WidgetState::On
-        } else {
+        } else if self.failed_subscription_names.is_empty() {
             WidgetState::Idle
+        } else {
+            WidgetState::Warning
         }
     }
 
@@ -160,26 +172,74 @@ impl BarWidget for UpcomingEventList {
                 provider: &self.provider,
             })
             .collect();
-        TooltipBody::sections([
-            Section::grouped_column_table(
-                [
-                    ColumnHeading::titled("Date"),
-                    ColumnHeading::titled("Time"),
-                    ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
-                    ColumnHeading::titled("Location").align_x(Horizontal::Left),
-                ],
-                rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
-            )
-            .truncated_to(LISTED_EVENTS)
-            .titled((
-                "Upcoming events",
-                calendar_count_caption(self.calendar_count),
-            )),
-            nextcloud_footer(
-                "open Calendar",
-                &self.provider,
-                NextcloudWebRoot::calendar_app,
-            ),
-        ])
+        let failed_subscription_sections =
+            self.failed_subscription_names.iter().map(|calendar_name| {
+                Section::error(format!("calendar {calendar_name} could not be downloaded"))
+            });
+        TooltipBody::sections(
+            failed_subscription_sections.chain([
+                Section::grouped_column_table(
+                    [
+                        ColumnHeading::titled("Date"),
+                        ColumnHeading::titled("Time"),
+                        ColumnHeading::titled("Calendar").align_x(Horizontal::Left),
+                        ColumnHeading::titled("Location").align_x(Horizontal::Left),
+                    ],
+                    rows.chunk_by(|earlier, later| earlier.starts_on() == later.starts_on()),
+                )
+                .truncated_to(LISTED_EVENTS)
+                .titled((
+                    "Upcoming events",
+                    calendar_count_caption(self.calendar_count),
+                )),
+                nextcloud_footer(
+                    "open Calendar",
+                    &self.provider,
+                    NextcloudWebRoot::calendar_app,
+                ),
+            ]),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::Locale;
+    use sottomano_sources::caldav_tasks_events::{
+        caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
+    };
+
+    use crate::{
+        clock::Clock,
+        widgets::{bar_widget::BarWidget, widget_state::WidgetState},
+    };
+
+    fn event_list_without_events(failed_subscription_names: Vec<String>) -> UpcomingEventList {
+        UpcomingEventList {
+            events: Vec::new(),
+            calendar_count: 1,
+            failed_subscription_names,
+            provider: CaldavProvider::Unrecognised,
+        }
+    }
+
+    #[test]
+    fn a_free_agenda_keeps_a_visible_reading() {
+        let event_list = event_list_without_events(Vec::new());
+        assert_eq!(
+            event_list.label(Clock::real(), Locale::en_US).as_deref(),
+            Some("No upcoming events"),
+        );
+        assert_eq!(event_list.state(Clock::real()), WidgetState::Idle);
+    }
+
+    #[test]
+    fn a_failed_subscription_is_not_reported_as_a_free_agenda() {
+        let event_list = event_list_without_events(vec!["Proton".to_owned()]);
+        assert_eq!(
+            event_list.label(Clock::real(), Locale::en_US).as_deref(),
+            Some("Proton unavailable"),
+        );
+        assert_eq!(event_list.state(Clock::real()), WidgetState::Warning);
     }
 }
