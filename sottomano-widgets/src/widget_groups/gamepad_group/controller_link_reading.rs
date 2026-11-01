@@ -22,6 +22,8 @@ use crate::{
     },
 };
 
+pub(super) const CONTROLLER_LAG_ITEM_NAME: &str = "Controller lag";
+
 const LOWEST_FIVE_GIGAHERTZ_MEGAHERTZ: f64 = 4900.0;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -121,7 +123,7 @@ impl ControllerLinkReading<'_> {
 
 impl BarWidget for ControllerLinkReading<'_> {
     fn name(&self) -> &'static str {
-        "Controller lag"
+        CONTROLLER_LAG_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

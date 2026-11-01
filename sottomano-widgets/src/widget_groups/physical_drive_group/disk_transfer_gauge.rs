@@ -19,6 +19,12 @@ use crate::{
     },
 };
 
+pub(super) const DISK_WRITES_ITEM_NAME: &str = "Disk writes";
+
+pub(super) const DISK_READS_ITEM_NAME: &str = "Disk reads";
+
+pub(super) const DISK_ACTIVITY_ITEM_NAME: &str = "Disk activity";
+
 const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
 const SCALE_END_GIB_PER_S: f64 = 4.0;
 
@@ -29,8 +35,8 @@ fn background_rate() -> InformationRate {
 impl BarWidget for DiskTransfer {
     fn name(&self) -> &'static str {
         match self.direction {
-            DiskTransferDirection::Read => "Disk reads",
-            DiskTransferDirection::Write => "Disk writes",
+            DiskTransferDirection::Read => DISK_READS_ITEM_NAME,
+            DiskTransferDirection::Write => DISK_WRITES_ITEM_NAME,
         }
     }
 
@@ -78,7 +84,7 @@ impl BarWidget for DiskTransfer {
 
 impl BarWidget for DiskActivity {
     fn name(&self) -> &'static str {
-        "Disk activity"
+        DISK_ACTIVITY_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

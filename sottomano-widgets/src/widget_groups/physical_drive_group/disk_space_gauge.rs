@@ -13,6 +13,8 @@ use crate::{
     },
 };
 
+pub(super) const DISK_SPACE_ITEM_NAME: &str = "Disk space";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiskMarking {
     OnlyDisk,
@@ -26,7 +28,7 @@ pub struct MarkedDiskSpace<'a> {
 
 impl BarWidget for DiskSpaceOccupancy {
     fn name(&self) -> &'static str {
-        "Disk space"
+        DISK_SPACE_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

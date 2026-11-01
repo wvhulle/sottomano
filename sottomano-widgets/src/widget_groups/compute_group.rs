@@ -168,17 +168,20 @@ impl ComputeGroup {
         let demand = demand.expanded_when(self.expansion.is_expanded());
         Subscription::batch([
             demand.while_face_shown(
-                &["CPU load"],
+                &[cpu_load_gauge::CPU_LOAD_ITEM_NAME],
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
             ),
             demand.while_rows_shown(
-                &["CPU clock", "CPU clock limits"],
+                &[
+                    cpu_clock_label::CPU_CLOCK_ITEM_NAME,
+                    cpu_clock_limit_causes::CPU_CLOCK_LIMITS_ITEM_NAME,
+                ],
                 snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
             ),
             snapshot_subscription::<Temperature>(sensor.clone())
                 .map(ComputeMessage::CpuTemperature),
             demand.while_rows_shown(
-                &["CPU power draw"],
+                &[cpu_power_draw_label::CPU_POWER_DRAW_ITEM_NAME],
                 snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
             ),
             ToggleControl::<X3dCachePreference>::subscription(())

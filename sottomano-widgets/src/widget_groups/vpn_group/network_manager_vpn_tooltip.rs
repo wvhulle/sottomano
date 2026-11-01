@@ -14,9 +14,13 @@ use crate::{
     },
 };
 
+pub(super) const VPN_CONNECTION_ITEM_NAME: &str = "VPN connection";
+
+pub(super) const NETWORK_MANAGER_VPNS_ITEM_NAME: &str = "NetworkManager VPNs";
+
 impl BarWidget for NetworkManagerVpns {
     fn name(&self) -> &'static str {
-        "NetworkManager VPNs"
+        NETWORK_MANAGER_VPNS_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {
@@ -30,7 +34,7 @@ impl BarWidget for NetworkManagerVpns {
 
 impl BarWidget for VpnConnection {
     fn name(&self) -> &'static str {
-        "VPN connection"
+        VPN_CONNECTION_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

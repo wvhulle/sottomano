@@ -18,9 +18,13 @@ use crate::{
     },
 };
 
+pub(super) const WIREGUARD_TUNNEL_ITEM_NAME: &str = "WireGuard tunnel";
+
+pub(super) const WIREGUARD_ITEM_NAME: &str = "WireGuard";
+
 impl BarWidget for Wireguard {
     fn name(&self) -> &'static str {
-        "WireGuard"
+        WIREGUARD_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {
@@ -214,7 +218,7 @@ fn server_state(tunnel: &Tunnel) -> WidgetState {
 
 impl BarWidget for Tunnel {
     fn name(&self) -> &'static str {
-        "WireGuard tunnel"
+        WIREGUARD_TUNNEL_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

@@ -19,6 +19,8 @@ use crate::{
     },
 };
 
+pub(super) const TAILSCALE_ITEM_NAME: &str = "Tailscale";
+
 const KEY_EXPIRY_WARNING_WINDOW: TimeDelta = TimeDelta::days(14);
 
 fn key_expires_soon(key_expiry: KeyExpiry, now: DateTime<Utc>) -> bool {
@@ -96,7 +98,7 @@ impl IntoTableRecord<6> for &Peer {
 
 impl BarWidget for Tailscale {
     fn name(&self) -> &'static str {
-        "Tailscale"
+        TAILSCALE_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

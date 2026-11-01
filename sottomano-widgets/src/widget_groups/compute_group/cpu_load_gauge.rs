@@ -23,6 +23,8 @@ use crate::{
     },
 };
 
+pub(super) const CPU_LOAD_ITEM_NAME: &str = "CPU load";
+
 fn busy_level(busy: Ratio) -> Severity {
     if busy > Ratio::new::<percent>(90.0) {
         Severity::Critical
@@ -107,7 +109,7 @@ impl PerCoreReading for CoreReading {
 
 impl BarWidget for CpuUsage {
     fn name(&self) -> &'static str {
-        "CPU load"
+        CPU_LOAD_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

@@ -13,9 +13,11 @@ use crate::{
     },
 };
 
+pub(super) const WIND_ITEM_NAME: &str = "Wind";
+
 impl BarWidget for Wind {
     fn name(&self) -> &'static str {
-        "Wind"
+        WIND_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {
