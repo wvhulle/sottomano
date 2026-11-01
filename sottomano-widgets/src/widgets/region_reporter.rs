@@ -12,7 +12,7 @@ use iced::{
     mouse::Cursor,
     window,
 };
-use iced_exwlshell::{BlurRegions, InputRects, reexport::BlurRegion};
+use iced_exwlshell::{BlurRegions, InputRegionActions, IntoRegionAction, reexport::BlurRegion};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct RegionRoles {
@@ -24,27 +24,37 @@ pub struct RegionRoles {
 impl RegionRoles {
     pub fn report(self, rects: &[Rectangle], bounds: Rectangle, operation: &mut dyn Operation) {
         operation.custom(None, bounds, &mut self.blur_rows(rects));
-        operation.custom(None, bounds, &mut self.input_rects(rects));
+        operation.custom(None, bounds, &mut self.input_region_actions(rects));
     }
 
-    fn input_rects(self, rects: &[Rectangle]) -> InputRects {
-        if !self.takes_input {
-            return InputRects::default();
-        }
-        InputRects(rects.to_vec())
+    fn input_region_actions(self, rects: &[Rectangle]) -> InputRegionActions {
+        let input_rects = if self.takes_input { rects } else { &[] };
+        InputRegionActions(
+            input_rects
+                .iter()
+                .copied()
+                .filter(|rect| rect.width > 0.0 && rect.height > 0.0)
+                .chain([Rectangle::default()])
+                .filter_map(|rect| rect.try_into_region_action().ok())
+                .collect(),
+        )
     }
 
     fn blur_rows(self, rects: &[Rectangle]) -> BlurRegions {
         if !self.blurred {
-            return BlurRegions::default();
+            return replacing_blur_regions(Vec::new());
         }
-        BlurRegions(
+        replacing_blur_regions(
             rects
                 .iter()
                 .flat_map(|rect| rounded_blur_rows(*rect, self.corner_radius))
                 .collect(),
         )
     }
+}
+
+pub(crate) fn replacing_blur_regions(rows: Vec<BlurRegion>) -> BlurRegions {
+    BlurRegions(rows.into_iter().chain([BlurRegion::default()]).collect())
 }
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -293,7 +303,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for RegionReporter<'_
 mod tests {
     use iced::{Rectangle, border::Radius};
 
-    use super::rounded_blur_rows;
+    use super::{RegionRoles, rounded_blur_rows};
 
     fn widget_group_frame() -> Rectangle {
         Rectangle {
@@ -302,6 +312,28 @@ mod tests {
             width: 60.0,
             height: 24.0,
         }
+    }
+
+    #[test]
+    fn roles_without_input_or_blur_still_replace_earlier_regions() {
+        let roles = RegionRoles::default();
+        let frames = [widget_group_frame()];
+        assert!(!roles.input_region_actions(&frames).0.is_empty());
+        assert!(!roles.blur_rows(&frames).0.is_empty());
+    }
+
+    #[test]
+    fn taking_input_adds_collapsed_rects_only_as_the_empty_replacement() {
+        let roles = RegionRoles {
+            takes_input: true,
+            ..RegionRoles::default()
+        };
+        let collapsed = Rectangle {
+            width: 0.0,
+            ..widget_group_frame()
+        };
+        let reported = roles.input_region_actions(&[widget_group_frame(), collapsed]);
+        assert_eq!(reported.0.len(), 2);
     }
 
     #[test]

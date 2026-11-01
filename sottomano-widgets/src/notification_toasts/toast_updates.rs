@@ -5,7 +5,7 @@ use iced::{
     time::{Duration, Instant},
     window::Id,
 };
-use iced_exwlshell::reexport::ActivationTokenSink;
+use iced_exwlshell::reexport::{ActivationTokenSink, XdgActivationTokenV1State};
 use quick_xml::escape::escape;
 use sottomano_config::{Config, LoadError, severity::Severity};
 use sottomano_sources::{
@@ -591,8 +591,10 @@ impl<Routed: ToastLayerHost> NotificationLayer<Routed> {
         };
 
         let (sender, mut receiver) = mpsc::channel(1);
-        let sink = ActivationTokenSink::new(move |token| {
-            let _ = sender.try_send(token);
+        let sink = ActivationTokenSink::callback(move |token_state| {
+            if let XdgActivationTokenV1State::Ready(token_wrapper) = token_state {
+                let _ = sender.try_send(token_wrapper.token().to_owned());
+            }
         });
 
         Task::batch([
