@@ -3,7 +3,7 @@ mod desktop_shell;
 mod message_subscriptions;
 mod shell_message;
 
-use std::{error::Error, sync::Arc};
+use std::{env, error::Error, sync::Arc};
 
 use clap::Parser;
 use command_line::CommandLine;
@@ -19,6 +19,9 @@ use sottomano_widgets::{
 };
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
+const DEFAULT_LOG_DIRECTIVES: &str = "error,sottomano_shell=warn,sottomano_widgets=warn,\
+                                      sottomano_sources=warn,exwlshellev=warn,iced_exwlshell=warn";
+
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
     if let Some(setup_command) = command_line.setup_command {
@@ -26,12 +29,10 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
     }
 
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-            EnvFilter::new(
-                "error,sottomano_shell=warn,sottomano_widgets=warn,sottomano_sources=warn,\
-                 exwlshellev=warn,iced_exwlshell=warn",
-            )
-        }))
+        .with_env_filter(EnvFilter::new(format!(
+            "{DEFAULT_LOG_DIRECTIVES},{}",
+            env::var(EnvFilter::DEFAULT_ENV).unwrap_or_default()
+        )))
         .with_span_events(FmtSpan::CLOSE)
         .init();
 
