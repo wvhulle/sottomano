@@ -13,7 +13,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        group_menus::GroupMenuKind,
+        group_menus::{GroupMenuKind, PinnedEntry},
         login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
@@ -23,14 +23,13 @@ use sottomano_widgets::{
         weather_group::WeatherTarget,
         window_group::WindowTarget,
     },
-    widgets::appearance_presets::{AppearancePreset, ShellAppearance},
 };
 
 use crate::{
     fixtures::{
-        appearance_presets, audio, caldav, claude_usage, compute, gamepad, idle_lock,
-        login_session, media, memory_board, niri_session, notification_toasts, unchanging,
-        voice_dictation, vpn, wallpaper, weather,
+        appearance_presets, audio, caldav, claude_usage, compute, gamepad, group_menu_members,
+        idle_lock, login_session, media, memory_board, niri_session, notification_toasts,
+        shell_settings, unchanging, voice_dictation, vpn, wallpaper, weather,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -40,6 +39,10 @@ use crate::{
 pub enum GroupShown {
     OnBar,
     InMenu(GroupMenuKind),
+    PinnedFrom {
+        menu: GroupMenuKind,
+        group_title: &'static str,
+    },
 }
 
 pub struct Demo {
@@ -50,57 +53,10 @@ pub struct Demo {
     pub script: &'static [Step],
 }
 
-pub const THEMED_DEMOS: &[&str] = &[
-    "compute_cpu",
-    "memory_board_memory",
-    "weather_wind",
-    "audio_volume",
-    "vpn_wireguard",
-    "bottom_workspaces",
-    "wallpaper_place",
-    "idle_screen_off",
-    "ai_usage_windows",
-    "toast_arrival",
-];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RecordedLook {
-    DefaultLook,
-    Preset(AppearancePreset),
-}
-
-impl RecordedLook {
-    pub fn recorded_for(demo: &Demo) -> impl Iterator<Item = RecordedLook> {
-        let themed = THEMED_DEMOS.contains(&demo.name);
-        let default_appearance = ShellAppearance::default();
-        [RecordedLook::DefaultLook].into_iter().chain(
-            AppearancePreset::ALL
-                .into_iter()
-                .filter(move |preset| themed && !preset.is_shown_by(&default_appearance))
-                .map(RecordedLook::Preset),
-        )
-    }
-
-    #[must_use]
-    pub fn appearance(self) -> ShellAppearance {
-        match self {
-            RecordedLook::DefaultLook => ShellAppearance::default(),
-            RecordedLook::Preset(preset) => preset.applied_to(ShellAppearance::default()),
-        }
-    }
-
-    #[must_use]
-    pub fn recording_name(self, demo: &Demo) -> String {
-        match self {
-            RecordedLook::DefaultLook => demo.name.to_owned(),
-            RecordedLook::Preset(preset) => format!("{}_{}", demo.name, preset.slug()),
-        }
-    }
-}
-
 pub enum Step {
     Hover(HoverTarget),
     Press(HoverTarget),
+    PressPin(PinnedEntry),
     Drag { target: HoverTarget, by: f32 },
     HoverText(&'static str),
     PressText(&'static str),
@@ -597,5 +553,163 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::OnBar,
         script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
+    },
+    Demo {
+        name: "group_menu_media",
+        group: group_menu_members::media_menu,
+        live: audio::live,
+        shown: GroupShown::InMenu(GroupMenuKind::Media),
+        script: &[
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Media,
+            ))),
+            Step::HoverText("Media"),
+            Step::HoverText("Audio"),
+            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
+                ControlKind::Source,
+            ))),
+        ],
+    },
+    Demo {
+        name: "group_menu_pin",
+        group: group_menu_members::hardware_menu,
+        live: group_menu_members::hardware_menu_live,
+        shown: GroupShown::InMenu(GroupMenuKind::Hardware),
+        script: &[
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Hardware,
+            ))),
+            Step::PressPin(PinnedEntry::Group {
+                group_title: "Memory",
+            }),
+            Step::RestFor(Duration::from_millis(1500)),
+        ],
+    },
+    Demo {
+        name: "group_menu_appearance",
+        group: shell_settings::sharing_a_unit,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuKind::Appearance),
+        script: &[Step::Hover(HoverTarget::GroupHandle(
+            GroupHandle::GroupMenu(GroupMenuKind::Appearance),
+        ))],
+    },
+    Demo {
+        name: "group_menu_behaviour",
+        group: shell_settings::remaining,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuKind::Behaviour),
+        script: &[
+            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
+                GroupMenuKind::Behaviour,
+            ))),
+            Step::HoverText("Panels"),
+        ],
+    },
+    Demo {
+        name: "compute_cpu_pinned",
+        group: compute::group,
+        live: compute::live,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Hardware,
+            group_title: "Compute",
+        },
+        script: &[
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
+        ],
+    },
+    Demo {
+        name: "memory_board_memory_pinned",
+        group: memory_board::group,
+        live: memory_board::live,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Hardware,
+            group_title: "Memory",
+        },
+        script: &[
+            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
+            Step::Press(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
+            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Board)),
+        ],
+    },
+    Demo {
+        name: "vpn_wireguard_pinned",
+        group: vpn::group,
+        live: unchanging,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Network,
+            group_title: "VPN",
+        },
+        script: &[
+            Step::Hover(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
+                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
+            ))),
+            Step::Press(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
+                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
+            ))),
+            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
+                vpn::LAB_TUNNEL_NAME,
+            )))),
+        ],
+    },
+    Demo {
+        name: "wallpaper_place_pinned",
+        group: wallpaper::group,
+        live: unchanging,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Display,
+            group_title: "Wallpaper",
+        },
+        script: &[
+            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
+            Step::Press(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
+            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Article)),
+        ],
+    },
+    Demo {
+        name: "idle_screen_off_pinned",
+        group: idle_lock::group,
+        live: unchanging,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Session,
+            group_title: "Idle timeouts",
+        },
+        script: &[
+            Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
+            Step::Press(HoverTarget::IdleTimeout(IdleAction::Lock)),
+            Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
+        ],
+    },
+    Demo {
+        name: "ai_usage_windows_pinned",
+        group: claude_usage::group,
+        live: claude_usage::live,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Services,
+            group_title: "Claude usage",
+        },
+        script: &[
+            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+            Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
+            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusageBlock)),
+        ],
+    },
+    Demo {
+        name: "audio_microphone_pinned",
+        group: audio::group,
+        live: audio::live,
+        shown: GroupShown::PinnedFrom {
+            menu: GroupMenuKind::Media,
+            group_title: "Audio",
+        },
+        script: &[
+            Step::Hover(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
+            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
+            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
+                ControlKind::Source,
+            ))),
+        ],
     },
 ];

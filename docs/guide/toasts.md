@@ -2,15 +2,6 @@
 
 The shell is the notification daemon, so there is nothing else to run.
 
-<table>
-<tr><th>Frosted dark</th><th>Clear dark</th><th>Bright office</th></tr>
-<tr>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_arrival.webp" alt="A toast arriving and expiring in the frosted dark look" width="100%"></td>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_arrival_clear_dark.webp" alt="A toast arriving and expiring in the clear dark look" width="100%"></td>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_arrival_bright_office.webp" alt="A toast arriving and expiring in the bright office look" width="100%"></td>
-</tr>
-</table>
-
 ## Toast: Arrival
 
 A toast arrives, holds while hovered and expires on its own.

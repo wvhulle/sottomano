@@ -10,7 +10,10 @@ use iced::{
     },
 };
 
-use crate::hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, TooltipMessage};
+use crate::{
+    hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, TooltipMessage},
+    widget_groups::group_menus::PinnedEntry,
+};
 
 pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
@@ -232,15 +235,31 @@ pub fn marked_by_hover_target<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
 ) -> Element<'a, M> {
-    Element::new(HoverTargetMark { content, target })
+    Element::new(LocatableMark {
+        content,
+        marker: target,
+    })
 }
 
-struct HoverTargetMark<'a, M> {
+#[must_use]
+pub fn marked_by_menu_pin<'a, M: 'a>(
     content: Element<'a, M>,
-    target: HoverTarget,
+    entry: PinnedEntry,
+) -> Element<'a, M> {
+    Element::new(LocatableMark {
+        content,
+        marker: entry,
+    })
 }
 
-impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverTargetMark<'_, M> {
+struct LocatableMark<'a, M, Marker> {
+    content: Element<'a, M>,
+    marker: Marker,
+}
+
+impl<M, Marker: Send + Sync + 'static> Widget<M, iced::Theme, iced::Renderer>
+    for LocatableMark<'_, M, Marker>
+{
     fn children(&self) -> Vec<Tree> {
         vec![Tree::new(&self.content)]
     }
@@ -310,7 +329,7 @@ impl<M> Widget<M, iced::Theme, iced::Renderer> for HoverTargetMark<'_, M> {
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        operation.custom(None, layout.bounds(), &mut self.target);
+        operation.custom(None, layout.bounds(), &mut self.marker);
         self.content
             .as_widget_mut()
             .operate(&mut tree.children[0], layout, renderer, operation);

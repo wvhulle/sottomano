@@ -42,6 +42,11 @@ through its own messages), give the group a variant in `src/showcased_group.rs`
 if it has none yet, and add a `Demo` entry. A target that is not on screen fails
 the run and lists the targets that are.
 
+`ShowcasedGroup::MenuMembers` puts several fixtures in one menu.
+`ShowcasedGroup::ShellSettings` shows the settings groups with their messages
+dropped, because those groups save to sqlite on update. `Step::PressPin` presses
+the pin of a menu row, which only changes the showcase's in-memory state.
+
 ```bash
 cargo run -p sottomano-widget-showcase
 cargo run -p sottomano-widget-showcase -- weather_location
@@ -63,9 +68,9 @@ width in logical pixels, so all demos show at the same scale. After rendering,
 `recordings/`; it fails with the expected tag only when a recording is embedded
 nowhere. CI runs it right after the render.
 
-The demos in `THEMED_DEMOS` are also recorded in every `AppearancePreset` that
-differs from the default look, as `recordings/<name>_<preset>.webp`
-(`RecordedLook` in `src/demo_script.rs`). Each guide page opens with its lead
-demo in every look, side by side in a table whose images carry `alt` before
-`width="100%"`, so the width rewrite leaves them alone. The canvas is
-transparent, so clear and translucent panels show the page behind them.
+A guide page about a group that lives in a menu opens with a two-column table:
+the group's menu demo next to its `<name>_pinned` demo, whose `shown` is
+`GroupShown::PinnedFrom`, which boots with that group pinned. Both images carry
+`alt` before `width="100%"`, so the width rewrite leaves them alone and each
+fills half the page. The canvas is transparent, so clear and translucent panels
+show the page behind them.

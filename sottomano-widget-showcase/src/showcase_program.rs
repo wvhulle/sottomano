@@ -29,7 +29,7 @@ use sottomano_widgets::{
     toast_messages::NotificationMessage,
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage,
-        group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus},
+        group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry},
     },
     widgets::{
         appearance_presets::ShellAppearance,
@@ -72,7 +72,6 @@ enum Pacing {
 
 pub struct ShowcaseProgram {
     config: Config,
-    appearance: ShellAppearance,
     presets: Vec<Preset<ShowcaseState, ShowcaseMessage>>,
     pacing: Pacing,
     start: Clock,
@@ -81,37 +80,24 @@ pub struct ShowcaseProgram {
 impl ShowcaseProgram {
     #[must_use]
     pub fn interactive(config: &Config) -> Self {
-        Self::with_pacing(
-            config,
-            ShellAppearance::default(),
-            Pacing::Realtime,
-            booting_clock(),
-        )
+        Self::with_pacing(config, Pacing::Realtime, booting_clock())
     }
 
     #[must_use]
-    pub fn scripted(config: &Config, appearance: ShellAppearance, start: Clock) -> Self {
-        Self::with_pacing(config, appearance, Pacing::Scripted, start)
+    pub fn scripted(config: &Config, start: Clock) -> Self {
+        Self::with_pacing(config, Pacing::Scripted, start)
     }
 
-    fn with_pacing(
-        config: &Config,
-        appearance: ShellAppearance,
-        pacing: Pacing,
-        start: Clock,
-    ) -> Self {
+    fn with_pacing(config: &Config, pacing: Pacing, start: Clock) -> Self {
         let presets = DEMOS
             .iter()
             .map(|demo| {
                 let config = config.clone();
-                Preset::new(demo.name, move || {
-                    ShowcaseState::boot(demo, &config, appearance, start)
-                })
+                Preset::new(demo.name, move || ShowcaseState::boot(demo, &config, start))
             })
             .collect();
         ShowcaseProgram {
             config: config.clone(),
-            appearance,
             presets,
             pacing,
             start,
@@ -151,12 +137,8 @@ struct PendingHoverReply {
 }
 
 impl ShowcaseState {
-    fn boot(
-        demo: &'static Demo,
-        config: &Config,
-        appearance: ShellAppearance,
-        clock: Clock,
-    ) -> (Self, Task<ShowcaseMessage>) {
+    fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
+        let appearance = ShellAppearance::default();
         FontFaces::point_generic_families_at(&config.theme);
         let mut tooltip = TooltipHost::default();
         let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
@@ -170,6 +152,13 @@ impl ShowcaseState {
                 Box::new(toast.clone()),
             )))
         }));
+        let mut group_menus = GroupMenus::default();
+        if let GroupShown::PinnedFrom { menu, group_title } = demo.shown {
+            let _unsaved_pin = group_menus.update(GroupMenuMessage::TogglePin {
+                menu,
+                entry: PinnedEntry::Group { group_title },
+            });
+        }
         let state = ShowcaseState {
             demo,
             config: config.clone(),
@@ -180,7 +169,7 @@ impl ShowcaseState {
             controller_artwork: ControllerArtwork::decoded(),
             theme: configured_theme(&scheme_palette(config, appearance.scheme)),
             group,
-            group_menus: GroupMenus::default(),
+            group_menus,
             tooltip,
             notifications: NotificationLayer::default(),
             clock,
@@ -216,7 +205,6 @@ impl ShowcaseState {
                 let _hide_due = self.tooltip.update(message, self.clock.instant);
                 Task::none()
             }
-            ShowcaseMessage::GroupMenus(GroupMenuMessage::TogglePin { .. }) => Task::none(),
             ShowcaseMessage::GroupMenus(message) => {
                 if let GroupMenuMessage::InspectRow { row, .. } = &message {
                     self.schedule_hover_replies(&row.target);
@@ -272,7 +260,7 @@ impl ShowcaseState {
 
     fn strip_groups(&self) -> Vec<Element<'_, ShowcaseMessage>> {
         match self.demo.shown {
-            GroupShown::InMenu(kind) => self
+            GroupShown::InMenu(kind) | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
                 .bar_views(&self.config, self.group.position(), self.clock)
                 .flatten()
@@ -497,7 +485,7 @@ impl Program for ShowcaseProgram {
     }
 
     fn boot(&self) -> (ShowcaseState, Task<ShowcaseMessage>) {
-        ShowcaseState::boot(&DEMOS[0], &self.config, self.appearance, self.start)
+        ShowcaseState::boot(&DEMOS[0], &self.config, self.start)
     }
 
     fn presets(&self) -> &[Preset<ShowcaseState, ShowcaseMessage>] {

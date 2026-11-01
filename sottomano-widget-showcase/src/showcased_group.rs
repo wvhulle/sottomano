@@ -28,7 +28,10 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
-        niri_window_group::niri_kdl_rules::NiriLayout,
+        niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriLayout},
+        overlay_settings_group::OverlaySettingsGroup,
+        panel_settings_group::PanelSettingsGroup,
+        sidebar_settings_group::SidebarSettingsGroup,
         voice_dictation_group::VoiceDictationGroup,
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
@@ -102,6 +105,59 @@ pub enum ShowcasedGroup {
     BottomBar(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
     Toasts(Box<ShowcasedToasts>),
+    MenuMembers(Vec<ShowcasedGroup>),
+    ShellSettings(Box<ShowcasedShellSettings>),
+}
+
+pub struct ShowcasedShellSettings {
+    pub panels: PanelSettingsGroup,
+    pub sidebar: SidebarSettingsGroup,
+    pub overlays: OverlaySettingsGroup,
+    pub niri_window: NiriWindowGroup,
+    pub shown_items: ShownSettingItems,
+}
+
+#[derive(Clone, Copy)]
+pub enum ShownSettingItems {
+    SharingAUnit,
+    Remaining,
+}
+
+impl ShowcasedShellSettings {
+    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<GroupContent<'a, ShowcaseMessage>> {
+        let inert_settings = [
+            self.panels
+                .group_content(config)
+                .map(|_| ShowcaseMessage::OutsideShowcase),
+            self.sidebar
+                .group_content(config)
+                .map(|_| ShowcaseMessage::OutsideShowcase),
+            self.overlays
+                .group_content(config)
+                .map(|_| ShowcaseMessage::OutsideShowcase),
+            self.niri_window
+                .group_content(config)
+                .map(|_| ShowcaseMessage::OutsideShowcase),
+        ];
+        match self.shown_items {
+            ShownSettingItems::SharingAUnit => {
+                inert_settings.map(GroupContent::only_aligned_items).into()
+            }
+            ShownSettingItems::Remaining => inert_settings
+                .map(GroupContent::only_unaligned_items)
+                .into(),
+        }
+    }
+
+    fn tooltip_for(&self, target: &HoverTarget, clock: Clock) -> Option<Tooltip> {
+        match target {
+            HoverTarget::PanelSettings(target) => Some(self.panels.tooltip_for(*target, clock)),
+            HoverTarget::SidebarSettings(target) => Some(self.sidebar.tooltip_for(*target, clock)),
+            HoverTarget::OverlaySettings(target) => Some(self.overlays.tooltip_for(*target, clock)),
+            HoverTarget::NiriWindow(target) => Some(self.niri_window.tooltip_for(*target, clock)),
+            _ => None,
+        }
+    }
 }
 
 pub struct ShowcasedGamepad {
@@ -283,6 +339,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::LoginSession(_)
+            | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::Wallpaper(_) => Position::Bottom,
             ShowcasedGroup::WorkspaceSidebar(_) => Position::Left,
             ShowcasedGroup::Compute(_)
@@ -295,6 +352,9 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
+            ShowcasedGroup::MenuMembers(members) => members
+                .first()
+                .map_or(Position::Top, ShowcasedGroup::position),
         }
     }
 
@@ -356,6 +416,11 @@ impl ShowcasedGroup {
             ShowcasedGroup::LoginSession(group) => {
                 vec![group.group_content().map(ShowcaseMessage::LoginSession)]
             }
+            ShowcasedGroup::MenuMembers(members) => members
+                .iter()
+                .flat_map(|member| member.group_contents(config, clock))
+                .collect(),
+            ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config),
             ShowcasedGroup::BottomBar(_)
             | ShowcasedGroup::WorkspaceSidebar(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
@@ -451,7 +516,14 @@ impl ShowcasedGroup {
                     let _ = session.window_group.update(message, clock);
                 }
             }
-            ShowcasedGroup::AppearancePresets(_) | ShowcasedGroup::Toasts(_) => {}
+            ShowcasedGroup::MenuMembers(members) => {
+                for member in members {
+                    member.update(message.clone(), clock);
+                }
+            }
+            ShowcasedGroup::AppearancePresets(_)
+            | ShowcasedGroup::Toasts(_)
+            | ShowcasedGroup::ShellSettings(_) => {}
         }
     }
 
@@ -531,6 +603,10 @@ impl ShowcasedGroup {
                     .map(ShowcaseMessage::WindowGroup)
                     .collect()
             }
+            ShowcasedGroup::MenuMembers(members) => members
+                .iter_mut()
+                .flat_map(|member| member.hover(target, config, clock))
+                .collect(),
             ShowcasedGroup::Weather(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
@@ -539,6 +615,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::AppearancePresets(_)
+            | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
     }
@@ -641,6 +718,10 @@ impl ShowcasedGroup {
                 };
                 Some(menu.tooltip_for(*target))
             }
+            ShowcasedGroup::MenuMembers(members) => members
+                .iter()
+                .find_map(|member| member.tooltip_for(target, config, clock)),
+            ShowcasedGroup::ShellSettings(settings) => settings.tooltip_for(target, clock),
             ShowcasedGroup::Toasts(_) => None,
         }
     }
@@ -686,6 +767,8 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::LoginSession(_)
+            | ShowcasedGroup::MenuMembers(_)
+            | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::AppearancePresets(_) => None,
         }
     }

@@ -31,13 +31,13 @@ use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
     RECORDING_EXTENSION, RECORDINGS_DIRECTORY,
-    demo_script::{Demo, RecordedLook, Step},
-    hovered_widget::{AnyHoveredWidget, HoveredWidget},
+    demo_script::{Demo, Step},
+    hovered_widget::{AnyHoveredWidget, HoveredWidget, MenuPinWidget},
     showcase_message::ShowcaseMessage,
     showcase_program::{HOVER_FETCH_LATENCY, ShowcaseProgram},
 };
 
-pub(crate) const CANVAS: Size = Size::new(720.0, 960.0);
+pub(crate) const CANVAS: Size = Size::new(1280.0, 1080.0);
 const SCALE_FACTOR: f32 = 2.0;
 const REST_POINTER: Point = Point::new(CANVAS.width - 1.0, CANVAS.height / 2.0);
 const REST_HOLD: Duration = Duration::from_millis(1000);
@@ -72,11 +72,10 @@ impl<'session> DemoRecorder<'session> {
     fn start(
         demo: &'static Demo,
         config: &Config,
-        look: RecordedLook,
         clock: Clock,
         layout_renderer: &'session mut iced::Renderer,
     ) -> Self {
-        let program = ShowcaseProgram::scripted(config, look.appearance(), clock);
+        let program = ShowcaseProgram::scripted(config, clock);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
         let mut emulator = Emulator::with_preset(
             sender,
@@ -192,6 +191,10 @@ impl<'session> DemoRecorder<'session> {
             }
             Step::Press(target) => {
                 let pointer = self.locate(HoveredWidget(target.clone()));
+                self.press_at(pointer)
+            }
+            Step::PressPin(entry) => {
+                let pointer = self.locate(MenuPinWidget(*entry));
                 self.press_at(pointer)
             }
             Step::HoverText(shown) => {
@@ -518,9 +521,7 @@ impl RecordingSession {
     pub fn open(start: Clock) -> Self {
         let config = Config::default();
         register_font(&config);
-        let settings =
-            ShowcaseProgram::scripted(&config, RecordedLook::DefaultLook.appearance(), start)
-                .settings();
+        let settings = ShowcaseProgram::scripted(&config, start).settings();
         let layout_renderer = block_on(iced::Renderer::new(
             settings.default_font,
             settings.default_text_size,
@@ -533,16 +534,10 @@ impl RecordingSession {
         }
     }
 
-    pub fn record(
-        &mut self,
-        demo: &'static Demo,
-        look: RecordedLook,
-        start: Clock,
-        output_root: &Path,
-    ) {
+    pub fn record(&mut self, demo: &'static Demo, start: Clock, output_root: &Path) {
         let margin_pixels = (self.config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
         let mut recorder =
-            DemoRecorder::start(demo, &self.config, look, start, &mut self.layout_renderer);
+            DemoRecorder::start(demo, &self.config, start, &mut self.layout_renderer);
         let opening = recorder.rest();
         let scripted: Vec<CapturedFrame> = demo
             .script
@@ -561,10 +556,7 @@ impl RecordingSession {
         drop(recorder);
         let recordings_directory = output_root.join(RECORDINGS_DIRECTORY);
         fs::create_dir_all(&recordings_directory).expect("recordings directory is creatable");
-        let animation = recordings_directory.join(format!(
-            "{}.{RECORDING_EXTENSION}",
-            look.recording_name(demo)
-        ));
+        let animation = recordings_directory.join(format!("{}.{RECORDING_EXTENSION}", demo.name));
         encode_animation(&frames, &crop, &animation);
     }
 }
