@@ -10,7 +10,7 @@ Most groups live in menus behind a single icon on a panel, so the panels stay sh
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="786" alt="Opening the Media menu, hovering its rows and then the microphone">
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_appearance.webp" width="755" alt="Opening the Appearance menu with its settings lined up in a table">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_appearance.webp" width="756" alt="Opening the Appearance menu with its settings lined up in a table">
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_behaviour.webp" width="485" alt="Opening the Behaviour menu and hovering the panel settings">
 

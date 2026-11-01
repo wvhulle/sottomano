@@ -12,4 +12,4 @@ Tooltips stay blurred in every look. The recordings are rendered offscreen, wher
 
 Pressing a look applies it at once; the menu marks the one in use.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="292" alt="Opening the looks menu and switching to clear dark and then bright office">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/appearance_looks.webp" width="293" alt="Opening the looks menu and switching to clear dark and then bright office">

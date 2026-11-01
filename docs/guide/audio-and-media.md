@@ -20,7 +20,7 @@ The playing track from any MPRIS player, with where to find it.
 
 Clicking the speaker opens a slider in place; dragging sets the level.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/audio_volume.webp" width="423" alt="Opening the volume slider and dragging it">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/audio_volume.webp" width="424" alt="Opening the volume slider and dragging it">
 
 ## Audio: Microphone
 

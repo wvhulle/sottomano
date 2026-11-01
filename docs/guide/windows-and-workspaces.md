@@ -18,10 +18,10 @@ A window's title, application and workspace.
 
 The process tree behind a window, to see what a terminal is really running.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_process_inspector.webp" width="811" alt="Hovering the process inspector of a window">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_process_inspector.webp" width="812" alt="Hovering the process inspector of a window">
 
 ## Workspace sidebar: Previews
 
 The same workspace previews, turned vertical for wide screens.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/sidebar_workspaces.webp" width="430" alt="Hovering each workspace in the vertical sidebar">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/sidebar_workspaces.webp" width="431" alt="Hovering each workspace in the vertical sidebar">
