@@ -44,7 +44,7 @@ impl Display for FeedExpansionError {
 
 impl From<reqwest::Error> for FeedExpansionError {
     fn from(error: reqwest::Error) -> Self {
-        FeedExpansionError::Download(error)
+        FeedExpansionError::Download(error.without_url())
     }
 }
 
@@ -185,6 +185,17 @@ mod tests {
     use chrono_tz::Europe::Brussels;
 
     use super::*;
+
+    #[tokio::test]
+    async fn download_failure_message_leaves_out_the_private_feed_url() {
+        let refused_connection = reqwest::Client::new()
+            .get("http://127.0.0.1:1/private-feed-token")
+            .send()
+            .await
+            .unwrap_err();
+        let message = FeedExpansionError::from(refused_connection).to_string();
+        assert!(!message.contains("private-feed-token"), "{message}");
+    }
 
     fn october_feed_events() -> Vec<UpcomingEvent> {
         let window = EventWindow {
