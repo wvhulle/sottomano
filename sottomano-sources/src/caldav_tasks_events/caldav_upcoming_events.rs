@@ -28,6 +28,7 @@ use crate::{
 pub struct UpcomingEventList {
     pub events: Vec<UpcomingEvent>,
     pub calendar_count: usize,
+    pub failed_subscription_names: Vec<String>,
     pub provider: CaldavProvider,
 }
 
@@ -54,8 +55,10 @@ impl CalendarEntryQuery for UpcomingEvent {
 
 struct FetchedSubscription {
     href: String,
+    calendar_name: String,
     downloaded_at: Instant,
     window: EventWindow,
+    download_failed: bool,
     events: Vec<UpcomingEvent>,
 }
 
@@ -69,13 +72,14 @@ impl FetchedSubscription {
         subscription: &SubscribedCalendar,
         window: EventWindow,
     ) -> Self {
+        let downloaded_events = downloaded_or_logged(http_client, subscription, window).await;
         Self {
             href: subscription.href.clone(),
+            calendar_name: subscription.name.clone(),
             downloaded_at: Instant::now(),
             window,
-            events: downloaded_or_logged(http_client, subscription, window)
-                .await
-                .unwrap_or_default(),
+            download_failed: downloaded_events.is_none(),
+            events: downloaded_events.unwrap_or_default(),
         }
     }
 
@@ -85,12 +89,13 @@ impl FetchedSubscription {
         subscription: &SubscribedCalendar,
         window: EventWindow,
     ) -> Self {
+        let downloaded_events = downloaded_or_logged(http_client, subscription, window).await;
         Self {
+            calendar_name: subscription.name.clone(),
             downloaded_at: Instant::now(),
             window,
-            events: downloaded_or_logged(http_client, subscription, window)
-                .await
-                .unwrap_or(self.events),
+            download_failed: downloaded_events.is_none(),
+            events: downloaded_events.unwrap_or(self.events),
             href: self.href,
         }
     }
@@ -172,8 +177,21 @@ impl AgendaSnapshotPolling for UpcomingEventPoller {
             .cloned()
             .collect();
         events.sort_by_key(|event| event.start.starts_at());
+        let mut failed_subscription_names: Vec<String> = self
+            .fetched_subscriptions
+            .values()
+            .filter(|subscription| subscription.download_failed)
+            .map(|subscription| subscription.calendar_name.clone())
+            .collect();
+        failed_subscription_names.sort();
+        tracing::debug!(
+            "upcoming events: {} kept from {} calendars",
+            events.len(),
+            self.calendar_home.fetched_calendar_count(),
+        );
         Ok(UpcomingEventList {
             events,
+            failed_subscription_names,
             calendar_count: self.calendar_home.fetched_calendar_count()
                 + self.fetched_subscriptions.len(),
             provider: polled_home.provider,

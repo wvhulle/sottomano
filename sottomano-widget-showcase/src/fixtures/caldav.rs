@@ -85,6 +85,7 @@ fn nextcloud_events(clock: Clock) -> UpcomingEventList {
             timed_event("Book club", 480, 600, "City library"),
         ],
         calendar_count: 1,
+        failed_subscription_names: Vec::new(),
         provider: nextcloud_provider(),
     }
 }
