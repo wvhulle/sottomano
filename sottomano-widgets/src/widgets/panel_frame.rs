@@ -17,7 +17,7 @@ use sottomano_config::{Config, screen_edges::Position};
 
 use crate::widgets::{
     configured_theme::{background_color, background_strong_color, text_color},
-    region_reporter::rounded_blur_rows,
+    region_reporter::{replacing_blur_regions, rounded_blur_rows},
     shell_layer_appearance::LayerAppearance,
 };
 
@@ -212,9 +212,9 @@ impl<Message> PanelFrame<'_, Message> {
 
     fn blur_regions(&self, bounds: Rectangle) -> BlurRegions {
         if !self.blurred {
-            return BlurRegions::default();
+            return replacing_blur_regions(Vec::new());
         }
-        BlurRegions(rounded_blur_rows(bounds, self.drawn_radius()))
+        replacing_blur_regions(rounded_blur_rows(bounds, self.drawn_radius()))
     }
 
     fn draw_fill(
