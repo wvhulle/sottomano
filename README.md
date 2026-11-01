@@ -30,7 +30,7 @@ the card's top line says what a click does.
 
 Pressing the temperature opens the forecast for the coming hours.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="368" alt="Pressing the temperature in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="884" alt="Pressing the temperature in the weather group">
 
 ### VPN: Tailscale
 
