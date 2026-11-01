@@ -12,7 +12,7 @@ use sottomano_sources::gamepad_controller_input::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    widget_groups::gamepad_group::{GamepadGroup, GamepadMessage},
+    widget_groups::gamepad_group::{GamepadGroup, GamepadMessage, GamepadWindowClaim},
 };
 use uom::si::{
     f64::{Frequency, Ratio},
@@ -115,7 +115,7 @@ pub fn group(_clock: Clock) -> ShowcasedGroup {
         }),
     ];
     for message in messages {
-        let _ = group.update(message, &bindings, None);
+        let _ = group.update(message, &bindings, GamepadWindowClaim::Unclaimed);
     }
     ShowcasedGroup::Gamepad(Box::new(ShowcasedGamepad { group, bindings }))
 }

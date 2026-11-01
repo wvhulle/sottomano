@@ -17,7 +17,7 @@ use sottomano_widgets::{
 use tokio::time::sleep_until;
 
 use crate::{
-    desktop_shell::{DesktopShell, focused_app_id},
+    desktop_shell::{DesktopShell, gamepad_window_claim},
     shell_message::Message,
 };
 
@@ -289,7 +289,7 @@ impl DesktopShell {
             HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.tooltip_for(
                 *target,
                 &self.config.widget_groups.gamepad,
-                focused_app_id(&self.niri),
+                gamepad_window_claim(&self.niri, &self.outputs),
                 self.clock,
             ),
             HoverTarget::ClaudeUsage(target) => self

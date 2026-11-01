@@ -23,7 +23,7 @@ use sottomano_widgets::{
         caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
-        gamepad_group::GamepadGroup,
+        gamepad_group::{GamepadGroup, GamepadWindowClaim::Unclaimed},
         idle_timeouts_group::IdleTimeoutsGroup,
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
@@ -402,7 +402,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::Gamepad(gamepad) => gamepad
                 .group
-                .group_contents(&gamepad.bindings, None)
+                .group_contents(&gamepad.bindings, Unclaimed)
                 .into_iter()
                 .map(|group| group.map(ShowcaseMessage::Gamepad))
                 .collect(),
@@ -488,7 +488,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::Gamepad(gamepad) => {
                 if let ShowcaseMessage::Gamepad(message) = message {
-                    let _ = gamepad.group.update(message, &gamepad.bindings, None);
+                    let _ = gamepad.group.update(message, &gamepad.bindings, Unclaimed);
                 }
             }
             ShowcasedGroup::VoiceDictation(group) => {
@@ -683,7 +683,7 @@ impl ShowcasedGroup {
                 };
                 gamepad
                     .group
-                    .tooltip_for(*target, &gamepad.bindings, None, clock)
+                    .tooltip_for(*target, &gamepad.bindings, Unclaimed, clock)
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 let HoverTarget::VoiceDictation(target) = target else {

@@ -6,7 +6,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, focused_app_id},
+    desktop_shell::{DesktopShell, gamepad_window_claim},
     shell_message::Message,
 };
 
@@ -202,7 +202,10 @@ impl DesktopShell {
         let gamepad_groups = self
             .widget_groups
             .gamepad_group
-            .group_contents(&config.widget_groups.gamepad, focused_app_id(&self.niri))
+            .group_contents(
+                &config.widget_groups.gamepad,
+                gamepad_window_claim(&self.niri, &self.outputs),
+            )
             .into_iter()
             .map(|group| group.map(Message::Gamepad));
         let members = media_groups

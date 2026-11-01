@@ -24,7 +24,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
 
 use crate::{
-    desktop_shell::{DesktopShell, focused_app_id},
+    desktop_shell::{DesktopShell, gamepad_window_claim},
     shell_message::{Message, OutputChange},
 };
 
@@ -69,7 +69,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         .map(|()| Message::ConfigFileChanged),
         state.widget_groups.subscription(
             &state.config,
-            focused_app_id(&state.niri),
+            gamepad_window_claim(&state.niri, &state.outputs),
             state.desktop_buses.as_ref(),
         ),
         Subscription::run(desktop_bus_events).map(Message::DesktopBus),

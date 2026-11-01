@@ -7,15 +7,24 @@ use sottomano_sources::{
 use sottomano_widgets::{
     background_work::snapshot_subscription,
     widget_groups::{
-        audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
-        clock_group::ClockGroup, compute_group::ComputeGroup,
-        copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        gamepad_group::GamepadGroup, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
+        audio_group::AudioGroup,
+        bluetooth_adapters_group::BluetoothAdaptersGroup,
+        clock_group::ClockGroup,
+        compute_group::ComputeGroup,
+        copilot_usage_group::CopilotUsageGroup,
+        dark_mode_group::DarkModeGroup,
+        gamepad_group::{GamepadGroup, GamepadWindowClaim},
+        journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup,
+        memory_board_group::MemoryBoardGroup,
+        mobile_modems_group::MobileModemsGroup,
+        monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup,
         window_group::WindowGroup,
     },
 };
@@ -26,7 +35,7 @@ impl ShellWidgetGroups {
     pub fn subscription(
         &self,
         config: &Config,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
         buses: Option<&DesktopBuses>,
     ) -> Subscription<Message> {
         let working_days = self.quiet_schedule_group.working_days();
@@ -54,7 +63,7 @@ impl ShellWidgetGroups {
             TrayGroup::subscription().map(Message::Tray),
             AudioGroup::subscription().map(Message::Audio),
             self.gamepad_group
-                .subscription(&config.widget_groups.gamepad, focused_app_id)
+                .subscription(&config.widget_groups.gamepad, window_claim)
                 .map(Message::Gamepad),
             self.claude_usage_group
                 .subscription(config, working_days, buses)
