@@ -90,10 +90,20 @@ pub(super) fn parsed_calendar_data(objects: Vec<CalendarObject>) -> Vec<Calendar
     objects
         .into_iter()
         .filter_map(|object| {
-            Some(CalendarResource {
-                calendar: Calendar::from_str(object.calendar_data.as_deref()?).ok()?,
-                href: object.href,
-            })
+            let Some(calendar_data) = object.calendar_data.as_deref() else {
+                tracing::warn!("calendar object {}: response has no data", object.href);
+                return None;
+            };
+            match Calendar::from_str(calendar_data) {
+                Ok(calendar) => Some(CalendarResource {
+                    calendar,
+                    href: object.href,
+                }),
+                Err(parse_error) => {
+                    tracing::warn!("calendar object {}: {parse_error}", object.href);
+                    None
+                }
+            }
         })
         .collect()
 }

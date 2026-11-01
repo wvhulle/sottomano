@@ -107,10 +107,16 @@ pub async fn query_upcoming_events(
         .client
         .calendar_query_options(&calendar.href, &options)
         .await?;
-    Ok(upcoming_events(
-        &parsed_calendar_data(objects),
-        &calendar.name,
-    ))
+    let object_count = objects.len();
+    let calendar_resources = parsed_calendar_data(objects);
+    let events = upcoming_events(&calendar_resources, &calendar.name);
+    tracing::debug!(
+        "calendar {}: {object_count} objects, {} parsed, {} events",
+        calendar.name,
+        calendar_resources.len(),
+        events.len(),
+    );
+    Ok(events)
 }
 
 fn upcoming_events(resources: &[CalendarResource], calendar_name: &str) -> Vec<UpcomingEvent> {
@@ -129,7 +135,11 @@ fn calendar_object_event(
     event: &Event,
     calendar_name: &str,
 ) -> Option<UpcomingEvent> {
-    let start = AgendaMoment::of(event.get_start()?);
+    let Some(event_start) = event.get_start() else {
+        tracing::warn!("calendar object {object_href}: event has no readable start");
+        return None;
+    };
+    let start = AgendaMoment::of(event_start);
     Some(UpcomingEvent {
         summary: displayed_summary(event.get_summary().unwrap_or_default()),
         calendar: calendar_name.to_owned(),
