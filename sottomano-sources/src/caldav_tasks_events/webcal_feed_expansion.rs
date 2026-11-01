@@ -1,7 +1,8 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter, Result as FmtResult},
     str::FromStr,
+    time::Instant,
 };
 
 use calcard::{
@@ -12,6 +13,7 @@ use calcard::{
     },
 };
 use chrono::{DateTime, TimeDelta, Utc};
+use tokio::task::spawn_blocking;
 
 use crate::{
     caldav_tasks_events::{
@@ -31,6 +33,7 @@ type ExpandedOccurrence =
 pub enum FeedExpansionError {
     Download(reqwest::Error),
     Unparseable,
+    ExpansionInterrupted,
 }
 
 impl Display for FeedExpansionError {
@@ -38,6 +41,7 @@ impl Display for FeedExpansionError {
         match self {
             FeedExpansionError::Download(error) => write!(f, "download failed: {error}"),
             FeedExpansionError::Unparseable => write!(f, "feed is not an iCalendar file"),
+            FeedExpansionError::ExpansionInterrupted => write!(f, "feed expansion was interrupted"),
         }
     }
 }
@@ -61,7 +65,20 @@ pub async fn download_feed_events(
         .error_for_status()?
         .text()
         .await?;
-    expanded_feed_events(&feed_text, &subscription.name, window, viewer_zone())
+    let calendar_name = subscription.name.clone();
+    spawn_blocking(move || {
+        let expansion_started = Instant::now();
+        let expanded_events =
+            expanded_feed_events(&feed_text, &calendar_name, window, viewer_zone());
+        tracing::debug!(
+            "subscription {calendar_name}: expanded {} bytes in {:?}",
+            feed_text.len(),
+            expansion_started.elapsed(),
+        );
+        expanded_events
+    })
+    .await
+    .unwrap_or(Err(FeedExpansionError::ExpansionInterrupted))
 }
 
 pub fn expanded_feed_events(
@@ -73,35 +90,77 @@ pub fn expanded_feed_events(
     let Ok(feed) = ICalendar::parse(feed_text) else {
         return Err(FeedExpansionError::Unparseable);
     };
+    Ok(series_calendars(&feed)
+        .iter()
+        .flat_map(|series| series_events(series, calendar_name, viewer_zone))
+        .filter(|event| event.overlaps(window))
+        .collect())
+}
+
+fn series_calendars(feed: &ICalendar) -> Vec<ICalendar> {
     let series_uids: BTreeSet<&str> = feed
         .components
         .iter()
         .filter(|component| component.component_type == ICalendarComponentType::VEvent)
         .filter_map(ICalendarComponent::uid)
         .collect();
-    Ok(series_uids
-        .into_iter()
-        .map(|uid| series_calendar(&feed, uid))
-        .flat_map(|series| series_events(&series, calendar_name, viewer_zone))
-        .filter(|event| event.overlaps(window))
-        .collect())
+    let mut components_by_uid: BTreeMap<&str, Vec<&ICalendarComponent>> = BTreeMap::new();
+    feed.components
+        .iter()
+        .filter(|component| component.component_type.has_time_ranges())
+        .filter_map(|component| Some((component.uid()?, component)))
+        .filter(|(uid, _)| series_uids.contains(uid))
+        .for_each(|(uid, component)| components_by_uid.entry(uid).or_default().push(component));
+    let shared_calendar = calendar_without_time_ranges(feed);
+    components_by_uid
+        .values()
+        .map(|series_components| calendar_with_series(&shared_calendar, feed, series_components))
+        .collect()
 }
 
-fn series_calendar(feed: &ICalendar, uid: &str) -> ICalendar {
+fn calendar_without_time_ranges(feed: &ICalendar) -> ICalendar {
     let component_count = u32::try_from(feed.components.len()).unwrap_or(u32::MAX);
-    let other_series_ids: Vec<u32> = (0..component_count)
+    let time_range_ids: Vec<u32> = (0..component_count)
         .filter(|component_id| {
             feed.component_by_id(*component_id)
-                .is_some_and(|component| belongs_to_other_series(component, uid))
+                .is_some_and(|component| component.component_type.has_time_ranges())
         })
         .collect();
-    let mut series = feed.clone();
-    series.remove_component_ids(&other_series_ids);
+    let mut shared_calendar = feed.clone();
+    shared_calendar.remove_component_ids(&time_range_ids);
+    shared_calendar
+}
+
+fn calendar_with_series(
+    shared_calendar: &ICalendar,
+    feed: &ICalendar,
+    series_components: &[&ICalendarComponent],
+) -> ICalendar {
+    let mut series = shared_calendar.clone();
+    for component in series_components {
+        let appended_id = appended_component_id(&mut series, feed, component);
+        if let Some(calendar_root) = series.components.first_mut() {
+            calendar_root.component_ids.push(appended_id);
+        }
+    }
     series
 }
 
-fn belongs_to_other_series(component: &ICalendarComponent, uid: &str) -> bool {
-    component.component_type.has_time_ranges() && component.uid() != Some(uid)
+fn appended_component_id(
+    series: &mut ICalendar,
+    feed: &ICalendar,
+    component: &ICalendarComponent,
+) -> u32 {
+    let appended_index = series.components.len();
+    series.components.push(component.clone());
+    let child_ids: Vec<u32> = component
+        .component_ids
+        .iter()
+        .filter_map(|child_id| feed.component_by_id(*child_id))
+        .map(|child| appended_component_id(series, feed, child))
+        .collect();
+    series.components[appended_index].component_ids = child_ids;
+    u32::try_from(appended_index).unwrap_or(u32::MAX)
 }
 
 fn series_events(
@@ -249,6 +308,58 @@ mod tests {
         assert_eq!(offsite.end, AgendaMoment::AllDay(day.succ_opt().unwrap()));
         assert_eq!(offsite.location, "Ghent");
         assert_eq!(offsite.origin, EventOrigin::SubscriptionFeed);
+    }
+
+    fn feed_of_single_events(event_count: u32) -> String {
+        let events: String = (0..event_count)
+            .map(|event_number| {
+                [
+                    "BEGIN:VEVENT".to_owned(),
+                    format!("UID:pickup-{event_number}"),
+                    format!("SUMMARY:Pickup {event_number}"),
+                    "DTSTART:20261012T080000Z".to_owned(),
+                    "DTEND:20261012T090000Z".to_owned(),
+                    "BEGIN:VALARM".to_owned(),
+                    "ACTION:DISPLAY".to_owned(),
+                    "TRIGGER:-PT1H".to_owned(),
+                    "END:VALARM".to_owned(),
+                    "END:VEVENT\n".to_owned(),
+                ]
+                .join("\n")
+            })
+            .collect();
+        format!("BEGIN:VCALENDAR\nVERSION:2.0\n{events}END:VCALENDAR\n")
+    }
+
+    #[test]
+    fn each_series_keeps_only_its_own_event_and_alarm() {
+        let feed = ICalendar::parse(feed_of_single_events(3)).unwrap();
+        let series_list = series_calendars(&feed);
+        assert_eq!(series_list.len(), 3);
+        for series in &series_list {
+            let event_ids: Vec<u32> = series.components[0].component_ids.clone();
+            assert_eq!(event_ids.len(), 1);
+            let event = series.component_by_id(event_ids[0]).unwrap();
+            assert_eq!(event.component_type, ICalendarComponentType::VEvent);
+            let alarm = series.component_by_id(event.component_ids[0]).unwrap();
+            assert_eq!(alarm.component_type, ICalendarComponentType::VAlarm);
+        }
+    }
+
+    #[test]
+    fn every_single_event_of_a_feed_expands_once() {
+        let window = EventWindow {
+            first_day: NaiveDate::from_ymd_opt(2026, 10, 12).unwrap(),
+            days: 1,
+        };
+        let events = expanded_feed_events(
+            &feed_of_single_events(3),
+            "Garbage",
+            window,
+            CalendarZone::from(Utc),
+        )
+        .unwrap();
+        assert_eq!(events.len(), 3);
     }
 
     #[test]
