@@ -26,6 +26,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         group_item::GroupItem,
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -86,12 +87,25 @@ impl VpnGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<VpnMessage> {
+    pub fn subscription(
+        &self,
+        buses: &DesktopBuses,
+        demand: &GroupSourceDemand<'_>,
+    ) -> Subscription<VpnMessage> {
         Subscription::batch([
-            snapshot_subscription::<NetworkManagerVpns>(buses.clone())
-                .map(VpnMessage::NetworkManagerVpns),
-            snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
-            snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
+            demand.while_face_shown(
+                &["NetworkManager VPNs", "VPN connection"],
+                snapshot_subscription::<NetworkManagerVpns>(buses.clone())
+                    .map(VpnMessage::NetworkManagerVpns),
+            ),
+            demand.while_face_shown(
+                &["WireGuard", "WireGuard tunnel"],
+                snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
+            ),
+            demand.while_face_shown(
+                &["Tailscale"],
+                snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
+            ),
         ])
     }
 

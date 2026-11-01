@@ -5,6 +5,7 @@ use sottomano_widgets::{
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
+        group_menus::PromotedGroup,
         notification_group::{self, NotificationGroupMessage},
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
     },
@@ -16,8 +17,13 @@ use crate::{
     shell_message::Message,
 };
 
+pub(super) struct GroupAlertScan {
+    pub toast_requests: GroupToastRequests<Message>,
+    pub promoted_groups: Vec<PromotedGroup>,
+}
+
 impl DesktopShell {
-    pub(super) fn group_toast_requests(&self) -> GroupToastRequests<Message> {
+    pub(super) fn scan_group_alerts(&self) -> GroupAlertScan {
         let locale = self.config.calendar.locale;
         let TopBarGroups {
             center,
@@ -30,7 +36,8 @@ impl DesktopShell {
             end: bottom_end,
             ..
         } = self.bottom_bar_groups();
-        center
+        let group_menus: Vec<_> = self.bar_group_menus().collect();
+        let toast_requests = center
             .iter()
             .chain([&notifications])
             .chain(&end)
@@ -38,10 +45,20 @@ impl DesktopShell {
             .chain(&bottom_end)
             .map(|group| group.toast_requests(locale, self.clock))
             .chain(
-                self.bar_group_menus()
+                group_menus
+                    .iter()
                     .map(|group_menu| group_menu.toast_requests(locale, self.clock)),
             )
-            .collect()
+            .collect();
+        let promotion_severity = self.config.panel_bar.group_menu_promotion_severity;
+        let promoted_groups = group_menus
+            .iter()
+            .flat_map(|group_menu| group_menu.promoted_groups(promotion_severity, self.clock))
+            .collect();
+        GroupAlertScan {
+            toast_requests,
+            promoted_groups,
+        }
     }
 
     pub fn update_notification(&mut self, msg: NotificationMessage) -> Task<Message> {

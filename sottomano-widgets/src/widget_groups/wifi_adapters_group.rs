@@ -25,6 +25,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::{
+        group_menus::group_source_demand::GroupSourceDemand,
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -44,7 +45,7 @@ use crate::{
     },
 };
 
-const ADAPTER_TITLES: AttachmentTitles = AttachmentTitles {
+pub const ADAPTER_TITLES: AttachmentTitles = AttachmentTitles {
     built_in: "Wi-Fi",
     usb: "USB Wi-Fi",
 };
@@ -110,19 +111,25 @@ impl WifiAdaptersGroup {
         });
     }
 
-    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<WifiAdaptersMessage> {
+    pub fn subscription(
+        &self,
+        buses: &DesktopBuses,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<WifiAdaptersMessage> {
         let any_adapter_expanded = self
             .sessions
             .values()
             .any(|session| session.expansion.is_expanded());
+        let demand = demand.expanded_when(any_adapter_expanded);
         Subscription::batch([
-            snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
-            if any_adapter_expanded {
+            demand.while_any_reading_shown(
+                snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
+            ),
+            demand.while_rows_shown(
+                &[],
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
-                    .map(WifiAdaptersMessage::GatewayLatencies)
-            } else {
-                Subscription::none()
-            },
+                    .map(WifiAdaptersMessage::GatewayLatencies),
+            ),
         ])
     }
 

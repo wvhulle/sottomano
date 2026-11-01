@@ -21,6 +21,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -85,15 +86,30 @@ impl PhysicalDriveGroup {
         });
     }
 
-    pub fn subscription(&self, drive_sensor: &SensorConfig) -> Subscription<DriveMessage> {
+    pub fn subscription(
+        &self,
+        drive_sensor: &SensorConfig,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<DriveMessage> {
+        let any_disk_expanded = self
+            .disks
+            .values()
+            .any(|readings| readings.expansion.is_expanded());
+        let demand = demand.expanded_when(any_disk_expanded);
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
-                snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
-                    .with(disk.clone())
-                    .map(|(disk, reading)| DriveMessage::DiskSpace(disk, Box::new(reading))),
-                snapshot_subscription::<DiskActivity>(disk.clone())
-                    .with(disk.clone())
-                    .map(|(disk, reading)| DriveMessage::DiskActivity(disk, reading)),
+                demand.while_face_shown(
+                    &["Disk space"],
+                    snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
+                        .with(disk.clone())
+                        .map(|(disk, reading)| DriveMessage::DiskSpace(disk, Box::new(reading))),
+                ),
+                demand.while_rows_shown(
+                    &["Disk activity", "Disk reads", "Disk writes"],
+                    snapshot_subscription::<DiskActivity>(disk.clone())
+                        .with(disk.clone())
+                        .map(|(disk, reading)| DriveMessage::DiskActivity(disk, reading)),
+                ),
                 snapshot_subscription::<DriveHealth>(DriveHealthInputs {
                     disk: disk.clone(),
                     sensor: drive_sensor.clone(),

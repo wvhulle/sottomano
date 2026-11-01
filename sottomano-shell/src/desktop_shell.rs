@@ -50,7 +50,7 @@ use sottomano_widgets::{
     notification_toasts::NotificationLayer,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
-        group_menus::GroupMenuMessage,
+        group_menus::{GroupMenuKind, GroupMenuMessage},
         idle_timeouts_group::IdleTimeoutsMessage,
         niri_window_group::niri_kdl_rules::NiriRulesFile,
         session_menu::{self},
@@ -68,6 +68,7 @@ use sottomano_widgets::{
 };
 
 pub(crate) use self::niri_event_updates::gamepad_window_claim;
+use self::notification_updates::GroupAlertScan;
 use crate::{
     desktop_shell::{
         monitor_surfaces::{Surface, SurfaceRole, query_outputs},
@@ -189,9 +190,18 @@ impl DesktopShell {
         } else {
             self.retarget_hover_readings()
         };
-        let requests = self.group_toast_requests();
+        let GroupAlertScan {
+            toast_requests,
+            promoted_groups,
+        } = self.scan_group_alerts();
+        let open_menu = self.open_group_menu();
+        self.widget_groups.group_menus.track_source_demand(
+            open_menu,
+            promoted_groups,
+            self.clock.instant,
+        );
         let widget_toasts = self.notifications.show_widget_toasts(
-            requests,
+            toast_requests,
             &self.widget_groups.toast_context(
                 &self.niri,
                 self.desktop_entries.get(),
@@ -426,6 +436,13 @@ impl DesktopShell {
             .get(&placement.output)
             .map_or(0.0, |output| output.logical_width as f32);
         CascadeOrientation::toward_room(placement.anchor, placement.position, output_width)
+    }
+
+    fn open_group_menu(&self) -> Option<GroupMenuKind> {
+        match self.tooltip.target() {
+            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind))) => Some(*kind),
+            _ => None,
+        }
     }
 
     fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {

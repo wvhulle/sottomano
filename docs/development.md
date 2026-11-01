@@ -20,9 +20,11 @@ workspace:
 
 ## Runtime
 
-`run_shell` loads the config and starts the `DesktopShell` daemon. Every data
-source becomes a subscription that yields a `Message`. `update` applies it,
-persisting state where needed, and `view` renders the layer-shell surfaces.
+`run_shell` loads the config and starts the `DesktopShell` daemon. A data source
+becomes a subscription that yields a `Message` while a reading it backs is on
+screen or can alert; `GroupSourceDemand` decides this the same way for pinned
+groups and groups in a menu. `update` applies each message, persisting state
+where needed, and `view` renders the layer-shell surfaces.
 
 ```mermaid
 flowchart TB

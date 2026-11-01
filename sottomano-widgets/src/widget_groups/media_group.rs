@@ -24,6 +24,7 @@ use crate::{
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::{HoverTarget, PressHints, hoverable},
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         app_window_focus::AppWindowFocus,
         confirm_button::{ConfirmButton, Press},
@@ -186,6 +187,7 @@ impl MediaGroup {
         &self,
         buses: &DesktopBuses,
         lyrics_config: &MediaLyricsConfig,
+        demand: &GroupSourceDemand<'_>,
     ) -> Subscription<MediaMessage> {
         let readings =
             snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);
@@ -206,7 +208,8 @@ impl MediaGroup {
             Some(every(PROGRESS_TICK).map(|_| MediaMessage::ProgressAdvanced))
         } else {
             None
-        };
+        }
+        .map(|tick| demand.while_any_reading_shown(tick));
         Subscription::batch(
             iter::once(readings)
                 .chain(lyrics_lookups)

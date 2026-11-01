@@ -7,7 +7,7 @@ use std::{
 
 use chrono::Locale;
 use iced::{
-    Alignment, Element, Length, Padding, Subscription,
+    Alignment, Element, Length, Padding,
     mouse::ScrollDelta,
     widget::{Row, Space, button, container, mouse_area},
 };
@@ -46,7 +46,16 @@ pub enum GroupTitle {
     },
 }
 
+const MOST_SIBLINGS_PER_TITLE: usize = 8;
+
 impl GroupTitle {
+    #[must_use]
+    pub fn numbered_siblings(base_title: &'static str) -> Vec<Self> {
+        (0..MOST_SIBLINGS_PER_TITLE)
+            .map(|position| Self::numbered_from_second(base_title, position))
+            .collect()
+    }
+
     #[must_use]
     pub fn numbered_from_second(base_title: &'static str, position: usize) -> Self {
         match u8::try_from(position + 1) {
@@ -120,14 +129,6 @@ impl GroupExpansion {
     #[must_use]
     pub fn is_expanded(&self) -> bool {
         self.expanded
-    }
-
-    pub fn while_expanded<M>(&self, subscription: Subscription<M>) -> Subscription<M> {
-        if self.expanded {
-            subscription
-        } else {
-            Subscription::none()
-        }
     }
 }
 
