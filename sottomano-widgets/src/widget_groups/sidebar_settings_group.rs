@@ -1,13 +1,16 @@
-use iced::Task;
+use std::time::Duration;
+
+use iced::{Task, task};
 use sottomano_config::Config;
-use sottomano_sources::sqlite_state_store::Columns;
+use sottomano_sources::{desktop_windows_apps::niri_window_snapshot, sqlite_state_store::Columns};
+use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::{
         sqlite_shell_settings_row::{self, ShellSetting},
-        workspaces_group::EmptyWorkspaces,
+        workspaces_group::{EmptyWorkspaceFolding, RevealFoldTimer},
     },
     widgets::{
         group_item::GroupItem,
@@ -19,6 +22,8 @@ use crate::{
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
+
+const REVEAL_FOLD_DELAY: Duration = Duration::from_millis(1500);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WorkspacesPlacement {
@@ -86,6 +91,7 @@ pub enum SidebarSettingsMessage {
     Expansion(ExpansionMessage),
     ToggleWorkspacesPlacement,
     ToggleEmptyWorkspaces,
+    FoldSteppingReveal,
     Appearance(AppearanceMessage),
     PlacementLoaded(WorkspacesPlacement),
 }
@@ -93,7 +99,8 @@ pub enum SidebarSettingsMessage {
 pub struct SidebarSettingsGroup {
     expansion: GroupExpansion,
     workspaces_placement: WorkspacesPlacement,
-    empty_workspaces: EmptyWorkspaces,
+    empty_workspace_folding: EmptyWorkspaceFolding,
+    reveal_fold_timer: Option<task::Handle>,
     appearance: LayerAppearanceControls,
 }
 
@@ -102,7 +109,8 @@ impl Default for SidebarSettingsGroup {
         Self {
             expansion: GroupExpansion::default(),
             workspaces_placement: WorkspacesPlacement::Sidebar,
-            empty_workspaces: EmptyWorkspaces::default(),
+            empty_workspace_folding: EmptyWorkspaceFolding::default(),
+            reveal_fold_timer: None,
             appearance: LayerAppearanceControls::new(ShellLayer::Sidebar, |target| {
                 SidebarSettingsTarget::Appearance(target).into()
             }),
@@ -132,8 +140,28 @@ impl SidebarSettingsGroup {
     }
 
     #[must_use]
-    pub fn empty_workspaces(&self) -> EmptyWorkspaces {
-        self.empty_workspaces
+    pub fn empty_workspace_folding(&self) -> &EmptyWorkspaceFolding {
+        &self.empty_workspace_folding
+    }
+
+    pub fn observe_workspace_switch(
+        &mut self,
+        niri: &niri_window_snapshot::Snapshot,
+    ) -> Task<SidebarSettingsMessage> {
+        match self.empty_workspace_folding.observe_workspace_switch(niri) {
+            RevealFoldTimer::Keep => Task::none(),
+            RevealFoldTimer::Stop => {
+                self.reveal_fold_timer = None;
+                Task::none()
+            }
+            RevealFoldTimer::Restart => {
+                let (timer, handle) = Task::future(sleep(REVEAL_FOLD_DELAY))
+                    .map(|()| SidebarSettingsMessage::FoldSteppingReveal)
+                    .abortable();
+                self.reveal_fold_timer = Some(handle.abort_on_drop());
+                timer
+            }
+        }
     }
 
     #[must_use]
@@ -173,7 +201,13 @@ impl SidebarSettingsGroup {
                 .discard()
             }
             SidebarSettingsMessage::ToggleEmptyWorkspaces => {
-                self.empty_workspaces = self.empty_workspaces.toggled();
+                self.empty_workspace_folding.toggle_mode();
+                self.reveal_fold_timer = None;
+                Task::none()
+            }
+            SidebarSettingsMessage::FoldSteppingReveal => {
+                self.empty_workspace_folding.fold_stepping_reveal();
+                self.reveal_fold_timer = None;
                 Task::none()
             }
             SidebarSettingsMessage::Appearance(msg) => self

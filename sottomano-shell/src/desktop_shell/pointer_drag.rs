@@ -151,7 +151,9 @@ impl DesktopShell {
                         shown_workspaces(
                             snapshot,
                             &surface.output,
-                            self.widget_groups.sidebar_settings_group.empty_workspaces(),
+                            self.widget_groups
+                                .sidebar_settings_group
+                                .empty_workspace_folding(),
                         )
                         .get(to)
                         .copied()

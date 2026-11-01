@@ -128,6 +128,12 @@ impl Snapshot {
         self.active.get(output).copied()
     }
 
+    pub fn active_workspace_ids_by_output(&self) -> impl Iterator<Item = (&str, u64)> {
+        self.active
+            .iter()
+            .map(|(output, workspace_id)| (output.as_str(), *workspace_id))
+    }
+
     pub fn active_workspaces(&self) -> impl Iterator<Item = ActiveWorkspace<'_>> {
         self.workspaces.iter().filter_map(|(output, indicators)| {
             let indicator = indicators.iter().find(|indicator| indicator.is_active)?;

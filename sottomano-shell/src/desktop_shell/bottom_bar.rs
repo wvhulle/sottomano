@@ -186,7 +186,9 @@ impl DesktopShell {
                 &self.niri_snapshot,
                 output,
                 self.configured_workspaces.as_ref(),
-                self.widget_groups.sidebar_settings_group.empty_workspaces(),
+                self.widget_groups
+                    .sidebar_settings_group
+                    .empty_workspace_folding(),
                 self.bar_slot_context(Position::Bottom),
             )
             .map(|workspaces| workspaces.map(Message::from)),

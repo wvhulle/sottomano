@@ -4,7 +4,7 @@ use sottomano_sources::desktop_windows_apps::{
 };
 
 use super::{
-    EmptyWorkspaces, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
+    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
     shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
@@ -19,7 +19,7 @@ pub fn inline_view<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
-    empty_workspaces: EmptyWorkspaces,
+    empty_workspace_folding: &EmptyWorkspaceFolding,
     slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
     let BarSlotContext {
@@ -29,7 +29,7 @@ pub fn inline_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let shown = shown_workspaces(niri, output, empty_workspaces);
+    let shown = shown_workspaces(niri, output, empty_workspace_folding);
     let order: Vec<_> = drag
         .previewed(&shown, |workspace| workspace_slot_key(workspace))
         .into_iter()
@@ -51,7 +51,7 @@ pub fn inline_view<'a>(
             .extend(empty_workspaces_toggle(
                 niri,
                 output,
-                empty_workspaces,
+                empty_workspace_folding,
                 config,
             ))
             .extend(order_restore(configured, workspaces, output, config))
@@ -76,7 +76,9 @@ mod tests {
             },
         },
         clock::Clock,
-        widget_groups::workspaces_group::{EmptyWorkspaces, WorkspacesMessage},
+        widget_groups::workspaces_group::{
+            EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage,
+        },
         widgets::pointer_drag::{BarSlotList, DragEvent, DraggedBarSlot},
     };
 
@@ -98,7 +100,7 @@ mod tests {
             &niri_snapshot,
             SIMULATED_OUTPUT,
             None,
-            EmptyWorkspaces::Shown,
+            &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
             slot_context,
         )
         .expect("three workspaces on the output");
