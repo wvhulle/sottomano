@@ -2,13 +2,21 @@
 
 Every group that has a recording and is not already in the [README](../../README.md), rendered from fixtures, so the numbers are made up. The shell also has groups for the clock, disks, GPU, network interfaces, power, the system tray, systemd units and a few more, which look and behave the same way.
 
-Each page opens with its first recording in every [look](appearance.md), side by side.
+A page about a group that lives in a menu opens with that group in its menu next to the same group pinned in the bar. The [looks](appearance.md) have a page of their own.
 
 ## Group menus
 
 Most groups live in menus behind a single icon on a panel, so the panels stay short. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open toward the side of the screen with more room, downward from the top panel and upward from the bottom panel.
 
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="786" alt="Opening the Media menu, hovering its rows and then the microphone">
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_appearance.webp" width="755" alt="Opening the Appearance menu with its settings lined up in a table">
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_behaviour.webp" width="485" alt="Opening the Behaviour menu and hovering the panel settings">
+
 The pin on a row puts that group back on the panel, next to its menu icon; a pin on a row inside a group's submenu puts only that reading there. The unpin button in its card returns it to the menu. Pins are remembered across restarts. A group whose alert reaches `panel_bar.group_menu_promotion_severity` also shows on the panel until the alert clears.
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_pin.webp" width="640" alt="Pinning the memory group from the Hardware menu, which moves it onto the panel">
 
 | Menu | Panel | Groups |
 |---|---|---|

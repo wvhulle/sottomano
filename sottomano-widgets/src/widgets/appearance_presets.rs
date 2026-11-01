@@ -54,15 +54,6 @@ impl AppearancePreset {
     }
 
     #[must_use]
-    pub fn slug(self) -> &'static str {
-        match self {
-            Self::ClearDark => "clear_dark",
-            Self::BrightOffice => "bright_office",
-            Self::FrostedDark => "frosted_dark",
-        }
-    }
-
-    #[must_use]
     pub fn icon(self) -> Phosphor {
         match self {
             Self::ClearDark => Phosphor::Moon(Weight::Regular),

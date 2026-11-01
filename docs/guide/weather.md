@@ -2,15 +2,6 @@
 
 Conditions where you are, from the location fix to rain and pollen.
 
-<table>
-<tr><th>Frosted dark</th><th>Clear dark</th><th>Bright office</th></tr>
-<tr>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_wind.webp" alt="Hovering the wind in the weather group in the frosted dark look" width="100%"></td>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_wind_clear_dark.webp" alt="Hovering the wind in the weather group in the clear dark look" width="100%"></td>
-<td width="33%"><img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_wind_bright_office.webp" alt="Hovering the wind in the weather group in the bright office look" width="100%"></td>
-</tr>
-</table>
-
 ## Weather: Location
 
 How rough the location fix is and which source produced it.

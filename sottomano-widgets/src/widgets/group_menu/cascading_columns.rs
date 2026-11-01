@@ -4,7 +4,7 @@ use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::{PopupMessage, marked_by_hover_target},
+    hover_tooltips::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
     widget_groups::group_menus::{GroupMenus, PinnedEntry},
     widgets::{
         bar_widget::Glyph,
@@ -162,13 +162,17 @@ fn group_row<'a, M: Clone + 'a>(
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
-    let pin = glyph_button(
-        Phosphor::PushPin(Weight::Regular),
-        icon_size,
-        secondary_text_color,
-        layout.menu.toggle_pin(PinnedEntry::Group {
-            group_title: entry.group_title,
-        }),
+    let pinned_entry = PinnedEntry::Group {
+        group_title: entry.group_title,
+    };
+    let pin = marked_by_menu_pin(
+        glyph_button(
+            Phosphor::PushPin(Weight::Regular),
+            icon_size,
+            secondary_text_color,
+            layout.menu.toggle_pin(pinned_entry),
+        ),
+        pinned_entry,
     );
     let caret_color = if look.highlighted {
         text_color
