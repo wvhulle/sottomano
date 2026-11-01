@@ -24,7 +24,7 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, niri_event_updates::focused_app_id},
+    desktop_shell::{DesktopShell, niri_event_updates::gamepad_window_claim},
     shell_message::Message,
 };
 
@@ -117,7 +117,7 @@ impl DesktopShell {
             .update(
                 msg,
                 &self.config.widget_groups.gamepad,
-                focused_app_id(&self.niri),
+                gamepad_window_claim(&self.niri, &self.outputs),
             )
             .into_task()
     }

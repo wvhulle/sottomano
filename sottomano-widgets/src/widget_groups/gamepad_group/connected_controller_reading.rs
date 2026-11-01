@@ -178,6 +178,9 @@ impl ConnectedControllerReading<'_> {
             CompositorControl::PausedForFocusedApp(app_id) => {
                 format!("{app_id}, which has focus; niri bindings pause")
             }
+            CompositorControl::PausedForFullscreenApp(app_id) => {
+                format!("{app_id}, which fills the screen; niri bindings pause")
+            }
         }
     }
 
@@ -290,9 +293,9 @@ impl BarWidget for ConnectedControllerReading<'_> {
     fn state(&self, _clock: Clock) -> WidgetState {
         match self.control {
             CompositorControl::DrivingNiri => WidgetState::On,
-            CompositorControl::HandedOverByHand | CompositorControl::PausedForFocusedApp(_) => {
-                WidgetState::Off
-            }
+            CompositorControl::HandedOverByHand
+            | CompositorControl::PausedForFocusedApp(_)
+            | CompositorControl::PausedForFullscreenApp(_) => WidgetState::Off,
         }
     }
 

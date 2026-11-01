@@ -20,14 +20,14 @@ const LONGEST_POINTER_STEP: Duration = Duration::from_millis(32);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct PointerGate {
-    pub silenced_by_focus: bool,
+    pub silenced_by_window_claim: bool,
     pub handed_over_slots: BTreeSet<usize>,
 }
 
 impl PointerGate {
     #[must_use]
     pub fn allows(&self, slot: usize) -> bool {
-        !self.silenced_by_focus && !self.handed_over_slots.contains(&slot)
+        !self.silenced_by_window_claim && !self.handed_over_slots.contains(&slot)
     }
 }
 
@@ -332,7 +332,7 @@ mod tests {
     fn a_focused_game_leaves_the_pointer_alone() {
         let start = Instant::now();
         let mut machine = machine_with(PointerGate {
-            silenced_by_focus: true,
+            silenced_by_window_claim: true,
             ..PointerGate::default()
         });
         machine.step(right_stick_right(31), start);

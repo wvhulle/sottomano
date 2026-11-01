@@ -83,6 +83,24 @@ pub enum CompositorControl<'a> {
     DrivingNiri,
     HandedOverByHand,
     PausedForFocusedApp(&'a str),
+    PausedForFullscreenApp(&'a str),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GamepadWindowClaim<'a> {
+    Unclaimed,
+    Focused(&'a str),
+    Fullscreen(&'a str),
+}
+
+impl GamepadWindowClaim<'_> {
+    fn silences_controllers(self, bindings: &GamepadBindingsConfig) -> bool {
+        match self {
+            Self::Unclaimed => false,
+            Self::Focused(app_id) => !bindings.acts_while_focused(Some(app_id)),
+            Self::Fullscreen(_) => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -214,29 +232,34 @@ impl GamepadGroup {
         &self,
         slot: usize,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&'a str>,
+        window_claim: GamepadWindowClaim<'a>,
     ) -> CompositorControl<'a> {
         if self.handed_over(slot) {
             return CompositorControl::HandedOverByHand;
         }
-        focused_app_id
-            .filter(|app_id| !bindings.acts_while_focused(Some(app_id)))
-            .map_or(
-                CompositorControl::DrivingNiri,
-                CompositorControl::PausedForFocusedApp,
-            )
+        match window_claim {
+            GamepadWindowClaim::Fullscreen(app_id) => {
+                CompositorControl::PausedForFullscreenApp(app_id)
+            }
+            GamepadWindowClaim::Focused(app_id) if window_claim.silences_controllers(bindings) => {
+                CompositorControl::PausedForFocusedApp(app_id)
+            }
+            GamepadWindowClaim::Unclaimed | GamepadWindowClaim::Focused(_) => {
+                CompositorControl::DrivingNiri
+            }
+        }
     }
 
     #[must_use]
     pub fn stream_settings(
         &self,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> GamepadStreamSettings {
         GamepadStreamSettings {
             steering: bindings.pointer_steering(),
             gate: PointerGate {
-                silenced_by_focus: !bindings.acts_while_focused(focused_app_id),
+                silenced_by_window_claim: window_claim.silences_controllers(bindings),
                 handed_over_slots: self
                     .controllers
                     .iter()
@@ -250,10 +273,10 @@ impl GamepadGroup {
     pub fn subscription(
         &self,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> Subscription<GamepadMessage> {
         Subscription::batch([
-            Subscription::run_with(self.stream_settings(bindings, focused_app_id), |settings| {
+            Subscription::run_with(self.stream_settings(bindings, window_claim), |settings| {
                 gamepad_inputs(settings.clone())
             })
             .map(GamepadMessage::Input),
@@ -274,16 +297,16 @@ impl GamepadGroup {
         &self,
         slot: usize,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> bool {
-        self.control(slot, bindings, focused_app_id) == CompositorControl::DrivingNiri
+        self.control(slot, bindings, window_claim) == CompositorControl::DrivingNiri
     }
 
     pub fn update(
         &mut self,
         message: GamepadMessage,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> Action {
         match message {
             GamepadMessage::Input(GamepadInput::Roster(controllers)) => {
@@ -295,7 +318,7 @@ impl GamepadGroup {
                 Action::Idle
             }
             GamepadMessage::Input(GamepadInput::Button { slot, button, edge }) => {
-                self.receive_button(slot, button, edge, bindings, focused_app_id)
+                self.receive_button(slot, button, edge, bindings, window_claim)
             }
             GamepadMessage::Input(GamepadInput::StickFlick {
                 slot,
@@ -304,7 +327,7 @@ impl GamepadGroup {
             }) => bindings
                 .navigation
                 .flick_action(stick, direction)
-                .filter(|_| self.acts(slot, bindings, focused_app_id))
+                .filter(|_| self.acts(slot, bindings, window_claim))
                 .map_or(Action::Idle, |action| {
                     Action::Compositor(niri_request(action))
                 }),
@@ -392,11 +415,11 @@ impl GamepadGroup {
         button: GamepadButton,
         edge: ButtonEdge,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> Action {
         let releasing_push_to_talk = edge == ButtonEdge::Released
             && bindings.role_of(button) == Some(ButtonRole::PushToTalk);
-        if !releasing_push_to_talk && !self.acts(slot, bindings, focused_app_id) {
+        if !releasing_push_to_talk && !self.acts(slot, bindings, window_claim) {
             return Action::Idle;
         }
         bindings
@@ -489,12 +512,12 @@ impl GamepadGroup {
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
-        focused_app_id: Option<&'a str>,
+        window_claim: GamepadWindowClaim<'a>,
     ) -> ConnectedControllerReading<'a> {
         ConnectedControllerReading {
             gamepad,
             bindings,
-            control: self.control(gamepad.slot, bindings, focused_app_id),
+            control: self.control(gamepad.slot, bindings, window_claim),
             marking: self.controller_marking(gamepad, link),
         }
     }
@@ -533,7 +556,7 @@ impl GamepadGroup {
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
     ) -> Option<TooltipBody> {
         Some(match target {
@@ -542,7 +565,7 @@ impl GamepadGroup {
                     self.controller(slot)?,
                     self.physical_link(slot)?,
                     bindings,
-                    focused_app_id,
+                    window_claim,
                 )
                 .tooltip(clock),
             GamepadTarget::Battery { slot } => ControllerBatteryReading {
@@ -558,7 +581,7 @@ impl GamepadGroup {
             .tooltip(clock),
             GamepadTarget::NiriControl { slot } => {
                 self.physical_link(slot)?;
-                self.niri_control_tooltip(slot, bindings, focused_app_id)
+                self.niri_control_tooltip(slot, bindings, window_claim)
             }
         })
     }
@@ -567,9 +590,9 @@ impl GamepadGroup {
         &self,
         slot: usize,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
     ) -> TooltipBody {
-        let (note_title, note_body) = match self.control(slot, bindings, focused_app_id) {
+        let (note_title, note_body) = match self.control(slot, bindings, window_claim) {
             CompositorControl::DrivingNiri => (
                 "Driving niri",
                 "Buttons and sticks focus and move niri windows. Turn this off when a game keeps \
@@ -590,6 +613,13 @@ impl GamepadGroup {
                      this off keeps them off after focus moves."
                 ),
             ),
+            CompositorControl::PausedForFullscreenApp(app_id) => (
+                "Paused while a window fills the screen",
+                format!(
+                    "{app_id} fills the screen, so niri bindings pause even while a prompt has \
+                     focus. Turning this off keeps them off after it leaves fullscreen."
+                ),
+            ),
         };
         TooltipBody::sections([Section::detailed_note(note_title, note_body)])
     }
@@ -599,10 +629,10 @@ impl GamepadGroup {
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
-        focused_app_id: Option<&str>,
+        window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
     ) -> Option<Tooltip> {
-        self.tooltip_body(target, bindings, focused_app_id, clock)
+        self.tooltip_body(target, bindings, window_claim, clock)
             .map(|body| Tooltip::sourced(body, DeliveryTiming::LivePush))
     }
 
@@ -611,7 +641,7 @@ impl GamepadGroup {
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
-        focused_app_id: Option<&'a str>,
+        window_claim: GamepadWindowClaim<'a>,
     ) -> Option<GroupContent<'a, GamepadMessage>> {
         let slot = gamepad.slot;
         let session = self.sessions.get(&slot)?;
@@ -620,7 +650,7 @@ impl GamepadGroup {
         };
         let battery_low = battery_reading.running_low();
         let face = GroupItem::reading(
-            self.face_reading(gamepad, link, bindings, focused_app_id),
+            self.face_reading(gamepad, link, bindings, window_claim),
             GamepadTarget::Controller { slot },
         );
         let shown_in_bluetooth_group = matches!(link.transport, GamepadTransport::Bluetooth { .. });
@@ -667,12 +697,12 @@ impl GamepadGroup {
     pub fn group_contents<'a>(
         &'a self,
         bindings: &'a GamepadBindingsConfig,
-        focused_app_id: Option<&'a str>,
+        window_claim: GamepadWindowClaim<'a>,
     ) -> Vec<GroupContent<'a, GamepadMessage>> {
         self.controllers_in_player_order()
             .into_iter()
             .filter_map(|(gamepad, link)| {
-                self.controller_group(gamepad, link, bindings, focused_app_id)
+                self.controller_group(gamepad, link, bindings, window_claim)
             })
             .map(GroupContent::sharing_title_row)
             .collect()
@@ -765,7 +795,7 @@ mod tests {
         group.update(
             button(slot, pressed, ButtonEdge::Pressed),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         )
     }
 
@@ -773,7 +803,7 @@ mod tests {
         group.update(
             button(slot, released, ButtonEdge::Released),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         )
     }
 
@@ -803,7 +833,7 @@ mod tests {
                 direction: StickDirection::Right,
             }),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             action,
@@ -816,7 +846,7 @@ mod tests {
         let action = GamepadGroup::default().update(
             button(DUALSENSE, GamepadButton::DpadLeft, ButtonEdge::Pressed),
             &GamepadBindingsConfig::default(),
-            Some("steam_app_1091500"),
+            GamepadWindowClaim::Focused("steam_app_1091500"),
         );
         assert!(matches!(action, Action::Idle));
     }
@@ -875,7 +905,7 @@ mod tests {
                 connected_pad(STEAM_VIRTUAL_PAD, GamepadOrigin::Virtual),
             ])),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         group
     }
@@ -896,7 +926,10 @@ mod tests {
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
             group
-                .group_contents(&GamepadBindingsConfig::default(), Some("kitty"))
+                .group_contents(
+                    &GamepadBindingsConfig::default(),
+                    GamepadWindowClaim::Focused("kitty")
+                )
                 .len(),
             2
         );
@@ -931,7 +964,7 @@ mod tests {
         group.update(
             roster(vec![unlit_pad(DUALSENSE)]),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             marking_of(&group, DUALSENSE),
@@ -940,7 +973,7 @@ mod tests {
         group.update(
             roster(vec![unlit_pad(DUALSENSE), unlit_pad(SECOND_PAD)]),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             marking_of(&group, DUALSENSE),
@@ -953,11 +986,15 @@ mod tests {
         let bindings = GamepadBindingsConfig::default();
         let group = group_with_two_pads_and_a_virtual_one();
         assert_eq!(
-            group.control(DUALSENSE, &bindings, Some("kitty")),
+            group.control(DUALSENSE, &bindings, GamepadWindowClaim::Focused("kitty")),
             CompositorControl::DrivingNiri
         );
         assert_eq!(
-            group.control(DUALSENSE, &bindings, Some("steam_app_1091500")),
+            group.control(
+                DUALSENSE,
+                &bindings,
+                GamepadWindowClaim::Focused("steam_app_1091500")
+            ),
             CompositorControl::PausedForFocusedApp("steam_app_1091500")
         );
     }
@@ -968,7 +1005,7 @@ mod tests {
         group.update(
             GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
@@ -978,12 +1015,15 @@ mod tests {
             press(&mut group, SECOND_PAD, GamepadButton::DpadLeft),
             Action::Compositor(_)
         ));
-        let settings = group.stream_settings(&GamepadBindingsConfig::default(), Some("kitty"));
+        let settings = group.stream_settings(
+            &GamepadBindingsConfig::default(),
+            GamepadWindowClaim::Focused("kitty"),
+        );
         assert_eq!(settings.gate.handed_over_slots, BTreeSet::from([DUALSENSE]));
         group.update(
             GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert!(matches!(
             press(&mut group, DUALSENSE, GamepadButton::DpadLeft),
@@ -997,7 +1037,7 @@ mod tests {
         group.update(
             GamepadMessage::ToggleNiriControl { slot: DUALSENSE },
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         let reconnected_slot = 40;
         group.update(
@@ -1006,22 +1046,51 @@ mod tests {
                 bluetooth_link(DUALSENSE, lit_player(1)),
             )])),
             &GamepadBindingsConfig::default(),
-            Some("kitty"),
+            GamepadWindowClaim::Focused("kitty"),
         );
         assert_eq!(
             group.control(
                 reconnected_slot,
                 &GamepadBindingsConfig::default(),
-                Some("kitty")
+                GamepadWindowClaim::Focused("kitty")
             ),
             CompositorControl::HandedOverByHand
         );
     }
 
     #[test]
+    fn a_fullscreen_window_pauses_controllers_without_a_passive_app_id() {
+        let bindings = GamepadBindingsConfig::default();
+        let group = group_with_two_pads_and_a_virtual_one();
+        let claim = GamepadWindowClaim::Fullscreen("slowroads");
+        assert_eq!(
+            group.control(DUALSENSE, &bindings, claim),
+            CompositorControl::PausedForFullscreenApp("slowroads")
+        );
+        assert!(
+            group
+                .stream_settings(&bindings, claim)
+                .gate
+                .silenced_by_window_claim
+        );
+    }
+
+    #[test]
+    fn an_unclaimed_desktop_leaves_controllers_driving_niri() {
+        let bindings = GamepadBindingsConfig::default();
+        let group = group_with_two_pads_and_a_virtual_one();
+        assert_eq!(
+            group.control(DUALSENSE, &bindings, GamepadWindowClaim::Unclaimed),
+            CompositorControl::DrivingNiri
+        );
+    }
+
+    #[test]
     fn focusing_a_game_silences_the_pointer_through_the_stream_settings() {
-        let settings = GamepadGroup::default()
-            .stream_settings(&GamepadBindingsConfig::default(), Some("steam_app_1091500"));
-        assert!(settings.gate.silenced_by_focus);
+        let settings = GamepadGroup::default().stream_settings(
+            &GamepadBindingsConfig::default(),
+            GamepadWindowClaim::Focused("steam_app_1091500"),
+        );
+        assert!(settings.gate.silenced_by_window_claim);
     }
 }

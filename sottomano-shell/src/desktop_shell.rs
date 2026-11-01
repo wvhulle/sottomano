@@ -67,7 +67,7 @@ use sottomano_widgets::{
     },
 };
 
-pub(crate) use self::niri_event_updates::focused_app_id;
+pub(crate) use self::niri_event_updates::gamepad_window_claim;
 use crate::{
     desktop_shell::{
         monitor_surfaces::{Surface, SurfaceRole, query_outputs},
