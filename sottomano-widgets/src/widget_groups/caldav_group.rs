@@ -131,8 +131,16 @@ impl CaldavGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: CaldavTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn tooltip_for(
+        &self,
+        target: CaldavTarget,
+        config: &CaldavAccountConfig,
+        clock: Clock,
+    ) -> Option<Tooltip> {
         match target {
+            CaldavTarget::UpcomingEvents if self.account(config).is_some() => {
+                self.upcoming_events.tooltip_while_pending(clock)
+            }
             CaldavTarget::UpcomingEvents => self.upcoming_events.tooltip(clock),
             CaldavTarget::OpenTasks => self.open_tasks.tooltip(clock),
         }
@@ -154,14 +162,19 @@ impl CaldavGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, CaldavMessage> {
+    pub fn group_content(&self, config: &CaldavAccountConfig) -> GroupContent<'_, CaldavMessage> {
+        let upcoming_events_item = if self.account(config).is_some() {
+            self.upcoming_events
+                .group_item_while_pending(CaldavTarget::UpcomingEvents)
+        } else {
+            self.upcoming_events
+                .group_item(CaldavTarget::UpcomingEvents)
+        };
         Self::expandable_group(
             &self.expansion,
             CaldavMessage::Expansion,
             [
-                self.upcoming_events
-                    .group_item(CaldavTarget::UpcomingEvents)
-                    .map(GroupItem::previewed_on_handle),
+                upcoming_events_item.map(GroupItem::previewed_on_handle),
                 self.open_tasks.group_item(CaldavTarget::OpenTasks),
             ]
             .into_iter()

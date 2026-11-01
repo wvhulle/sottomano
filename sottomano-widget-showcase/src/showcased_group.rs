@@ -6,7 +6,9 @@ use iced::{
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{
-    Config, screen_edges::Position, widget_groups::gamepad_bindings::GamepadBindingsConfig,
+    Config,
+    screen_edges::Position,
+    widget_groups::{caldav_account::CaldavAccountConfig, gamepad_bindings::GamepadBindingsConfig},
 };
 use sottomano_sources::{
     desktop_notifications::notification_data::NotificationData,
@@ -410,7 +412,11 @@ impl ShowcasedGroup {
                 vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
             }
             ShowcasedGroup::Caldav(group) => {
-                vec![group.group_content().map(ShowcaseMessage::Caldav)]
+                vec![
+                    group
+                        .group_content(&config.widget_groups.caldav)
+                        .map(ShowcaseMessage::Caldav),
+                ]
             }
             ShowcasedGroup::Vpn(group) => vec![group.group_content().map(ShowcaseMessage::Vpn)],
             ShowcasedGroup::LoginSession(group) => {
@@ -695,7 +701,7 @@ impl ShowcasedGroup {
                 let HoverTarget::Caldav(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.tooltip_for(*target, &CaldavAccountConfig::default(), clock)
             }
             ShowcasedGroup::Vpn(group) => {
                 let HoverTarget::Vpn(target) = target else {
