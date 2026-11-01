@@ -4,6 +4,9 @@ when:
     branch: main
     evaluate: 'not (CI_COMMIT_MESSAGE contains "update README recordings")'
 
+labels:
+  host: ryzen
+
 depends_on:
   - checks
 
@@ -22,7 +25,8 @@ steps:
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix run --inputs-from . nixpkgs#cachix -- watch-exec wvhulle -- nix build --print-build-logs .#readme-recordings
+      - nix build --quiet .#readme-recordings
+      - nix-store --query --requisites --include-outputs $(nix path-info --derivation .#readme-recordings) | grep -v '\.drv' | nix run --inputs-from . nixpkgs#cachix -- push wvhulle > /dev/null
       - cp -r --no-preserve=mode result/. .
       - nix develop --command cargo xtask update-recording-embeds
 

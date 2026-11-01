@@ -112,7 +112,7 @@ flowchart LR
 
   subgraph checks_pipeline [".woodpecker/checks.yaml"]
     cargo_checks_pr["cargo-checks-pr<br>tests, clippy"]
-    cargo_checks["cargo-checks<br>tests, clippy via cachix"]
+    cargo_checks["cargo-checks<br>tests, clippy, then cachix push"]
     format_check["format<br>treefmt: rustfmt, nixfmt"]
     conventional_commits["conventional-commits<br>convco check FETCH_HEAD..HEAD"]
   end
