@@ -124,9 +124,7 @@ fn open_group_satellites<
             .position(|item| item.action.inspected_target() == Some(target))
     });
     let item_count = items.len();
-    let item_corners = layout
-        .satellite_panels
-        .corners_for_rows(layout.config, item_count);
+    let item_corners = layout.satellite_panels.frame_corners;
     let is_inspected = |item: &CascadeItem<'a, M>| {
         inspected_target.is_some_and(|target| item.action.inspected_target() == Some(target))
     };

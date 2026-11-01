@@ -4,7 +4,7 @@ use sottomano_config::Config;
 use crate::widgets::{
     cascade_row::{CascadeDirection, CascadeOrientation},
     group_menu::{cascading_columns::cascade_offset, menu_row::menu_row_height},
-    notched_panel::{NotchPlacement, NotchSide, PanelGrowth, notched_corners, notched_panel},
+    notched_panel::{NotchPlacement, NotchSide, PanelGrowth, notched_panel},
     panel_frame::LayerFrameStyle,
     shell_layer_appearance::LayerAppearance,
 };
@@ -37,14 +37,6 @@ impl SatellitePanels {
             frame_corners: Radius::from(appearance.corner_radius_px),
             notch_depth: config.layout.overlay.panel_gap,
         }
-    }
-
-    pub(super) fn corners_for_rows(&self, config: &Config, rows: usize) -> Radius {
-        notched_corners(
-            self.notch_side,
-            self.frame_corners.top_right,
-            menu_row_height(config) * rows as f32,
-        )
     }
 
     #[allow(clippy::cast_precision_loss)]
