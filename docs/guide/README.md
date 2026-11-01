@@ -14,7 +14,7 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 |---|---|---|
 | Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |
 | Network | top, left | interfaces, ethernet ports, Bluetooth, reachability, VPN |
-| Agenda | top, middle | calendar, quiet schedule, focus session |
+| Agenda | top, middle | calendar, weather, quiet schedule, focus session |
 | Media | top, right | media players, audio, dictation, game controllers |
 | Appearance | bottom, left | panel, sidebar, overlay and window settings with a unit |
 | Behaviour | bottom, left | the remaining panel, sidebar, overlay and window settings |
@@ -24,7 +24,7 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 
 ## Top panel
 
-The panel I look at most: the Hardware and Network menus on the left; the clock, weather, Agenda menu and notifications in the middle; the Media menu and the power menu on the right.
+The panel I look at most: the Hardware and Network menus on the left; the clock, Agenda menu and notifications in the middle; the Media menu and the power menu on the right.
 
 - [Compute](compute.md): load, clock, temperature and caches.
 - [Memory and board](memory-and-board.md): memory use, modules and firmware.

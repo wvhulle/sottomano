@@ -12,7 +12,7 @@ use crate::{
 
 pub(super) struct TopBarGroups<'a> {
     pub start_menus: [GroupMenu<'a, Message>; 2],
-    pub center: [GroupContent<'a, Message>; 2],
+    pub center: [GroupContent<'a, Message>; 1],
     pub agenda_menu: GroupMenu<'a, Message>,
     pub notifications: GroupContent<'a, Message>,
     pub media_menu: GroupMenu<'a, Message>,
@@ -59,16 +59,11 @@ impl DesktopShell {
         let config = &self.config;
         TopBarGroups {
             start_menus: [self.hardware_menu(), self.network_menu()],
-            center: [
-                self.widget_groups
-                    .clock_group
-                    .group_content()
-                    .map(Message::Clock),
-                self.widget_groups
-                    .weather_group
-                    .group_content(config)
-                    .map(Message::Weather),
-            ],
+            center: [self
+                .widget_groups
+                .clock_group
+                .group_content()
+                .map(Message::Clock)],
             agenda_menu: self.agenda_menu(),
             notifications: self
                 .widget_groups
@@ -174,6 +169,10 @@ impl DesktopShell {
                     .caldav_group
                     .group_content()
                     .map(Message::Caldav),
+                self.widget_groups
+                    .weather_group
+                    .group_content(config)
+                    .map(Message::Weather),
                 self.widget_groups
                     .quiet_schedule_group
                     .group_content(config)
