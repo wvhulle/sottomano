@@ -167,7 +167,7 @@ struct RoundedPerimeter {
 }
 
 impl RoundedPerimeter {
-    fn around(panel: Rectangle, corners: Radius) -> Self {
+    fn around(panel: Rectangle, corners: Radius) -> Option<Self> {
         let fitted = |radius: f32| radius.clamp(0.0, panel.width.min(panel.height) / 2.0);
         let top_right = fitted(corners.top_right);
         let bottom_right = fitted(corners.bottom_right);
@@ -212,6 +212,9 @@ impl RoundedPerimeter {
                 points.push(point);
             }
         }
+        if points.len() < 2 {
+            return None;
+        }
         let distances = points
             .iter()
             .scan((0.0, points[0]), |(walked, previous), point| {
@@ -222,11 +225,11 @@ impl RoundedPerimeter {
             .collect::<Vec<f32>>();
         let total_length =
             distances[distances.len() - 1] + points[points.len() - 1].distance(points[0]);
-        Self {
+        Some(Self {
             points,
             distances,
             total_length,
-        }
+        })
     }
 
     fn point_after(&self, index: usize) -> Point {
@@ -510,8 +513,8 @@ impl ConnectorTriangle {
         )
     }
 
-    fn joined_outline_points(&self, panel: Rectangle, corners: Radius) -> Vec<Point> {
-        let perimeter = RoundedPerimeter::around(panel, corners);
+    fn joined_outline_points(&self, panel: Rectangle, corners: Radius) -> Option<Vec<Point>> {
+        let perimeter = RoundedPerimeter::around(panel, corners)?;
         let center = perimeter.nearest_distance(self.base_center);
         let half_span = self
             .half_span_keeping_corners(panel, corners)
@@ -524,7 +527,7 @@ impl ConnectorTriangle {
         let exit_base = perimeter.at(center + shoulder_length).position;
         let entry_tip = self.rounded_tip_point(entry_base);
         let exit_tip = self.rounded_tip_point(exit_base);
-        perimeter
+        let outline = perimeter
             .points_between(center + half_span, center - half_span)
             .chain([entry.position])
             .chain(cubic_samples(
@@ -540,7 +543,8 @@ impl ConnectorTriangle {
                 exit.position - exit.tangent * shoulder_length,
                 exit.position,
             ))
-            .collect()
+            .collect();
+        Some(outline)
     }
 
     #[must_use]
@@ -548,7 +552,8 @@ impl ConnectorTriangle {
         if panel.width <= 0.0 || panel.height <= 0.0 {
             return Vec::new();
         }
-        surface_scanlines(&self.joined_outline_points(panel, corners))
+        self.joined_outline_points(panel, corners)
+            .map_or_else(Vec::new, |outline| surface_scanlines(&outline))
     }
 
     pub fn draw_framed_surface(
@@ -563,7 +568,9 @@ impl ConnectorTriangle {
             corners,
             shadow,
         } = surface;
-        let outline = self.joined_outline_points(bounds, corners);
+        let Some(outline) = self.joined_outline_points(bounds, corners) else {
+            return;
+        };
         let drawn = outline_bounds(&outline);
         if shadow.color.a > 0.0 && shadow.blur_radius > 0.0 {
             let shadow_reach =
@@ -636,7 +643,8 @@ mod tests {
     fn outline_of_a_single_row_panel_keeps_clear_of_the_corner_vertices() {
         let panel = submenu_panel(28.0);
         let outline = connector_at_row_center(panel)
-            .joined_outline_points(panel, Radius::from(CORNER_RADIUS));
+            .joined_outline_points(panel, Radius::from(CORNER_RADIUS))
+            .unwrap();
         let corner_clearance = CORNER_RADIUS * (2.0_f32.sqrt() - 1.0) * 0.5;
         for corner in [
             Point::new(panel.x, panel.y),
@@ -681,7 +689,9 @@ mod tests {
             ConnectorSide::Left,
             CORNER_RADIUS,
         );
-        let outline = connector.joined_outline_points(panel, Radius::from(CORNER_RADIUS));
+        let outline = connector
+            .joined_outline_points(panel, Radius::from(CORNER_RADIUS))
+            .unwrap();
         let side_points = outline
             .iter()
             .filter(|point| {
@@ -692,6 +702,35 @@ mod tests {
             .count();
         assert!(side_points > 0);
         assert!(outline.iter().all(|point| point.x >= panel.x - 14.0));
+    }
+
+    #[test]
+    fn closing_panel_outline_stays_finite_at_every_size() {
+        for remaining_permille in 1_u8..=50 {
+            let shrink = (f32::from(remaining_permille) / 1000.0).powi(3);
+            let panel = Rectangle::new(
+                Point::new(100.0, 50.0),
+                Size::new(400.0 * shrink, 300.0 * shrink),
+            );
+            let outline = connector_at_row_center(panel)
+                .joined_outline_points(panel, Radius::from(CORNER_RADIUS))
+                .unwrap_or_default();
+            assert!(
+                outline
+                    .iter()
+                    .all(|point| point.x.is_finite() && point.y.is_finite()),
+                "non-finite outline for {panel:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn panel_smaller_than_point_spacing_has_no_outline() {
+        let panel = Rectangle::new(Point::new(100.0, 50.0), Size::new(0.0004, 0.0003));
+        let connector = connector_at_row_center(panel);
+        let corners = Radius::from(CORNER_RADIUS);
+        assert!(connector.joined_outline_points(panel, corners).is_none());
+        assert!(connector.surface_rows(panel, corners).is_empty());
     }
 
     #[test]
