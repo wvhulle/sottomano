@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, rc::Rc, slice};
 
 use chrono::Locale;
 use iced::{
@@ -14,7 +14,7 @@ use crate::{
         GroupHandle, HoverAnnouncement, HoverTarget, PanelPin, PressHints, TooltipMessage,
         announcing_hoverable,
     },
-    widget_groups::group_menus::GroupMenuKind,
+    widget_groups::group_menus::{GroupMenuKind, GroupMenus},
     widgets::{
         activity_line::activity_line,
         aligned_quantity::{AlignedQuantity, ItemAlignment},
@@ -260,6 +260,7 @@ pub(super) struct MenuMember<'a, M> {
 
 pub(super) struct CascadeItem<'a, M> {
     pub name: &'static str,
+    pub pinnable: bool,
     pub action: MenuItemAction<M>,
     pub parts: MenuParts<'a, M>,
 }
@@ -319,7 +320,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     #[must_use]
     pub fn pinned_from(self, menu: GroupMenuKind) -> Self {
         Self {
-            panel_pin: PanelPin::PinnedFrom(menu),
+            panel_pin: PanelPin::GroupPinnedFrom(menu),
             ..self
         }
     }
@@ -414,7 +415,44 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         self.group_title
     }
 
-    pub(super) fn menu_member(self, config: &'a Config, clock: Clock) -> Option<MenuMember<'a, M>> {
+    pub(super) fn pinned_item_views<Outer: From<GroupEvent<M>> + 'a>(
+        self,
+        group_menus: &GroupMenus,
+        menu: GroupMenuKind,
+        config: &'a Config,
+        bar_position: Position,
+        clock: Clock,
+    ) -> Vec<Option<Element<'a, Outer>>> {
+        let GroupContent {
+            group_title, items, ..
+        } = self;
+        items
+            .into_iter()
+            .filter_map(|item| {
+                let item_name = item.pinned_item_name(group_title, group_menus, menu)?;
+                let pinned_announcement =
+                    HoverAnnouncement::from_group_handle(group_title, PressHints::default())
+                        .pinned_by(PanelPin::ItemPinnedFrom { menu, item_name });
+                let item = item.acting_as_handle(pinned_announcement);
+                Some(fixed_view(
+                    slice::from_ref(&item),
+                    item.ongoing_alert_severity(clock).unwrap_or_default(),
+                    config,
+                    bar_position,
+                    clock,
+                ))
+            })
+            .map(Some)
+            .collect()
+    }
+
+    pub(super) fn menu_member(
+        self,
+        config: &'a Config,
+        clock: Clock,
+        group_menus: &GroupMenus,
+        menu: GroupMenuKind,
+    ) -> Option<MenuMember<'a, M>> {
         if self.items.is_empty() {
             return None;
         }
@@ -435,15 +473,24 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             }
             aligned
         });
-        let cascade_items = items
+        let cascade_items: Vec<_> = items
             .iter()
-            .filter(|item| item.alignment() == ItemAlignment::Unaligned)
+            .filter(|item| {
+                item.alignment() == ItemAlignment::Unaligned
+                    && item
+                        .pinned_item_name(group_title, group_menus, menu)
+                        .is_none()
+            })
             .map(|item| CascadeItem {
                 name: item.menu_name().unwrap_or_default(),
+                pinnable: item.pinnable_name().is_some(),
                 action: item.menu_action(),
                 parts: item.menu_parts(config, clock),
             })
             .collect();
+        if aligned.is_empty() && cascade_items.is_empty() {
+            return None;
+        }
         Some(MenuMember {
             group_title,
             face,

@@ -12,6 +12,7 @@ use crate::{
     hover_tooltips::{
         HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable,
     },
+    widget_groups::group_menus::{GroupMenuKind, GroupMenus, PinnedEntry},
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
@@ -487,6 +488,32 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 value: draw(1.0),
             },
         }
+    }
+
+    pub(super) fn pinnable_name(&self) -> Option<&'static str> {
+        match &self.kind {
+            ItemKind::Reading { widget, .. } => Some(widget.name()),
+            ItemKind::Control { .. }
+            | ItemKind::Element { .. }
+            | ItemKind::HoverableElement { .. } => None,
+        }
+    }
+
+    pub(super) fn pinned_item_name(
+        &self,
+        group_title: &'static str,
+        group_menus: &GroupMenus,
+        menu: GroupMenuKind,
+    ) -> Option<&'static str> {
+        self.pinnable_name().filter(|item_name| {
+            group_menus.is_pinned(
+                menu,
+                PinnedEntry::Item {
+                    group_title,
+                    item_name,
+                },
+            )
+        })
     }
 
     pub(super) fn menu_name(&self) -> Option<&'static str> {

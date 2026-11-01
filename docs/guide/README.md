@@ -8,7 +8,7 @@ Each page opens with its first recording in every [look](appearance.md), side by
 
 Most groups live in menus behind a single icon on a panel, so the panels stay short. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open toward the side of the screen with more room, downward from the top panel and upward from the bottom panel.
 
-The pin on a row puts that group back on the panel, next to its menu icon; the unpin button in its card returns it to the menu. Pins are remembered across restarts. A group whose alert reaches `panel_bar.group_menu_promotion_severity` also shows on the panel until the alert clears.
+The pin on a row puts that group back on the panel, next to its menu icon; a pin on a row inside a group's submenu puts only that reading there. The unpin button in its card returns it to the menu. Pins are remembered across restarts. A group whose alert reaches `panel_bar.group_menu_promotion_severity` also shows on the panel until the alert clears.
 
 | Menu | Panel | Groups |
 |---|---|---|
