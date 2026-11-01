@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, rc::Rc, slice};
+use std::{
+    collections::BTreeMap,
+    fmt::{Display, Formatter, Result as FmtResult},
+    rc::Rc,
+    slice,
+};
 
 use chrono::Locale;
 use iced::{
@@ -31,6 +36,52 @@ use crate::{
         widget_state::{StateTint, WidgetState},
     },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GroupTitle {
+    Fixed(&'static str),
+    Numbered {
+        base_title: &'static str,
+        ordinal: u8,
+    },
+}
+
+impl GroupTitle {
+    #[must_use]
+    pub fn numbered_from_second(base_title: &'static str, position: usize) -> Self {
+        match u8::try_from(position + 1) {
+            Ok(ordinal) if ordinal > 1 => GroupTitle::Numbered {
+                base_title,
+                ordinal,
+            },
+            Ok(_) | Err(_) => GroupTitle::Fixed(base_title),
+        }
+    }
+}
+
+impl Display for GroupTitle {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            GroupTitle::Fixed(title) => formatter.write_str(title),
+            GroupTitle::Numbered {
+                base_title,
+                ordinal,
+            } => write!(formatter, "{base_title} {ordinal}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleRow {
+    OwnRow,
+    SharedWithSameTitle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupTitleClaim {
+    pub group_title: GroupTitle,
+    pub title_row: TitleRow,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum ExpansionMessage {
@@ -252,7 +303,7 @@ impl<'a, M: 'a> Handle<'a, M> {
 }
 
 pub(super) struct MenuMember<'a, M> {
-    pub group_title: &'static str,
+    pub title_claim: GroupTitleClaim,
     pub face: MenuParts<'a, M>,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
     pub cascade_items: Vec<CascadeItem<'a, M>>,
@@ -273,16 +324,31 @@ pub trait WidgetGroup {
         on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> GroupContent<'a, M> {
-        GroupContent::new(Self::TITLE, expansion, on_expansion, items)
+        Self::expandable_group_titled(
+            GroupTitle::Fixed(Self::TITLE),
+            expansion,
+            on_expansion,
+            items,
+        )
+    }
+
+    fn expandable_group_titled<'a, M: Clone + 'a>(
+        group_title: GroupTitle,
+        expansion: &'a GroupExpansion,
+        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
+        items: impl IntoIterator<Item = GroupItem<'a, M>>,
+    ) -> GroupContent<'a, M> {
+        GroupContent::new(group_title, expansion, on_expansion, items)
     }
 
     fn fixed_group<'a, M: Clone + 'a>(item: Option<GroupItem<'a, M>>) -> GroupContent<'a, M> {
-        GroupContent::single(Self::TITLE, item)
+        GroupContent::single(GroupTitle::Fixed(Self::TITLE), item)
     }
 }
 
 pub struct GroupContent<'a, M> {
-    group_title: &'static str,
+    group_title: GroupTitle,
+    title_row: TitleRow,
     handle: Handle<'a, M>,
     items: Vec<GroupItem<'a, M>>,
     panel_pin: PanelPin,
@@ -290,13 +356,14 @@ pub struct GroupContent<'a, M> {
 
 impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     fn new(
-        group_title: &'static str,
+        group_title: GroupTitle,
         expansion: &'a GroupExpansion,
         on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> Self {
         Self {
             group_title,
+            title_row: TitleRow::OwnRow,
             handle: Handle::Expandable {
                 expansion,
                 on_expansion: Rc::new(on_expansion),
@@ -308,13 +375,29 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
     }
 
-    fn single(group_title: &'static str, item: Option<GroupItem<'a, M>>) -> Self {
+    fn single(group_title: GroupTitle, item: Option<GroupItem<'a, M>>) -> Self {
         Self {
             group_title,
+            title_row: TitleRow::OwnRow,
             handle: Handle::Fixed,
             items: item.into_iter().collect(),
             panel_pin: PanelPin::Unpinned,
         }
+    }
+
+    #[must_use]
+    pub fn sharing_title_row(self) -> Self {
+        Self {
+            title_row: TitleRow::SharedWithSameTitle,
+            ..self
+        }
+    }
+
+    pub(super) fn title_claim(&self) -> Option<GroupTitleClaim> {
+        (!self.items.is_empty()).then_some(GroupTitleClaim {
+            group_title: self.group_title,
+            title_row: self.title_row,
+        })
     }
 
     #[must_use]
@@ -363,6 +446,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
         GroupContent {
             group_title: self.group_title,
+            title_row: self.title_row,
             handle: self.handle.map(lift),
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
             panel_pin: self.panel_pin,
@@ -411,7 +495,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .unwrap_or_default()
     }
 
-    pub(super) fn group_title(&self) -> &'static str {
+    pub(crate) fn group_title(&self) -> GroupTitle {
         self.group_title
     }
 
@@ -458,6 +542,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         }
         let GroupContent {
             group_title,
+            title_row,
             handle,
             items,
             ..
@@ -492,7 +577,10 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         Some(MenuMember {
-            group_title,
+            title_claim: GroupTitleClaim {
+                group_title,
+                title_row,
+            },
             face,
             aligned,
             cascade_items,
@@ -514,6 +602,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             handle,
             mut items,
             panel_pin,
+            ..
         } = self;
         let Handle::Expandable {
             expansion,

@@ -13,7 +13,10 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position};
 
 use self::{
-    cascading_columns::{CascadeEntry, CascadeLayout, cascading_columns, merged_by_title},
+    cascading_columns::{
+        CascadeEntry, CascadeLayout, cascading_columns, duplicate_group_titles,
+        merged_where_requested,
+    },
     quantity_table::{QuantityTableColumn, quantity_table},
     satellite_panels::SatellitePanels,
 };
@@ -31,7 +34,9 @@ use crate::{
         pager_slot::PagerSlot,
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{EdgeIndicator, GroupContent, GroupEvent, GroupToastRequests, MenuMember},
+        widget_group::{
+            EdgeIndicator, GroupContent, GroupEvent, GroupTitle, GroupToastRequests, MenuMember,
+        },
         window_icon::WindowAssets,
     },
 };
@@ -109,20 +114,20 @@ impl<'a, M> MenuSections<'a, M> {
 
     fn with_member(mut self, member: MenuMember<'a, M>) -> Self {
         let MenuMember {
-            group_title,
+            title_claim,
             face,
             aligned,
             cascade_items,
         } = member;
         if !aligned.is_empty() {
             self.table_columns.push(QuantityTableColumn {
-                group_title,
+                group_title: title_claim.group_title,
                 aligned,
             });
         }
         if !cascade_items.is_empty() {
             self.cascade_entries.push(CascadeEntry {
-                group_title,
+                title_claim,
                 face,
                 items: cascade_items,
             });
@@ -178,7 +183,10 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         let handle = announcing_hoverable(
             self.glyph.view(config.theme.font.icon_size_px, text_color),
             HoverTarget::GroupHandle(GroupHandle::GroupMenu(self.messenger.kind)),
-            HoverAnnouncement::from_group_handle(self.title, PressHints::default()),
+            HoverAnnouncement::from_group_handle(
+                GroupTitle::Fixed(self.title),
+                PressHints::default(),
+            ),
             GroupEvent::Tooltip,
         );
         let indicator = EdgeIndicator {
@@ -230,6 +238,18 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             members,
             ..
         } = self;
+        let duplicate_titles =
+            duplicate_group_titles(members.iter().filter_map(GroupContent::title_claim));
+        if !duplicate_titles.is_empty() {
+            tracing::error!(
+                "{} menu has groups sharing a title without requesting it: {duplicate_titles:?}",
+                messenger.kind.title()
+            );
+            debug_assert!(
+                duplicate_titles.is_empty(),
+                "duplicate group titles: {duplicate_titles:?}"
+            );
+        }
         let MenuSections {
             table_columns,
             cascade_entries,
@@ -251,7 +271,7 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         });
         let satellite_panels = SatellitePanels::new(appearance, config, orientation);
         let cascade = cascading_columns(
-            merged_by_title(cascade_entries),
+            merged_where_requested(cascade_entries),
             &CascadeLayout {
                 config,
                 direction: orientation.direction,

@@ -1,4 +1,3 @@
-mod port_addresses_reading;
 mod port_link_reading;
 
 use std::collections::BTreeMap;
@@ -14,20 +13,21 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
 
-use self::{
-    port_addresses_reading::{
-        AddressFamily, PortAddressReading, PortDnsReading, dns_server_sections,
-        family_address_sections, family_router_sections,
-    },
-    port_link_reading::{
-        PortConnectionSwitch, PortLinkReading, PortMarking, link_detail_sections,
-        port_identity_sections,
-    },
+use self::port_link_reading::{
+    PortConnectionSwitch, PortLinkReading, PortMarking, link_detail_sections,
+    port_identity_sections,
 };
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::{
+        interface_address_sections::{
+            AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
+            family_address_sections, family_router_sections,
+        },
+        interface_group_titles::AttachmentTitles,
+    },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -37,8 +37,13 @@ use crate::{
             Section,
             tooltip_source_delivery::{SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, GroupTitle, WidgetGroup},
     },
+};
+
+const PORT_TITLES: AttachmentTitles = AttachmentTitles {
+    built_in: "Ethernet",
+    usb: "USB Ethernet",
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -275,7 +280,9 @@ impl EthernetPortsGroup {
                 let address_details = self.port_detail_sections(port_name, |port| {
                     port.link
                         .as_ref()
-                        .map(|link| family_address_sections(link, *family))
+                        .map(|link| {
+                            family_address_sections(*family, link.ipv4.as_ref(), link.ipv6.as_ref())
+                        })
                         .unwrap_or_default()
                 });
                 let router_details = self.gateway_latencies.sections_described_by(|latencies| {
@@ -290,7 +297,7 @@ impl EthernetPortsGroup {
                 |port| {
                     port.link
                         .as_ref()
-                        .map(dns_server_sections)
+                        .map(|link| dns_server_sections(&link.dns))
                         .unwrap_or_default()
                 },
             ))),
@@ -300,6 +307,7 @@ impl EthernetPortsGroup {
     fn port_group<'a>(
         &'a self,
         port_state: &'a PortState,
+        group_title: GroupTitle,
     ) -> Option<GroupContent<'a, EthernetPortsMessage>> {
         let session = self.sessions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
@@ -328,7 +336,7 @@ impl EthernetPortsGroup {
             .filter(|_| port_state.connected)
             .map(|family| {
                 GroupItem::reading(
-                    PortAddressReading { family },
+                    InterfaceAddressReading { family },
                     EthernetPortTarget::Addresses {
                         port_name: port_state.name.clone(),
                         family,
@@ -337,14 +345,15 @@ impl EthernetPortsGroup {
             });
         let dns_item = port_state.connected.then(|| {
             GroupItem::reading(
-                PortDnsReading,
+                InterfaceDnsReading,
                 EthernetPortTarget::Dns {
                     port_name: port_state.name.clone(),
                 },
             )
         });
         let port_name = port_state.name.clone();
-        Some(Self::expandable_group(
+        Some(Self::expandable_group_titled(
+            group_title,
             &session.expansion,
             move |expansion| EthernetPortsMessage::Expansion {
                 port_name: port_name.clone(),
@@ -359,12 +368,68 @@ impl EthernetPortsGroup {
 
     #[must_use]
     pub fn group_contents(&self) -> Vec<GroupContent<'_, EthernetPortsMessage>> {
-        self.ethernet
+        let port_states = self
+            .ethernet
             .get()
             .map(|ethernet| ethernet.ports.as_slice())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let port_titles =
+            PORT_TITLES.group_titles(port_states.iter().map(|port_state| port_state.attachment));
+        port_states
             .iter()
-            .filter_map(|port_state| self.port_group(port_state))
+            .zip(port_titles)
+            .filter_map(|(port_state, port_title)| self.port_group(port_state, port_title))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use sottomano_sources::{
+        SnapshotDelivery,
+        delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
+        network_connectivity::{
+            ethernet_connection::{Ethernet, PortState},
+            interface_bus_attachment::InterfaceAttachment,
+        },
+    };
+
+    use super::{EthernetPortsGroup, EthernetPortsMessage};
+    use crate::clock::Clock;
+
+    fn port_attached(port_name: &str, attachment: InterfaceAttachment) -> PortState {
+        PortState {
+            name: port_name.to_owned(),
+            attachment,
+            connected: false,
+            switching: false,
+        }
+    }
+
+    #[test]
+    fn every_port_gets_a_group_with_its_own_title() {
+        let clock = Clock::real();
+        let mut ethernet_group = EthernetPortsGroup::default();
+        let _ = ethernet_group.update(
+            EthernetPortsMessage::Snapshot(SnapshotDelivery::fixture_delivered(
+                Ok(Ethernet {
+                    ports: vec![
+                        port_attached("enp2s0", InterfaceAttachment::BuiltIn),
+                        port_attached("enp16s0f4u2", InterfaceAttachment::Usb),
+                        port_attached("enp16s0f4u3", InterfaceAttachment::Usb),
+                    ],
+                }),
+                DeliveryCadence::PeriodicPolling(PeriodicPolling::every(Duration::from_secs(60))),
+            )),
+            clock,
+        );
+        let group_titles: Vec<String> = ethernet_group
+            .group_contents()
+            .iter()
+            .map(|group| group.group_title().to_string())
+            .collect();
+        assert_eq!(group_titles, ["Ethernet", "USB Ethernet", "USB Ethernet 2"]);
     }
 }

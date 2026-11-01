@@ -21,7 +21,7 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 | Menu | Panel | Groups |
 |---|---|---|
 | Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |
-| Network | top, left | interfaces, ethernet ports, Bluetooth, reachability, VPN |
+| Network | top, left | Wi-Fi adapters, mobile modems, ethernet ports, Bluetooth, reachability, VPN |
 | Agenda | top, middle | calendar, weather, quiet schedule, focus session |
 | Media | top, right | media players, audio, dictation, game controllers |
 | Appearance | bottom, left | panel, sidebar, overlay and window settings with a unit |

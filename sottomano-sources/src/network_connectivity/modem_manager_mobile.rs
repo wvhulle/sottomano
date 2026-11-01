@@ -4,6 +4,7 @@ use bytesize::ByteSize;
 use futures::Stream;
 use zbus::{
     fdo::ManagedObjects,
+    names::OwnedInterfaceName,
     zvariant::{OwnedObjectPath, OwnedValue},
 };
 
@@ -23,7 +24,13 @@ const MODEM_3GPP: &str = "org.freedesktop.ModemManager1.Modem.Modem3gpp";
 const BEARER: &str = "org.freedesktop.ModemManager1.Bearer";
 
 #[derive(Debug, Clone)]
+pub struct MobileModems {
+    pub modems: Vec<Mobile>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Mobile {
+    pub modem_path: String,
     pub identity: ModemIdentity,
     pub operator: Option<String>,
     pub technology: Vec<String>,
@@ -206,10 +213,20 @@ fn reported_prop(properties: &Properties, key: &str) -> Option<String> {
     reported(&prop::<String>(properties, key)?)
 }
 
-fn reading(objects: &ManagedObjects) -> Option<Mobile> {
-    let interfaces = objects
-        .values()
-        .find(|interfaces| interface(interfaces, MODEM).is_some())?;
+fn reading(objects: &ManagedObjects) -> Option<MobileModems> {
+    let mut modems: Vec<Mobile> = objects
+        .iter()
+        .filter_map(|(modem_path, interfaces)| modem_reading(objects, modem_path, interfaces))
+        .collect();
+    modems.sort_by(|left, right| left.modem_path.cmp(&right.modem_path));
+    (!modems.is_empty()).then_some(MobileModems { modems })
+}
+
+fn modem_reading(
+    objects: &ManagedObjects,
+    modem_path: &OwnedObjectPath,
+    interfaces: &HashMap<OwnedInterfaceName, Properties>,
+) -> Option<Mobile> {
     let modem = interface(interfaces, MODEM)?;
     let modem_3gpp = interface(interfaces, MODEM_3GPP);
 
@@ -224,6 +241,7 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     let signal = prop::<(u32, bool)>(modem, "SignalQuality");
 
     Some(Mobile {
+        modem_path: modem_path.as_str().to_owned(),
         identity: ModemIdentity {
             manufacturer: reported_prop(modem, "Manufacturer"),
             model: reported_prop(modem, "Model"),
@@ -247,7 +265,7 @@ fn reading(objects: &ManagedObjects) -> Option<Mobile> {
     })
 }
 
-impl SnapshotSource for Mobile {
+impl SnapshotSource for MobileModems {
     type Error = zbus::Error;
     type StreamInputs = DesktopBuses;
 
@@ -263,4 +281,66 @@ impl SnapshotSource for Mobile {
 
 pub async fn toggle_mobile_radio() -> zbus::Result<()> {
     network_manager_proxies::toggle_wwan_radio(&zbus::Connection::system().await?).await
+}
+
+pub async fn toggle_mobile_modem(modem_path: &str) -> zbus::Result<()> {
+    let system = zbus::Connection::system().await?;
+    let Some(modem_device) = network_manager_proxies::modem_device_at(&system, modem_path).await?
+    else {
+        tracing::warn!("no NetworkManager device manages the modem at {modem_path}");
+        return Ok(());
+    };
+    network_manager_proxies::toggle_device_connection(&system, &modem_device).await
+}
+
+#[cfg(test)]
+mod tests {
+    use zbus::zvariant::{Str, Value};
+
+    use super::*;
+
+    fn modem_interfaces(model_name: &str) -> HashMap<OwnedInterfaceName, Properties> {
+        let model_value = OwnedValue::try_from(Value::from(Str::from(model_name))).unwrap();
+        HashMap::from([(
+            OwnedInterfaceName::try_from(MODEM).unwrap(),
+            Properties::from([("Model".to_owned(), model_value)]),
+        )])
+    }
+
+    fn object_path(path: &str) -> OwnedObjectPath {
+        OwnedObjectPath::try_from(path).unwrap()
+    }
+
+    #[test]
+    fn every_modem_is_read_in_path_order() {
+        let objects: ManagedObjects = HashMap::from([
+            (
+                object_path("/org/freedesktop/ModemManager1/Modem/1"),
+                modem_interfaces("second"),
+            ),
+            (
+                object_path("/org/freedesktop/ModemManager1/Modem/0"),
+                modem_interfaces("first"),
+            ),
+            (
+                object_path("/org/freedesktop/ModemManager1/Bearer/0"),
+                HashMap::new(),
+            ),
+        ]);
+        let read_models: Vec<Option<String>> = reading(&objects)
+            .unwrap()
+            .modems
+            .into_iter()
+            .map(|modem| modem.identity.model)
+            .collect();
+        assert_eq!(
+            read_models,
+            [Some("first".to_owned()), Some("second".to_owned())]
+        );
+    }
+
+    #[test]
+    fn no_modem_reads_as_absent() {
+        assert!(reading(&HashMap::new()).is_none());
+    }
 }

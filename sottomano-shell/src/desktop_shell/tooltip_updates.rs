@@ -222,10 +222,14 @@ impl DesktopShell {
                 .widget_groups
                 .pending_upgrades_group
                 .tooltip_for(*target, self.clock),
-            HoverTarget::NetInterface(target) => self
+            HoverTarget::WifiAdapter(target) => self
                 .widget_groups
-                .net_interfaces_group
-                .tooltip_for(*target, self.clock),
+                .wifi_adapters_group
+                .tooltip_for(target, self.clock),
+            HoverTarget::MobileModem(target) => self
+                .widget_groups
+                .mobile_modems_group
+                .tooltip_for(target, self.clock),
             HoverTarget::EthernetPort(target) => self
                 .widget_groups
                 .ethernet_ports_group
@@ -377,9 +381,9 @@ impl DesktopShell {
                 .as_ref()
                 .map_or_else(Task::none, |buses| {
                     self.widget_groups
-                        .net_interfaces_group
+                        .wifi_adapters_group
                         .hover(hovered, &self.config, buses, self.clock)
-                        .map(Message::NetInterfaces)
+                        .map(Message::WifiAdapters)
                 }),
             self.desktop_buses
                 .as_ref()

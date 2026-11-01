@@ -27,8 +27,8 @@ use sottomano_widgets::{
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::{MemoryBoardGroup, MemoryBoardMessage},
+        mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
-        net_interfaces_group::NetInterfacesGroup,
         niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriRulesFile},
         notification_group::NotificationGroup,
         openrouter_credit_group::OpenRouterCreditGroup,
@@ -49,6 +49,7 @@ use sottomano_widgets::{
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
+        wifi_adapters_group::WifiAdaptersGroup,
         window_group::WindowGroup,
     },
     widgets::{
@@ -83,7 +84,8 @@ pub struct ShellWidgetGroups {
     pub pending_upgrades_group: PendingUpgradesGroup,
     pub reachability_group: ReachabilityGroup,
     pub vpn_group: VpnGroup,
-    pub net_interfaces_group: NetInterfacesGroup,
+    pub wifi_adapters_group: WifiAdaptersGroup,
+    pub mobile_modems_group: MobileModemsGroup,
     pub ethernet_ports_group: EthernetPortsGroup,
     pub bluetooth_adapters_group: BluetoothAdaptersGroup,
     pub monitor_group: MonitorGroup,
@@ -136,7 +138,8 @@ impl ShellWidgetGroups {
             pending_upgrades_group: PendingUpgradesGroup::default(),
             reachability_group: ReachabilityGroup::default(),
             vpn_group: VpnGroup::default(),
-            net_interfaces_group: NetInterfacesGroup::default(),
+            wifi_adapters_group: WifiAdaptersGroup::default(),
+            mobile_modems_group: MobileModemsGroup::default(),
             ethernet_ports_group: EthernetPortsGroup::default(),
             bluetooth_adapters_group: BluetoothAdaptersGroup::default(),
             monitor_group: MonitorGroup::default(),
@@ -233,10 +236,14 @@ impl ShellWidgetGroups {
                 .pending_upgrades_group
                 .update(msg, clock)
                 .map(Message::PendingUpgrades),
-            Message::NetInterfaces(msg) => self
-                .net_interfaces_group
+            Message::WifiAdapters(msg) => self
+                .wifi_adapters_group
                 .update(msg, clock)
-                .map(Message::NetInterfaces),
+                .map(Message::WifiAdapters),
+            Message::MobileModems(msg) => self
+                .mobile_modems_group
+                .update(msg, clock)
+                .map(Message::MobileModems),
             Message::EthernetPorts(msg) => self
                 .ethernet_ports_group
                 .update(msg, clock)
@@ -413,7 +420,8 @@ impl ShellWidgetGroups {
         self.media_group.collapse();
         self.reachability_group.collapse();
         self.vpn_group.collapse();
-        self.net_interfaces_group.collapse();
+        self.wifi_adapters_group.collapse();
+        self.mobile_modems_group.collapse();
         self.ethernet_ports_group.collapse();
         self.bluetooth_adapters_group.collapse();
         self.window_group.collapse();

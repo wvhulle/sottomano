@@ -2,6 +2,7 @@ use std::future::ready;
 
 use futures::{
     Stream, StreamExt,
+    future::try_join_all,
     stream::{self, select},
     try_join,
 };
@@ -12,7 +13,8 @@ use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
-        ReadingError, device_or_absent, device_readings, network_manager_proxies, nm_readings,
+        ReadingError, device_or_absent, device_readings,
+        interface_bus_attachment::InterfaceAttachment, network_manager_proxies, nm_readings,
         sysfs_interface_faults::InterfaceFaultCounters,
     },
     stream_operators::{read_once_then_per_burst, resubscribing_until_failure},
@@ -29,11 +31,18 @@ pub struct Link {
 }
 
 #[derive(Debug, Clone)]
-pub struct Wifi {
+pub struct WifiAdapter {
     pub device: String,
-    pub radio_enabled: bool,
+    pub attachment: InterfaceAttachment,
+    pub connected: bool,
     pub switching: bool,
     pub link: Option<Link>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Wifi {
+    pub radio_enabled: bool,
+    pub adapters: Vec<WifiAdapter>,
 }
 
 #[derive(Debug, Clone)]
@@ -48,58 +57,87 @@ pub struct Addressing {
 }
 
 #[derive(Debug, Clone)]
-pub struct WifiDetails {
+pub struct WifiAdapterDetails {
+    pub device: String,
     pub adapter: Option<Adapter>,
     pub addressing: Option<Addressing>,
 }
 
-async fn wifi_device(
-    connection: &Connection,
-) -> Result<network_manager_proxies::DeviceInfo, ReadingError> {
-    network_manager_proxies::devices(connection)
-        .await?
-        .into_iter()
-        .find(|device| device.kind == network_manager_proxies::DeviceKind::Wifi)
-        .ok_or(ReadingError::Absent)
+#[derive(Debug, Clone)]
+pub struct WifiDetails {
+    pub adapters: Vec<WifiAdapterDetails>,
 }
 
-async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
-    let (device, radio_enabled) = try_join!(wifi_device(&connection), async {
-        Ok(network_manager_proxies::wireless_enabled(&connection).await?)
-    })?;
+async fn wifi_devices(
+    connection: &Connection,
+) -> Result<Vec<network_manager_proxies::DeviceInfo>, ReadingError> {
+    network_manager_proxies::devices_of_kind(connection, network_manager_proxies::DeviceKind::Wifi)
+        .await
+}
+
+async fn adapter_link(
+    connection: &Connection,
+    device: &network_manager_proxies::DeviceInfo,
+) -> zbus::Result<Option<Link>> {
     let ap_path = if device.connected {
-        Some(network_manager_proxies::active_access_point(&connection, &device).await?)
+        Some(network_manager_proxies::active_access_point(connection, device).await?)
     } else {
         None
     };
-    let link = match ap_path.filter(|path| !network_manager_proxies::is_unset(path)) {
+    match ap_path.filter(|path| !network_manager_proxies::is_unset(path)) {
         Some(path) => {
-            let ap = network_manager_proxies::access_point(&connection, path.clone()).await?;
-            Some(Link {
+            let ap = network_manager_proxies::access_point(connection, path.clone()).await?;
+            Ok(Some(Link {
                 access_point: path,
                 ssid: ap.ssid,
                 signal: ap.signal,
                 frequency: ap.frequency,
                 security: ap.security,
-            })
+            }))
         }
-        None => None,
-    };
-    Ok(Wifi {
-        device: device.interface,
-        radio_enabled,
+        None => Ok(None),
+    }
+}
+
+async fn wifi_adapter(
+    connection: &Connection,
+    device: network_manager_proxies::DeviceInfo,
+) -> zbus::Result<WifiAdapter> {
+    let link = adapter_link(connection, &device).await?;
+    Ok(WifiAdapter {
+        attachment: InterfaceAttachment::of_interface(&device.interface),
+        connected: device.connected,
         switching: device.switching,
+        device: device.interface,
         link,
     })
 }
 
-async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingError> {
-    let device = wifi_device(&connection).await?;
+async fn read(connection: Connection) -> Result<Wifi, ReadingError> {
+    let (devices, radio_enabled) = try_join!(wifi_devices(&connection), async {
+        Ok(network_manager_proxies::wireless_enabled(&connection).await?)
+    })?;
+    let adapters = try_join_all(
+        devices
+            .into_iter()
+            .map(|device| wifi_adapter(&connection, device)),
+    )
+    .await?;
+    Ok(Wifi {
+        radio_enabled,
+        adapters,
+    })
+}
+
+async fn adapter_details(
+    connection: &Connection,
+    device: network_manager_proxies::DeviceInfo,
+) -> zbus::Result<WifiAdapterDetails> {
     let addressing = if device.connected {
         let (ip, mac, bitrate, mtu) = try_join!(
-            network_manager_proxies::ip(&connection, &device),
+            network_manager_proxies::ip(connection, &device),
             network_manager_proxies::hw_address(&device),
-            network_manager_proxies::wireless_rate(&connection, &device),
+            network_manager_proxies::wireless_rate(connection, &device),
             network_manager_proxies::mtu(&device)
         )?;
         Some(Addressing {
@@ -114,10 +152,22 @@ async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingErro
     } else {
         None
     };
-    Ok(WifiDetails {
+    Ok(WifiAdapterDetails {
         adapter: Adapter::of_net_interface(&device.interface),
+        device: device.interface,
         addressing,
     })
+}
+
+async fn read_details(connection: Connection) -> Result<WifiDetails, ReadingError> {
+    let devices = wifi_devices(&connection).await?;
+    let adapters = try_join_all(
+        devices
+            .into_iter()
+            .map(|device| adapter_details(&connection, device)),
+    )
+    .await?;
+    Ok(WifiDetails { adapters })
 }
 
 impl SnapshotSource for Wifi {
@@ -134,20 +184,19 @@ impl SnapshotSource for Wifi {
             move || {
                 let system = system.clone();
                 resubscribing_until_failure(move || {
-                    readings_while_access_point_holds(system.clone())
+                    readings_while_access_points_hold(system.clone())
                 })
             },
         )
     }
 }
 
-async fn readings_while_access_point_holds(
+async fn readings_while_access_points_hold(
     connection: Connection,
 ) -> zbus::Result<impl Stream<Item = zbus::Result<Option<Wifi>>>> {
-    let watched_access_point = read(connection.clone())
+    let watched_access_points = read(connection.clone())
         .await
-        .ok()
-        .and_then(|wifi| wifi.access_point());
+        .map_or_else(|_| Vec::new(), |wifi| wifi.access_points());
     let device_changes = network_manager_proxies::changes(
         &connection,
         &[
@@ -157,19 +206,25 @@ async fn readings_while_access_point_holds(
         ],
     )
     .await?;
-    let strength_changes = match watched_access_point.clone() {
-        Some(path) => Some(network_manager_proxies::access_point_changes(&connection, path).await?),
-        None => None,
-    };
-    let strength_changes = stream::iter(strength_changes).flatten();
-    let readings = read_once_then_per_burst(select(device_changes, strength_changes), move || {
-        read(connection.clone())
-    })
+    let strength_changes =
+        try_join_all(watched_access_points.iter().cloned().map(|access_point| {
+            let connection = &connection;
+            async move {
+                network_manager_proxies::access_point_changes(connection, access_point)
+                    .await
+                    .map(StreamExt::boxed)
+            }
+        }))
+        .await?;
+    let readings = read_once_then_per_burst(
+        select(device_changes, stream::select_all(strength_changes)),
+        move || read(connection.clone()),
+    )
     .take_while(move |reading| {
         ready(
             reading
                 .as_ref()
-                .map_or(true, |wifi| wifi.access_point() == watched_access_point),
+                .map_or(true, |wifi| wifi.access_points() == watched_access_points),
         )
     });
     Ok(device_readings(readings))
@@ -179,9 +234,28 @@ pub async fn toggle_wifi_radio() -> zbus::Result<()> {
     network_manager_proxies::toggle_wireless_radio(&Connection::system().await?).await
 }
 
+pub async fn toggle_wifi_adapter(adapter_device: &str) -> zbus::Result<()> {
+    let system = Connection::system().await?;
+    let Some(wifi_device) = network_manager_proxies::devices(&system)
+        .await?
+        .into_iter()
+        .find(|device| {
+            device.kind == network_manager_proxies::DeviceKind::Wifi
+                && device.interface == adapter_device
+        })
+    else {
+        return Ok(());
+    };
+    network_manager_proxies::toggle_device_connection(&system, &wifi_device).await
+}
+
 impl Wifi {
-    fn access_point(&self) -> Option<OwnedObjectPath> {
-        self.link.as_ref().map(|link| link.access_point.clone())
+    fn access_points(&self) -> Vec<OwnedObjectPath> {
+        self.adapters
+            .iter()
+            .filter_map(|adapter| adapter.link.as_ref())
+            .map(|link| link.access_point.clone())
+            .collect()
     }
 }
 

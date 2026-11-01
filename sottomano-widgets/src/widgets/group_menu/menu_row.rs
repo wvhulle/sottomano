@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use iced::{
     Alignment, Background, Border, Element, Length, Padding, Theme,
     border::Radius,
@@ -15,7 +17,7 @@ use crate::widgets::{
 pub(super) struct MenuRowContent<'a, M> {
     pub leading: Vec<Element<'a, GroupEvent<M>>>,
     pub parts: MenuParts<'a, M>,
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
 }
 

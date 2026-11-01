@@ -418,13 +418,10 @@ impl MediaGroup {
     ) -> impl Iterator<Item = GroupContent<'a, MediaMessage>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
-            Some(player_group(
-                config,
-                clock,
-                media,
-                session,
-                self.lyrics_of(media),
-            ))
+            Some(
+                player_group(config, clock, media, session, self.lyrics_of(media))
+                    .sharing_title_row(),
+            )
         })
     }
 }

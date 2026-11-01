@@ -26,7 +26,7 @@ use crate::{
         slider_control::{ControlMessage, SliderControl},
         source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
-        widget_group::GroupEvent,
+        widget_group::{GroupEvent, GroupTitle},
         widget_state::StateTint,
     },
 };
@@ -501,7 +501,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(super) fn pinned_item_name(
         &self,
-        group_title: &'static str,
+        group_title: GroupTitle,
         group_menus: &GroupMenus,
         menu: GroupMenuKind,
     ) -> Option<&'static str> {

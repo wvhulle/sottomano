@@ -1,3 +1,5 @@
+use std::net::IpAddr;
+
 use sottomano_config::severity::Severity;
 use sottomano_sources::network_connectivity::{
     icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
@@ -6,9 +8,76 @@ use sottomano_sources::network_connectivity::{
 use uom::si::f64::InformationRate;
 
 use crate::{
+    clock::Clock,
     widget_groups::echo_probe_window_rows::probe_window_section,
-    widgets::{localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue},
+    widgets::{
+        bar_widget::{BarWidget, Glyph},
+        localized_quantities::Quantity,
+        phosphor::{Phosphor, Weight},
+        tooltip_body::{Section, TooltipBody},
+        value_cells::LabeledValue,
+    },
 };
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddressFamily {
+    Ipv4,
+    Ipv6,
+}
+
+impl AddressFamily {
+    #[must_use]
+    pub fn title(self) -> &'static str {
+        match self {
+            AddressFamily::Ipv4 => "IPv4",
+            AddressFamily::Ipv6 => "IPv6",
+        }
+    }
+
+    fn contains_host(self, host: IpAddr) -> bool {
+        match self {
+            AddressFamily::Ipv4 => host.is_ipv4(),
+            AddressFamily::Ipv6 => host.is_ipv6(),
+        }
+    }
+}
+
+pub struct InterfaceAddressReading {
+    pub family: AddressFamily,
+}
+
+impl BarWidget for InterfaceAddressReading {
+    fn name(&self) -> &'static str {
+        self.family.title()
+    }
+
+    fn icon(&self) -> Glyph {
+        match self.family {
+            AddressFamily::Ipv4 => Phosphor::NumberCircleFour(Weight::Regular).into(),
+            AddressFamily::Ipv6 => Phosphor::NumberCircleSix(Weight::Regular).into(),
+        }
+    }
+
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        TooltipBody::sections([])
+    }
+}
+
+pub struct InterfaceDnsReading;
+
+impl BarWidget for InterfaceDnsReading {
+    fn name(&self) -> &'static str {
+        "DNS"
+    }
+
+    fn icon(&self) -> Glyph {
+        Phosphor::AddressBook(Weight::Regular).into()
+    }
+
+    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+        TooltipBody::sections([])
+    }
+}
 
 pub fn signal_level(quality: i64) -> Severity {
     match quality {
@@ -39,6 +108,18 @@ pub fn address_section(label: &str, block: Option<&AddressBlock>) -> Section {
     Section::dictionary(entries).titled(label)
 }
 
+pub fn family_address_sections(
+    family: AddressFamily,
+    ipv4_block: Option<&AddressBlock>,
+    ipv6_block: Option<&AddressBlock>,
+) -> Vec<Section> {
+    let address_block = match family {
+        AddressFamily::Ipv4 => ipv4_block,
+        AddressFamily::Ipv6 => ipv6_block,
+    };
+    vec![address_section(family.title(), address_block)]
+}
+
 pub fn dns_section(servers: &[String]) -> Section {
     Section::dictionary(
         servers
@@ -46,6 +127,10 @@ pub fn dns_section(servers: &[String]) -> Section {
             .map(|server| LabeledValue::new("Server", server.as_str())),
     )
     .titled("DNS")
+}
+
+pub fn dns_server_sections(servers: &[String]) -> Vec<Section> {
+    vec![dns_section(servers)]
 }
 
 pub fn link_stats_section(
@@ -89,18 +174,18 @@ pub fn link_stats_section(
     Section::dictionary(rate_entry.into_iter().chain(mtu_entry).chain(fault_entries)).titled(title)
 }
 
-pub fn gateway_latency_sections(latencies: &GatewayLatencies, interface: &str) -> Vec<Section> {
+pub fn family_router_sections(
+    latencies: &GatewayLatencies,
+    interface_name: &str,
+    family: AddressFamily,
+) -> Vec<Section> {
     latencies
         .gateways
         .iter()
-        .filter(|gateway_latency| gateway_latency.interface == interface)
-        .map(|gateway_latency| {
-            let family = if gateway_latency.window.host.is_ipv4() {
-                "IPv4 Router"
-            } else {
-                "IPv6 Router"
-            };
-            probe_window_section(&gateway_latency.window).titled(family)
+        .filter(|gateway_latency| {
+            gateway_latency.interface == interface_name
+                && family.contains_host(gateway_latency.window.host)
         })
+        .map(|gateway_latency| probe_window_section(&gateway_latency.window).titled("Router"))
         .collect()
 }
