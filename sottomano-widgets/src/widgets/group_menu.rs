@@ -10,7 +10,7 @@ use iced::{
     Element,
     widget::{Column, container},
 };
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
 use self::{
     cascading_columns::{
@@ -26,7 +26,9 @@ use crate::{
         GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, PressHints,
         announcing_hoverable, tooltip_content::TooltipContent,
     },
-    widget_groups::group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry},
+    widget_groups::group_menus::{
+        GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry, PromotedGroup,
+    },
     widgets::{
         bar_widget::Glyph,
         cascade_row::CascadeOrientation,
@@ -166,6 +168,21 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             .iter()
             .map(|member| member.toast_requests(locale, clock))
             .collect()
+    }
+
+    pub fn promoted_groups(
+        &self,
+        promotion_severity: Severity,
+        clock: Clock,
+    ) -> impl Iterator<Item = PromotedGroup> {
+        let menu = self.messenger.kind;
+        self.members
+            .iter()
+            .filter(move |member| member.highest_alert_severity(clock) >= promotion_severity)
+            .map(move |member| PromotedGroup {
+                menu,
+                group_title: member.group_title(),
+            })
     }
 
     fn handle_view<Outer: From<GroupEvent<M>> + 'a>(

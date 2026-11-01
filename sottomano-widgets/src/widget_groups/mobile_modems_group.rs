@@ -19,7 +19,10 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::interface_address_sections::{AddressFamily, InterfaceAddressReading},
+    widget_groups::{
+        group_menus::group_source_demand::GroupSourceDemand,
+        interface_address_sections::{AddressFamily, InterfaceAddressReading},
+    },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -87,8 +90,13 @@ impl MobileModemsGroup {
         });
     }
 
-    pub fn subscription(buses: &DesktopBuses) -> Subscription<MobileModemsMessage> {
-        snapshot_subscription::<MobileModems>(buses.clone()).map(MobileModemsMessage::Snapshot)
+    pub fn subscription(
+        buses: &DesktopBuses,
+        demand: &GroupSourceDemand<'_>,
+    ) -> Subscription<MobileModemsMessage> {
+        demand.while_any_reading_shown(
+            snapshot_subscription::<MobileModems>(buses.clone()).map(MobileModemsMessage::Snapshot),
+        )
     }
 
     pub fn update(

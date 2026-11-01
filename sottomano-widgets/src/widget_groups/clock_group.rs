@@ -14,6 +14,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -75,11 +76,19 @@ impl ClockGroup {
         Task::none()
     }
 
-    pub fn subscription(config: &Config) -> Subscription<ClockMessage> {
+    pub fn subscription(
+        &self,
+        config: &Config,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<ClockMessage> {
+        let demand = demand.expanded_when(self.expansion.is_expanded());
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
-            snapshot_subscription::<ZoneTime>(*zone)
-                .with(*zone)
-                .map(|(zone, reading)| ClockMessage::Zone(zone, reading))
+            demand.while_rows_shown(
+                &[],
+                snapshot_subscription::<ZoneTime>(*zone)
+                    .with(*zone)
+                    .map(|(zone, reading)| ClockMessage::Zone(zone, reading)),
+            )
         });
         Subscription::batch(
             [

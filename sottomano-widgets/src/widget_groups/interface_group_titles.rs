@@ -9,6 +9,14 @@ pub struct AttachmentTitles {
 }
 
 impl AttachmentTitles {
+    #[must_use]
+    pub fn sibling_titles(self) -> Vec<GroupTitle> {
+        [self.built_in, self.usb]
+            .into_iter()
+            .flat_map(GroupTitle::numbered_siblings)
+            .collect()
+    }
+
     fn base_title(self, attachment: InterfaceAttachment) -> &'static str {
         match attachment {
             InterfaceAttachment::BuiltIn => self.built_in,

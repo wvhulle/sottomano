@@ -22,6 +22,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widget_groups::{
+        group_menus::group_source_demand::GroupSourceDemand,
         interface_address_sections::{
             AddressFamily, InterfaceAddressReading, InterfaceDnsReading, dns_server_sections,
             family_address_sections, family_router_sections,
@@ -41,7 +42,7 @@ use crate::{
     },
 };
 
-const PORT_TITLES: AttachmentTitles = AttachmentTitles {
+pub const PORT_TITLES: AttachmentTitles = AttachmentTitles {
     built_in: "Ethernet",
     usb: "USB Ethernet",
 };
@@ -116,19 +117,26 @@ impl EthernetPortsGroup {
         });
     }
 
-    pub fn subscription(&self, buses: &DesktopBuses) -> Subscription<EthernetPortsMessage> {
+    pub fn subscription(
+        &self,
+        buses: &DesktopBuses,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<EthernetPortsMessage> {
         let any_port_expanded = self
             .sessions
             .values()
             .any(|session| session.expansion.is_expanded());
+        let demand = demand.expanded_when(any_port_expanded);
         Subscription::batch([
-            snapshot_subscription::<Ethernet>(buses.clone()).map(EthernetPortsMessage::Snapshot),
-            if any_port_expanded {
+            demand.while_any_reading_shown(
+                snapshot_subscription::<Ethernet>(buses.clone())
+                    .map(EthernetPortsMessage::Snapshot),
+            ),
+            demand.while_rows_shown(
+                &[],
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
-                    .map(EthernetPortsMessage::GatewayLatencies)
-            } else {
-                Subscription::none()
-            },
+                    .map(EthernetPortsMessage::GatewayLatencies),
+            ),
         ])
     }
 

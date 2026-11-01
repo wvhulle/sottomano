@@ -9,24 +9,32 @@ use sottomano_widgets::{
     widget_groups::{
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
-        clock_group::ClockGroup,
         compute_group::ComputeGroup,
         copilot_usage_group::CopilotUsageGroup,
         dark_mode_group::DarkModeGroup,
+        ethernet_ports_group::PORT_TITLES,
         gamepad_group::{GamepadGroup, GamepadWindowClaim},
+        group_menus::{GroupMenuKind, group_source_demand::GroupSourceDemand},
         journal_events_group::JournalEventsGroup,
         login_session_group::LoginSessionGroup,
+        media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
         pending_upgrades_group::PendingUpgradesGroup,
+        physical_drive_group::PhysicalDriveGroup,
         power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup,
+        reachability_group::ReachabilityGroup,
         session_focus_group::SessionFocusGroup,
         systemd_manager_group::SystemdManagerGroup,
         tray_group::TrayGroup,
+        vpn_group::VpnGroup,
+        weather_group::WeatherGroup,
+        wifi_adapters_group::ADAPTER_TITLES,
         window_group::WindowGroup,
     },
+    widgets::widget_group::{GroupTitle, WidgetGroup},
 };
 
 use crate::{desktop_shell::shell_widget_groups::ShellWidgetGroups, shell_message::Message};
@@ -40,14 +48,29 @@ impl ShellWidgetGroups {
     ) -> Subscription<Message> {
         let working_days = self.quiet_schedule_group.working_days();
         Subscription::batch([
-            self.weather_group.subscription(buses).map(Message::Weather),
+            self.weather_group
+                .subscription(
+                    buses,
+                    self.group_menus.source_demand(
+                        GroupMenuKind::Agenda,
+                        &[GroupTitle::Fixed(WeatherGroup::TITLE)],
+                    ),
+                )
+                .map(Message::Weather),
             self.wallpaper_group
                 .subscription(buses)
                 .map(Message::Wallpaper),
             self.caldav_group
                 .subscription(&config.widget_groups.caldav, buses)
                 .map(Message::Caldav),
-            ComputeGroup::subscription(&config.widget_groups.temperature_sensors.cpu)
+            self.compute_group
+                .subscription(
+                    &config.widget_groups.temperature_sensors.cpu,
+                    self.group_menus.source_demand(
+                        GroupMenuKind::Hardware,
+                        &[GroupTitle::Fixed(ComputeGroup::TITLE)],
+                    ),
+                )
                 .map(Message::Compute),
             MemoryBoardGroup::subscription().map(Message::MemoryBoard),
             self.gpu_group.subscription().map(Message::Gpu),
@@ -55,9 +78,17 @@ impl ShellWidgetGroups {
                 .subscription()
                 .map(Message::Storage),
             self.physical_drive_group
-                .subscription(&config.widget_groups.temperature_sensors.drive)
+                .subscription(
+                    &config.widget_groups.temperature_sensors.drive,
+                    self.group_menus.source_demand(
+                        GroupMenuKind::Hardware,
+                        &[GroupTitle::Fixed(PhysicalDriveGroup::TITLE)],
+                    ),
+                )
                 .map(Message::Drive),
-            ClockGroup::subscription(config).map(Message::Clock),
+            self.clock_group
+                .subscription(config, GroupSourceDemand::on_bar())
+                .map(Message::Clock),
             JournalEventsGroup::subscription().map(Message::JournalEvents),
             DarkModeGroup::subscription().map(Message::DarkMode),
             TrayGroup::subscription().map(Message::Tray),
@@ -91,21 +122,66 @@ impl ShellWidgetGroups {
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),
             self.reachability_group
-                .subscription(&config.widget_groups.reachability, buses)
+                .subscription(
+                    &config.widget_groups.reachability,
+                    buses,
+                    self.group_menus.source_demand(
+                        GroupMenuKind::Network,
+                        &[GroupTitle::Fixed(ReachabilityGroup::TITLE)],
+                    ),
+                )
                 .map(Message::Reachability),
-            self.vpn_group.subscription(buses).map(Message::Vpn),
+            self.vpn_group
+                .subscription(
+                    buses,
+                    &self.group_menus.source_demand(
+                        GroupMenuKind::Network,
+                        &[GroupTitle::Fixed(VpnGroup::TITLE)],
+                    ),
+                )
+                .map(Message::Vpn),
             self.wifi_adapters_group
-                .subscription(buses)
+                .subscription(
+                    buses,
+                    self.group_menus
+                        .source_demand(GroupMenuKind::Network, &ADAPTER_TITLES.sibling_titles()),
+                )
                 .map(Message::WifiAdapters),
-            MobileModemsGroup::subscription(buses).map(Message::MobileModems),
+            MobileModemsGroup::subscription(
+                buses,
+                &self.group_menus.source_demand(
+                    GroupMenuKind::Network,
+                    &GroupTitle::numbered_siblings(MobileModemsGroup::TITLE),
+                ),
+            )
+            .map(Message::MobileModems),
             self.ethernet_ports_group
-                .subscription(buses)
+                .subscription(
+                    buses,
+                    self.group_menus
+                        .source_demand(GroupMenuKind::Network, &PORT_TITLES.sibling_titles()),
+                )
                 .map(Message::EthernetPorts),
             BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
-            GamepadGroup::network_subscription(buses).map(Message::Gamepad),
+            self.gamepad_group
+                .network_subscription(
+                    buses,
+                    self.group_menus.source_demand(
+                        GroupMenuKind::Media,
+                        &[GroupTitle::Fixed(GamepadGroup::TITLE)],
+                    ),
+                )
+                .map(Message::Gamepad),
             MonitorGroup::subscription(buses).map(Message::Monitor),
             self.media_group
-                .subscription(buses, &config.widget_groups.media_lyrics)
+                .subscription(
+                    buses,
+                    &config.widget_groups.media_lyrics,
+                    &self.group_menus.source_demand(
+                        GroupMenuKind::Media,
+                        &[GroupTitle::Fixed(MediaGroup::TITLE)],
+                    ),
+                )
                 .map(Message::Media),
             DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),
             self.voice_dictation_group

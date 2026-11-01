@@ -27,7 +27,10 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
-    widget_groups::weather_group::rain_intensity::{RainForecast, RainSources},
+    widget_groups::{
+        group_menus::group_source_demand::GroupSourceDemand,
+        weather_group::rain_intensity::{RainForecast, RainSources},
+    },
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -93,7 +96,12 @@ impl WeatherGroup {
         self.expansion.collapse();
     }
 
-    pub fn subscription(&self, buses: Option<&DesktopBuses>) -> Subscription<WeatherMessage> {
+    pub fn subscription(
+        &self,
+        buses: Option<&DesktopBuses>,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<WeatherMessage> {
+        let demand = demand.expanded_when(self.expansion.is_expanded());
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
         let (Some(here), Some(buses)) = (self.location.get().map(Location::position), buses) else {
             return location;
@@ -108,10 +116,12 @@ impl WeatherGroup {
             snapshot_subscription::<Rain>(online_here()).map(WeatherMessage::Rain),
             snapshot_subscription::<PrecipitationModel>(online_here())
                 .map(WeatherMessage::PrecipitationModel),
-            self.expansion.while_expanded(
+            demand.while_rows_shown(
+                &["Wind"],
                 snapshot_subscription::<Wind>(online_here()).map(WeatherMessage::Wind),
             ),
-            self.expansion.while_expanded(
+            demand.while_rows_shown(
+                &["Pollen", "Allergen"],
                 snapshot_subscription::<Pollen>(online_here()).map(WeatherMessage::Pollen),
             ),
         ])

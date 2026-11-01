@@ -23,9 +23,12 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
-    widget_groups::reachability_group::{
-        metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
-        sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
+    widget_groups::{
+        group_menus::group_source_demand::GroupSourceDemand,
+        reachability_group::{
+            metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
+            sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
+        },
     },
     widgets::{
         bar_widget::BarWidget,
@@ -87,17 +90,24 @@ impl ReachabilityGroup {
         &self,
         config: &ReachabilityConfig,
         buses: &DesktopBuses,
+        demand: GroupSourceDemand<'_>,
     ) -> Subscription<ReachabilityMessage> {
+        let demand = demand.expanded_when(self.expansion.is_expanded());
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
-            snapshot_subscription::<UplinkConnectivity>(buses.clone())
-                .map(ReachabilityMessage::Connectivity),
-            self.expansion.while_expanded(
+            demand.while_face_shown(
+                &["Connectivity"],
+                snapshot_subscription::<UplinkConnectivity>(buses.clone())
+                    .map(ReachabilityMessage::Connectivity),
+            ),
+            demand.while_rows_shown(
+                &["Internet latency"],
                 snapshot_subscription::<InternetLatency>(config.latency_target)
                     .map(ReachabilityMessage::Latency),
             ),
-            self.expansion.while_expanded(
+            demand.while_rows_shown(
+                &["TCP retransmissions"],
                 snapshot_subscription::<TcpRetransmissions>(())
                     .map(ReachabilityMessage::TcpRetransmissions),
             ),

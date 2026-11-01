@@ -32,6 +32,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -159,13 +160,27 @@ impl ComputeGroup {
         }
     }
 
-    pub fn subscription(sensor: &SensorConfig) -> Subscription<ComputeMessage> {
+    pub fn subscription(
+        &self,
+        sensor: &SensorConfig,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<ComputeMessage> {
+        let demand = demand.expanded_when(self.expansion.is_expanded());
         Subscription::batch([
-            snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
-            snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
+            demand.while_face_shown(
+                &["CPU load"],
+                snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
+            ),
+            demand.while_rows_shown(
+                &["CPU clock", "CPU clock limits"],
+                snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
+            ),
             snapshot_subscription::<Temperature>(sensor.clone())
                 .map(ComputeMessage::CpuTemperature),
-            snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
+            demand.while_rows_shown(
+                &["CPU power draw"],
+                snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
+            ),
             ToggleControl::<X3dCachePreference>::subscription(())
                 .map(ComputeMessage::X3dCachePreference),
         ])
@@ -311,5 +326,88 @@ impl ComputeGroup {
                 })
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::advanced::subscription::into_recipes;
+    use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
+
+    use super::{ComputeGroup, ExpansionMessage, GroupSourceDemand};
+    use crate::{
+        clock::Clock,
+        widget_groups::group_menus::{GroupMenuKind, GroupMenus, PromotedGroup},
+        widgets::widget_group::GroupTitle,
+    };
+
+    const TEMPERATURE_AND_CACHE_TOGGLE: usize = 2;
+    const WITH_LOAD_GAUGE: usize = 3;
+    const WITH_EVERY_ROW: usize = 5;
+
+    fn running_sources(group: &ComputeGroup, demand: GroupSourceDemand<'_>) -> usize {
+        into_recipes(group.subscription(&SensorConfig::default(), demand)).len()
+    }
+
+    fn demand_in(group_menus: &GroupMenus) -> GroupSourceDemand<'_> {
+        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("Compute")])
+    }
+
+    #[test]
+    fn hidden_group_keeps_only_its_alert_and_control_sources() {
+        let group_menus = GroupMenus::default();
+        assert_eq!(
+            running_sources(&ComputeGroup::default(), demand_in(&group_menus)),
+            TEMPERATURE_AND_CACHE_TOGGLE
+        );
+    }
+
+    #[test]
+    fn open_menu_runs_every_source() {
+        let mut group_menus = GroupMenus::default();
+        group_menus.track_source_demand(
+            Some(GroupMenuKind::Hardware),
+            Vec::new(),
+            Clock::real().instant,
+        );
+        assert_eq!(
+            running_sources(&ComputeGroup::default(), demand_in(&group_menus)),
+            WITH_EVERY_ROW
+        );
+    }
+
+    #[test]
+    fn collapsed_group_on_the_bar_keeps_its_load_gauge_updating() {
+        let mut group_menus = GroupMenus::default();
+        group_menus.track_source_demand(
+            None,
+            vec![PromotedGroup {
+                menu: GroupMenuKind::Hardware,
+                group_title: GroupTitle::Fixed("Compute"),
+            }],
+            Clock::real().instant,
+        );
+        assert_eq!(
+            running_sources(&ComputeGroup::default(), demand_in(&group_menus)),
+            WITH_LOAD_GAUGE
+        );
+    }
+
+    #[test]
+    fn expanding_on_the_bar_runs_every_source_and_collapsing_stops_the_rows() {
+        let mut group = ComputeGroup::default();
+        let _ = group.update(
+            super::ComputeMessage::Expansion(ExpansionMessage::Toggle),
+            Clock::real(),
+        );
+        assert_eq!(
+            running_sources(&group, GroupSourceDemand::on_bar()),
+            WITH_EVERY_ROW
+        );
+        group.collapse();
+        assert_eq!(
+            running_sources(&group, GroupSourceDemand::on_bar()),
+            WITH_LOAD_GAUGE
+        );
     }
 }

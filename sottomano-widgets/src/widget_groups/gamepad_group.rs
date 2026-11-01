@@ -49,6 +49,7 @@ use crate::{
     background_work::{niri_action, snapshot_subscription},
     clock::Clock,
     hover_tooltips::HoverTarget,
+    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         bar_widget::BarWidget,
         group_item::GroupItem,
@@ -284,12 +285,27 @@ impl GamepadGroup {
         ])
     }
 
-    pub fn network_subscription(buses: &DesktopBuses) -> Subscription<GamepadMessage> {
+    pub fn network_subscription(
+        &self,
+        buses: &DesktopBuses,
+        demand: GroupSourceDemand<'_>,
+    ) -> Subscription<GamepadMessage> {
+        let any_session_expanded = self
+            .sessions
+            .values()
+            .any(|session| session.expansion.is_expanded());
+        let demand = demand.expanded_when(any_session_expanded);
         Subscription::batch([
-            snapshot_subscription::<Wifi>(buses.clone())
-                .map(|delivery| GamepadMessage::Wifi(Box::new(delivery))),
-            snapshot_subscription::<Ethernet>(buses.clone())
-                .map(|delivery| GamepadMessage::Ethernet(Box::new(delivery))),
+            demand.while_rows_shown(
+                &["Controller lag"],
+                snapshot_subscription::<Wifi>(buses.clone())
+                    .map(|delivery| GamepadMessage::Wifi(Box::new(delivery))),
+            ),
+            demand.while_rows_shown(
+                &["Controller lag"],
+                snapshot_subscription::<Ethernet>(buses.clone())
+                    .map(|delivery| GamepadMessage::Ethernet(Box::new(delivery))),
+            ),
         ])
     }
 
