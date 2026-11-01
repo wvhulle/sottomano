@@ -1,4 +1,6 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
+use sottomano_sources::sqlite_state_store::{
+    Columns, StoreError, add_missing_column, flag, real, with_table,
+};
 
 use crate::widgets::shell_layer_appearance::{
     LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
@@ -68,14 +70,28 @@ impl ShellLayer {
     }
 }
 
+async fn with_appearance_table<T>(
+    label: &str,
+    work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
+) -> Option<T> {
+    with_table(label, &[CREATE_TABLE], async |connection| {
+        add_later_columns(connection).await?;
+        work(connection).await
+    })
+    .await
+}
+
+async fn add_later_columns(connection: &turso::Connection) -> Result<(), StoreError> {
+    add_missing_column(connection, "layer_appearance", "outline_opacity", "REAL").await
+}
+
 pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: AppearanceValue) -> bool {
-    with_table(
+    with_appearance_table(
         &format!(
             "layer appearance: save {} {} failed",
             layer.key(),
             setting.column()
         ),
-        &[CREATE_TABLE],
         async |connection| write_setting(connection, layer, setting, value.into()).await,
     )
     .await
@@ -83,9 +99,8 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: Appearan
 }
 
 pub async fn save_appearance(layer: ShellLayer, appearance: LayerAppearance) -> bool {
-    with_table(
+    with_appearance_table(
         &format!("layer appearance: save {} failed", layer.key()),
-        &[CREATE_TABLE],
         async |connection| write_appearance(connection, layer, appearance).await,
     )
     .await
@@ -94,11 +109,9 @@ pub async fn save_appearance(layer: ShellLayer, appearance: LayerAppearance) -> 
 
 pub async fn load(layer: ShellLayer) -> LayerAppearance {
     let defaults = layer.default_appearance();
-    with_table(
-        "layer appearance: load failed",
-        &[CREATE_TABLE],
-        async |connection| read_layer_appearance(connection, layer, defaults).await,
-    )
+    with_appearance_table("layer appearance: load failed", async |connection| {
+        read_layer_appearance(connection, layer, defaults).await
+    })
     .await
     .unwrap_or(defaults)
 }
@@ -202,9 +215,47 @@ mod tests {
     use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
     use super::{
-        AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_appearance, write_setting,
+        AppearanceSetting, CREATE_TABLE, add_later_columns, read_layer_appearance,
+        write_appearance, write_setting,
     };
     use crate::widgets::shell_layer_appearance::{LayerAppearance, ShellLayer};
+
+    const TABLE_BEFORE_OUTLINE_OPACITY: &str = "CREATE TABLE layer_appearance (
+        layer TEXT PRIMARY KEY,
+        opacity REAL,
+        corner_radius_px REAL,
+        blurred INTEGER,
+        drop_shadow INTEGER,
+        shadow_softness_px REAL,
+        shadow_opacity REAL,
+        outline INTEGER
+    )";
+
+    #[tokio::test]
+    async fn table_from_before_outline_opacity_keeps_rows_and_accepts_it() {
+        let connection = in_memory_connection(&[
+            TABLE_BEFORE_OUTLINE_OPACITY,
+            "INSERT INTO layer_appearance (layer, opacity) VALUES ('sidebar', 0.25)",
+        ])
+        .await;
+        add_later_columns(&connection).await.unwrap();
+        add_later_columns(&connection).await.unwrap();
+        write_setting(
+            &connection,
+            ShellLayer::Sidebar,
+            AppearanceSetting::OutlineOpacity,
+            real(0.75),
+        )
+        .await
+        .unwrap();
+
+        let sidebar =
+            read_layer_appearance(&connection, ShellLayer::Sidebar, LayerAppearance::default())
+                .await
+                .unwrap();
+        assert!((sidebar.opacity - 0.25).abs() < f32::EPSILON);
+        assert!((sidebar.outline.opacity - 0.75).abs() < f32::EPSILON);
+    }
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {
