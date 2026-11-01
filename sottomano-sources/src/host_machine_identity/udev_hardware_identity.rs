@@ -209,11 +209,6 @@ impl Adapter {
     pub fn of_net_interface(interface: &str) -> Option<Self> {
         Self::of_class_device(PathBuf::from("/sys/class/net").join(interface))
     }
-
-    #[must_use]
-    pub fn of_bluetooth_controller(controller: &str) -> Option<Self> {
-        Self::of_class_device(PathBuf::from("/sys/class/bluetooth").join(controller))
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

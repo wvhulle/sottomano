@@ -2,7 +2,7 @@ use std::iter::once;
 
 use chrono::Locale;
 use sottomano_sources::{
-    network_connectivity::bluez_bluetooth::{AdapterHardware, AdapterPower, BluetoothAdapter},
+    network_connectivity::bluez_bluetooth::{AdapterPower, BluetoothAdapter},
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
 
@@ -51,30 +51,21 @@ impl AdapterRadioReading<'_> {
     }
 
     fn overview_section(&self) -> Section {
-        let powered_counts = match &self.adapter.power {
-            AdapterPower::On(powered) => vec![
-                LabeledValue::new("Connected", Quantity::count(powered.connected.len())),
-                LabeledValue::new("Paired", Quantity::count(powered.paired_count)),
-            ],
-            AdapterPower::Off | AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => {
-                Vec::new()
-            }
+        let connected_count = match &self.adapter.power {
+            AdapterPower::On(powered) => Some(LabeledValue::new(
+                "Connected",
+                Quantity::count(powered.connected.len()),
+            )),
+            AdapterPower::Off | AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => None,
         };
         Section::dictionary(
             once(LabeledValue::new(
                 "Power",
                 power_description(&self.adapter.power),
             ))
-            .chain(powered_counts),
+            .chain(connected_count),
         )
         .titled(format!("Bluetooth {}", self.adapter.controller_name))
-    }
-
-    fn hardware_section(&self) -> Option<Section> {
-        match &self.adapter.hardware {
-            AdapterHardware::Identified(hardware) => Some(Section::from(hardware)),
-            AdapterHardware::Unidentified => None,
-        }
     }
 }
 
@@ -124,7 +115,6 @@ impl BarWidget for AdapterRadioReading<'_> {
                     kernel_errors: &self.kernel_errors,
                 }
                 .section(),
-                self.hardware_section(),
             ]
             .into_iter()
             .flatten(),
