@@ -51,8 +51,8 @@ impl ReconnectHistory {
 #[cfg(test)]
 mod tests {
     use sottomano_sources::network_connectivity::bluez_bluetooth::{
-        AdapterHardware, AdapterPlacement, AdapterPower, BluetoothAdapter, ConnectedDevice,
-        DeviceBattery, DeviceKind, LinkSignal, PoweredAdapter,
+        AdapterPlacement, AdapterPower, BluetoothAdapter, ConnectedDevice, DeviceBattery,
+        DeviceKind, PoweredAdapter,
     };
     use zbus::zvariant::OwnedObjectPath;
 
@@ -68,7 +68,6 @@ mod tests {
                 name: "Pad".to_owned(),
                 address: (*address).to_owned(),
                 kind: DeviceKind::Gamepad,
-                signal: LinkSignal::Unpublished,
                 battery: DeviceBattery::Unreported,
                 kernel_devices: Vec::new(),
             })
@@ -77,11 +76,7 @@ mod tests {
             adapters: vec![BluetoothAdapter {
                 object_path: OwnedObjectPath::try_from("/org/bluez/hci0").unwrap(),
                 controller_name: "hci0".to_owned(),
-                power: AdapterPower::On(PoweredAdapter {
-                    connected,
-                    paired_count: 1,
-                }),
-                hardware: AdapterHardware::Unidentified,
+                power: AdapterPower::On(PoweredAdapter { connected }),
                 placement: AdapterPlacement::BuiltIn,
             }],
         }

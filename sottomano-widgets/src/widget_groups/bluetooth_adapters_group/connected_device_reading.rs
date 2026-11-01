@@ -4,7 +4,7 @@ use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::{
     network_connectivity::bluez_bluetooth::{
-        ChargingState, ConnectedDevice, DeviceBattery, DeviceKind, LinkSignal,
+        ChargingState, ConnectedDevice, DeviceBattery, DeviceKind,
     },
     systemd_units_journal::journal_device_kernel_errors::DeviceKernelError,
 };
@@ -135,14 +135,7 @@ impl ConnectedDeviceReading<'_> {
         } else {
             reconnects
         };
-        let signal = match self.device.signal {
-            LinkSignal::Measured { quality_percent } => Some(LabeledValue::new(
-                "Signal",
-                Quantity::share(percent_fill(quality_percent)),
-            )),
-            LinkSignal::Unpublished => None,
-        };
-        Section::dictionary(once(reconnects).chain(signal)).titled("Link")
+        Section::dictionary([reconnects]).titled("Link")
     }
 
     fn battery_section(&self) -> Option<Section> {
@@ -166,14 +159,6 @@ impl ConnectedDeviceReading<'_> {
             )
             .titled("Battery"),
         )
-    }
-
-    fn identity_section(&self) -> Section {
-        Section::dictionary([
-            LabeledValue::new("Kind", self.device.kind.as_str()),
-            LabeledValue::new("Address", self.device.address.as_str()),
-        ])
-        .titled("Device")
     }
 }
 
@@ -220,7 +205,6 @@ impl BarWidget for ConnectedDeviceReading<'_> {
                 }
                 .section(),
                 self.battery_section(),
-                Some(self.identity_section()),
             ]
             .into_iter()
             .flatten(),
@@ -241,7 +225,6 @@ mod tests {
             name: name.to_owned(),
             address: "00:00:00:00:00:00".to_owned(),
             kind: DeviceKind::Unclassified,
-            signal: LinkSignal::Unpublished,
             battery: DeviceBattery::Unreported,
             kernel_devices: Vec::new(),
         }

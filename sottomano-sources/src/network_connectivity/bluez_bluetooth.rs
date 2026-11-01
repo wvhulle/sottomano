@@ -15,7 +15,6 @@ pub use crate::network_connectivity::hid_sysfs_bluetooth_peripherals::{
 use crate::{
     SnapshotDelivery, SnapshotSource,
     delivery_cadence_drivers::{PeriodicPolling, TriggeredRereadCadence},
-    host_machine_identity::udev_hardware_identity::Adapter,
     network_connectivity::{
         hid_sysfs_bluetooth_peripherals::hid_peripherals_with_address, interface,
         properties_changed,
@@ -63,19 +62,12 @@ pub enum DeviceKind {
     Unclassified,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LinkSignal {
-    Unpublished,
-    Measured { quality_percent: i64 },
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConnectedDevice {
     pub object_path: OwnedObjectPath,
     pub name: String,
     pub address: String,
     pub kind: DeviceKind,
-    pub signal: LinkSignal,
     pub battery: DeviceBattery,
     pub kernel_devices: Vec<String>,
 }
@@ -83,7 +75,6 @@ pub struct ConnectedDevice {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoweredAdapter {
     pub connected: Vec<ConnectedDevice>,
-    pub paired_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,17 +86,10 @@ pub enum AdapterPower {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AdapterHardware {
-    Unidentified,
-    Identified(Adapter),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BluetoothAdapter {
     pub object_path: OwnedObjectPath,
     pub controller_name: String,
     pub power: AdapterPower,
-    pub hardware: AdapterHardware,
     pub placement: AdapterPlacement,
 }
 
@@ -157,22 +141,6 @@ impl DeviceKind {
             "phone" => DeviceKind::Phone,
             "computer" => DeviceKind::Computer,
             _ => DeviceKind::Unclassified,
-        }
-    }
-
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            DeviceKind::Gamepad => "gamepad",
-            DeviceKind::Headset => "headset",
-            DeviceKind::Headphones => "headphones",
-            DeviceKind::Speaker => "speaker",
-            DeviceKind::Keyboard => "keyboard",
-            DeviceKind::Mouse => "mouse",
-            DeviceKind::Tablet => "tablet",
-            DeviceKind::Phone => "phone",
-            DeviceKind::Computer => "computer",
-            DeviceKind::Unclassified => "device",
         }
     }
 }
@@ -231,10 +199,6 @@ fn connected_device(entry: &AdapterDeviceEntry<'_>) -> Option<ConnectedDevice> {
     let name = prop::<String>(device, "Alias")
         .or_else(|| prop::<String>(device, "Name"))
         .unwrap_or_else(|| address.clone());
-    let signal =
-        prop::<i16>(device, "RSSI").map_or(LinkSignal::Unpublished, |dbm| LinkSignal::Measured {
-            quality_percent: (i64::from(dbm).clamp(-90, -40) + 90) * 2,
-        });
     let hid_peripherals = hid_peripherals_with_address(&address);
     let battery = bluez_battery(entry.interfaces).or_else(|| {
         hid_peripherals
@@ -250,7 +214,6 @@ fn connected_device(entry: &AdapterDeviceEntry<'_>) -> Option<ConnectedDevice> {
             .as_deref()
             .map_or(DeviceKind::Unclassified, DeviceKind::of_icon_name),
         address,
-        signal,
         battery,
         kernel_devices: hid_peripherals
             .into_iter()
@@ -260,8 +223,9 @@ fn connected_device(entry: &AdapterDeviceEntry<'_>) -> Option<ConnectedDevice> {
 }
 
 fn powered_adapter(objects: &ManagedObjects, adapter_path: &OwnedObjectPath) -> PoweredAdapter {
-    let adapter_devices = || {
-        objects.iter().filter_map(|(object_path, interfaces)| {
+    let mut connected: Vec<ConnectedDevice> = objects
+        .iter()
+        .filter_map(|(object_path, interfaces)| {
             let device = interface(interfaces, DEVICE)?;
             belongs_to_adapter(device, adapter_path).then_some(AdapterDeviceEntry {
                 object_path,
@@ -269,18 +233,11 @@ fn powered_adapter(objects: &ManagedObjects, adapter_path: &OwnedObjectPath) -> 
                 device,
             })
         })
-    };
-    let mut connected: Vec<ConnectedDevice> = adapter_devices()
         .filter(|entry| entry.flag("Connected"))
         .filter_map(|entry| connected_device(&entry))
         .collect();
     connected.sort_by(|left, right| left.name.cmp(&right.name));
-    PoweredAdapter {
-        connected,
-        paired_count: adapter_devices()
-            .filter(|entry| entry.flag("Paired"))
-            .count(),
-    }
+    PoweredAdapter { connected }
 }
 
 fn adapter_power(
@@ -307,8 +264,6 @@ fn reading(objects: &ManagedObjects) -> Bluetooth {
             Some(BluetoothAdapter {
                 object_path: adapter_path.clone(),
                 power: adapter_power(objects, adapter_path, adapter),
-                hardware: Adapter::of_bluetooth_controller(&controller_name)
-                    .map_or(AdapterHardware::Unidentified, AdapterHardware::Identified),
                 placement: AdapterPlacement::of_controller(&controller_name),
                 controller_name,
             })
