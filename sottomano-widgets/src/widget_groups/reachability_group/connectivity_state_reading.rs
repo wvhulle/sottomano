@@ -14,6 +14,8 @@ use crate::{
     },
 };
 
+pub(super) const CONNECTIVITY_ITEM_NAME: &str = "Connectivity";
+
 fn severity(connectivity: Connectivity) -> Severity {
     match connectivity {
         Connectivity::Full => Severity::Normal,
@@ -24,7 +26,7 @@ fn severity(connectivity: Connectivity) -> Severity {
 
 impl BarWidget for UplinkConnectivity {
     fn name(&self) -> &'static str {
-        "Connectivity"
+        CONNECTIVITY_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

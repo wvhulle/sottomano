@@ -97,17 +97,17 @@ impl ReachabilityGroup {
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
             demand.while_face_shown(
-                &["Connectivity"],
+                &[connectivity_state_reading::CONNECTIVITY_ITEM_NAME],
                 snapshot_subscription::<UplinkConnectivity>(buses.clone())
                     .map(ReachabilityMessage::Connectivity),
             ),
             demand.while_rows_shown(
-                &["Internet latency"],
+                &[icmp_latency_gauge::INTERNET_LATENCY_ITEM_NAME],
                 snapshot_subscription::<InternetLatency>(config.latency_target)
                     .map(ReachabilityMessage::Latency),
             ),
             demand.while_rows_shown(
-                &["TCP retransmissions"],
+                &[tcp_retransmit_reading::TCP_RETRANSMISSIONS_ITEM_NAME],
                 snapshot_subscription::<TcpRetransmissions>(())
                     .map(ReachabilityMessage::TcpRetransmissions),
             ),

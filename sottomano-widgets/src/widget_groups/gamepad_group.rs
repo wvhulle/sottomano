@@ -297,12 +297,12 @@ impl GamepadGroup {
         let demand = demand.expanded_when(any_session_expanded);
         Subscription::batch([
             demand.while_rows_shown(
-                &["Controller lag"],
+                &[controller_link_reading::CONTROLLER_LAG_ITEM_NAME],
                 snapshot_subscription::<Wifi>(buses.clone())
                     .map(|delivery| GamepadMessage::Wifi(Box::new(delivery))),
             ),
             demand.while_rows_shown(
-                &["Controller lag"],
+                &[controller_link_reading::CONTROLLER_LAG_ITEM_NAME],
                 snapshot_subscription::<Ethernet>(buses.clone())
                     .map(|delivery| GamepadMessage::Ethernet(Box::new(delivery))),
             ),

@@ -117,11 +117,14 @@ impl WeatherGroup {
             snapshot_subscription::<PrecipitationModel>(online_here())
                 .map(WeatherMessage::PrecipitationModel),
             demand.while_rows_shown(
-                &["Wind"],
+                &[wind_speed::WIND_ITEM_NAME],
                 snapshot_subscription::<Wind>(online_here()).map(WeatherMessage::Wind),
             ),
             demand.while_rows_shown(
-                &["Pollen", "Allergen"],
+                &[
+                    pollen_count_gauge::POLLEN_ITEM_NAME,
+                    pollen_count_gauge::ALLERGEN_ITEM_NAME,
+                ],
                 snapshot_subscription::<Pollen>(online_here()).map(WeatherMessage::Pollen),
             ),
         ])

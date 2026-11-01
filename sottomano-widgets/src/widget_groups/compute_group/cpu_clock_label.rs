@@ -22,13 +22,15 @@ use crate::{
     },
 };
 
+pub(super) const CPU_CLOCK_ITEM_NAME: &str = "CPU clock";
+
 fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
 impl BarWidget for CpuClock {
     fn name(&self) -> &'static str {
-        "CPU clock"
+        CPU_CLOCK_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {

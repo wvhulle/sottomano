@@ -99,13 +99,17 @@ impl PhysicalDriveGroup {
         let per_disk = self.disks.keys().flat_map(|disk| {
             [
                 demand.while_face_shown(
-                    &["Disk space"],
+                    &[disk_space_gauge::DISK_SPACE_ITEM_NAME],
                     snapshot_subscription::<DiskSpaceOccupancy>(self.occupancy_inputs(disk))
                         .with(disk.clone())
                         .map(|(disk, reading)| DriveMessage::DiskSpace(disk, Box::new(reading))),
                 ),
                 demand.while_rows_shown(
-                    &["Disk activity", "Disk reads", "Disk writes"],
+                    &[
+                        disk_transfer_gauge::DISK_ACTIVITY_ITEM_NAME,
+                        disk_transfer_gauge::DISK_READS_ITEM_NAME,
+                        disk_transfer_gauge::DISK_WRITES_ITEM_NAME,
+                    ],
                     snapshot_subscription::<DiskActivity>(disk.clone())
                         .with(disk.clone())
                         .map(|(disk, reading)| DriveMessage::DiskActivity(disk, reading)),

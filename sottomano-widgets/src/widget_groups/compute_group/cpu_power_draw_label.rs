@@ -16,6 +16,8 @@ use crate::{
     },
 };
 
+pub(super) const CPU_POWER_DRAW_ITEM_NAME: &str = "CPU power draw";
+
 fn watt_text(power: Power) -> String {
     format!("{:.1}", power.into_format_args(watt, Abbreviation))
 }
@@ -35,7 +37,7 @@ impl BarWidget for CpuPower {
     }
 
     fn name(&self) -> &'static str {
-        "CPU power draw"
+        CPU_POWER_DRAW_ITEM_NAME
     }
 
     fn icon(&self) -> Glyph {
