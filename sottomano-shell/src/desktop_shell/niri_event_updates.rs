@@ -76,6 +76,14 @@ impl DesktopShell {
                     .map(Message::FaviconsResolved),
             );
         }
+        if workspace_change {
+            tasks.push(
+                self.widget_groups
+                    .sidebar_settings_group
+                    .observe_workspace_switch(&self.niri_snapshot)
+                    .map(Message::SidebarSettings),
+            );
+        }
         if window_change || workspace_change {
             tasks.push(self.refresh_quick_launch());
         }

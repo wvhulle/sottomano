@@ -5,7 +5,7 @@ use sottomano_sources::desktop_windows_apps::{
 };
 
 use super::{
-    EmptyWorkspaces, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
+    EmptyWorkspaceFolding, WorkspacesMessage, dragged, empty_workspaces_toggle, order_restore,
     shown_workspaces,
     workspace_slot::{
         WorkspaceSlot, active_highlight_color, active_workspace_key, workspace_slot_key,
@@ -23,7 +23,7 @@ pub fn vertical_view<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
-    empty_workspaces: EmptyWorkspaces,
+    empty_workspace_folding: &EmptyWorkspaceFolding,
     frame_corners: Radius,
     slot_context: BarSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
@@ -36,7 +36,7 @@ pub fn vertical_view<'a>(
     if workspaces.is_empty() {
         return None;
     }
-    let shown = shown_workspaces(niri, output, empty_workspaces);
+    let shown = shown_workspaces(niri, output, empty_workspace_folding);
     let order: Vec<_> = drag
         .previewed(&shown, |workspace| workspace_slot_key(workspace))
         .into_iter()
@@ -65,7 +65,7 @@ pub fn vertical_view<'a>(
             .extend(empty_workspaces_toggle(
                 niri,
                 output,
-                empty_workspaces,
+                empty_workspace_folding,
                 config,
             ))
             .spacing(config.layout.panel.widget_spacing)
