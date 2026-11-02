@@ -73,7 +73,7 @@ impl<'a> KaraokeLyricLine<'a> {
         Self {
             line,
             playback,
-            font: FontFaces::from(font).italic,
+            font: FontFaces::from(font).regular,
             size: font.text_size_px,
             colors,
         }
@@ -126,6 +126,9 @@ impl<'a> KaraokeLyricLine<'a> {
     }
 
     fn offset_x(&self, paragraph: &MeasuredParagraph, text_offset: usize) -> f32 {
+        if text_offset == 0 && reads_right_to_left(paragraph) {
+            return paragraph.min_bounds().width;
+        }
         let grapheme_index = self.shown_text()[..text_offset].graphemes(true).count();
         paragraph
             .grapheme_position(0, grapheme_index)
@@ -137,6 +140,28 @@ impl<'a> KaraokeLyricLine<'a> {
         let segment_end_x = self.offset_x(paragraph, sweep.segment_end);
         segment_start_x + (segment_end_x - segment_start_x) * sweep.segment_fraction
     }
+}
+
+fn shaped_line(content: &str, size: f32, font: Font) -> MeasuredParagraph {
+    MeasuredParagraph::with_text(advanced_text::Text {
+        content,
+        bounds: Size::INFINITE,
+        size: Pixels(size),
+        line_height: LINE_HEIGHT,
+        font,
+        align_x: advanced_text::Alignment::Default,
+        align_y: Vertical::Top,
+        shaping: Shaping::Advanced,
+        wrapping: Wrapping::None,
+    })
+}
+
+fn reads_right_to_left(paragraph: &MeasuredParagraph) -> bool {
+    paragraph
+        .buffer()
+        .layout_runs()
+        .next()
+        .is_some_and(|run| run.rtl)
 }
 
 impl<'a, Message: 'a> From<KaraokeLyricLine<'a>> for Element<'a, Message> {
@@ -166,17 +191,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLyricLine<
         let state = tree.state.downcast_mut::<State>();
         let measured_line = self.measured_line();
         if state.measured_line.as_ref() != Some(&measured_line) {
-            state.paragraph = MeasuredParagraph::with_text(advanced_text::Text {
-                content: measured_line.text.as_str(),
-                bounds: Size::INFINITE,
-                size: Pixels(measured_line.size),
-                line_height: LINE_HEIGHT,
-                font: measured_line.font,
-                align_x: advanced_text::Alignment::Default,
-                align_y: Vertical::Top,
-                shaping: Shaping::Advanced,
-                wrapping: Wrapping::None,
-            });
+            state.paragraph =
+                shaped_line(&measured_line.text, measured_line.size, measured_line.font);
             state.measured_line = Some(measured_line);
         }
         Node::new(limits.resolve(Length::Shrink, Length::Shrink, state.paragraph.min_bounds()))
@@ -196,14 +212,19 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLyricLine<
         let bounds = layout.bounds();
         let sweep_edge =
             bounds.x + self.sweep_x(&state.paragraph, self.sweep_at(self.frame(state)));
-        let sung_clip = Rectangle {
+        let left_of_edge = Rectangle {
             width: (sweep_edge - viewport.x).max(0.0),
             ..*viewport
         };
-        let unsung_clip = Rectangle {
+        let right_of_edge = Rectangle {
             x: sweep_edge,
             width: (viewport.x + viewport.width - sweep_edge).max(0.0),
             ..*viewport
+        };
+        let (sung_clip, unsung_clip) = if reads_right_to_left(&state.paragraph) {
+            (right_of_edge, left_of_edge)
+        } else {
+            (left_of_edge, right_of_edge)
         };
         let fill_clipped = |renderer: &mut iced::Renderer, color: Color, clip: Rectangle| {
             renderer.fill_paragraph(
@@ -236,5 +257,28 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for KaraokeLyricLine<
         if self.sweeping(state) {
             shell.request_redraw();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::Font;
+
+    use super::{reads_right_to_left, shaped_line};
+
+    const ARABIC_LINE: &str = "لا تستطيع رؤية";
+
+    #[test]
+    fn arabic_reads_right_to_left_and_latin_does_not() {
+        assert!(reads_right_to_left(&shaped_line(
+            ARABIC_LINE,
+            14.0,
+            Font::DEFAULT
+        )));
+        assert!(!reads_right_to_left(&shaped_line(
+            "Low Tide",
+            14.0,
+            Font::DEFAULT
+        )));
     }
 }
