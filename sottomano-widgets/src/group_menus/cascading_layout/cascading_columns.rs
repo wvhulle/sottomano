@@ -77,7 +77,7 @@ pub(crate) fn cascading_columns<
     if entries.is_empty() {
         return None;
     }
-    let open_identity = layout.group_menus.open_group(layout.menu.topic);
+    let open_identity = layout.group_menus.open_groups(layout.menu.topic).first();
     let open_group = open_identity
         .and_then(|identity| {
             entries

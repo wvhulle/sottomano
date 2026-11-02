@@ -8,8 +8,9 @@ use iced::Task;
 
 use crate::{
     group_menus::{
-        group_menu_inspection::GroupMenuInspection, group_source_demand::GroupSourceDemand,
-        sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
+        group_menu_inspection::GroupMenuInspection, group_menu_presentation::GroupMenuPresentation,
+        group_source_demand::GroupSourceDemand, sqlite_group_menu_pins,
+        sqlite_group_menu_pins::StoredGroupMenuPin, sqlite_group_menu_presentation,
     },
     hover_cards::HoverTarget,
     widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
@@ -129,10 +130,20 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
     },
+    ToggleMenuGroup {
+        menu: GroupMenuTopic,
+        group_identity: WidgetGroupIdentity,
+    },
     InspectRow {
         menu: GroupMenuTopic,
         target: HoverTarget,
     },
+    ToggleRowCard {
+        menu: GroupMenuTopic,
+        target: HoverTarget,
+    },
+    PresentationLoaded(GroupMenuPresentation),
+    SwitchPresentation(GroupMenuPresentation),
     Closed,
 }
 
@@ -156,6 +167,7 @@ struct RecentlyOpenMenu {
 
 #[derive(Default)]
 pub struct GroupMenuState {
+    presentation: GroupMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
     recently_open_menus: Vec<RecentlyOpenMenu>,
@@ -164,7 +176,13 @@ pub struct GroupMenuState {
 
 impl GroupMenuState {
     pub fn load() -> Task<GroupMenuMessage> {
-        Task::perform(sqlite_group_menu_pins::load(), GroupMenuMessage::PinsLoaded)
+        Task::batch([
+            Task::perform(sqlite_group_menu_pins::load(), GroupMenuMessage::PinsLoaded),
+            Task::perform(
+                sqlite_group_menu_presentation::load(),
+                GroupMenuMessage::PresentationLoaded,
+            ),
+        ])
     }
 
     #[must_use]
@@ -215,13 +233,24 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn open_group(&self, menu: GroupMenuTopic) -> Option<&WidgetGroupIdentity> {
-        self.inspection.open_group(menu)
+    pub const fn presentation(&self) -> GroupMenuPresentation {
+        self.presentation
+    }
+
+    #[must_use]
+    pub fn open_groups(&self, menu: GroupMenuTopic) -> &[WidgetGroupIdentity] {
+        self.inspection.open_groups(menu)
     }
 
     #[must_use]
     pub fn inspected_target(&self, menu: GroupMenuTopic) -> Option<&HoverTarget> {
         self.inspection.inspected_target(menu)
+    }
+
+    fn adopt_presentation(&mut self, presentation: GroupMenuPresentation) {
+        self.presentation = presentation;
+        self.inspection =
+            take(&mut self.inspection).adopting_open_limit(presentation.open_group_limit());
     }
 
     pub fn update(&mut self, message: GroupMenuMessage) -> Task<GroupMenuMessage> {
@@ -253,6 +282,29 @@ impl GroupMenuState {
             } => {
                 self.inspection = take(&mut self.inspection).revealing_group(menu, group_identity);
                 Task::none()
+            }
+            GroupMenuMessage::ToggleMenuGroup {
+                menu,
+                group_identity,
+            } => {
+                self.inspection = take(&mut self.inspection).toggling_group(
+                    menu,
+                    group_identity,
+                    self.presentation.open_group_limit(),
+                );
+                Task::none()
+            }
+            GroupMenuMessage::ToggleRowCard { menu, target } => {
+                self.inspection = take(&mut self.inspection).toggling_row_card(menu, target);
+                Task::none()
+            }
+            GroupMenuMessage::PresentationLoaded(presentation) => {
+                self.adopt_presentation(presentation);
+                Task::none()
+            }
+            GroupMenuMessage::SwitchPresentation(presentation) => {
+                self.adopt_presentation(presentation);
+                Task::future(sqlite_group_menu_presentation::save(presentation)).discard()
             }
             GroupMenuMessage::InspectRow { menu, target } => {
                 self.inspection = take(&mut self.inspection).inspecting_row(menu, target);
@@ -460,11 +512,11 @@ mod tests {
             group_identity: GPU_GROUP,
         });
         assert_eq!(
-            group_menus.open_group(GroupMenuTopic::Hardware),
-            Some(&GPU_GROUP)
+            group_menus.open_groups(GroupMenuTopic::Hardware),
+            [GPU_GROUP]
         );
         let _ = group_menus.update(GroupMenuMessage::Closed);
-        assert_eq!(group_menus.open_group(GroupMenuTopic::Hardware), None);
+        assert!(group_menus.open_groups(GroupMenuTopic::Hardware).is_empty());
     }
 
     #[test]
@@ -477,8 +529,8 @@ mod tests {
         });
         let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(compute)));
         assert_eq!(
-            group_menus.open_group(GroupMenuTopic::Hardware),
-            Some(&GPU_GROUP)
+            group_menus.open_groups(GroupMenuTopic::Hardware),
+            [GPU_GROUP]
         );
     }
 }

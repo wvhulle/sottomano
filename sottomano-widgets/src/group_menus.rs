@@ -1,7 +1,9 @@
 pub mod cascading_layout;
 pub mod group_menu_inspection;
+pub mod group_menu_presentation;
 pub mod group_menu_state;
 pub mod group_menu_view;
 pub mod group_source_demand;
 pub mod menu_rows;
 pub mod sqlite_group_menu_pins;
+pub mod sqlite_group_menu_presentation;
