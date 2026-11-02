@@ -293,12 +293,6 @@ pub enum HoverCardMessage {
     SwitchIntentElapsed,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct InspectedRow {
-    pub target: HoverTarget,
-    pub announcement: HoverAnnouncement,
-}
-
 #[derive(Debug, Clone)]
 pub enum PopupMessage {
     HoverCard(HoverCardMessage),

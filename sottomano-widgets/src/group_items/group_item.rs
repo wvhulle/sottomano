@@ -19,7 +19,7 @@ use crate::{
         toggle_control::IconToggle,
     },
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
-    hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable},
+    hover_cards::{HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable},
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
     widgets::{
         announced_level::LevelReading,
@@ -349,7 +349,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    fn announcement(&self) -> HoverAnnouncement {
+    pub(crate) fn announcement(&self) -> HoverAnnouncement {
         let handle_hints = self.handle_announcement.press_hints;
         HoverAnnouncement {
             press_hints: PressHints {
@@ -458,11 +458,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self.placed_view(config, 1.0, clock, ItemPlacement::Table)
     }
 
-    pub(crate) fn inspected_row(&self) -> InspectedRow {
-        InspectedRow {
-            target: self.kind.hover_target().clone(),
-            announcement: self.announcement(),
-        }
+    pub(crate) fn inspected_target(&self) -> &HoverTarget {
+        self.kind.hover_target()
     }
 
     pub(crate) fn gestures(&self) -> GroupItemGestures<M>

@@ -355,11 +355,9 @@ impl DesktopShell {
     pub(super) fn hovered_reading_target(&self) -> Option<&HoverTarget> {
         let open_target = self.hover_card.target();
         let inspected_in_menu = match open_target {
-            Some(HoverTarget::GroupMenu(kind)) => self
-                .widget_groups
-                .group_menus
-                .inspected_row(*kind)
-                .map(|row| &row.target),
+            Some(HoverTarget::GroupMenu(kind)) => {
+                self.widget_groups.group_menus.inspected_target(*kind)
+            }
             _ => None,
         };
         inspected_in_menu.or(open_target)

@@ -121,19 +121,16 @@ fn open_group_satellites<
         group_identity,
         items,
     } = open;
-    let inspected_target = layout
-        .group_menus
-        .inspected_row(layout.menu.topic)
-        .map(|row| &row.target);
+    let inspected_target = layout.group_menus.inspected_target(layout.menu.topic);
     let card_position = inspected_target.and_then(|target| {
         items
             .iter()
-            .position(|item| item.inspected_row.target == *target)
+            .position(|item| item.inspected_target == *target)
     });
     let item_count = items.len();
     let item_corners = layout.cascade_satellite_panels.frame_corners;
     let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
-        inspected_target.is_some_and(|target| item.inspected_row.target == *target)
+        inspected_target.is_some_and(|target| item.inspected_target == *target)
     };
     let item_list =
         item_menu(layout, &group_identity, items, &is_inspected, item_corners).map(Outer::from);
@@ -239,7 +236,7 @@ fn item_row<'a, M: Clone + 'a>(
     item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let marked_target = item.inspected_row.target.clone();
+    let marked_target = item.inspected_target.clone();
     marked_by_hover_target(unmarked_item_row(layout, group, item, look), marked_target)
 }
 
@@ -267,7 +264,7 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
         name: item.name,
         trailing: item_pin.into_iter().collect(),
     };
-    let inspect = layout.menu.inspect_row(item.inspected_row);
+    let inspect = layout.menu.inspect_row(item.inspected_target);
     let left_press = match item.gestures.left {
         GroupItemGesture::Performs { message, .. } => GroupEvent::Group(message),
         GroupItemGesture::Inert => inspect.clone(),

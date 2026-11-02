@@ -206,8 +206,8 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::GroupMenuState(message) => {
-                if let GroupMenuMessage::InspectRow { row, .. } = &message {
-                    self.schedule_hover_replies(&row.target);
+                if let GroupMenuMessage::InspectRow { target, .. } = &message {
+                    self.schedule_hover_replies(target);
                 }
                 let _menu_task = self.group_menus.update(message);
                 Task::none()
@@ -270,13 +270,18 @@ impl ShowcaseState {
     }
 
     fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseMessage> {
+        let group_menu = self.group_menu(kind);
         let inspected_hover_card = self
             .group_menus
-            .inspected_row(kind)
-            .and_then(|row| {
+            .inspected_target(kind)
+            .and_then(|target| {
                 self.group
-                    .hover_card_for(&row.target, &self.config, self.clock)
-                    .map(|hover_card| hover_card.with_announcement(row.announcement.clone()))
+                    .hover_card_for(target, &self.config, self.clock)
+                    .map(|hover_card| {
+                        hover_card.with_announcement(
+                            group_menu.announcement_of(target).unwrap_or_default(),
+                        )
+                    })
             })
             .unwrap_or_else(HoverCard::empty);
         let anchor = self
@@ -285,7 +290,7 @@ impl ShowcaseState {
             .map_or_else(Rectangle::default, |placement| placement.anchor);
         let orientation =
             CascadeOrientation::toward_room(anchor, self.group.position(), CANVAS.width);
-        let surfaces = self.group_menu(kind).surfaces(
+        let surfaces = group_menu.surfaces(
             &self.config,
             &self.appearance.overlays,
             &InspectionCard {
