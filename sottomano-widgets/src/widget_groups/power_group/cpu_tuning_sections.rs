@@ -4,8 +4,8 @@ use sottomano_sources::battery_power_profiles::cpu_tuning_platform_profile::CpuT
 use crate::{
     clock::Clock,
     widgets::{
+        hover_card_body::{ReadingSections, Section},
         keyed_record_table::{ColumnHeading, TableRecord},
-        tooltip_body::{ReadingSections, Section},
         value_cells::ValueCell,
     },
 };

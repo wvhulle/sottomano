@@ -6,10 +6,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -74,8 +74,8 @@ impl GroupItemReading for ControllerBatteryReading {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Battery", self.charge_description()).level(if self.running_low() {
                 Severity::Warning
             } else {

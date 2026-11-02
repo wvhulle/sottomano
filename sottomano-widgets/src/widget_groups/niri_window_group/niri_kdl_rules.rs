@@ -33,7 +33,7 @@ pub struct NiriStyling {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StyledSurface {
     Panel,
-    Tooltip,
+    HoverCard,
     NotificationToasts,
     Backdrop(Position),
 }
@@ -41,7 +41,7 @@ pub enum StyledSurface {
 impl StyledSurface {
     const ALL: [Self; 5] = [
         Self::Panel,
-        Self::Tooltip,
+        Self::HoverCard,
         Self::NotificationToasts,
         Self::Backdrop(Position::Top),
         Self::Backdrop(Position::Bottom),
@@ -51,7 +51,7 @@ impl StyledSurface {
     pub fn namespace(self) -> &'static str {
         match self {
             Self::Panel => "sottomano-panel",
-            Self::Tooltip => "sottomano-tooltip",
+            Self::HoverCard => "sottomano-tooltip",
             Self::NotificationToasts => "sottomano-notification-toasts",
             Self::Backdrop(Position::Top) => "sottomano-backdrop-top",
             Self::Backdrop(Position::Bottom) => "sottomano-backdrop-bottom",
@@ -67,7 +67,7 @@ impl StyledSurface {
                 background_effects: Vec::new(),
                 shadows: vec![BackdropShadow::from(position)],
             },
-            Self::Panel | Self::Tooltip | Self::NotificationToasts => LayerRule {
+            Self::Panel | Self::HoverCard | Self::NotificationToasts => LayerRule {
                 matches,
                 background_effects: vec![BackgroundEffect {
                     blur: true,

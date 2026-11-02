@@ -5,9 +5,9 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
     },
 };
 
@@ -56,7 +56,7 @@ impl GroupItemReading for NamedReading<'_> {
         self.reading.visible_on_panel()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        self.reading.tooltip(clock)
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        self.reading.hover_card(clock)
     }
 }

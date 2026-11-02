@@ -11,7 +11,7 @@ workspace:
 - `sottomano-config/` holds the TOML config types and their loading.
 - `sottomano-sources/` holds the data sources and sinks the shell reads and
   writes.
-- `sottomano-widgets/` holds the widgets, widget groups and hover tooltips.
+- `sottomano-widgets/` holds the widgets, widget groups and hover cards.
   Each widget group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`)
   and defines the `Message` they produce.
@@ -59,7 +59,7 @@ flowchart TB
     shell_update["DesktopShell::update"]
     shell_view["DesktopShell::view"]
     sqlite_app_launches["desktop_shell::sqlite_app_launches"]
-    layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, tooltips"]
+    layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, hover cards"]
     run_shell -->|startup load tasks| shell_update
     shell_message --> message_subscriptions
     message_subscriptions --> shell_update

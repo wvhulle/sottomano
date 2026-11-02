@@ -10,12 +10,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         input_report_sections::KernelErrorListing,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -108,8 +108,8 @@ impl GroupItemReading for AdapterRadioReading<'_> {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(
             [
                 Some(self.overview_section()),
                 KernelErrorListing {
@@ -154,8 +154,8 @@ impl GroupItemReading for AdapterPowerSwitch<'_> {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary([
             LabeledValue::new("Adapter", self.adapter.controller_name.as_str()),
             LabeledValue::new("Power", power_description(&self.adapter.power)),
         ])])

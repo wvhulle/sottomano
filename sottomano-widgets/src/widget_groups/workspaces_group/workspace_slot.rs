@@ -8,7 +8,7 @@ use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_cards::{HoverTarget, PressHints, hoverable},
     panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
     widgets::{
         activity_line::edge_activity_line,
@@ -264,7 +264,7 @@ impl<'s> WorkspaceSlot<'s> {
                 }),
                 ..PressHints::default()
             },
-            WorkspacesMessage::Tooltip,
+            WorkspacesMessage::HoverCard,
         )
     }
 

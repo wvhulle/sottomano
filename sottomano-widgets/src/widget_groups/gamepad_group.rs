@@ -48,18 +48,18 @@ use self::{
 use crate::{
     background_work::{niri_action, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody, Section,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         input_report_sections::MeasuredReportTiming,
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{
-            Section, TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -570,13 +570,13 @@ impl GamepadGroup {
         }
     }
 
-    fn tooltip_body(
+    fn hover_card_body(
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
-    ) -> Option<TooltipBody> {
+    ) -> Option<HoverCardBody> {
         Some(match target {
             GamepadTarget::Controller { slot } => self
                 .face_reading(
@@ -585,31 +585,31 @@ impl GamepadGroup {
                     bindings,
                     window_claim,
                 )
-                .tooltip(clock),
+                .hover_card(clock),
             GamepadTarget::Battery { slot } => ControllerBatteryReading {
                 power: self.controller(slot)?.power,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             GamepadTarget::Link { slot } => self
                 .link_reading(slot, self.physical_link(slot)?)
-                .tooltip(clock),
+                .hover_card(clock),
             GamepadTarget::UsbCable { slot } => UsbCableReading {
                 role: usb_cable_role(self.physical_link(slot)?.transport)?,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             GamepadTarget::NiriControl { slot } => {
                 self.physical_link(slot)?;
-                self.niri_control_tooltip(slot, bindings, window_claim)
+                self.niri_control_hover_card(slot, bindings, window_claim)
             }
         })
     }
 
-    fn niri_control_tooltip(
+    fn niri_control_hover_card(
         &self,
         slot: usize,
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'_>,
-    ) -> TooltipBody {
+    ) -> HoverCardBody {
         let (note_title, note_body) = match self.control(slot, bindings, window_claim) {
             CompositorControl::DrivingNiri => (
                 "Driving niri",
@@ -639,19 +639,19 @@ impl GamepadGroup {
                 ),
             ),
         };
-        TooltipBody::sections([Section::detailed_note(note_title, note_body)])
+        HoverCardBody::sections([Section::detailed_note(note_title, note_body)])
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: GamepadTarget,
         bindings: &GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'_>,
         clock: Clock,
-    ) -> Option<Tooltip> {
-        self.tooltip_body(target, bindings, window_claim, clock)
-            .map(|body| Tooltip::sourced(body, DeliveryTiming::LivePush))
+    ) -> Option<HoverCard> {
+        self.hover_card_body(target, bindings, window_claim, clock)
+            .map(|body| HoverCard::sourced(body, DeliveryTiming::LivePush))
     }
 
     fn controller_group<'a>(

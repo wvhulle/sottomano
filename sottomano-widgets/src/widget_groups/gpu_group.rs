@@ -21,16 +21,16 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody, ReadingSections, Section,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
+        },
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{FailedSnapshotFetch, HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{
-            ReadingSections, Section, TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
-        },
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -350,7 +350,7 @@ impl GpuGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &GpuTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &GpuTarget, clock: Clock) -> Option<HoverCard> {
         let device = self.devices.get(&target.bus)?;
         let model_sections = self
             .discovery
@@ -359,31 +359,34 @@ impl GpuGroup {
             GpuDeviceAccess::Readable { snapshot, .. } => snapshot,
             GpuDeviceAccess::Unreadable { handle_failure } => {
                 return Some(
-                    Tooltip::sourced(handle_failure.tooltip(clock), DeliveryTiming::SingleRead)
-                        .with_groups(model_sections),
+                    HoverCard::sourced(
+                        handle_failure.hover_card(clock),
+                        DeliveryTiming::SingleRead,
+                    )
+                    .with_groups(model_sections),
                 );
             }
         };
         match target.reading {
-            GpuReading::Load => snapshot.tooltip_with_groups(model_sections, clock),
+            GpuReading::Load => snapshot.hover_card_with_groups(model_sections, clock),
             GpuReading::Clock => Some(
                 snapshot
-                    .tooltip_with(device.clock_label()?.tooltip(clock))?
+                    .hover_card_with(device.clock_label()?.hover_card(clock))?
                     .with_groups(
                         self.hovered_sections(&target.bus, |group| group.clocks.sections(clock)),
                     ),
             ),
             GpuReading::Memory => Some(
                 snapshot
-                    .tooltip_with(TooltipBody::sections(device.memory()?.sections(clock)))?
+                    .hover_card_with(HoverCardBody::sections(device.memory()?.sections(clock)))?
                     .with_groups(
                         self.hovered_sections(&target.bus, |group| group.processes.sections(clock)),
                     ),
             ),
             GpuReading::Temperature => {
-                snapshot.tooltip_with(device.temperature_label()?.tooltip(clock))
+                snapshot.hover_card_with(device.temperature_label()?.hover_card(clock))
             }
-            GpuReading::Power => snapshot.tooltip_with(device.power_label()?.tooltip(clock)),
+            GpuReading::Power => snapshot.hover_card_with(device.power_label()?.hover_card(clock)),
         }
     }
 }

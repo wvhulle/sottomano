@@ -11,12 +11,12 @@ use crate::{
     widgets::{
         amount_text::{percent_text, spend_text},
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -63,7 +63,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
             })
     }
 
-    fn tooltip(&self) -> TooltipBody {
+    fn hover_card(&self) -> HoverCardBody {
         let ranked = self.ranked_models();
         let listed = &ranked[..ranked.len().min(LISTED_MODELS)];
         let other = TableRecord::new(
@@ -78,7 +78,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                 ValueCell::from(Quantity::spend(unlisted))
             }),
         );
-        TooltipBody::sections([Section::column_table(
+        HoverCardBody::sections([Section::column_table(
             self.narrowest_to_widest
                 .map(|span| ColumnHeading::titled(span.heading)),
             listed
@@ -101,7 +101,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
         .titled(("Spend by Model", self.source))])
     }
 
-    fn top_model_share(&self) -> TooltipBody {
+    fn top_model_share(&self) -> HoverCardBody {
         let top = self
             .top()
             .map(|spend| spend.model.clone())
@@ -118,7 +118,7 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
                 ),
             ))
         });
-        TooltipBody::sections([Section::dictionary(span_shares).titled((top, self.source))])
+        HoverCardBody::sections([Section::dictionary(span_shares).titled((top, self.source))])
     }
 }
 
@@ -141,8 +141,8 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
         ReadingDisplayState::Idle
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        self.0.tooltip()
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        self.0.hover_card()
     }
 }
 
@@ -165,7 +165,7 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
         ReadingDisplayState::Idle
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         self.0.top_model_share()
     }
 }

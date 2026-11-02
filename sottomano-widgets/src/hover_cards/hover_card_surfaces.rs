@@ -12,11 +12,11 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{
-        HoverAnnouncement, HoverTarget, PopupMessage, TooltipMessage,
-        tooltip_content::TooltipContent,
-        tooltip_transition::{
-            Departed, DepartedContent, Occupant, Placement, ShownTarget, TooltipTransition,
+    hover_cards::{
+        HoverAnnouncement, HoverCardMessage, HoverTarget, PopupMessage,
+        hover_card_content::HoverCardContent,
+        hover_card_transition::{
+            Departed, DepartedContent, HoverCardTransition, Occupant, Placement, ShownTarget,
         },
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
@@ -24,8 +24,8 @@ use crate::{
     widgets::{
         anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
         cascade_row::{CascadeOrientation, cascade_row},
+        hover_card_body::hover_card_source_delivery::HoverCard,
         shell_layer_appearance::LayerAppearance,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
     },
 };
@@ -42,39 +42,39 @@ pub struct PendingSwitch {
 }
 
 #[derive(Default)]
-pub struct TooltipHost {
+pub struct HoverCardHost {
     surfaces: HashMap<String, Id>,
-    transition: TooltipTransition,
+    transition: HoverCardTransition,
     pending_switch: Option<PendingSwitch>,
     hide_due: Option<Instant>,
-    pointer_over_tooltip: bool,
+    pointer_over_hover_card: bool,
 }
 
-impl TooltipHost {
-    pub fn update(&mut self, message: TooltipMessage, now: Instant) -> Option<Instant> {
+impl HoverCardHost {
+    pub fn update(&mut self, message: HoverCardMessage, now: Instant) -> Option<Instant> {
         match message {
-            TooltipMessage::Exit { target } => self.exit(&target, now),
-            TooltipMessage::EnterTooltip => {
-                self.pointer_over_tooltip = true;
+            HoverCardMessage::Exit { target } => self.exit(&target, now),
+            HoverCardMessage::EnterHoverCard => {
+                self.pointer_over_hover_card = true;
                 self.pending_switch = None;
                 self.hide_due = None;
                 self.transition.cancel_leave();
                 None
             }
-            TooltipMessage::ExitTooltip => {
-                self.pointer_over_tooltip = false;
+            HoverCardMessage::ExitHoverCard => {
+                self.pointer_over_hover_card = false;
                 Some(self.leave_after_grace(now))
             }
-            TooltipMessage::AnnouncementChanged {
+            HoverCardMessage::AnnouncementChanged {
                 target,
                 announcement,
             } => {
                 self.transition.revise_announcement(&target, announcement);
                 None
             }
-            TooltipMessage::Enter { .. }
-            | TooltipMessage::EnterAnchor { .. }
-            | TooltipMessage::SwitchIntentElapsed => None,
+            HoverCardMessage::Enter { .. }
+            | HoverCardMessage::EnterAnchor { .. }
+            | HoverCardMessage::SwitchIntentElapsed => None,
         }
     }
 
@@ -89,14 +89,14 @@ impl TooltipHost {
         target: &HoverTarget,
         anchor: Rectangle,
         announcement: HoverAnnouncement,
-    ) -> Option<Task<TooltipMessage>> {
+    ) -> Option<Task<HoverCardMessage>> {
         let current = self.transition.current()?;
         if !parent.position.is_vertical() || &current.target == target {
             return None;
         }
         self.transition.cancel_leave();
         let (intent_elapsed, handle) = Task::future(sleep(SWITCH_INTENT))
-            .map(|()| TooltipMessage::SwitchIntentElapsed)
+            .map(|()| HoverCardMessage::SwitchIntentElapsed)
             .abortable();
         self.pending_switch = Some(PendingSwitch {
             parent: parent.clone(),
@@ -121,7 +121,7 @@ impl TooltipHost {
         now: Instant,
     ) {
         self.pending_switch = None;
-        self.pointer_over_tooltip = false;
+        self.pointer_over_hover_card = false;
         self.transition.cancel_leave();
         if self
             .transition
@@ -152,7 +152,7 @@ impl TooltipHost {
         {
             return Some(self.leave_after_grace(now));
         }
-        if self.pointer_over_tooltip
+        if self.pointer_over_hover_card
             || !self
                 .transition
                 .current()
@@ -172,13 +172,13 @@ impl TooltipHost {
 
     pub fn leave_elapsed(&mut self, now: Instant, departing: Option<Departed>) {
         if self.transition.is_leaving() && self.hide_due.take_if(|due| *due <= now).is_some() {
-            self.pointer_over_tooltip = false;
+            self.pointer_over_hover_card = false;
             self.transition.hide(departing, now);
         }
     }
 
     pub fn dismiss(&mut self, departing: Option<Departed>, now: Instant) {
-        self.pointer_over_tooltip = false;
+        self.pointer_over_hover_card = false;
         if self.transition.current().is_some() {
             self.transition.hide(departing, now);
         }
@@ -192,7 +192,7 @@ impl TooltipHost {
         self.surfaces.insert(output.to_string(), id);
         Task::batch([
             Task::done(SurfaceRequest::Open {
-                settings: tooltip_settings(output),
+                settings: hover_card_settings(output),
                 surface: id,
             }),
             Task::done(input_regions(id, Vec::new())),
@@ -284,7 +284,7 @@ impl TooltipHost {
     pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
         let current = self.transition.current()?;
         let departed_content = match content.with_announcement(current.announcement.clone()) {
-            HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
+            HoverContent::Described(hover_card) => DepartedContent::Described(hover_card),
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => {
                 DepartedContent::Interactive
             }
@@ -300,23 +300,23 @@ impl TooltipHost {
         &self,
         surface: Id,
         config: &'a Config,
-        surface_style: TooltipSurfaceStyle,
+        surface_style: HoverCardSurfaceStyle,
         assets: WindowAssets<'a>,
         content_of: impl Fn(&HoverTarget) -> HoverContent<'a, Message>,
         clock: Clock,
     ) -> Option<Element<'a, Message>> {
-        let describe = move |tooltip: &Tooltip| -> Element<'a, Message> {
-            Element::from(TooltipContent::new(tooltip, config, assets, clock).view())
+        let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
+            Element::from(HoverCardContent::new(hover_card, config, assets, clock).view())
                 .map(Message::from)
         };
         let render = |content: HoverContent<'a, Message>| match content {
-            HoverContent::Described(tooltip) => Rendered::framed(describe(&tooltip)),
+            HoverContent::Described(hover_card) => Rendered::framed(describe(&hover_card)),
             HoverContent::Interactive { described, panel } => {
                 if described.is_empty() {
                     Rendered::framed(panel)
                 } else {
                     Rendered::framed(
-                        TooltipContent::new(&described, config, assets, clock)
+                        HoverCardContent::new(&described, config, assets, clock)
                             .view_enclosing(panel),
                     )
                 }
@@ -354,7 +354,9 @@ impl TooltipHost {
         let mut renderings = Vec::new();
         if let Some(previous) = self.transition.previous() {
             let departed = match &previous.content {
-                DepartedContent::Described(tooltip) => HoverContent::Described(tooltip.clone()),
+                DepartedContent::Described(hover_card) => {
+                    HoverContent::Described(hover_card.clone())
+                }
                 DepartedContent::Interactive => content_of(&previous.target),
             };
             let Rendered { element, framing } = render(departed);
@@ -386,9 +388,9 @@ impl TooltipHost {
 }
 
 pub enum HoverContent<'a, Message> {
-    Described(Tooltip),
+    Described(HoverCard),
     Interactive {
-        described: Tooltip,
+        described: HoverCard,
         panel: Element<'a, Message>,
     },
     GroupMenu {
@@ -416,8 +418,8 @@ impl<Message> HoverContent<'_, Message> {
     #[must_use]
     pub fn with_announcement(self, announcement: HoverAnnouncement) -> Self {
         match self {
-            HoverContent::Described(tooltip) => {
-                HoverContent::Described(tooltip.with_announcement(announcement))
+            HoverContent::Described(hover_card) => {
+                HoverContent::Described(hover_card.with_announcement(announcement))
             }
             HoverContent::Interactive { described, panel } => HoverContent::Interactive {
                 described: described.with_announcement(announcement),
@@ -430,14 +432,16 @@ impl<Message> HoverContent<'_, Message> {
     #[must_use]
     pub fn shows_anything(&self, announcement: &HoverAnnouncement) -> bool {
         match self {
-            HoverContent::Described(tooltip) => !tooltip.is_empty() || !announcement.is_empty(),
+            HoverContent::Described(hover_card) => {
+                !hover_card.is_empty() || !announcement.is_empty()
+            }
             HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => true,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TooltipSurfaceStyle {
+pub struct HoverCardSurfaceStyle {
     pub overlay_appearance: LayerAppearance,
     pub float_offset_px: f32,
 }
@@ -446,21 +450,21 @@ fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
     mouse_area(content)
-        .on_enter(Message::from(PopupMessage::Tooltip(
-            TooltipMessage::EnterTooltip,
+        .on_enter(Message::from(PopupMessage::HoverCard(
+            HoverCardMessage::EnterHoverCard,
         )))
-        .on_exit(Message::from(PopupMessage::Tooltip(
-            TooltipMessage::ExitTooltip,
+        .on_exit(Message::from(PopupMessage::HoverCard(
+            HoverCardMessage::ExitHoverCard,
         )))
         .into()
 }
 
-fn tooltip_settings(output: &str) -> NewLayerShellSettings {
+fn hover_card_settings(output: &str) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
         layer: Layer::Overlay,
-        ..base_settings(Some(output), StyledSurface::Tooltip.namespace())
+        ..base_settings(Some(output), StyledSurface::HoverCard.namespace())
     }
 }

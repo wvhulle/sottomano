@@ -5,11 +5,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
-        tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -48,13 +48,13 @@ impl GroupItemReading for NotulistEngine {
         !matches!(self.engine, EngineState::LoadingSpeechModel)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         match &self.engine {
             EngineState::LoadingSpeechModel => {
-                TooltipBody::dictionary([LabeledValue::new("Model", "loading")])
+                HoverCardBody::dictionary([LabeledValue::new("Model", "loading")])
             }
-            EngineState::SpeechModelReady(engine) => TooltipBody::dictionary(model_rows(engine)),
-            EngineState::SpeechModelUnavailable(load_error) => TooltipBody::dictionary(
+            EngineState::SpeechModelReady(engine) => HoverCardBody::dictionary(model_rows(engine)),
+            EngineState::SpeechModelUnavailable(load_error) => HoverCardBody::dictionary(
                 [LabeledValue::new("Problem", "No model")]
                     .into_iter()
                     .chain(model_load_error_rows(load_error)),

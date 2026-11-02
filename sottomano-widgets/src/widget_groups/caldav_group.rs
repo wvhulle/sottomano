@@ -20,14 +20,14 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -134,18 +134,18 @@ impl CaldavGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: CaldavTarget,
         config: &CaldavAccountConfig,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         match target {
             CaldavTarget::UpcomingEvents if self.account(config).is_some() => {
-                self.upcoming_events.tooltip_while_pending(clock)
+                self.upcoming_events.hover_card_while_pending(clock)
             }
-            CaldavTarget::UpcomingEvents => self.upcoming_events.tooltip(clock),
-            CaldavTarget::OpenTasks => self.open_tasks.tooltip(clock),
+            CaldavTarget::UpcomingEvents => self.upcoming_events.hover_card(clock),
+            CaldavTarget::OpenTasks => self.open_tasks.hover_card(clock),
         }
     }
 

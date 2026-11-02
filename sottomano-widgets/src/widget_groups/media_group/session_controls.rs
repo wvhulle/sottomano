@@ -3,7 +3,7 @@ use sottomano_config::Config;
 use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, Status};
 
 use crate::{
-    hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, PressHints, hoverable},
     widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
         confirm_button::ConfirmButton,
@@ -18,7 +18,7 @@ pub struct SessionMessages<Message> {
     pub command: fn(Command) -> Message,
     pub quit: Message,
     pub cancel_quit: Message,
-    pub tooltip: fn(TooltipMessage) -> Message,
+    pub hover_card: fn(HoverCardMessage) -> Message,
 }
 
 pub struct SessionControls<'c, Message> {
@@ -29,7 +29,7 @@ pub struct SessionControls<'c, Message> {
     on_command: fn(Command) -> Message,
     on_quit: Message,
     on_cancel_quit: Message,
-    on_tooltip: fn(TooltipMessage) -> Message,
+    on_hover_card: fn(HoverCardMessage) -> Message,
 }
 
 impl<'c, Message: Clone> SessionControls<'c, Message> {
@@ -48,7 +48,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
             on_command: messages.command,
             on_quit: messages.quit,
             on_cancel_quit: messages.cancel_quit,
-            on_tooltip: messages.tooltip,
+            on_hover_card: messages.hover_card,
         }
     }
 
@@ -74,7 +74,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     left: Some("stop playback"),
                     ..PressHints::default()
                 },
-                self.on_tooltip,
+                self.on_hover_card,
             )
         })
     }
@@ -102,7 +102,7 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
                     }),
                     ..PressHints::default()
                 },
-                self.on_tooltip,
+                self.on_hover_card,
             )
         })
     }

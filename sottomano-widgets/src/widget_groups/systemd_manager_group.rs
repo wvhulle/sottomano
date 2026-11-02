@@ -25,17 +25,17 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{copy_to_clipboard, snapshot_subscription},
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -212,20 +212,20 @@ impl SystemdManagerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &SystemdTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &SystemdTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            SystemdTarget::BootPhases => self.boot.tooltip(clock),
-            SystemdTarget::StartupUnits => self.boot.tooltip_with(
+            SystemdTarget::BootPhases => self.boot.hover_card(clock),
+            SystemdTarget::StartupUnits => self.boot.hover_card_with(
                 (StartupUnits {
                     timeline: self.boot.get()?,
                 })
-                .tooltip(clock),
+                .hover_card(clock),
             ),
-            SystemdTarget::FailedSystemUnits => self.failed_system.tooltip(clock),
-            SystemdTarget::FailedUserUnits => self.failed_user.tooltip(clock),
-            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.tooltip(clock),
-            SystemdTarget::SlowUserJobs => self.slow_user_jobs.tooltip(clock),
-            SystemdTarget::LastShutdown => self.last_shutdown.tooltip(clock),
+            SystemdTarget::FailedSystemUnits => self.failed_system.hover_card(clock),
+            SystemdTarget::FailedUserUnits => self.failed_user.hover_card(clock),
+            SystemdTarget::SlowSystemJobs => self.slow_system_jobs.hover_card(clock),
+            SystemdTarget::SlowUserJobs => self.slow_user_jobs.hover_card(clock),
+            SystemdTarget::LastShutdown => self.last_shutdown.hover_card(clock),
             SystemdTarget::FailedSystemUnit(_)
             | SystemdTarget::FailedUserUnit(_)
             | SystemdTarget::SlowSystemJob(_)
@@ -334,13 +334,13 @@ impl GroupItemReading for SystemdManagerGroup {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let slow_jobs_count =
             |jobs: &SlowJobs| LabeledValue::new(jobs.name(), Quantity::count(jobs.jobs.len()));
         let failed_units_count = |failed: &FailedUnits| {
             LabeledValue::new(failed.name(), Quantity::count(failed.units.len()))
         };
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             [
                 self.slow_system_jobs.visible_reading().map(slow_jobs_count),
                 self.slow_user_jobs.visible_reading().map(slow_jobs_count),

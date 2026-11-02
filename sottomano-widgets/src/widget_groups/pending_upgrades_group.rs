@@ -13,17 +13,17 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -88,10 +88,10 @@ impl PendingUpgradesGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: PendingUpgradesTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            PendingUpgradesTarget::Firmware => self.firmware.tooltip(clock),
-            PendingUpgradesTarget::Summary => self.firmware.tooltip_with(self.tooltip(clock)),
+            PendingUpgradesTarget::Firmware => self.firmware.hover_card(clock),
+            PendingUpgradesTarget::Summary => self.firmware.hover_card_with(self.hover_card(clock)),
         }
     }
 
@@ -154,8 +154,8 @@ impl GroupItemReading for PendingUpgradesGroup {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(self.firmware.visible_reading().map(|upgrades| {
             LabeledValue::new(
                 firmware_upgrade_list::LABEL,
                 Quantity::count(upgrades.len()),

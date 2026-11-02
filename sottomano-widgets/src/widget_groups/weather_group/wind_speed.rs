@@ -4,9 +4,10 @@ use sottomano_sources::weather::open_meteo_wind::Wind;
 use crate::{
     clock::Clock,
     widgets::{
-        group_item_reading::GroupItemReading, icon_glyph::IconGlyph,
-        localized_quantities::Quantity, reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody, value_cells::LabeledValue, weather_icons::WeatherIcon,
+        group_item_reading::GroupItemReading, hover_card_body::HoverCardBody,
+        icon_glyph::IconGlyph, localized_quantities::Quantity,
+        reading_display_state::ReadingDisplayState, value_cells::LabeledValue,
+        weather_icons::WeatherIcon,
     },
 };
 
@@ -37,8 +38,8 @@ impl GroupItemReading for Wind {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Speed", Quantity::wind_speed(self.speed)),
             LabeledValue::new("Beaufort", Quantity::count(self.beaufort())),
             LabeledValue::new("Gusts", Quantity::wind_speed(self.gusts)),

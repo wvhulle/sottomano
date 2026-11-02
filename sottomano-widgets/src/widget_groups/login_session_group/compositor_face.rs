@@ -8,10 +8,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -42,8 +42,8 @@ impl GroupItemReading for CompositorFace<'_> {
         self.identity.desktop.clone()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary([
             LabeledValue::new("Protocol", self.identity.session_type.clone()),
             LabeledValue::new(
                 "Wiki",

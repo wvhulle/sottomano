@@ -11,7 +11,7 @@ use sottomano_sources::{
 };
 
 use crate::{
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
         configured_theme::text_color,
@@ -19,14 +19,14 @@ use crate::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         widget_group::{WidgetGroup, WidgetGroupContent},
     },
 };
@@ -148,10 +148,10 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: SessionTarget) -> Tooltip {
+    pub fn hover_card_for(&self, target: SessionTarget) -> HoverCard {
         match target {
             SessionTarget::Menu => {
-                Tooltip::sourced(TooltipBody::sections([]), DeliveryTiming::LivePush)
+                HoverCard::sourced(HoverCardBody::sections([]), DeliveryTiming::LivePush)
             }
         }
     }

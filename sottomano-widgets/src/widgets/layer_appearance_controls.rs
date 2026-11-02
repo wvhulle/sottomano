@@ -6,15 +6,15 @@ use sottomano_config::Config;
 use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::tooltip_source_delivery::Tooltip,
     },
 };
 
@@ -197,21 +197,27 @@ impl LayerAppearanceControls {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: AppearanceTarget, clock: Clock) -> Tooltip {
+    pub fn hover_card_for(&self, target: AppearanceTarget, clock: Clock) -> HoverCard {
         match target {
-            AppearanceTarget::Opacity => self.opacity.readout_tooltip("Opacity"),
-            AppearanceTarget::CornerRadius => self.corner_radius.readout_tooltip("Corner radius"),
-            AppearanceTarget::Blur => blur_toggle(self.blurred).switch_tooltip(clock),
-            AppearanceTarget::DropShadow => shadow_toggle(self.shadow_cast).switch_tooltip(clock),
+            AppearanceTarget::Opacity => self.opacity.readout_hover_card("Opacity"),
+            AppearanceTarget::CornerRadius => {
+                self.corner_radius.readout_hover_card("Corner radius")
+            }
+            AppearanceTarget::Blur => blur_toggle(self.blurred).switch_hover_card(clock),
+            AppearanceTarget::DropShadow => {
+                shadow_toggle(self.shadow_cast).switch_hover_card(clock)
+            }
             AppearanceTarget::ShadowSoftness => {
-                self.shadow_softness.readout_tooltip("Shadow softness")
+                self.shadow_softness.readout_hover_card("Shadow softness")
             }
             AppearanceTarget::ShadowOpacity => {
-                self.shadow_opacity.readout_tooltip("Shadow opacity")
+                self.shadow_opacity.readout_hover_card("Shadow opacity")
             }
-            AppearanceTarget::Outline => outline_toggle(self.outline_drawn).switch_tooltip(clock),
+            AppearanceTarget::Outline => {
+                outline_toggle(self.outline_drawn).switch_hover_card(clock)
+            }
             AppearanceTarget::OutlineOpacity => {
-                self.outline_opacity.readout_tooltip("Outline opacity")
+                self.outline_opacity.readout_hover_card("Outline opacity")
             }
         }
     }
@@ -376,7 +382,7 @@ impl LayerAppearanceControls {
 mod tests {
     use super::{AppearanceMessage, LayerAppearanceControls};
     use crate::{
-        hover_tooltips::HoverTarget,
+        hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
         widgets::{
             shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},

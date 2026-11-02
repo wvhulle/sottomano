@@ -10,11 +10,11 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -66,7 +66,7 @@ impl GroupItemReading for Memory {
         Some(percent_fill(self.percent()))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let swap_entries = match self.swap {
             Swap::NotConfigured => vec![LabeledValue::new("Swap", "none")],
             Swap::Configured { used, total } => vec![
@@ -74,7 +74,7 @@ impl GroupItemReading for Memory {
                 LabeledValue::new("Swap total", Quantity::size(total)),
             ],
         };
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             [
                 LabeledValue::new("Memory", Quantity::share(percent_fill(self.percent()))),
                 LabeledValue::new("Used", Quantity::size(self.used)),

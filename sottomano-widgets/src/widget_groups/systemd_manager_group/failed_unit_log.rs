@@ -26,6 +26,7 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
@@ -34,7 +35,6 @@ use crate::{
         },
         phosphor::Weight,
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
@@ -209,10 +209,10 @@ impl GroupItemReading for FailedUnits {
         UNIT_FAILURE_PRIORITY.severity().into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let mut units = self.units.clone();
         units.sort_by_key(|unit| Reverse(unit.at));
-        TooltipBody::sections([Section::column_table(
+        HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Reason").align_x(Horizontal::Left),
                 ColumnHeading::titled("Failed"),
@@ -250,7 +250,7 @@ mod tests {
     use sottomano_sources::systemd_units_journal::SystemdUnitScope;
 
     use super::*;
-    use crate::widgets::tooltip_body::{Section, SectionBody};
+    use crate::widgets::hover_card_body::{Section, SectionBody};
 
     fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
         FailedUnitInfo {
@@ -284,7 +284,7 @@ mod tests {
             ],
             scope: SystemdUnitScope::SystemWide,
         };
-        let body = units.tooltip(Clock::real());
+        let body = units.hover_card(Clock::real());
         let sections = body.listed_sections();
         assert_eq!(
             section_keys(&sections[0]),

@@ -4,7 +4,7 @@ use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
+    hover_cards::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
     widget_groups::group_menus::{GroupMenuPin, GroupMenuState},
     widgets::{
         cascade_row::CascadeDirection,

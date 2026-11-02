@@ -6,10 +6,10 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -40,7 +40,7 @@ impl GroupItemReading for DiskSpaceOccupancy {
         Some(percent_fill(self.used_pct()))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let summary = Section::dictionary([
             LabeledValue::new("Disk", self.disk.as_str()),
             LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
@@ -54,7 +54,7 @@ impl GroupItemReading for DiskSpaceOccupancy {
             )
         }))
         .titled("Used by filesystem");
-        TooltipBody::sections([summary, filesystem_shares])
+        HoverCardBody::sections([summary, filesystem_shares])
     }
 }
 
@@ -78,7 +78,7 @@ impl GroupItemReading for MarkedDiskSpace<'_> {
         self.occupancy.gauge()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        self.occupancy.tooltip(clock)
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        self.occupancy.hover_card(clock)
     }
 }

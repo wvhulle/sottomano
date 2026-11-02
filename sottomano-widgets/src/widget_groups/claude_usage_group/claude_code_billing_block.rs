@@ -6,12 +6,12 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_cost,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -43,15 +43,15 @@ impl GroupItemReading for ClaudeCcusageBlock {
             })
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let source = Section::dictionary([
             LabeledValue::new("Source", "ccusage, local Claude Code logs"),
             LabeledValue::new("Cost Basis", "API list prices"),
         ]);
         let Some(block) = &self.active else {
-            return TooltipBody::sections([source]);
+            return HoverCardBody::sections([source]);
         };
-        TooltipBody::sections([
+        HoverCardBody::sections([
             source,
             Section::dictionary(
                 [

@@ -12,11 +12,11 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -148,7 +148,7 @@ impl GroupItemReading for FilesystemUsage {
         Some(percent_fill(self.used_pct()))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let mount_points = self
             .mount
             .mount_points
@@ -171,7 +171,7 @@ impl GroupItemReading for FilesystemUsage {
                 fs_type.clone(),
             )])],
         };
-        TooltipBody::sections([capacity].into_iter().chain(filesystem_sections))
+        HoverCardBody::sections([capacity].into_iter().chain(filesystem_sections))
     }
 }
 

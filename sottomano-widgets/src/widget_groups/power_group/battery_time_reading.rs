@@ -21,12 +21,12 @@ use crate::{
     widgets::{
         gauge::percent_text,
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -191,8 +191,8 @@ impl IdleBattery {
         }
     }
 
-    fn tooltip(self) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(self) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Status", self.explanation()),
             LabeledValue::new("Charge", Quantity::share(self.capacity)),
             LabeledValue::new("Charge limit", Quantity::share(self.charge_limit)),
@@ -248,11 +248,11 @@ impl GroupItemReading for BatteryTime {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         match self {
-            BatteryTime::Idle(idle) => idle.tooltip(),
+            BatteryTime::Idle(idle) => idle.hover_card(),
             BatteryTime::Countdown(countdown) => {
-                TooltipBody::sections([Section::column_table(ESTIMATE_HEADINGS, [*countdown])])
+                HoverCardBody::sections([Section::column_table(ESTIMATE_HEADINGS, [*countdown])])
             }
         }
     }

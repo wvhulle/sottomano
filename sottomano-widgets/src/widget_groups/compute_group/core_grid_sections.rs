@@ -2,9 +2,9 @@ use sottomano_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology
 use uom::si::information::mebibyte;
 
 use crate::widgets::{
-    tooltip_body::{
+    hover_card_body::{
         Section,
-        tooltip_figure_payloads::{ChipletCells, PhysicalCoreCells, ThreadCell},
+        hover_card_figure_payloads::{ChipletCells, PhysicalCoreCells, ThreadCell},
     },
     value_cells::LabeledValue,
 };

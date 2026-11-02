@@ -5,9 +5,9 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -33,8 +33,8 @@ impl GroupItemReading for Photo {
         self.photographer.clone()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([
             Section::dictionary(
                 [
                     Some(LabeledValue::new("File", self.file_name.as_str())),

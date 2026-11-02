@@ -8,11 +8,11 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -92,13 +92,13 @@ impl GroupItemReading for ModemSignalReading<'_> {
         self.modem.signal.map(percent_fill)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let signal_suffix = if self.modem.signal_recent {
             ""
         } else {
             " (cached)"
         };
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::dictionary(
                 [
                     self.modem
@@ -154,14 +154,14 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
         ReadingDisplayState::of_toggle(modem_connected(self.modem))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let failure = match self.modem.state {
             Some(ModemState::Failed {
                 reason: Some(reason),
             }) => Some(LabeledValue::new("Failure Reason", reason)),
             _ => None,
         };
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             self.modem
                 .state
                 .map(|state| LabeledValue::new("Connection State", state.label()))
@@ -180,8 +180,8 @@ impl GroupItemReading for ModemDataReading<'_> {
         Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(
             [
                 self.modem
                     .rx
@@ -224,8 +224,8 @@ impl GroupItemReading for AllMobileRadiosSwitch {
         ReadingDisplayState::of_toggle(self.radio_on)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let radio_state = if self.radio_on { "on" } else { "off" };
-        TooltipBody::dictionary([LabeledValue::new("All mobile radios", radio_state)])
+        HoverCardBody::dictionary([LabeledValue::new("All mobile radios", radio_state)])
     }
 }

@@ -11,11 +11,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -70,12 +70,12 @@ impl GroupItemReading for DiskTransfer {
         ))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let rate_label = match self.direction {
             DiskTransferDirection::Read => "Read",
             DiskTransferDirection::Write => "Write",
         };
-        TooltipBody::dictionary([
+        HoverCardBody::dictionary([
             LabeledValue::new("Disk", self.disk.clone()),
             LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
             LabeledValue::new("Disk busy", Quantity::share(self.disk_busy)),
@@ -96,7 +96,7 @@ impl GroupItemReading for DiskActivity {
         false
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        self.read.tooltip(clock)
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        self.read.hover_card(clock)
     }
 }

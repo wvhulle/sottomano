@@ -18,7 +18,7 @@ use self::modem_signal_reading::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         group_menus::group_source_demand::GroupSourceDemand,
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
@@ -26,8 +26,8 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -171,30 +171,30 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &MobileModemTarget, clock: Clock) -> Option<Tooltip> {
-        let tooltip_body = match target {
+    pub fn hover_card_for(&self, target: &MobileModemTarget, clock: Clock) -> Option<HoverCard> {
+        let hover_card_body = match target {
             MobileModemTarget::Signal { modem_path } => ModemSignalReading {
                 modem: self.modem_at(modem_path)?,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             MobileModemTarget::Connection { modem_path } => ModemConnectionSwitch {
                 modem: self.modem_at(modem_path)?,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             MobileModemTarget::Address { modem_path, family } => {
                 let address = modem_family_address(self.modem_at(modem_path)?, *family)?;
-                TooltipBody::dictionary([LabeledValue::new("Address", address)])
+                HoverCardBody::dictionary([LabeledValue::new("Address", address)])
             }
             MobileModemTarget::Data { modem_path } => ModemDataReading {
                 modem: self.modem_at(modem_path)?,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             MobileModemTarget::AllRadios => AllMobileRadiosSwitch {
                 radio_on: self.any_radio_on(),
             }
-            .tooltip(clock),
+            .hover_card(clock),
         };
-        self.mobile_modems.tooltip_with(tooltip_body)
+        self.mobile_modems.hover_card_with(hover_card_body)
     }
 
     fn modem_group<'a>(

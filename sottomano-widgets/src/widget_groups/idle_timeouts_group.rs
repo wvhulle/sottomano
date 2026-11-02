@@ -15,16 +15,16 @@ use sottomano_sources::login_session_presence::{
 pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     clock::Clock,
-    hover_tooltips::GroupHandle,
+    hover_cards::GroupHandle,
     widgets::{
         group_item::GroupItem,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         idle::{
             ActionTrigger, performed_idle_action_edges,
             timer::{IdleTimer, TimerChange},
         },
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -178,14 +178,14 @@ impl IdleTimeoutsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, kind: IdleAction, clock: Clock) -> Tooltip {
+    pub fn hover_card_for(&self, kind: IdleAction, clock: Clock) -> HoverCard {
         let timer = self.timer(kind);
         if kind == IdleAction::ScreenOff
             && let Some(override_timeout) = self.quiet_screen_off
         {
-            timer.tooltip_overridden_by("Quiet hours", override_timeout, clock)
+            timer.hover_card_overridden_by("Quiet hours", override_timeout, clock)
         } else {
-            timer.tooltip(clock)
+            timer.hover_card(clock)
         }
     }
 

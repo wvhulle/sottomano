@@ -7,7 +7,7 @@ use sottomano_sources::ai_usage_spend::{
 };
 
 use crate::widgets::{
-    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
+    hover_card_body::Section, localized_quantities::Quantity, value_cells::LabeledValue,
 };
 
 const CLOCK_FORMAT: &str = "%H:%M";

@@ -2,7 +2,7 @@ use iced::Task;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         quiet_schedule_group::QuietScheduleTarget,
         sqlite_shell_settings_row::{self, ShellSetting},
@@ -10,15 +10,15 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -103,17 +103,17 @@ impl NotificationGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: NotificationTarget,
         status: NotificationStatus,
         clock: Clock,
-    ) -> Tooltip {
+    ) -> HoverCard {
         match target {
             NotificationTarget::Status => {
-                Tooltip::sourced(status.tooltip(clock), DeliveryTiming::LivePush)
+                HoverCard::sourced(status.hover_card(clock), DeliveryTiming::LivePush)
             }
-            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_tooltip(clock),
+            NotificationTarget::Sound => sound_toggle(self.alert_sound).switch_hover_card(clock),
         }
     }
 
@@ -212,14 +212,14 @@ impl GroupItemReading for NotificationStatus {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         if self.held > 0 {
-            TooltipBody::dictionary([LabeledValue::new(
+            HoverCardBody::dictionary([LabeledValue::new(
                 "Held until do not disturb ends",
                 Quantity::count(self.held),
             )])
         } else {
-            TooltipBody::sections([])
+            HoverCardBody::sections([])
         }
     }
 }
@@ -242,8 +242,8 @@ impl GroupItemReading for DoNotDisturbStatus {
         ReadingDisplayState::of_toggle(self.quiet)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 

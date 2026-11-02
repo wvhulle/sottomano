@@ -6,11 +6,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -64,8 +64,8 @@ impl GroupItemReading for RuntimeConfiguration<'_> {
         ReadingDisplayState::On
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(self.configuration_rows())
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(self.configuration_rows())
     }
 }
 

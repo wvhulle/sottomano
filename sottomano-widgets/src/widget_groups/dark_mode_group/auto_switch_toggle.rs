@@ -9,15 +9,15 @@ use crate::{
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::DarkModeSchedule,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -57,8 +57,8 @@ impl AutoSwitchToggle {
         }
     }
 
-    pub fn schedule_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::sourced(self.tooltip(clock), DeliveryTiming::LivePush)
+    pub fn schedule_hover_card(&self, clock: Clock) -> HoverCard {
+        HoverCard::sourced(self.hover_card(clock), DeliveryTiming::LivePush)
     }
 
     pub fn press_does(&self) -> &'static str {
@@ -145,17 +145,17 @@ impl GroupItemReading for AutoSwitchToggle {
         ReadingDisplayState::of_toggle(self.saved_schedule.auto_switch_armed)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let upcoming = match self.status_at(clock.utc()) {
-            ScheduleStatus::Disarmed => return TooltipBody::sections([]),
+            ScheduleStatus::Disarmed => return HoverCardBody::sections([]),
             ScheduleStatus::AwaitingLocationFix => {
-                return TooltipBody::dictionary([LabeledValue::new(
+                return HoverCardBody::dictionary([LabeledValue::new(
                     "Next",
                     "waiting for a location fix",
                 )]);
             }
             ScheduleStatus::NoSunEvents => {
-                return TooltipBody::dictionary([LabeledValue::new(
+                return HoverCardBody::dictionary([LabeledValue::new(
                     "Next",
                     "no sunrise or sunset soon",
                 )]);
@@ -166,7 +166,7 @@ impl GroupItemReading for AutoSwitchToggle {
             .saved_schedule
             .sun_event_offsets
             .offset_for_mode(upcoming.target_mode);
-        TooltipBody::dictionary([
+        HoverCardBody::dictionary([
             LabeledValue::new(
                 upcoming.target_mode.sun_event_label().to_owned(),
                 ValueCell::Time {

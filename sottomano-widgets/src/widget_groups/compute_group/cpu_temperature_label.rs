@@ -21,12 +21,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section, hover_card_figure_payloads::ThreadCell},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::ThreadCell},
         value_cells::LabeledValue,
     },
 };
@@ -110,7 +110,7 @@ impl GroupItemReading for Temperature {
         ))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let mut chips: Vec<&str> = self.readings.iter().map(|r| r.chip.as_str()).collect();
         chips.dedup();
         let thresholds = self.thresholds();
@@ -153,7 +153,7 @@ impl GroupItemReading for Temperature {
             .flatten(),
         )
         .titled("Thresholds");
-        TooltipBody::sections([summary, threshold_section])
+        HoverCardBody::sections([summary, threshold_section])
     }
 }
 

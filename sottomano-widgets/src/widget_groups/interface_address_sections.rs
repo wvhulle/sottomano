@@ -12,10 +12,10 @@ use crate::{
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -59,8 +59,8 @@ impl GroupItemReading for InterfaceAddressReading {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 
@@ -75,8 +75,8 @@ impl GroupItemReading for InterfaceDnsReading {
         Phosphor::AddressBook(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 

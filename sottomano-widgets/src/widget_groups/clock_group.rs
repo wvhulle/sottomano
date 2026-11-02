@@ -13,11 +13,11 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
+        hover_card_body::hover_card_source_delivery::HoverCard,
         latest_snapshot::LatestSnapshot,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -131,11 +131,11 @@ impl ClockGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &ClockTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &ClockTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            ClockTarget::LocalTime => self.time.tooltip(clock),
-            ClockTarget::LocalDate => self.date.tooltip(clock),
-            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.tooltip(clock),
+            ClockTarget::LocalTime => self.time.hover_card(clock),
+            ClockTarget::LocalDate => self.date.hover_card(clock),
+            ClockTarget::ZoneTime(zone) => self.zone_time(*zone)?.hover_card(clock),
         }
     }
 

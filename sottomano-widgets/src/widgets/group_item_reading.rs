@@ -7,10 +7,10 @@ use crate::{
     clock::Clock,
     widgets::{
         announced_level::AnnouncedLevel,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
     },
 };
 
@@ -80,7 +80,7 @@ pub trait GroupItemReading {
         Vec::new()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody;
+    fn hover_card(&self, clock: Clock) -> HoverCardBody;
 
     fn icon_at(&self, clock: Clock) -> IconGlyph {
         self.icon().with_weight(self.state(clock).weight())
@@ -140,7 +140,7 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).quota_windows(now)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        (**self).tooltip(clock)
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        (**self).hover_card(clock)
     }
 }

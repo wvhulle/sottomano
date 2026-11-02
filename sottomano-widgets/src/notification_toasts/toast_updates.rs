@@ -25,7 +25,7 @@ use super::{
 };
 use crate::{
     background_work::niri_action,
-    hover_tooltips::PopupMessage,
+    hover_cards::PopupMessage,
     layer_surfaces::SurfaceRequest,
     notification_toasts::{NotificationSettings, ToastLayerHost},
     toast_messages::NotificationMessage,

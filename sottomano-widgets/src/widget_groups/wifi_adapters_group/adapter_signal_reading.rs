@@ -7,11 +7,11 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -67,19 +67,19 @@ impl GroupItemReading for AdapterSignalReading<'_> {
             .map(|link| percent_fill(link.signal))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let Some(link) = &self.adapter.link else {
             let radio_state = if self.radio_enabled {
                 "disconnected"
             } else {
                 "radio off"
             };
-            return TooltipBody::dictionary([
+            return HoverCardBody::dictionary([
                 LabeledValue::new("Interface Name", self.adapter.device.as_str()),
                 LabeledValue::new("WiFi", radio_state),
             ]);
         };
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             link.ssid
                 .as_deref()
                 .map(|ssid| LabeledValue::new("Network Name (SSID)", ssid))
@@ -128,8 +128,8 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
         ReadingDisplayState::of_toggle(self.adapter.connected)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Interface Name", self.adapter.device.as_str()),
             LabeledValue::new("Connection", connection_description(self.adapter)),
         ])
@@ -164,9 +164,9 @@ impl GroupItemReading for AllWifiRadiosSwitch {
         ReadingDisplayState::of_toggle(self.radio_enabled)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let radio_state = if self.radio_enabled { "on" } else { "off" };
-        TooltipBody::dictionary([LabeledValue::new("All Wi-Fi radios", radio_state)])
+        HoverCardBody::dictionary([LabeledValue::new("All Wi-Fi radios", radio_state)])
     }
 }
 

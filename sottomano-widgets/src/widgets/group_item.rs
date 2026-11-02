@@ -9,9 +9,7 @@ use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{
-        HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable,
-    },
+    hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable},
     widget_groups::group_menus::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
@@ -269,7 +267,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                     ItemPlacement::Menu => slider.menu_view(config, table_icon_gap(config)),
                 };
                 slider_view.map(move |message| match message {
-                    ControlMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
+                    ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
                     message => GroupEvent::Group(on_control(message)),
                 })
             }),
@@ -588,7 +586,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 element,
                 target.clone(),
                 self.announcement(),
-                GroupEvent::Tooltip,
+                GroupEvent::HoverCard,
             ),
             ItemPlacement::Table | ItemPlacement::Menu => element,
         };
@@ -645,8 +643,8 @@ mod tests {
     use crate::{
         widget_groups::session_power_group::SessionTarget,
         widgets::{
+            hover_card_body::HoverCardBody,
             phosphor::{Phosphor, Weight},
-            tooltip_body::TooltipBody,
         },
     };
 
@@ -661,8 +659,8 @@ mod tests {
             Phosphor::Question(Weight::Regular).into()
         }
 
-        fn tooltip(&self, _clock: Clock) -> TooltipBody {
-            TooltipBody::sections([])
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
         }
     }
 

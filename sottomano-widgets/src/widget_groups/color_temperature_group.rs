@@ -17,13 +17,13 @@ use uom::si::thermodynamic_temperature::kelvin;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
         value_cells::LabeledValue,
         widget_group::{
@@ -206,23 +206,27 @@ impl ColorTemperatureGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ColorTemperatureTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(
+        &self,
+        target: ColorTemperatureTarget,
+        clock: Clock,
+    ) -> Option<HoverCard> {
         match target {
             ColorTemperatureTarget::GammaDim => {
                 self.gamma
-                    .tooltip_with(TooltipBody::dictionary([LabeledValue::new(
+                    .hover_card_with(HoverCardBody::dictionary([LabeledValue::new(
                         "Dim",
                         self.dim.readout_cell(),
                     )]))
             }
             ColorTemperatureTarget::Temperature => {
                 self.gamma
-                    .tooltip_with(TooltipBody::dictionary([LabeledValue::new(
+                    .hover_card_with(HoverCardBody::dictionary([LabeledValue::new(
                         "Temperature",
                         self.warmth.readout_cell(),
                     )]))
             }
-            ColorTemperatureTarget::Automatic => self.auto.tooltip(true, clock),
+            ColorTemperatureTarget::Automatic => self.auto.hover_card(true, clock),
         }
     }
 

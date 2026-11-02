@@ -28,18 +28,18 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::dark_mode_group::auto_switch_toggle::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision,
     },
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         latest_snapshot::CommandOutcome,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::tooltip_source_delivery::Tooltip,
         weather_icons::WeatherIcon,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -316,18 +316,18 @@ impl DarkModeGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: DarkModeTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: DarkModeTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            DarkModeTarget::Mode => self.mode_toggle.tooltip(clock),
-            DarkModeTarget::Schedule => Some(self.auto_switch_toggle.schedule_tooltip(clock)),
-            DarkModeTarget::SunriseOffset => Some(self.offset_slider_tooltip(ColorMode::Light)),
-            DarkModeTarget::SunsetOffset => Some(self.offset_slider_tooltip(ColorMode::Dark)),
+            DarkModeTarget::Mode => self.mode_toggle.hover_card(clock),
+            DarkModeTarget::Schedule => Some(self.auto_switch_toggle.schedule_hover_card(clock)),
+            DarkModeTarget::SunriseOffset => Some(self.offset_slider_hover_card(ColorMode::Light)),
+            DarkModeTarget::SunsetOffset => Some(self.offset_slider_hover_card(ColorMode::Dark)),
         }
     }
 
-    fn offset_slider_tooltip(&self, edge: ColorMode) -> Tooltip {
+    fn offset_slider_hover_card(&self, edge: ColorMode) -> HoverCard {
         self.offset_slider_for(edge)
-            .readout_tooltip(format!("{} offset", edge.sun_event_label()))
+            .readout_hover_card(format!("{} offset", edge.sun_event_label()))
     }
 
     pub fn group_content<'a>(

@@ -20,17 +20,17 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -125,18 +125,18 @@ impl JournalEventsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: JournalTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: JournalTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            JournalTarget::Kernel => self.kernel.tooltip(clock),
-            JournalTarget::ServiceErrors => self.service_errors.tooltip(clock),
-            JournalTarget::Coredumps => self.coredumps.tooltip(clock),
-            JournalTarget::OomKills => self.oom_kills.tooltip(clock),
+            JournalTarget::Kernel => self.kernel.hover_card(clock),
+            JournalTarget::ServiceErrors => self.service_errors.hover_card(clock),
+            JournalTarget::Coredumps => self.coredumps.hover_card(clock),
+            JournalTarget::OomKills => self.oom_kills.hover_card(clock),
             JournalTarget::Events => self
                 .kernel
-                .tooltip_with(self.tooltip(clock))
-                .or_else(|| self.service_errors.tooltip_with(self.tooltip(clock)))
-                .or_else(|| self.coredumps.tooltip_with(self.tooltip(clock)))
-                .or_else(|| self.oom_kills.tooltip_with(self.tooltip(clock))),
+                .hover_card_with(self.hover_card(clock))
+                .or_else(|| self.service_errors.hover_card_with(self.hover_card(clock)))
+                .or_else(|| self.coredumps.hover_card_with(self.hover_card(clock)))
+                .or_else(|| self.oom_kills.hover_card_with(self.hover_card(clock))),
         }
     }
 
@@ -216,7 +216,7 @@ impl GroupItemReading for JournalEventsGroup {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let kernel = self
             .kernel
             .visible_reading()
@@ -233,7 +233,7 @@ impl GroupItemReading for JournalEventsGroup {
             .oom_kills
             .visible_reading()
             .map(|kills| LabeledValue::new("OOM kills", Quantity::count(kills.len())));
-        TooltipBody::sections([Section::dictionary(
+        HoverCardBody::sections([Section::dictionary(
             kernel
                 .into_iter()
                 .chain(service)

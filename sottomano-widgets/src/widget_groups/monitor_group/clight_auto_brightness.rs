@@ -7,11 +7,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         toggle_control::ToggleableSource,
-        tooltip_body::TooltipBody,
     },
 };
 
@@ -32,8 +32,8 @@ impl GroupItemReading for AutoBrightness {
         ReadingDisplayState::of_toggle(self.auto)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 

@@ -11,12 +11,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -44,7 +44,7 @@ impl GroupItemReading for ClaudeUsageWindows {
         Some(self.fullest_window_used())
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let now = clock.utc();
         let sonnet = self.sonnet.as_ref().map(|sonnet| {
             window_section(
@@ -54,7 +54,7 @@ impl GroupItemReading for ClaudeUsageWindows {
                 now,
             )
         });
-        TooltipBody::sections(
+        HoverCardBody::sections(
             [
                 Section::dictionary(
                     self.plan

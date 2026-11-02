@@ -7,7 +7,7 @@ use sottomano_sources::network_connectivity::icmp_echo_probes::{
 use uom::si::ratio::percent;
 
 use crate::widgets::{
-    localized_quantities::Quantity, tooltip_body::Section, value_cells::LabeledValue,
+    hover_card_body::Section, localized_quantities::Quantity, value_cells::LabeledValue,
 };
 
 const WARNING_ROUND_TRIP: Duration = Duration::from_millis(100);

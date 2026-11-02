@@ -9,13 +9,13 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -43,8 +43,8 @@ impl GroupItemReading for CopilotMetered {
         Some(self.used_share)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([
             Section::dictionary(
                 self.plan
                     .as_deref()

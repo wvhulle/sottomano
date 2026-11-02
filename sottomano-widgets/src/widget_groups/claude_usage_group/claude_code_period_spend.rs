@@ -8,13 +8,13 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         spend_to_level::level_from_cost,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -45,7 +45,7 @@ impl GroupItemReading for ClaudeCcusagePeriods {
             .into()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let recent = &self.recent;
         let now = clock.local();
         let period_section = |title: String, period: &Period, threshold: Option<LabeledValue>| {
@@ -71,7 +71,7 @@ impl GroupItemReading for ClaudeCcusagePeriods {
             )
             .titled(title)
         };
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::spend_forecast_basis(
                 [
                     LabeledValue::new("Source", "ccusage, local Claude Code logs"),

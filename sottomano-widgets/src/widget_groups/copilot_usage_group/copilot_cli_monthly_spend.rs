@@ -9,13 +9,13 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -47,9 +47,9 @@ impl GroupItemReading for CopilotCcusage {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let usage = &self.period.usage;
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::dictionary(
                 [
                     LabeledValue::new("Plan", "copilot-cli"),

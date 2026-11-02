@@ -8,10 +8,10 @@ use crate::{
     widget_groups::interface_address_sections::link_stats_section,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -78,8 +78,8 @@ impl GroupItemReading for PortLinkReading<'_> {
         connection_state(self.port_state)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Port", self.port_state.name.as_str()),
             LabeledValue::new(
                 "Attachment",
@@ -118,8 +118,8 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
         connection_state(self.port_state)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Port", self.port_state.name.as_str()),
             LabeledValue::new("Connection", connection_description(self.port_state)),
         ])

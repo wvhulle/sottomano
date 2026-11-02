@@ -15,10 +15,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -42,12 +42,12 @@ impl GroupItemReading for CpuClock {
         self.average().map(frequency_text)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let frequency = |key, frequency: Option<Frequency>| {
             frequency.map(|frequency| LabeledValue::new(key, Quantity::clock_gigahertz(frequency)))
         };
         let shared_causes = self.shared_causes();
-        TooltipBody::sections([Section::dictionary(
+        HoverCardBody::sections([Section::dictionary(
             [
                 frequency("min", self.lowest()),
                 frequency("avg", self.average()),

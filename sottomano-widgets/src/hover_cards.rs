@@ -1,16 +1,16 @@
 pub mod core_grid;
 pub mod hover_area;
-pub mod tooltip_content;
-pub mod tooltip_surfaces;
-pub mod tooltip_transition;
+pub mod hover_card_content;
+pub mod hover_card_surfaces;
+pub mod hover_card_transition;
 
 use iced::{Rectangle, window::Id};
 use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
-pub use crate::hover_tooltips::{
+pub use crate::hover_cards::{
     hover_area::{announcing_hoverable, hoverable, marked_by_hover_target, marked_by_menu_pin},
-    tooltip_surfaces::TooltipHost,
+    hover_card_surfaces::HoverCardHost,
 };
 use crate::{
     widget_groups::{
@@ -280,7 +280,7 @@ impl HoverAnnouncement {
 }
 
 #[derive(Debug, Clone)]
-pub enum TooltipMessage {
+pub enum HoverCardMessage {
     EnterAnchor {
         target: HoverTarget,
         anchor: Rectangle,
@@ -300,8 +300,8 @@ pub enum TooltipMessage {
         target: HoverTarget,
         announcement: HoverAnnouncement,
     },
-    EnterTooltip,
-    ExitTooltip,
+    EnterHoverCard,
+    ExitHoverCard,
     SwitchIntentElapsed,
 }
 
@@ -313,7 +313,7 @@ pub struct InspectedRow {
 
 #[derive(Debug, Clone)]
 pub enum PopupMessage {
-    Tooltip(TooltipMessage),
+    HoverCard(HoverCardMessage),
     CopyText(String),
     OpenUrl(String),
     FocusWindow(u64),

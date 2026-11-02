@@ -23,7 +23,7 @@ use self::adapter_signal_reading::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         group_menus::group_source_demand::GroupSourceDemand,
         interface_address_sections::{
@@ -35,12 +35,12 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            Section,
+            hover_card_source_delivery::{HoverCard, SourcedSections},
+        },
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{
-            Section,
-            tooltip_source_delivery::{SourcedSections, Tooltip},
-        },
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupTitle,
@@ -238,7 +238,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &WifiAdapterTarget, clock: Clock) -> Option<HoverCard> {
         let radio_enabled = self.wifi.get()?.radio_enabled;
         match target {
             WifiAdapterTarget::Signal { adapter_device } => {
@@ -249,7 +249,7 @@ impl WifiAdaptersGroup {
                 };
                 Some(
                     self.wifi
-                        .tooltip_with(signal_reading.tooltip(clock))?
+                        .hover_card_with(signal_reading.hover_card(clock))?
                         .with_groups(
                             self.adapter_detail_sections(adapter_device, adapter_identity_sections),
                         ),
@@ -259,7 +259,7 @@ impl WifiAdaptersGroup {
                 let adapter = self.adapter_named(adapter_device)?;
                 Some(
                     self.wifi
-                        .tooltip_with(AdapterConnectionSwitch { adapter }.tooltip(clock))?
+                        .hover_card_with(AdapterConnectionSwitch { adapter }.hover_card(clock))?
                         .with_groups(
                             self.adapter_detail_sections(
                                 adapter_device,
@@ -288,11 +288,11 @@ impl WifiAdaptersGroup {
                 let router_details = self.gateway_latencies.sections_described_by(|latencies| {
                     family_router_sections(latencies, adapter_device, *family)
                 });
-                Some(Tooltip::grouped(
+                Some(HoverCard::grouped(
                     address_details.into_iter().chain(router_details),
                 ))
             }
-            WifiAdapterTarget::Dns { adapter_device } => Some(Tooltip::grouped(
+            WifiAdapterTarget::Dns { adapter_device } => Some(HoverCard::grouped(
                 self.adapter_detail_sections(adapter_device, |details| {
                     details
                         .addressing
@@ -303,7 +303,7 @@ impl WifiAdaptersGroup {
             )),
             WifiAdapterTarget::AllRadios => self
                 .wifi
-                .tooltip_with(AllWifiRadiosSwitch { radio_enabled }.tooltip(clock)),
+                .hover_card_with(AllWifiRadiosSwitch { radio_enabled }.hover_card(clock)),
         }
     }
 

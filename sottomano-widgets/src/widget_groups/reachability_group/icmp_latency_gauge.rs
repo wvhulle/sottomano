@@ -8,10 +8,10 @@ use crate::{
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
     },
 };
 
@@ -44,7 +44,7 @@ impl GroupItemReading for InternetLatency {
         Some(Ratio::new::<ratio>(fraction_of_scale(round_trip)))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         probe_window_section(&self.window).into()
     }
 }

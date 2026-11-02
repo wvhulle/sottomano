@@ -14,9 +14,9 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    widgets::tooltip_body::{
-        ReadingSections, Section, TooltipBody,
-        tooltip_source_delivery::{DeliveryTiming, SourcedSections},
+    widgets::hover_card_body::{
+        HoverCardBody, ReadingSections, Section,
+        hover_card_source_delivery::{DeliveryTiming, SourcedSections},
     },
 };
 
@@ -257,13 +257,13 @@ where
             HoverFetchProgress::ServingRemembered => {
                 let remembered = remembered?;
                 Some(SourcedSections::source_delivered::<S>(
-                    TooltipBody::sections(describe(&remembered.remembered_snapshot)),
+                    HoverCardBody::sections(describe(&remembered.remembered_snapshot)),
                     remembered.delivery_timing,
                 ))
             }
             HoverFetchProgress::AwaitingFirstDelivery => {
                 Some(SourcedSections::source_awaiting_delivery::<S>(
-                    TooltipBody::sections(remembered.map_or_else(
+                    HoverCardBody::sections(remembered.map_or_else(
                         || vec![Section::section_seeding()],
                         |remembered| describe(&remembered.remembered_snapshot),
                     )),
@@ -274,12 +274,12 @@ where
                 let offline_section = Section::from(offline_reason.clone());
                 Some(match remembered {
                     Some(remembered) => SourcedSections::source_delivered::<S>(
-                        TooltipBody::sections(describe(&remembered.remembered_snapshot))
+                        HoverCardBody::sections(describe(&remembered.remembered_snapshot))
                             .with_sections([offline_section]),
                         remembered.delivery_timing,
                     ),
                     None => {
-                        SourcedSections::source_awaiting_delivery::<S>(TooltipBody::sections([
+                        SourcedSections::source_awaiting_delivery::<S>(HoverCardBody::sections([
                             offline_section,
                         ]))
                     }
@@ -289,7 +289,7 @@ where
                 snapshot_fetch,
                 delivery_timing,
             } => Some(SourcedSections::source_delivered::<S>(
-                TooltipBody::sections(match snapshot_fetch {
+                HoverCardBody::sections(match snapshot_fetch {
                     Ok(delivered_snapshot) => describe(delivered_snapshot),
                     Err(failure) => vec![failure.clone().into()],
                 }),
@@ -319,8 +319,8 @@ mod tests {
     use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
-    use crate::widgets::tooltip_body::{
-        Heading, SectionBody, tooltip_source_delivery::SectionsDeliveryState,
+    use crate::widgets::hover_card_body::{
+        Heading, SectionBody, hover_card_source_delivery::SectionsDeliveryState,
     };
 
     #[derive(Debug, Clone, PartialEq)]

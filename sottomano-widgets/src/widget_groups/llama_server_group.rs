@@ -18,12 +18,12 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::UnitSwitchFace,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -209,7 +209,7 @@ impl LlamaServerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &LlamaServerTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &LlamaServerTarget, clock: Clock) -> Option<HoverCard> {
         let model_groups: Vec<_> = [
             self.model_props.sections(clock),
             self.gguf_card.sections(clock),
@@ -219,8 +219,8 @@ impl LlamaServerGroup {
         .flatten()
         .collect();
         match target.bus {
-            Bus::Session => self.user.tooltip_for(target, model_groups, clock),
-            Bus::System => self.system.tooltip_for(target, model_groups, clock),
+            Bus::Session => self.user.hover_card_for(target, model_groups, clock),
+            Bus::System => self.system.hover_card_for(target, model_groups, clock),
         }
     }
 

@@ -16,7 +16,7 @@ use sottomano_sources::desktop_notifications::notification_data::{
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};
 use crate::{
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         announced_level::LevelReading,
         icon_glyph::IconGlyph,

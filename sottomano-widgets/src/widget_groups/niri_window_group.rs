@@ -6,7 +6,7 @@ use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::niri_window_group::{
         niri_kdl_rules::{
             AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
@@ -16,14 +16,14 @@ use crate::{
     widgets::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
+        hover_card_body::{
+            Section,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
+        },
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{
-            Section,
-            tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
-        },
         value_cells::{LabeledValue, ValueCell},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -184,14 +184,14 @@ impl NiriWindowGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: NiriWindowTarget, clock: Clock) -> Tooltip {
+    pub fn hover_card_for(&self, target: NiriWindowTarget, clock: Clock) -> HoverCard {
         let control = match target {
-            NiriWindowTarget::CornerRadius => {
-                self.corner_radius.readout_tooltip("Window corner radius")
-            }
-            NiriWindowTarget::Gaps => self.gaps.readout_tooltip("Window gaps"),
-            NiriWindowTarget::Xray => xray_toggle(self.xray).switch_tooltip(clock),
-            NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_tooltip(clock),
+            NiriWindowTarget::CornerRadius => self
+                .corner_radius
+                .readout_hover_card("Window corner radius"),
+            NiriWindowTarget::Gaps => self.gaps.readout_hover_card("Window gaps"),
+            NiriWindowTarget::Xray => xray_toggle(self.xray).switch_hover_card(clock),
+            NiriWindowTarget::SwitchHeat => self.switch_heat.toggle().switch_hover_card(clock),
         };
         control.with_groups(self.rules_file.unreadable().map(|unreadable| {
             SourcedSections::delivered(

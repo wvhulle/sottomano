@@ -56,7 +56,7 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::{tooltip_body::Section, value_cells::LabeledValue};
+use crate::widgets::{hover_card_body::Section, value_cells::LabeledValue};
 
 impl From<GgufHeaderError> for Section {
     fn from(error: GgufHeaderError) -> Self {

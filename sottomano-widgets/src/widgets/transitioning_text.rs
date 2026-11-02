@@ -23,7 +23,7 @@ use iced::{
 };
 use sottomano_config::{
     theme::font::ResolvedFont,
-    tooltips::{IntroEffect, PlaceholderEffect, ReplaceEffect, TooltipLoading},
+    tooltips::{HoverCardLoading, IntroEffect, PlaceholderEffect, ReplaceEffect},
 };
 
 use crate::widgets::{
@@ -51,7 +51,7 @@ pub enum TextPresence {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TransitionStyle {
-    pub loading: TooltipLoading,
+    pub loading: HoverCardLoading,
     pub presence: TextPresence,
     pub highlight: fn(&iced::Theme) -> Color,
 }

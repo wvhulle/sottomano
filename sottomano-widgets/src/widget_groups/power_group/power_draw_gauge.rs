@@ -10,11 +10,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -42,19 +42,19 @@ impl PowerDraw {
         matches!(self.status, Some(ChargeStatus::Discharging) | None)
     }
 
-    fn breakdown_on_battery(&self) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([LabeledValue::new(
+    fn breakdown_on_battery(&self) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary([LabeledValue::new(
             "Laptop",
             Quantity::power(self.power),
         )])
         .titled("Battery feeds")])
     }
 
-    fn breakdown_on_ac(&self) -> TooltipBody {
+    fn breakdown_on_ac(&self) -> HoverCardBody {
         let laptop = self
             .expected_laptop
             .map(|laptop| LabeledValue::new("Laptop (estimated)", Quantity::power(laptop)));
-        TooltipBody::sections([Section::dictionary(
+        HoverCardBody::sections([Section::dictionary(
             laptop
                 .into_iter()
                 .chain([LabeledValue::new("Battery", Quantity::power(self.power))]),
@@ -104,7 +104,7 @@ impl GroupItemReading for PowerDraw {
         Some(self.power / Power::new::<watt>(POWER_GAUGE_MAX_W))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         if self.on_battery() {
             self.breakdown_on_battery()
         } else {
@@ -159,7 +159,7 @@ mod tests {
         assert_eq!(ChargerSupply::NAME, "Charger");
         assert_eq!(
             draw(ChargeStatus::Charging).breakdown_on_ac(),
-            TooltipBody::sections([Section::dictionary([
+            HoverCardBody::sections([Section::dictionary([
                 LabeledValue::new(
                     "Laptop (estimated)",
                     Quantity::power(Power::new::<watt>(8.9))
@@ -174,7 +174,7 @@ mod tests {
     fn on_battery_the_battery_feeds_the_laptop() {
         assert_eq!(
             draw(ChargeStatus::Discharging).breakdown_on_battery(),
-            TooltipBody::sections([Section::dictionary([LabeledValue::new(
+            HoverCardBody::sections([Section::dictionary([LabeledValue::new(
                 "Laptop",
                 Quantity::power(Power::new::<watt>(19.7))
             )])

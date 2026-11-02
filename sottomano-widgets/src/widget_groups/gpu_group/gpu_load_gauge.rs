@@ -5,10 +5,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
         vendor_logo::VendorLogo,
     },
@@ -33,7 +33,7 @@ impl GroupItemReading for GpuSnapshot {
         Some(self.load)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new("GPU", Quantity::share(self.load))])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new("GPU", Quantity::share(self.load))])
     }
 }

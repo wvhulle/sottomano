@@ -8,13 +8,13 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -32,8 +32,8 @@ impl GroupItemReading for Wireguard {
         SimpleIcon::WireGuard.into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 
@@ -137,7 +137,7 @@ fn clients_entry(tunnel: &Tunnel) -> LabeledValue {
     LabeledValue::new("Clients", clients)
 }
 
-fn server_tooltip(tunnel: &Tunnel, listen_port: u32) -> TooltipBody {
+fn server_hover_card(tunnel: &Tunnel, listen_port: u32) -> HoverCardBody {
     let summary_section = Section::dictionary(
         [
             LabeledValue::new(tunnel.name.as_str(), "server"),
@@ -157,10 +157,10 @@ fn server_tooltip(tunnel: &Tunnel, listen_port: u32) -> TooltipBody {
         ],
         &tunnel.peers,
     );
-    TooltipBody::sections([summary_section, peer_table])
+    HoverCardBody::sections([summary_section, peer_table])
 }
 
-fn client_tooltip(tunnel: &Tunnel) -> TooltipBody {
+fn client_hover_card(tunnel: &Tunnel) -> HoverCardBody {
     let peer_entries = tunnel.peers.iter().flat_map(|peer| {
         let transfer_entries =
             transfer_cells(peer.traffic)
@@ -180,7 +180,7 @@ fn client_tooltip(tunnel: &Tunnel) -> TooltipBody {
         .flatten()
         .chain(transfer_entries)
     });
-    TooltipBody::dictionary(
+    HoverCardBody::dictionary(
         [LabeledValue::new(tunnel.name.as_str(), "client")]
             .into_iter()
             .chain(activity_entry(tunnel))
@@ -189,8 +189,8 @@ fn client_tooltip(tunnel: &Tunnel) -> TooltipBody {
     )
 }
 
-fn undetermined_tooltip(tunnel: &Tunnel) -> TooltipBody {
-    TooltipBody::dictionary(
+fn undetermined_hover_card(tunnel: &Tunnel) -> HoverCardBody {
+    HoverCardBody::dictionary(
         [LabeledValue::new(tunnel.name.as_str(), "tunnel")]
             .into_iter()
             .chain(statistics_entry(&tunnel.statistics_access)),
@@ -253,11 +253,11 @@ impl GroupItemReading for Tunnel {
             .filter(|count| *count > 0)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         match self.role {
-            TunnelRole::Server { listen_port } => server_tooltip(self, listen_port),
-            TunnelRole::Client => client_tooltip(self),
-            TunnelRole::Undetermined => undetermined_tooltip(self),
+            TunnelRole::Server { listen_port } => server_hover_card(self, listen_port),
+            TunnelRole::Client => client_hover_card(self),
+            TunnelRole::Undetermined => undetermined_hover_card(self),
         }
     }
 }

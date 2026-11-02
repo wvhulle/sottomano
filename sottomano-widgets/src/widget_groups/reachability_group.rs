@@ -22,7 +22,7 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::{
         group_menus::group_source_demand::GroupSourceDemand,
         reachability_group::{
@@ -33,10 +33,10 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -176,7 +176,7 @@ impl ReachabilityGroup {
         }
     }
 
-    fn direction_tooltip(&self, throughput: &Throughput, clock: Clock) -> Option<Tooltip> {
+    fn direction_hover_card(&self, throughput: &Throughput, clock: Clock) -> Option<HoverCard> {
         let metered_section = self
             .throughput
             .get()
@@ -184,17 +184,19 @@ impl ReachabilityGroup {
             .and_then(|_| self.metered_volume.displayed_totals())
             .map(|totals| metered_section(&totals, throughput.direction));
         self.throughput
-            .tooltip_with(throughput.tooltip(clock).with_sections(metered_section))
+            .hover_card_with(throughput.hover_card(clock).with_sections(metered_section))
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &ReachabilityTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &ReachabilityTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            ReachabilityTarget::Down => self.direction_tooltip(&self.throughput.get()?.down, clock),
-            ReachabilityTarget::Up => self.direction_tooltip(&self.throughput.get()?.up, clock),
-            ReachabilityTarget::Throughput => self.throughput.tooltip(clock),
-            ReachabilityTarget::Latency => self.latency.tooltip(clock),
-            ReachabilityTarget::TcpRetransmissions => self.tcp_retransmissions.tooltip(clock),
+            ReachabilityTarget::Down => {
+                self.direction_hover_card(&self.throughput.get()?.down, clock)
+            }
+            ReachabilityTarget::Up => self.direction_hover_card(&self.throughput.get()?.up, clock),
+            ReachabilityTarget::Throughput => self.throughput.hover_card(clock),
+            ReachabilityTarget::Latency => self.latency.hover_card(clock),
+            ReachabilityTarget::TcpRetransmissions => self.tcp_retransmissions.hover_card(clock),
         }
     }
 

@@ -17,9 +17,9 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -134,7 +134,7 @@ impl GroupItemReading for Lookup {
         Phosphor::Image(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new("File", self.photo.file_name.clone())])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new("File", self.photo.file_name.clone())])
     }
 }

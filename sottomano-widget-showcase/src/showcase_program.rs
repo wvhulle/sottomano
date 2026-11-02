@@ -20,9 +20,9 @@ use sottomano_sources::screen_brightness_color::solar_switch_schedule::ColorMode
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{
-        GroupHandle, HoverTarget, TooltipHost, TooltipMessage,
-        tooltip_surfaces::{HoverContent, TooltipSurfaceStyle},
+    hover_cards::{
+        GroupHandle, HoverCardHost, HoverCardMessage, HoverTarget,
+        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
@@ -37,9 +37,9 @@ use sottomano_widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
         group_menu::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
+        hover_card_body::hover_card_source_delivery::HoverCard,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         text::FontFaces,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
     },
 };
@@ -123,7 +123,7 @@ pub struct ShowcaseState {
     theme: Theme,
     group: ShowcasedGroup,
     group_menus: GroupMenuState,
-    tooltip: TooltipHost,
+    hover_card: HoverCardHost,
     notifications: NotificationLayer<ShowcaseMessage>,
     clock: Clock,
     booted_at: Clock,
@@ -140,8 +140,8 @@ impl ShowcaseState {
     fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
         let appearance = ShellAppearance::default();
         FontFaces::point_generic_families_at(&config.theme);
-        let mut tooltip = TooltipHost::default();
-        let _ = tooltip.open_surface(SHOWCASE_OUTPUT);
+        let mut hover_card = HoverCardHost::default();
+        let _ = hover_card.open_surface(SHOWCASE_OUTPUT);
         let notification_settings = NotificationSettings {
             sound: false,
             ..NotificationSettings::default()
@@ -172,7 +172,7 @@ impl ShowcaseState {
             theme: configured_theme(&scheme_palette(config, appearance.scheme)),
             group,
             group_menus,
-            tooltip,
+            hover_card,
             notifications: NotificationLayer::default(),
             clock,
             booted_at: clock,
@@ -184,17 +184,17 @@ impl ShowcaseState {
 
     fn route_message(&mut self, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
-            ShowcaseMessage::Tooltip(TooltipMessage::EnterAnchor {
+            ShowcaseMessage::HoverCard(HoverCardMessage::EnterAnchor {
                 target,
                 anchor,
                 announcement,
             }) => {
-                if self.tooltip.target() != Some(&target) {
+                if self.hover_card.target() != Some(&target) {
                     let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
                 }
                 self.schedule_hover_replies(&target);
                 let panel_edge = self.panel_edge();
-                self.tooltip.open(
+                self.hover_card.open(
                     &panel_edge,
                     target,
                     anchor,
@@ -203,8 +203,8 @@ impl ShowcaseState {
                 );
                 Task::none()
             }
-            ShowcaseMessage::Tooltip(message) => {
-                let _hide_due = self.tooltip.update(message, self.clock.instant);
+            ShowcaseMessage::HoverCard(message) => {
+                let _hide_due = self.hover_card.update(message, self.clock.instant);
                 Task::none()
             }
             ShowcaseMessage::GroupMenuState(message) => {
@@ -214,12 +214,12 @@ impl ShowcaseState {
                 let _menu_task = self.group_menus.update(message);
                 Task::none()
             }
-            ShowcaseMessage::TooltipHideElapsed => {
-                let departing = self.shown_tooltip().and_then(|content| {
-                    self.tooltip
+            ShowcaseMessage::HoverCardHideElapsed => {
+                let departing = self.shown_hover_card().and_then(|content| {
+                    self.hover_card
                         .departure::<ShowcaseMessage>(HoverContent::Described(content))
                 });
-                self.tooltip.leave_elapsed(self.clock.instant, departing);
+                self.hover_card.leave_elapsed(self.clock.instant, departing);
                 Task::none()
             }
             ShowcaseMessage::Notification(message) => self.update_notification(message),
@@ -227,11 +227,11 @@ impl ShowcaseState {
                 self.appearance = preset.applied_to(self.appearance);
                 self.theme =
                     configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                let departing = self.shown_tooltip().and_then(|content| {
-                    self.tooltip
+                let departing = self.shown_hover_card().and_then(|content| {
+                    self.hover_card
                         .departure::<ShowcaseMessage>(HoverContent::Described(content))
                 });
-                self.tooltip.dismiss(departing, self.clock.instant);
+                self.hover_card.dismiss(departing, self.clock.instant);
                 Task::none()
             }
             other => {
@@ -272,17 +272,17 @@ impl ShowcaseState {
     }
 
     fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseMessage> {
-        let card_tooltip = self
+        let inspected_hover_card = self
             .group_menus
             .inspected_row(kind)
             .and_then(|row| {
                 self.group
-                    .tooltip_for(&row.target, &self.config, self.clock)
-                    .map(|tooltip| tooltip.with_announcement(row.announcement.clone()))
+                    .hover_card_for(&row.target, &self.config, self.clock)
+                    .map(|hover_card| hover_card.with_announcement(row.announcement.clone()))
             })
-            .unwrap_or_else(Tooltip::empty);
+            .unwrap_or_else(HoverCard::empty);
         let anchor = self
-            .tooltip
+            .hover_card
             .placement()
             .map_or_else(Rectangle::default, |placement| placement.anchor);
         let orientation =
@@ -291,7 +291,7 @@ impl ShowcaseState {
             &self.config,
             &self.appearance.overlays,
             &InspectionCard {
-                tooltip: &card_tooltip,
+                hover_card: &inspected_hover_card,
                 assets: self.window_assets(),
                 clock: self.clock,
             },
@@ -306,7 +306,7 @@ impl ShowcaseState {
                 satellites,
                 orientation,
             },
-            None => HoverContent::Described(Tooltip::empty()),
+            None => HoverContent::Described(HoverCard::empty()),
         }
     }
 
@@ -340,11 +340,11 @@ impl ShowcaseState {
             tasks.push(self.route_message(pending.reply));
         }
         if self
-            .tooltip
+            .hover_card
             .hide_due()
             .is_some_and(|due| due <= clock.instant)
         {
-            tasks.push(self.route_message(ShowcaseMessage::TooltipHideElapsed));
+            tasks.push(self.route_message(ShowcaseMessage::HoverCardHideElapsed));
         }
         if self
             .notifications
@@ -383,10 +383,10 @@ impl ShowcaseState {
         self.notifications.update(message, &context, &|_| None)
     }
 
-    fn shown_tooltip(&self) -> Option<Tooltip> {
-        self.tooltip
+    fn shown_hover_card(&self) -> Option<HoverCard> {
+        self.hover_card
             .target()
-            .and_then(|target| self.group.tooltip_for(target, &self.config, self.clock))
+            .and_then(|target| self.group.hover_card_for(target, &self.config, self.clock))
     }
 
     fn panel_edge(&self) -> PanelEdge {
@@ -428,12 +428,12 @@ impl ShowcaseState {
         }
     }
 
-    fn tooltip_layer(&self) -> Option<Element<'_, ShowcaseMessage>> {
-        let surface = self.tooltip.surface_on(SHOWCASE_OUTPUT)?;
-        self.tooltip.view(
+    fn hover_card_layer(&self) -> Option<Element<'_, ShowcaseMessage>> {
+        let surface = self.hover_card.surface_on(SHOWCASE_OUTPUT)?;
+        self.hover_card.view(
             surface,
             &self.config,
-            TooltipSurfaceStyle {
+            HoverCardSurfaceStyle {
                 overlay_appearance: self.appearance.overlays,
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
@@ -444,8 +444,8 @@ impl ShowcaseState {
                 }
                 let described = self
                     .group
-                    .tooltip_for(target, &self.config, self.clock)
-                    .unwrap_or_else(Tooltip::empty);
+                    .hover_card_for(target, &self.config, self.clock)
+                    .unwrap_or_else(HoverCard::empty);
                 match self
                     .group
                     .interactive_panel(target, &self.config, &self.appearance)
@@ -523,7 +523,7 @@ impl Program for ShowcaseProgram {
                 .backdrop()
                 .into_iter()
                 .chain([strip, state.toast_layer()])
-                .chain(state.tooltip_layer()),
+                .chain(state.hover_card_layer()),
         )
         .width(Length::Fill)
         .height(Length::Fill);

@@ -16,7 +16,7 @@ pub struct TooltipsConfig<L = f32> {
     pub popup_morph: Duration,
     #[serde(with = "humantime_serde")]
     pub copy_flash: Duration,
-    pub loading: TooltipLoading,
+    pub loading: HoverCardLoading,
 }
 
 impl<L: From<f32>> Default for TooltipsConfig<L> {
@@ -25,7 +25,7 @@ impl<L: From<f32>> Default for TooltipsConfig<L> {
             value_width: L::from(620.0),
             popup_morph: Duration::from_millis(160),
             copy_flash: Duration::from_millis(700),
-            loading: TooltipLoading::default(),
+            loading: HoverCardLoading::default(),
         }
     }
 }
@@ -44,7 +44,7 @@ impl TooltipsConfig<Spacing> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct TooltipLoading {
+pub struct HoverCardLoading {
     #[serde(with = "humantime_serde")]
     pub debug_delay: Duration,
     pub placeholder: PlaceholderEffect,
@@ -52,7 +52,7 @@ pub struct TooltipLoading {
     pub replace: ReplaceEffect,
 }
 
-impl Default for TooltipLoading {
+impl Default for HoverCardLoading {
     fn default() -> Self {
         Self {
             debug_delay: Duration::ZERO,

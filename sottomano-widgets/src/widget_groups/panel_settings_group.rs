@@ -4,16 +4,16 @@ use sottomano_sources::sqlite_state_store::Columns;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
     widgets::{
         group_item::GroupItem,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -183,16 +183,18 @@ impl PanelSettingsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: PanelSettingsTarget, clock: Clock) -> Tooltip {
+    pub fn hover_card_for(&self, target: PanelSettingsTarget, clock: Clock) -> HoverCard {
         match target {
             PanelSettingsTarget::DisconnectedGroups => {
-                disconnected_toggle(self.disconnected_groups).switch_tooltip(clock)
+                disconnected_toggle(self.disconnected_groups).switch_hover_card(clock)
             }
             PanelSettingsTarget::AutoCollapseGroups => {
-                pinned_groups_toggle(self.auto_collapse_groups).switch_tooltip(clock)
+                pinned_groups_toggle(self.auto_collapse_groups).switch_hover_card(clock)
             }
-            PanelSettingsTarget::FloatOffset => self.float_offset.readout_tooltip("Offset"),
-            PanelSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, clock),
+            PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
+            PanelSettingsTarget::Appearance(target) => {
+                self.appearance.hover_card_for(target, clock)
+            }
         }
     }
 

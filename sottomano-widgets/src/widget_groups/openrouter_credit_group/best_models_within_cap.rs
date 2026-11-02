@@ -9,12 +9,12 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -44,7 +44,7 @@ impl GroupItemReading for OpenRouterModelRankings {
         ReadingDisplayState::Idle
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let ranking_table = Section::column_table(
             [
                 ColumnHeading::titled("TB 4.0"),
@@ -89,7 +89,7 @@ impl GroupItemReading for OpenRouterModelRankings {
             ),
         ])
         .titled("Sources");
-        TooltipBody::sections(
+        HoverCardBody::sections(
             [ranking_table]
                 .into_iter()
                 .chain(unscored_note)

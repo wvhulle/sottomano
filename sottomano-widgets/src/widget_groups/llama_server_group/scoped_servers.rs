@@ -21,11 +21,11 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{
-            Section, TooltipBody,
-            tooltip_source_delivery::{SourcedSections, Tooltip},
+        hover_card_body::{
+            HoverCardBody, Section,
+            hover_card_source_delivery::{HoverCard, SourcedSections},
         },
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
         value_cells::{LabeledValue, ValueCell},
     },
@@ -165,17 +165,17 @@ impl ScopedLlamaServers {
             .clone()
     }
 
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: &LlamaServerTarget,
         model_groups: Vec<SourcedSections>,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         let readings = self.servers.get(&target.unit)?;
         let reading = &readings.server;
         let server = reading.get();
         match target.reading {
-            LlamaServerReading::Switch => readings.switch.tooltip(server.is_some(), clock),
+            LlamaServerReading::Switch => readings.switch.hover_card(server.is_some(), clock),
             LlamaServerReading::Model => {
                 let server = server?;
                 let resident = server.resident_model();
@@ -202,19 +202,21 @@ impl ScopedLlamaServers {
                 .titled("Available models");
                 Some(
                     reading
-                        .tooltip_with(TooltipBody::sections([status_and_web_ui, available_models]))?
+                        .hover_card_with(HoverCardBody::sections([
+                            status_and_web_ui,
+                            available_models,
+                        ]))?
                         .with_groups(model_groups),
                 )
             }
             LlamaServerReading::GenerationRate => {
-                reading.tooltip_with(GenerationRate(server?.generation_rate?).tooltip(clock))
+                reading.hover_card_with(GenerationRate(server?.generation_rate?).hover_card(clock))
             }
             LlamaServerReading::Slots => {
-                reading.tooltip_with(SlotOccupancy(&server?.slots).tooltip(clock))
+                reading.hover_card_with(SlotOccupancy(&server?.slots).hover_card(clock))
             }
-            LlamaServerReading::ContextFill => {
-                reading.tooltip_with(ContextFill::of_busy_slots(&server?.slots)?.tooltip(clock))
-            }
+            LlamaServerReading::ContextFill => reading
+                .hover_card_with(ContextFill::of_busy_slots(&server?.slots)?.hover_card(clock)),
         }
     }
 

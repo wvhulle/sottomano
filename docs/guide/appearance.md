@@ -6,7 +6,7 @@ The palette icon in the bottom panel opens the looks: ready-made combinations of
 - **Clear dark**: dark colours, see-through panels without outline, blur or shadow, and a lightly tinted, frosted and outlined sidebar.
 - **Bright office**: light colours and nearly opaque panels without blur.
 
-Tooltips stay blurred in every look. The recordings are rendered offscreen, where there is nothing to blur, so blur does not show in them.
+Hover cards stay blurred in every look. The recordings are rendered offscreen, where there is nothing to blur, so blur does not show in them.
 
 ## Looks: Switching
 

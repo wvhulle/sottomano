@@ -190,7 +190,7 @@ mod tests {
     }
 
     #[test]
-    fn every_preset_blurs_behind_tooltips() {
+    fn every_preset_blurs_behind_hover_cards() {
         let unblurred = ShellAppearance {
             overlays: LayerAppearance {
                 blurred: false,

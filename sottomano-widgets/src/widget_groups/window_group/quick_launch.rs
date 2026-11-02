@@ -8,17 +8,17 @@ use sottomano_sources::{
 
 use crate::{
     desktop_index::DesktopIndex,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -56,9 +56,9 @@ impl QuickLaunch {
     }
 
     #[must_use]
-    pub fn tooltip_for(app_id: &str) -> Tooltip {
-        Tooltip::sourced(
-            TooltipBody::dictionary([LabeledValue::new("App", app_id.to_owned())]),
+    pub fn hover_card_for(app_id: &str) -> HoverCard {
+        HoverCard::sourced(
+            HoverCardBody::dictionary([LabeledValue::new("App", app_id.to_owned())]),
             DeliveryTiming::LivePush,
         )
     }

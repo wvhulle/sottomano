@@ -4,8 +4,8 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 };
 
 use crate::widgets::{
+    hover_card_body::{HoverCardBody, Section},
     keyed_record_table::{ColumnHeading, TableRecord},
-    tooltip_body::{Section, TooltipBody},
     value_cells::{LabeledValue, ValueCell},
 };
 
@@ -64,9 +64,9 @@ impl WindowUsage<'_> {
         })
     }
 
-    pub fn body(&self, now: DateTime<Utc>) -> TooltipBody {
+    pub fn body(&self, now: DateTime<Utc>) -> HoverCardBody {
         let last_day = LAST_DAY.ending_at(now);
-        TooltipBody::sections(
+        HoverCardBody::sections(
             [
                 Some(self.this_window(last_day, now)),
                 self.projects(last_day, now),

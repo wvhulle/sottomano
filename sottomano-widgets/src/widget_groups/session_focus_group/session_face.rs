@@ -10,13 +10,13 @@ use crate::{
     widget_groups::session_focus_group::WarningSnooze,
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -190,8 +190,8 @@ impl GroupItemReading for SessionFace<'_> {
         self.screen_run_summary(clock.utc(), locale)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        TooltipBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.sections(clock.utc()))
     }
 }
 

@@ -19,16 +19,16 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -71,8 +71,8 @@ impl GroupItemReading for BlockFilesystemDiscovery {
         false
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(self.filesystems.iter().map(|filesystem| {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(self.filesystems.iter().map(|filesystem| {
             LabeledValue::new(
                 filesystem.primary_mount_point().display().to_string(),
                 filesystem.fs_type.clone(),
@@ -104,7 +104,7 @@ impl GroupItemReading for MountPointLabel<'_> {
         self.usage.state(clock)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let sharing_mount_points = self
             .mount
             .mount_points
@@ -114,7 +114,7 @@ impl GroupItemReading for MountPointLabel<'_> {
             .collect::<Vec<_>>();
         let sharing_entry = (!sharing_mount_points.is_empty())
             .then(|| LabeledValue::new("Shares space with", sharing_mount_points.join("  ")));
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             [
                 LabeledValue::new("Mount point", self.mount_point.display().to_string()),
                 LabeledValue::new("Filesystem", self.mount.fs_type.clone()),
@@ -294,11 +294,11 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &StorageTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &StorageTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            StorageTarget::MountDiscovery => self.discovery.tooltip(clock),
+            StorageTarget::MountDiscovery => self.discovery.hover_card(clock),
             StorageTarget::Usage(mount_point) => {
-                self.filesystems.get(mount_point)?.usage.tooltip(clock)
+                self.filesystems.get(mount_point)?.usage.hover_card(clock)
             }
             StorageTarget::MountPoint {
                 filesystem,
@@ -311,13 +311,13 @@ impl StorageSpaceGroup {
                     .mount_points
                     .iter()
                     .find(|known| *known == mount_point)?;
-                filesystem.usage.tooltip_with(
+                filesystem.usage.hover_card_with(
                     MountPointLabel {
                         mount: &filesystem.mount,
                         usage,
                         mount_point,
                     }
-                    .tooltip(clock),
+                    .hover_card(clock),
                 )
             }
         }

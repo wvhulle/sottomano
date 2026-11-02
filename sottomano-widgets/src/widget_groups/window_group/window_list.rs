@@ -22,7 +22,7 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, PressHints, hoverable},
     panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
     widget_groups::window_group::{WindowTarget, process_tree::Folding},
     widgets::{
@@ -31,6 +31,7 @@ use crate::{
         configured_theme::{
             background_color, background_strong_color, danger_color, primary_color, warning_color,
         },
+        hover_card_body::{Section, hover_card_source_delivery::SourcedSections},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
         pager_slot::PagerSlot,
@@ -41,7 +42,6 @@ use crate::{
         },
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         text::FontFaces,
-        tooltip_body::{Section, tooltip_source_delivery::SourcedSections},
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
         window_title::WindowTitle,
@@ -67,7 +67,7 @@ pub enum WindowListMessage {
     ToggleAudio(i32),
     LauncherEntriesChanged(LauncherEntries),
     JobsChanged(JobProgress),
-    Tooltip(TooltipMessage),
+    HoverCard(HoverCardMessage),
     ProcessTreeScanned(SnapshotDelivery<Process>),
     WindowProcessesPaired(WindowProcesses),
     ProcessFoldToggled(i32),
@@ -183,7 +183,7 @@ impl WindowList {
                 self.jobs = jobs;
                 Action::None
             }
-            WindowListMessage::Tooltip(_) => Action::None,
+            WindowListMessage::HoverCard(_) => Action::None,
             WindowListMessage::ProcessTreeScanned(fetched) => {
                 self.process_tree.receive(fetched, clock);
                 Action::None
@@ -466,14 +466,14 @@ impl WindowSlot<'_> {
             self.button_content(icons),
             WindowTarget::Pick(window).into(),
             press_hints,
-            WindowListMessage::Tooltip,
+            WindowListMessage::HoverCard,
         );
         let usage = self.window_entry.is_focused.then(|| {
             hoverable(
                 self.secondary_glyph(Phosphor::UserFocus),
                 WindowTarget::Usage(window).into(),
                 press_hints,
-                WindowListMessage::Tooltip,
+                WindowListMessage::HoverCard,
             )
         });
         let inspecting = self.window_entry.is_focused.then(|| {
@@ -481,7 +481,7 @@ impl WindowSlot<'_> {
                 self.secondary_glyph(Phosphor::Package),
                 WindowTarget::Inspect(window).into(),
                 press_hints,
-                WindowListMessage::Tooltip,
+                WindowListMessage::HoverCard,
             )
         });
         let content = Row::new()

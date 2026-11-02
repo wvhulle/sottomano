@@ -24,7 +24,7 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         niri_window_group::niri_kdl_rules::HeatedWindow,
         session_focus_group::{
@@ -40,8 +40,8 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
         ongoing_toast::OngoingToastActionButton,
-        tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -253,7 +253,7 @@ impl SessionFocusGroup {
     }
 
     #[must_use]
-    pub fn window_usage_tooltip(&self, window: u64, config: &Config, clock: Clock) -> Tooltip {
+    pub fn window_usage_hover_card(&self, window: u64, config: &Config, clock: Clock) -> HoverCard {
         let usage = WindowUsage {
             accounting: self
                 .tracker
@@ -261,7 +261,7 @@ impl SessionFocusGroup {
                 .accounted(&config.widget_groups.focus_time),
             window,
         };
-        Tooltip::sourced(usage.body(clock.utc()), DeliveryTiming::LivePush)
+        HoverCard::sourced(usage.body(clock.utc()), DeliveryTiming::LivePush)
     }
 
     pub fn group_content<'a>(
@@ -302,19 +302,21 @@ impl SessionFocusGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: SessionFocusTarget,
         config: &Config,
         clock: Clock,
-    ) -> Tooltip {
+    ) -> HoverCard {
         let body = match target {
-            SessionFocusTarget::Session => self.session_face(config).tooltip(clock),
-            SessionFocusTarget::Breaks => self.break_log(config).tooltip(clock),
-            SessionFocusTarget::FocusRun => self.focus_run_reading(config).tooltip(clock),
-            SessionFocusTarget::DailyTotals => self.daily_totals.tooltip(clock),
-            SessionFocusTarget::ContextSwitches => self.context_switch_rate(config).tooltip(clock),
+            SessionFocusTarget::Session => self.session_face(config).hover_card(clock),
+            SessionFocusTarget::Breaks => self.break_log(config).hover_card(clock),
+            SessionFocusTarget::FocusRun => self.focus_run_reading(config).hover_card(clock),
+            SessionFocusTarget::DailyTotals => self.daily_totals.hover_card(clock),
+            SessionFocusTarget::ContextSwitches => {
+                self.context_switch_rate(config).hover_card(clock)
+            }
         };
-        Tooltip::sourced(body, DeliveryTiming::LivePush)
+        HoverCard::sourced(body, DeliveryTiming::LivePush)
     }
 }

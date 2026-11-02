@@ -5,9 +5,9 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         vendor_logo::VendorLogo,
     },
 };
@@ -35,7 +35,7 @@ impl GroupItemReading for CpuModel {
         self.architecture.microarchitecture.clone()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::from(self)])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::from(self)])
     }
 }

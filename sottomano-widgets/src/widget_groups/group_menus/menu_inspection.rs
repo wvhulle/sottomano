@@ -1,4 +1,4 @@
-use crate::{hover_tooltips::InspectedRow, widget_groups::group_menus::GroupMenuTopic};
+use crate::{hover_cards::InspectedRow, widget_groups::group_menus::GroupMenuTopic};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(super) enum GroupMenuInspection {
@@ -68,7 +68,7 @@ impl GroupMenuInspection {
 mod tests {
     use super::GroupMenuInspection;
     use crate::{
-        hover_tooltips::{HoverAnnouncement, HoverTarget, InspectedRow},
+        hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow},
         widget_groups::group_menus::GroupMenuTopic,
     };
 

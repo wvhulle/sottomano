@@ -5,10 +5,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -38,8 +38,8 @@ impl GroupItemReading for GenerationRate {
         Some(self.text())
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new(
             "Decoding",
             Quantity::measured(self.0.get::<hertz>(), DisplayUnit::TokensPerSecond, 0),
         )])

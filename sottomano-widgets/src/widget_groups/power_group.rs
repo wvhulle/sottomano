@@ -26,15 +26,15 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::LatestSnapshot,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -193,9 +193,9 @@ impl PowerGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: PowerTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: PowerTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            PowerTarget::Battery => self.battery.tooltip_with_groups(
+            PowerTarget::Battery => self.battery.hover_card_with_groups(
                 self.battery
                     .sections_described_by(|battery| vec![Section::from(&battery.identity)]),
                 clock,
@@ -209,17 +209,17 @@ impl PowerGroup {
                 };
                 Some(
                     self.battery
-                        .tooltip_with(draw.tooltip(clock))?
+                        .hover_card_with(draw.hover_card(clock))?
                         .with_groups(charger),
                 )
             }
             PowerTarget::BatteryTime => self
                 .battery
-                .tooltip_with(self.time.as_ref()?.tooltip(clock)),
+                .hover_card_with(self.time.as_ref()?.hover_card(clock)),
             PowerTarget::Profile => self
                 .power_profile
-                .tooltip(clock)
-                .map(|tooltip| tooltip.with_groups(self.cpu_tuning.sections(clock))),
+                .hover_card(clock)
+                .map(|hover_card| hover_card.with_groups(self.cpu_tuning.sections(clock))),
         }
     }
 

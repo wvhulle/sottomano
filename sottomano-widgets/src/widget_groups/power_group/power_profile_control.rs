@@ -25,11 +25,11 @@ use crate::{
         sqlite_power_draw_regression,
     },
     widgets::{
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         keyed_record_table::{IntoTableRecord, TableRecord},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
     },
 };
@@ -264,7 +264,7 @@ impl PowerProfileControl {
             .flatten()
     }
 
-    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
         let profile =
             Section::dictionary([LabeledValue::new("Active", self.control.readout_cell())]).titled(
                 (
@@ -274,10 +274,10 @@ impl PowerProfileControl {
             );
         let battery_life = (!self.estimates.is_empty()).then(|| self.battery_life_section());
         self.status
-            .tooltip_with(TooltipBody::sections(
+            .hover_card_with(HoverCardBody::sections(
                 [Some(profile), battery_life].into_iter().flatten(),
             ))
-            .map(|tooltip| tooltip.with_groups(self.status.sections(clock)))
+            .map(|hover_card| hover_card.with_groups(self.status.sections(clock)))
     }
 
     fn battery_life_section(&self) -> Section {

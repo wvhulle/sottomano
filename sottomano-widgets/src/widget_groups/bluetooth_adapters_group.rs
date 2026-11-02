@@ -27,14 +27,14 @@ use self::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         input_report_sections::MeasuredReportTiming,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -230,20 +230,20 @@ impl BluetoothAdaptersGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: &BluetoothTarget,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         let body = match target {
             BluetoothTarget::Adapter { controller_name } => self
                 .adapter_reading(self.adapter_named(controller_name)?)
-                .tooltip(clock),
+                .hover_card(clock),
             BluetoothTarget::PowerSwitch { controller_name } => AdapterPowerSwitch {
                 adapter: self.adapter_named(controller_name)?,
             }
-            .tooltip(clock),
+            .hover_card(clock),
             BluetoothTarget::Device {
                 controller_name,
                 object_path,
@@ -256,10 +256,10 @@ impl BluetoothAdaptersGroup {
                     .iter()
                     .find(|device| device.object_path == *object_path)?;
                 self.device_reading(device, siblings, report_timing_for, clock)
-                    .tooltip(clock)
+                    .hover_card(clock)
             }
         };
-        self.bluetooth.tooltip_with(body)
+        self.bluetooth.hover_card_with(body)
     }
 
     fn adapter_group<'a>(

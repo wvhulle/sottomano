@@ -15,13 +15,13 @@ use sottomano_sources::{
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
-        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -274,9 +274,9 @@ impl AudioGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: AudioTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: AudioTarget, clock: Clock) -> Option<HoverCard> {
         let AudioTarget::Control(kind) = target else {
-            return self.state.tooltip(clock);
+            return self.state.hover_card(clock);
         };
         let state = self.state.get()?;
         let (reading, control) = match kind {
@@ -288,7 +288,7 @@ impl AudioGroup {
             .device
             .as_deref()
             .map(|device| LabeledValue::new("Device", device));
-        self.state.tooltip_with(TooltipBody::dictionary(
+        self.state.hover_card_with(HoverCardBody::dictionary(
             [
                 LabeledValue::new(kind.label(), control.readout_cell()),
                 LabeledValue::new("State", state),

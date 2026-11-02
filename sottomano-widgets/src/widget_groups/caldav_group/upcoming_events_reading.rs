@@ -12,6 +12,7 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
@@ -19,7 +20,6 @@ use crate::{
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -166,7 +166,7 @@ impl GroupItemReading for UpcomingEventList {
         }
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let now = clock.local();
         let rows: Vec<_> = self
             .events
@@ -181,7 +181,7 @@ impl GroupItemReading for UpcomingEventList {
             self.failed_subscription_names.iter().map(|calendar_name| {
                 Section::error(format!("calendar {calendar_name} could not be downloaded"))
             });
-        TooltipBody::sections(
+        HoverCardBody::sections(
             failed_subscription_sections.chain([
                 Section::grouped_column_table(
                     [
@@ -235,10 +235,10 @@ mod tests {
     #[test]
     fn events_awaiting_their_first_snapshot_show_a_pending_reading() {
         let pending_events = LatestSnapshot::<UpcomingEventList>::default();
-        assert!(pending_events.tooltip(Clock::real()).is_none());
+        assert!(pending_events.hover_card(Clock::real()).is_none());
         assert!(
             pending_events
-                .tooltip_while_pending(Clock::real())
+                .hover_card_while_pending(Clock::real())
                 .is_some()
         );
         assert!(

@@ -10,11 +10,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
     },
@@ -40,11 +40,11 @@ impl GroupItemReading for Temperature {
         Some(celsius_text(self.temp))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let sky_entry = self
             .condition
             .map(|condition| LabeledValue::new("Sky", condition.to_string()));
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::dictionary(sky_entry.into_iter().chain([
                 LabeledValue::new("Temperature", weather_temperature(self.temp)),
                 LabeledValue::new("Feels like", weather_temperature(self.feels)),

@@ -46,15 +46,15 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
     let animation = if state.notifications.is_transitioning(state.clock.instant)
         || state
-            .tooltip
+            .hover_card
             .is_morphing(state.clock.instant, state.config.tooltips.popup_morph)
     {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
     };
-    let tooltip_fade = if state.tooltip.is_hiding() {
-        every(state.config.tooltips.popup_morph).map(|_| Message::TooltipFadeElapsed)
+    let hover_card_fade = if state.hover_card.is_hiding() {
+        every(state.config.tooltips.popup_morph).map(|_| Message::HoverCardFadeElapsed)
     } else {
         Subscription::none()
     };
@@ -93,7 +93,7 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
         niri_subscription(),
         notifications_subscription(),
         animation,
-        tooltip_fade,
+        hover_card_fade,
         state.pointer_drag_subscription(),
         state
             .notifications

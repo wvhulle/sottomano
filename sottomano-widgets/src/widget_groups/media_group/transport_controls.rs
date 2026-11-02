@@ -3,7 +3,7 @@ use sottomano_config::Config;
 use sottomano_sources::media_playback_audio::mpris_players::{Command, LoopMode, Media, Status};
 
 use crate::{
-    hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, PressHints, hoverable},
     widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
         glyph_button,
@@ -18,7 +18,7 @@ pub struct TransportControls<'c, Message> {
     media: &'c Media,
     reveal: f32,
     on_command: fn(Command) -> Message,
-    on_tooltip: fn(TooltipMessage) -> Message,
+    on_hover_card: fn(HoverCardMessage) -> Message,
 }
 
 struct TransportPress {
@@ -33,14 +33,14 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         media: &'c Media,
         reveal: f32,
         on_command: fn(Command) -> Message,
-        on_tooltip: fn(TooltipMessage) -> Message,
+        on_hover_card: fn(HoverCardMessage) -> Message,
     ) -> Self {
         Self {
             config,
             media,
             reveal,
             on_command,
-            on_tooltip,
+            on_hover_card,
         }
     }
 
@@ -96,7 +96,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
                 left: Some(press.does),
                 ..PressHints::default()
             },
-            self.on_tooltip,
+            self.on_hover_card,
         )
     }
 

@@ -4,18 +4,18 @@ use sottomano_sources::{SnapshotDelivery, SnapshotSource, blocking_background_wo
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody, Section,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{
-            Section, TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
     },
 };
 
@@ -54,8 +54,8 @@ impl IconToggle {
     }
 
     #[must_use]
-    pub fn switch_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::sourced(self.tooltip(clock), DeliveryTiming::LivePush)
+    pub fn switch_hover_card(&self, clock: Clock) -> HoverCard {
+        HoverCard::sourced(self.hover_card(clock), DeliveryTiming::LivePush)
     }
 }
 
@@ -72,8 +72,8 @@ impl GroupItemReading for IconToggle {
         ReadingDisplayState::of_toggle(self.enabled)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 
@@ -143,10 +143,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.apply_command(command_outcome);
     }
 
-    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
         match self.reading.get() {
-            Some(_) => self.reading.tooltip_with(TooltipBody::sections([])),
-            None => self.reading.tooltip(clock),
+            Some(_) => self.reading.hover_card_with(HoverCardBody::sections([])),
+            None => self.reading.hover_card(clock),
         }
     }
 
@@ -221,7 +221,9 @@ mod tests {
         );
         let hover_card = format!(
             "{:?}",
-            control.tooltip(Clock::real()).map(|tooltip| tooltip.groups)
+            control
+                .hover_card(Clock::real())
+                .map(|hover_card| hover_card.groups)
         );
         assert!(hover_card.contains(&refused_write().to_string()));
     }

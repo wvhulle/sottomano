@@ -4,7 +4,7 @@ use sottomano_config::{Config, SecretPaths};
 use sottomano_sources::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
 use sottomano_widgets::{
     clock::Clock,
-    hover_tooltips::tooltip_surfaces::TooltipSurfaceStyle,
+    hover_cards::hover_card_surfaces::HoverCardSurfaceStyle,
     notification_toasts::{NotificationSettings, ToastContext},
     widget_groups::{
         appearance_presets_group::AppearancePresetsGroup,
@@ -367,8 +367,8 @@ impl ShellWidgetGroups {
     }
 
     #[must_use]
-    pub fn tooltip_surface_style(&self) -> TooltipSurfaceStyle {
-        TooltipSurfaceStyle {
+    pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
+        HoverCardSurfaceStyle {
             overlay_appearance: self.overlay_settings_group.overlay_appearance(),
             float_offset_px: self.panel_settings_group.float_offset_px(),
         }

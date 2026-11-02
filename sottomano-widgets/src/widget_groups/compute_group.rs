@@ -31,15 +31,15 @@ use x3d_cache_preference_toggle::ChipletRoles;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -281,10 +281,10 @@ impl ComputeGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ComputeTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: ComputeTarget, clock: Clock) -> Option<HoverCard> {
         let live = self.live();
         match target {
-            ComputeTarget::CpuLoad => self.cpu_load.tooltip_with_groups(
+            ComputeTarget::CpuLoad => self.cpu_load.hover_card_with_groups(
                 [
                     self.cpu_busy_processes.sections(clock),
                     self.core_loads
@@ -294,7 +294,7 @@ impl ComputeGroup {
                 .flatten(),
                 clock,
             ),
-            ComputeTarget::CpuClock => self.cpu_clock.tooltip_with_groups(
+            ComputeTarget::CpuClock => self.cpu_clock.hover_card_with_groups(
                 self.cpu_clock.sections_described_by(|cpu_clock| {
                     live.clock_sections(cpu_clock, self.core_loads.reading())
                 }),
@@ -304,31 +304,36 @@ impl ComputeGroup {
                 let limits = ClockLimitCauses {
                     clock: self.cpu_clock.get()?,
                 };
-                self.cpu_clock
-                    .tooltip_with(limits.visible_on_panel().then(|| limits.tooltip(clock))?)
+                self.cpu_clock.hover_card_with(
+                    limits
+                        .visible_on_panel()
+                        .then(|| limits.hover_card(clock))?,
+                )
             }
-            ComputeTarget::CpuTemperature => self.cpu_temperature.tooltip_with_groups(
+            ComputeTarget::CpuTemperature => self.cpu_temperature.hover_card_with_groups(
                 self.core_temperatures
                     .sections_described_by(|temperatures| {
                         live.core_temperature_sections(temperatures)
                     }),
                 clock,
             ),
-            ComputeTarget::CpuPowerDraw => self.cpu_power_draw.tooltip(clock),
+            ComputeTarget::CpuPowerDraw => self.cpu_power_draw.hover_card(clock),
             ComputeTarget::CpuModel => {
                 let model = &self.host_hardware.get()?.cpu;
                 self.host_hardware
-                    .tooltip_with(model.visible_on_panel().then(|| model.tooltip(clock))?)
+                    .hover_card_with(model.visible_on_panel().then(|| model.hover_card(clock))?)
             }
             ComputeTarget::X3dCachePreference => {
-                self.x3d_cache_preference.tooltip(clock).map(|tooltip| {
-                    tooltip.with_groups(self.cpu_clock.sections_described_by(|clock| {
-                        ChipletRoles {
-                            topology: &clock.topology,
-                        }
-                        .sections()
-                    }))
-                })
+                self.x3d_cache_preference
+                    .hover_card(clock)
+                    .map(|hover_card| {
+                        hover_card.with_groups(self.cpu_clock.sections_described_by(|clock| {
+                            ChipletRoles {
+                                topology: &clock.topology,
+                            }
+                            .sections()
+                        }))
+                    })
             }
         }
     }

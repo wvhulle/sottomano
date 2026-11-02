@@ -11,10 +11,10 @@ use crate::{
     widget_groups::clock_group::TICK,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -46,9 +46,9 @@ impl GroupItemReading for LocalTime {
         Some(LocalizedTimeFormat::TimeOfDay.format(&clock.local(), locale))
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let local = clock.local();
-        TooltipBody::dictionary([
+        HoverCardBody::dictionary([
             LabeledValue::new("UTC offset", local.format("%:z").to_string()),
             LabeledValue::new("Unix time", local.timestamp().to_string()),
         ])

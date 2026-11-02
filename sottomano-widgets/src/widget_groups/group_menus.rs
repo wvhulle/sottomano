@@ -15,7 +15,7 @@ use self::{
     sqlite_group_menu_pins::StoredGroupMenuPin,
 };
 use crate::{
-    hover_tooltips::InspectedRow,
+    hover_cards::InspectedRow,
     widgets::{
         phosphor::{Phosphor, Weight},
         widget_group::WidgetGroupTitle,

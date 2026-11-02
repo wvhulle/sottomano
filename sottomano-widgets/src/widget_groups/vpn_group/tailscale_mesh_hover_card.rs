@@ -10,12 +10,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -126,14 +126,14 @@ impl GroupItemReading for Tailscale {
             .filter(|count| *count > 0)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let tailnet = match self {
             Tailscale::Running(tailnet) => tailnet,
             Tailscale::Starting => {
-                return TooltipBody::dictionary([LabeledValue::new("Tailscale", "starting")]);
+                return HoverCardBody::dictionary([LabeledValue::new("Tailscale", "starting")]);
             }
             Tailscale::Stopped => {
-                return TooltipBody::dictionary([LabeledValue::new("Tailscale", "disconnected")]);
+                return HoverCardBody::dictionary([LabeledValue::new("Tailscale", "disconnected")]);
             }
         };
         let health_entries = tailnet
@@ -175,6 +175,6 @@ impl GroupItemReading for Tailscale {
             ],
             &tailnet.online,
         );
-        TooltipBody::sections([summary_section, peer_table])
+        HoverCardBody::sections([summary_section, peer_table])
     }
 }

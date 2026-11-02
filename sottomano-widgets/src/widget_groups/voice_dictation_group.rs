@@ -25,7 +25,7 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::voice_dictation_group::{
         dictation_phase_item::{press_does, shows_pipeline},
         inference_hardware_item::InferenceHardware,
@@ -35,11 +35,11 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -244,7 +244,7 @@ impl VoiceDictationGroup {
         self.dictation.get().is_some_and(shows_pipeline)
     }
 
-    fn runtime_tooltip(&self, clock: Clock) -> Option<Tooltip> {
+    fn runtime_hover_card(&self, clock: Clock) -> Option<HoverCard> {
         let serving = self.dictation.get().is_some();
         let runtime_sections = self
             .engine
@@ -256,27 +256,27 @@ impl VoiceDictationGroup {
             });
         Some(
             self.runtime
-                .tooltip(serving, clock)?
+                .hover_card(serving, clock)?
                 .with_groups(runtime_sections),
         )
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: VoiceDictationTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            VoiceDictationTarget::Dictation => self.dictation.tooltip(clock),
-            VoiceDictationTarget::Pipeline => self.pipeline.tooltip(clock),
-            VoiceDictationTarget::Runtime => self.runtime_tooltip(clock),
+            VoiceDictationTarget::Dictation => self.dictation.hover_card(clock),
+            VoiceDictationTarget::Pipeline => self.pipeline.hover_card(clock),
+            VoiceDictationTarget::Runtime => self.runtime_hover_card(clock),
             VoiceDictationTarget::SpeechModel => self
                 .engine
-                .tooltip_with_groups(self.model_card.sections(clock), clock),
+                .hover_card_with_groups(self.model_card.sections(clock), clock),
             VoiceDictationTarget::RuntimeConfiguration => self
                 .engine
-                .tooltip_with(RuntimeConfiguration(self.loaded_engine()?).tooltip(clock)),
+                .hover_card_with(RuntimeConfiguration(self.loaded_engine()?).hover_card(clock)),
             VoiceDictationTarget::InferenceHardware => self
                 .engine
-                .tooltip_with(InferenceHardware(self.loaded_engine()?).tooltip(clock)),
-            VoiceDictationTarget::TypingOutput => self.output_problems.tooltip(clock),
+                .hover_card_with(InferenceHardware(self.loaded_engine()?).hover_card(clock)),
+            VoiceDictationTarget::TypingOutput => self.output_problems.hover_card(clock),
         }
     }
 

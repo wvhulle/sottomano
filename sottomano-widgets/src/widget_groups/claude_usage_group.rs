@@ -25,15 +25,15 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::{LabeledValue, ValueCell},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
@@ -269,20 +269,20 @@ impl ClaudeUsageGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: ClaudeUsageTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            ClaudeUsageTarget::UsageWindows => self.usage_windows.tooltip(clock),
+            ClaudeUsageTarget::UsageWindows => self.usage_windows.hover_card(clock),
             ClaudeUsageTarget::EnterpriseSpend => self
                 .enterprise_spend
-                .tooltip_with_groups(self.organization.sections(clock), clock),
-            ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.tooltip(clock),
-            ClaudeUsageTarget::CcusageBlock => self.ccusage_block.tooltip(clock),
+                .hover_card_with_groups(self.organization.sections(clock), clock),
+            ClaudeUsageTarget::CcusagePeriods => self.ccusage_periods.hover_card(clock),
+            ClaudeUsageTarget::CcusageBlock => self.ccusage_block.hover_card(clock),
             ClaudeUsageTarget::MostUsedModel => self
                 .ccusage_models
-                .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
-            ClaudeUsageTarget::MostUsedModelSpend => self
-                .ccusage_models
-                .tooltip_with(MostUsedModelSpend(self.billed_model_ranking()?).tooltip(clock)),
+                .hover_card_with(MostUsedModel(self.model_ranking()?).hover_card(clock)),
+            ClaudeUsageTarget::MostUsedModelSpend => self.ccusage_models.hover_card_with(
+                MostUsedModelSpend(self.billed_model_ranking()?).hover_card(clock),
+            ),
         }
     }
 

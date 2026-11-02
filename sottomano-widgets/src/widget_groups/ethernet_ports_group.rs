@@ -20,7 +20,7 @@ use self::port_link_reading::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         group_menus::group_source_demand::GroupSourceDemand,
         interface_address_sections::{
@@ -32,12 +32,12 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            Section,
+            hover_card_source_delivery::{HoverCard, SourcedSections},
+        },
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{
-            Section,
-            tooltip_source_delivery::{SourcedSections, Tooltip},
-        },
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupTitle,
@@ -259,7 +259,7 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &EthernetPortTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &EthernetPortTarget, clock: Clock) -> Option<HoverCard> {
         let port_name = target.port_name();
         let port_state = self.port_state_named(port_name)?;
         match target {
@@ -270,7 +270,7 @@ impl EthernetPortsGroup {
                 };
                 Some(
                     self.ethernet
-                        .tooltip_with(link_reading.tooltip(clock))?
+                        .hover_card_with(link_reading.hover_card(clock))?
                         .with_groups(self.port_detail_sections(port_name, port_identity_sections)),
                 )
             }
@@ -283,7 +283,7 @@ impl EthernetPortsGroup {
                 });
                 Some(
                     self.ethernet
-                        .tooltip_with(PortConnectionSwitch { port_state }.tooltip(clock))?
+                        .hover_card_with(PortConnectionSwitch { port_state }.hover_card(clock))?
                         .with_groups(link_details),
                 )
             }
@@ -299,11 +299,11 @@ impl EthernetPortsGroup {
                 let router_details = self.gateway_latencies.sections_described_by(|latencies| {
                     family_router_sections(latencies, port_name, *family)
                 });
-                Some(Tooltip::grouped(
+                Some(HoverCard::grouped(
                     address_details.into_iter().chain(router_details),
                 ))
             }
-            EthernetPortTarget::Dns { .. } => Some(Tooltip::grouped(self.port_detail_sections(
+            EthernetPortTarget::Dns { .. } => Some(HoverCard::grouped(self.port_detail_sections(
                 port_name,
                 |port| {
                     port.link

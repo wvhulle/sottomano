@@ -8,14 +8,14 @@ use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::{
-    hover_tooltips::PopupMessage,
+    hover_cards::PopupMessage,
     widgets::{
         configured_theme::{
             background_color, background_strong_color, background_weak_color, danger_color,
             primary_color, secondary_text_color, text_color,
         },
         favicon::Favicons,
-        tooltip_body::tooltip_figure_payloads::{PreviewTile, WorkspacePreview},
+        hover_card_body::hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
     },

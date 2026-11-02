@@ -12,11 +12,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -50,7 +50,7 @@ impl GroupItemReading for DriveHealth {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let thresholds = self
             .temperature
             .current()
@@ -76,7 +76,7 @@ impl GroupItemReading for DriveHealth {
                 ]
             }))
             .titled("Thresholds");
-        TooltipBody::sections(
+        HoverCardBody::sections(
             [summary, threshold_section, Section::from(&self.identity)]
                 .into_iter()
                 .chain(self.errors.iter().map(|errors| {

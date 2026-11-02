@@ -9,9 +9,9 @@ use uom::si::f64::{Frequency, Ratio};
 
 use super::cpu_clock_limit_causes::{cause_level, causes_text};
 use crate::widgets::{
+    hover_card_body::Section,
     keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
     localized_quantities::Quantity,
-    tooltip_body::Section,
     value_cells::ValueCell,
 };
 

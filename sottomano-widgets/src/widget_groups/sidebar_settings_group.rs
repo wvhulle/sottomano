@@ -7,18 +7,18 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::{
         sqlite_shell_settings_row::{self, ShellSetting},
         workspaces_group::{EmptyWorkspaceFolding, RevealFoldTimer},
     },
     widgets::{
         group_item::GroupItem,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
         phosphor::{Phosphor, Weight},
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -173,12 +173,14 @@ impl SidebarSettingsGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: SidebarSettingsTarget, clock: Clock) -> Tooltip {
+    pub fn hover_card_for(&self, target: SidebarSettingsTarget, clock: Clock) -> HoverCard {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
-                workspaces_sidebar_toggle(self.workspaces_placement).switch_tooltip(clock)
+                workspaces_sidebar_toggle(self.workspaces_placement).switch_hover_card(clock)
             }
-            SidebarSettingsTarget::Appearance(target) => self.appearance.tooltip_for(target, clock),
+            SidebarSettingsTarget::Appearance(target) => {
+                self.appearance.hover_card_for(target, clock)
+            }
         }
     }
 
