@@ -2,8 +2,8 @@ use chrono::{Weekday, WeekdaySet};
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS working_days (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    weekday_bits INTEGER NOT NULL
+    days_from_monday INTEGER PRIMARY KEY CHECK (days_from_monday BETWEEN 0 AND 6),
+    is_working INTEGER NOT NULL
 )";
 
 pub const MONDAY_TO_FRIDAY: WeekdaySet = WeekdaySet::from_array([
@@ -21,20 +21,6 @@ pub fn with_day_toggled(working_days: WeekdaySet, day: Weekday) -> WeekdaySet {
         toggled_days.insert(day);
     }
     toggled_days
-}
-
-fn weekday_bits(working_days: WeekdaySet) -> i64 {
-    working_days
-        .iter(Weekday::Mon)
-        .map(|day| 1 << day.num_days_from_monday())
-        .sum()
-}
-
-fn weekdays_of_bits(bits: i64) -> WeekdaySet {
-    WeekdaySet::ALL
-        .iter(Weekday::Mon)
-        .filter(|day| bits & (1 << day.num_days_from_monday()) != 0)
-        .collect()
 }
 
 pub async fn load() -> WeekdaySet {
@@ -55,26 +41,47 @@ pub async fn save(working_days: WeekdaySet) -> bool {
 
 async fn read_days(connection: &turso::Connection) -> Result<WeekdaySet, StoreError> {
     let mut rows = connection
-        .query("SELECT weekday_bits FROM working_days WHERE id = 0", ())
+        .query("SELECT days_from_monday, is_working FROM working_days", ())
         .await?;
     let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(MONDAY_TO_FRIDAY);
-    };
-    Ok(weekdays_of_bits(columns.integer(&row, "weekday_bits")?))
+    let mut stored_any_day = false;
+    let mut working_days = WeekdaySet::EMPTY;
+    while let Some(row) = rows.next().await? {
+        stored_any_day = true;
+        let weekday = WeekdaySet::ALL
+            .iter(Weekday::Mon)
+            .nth(usize::try_from(columns.integer(&row, "days_from_monday")?).unwrap_or(7));
+        if let Some(day) = weekday.filter(|_| {
+            columns
+                .integer(&row, "is_working")
+                .is_ok_and(|is_working| is_working != 0)
+        }) {
+            working_days.insert(day);
+        }
+    }
+    Ok(if stored_any_day {
+        working_days
+    } else {
+        MONDAY_TO_FRIDAY
+    })
 }
 
 async fn write_days(
     connection: &turso::Connection,
     working_days: WeekdaySet,
 ) -> Result<(), StoreError> {
-    connection
-        .execute(
-            "INSERT INTO working_days (id, weekday_bits) VALUES (0, ?1)
-         ON CONFLICT(id) DO UPDATE SET weekday_bits = ?1",
-            (weekday_bits(working_days),),
-        )
-        .await?;
+    for day in WeekdaySet::ALL.iter(Weekday::Mon) {
+        connection
+            .execute(
+                "INSERT INTO working_days (days_from_monday, is_working) VALUES (?1, ?2)
+                 ON CONFLICT(days_from_monday) DO UPDATE SET is_working = ?2",
+                (
+                    i64::from(day.num_days_from_monday()),
+                    i64::from(working_days.contains(day)),
+                ),
+            )
+            .await?;
+    }
     Ok(())
 }
 

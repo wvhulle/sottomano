@@ -156,7 +156,7 @@ mod tests {
 
     fn gpu_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Group {
-            menu_topic: "HardwareMenu".to_owned(),
+            menu_topic: "hardware".to_owned(),
             group_family: "gpu".to_owned(),
             group_instance: String::new(),
         }
@@ -164,7 +164,7 @@ mod tests {
 
     fn gpu_load_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Item {
-            menu_topic: "HardwareMenu".to_owned(),
+            menu_topic: "hardware".to_owned(),
             group_family: "gpu".to_owned(),
             group_instance: String::new(),
             item_key: "gpu_load".to_owned(),

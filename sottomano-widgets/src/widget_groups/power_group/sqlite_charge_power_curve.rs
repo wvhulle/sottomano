@@ -3,16 +3,13 @@ use sottomano_sources::{
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
-pub const SCHEMA: [&str; 2] = [
-    "CREATE TABLE IF NOT EXISTS battery_charge_curve (
+pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS battery_charge_curve (
         battery TEXT NOT NULL,
         bin INTEGER NOT NULL,
         mean_w REAL NOT NULL,
         variance REAL NOT NULL,
         PRIMARY KEY (battery, bin)
-    )",
-    "DROP TABLE IF EXISTS battery_charge_residual",
-];
+    )"];
 
 pub async fn load(battery: String) -> Box<ChargeCurve> {
     Box::new(

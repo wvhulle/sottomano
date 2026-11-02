@@ -8,25 +8,20 @@ use sottomano_sources::{
 
 const RETENTION: TimeDelta = TimeDelta::days(400);
 
-pub const SCHEMA: [&str; 8] = [
-    "DROP TABLE IF EXISTS focus_span_facets",
-    "DROP TABLE IF EXISTS focus_spans",
-    "DROP TABLE IF EXISTS window_focus_span_facets",
-    "DROP TABLE IF EXISTS window_focus_spans",
-    "DROP TABLE IF EXISTS presence_spans",
-    "CREATE TABLE IF NOT EXISTS window_focus_spans_by_start_instant (
+pub const SCHEMA: [&str; 3] = [
+    "CREATE TABLE IF NOT EXISTS window_focus_spans (
         started_at TEXT PRIMARY KEY,
         window_id INTEGER NOT NULL,
         ended_at TEXT NOT NULL
     )",
-    "CREATE TABLE IF NOT EXISTS window_focus_span_facets_by_start_instant (
+    "CREATE TABLE IF NOT EXISTS window_focus_span_facets (
         span_started_at TEXT NOT NULL
-            REFERENCES window_focus_spans_by_start_instant (started_at),
+            REFERENCES window_focus_spans (started_at),
         facet TEXT NOT NULL,
         value TEXT NOT NULL,
         PRIMARY KEY (span_started_at, facet)
     )",
-    "CREATE TABLE IF NOT EXISTS presence_spans_by_start_instant (
+    "CREATE TABLE IF NOT EXISTS presence_spans (
         started_at TEXT PRIMARY KEY,
         ended_at TEXT NOT NULL,
         state TEXT NOT NULL
@@ -59,19 +54,19 @@ async fn forget_before(
     let cutoff = cutoff.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
     connection
         .execute(
-            "DELETE FROM window_focus_span_facets_by_start_instant WHERE span_started_at < ?1",
+            "DELETE FROM window_focus_span_facets WHERE span_started_at < ?1",
             (cutoff.as_str(),),
         )
         .await?;
     connection
         .execute(
-            "DELETE FROM window_focus_spans_by_start_instant WHERE started_at < ?1",
+            "DELETE FROM window_focus_spans WHERE started_at < ?1",
             (cutoff.as_str(),),
         )
         .await?;
     connection
         .execute(
-            "DELETE FROM presence_spans_by_start_instant WHERE started_at < ?1",
+            "DELETE FROM presence_spans WHERE started_at < ?1",
             (cutoff.as_str(),),
         )
         .await?;
@@ -92,8 +87,8 @@ async fn read_spans(
     let mut rows = connection
         .query(
             "SELECT s.window_id, s.started_at, s.ended_at, f.facet, f.value
-             FROM window_focus_spans_by_start_instant s
-             LEFT JOIN window_focus_span_facets_by_start_instant f
+             FROM window_focus_spans s
+             LEFT JOIN window_focus_span_facets f
                  ON f.span_started_at = s.started_at
              WHERE s.ended_at >= ?1 ORDER BY s.started_at",
             (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
@@ -134,8 +129,8 @@ async fn read_spans(
 
     let mut rows = connection
         .query(
-            "SELECT started_at, ended_at, state FROM presence_spans_by_start_instant WHERE \
-             ended_at >= ?1 ORDER BY started_at",
+            "SELECT started_at, ended_at, state FROM presence_spans WHERE ended_at >= ?1 ORDER BY \
+             started_at",
             (since.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),),
         )
         .await?;
@@ -167,9 +162,9 @@ async fn record_span(connection: &turso::Connection, write: &SpanWrite) -> Resul
             let started_at = span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z);
             connection
                 .execute(
-                    "INSERT INTO window_focus_spans_by_start_instant (started_at, window_id, \
-                     ended_at) VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET \
-                     ended_at = max(ended_at, excluded.ended_at)",
+                    "INSERT INTO window_focus_spans (started_at, window_id, ended_at) VALUES (?1, \
+                     ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = max(ended_at, \
+                     excluded.ended_at)",
                     (
                         started_at.as_str(),
                         span.window.cast_signed(),
@@ -180,8 +175,8 @@ async fn record_span(connection: &turso::Connection, write: &SpanWrite) -> Resul
             for stored in span.units.iter().map(StoredFacet::from) {
                 connection
                     .execute(
-                        "INSERT OR IGNORE INTO window_focus_span_facets_by_start_instant \
-                         (span_started_at, facet, value) VALUES (?1, ?2, ?3)",
+                        "INSERT OR IGNORE INTO window_focus_span_facets (span_started_at, facet, \
+                         value) VALUES (?1, ?2, ?3)",
                         (started_at.as_str(), stored.facet, stored.value),
                     )
                     .await?;
@@ -190,9 +185,9 @@ async fn record_span(connection: &turso::Connection, write: &SpanWrite) -> Resul
         SpanWrite::RecordPresenceSpan(span) => {
             connection
                 .execute(
-                    "INSERT INTO presence_spans_by_start_instant (started_at, ended_at, state) \
-                     VALUES (?1, ?2, ?3) ON CONFLICT (started_at) DO UPDATE SET ended_at = \
-                     max(ended_at, excluded.ended_at)",
+                    "INSERT INTO presence_spans (started_at, ended_at, state) VALUES (?1, ?2, ?3) \
+                     ON CONFLICT (started_at) DO UPDATE SET ended_at = max(ended_at, \
+                     excluded.ended_at)",
                     (
                         span.started_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
                         span.ended_at.to_rfc3339_opts(SORTABLE_INSTANT, UTC_AS_Z),
@@ -330,7 +325,7 @@ mod tests {
         forget_before(&connection, at(0)).await.unwrap();
         let mut rows = connection
             .query(
-                "SELECT COUNT(*) AS facets FROM window_focus_span_facets_by_start_instant",
+                "SELECT COUNT(*) AS facets FROM window_focus_span_facets",
                 (),
             )
             .await

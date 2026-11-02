@@ -9,8 +9,7 @@ use crate::{
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        sqlite_shell_settings_row,
-        sqlite_shell_settings_row::ShellSetting,
+        sqlite_singleton_flag::{self, SingletonFlag},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -86,11 +85,7 @@ impl OverlaySettingsGroup {
     pub fn load() -> Task<OverlaySettingsMessage> {
         Task::batch([
             Task::perform(
-                sqlite_shell_settings_row::load_stored_flag(
-                    "shell settings: load toast spatial layout failed",
-                    "toast_spatial_layout",
-                    true,
-                ),
+                sqlite_singleton_flag::load(SingletonFlag::ToastSpatialLayout, true),
                 OverlaySettingsMessage::SpatialLayoutLoaded,
             ),
             LayerAppearanceControls::load(ShellLayer::Overlays)
@@ -137,8 +132,9 @@ impl OverlaySettingsGroup {
             OverlaySettingsMessage::ToggleToastSpatialLayout => {
                 self.toast_spatial_layout = !self.toast_spatial_layout;
                 Action::ReflowToasts(
-                    Task::future(sqlite_shell_settings_row::save(
-                        ShellSetting::ToastSpatialLayout(self.toast_spatial_layout),
+                    Task::future(sqlite_singleton_flag::save(
+                        SingletonFlag::ToastSpatialLayout,
+                        self.toast_spatial_layout,
                     ))
                     .discard(),
                 )
