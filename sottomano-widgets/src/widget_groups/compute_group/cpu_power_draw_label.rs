@@ -8,7 +8,8 @@ use uom::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -31,7 +32,7 @@ fn package_draw(power: &CpuPower) -> Option<Power> {
         .reduce(|total, draw| total + draw)
 }
 
-impl BarWidget for CpuPower {
+impl GroupItemReading for CpuPower {
     fn visible_in_bar(&self) -> bool {
         package_draw(self).is_some()
     }
@@ -40,7 +41,7 @@ impl BarWidget for CpuPower {
         CPU_POWER_DRAW_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Lightning(Weight::Regular).into()
     }
 

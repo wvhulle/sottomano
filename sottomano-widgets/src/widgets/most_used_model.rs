@@ -10,7 +10,8 @@ use crate::{
     clock::Clock,
     widgets::{
         amount_text::{percent_text, spend_text},
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -123,12 +124,12 @@ impl<'a, const SPANS: usize> ModelSpendRanking<'a, SPANS> {
 
 pub struct MostUsedModel<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
 
-impl<const SPANS: usize> BarWidget for MostUsedModel<'_, SPANS> {
+impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
     fn name(&self) -> &'static str {
         "Most used model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Sparkle(Weight::Regular).into()
     }
 
@@ -147,12 +148,12 @@ impl<const SPANS: usize> BarWidget for MostUsedModel<'_, SPANS> {
 
 pub struct MostUsedModelSpend<'a, const SPANS: usize>(pub ModelSpendRanking<'a, SPANS>);
 
-impl<const SPANS: usize> BarWidget for MostUsedModelSpend<'_, SPANS> {
+impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
     fn name(&self) -> &'static str {
         "Most used model spend"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Coins(Weight::Regular).into()
     }
 

@@ -22,7 +22,8 @@ use super::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::DiagramCallout},
         value_cells::LabeledValue,
@@ -273,12 +274,12 @@ impl ConnectedControllerReading<'_> {
     }
 }
 
-impl BarWidget for ConnectedControllerReading<'_> {
+impl GroupItemReading for ConnectedControllerReading<'_> {
     fn name(&self) -> &'static str {
         "Game controller"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::GameController(Weight::Regular).into()
     }
 

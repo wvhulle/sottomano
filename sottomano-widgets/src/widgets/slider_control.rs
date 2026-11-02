@@ -16,11 +16,12 @@ use crate::{
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
-        bar_widget::{BarWidget, Glyph},
         configured_theme::text_color,
         device_setting::{DeviceSetting, Nudge, Write},
         expand_animation::expand_animation,
         flat_button,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         inline_slider::inline_slider,
         phosphor::Phosphor,
         reveal::reveal_x,
@@ -76,7 +77,7 @@ pub struct SliderControl {
     readout: fn(f32, Locale) -> String,
     gauge: bool,
     label: Option<fn(f32, Locale) -> Option<String>>,
-    icon: Glyph,
+    icon: IconGlyph,
     glyph: Option<fn(f32, bool) -> Phosphor>,
     thresholds: Option<SeverityThresholds>,
     target: HoverTarget,
@@ -152,7 +153,7 @@ impl SliderControl {
         name: &'static str,
         range: RangeInclusive<f32>,
         target: impl Into<HoverTarget>,
-        icon: impl Into<Glyph>,
+        icon: impl Into<IconGlyph>,
     ) -> Self {
         Self {
             name,
@@ -266,7 +267,7 @@ impl SliderControl {
         &self.target
     }
 
-    pub fn set_icon(&mut self, icon: impl Into<Glyph>) {
+    pub fn set_icon(&mut self, icon: impl Into<IconGlyph>) {
         self.icon = icon.into();
     }
 
@@ -305,7 +306,7 @@ impl SliderControl {
             })
     }
 
-    fn effective_icon(&self) -> Glyph {
+    fn effective_icon(&self) -> IconGlyph {
         self.glyph.map_or(self.icon, |glyph| {
             glyph(self.current(), self.disabled).into()
         })
@@ -562,12 +563,12 @@ impl SliderControl {
     }
 }
 
-impl BarWidget for SliderControl {
+impl GroupItemReading for SliderControl {
     fn name(&self) -> &'static str {
         self.name
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.effective_icon()
     }
 

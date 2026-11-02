@@ -8,7 +8,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -19,16 +20,16 @@ use crate::{
     },
 };
 
-impl BarWidget for CopilotMetered {
+impl GroupItemReading for CopilotMetered {
     fn name(&self) -> &'static str {
         "Copilot quota"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 

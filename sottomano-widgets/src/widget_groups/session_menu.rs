@@ -14,10 +14,10 @@ use crate::{
     hover_tooltips::HoverTarget,
     widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
-        bar_widget::Glyph,
         configured_theme::text_color,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
@@ -53,7 +53,7 @@ impl SessionMenuEntry {
         };
         MenuLine::Row(MenuRow {
             leading: Some(
-                Glyph::from(session_action_icon(self.action))
+                IconGlyph::from(session_action_icon(self.action))
                     .view(config.theme.font.icon_size_px, text_color),
             ),
             label: Some(self.action.verb().to_owned()),
@@ -192,7 +192,7 @@ impl SessionMenu {
             GroupItem::composed(
                 ItemIdentity {
                     name: Self::TITLE.into(),
-                    icon: ItemIcon::Glyph {
+                    icon: ItemIcon::IconGlyph {
                         glyph: Phosphor::Power(Weight::Regular).into(),
                         state: WidgetState::Idle,
                     },

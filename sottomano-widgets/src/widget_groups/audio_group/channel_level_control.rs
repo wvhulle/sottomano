@@ -6,8 +6,9 @@ use super::ControlKind;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         slider_control::{ControlMessage, SliderControl, percent_f},
@@ -27,12 +28,12 @@ pub(super) fn audio_output_icon(state: &AudioState) -> Phosphor {
     }
 }
 
-impl BarWidget for AudioState {
+impl GroupItemReading for AudioState {
     fn name(&self) -> &'static str {
         "Audio"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         audio_output_icon(self).into()
     }
 

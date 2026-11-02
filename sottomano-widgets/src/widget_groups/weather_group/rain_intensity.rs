@@ -18,7 +18,8 @@ use crate::{
         MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
         localized_quantities::Quantity,
@@ -65,7 +66,7 @@ enum RadarRainStrength {
 }
 
 impl RadarRainStrength {
-    fn glyph(self) -> Glyph {
+    fn glyph(self) -> IconGlyph {
         match self {
             RadarRainStrength::Dry => Phosphor::DropSlash(Weight::Regular).into(),
             RadarRainStrength::Light => WeatherIcon::Sprinkle.into(),
@@ -217,7 +218,7 @@ impl IntoTableRecord<3> for &RainTimelineRow<'_> {
         let cells = match *self {
             RainTimelineRow::RadarFrame { frame, scale } => [
                 rain_amount_cell(frame.intensity, scale),
-                ValueCell::Glyph(scale.strength(frame.intensity).glyph()),
+                ValueCell::IconGlyph(scale.strength(frame.intensity).glyph()),
                 ValueCell::Blank,
             ],
             RainTimelineRow::RadarFrameStartingModelQuarter {
@@ -226,12 +227,12 @@ impl IntoTableRecord<3> for &RainTimelineRow<'_> {
                 quarter,
             } => [
                 rain_amount_cell(frame.intensity, scale),
-                ValueCell::Glyph(scale.strength(frame.intensity).glyph()),
+                ValueCell::IconGlyph(scale.strength(frame.intensity).glyph()),
                 model_quarter_text(quarter).into(),
             ],
             RainTimelineRow::ModelQuarter { quarter, scale } => [
                 ValueCell::Blank,
-                ValueCell::Glyph(model_quarter_glyph(
+                ValueCell::IconGlyph(model_quarter_glyph(
                     quarter,
                     scale.strength(quarter.intensity).glyph(),
                 )),
@@ -239,7 +240,7 @@ impl IntoTableRecord<3> for &RainTimelineRow<'_> {
             ],
             RainTimelineRow::ModelQuarterWithoutRadar { quarter, scale } => [
                 rain_amount_cell(quarter.intensity, scale),
-                ValueCell::Glyph(model_quarter_glyph(
+                ValueCell::IconGlyph(model_quarter_glyph(
                     quarter,
                     scale.strength(quarter.intensity).glyph(),
                 )),
@@ -432,12 +433,12 @@ impl RainForecast<'_> {
     }
 }
 
-impl BarWidget for RainForecast<'_> {
+impl GroupItemReading for RainForecast<'_> {
     fn name(&self) -> &'static str {
         "Rain"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match (self.radar_forecast(), self.sources.model()) {
             (Some(radar), _) => radar.icon(),
             (None, Some(model)) => model_quarter_glyph(
@@ -450,7 +451,7 @@ impl BarWidget for RainForecast<'_> {
         }
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Rain::fallback_icon()
     }
 
@@ -559,18 +560,18 @@ impl RadarRainForecast<'_> {
     }
 }
 
-impl BarWidget for RadarRainForecast<'_> {
+impl GroupItemReading for RadarRainForecast<'_> {
     fn name(&self) -> &'static str {
         self.rain.name()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.intensity_scale()
             .strength(self.rain.peak.intensity)
             .glyph()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Rain::fallback_icon()
     }
 
@@ -617,12 +618,12 @@ impl BarWidget for RadarRainForecast<'_> {
     }
 }
 
-impl BarWidget for Rain {
+impl GroupItemReading for Rain {
     fn name(&self) -> &'static str {
         "Rain"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         RadarRainForecast {
             rain: self,
             alerts: &RainAlertsConfig::default(),
@@ -630,7 +631,7 @@ impl BarWidget for Rain {
         .icon()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         WeatherIcon::Raindrop.into()
     }
 
@@ -663,12 +664,12 @@ impl BarWidget for Rain {
     }
 }
 
-impl BarWidget for PrecipitationModel {
+impl GroupItemReading for PrecipitationModel {
     fn name(&self) -> &'static str {
         "Precipitation model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         RainForecast {
             sources: RainSources::Model(self),
             alerts: &RainAlertsConfig::default(),
@@ -676,7 +677,7 @@ impl BarWidget for PrecipitationModel {
         .icon()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         WeatherIcon::Sprinkle.into()
     }
 
@@ -766,7 +767,7 @@ mod tests {
         assert_eq!(forecast.state(clock), WidgetState::Off);
         assert_eq!(
             forecast.icon(),
-            Glyph::from(Phosphor::DropSlash(Weight::Regular))
+            IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
         assert_eq!(
             RadarRainForecast {
@@ -949,7 +950,7 @@ mod tests {
             },
             "2.0 mm/h"
         );
-        assert_eq!(wet.cell(1), &ValueCell::Glyph(WeatherIcon::Rain.into()));
+        assert_eq!(wet.cell(1), &ValueCell::IconGlyph(WeatherIcon::Rain.into()));
         assert_eq!(wet.cell(2), &ValueCell::Blank);
         let dry = row(&rain.forecast[1]);
         assert_eq!(dry.cell(0), &ValueCell::from("–"));
@@ -1036,7 +1037,7 @@ mod tests {
         assert_eq!(clear_forecast.label(clock, Locale::default()), None);
         assert_eq!(
             clear_forecast.icon(),
-            Glyph::from(Phosphor::DropSlash(Weight::Regular))
+            IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
         assert_eq!(clear_forecast.state(clock), WidgetState::Off);
     }

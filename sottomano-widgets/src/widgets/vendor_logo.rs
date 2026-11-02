@@ -4,7 +4,7 @@ use sottomano_sources::{
 };
 
 use crate::widgets::{
-    bar_widget::Glyph,
+    icon_glyph::IconGlyph,
     simple_icons::SimpleIcon,
     value_cells::{LabeledValue, ValueCell},
 };
@@ -173,7 +173,7 @@ impl LabeledValue {
                 key,
                 ValueCell::BrandedText {
                     text: text.to_owned(),
-                    glyph: Glyph::from(vendor_logo),
+                    glyph: IconGlyph::from(vendor_logo),
                 },
             ),
             None => LabeledValue::new(key, text),

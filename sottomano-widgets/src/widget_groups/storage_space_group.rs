@@ -21,8 +21,9 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -55,12 +56,12 @@ impl From<StorageTarget> for HoverTarget {
     }
 }
 
-impl BarWidget for BlockFilesystemDiscovery {
+impl GroupItemReading for BlockFilesystemDiscovery {
     fn name(&self) -> &'static str {
         "Mounted filesystems"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Folders(Weight::Regular).into()
     }
 
@@ -84,12 +85,12 @@ struct MountPointLabel<'a> {
     mount_point: &'a Path,
 }
 
-impl BarWidget for MountPointLabel<'_> {
+impl GroupItemReading for MountPointLabel<'_> {
     fn name(&self) -> &'static str {
         "Mount point"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::FolderSimple(Weight::Regular).into()
     }
 

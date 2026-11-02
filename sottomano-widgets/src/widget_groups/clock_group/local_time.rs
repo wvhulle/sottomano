@@ -10,7 +10,8 @@ use crate::{
     clock::Clock,
     widget_groups::clock_group::TICK,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -32,12 +33,12 @@ impl SnapshotSource for LocalTime {
     }
 }
 
-impl BarWidget for LocalTime {
+impl GroupItemReading for LocalTime {
     fn name(&self) -> &'static str {
         "Local time"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Clock(Weight::Regular).into()
     }
 

@@ -5,7 +5,8 @@ use super::speech_model_item::model_load_error_rows;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -43,12 +44,12 @@ pub fn shows_pipeline(dictation: &NotulistDictation) -> bool {
     )
 }
 
-impl BarWidget for NotulistDictation {
+impl GroupItemReading for NotulistDictation {
     fn name(&self) -> &'static str {
         "Dictation"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.phase {
             DictationPhase::LoadingModel => Phosphor::HourglassMedium(Weight::Regular),
             DictationPhase::Idle => Phosphor::Microphone(Weight::Regular),

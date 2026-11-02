@@ -4,7 +4,8 @@ use sottomano_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOIN
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -14,16 +15,16 @@ use crate::{
     },
 };
 
-impl BarWidget for CopilotFree {
+impl GroupItemReading for CopilotFree {
     fn name(&self) -> &'static str {
         "Copilot free quota"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::ChatCircleDots(Weight::Regular).into()
     }
 

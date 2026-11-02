@@ -4,27 +4,24 @@ use sottomano_sources::weather::open_meteo_wind::Wind;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
-        localized_quantities::Quantity,
-        tooltip_body::TooltipBody,
-        value_cells::LabeledValue,
-        weather_icons::WeatherIcon,
-        widget_state::WidgetState,
+        group_item_reading::GroupItemReading, icon_glyph::IconGlyph,
+        localized_quantities::Quantity, tooltip_body::TooltipBody, value_cells::LabeledValue,
+        weather_icons::WeatherIcon, widget_state::WidgetState,
     },
 };
 
 pub(super) const WIND_ITEM_NAME: &str = "Wind";
 
-impl BarWidget for Wind {
+impl GroupItemReading for Wind {
     fn name(&self) -> &'static str {
         WIND_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         WeatherIcon::StrongWind.into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         WeatherIcon::StrongWind.into()
     }
 

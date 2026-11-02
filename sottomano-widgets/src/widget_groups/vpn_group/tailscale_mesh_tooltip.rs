@@ -9,7 +9,8 @@ use sottomano_sources::network_connectivity::tailscale_status::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
@@ -96,12 +97,12 @@ impl IntoTableRecord<6> for &Peer {
     }
 }
 
-impl BarWidget for Tailscale {
+impl GroupItemReading for Tailscale {
     fn name(&self) -> &'static str {
         TAILSCALE_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         SimpleIcon::Tailscale.into()
     }
 

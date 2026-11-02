@@ -25,10 +25,10 @@ use crate::{
     widgets::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
-        bar_widget::Glyph,
         configured_theme::primary_color,
         context_menu::context_menu,
         group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
@@ -276,7 +276,7 @@ fn item_view<'a>(
     };
     let glyph: Element<'a, GroupEvent<TrayMessage>> = item.icon.as_ref().map_or_else(
         || {
-            Glyph::from(Phosphor::Question(Weight::Regular))
+            IconGlyph::from(Phosphor::Question(Weight::Regular))
                 .view(side, move |theme| tint.color(theme))
         },
         |source| pixmap_handles.icon_handle(source).view(side, reveal),

@@ -23,7 +23,7 @@ use super::{Notification, toast_lifecycle::ToastKind};
 use crate::{
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
-        bar_widget::Glyph,
+        icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         localized_durations::relative_moment_text,
         markup_body::MarkupBody,
@@ -87,7 +87,7 @@ const PROGRESS_GIRTH_PX: f32 = 6.0;
 #[derive(Debug, Clone)]
 pub enum CardIcon {
     Handle(IconHandle),
-    Glyph(Glyph),
+    IconGlyph(IconGlyph),
 }
 
 #[derive(Debug, Clone)]
@@ -120,9 +120,9 @@ pub struct CardIcons {
 
 impl CardIcons {
     #[must_use]
-    pub fn of_glyph(glyph: Glyph) -> Self {
+    pub fn of_glyph(glyph: IconGlyph) -> Self {
         Self {
-            image: Some(CardImage::Icon(CardIcon::Glyph(glyph))),
+            image: Some(CardImage::Icon(CardIcon::IconGlyph(glyph))),
             badge: None,
         }
     }
@@ -531,7 +531,7 @@ fn preview_widget<'a>(
 ) -> Element<'a, NotificationMessage> {
     let preview: Element<'a, NotificationMessage> = match icon {
         CardIcon::Handle(handle) => handle.scaled_down(reveal),
-        CardIcon::Glyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
+        CardIcon::IconGlyph(glyph) => glyph.view(max_height, move |_| text.scale_alpha(reveal)),
     };
     container(preview).max_height(max_height).into()
 }
@@ -559,7 +559,7 @@ fn icon_widget<'a>(
     text: Color,
 ) -> Element<'a, NotificationMessage> {
     match icon {
-        CardIcon::Glyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
+        CardIcon::IconGlyph(glyph) => glyph.view(size, move |_| text.scale_alpha(reveal)),
         CardIcon::Handle(handle) => handle.view(size, reveal),
     }
 }

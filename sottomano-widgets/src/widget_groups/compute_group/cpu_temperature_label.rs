@@ -20,7 +20,8 @@ use super::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
@@ -49,12 +50,12 @@ impl PerCoreReading for CoreTemperature {
     }
 }
 
-impl BarWidget for Temperature {
+impl GroupItemReading for Temperature {
     fn name(&self) -> &'static str {
         "CPU temperature"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 

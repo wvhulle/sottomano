@@ -4,23 +4,24 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         tooltip_body::TooltipBody,
         widget_state::WidgetState,
     },
 };
 
 pub struct NamedReading<'a> {
-    pub reading: &'a dyn BarWidget,
+    pub reading: &'a dyn GroupItemReading,
     pub shown_name: &'a str,
 }
 
-impl BarWidget for NamedReading<'_> {
+impl GroupItemReading for NamedReading<'_> {
     fn name(&self) -> &'static str {
         self.reading.name()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.reading.icon()
     }
 

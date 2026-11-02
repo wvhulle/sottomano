@@ -4,8 +4,9 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -26,12 +27,12 @@ pub struct MarkedDiskSpace<'a> {
     pub marking: DiskMarking,
 }
 
-impl BarWidget for DiskSpaceOccupancy {
+impl GroupItemReading for DiskSpaceOccupancy {
     fn name(&self) -> &'static str {
         DISK_SPACE_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::HardDrive(Weight::Regular).into()
     }
 
@@ -57,12 +58,12 @@ impl BarWidget for DiskSpaceOccupancy {
     }
 }
 
-impl BarWidget for MarkedDiskSpace<'_> {
+impl GroupItemReading for MarkedDiskSpace<'_> {
     fn name(&self) -> &'static str {
         self.occupancy.name()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.occupancy.icon()
     }
 

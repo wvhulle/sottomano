@@ -9,7 +9,8 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         input_report_sections::KernelErrorListing,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -69,12 +70,12 @@ impl AdapterRadioReading<'_> {
     }
 }
 
-impl BarWidget for AdapterRadioReading<'_> {
+impl GroupItemReading for AdapterRadioReading<'_> {
     fn name(&self) -> &'static str {
         "Bluetooth"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.adapter.power {
             AdapterPower::On(_) | AdapterPower::SwitchingOn => {
                 Phosphor::Bluetooth(Weight::Regular).into()
@@ -132,12 +133,12 @@ impl AdapterPowerSwitch<'_> {
     }
 }
 
-impl BarWidget for AdapterPowerSwitch<'_> {
+impl GroupItemReading for AdapterPowerSwitch<'_> {
     fn name(&self) -> &'static str {
         "Bluetooth power"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Power(Weight::Regular).into()
     }
 

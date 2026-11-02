@@ -3,7 +3,8 @@ use sottomano_sources::systemd_units_journal::user_service_manager::UserServiceM
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -14,12 +15,12 @@ use crate::{
 
 pub struct ServiceManagerFace;
 
-impl BarWidget for ServiceManagerFace {
+impl GroupItemReading for ServiceManagerFace {
     fn name(&self) -> &'static str {
         "Service manager"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::GearSix(Weight::Regular).into()
     }
 

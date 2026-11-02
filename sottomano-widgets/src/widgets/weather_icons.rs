@@ -9,7 +9,7 @@ use sottomano_sources::weather::open_meteo_temperature::{
     },
 };
 
-use crate::widgets::{bar_widget::Glyph, svg_icon};
+use crate::widgets::{icon_glyph::IconGlyph, svg_icon};
 
 const INK_FRACTION: f32 = 22.0 / 30.0;
 
@@ -90,9 +90,9 @@ const fn sky_svg_data(condition: WeatherCondition, daylight: Daylight) -> &'stat
     }
 }
 
-impl From<WeatherIcon> for Glyph {
+impl From<WeatherIcon> for IconGlyph {
     fn from(icon: WeatherIcon) -> Self {
-        Glyph::WeatherIcon(icon)
+        IconGlyph::WeatherIcon(icon)
     }
 }
 

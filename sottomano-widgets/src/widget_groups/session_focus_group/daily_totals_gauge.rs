@@ -13,7 +13,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -158,12 +159,12 @@ impl DailyTotalsGauge {
     }
 }
 
-impl BarWidget for DailyTotalsGauge {
+impl GroupItemReading for DailyTotalsGauge {
     fn name(&self) -> &'static str {
         "Daily focus budget"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::HourglassMedium(Weight::Regular).into()
     }
 

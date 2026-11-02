@@ -14,8 +14,9 @@ use crate::{
     clock::Clock,
     widget_groups::bluetooth_adapters_group::reconnect_churn_counting::RECONNECT_HORIZON,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -66,7 +67,7 @@ pub fn short_label(device: &ConnectedDevice, siblings: &[ConnectedDevice]) -> St
     }
 }
 
-fn kind_glyph(kind: DeviceKind) -> Glyph {
+fn kind_glyph(kind: DeviceKind) -> IconGlyph {
     match kind {
         DeviceKind::Gamepad => Phosphor::GameController(Weight::Regular).into(),
         DeviceKind::Headset => Phosphor::Headset(Weight::Regular).into(),
@@ -162,12 +163,12 @@ impl ConnectedDeviceReading<'_> {
     }
 }
 
-impl BarWidget for ConnectedDeviceReading<'_> {
+impl GroupItemReading for ConnectedDeviceReading<'_> {
     fn name(&self) -> &'static str {
         "Bluetooth device"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         kind_glyph(self.device.kind)
     }
 

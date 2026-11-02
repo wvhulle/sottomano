@@ -18,12 +18,12 @@ use crate::{
     hover_tooltips::PopupMessage,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
-        bar_widget::Glyph,
         configured_theme::{
             danger_color, secondary_text_color, success_color, success_shades, text_color,
             warning_color,
         },
         content_sized_table::{ContentSizedColumn, content_sized_column, content_sized_table},
+        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
@@ -305,7 +305,7 @@ fn fold_toggle(
     size: f32,
     color: impl Fn(&Theme) -> Color + 'static,
 ) -> Element<'static, PopupMessage> {
-    mouse_area(Glyph::from(icon).view(size, color))
+    mouse_area(IconGlyph::from(icon).view(size, color))
         .on_press(PopupMessage::WindowGroup(WindowGroupMessage::WindowList(
             WindowListMessage::ProcessFoldToggled(pid),
         )))

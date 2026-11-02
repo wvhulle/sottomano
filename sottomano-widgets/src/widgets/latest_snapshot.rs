@@ -9,8 +9,9 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
         tooltip_body::{
             ReadingSections, Section, TooltipBody,
@@ -21,11 +22,11 @@ use crate::{
 };
 
 pub struct FailedSnapshotFetch<S: SnapshotSource> {
-    icon: Glyph,
+    icon: IconGlyph,
     error: S::Error,
 }
 
-impl<S: SnapshotSource + BarWidget> FailedSnapshotFetch<S> {
+impl<S: SnapshotSource + GroupItemReading> FailedSnapshotFetch<S> {
     pub fn from_fetch_error(error: S::Error) -> Self {
         Self {
             icon: S::fallback_icon(),
@@ -34,12 +35,12 @@ impl<S: SnapshotSource + BarWidget> FailedSnapshotFetch<S> {
     }
 }
 
-impl<S: SnapshotSource<Error: Into<Section>>> BarWidget for FailedSnapshotFetch<S> {
+impl<S: SnapshotSource<Error: Into<Section>>> GroupItemReading for FailedSnapshotFetch<S> {
     fn name(&self) -> &'static str {
         "Failed reading"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.icon
     }
 
@@ -52,12 +53,12 @@ impl<S: SnapshotSource<Error: Into<Section>>> BarWidget for FailedSnapshotFetch<
     }
 }
 
-impl BarWidget for Infallible {
+impl GroupItemReading for Infallible {
     fn name(&self) -> &'static str {
         match *self {}
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match *self {}
     }
 
@@ -77,7 +78,7 @@ pub struct HidesFailuresAfterSuccess;
 pub struct HidesFetchFailures;
 
 pub trait FetchFailurePolicy<S: SnapshotSource>: Sized {
-    type ShownFailure: BarWidget;
+    type ShownFailure: GroupItemReading;
 
     fn after_failed_fetch(
         latest: LatestSnapshot<S, Self>,
@@ -112,7 +113,7 @@ where
     },
 }
 
-impl<S: SnapshotSource + BarWidget> FetchFailurePolicy<S> for ShowsFetchFailures
+impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for ShowsFetchFailures
 where
     S::Error: Into<Section>,
 {
@@ -141,7 +142,7 @@ where
     }
 }
 
-impl<S: SnapshotSource + BarWidget> FetchFailurePolicy<S> for HidesFailuresAfterSuccess
+impl<S: SnapshotSource + GroupItemReading> FetchFailurePolicy<S> for HidesFailuresAfterSuccess
 where
     S::Error: Into<Section>,
 {
@@ -380,7 +381,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
         ))
     }
 
-    pub fn failure(&self) -> Option<&dyn BarWidget> {
+    pub fn failure(&self) -> Option<&dyn GroupItemReading> {
         match self {
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
             LatestSnapshot::AwaitingFirstSnapshot
@@ -410,23 +411,25 @@ fn awaiting_snapshot_placeholder<S>() -> SnapshotPlaceholder<S> {
     }
 }
 
-impl<S: SnapshotSource + BarWidget, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy> {
+impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
+    LatestSnapshot<S, Policy>
+{
     pub fn visible_reading(&self) -> Option<&S> {
         self.get()
             .filter(|held_snapshot| S::visible_in_bar(held_snapshot))
     }
 
-    pub fn display(&self) -> Option<&dyn BarWidget> {
+    pub fn display(&self) -> Option<&dyn GroupItemReading> {
         match self {
             LatestSnapshot::SnapshotHeld { held_snapshot, .. } => held_snapshot
                 .visible_in_bar()
-                .then_some(held_snapshot as &dyn BarWidget),
+                .then_some(held_snapshot as &dyn GroupItemReading),
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
             LatestSnapshot::SnapshotHeldOffline {
                 offline_snapshot, ..
             } => offline_snapshot
                 .visible_in_bar()
-                .then_some(offline_snapshot as &dyn BarWidget),
+                .then_some(offline_snapshot as &dyn GroupItemReading),
             LatestSnapshot::OfflineBeforeSnapshot {
                 offline_placeholder,
             } => Some(offline_placeholder),
@@ -524,12 +527,12 @@ mod tests {
         }
     }
 
-    impl BarWidget for CountedSnapshot {
+    impl GroupItemReading for CountedSnapshot {
         fn name(&self) -> &'static str {
             "Counted"
         }
 
-        fn icon(&self) -> Glyph {
+        fn icon(&self) -> IconGlyph {
             Self::fallback_icon()
         }
 

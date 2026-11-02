@@ -3,7 +3,7 @@ use sottomano_sources::weather::open_meteo_precipitation_model::{
     ModelQuarterHour, PrecipitationModel,
 };
 
-use crate::widgets::{bar_widget::Glyph, weather_icons::WeatherIcon};
+use crate::widgets::{icon_glyph::IconGlyph, weather_icons::WeatherIcon};
 
 pub const MODEL_QUARTER_HOUR: TimeDelta = TimeDelta::minutes(15);
 
@@ -15,7 +15,7 @@ pub fn model_quarter_text(quarter: &ModelQuarterHour) -> String {
     }
 }
 
-pub fn model_quarter_glyph(quarter: &ModelQuarterHour, dry_glyph: Glyph) -> Glyph {
+pub fn model_quarter_glyph(quarter: &ModelQuarterHour, dry_glyph: IconGlyph) -> IconGlyph {
     if quarter.condition.is_precipitation() {
         WeatherIcon::Sky(quarter.condition, quarter.daylight).into()
     } else {

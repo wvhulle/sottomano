@@ -6,7 +6,8 @@ use sottomano_sources::login_session_presence::logind_session_facts::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
@@ -19,12 +20,12 @@ use crate::{
 
 pub struct PowerPolicyFace;
 
-impl BarWidget for PowerPolicyFace {
+impl GroupItemReading for PowerPolicyFace {
     fn name(&self) -> &'static str {
         "Power policy"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Plug(Weight::Regular).into()
     }
 

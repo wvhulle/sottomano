@@ -6,7 +6,8 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -86,12 +87,12 @@ impl FocusRunReading<'_> {
     }
 }
 
-impl BarWidget for FocusRunReading<'_> {
+impl GroupItemReading for FocusRunReading<'_> {
     fn name(&self) -> &'static str {
         "Focus run"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Target(Weight::Regular).into()
     }
 

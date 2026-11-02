@@ -38,8 +38,8 @@ use crate::{
         },
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         ongoing_toast::OngoingToastActionButton,
         tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},

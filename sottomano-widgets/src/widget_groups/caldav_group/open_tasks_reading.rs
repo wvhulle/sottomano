@@ -16,7 +16,8 @@ use crate::{
         event_date_cell, event_time_cell, linked_title, nextcloud_footer,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -94,12 +95,12 @@ fn progress_cell(task: &OpenTask) -> ValueCell {
     }
 }
 
-impl BarWidget for OpenTaskList {
+impl GroupItemReading for OpenTaskList {
     fn name(&self) -> &'static str {
         "Open tasks"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ListChecks(Weight::Regular).into()
     }
 

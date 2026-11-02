@@ -10,9 +10,9 @@ use super::{
     MediaMessage, MediaTarget, PlayerMessage, PlayerTarget, RAISE_PLAYER_HINT, player_message,
 };
 use crate::widgets::{
-    bar_widget::Glyph,
     gauge::Gauge,
     group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+    icon_glyph::IconGlyph,
     icon_handle::IconHandle,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,
@@ -35,7 +35,7 @@ pub(super) fn track_item<'a>(
 ) -> GroupItem<'a, MediaMessage> {
     let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
     let icon = cover_art.map_or_else(
-        || ItemIcon::Glyph {
+        || ItemIcon::IconGlyph {
             glyph: Phosphor::VinylRecord(Weight::Regular).into(),
             state: playback_state(media),
         },
@@ -78,7 +78,7 @@ pub(super) fn player_item<'a>(
 ) -> GroupItem<'a, MediaMessage> {
     let state = playback_state(media);
     let glyph = SimpleIcon::titled(&media.identity)
-        .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), Glyph::from);
+        .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);
     let value = gauge_fraction.map_or(ItemValue::Nothing, |fraction| {
         ItemValue::drawn(move |reveal| {
             let tint = StateTint {
@@ -91,7 +91,7 @@ pub(super) fn player_item<'a>(
     GroupItem::composed(
         ItemIdentity {
             name: "Player".into(),
-            icon: ItemIcon::Glyph { glyph, state },
+            icon: ItemIcon::IconGlyph { glyph, state },
         },
         ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Player).into()),
         value,

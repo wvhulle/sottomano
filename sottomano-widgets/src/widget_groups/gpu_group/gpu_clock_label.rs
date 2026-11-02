@@ -8,7 +8,8 @@ use uom::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -24,12 +25,12 @@ pub struct GpuClockLabel {
     pub current: Frequency,
 }
 
-impl BarWidget for GpuClockLabel {
+impl GroupItemReading for GpuClockLabel {
     fn name(&self) -> &'static str {
         "GPU clock"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::WaveSine(Weight::Regular).into()
     }
 

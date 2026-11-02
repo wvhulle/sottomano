@@ -14,8 +14,9 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         group_item::GroupItem,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
@@ -50,12 +51,12 @@ impl PendingUpgradesGroup {
     }
 }
 
-impl BarWidget for Vec<FirmwareUpgrade> {
+impl GroupItemReading for Vec<FirmwareUpgrade> {
     fn name(&self) -> &'static str {
         "Firmware upgrades"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Circuitry(Weight::Regular).into()
     }
 

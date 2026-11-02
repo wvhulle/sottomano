@@ -8,7 +8,8 @@ use crate::{
     clock::Clock,
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::DarkModeSchedule,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -119,12 +120,12 @@ impl AutoSwitchToggle {
     }
 }
 
-impl BarWidget for AutoSwitchToggle {
+impl GroupItemReading for AutoSwitchToggle {
     fn name(&self) -> &'static str {
         "Dark mode auto-switch"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Clock(Weight::Regular).into()
     }
 

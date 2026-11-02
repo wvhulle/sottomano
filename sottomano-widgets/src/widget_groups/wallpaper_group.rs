@@ -18,8 +18,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},

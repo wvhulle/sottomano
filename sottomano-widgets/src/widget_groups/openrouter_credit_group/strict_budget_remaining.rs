@@ -9,7 +9,8 @@ use crate::{
     clock::Clock,
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -18,16 +19,16 @@ use crate::{
     },
 };
 
-impl BarWidget for OpenRouterStrictBudget {
+impl GroupItemReading for OpenRouterStrictBudget {
     fn name(&self) -> &'static str {
         "OpenRouter strict budget"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Wallet(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Wallet(Weight::Regular).into()
     }
 

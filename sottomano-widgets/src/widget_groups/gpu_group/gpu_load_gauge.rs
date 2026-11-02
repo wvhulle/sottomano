@@ -4,7 +4,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -13,18 +14,18 @@ use crate::{
     },
 };
 
-impl BarWidget for GpuSnapshot {
+impl GroupItemReading for GpuSnapshot {
     fn name(&self) -> &'static str {
         "GPU load"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.vendor
             .vendor_logo()
-            .map_or_else(Self::fallback_icon, Glyph::from)
+            .map_or_else(Self::fallback_icon, IconGlyph::from)
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::GraphicsCard(Weight::Regular).into()
     }
 

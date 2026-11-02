@@ -6,7 +6,8 @@ use sottomano_sources::network_connectivity::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
@@ -24,12 +25,12 @@ fn severity(connectivity: Connectivity) -> Severity {
     }
 }
 
-impl BarWidget for UplinkConnectivity {
+impl GroupItemReading for UplinkConnectivity {
     fn name(&self) -> &'static str {
         CONNECTIVITY_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.connectivity {
             Connectivity::Full => Phosphor::CloudCheck(Weight::Regular),
             Connectivity::Portal | Connectivity::Limited => Phosphor::Cloud(Weight::Regular),

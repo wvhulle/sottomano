@@ -6,7 +6,8 @@ use sottomano_sources::login_session_presence::logind_session_facts::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -19,12 +20,12 @@ pub struct LoginFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl BarWidget for LoginFace<'_> {
+impl GroupItemReading for LoginFace<'_> {
     fn name(&self) -> &'static str {
         "Login"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::SignIn(Weight::Regular).into()
     }
 

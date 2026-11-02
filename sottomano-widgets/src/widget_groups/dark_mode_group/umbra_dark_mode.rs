@@ -6,19 +6,20 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         toggle_control::ToggleableSource,
         tooltip_body::TooltipBody,
     },
 };
 
-impl BarWidget for DarkMode {
+impl GroupItemReading for DarkMode {
     fn name(&self) -> &'static str {
         "Dark mode"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.dark {
             Phosphor::Moon(Weight::Regular).into()
         } else {

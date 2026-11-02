@@ -7,7 +7,8 @@ use sottomano_sources::network_connectivity::wireguard_tunnels::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -22,12 +23,12 @@ pub(super) const WIREGUARD_TUNNEL_ITEM_NAME: &str = "WireGuard tunnel";
 
 pub(super) const WIREGUARD_ITEM_NAME: &str = "WireGuard";
 
-impl BarWidget for Wireguard {
+impl GroupItemReading for Wireguard {
     fn name(&self) -> &'static str {
         WIREGUARD_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         SimpleIcon::WireGuard.into()
     }
 
@@ -216,12 +217,12 @@ fn server_state(tunnel: &Tunnel) -> WidgetState {
     }
 }
 
-impl BarWidget for Tunnel {
+impl GroupItemReading for Tunnel {
     fn name(&self) -> &'static str {
         WIREGUARD_TUNNEL_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.role {
             TunnelRole::Server { .. } => Phosphor::ArrowsInSimple(Weight::Regular).into(),
             TunnelRole::Client => Phosphor::MapPinLine(Weight::Regular).into(),

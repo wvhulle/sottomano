@@ -5,7 +5,8 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -54,16 +55,16 @@ fn slot_record(slot: &LlamaSlot) -> TableRecord<3> {
     )
 }
 
-impl BarWidget for ContextFill<'_> {
+impl GroupItemReading for ContextFill<'_> {
     fn name(&self) -> &'static str {
         "Context fill"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Scroll(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Scroll(Weight::Regular).into()
     }
 

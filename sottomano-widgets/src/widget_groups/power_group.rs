@@ -28,8 +28,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::LatestSnapshot,
         ongoing_toast::OngoingToastActionButton,

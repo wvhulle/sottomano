@@ -5,7 +5,8 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -22,16 +23,16 @@ impl SlotOccupancy<'_> {
     }
 }
 
-impl BarWidget for SlotOccupancy<'_> {
+impl GroupItemReading for SlotOccupancy<'_> {
     fn name(&self) -> &'static str {
         "Busy slots"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Stack(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Stack(Weight::Regular).into()
     }
 

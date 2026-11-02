@@ -18,8 +18,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
@@ -125,7 +125,7 @@ impl MemoryBoardGroup {
                 self.hardware
                     .get()
                     .map(|hardware| &hardware.machine)
-                    .filter(BarWidget::visible_in_bar)
+                    .filter(GroupItemReading::visible_in_bar)
                     .map(|machine| GroupItem::reading(machine, MemoryBoardTarget::Board)),
             ]
             .into_iter()

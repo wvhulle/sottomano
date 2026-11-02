@@ -6,7 +6,8 @@ use sottomano_sources::voice_dictation_input::notulist_dbus_pipeline_activity::N
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
@@ -36,16 +37,16 @@ fn stage_rows(activity: &PipelineActivity) -> impl Iterator<Item = LabeledValue>
     .flatten()
 }
 
-impl BarWidget for NotulistPipeline {
+impl GroupItemReading for NotulistPipeline {
     fn name(&self) -> &'static str {
         "Pipeline"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         stage_icon(self.activity.stage).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Pulse(Weight::Regular).into()
     }
 

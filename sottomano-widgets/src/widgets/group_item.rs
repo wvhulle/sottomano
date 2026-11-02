@@ -16,9 +16,10 @@ use crate::{
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
-        bar_widget::{BarWidget, Glyph},
         configured_theme::text_color,
         flat_button,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         ongoing_toast::{
             OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
@@ -72,7 +73,10 @@ pub struct ItemIdentity {
 }
 
 pub enum ItemIcon {
-    Glyph { glyph: Glyph, state: WidgetState },
+    IconGlyph {
+        glyph: IconGlyph,
+        state: WidgetState,
+    },
     Image(IconHandle),
     Absent,
 }
@@ -81,7 +85,7 @@ impl ItemIcon {
     fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
         let side = config.theme.font.icon_size_px;
         match self {
-            ItemIcon::Glyph { glyph, state } => {
+            ItemIcon::IconGlyph { glyph, state } => {
                 let tint = StateTint {
                     state: *state,
                     opacity,
@@ -119,11 +123,11 @@ impl<'a, M: 'a> ItemValue<'a, M> {
 
 enum ItemKind<'a, M> {
     Reading {
-        widget: Box<dyn BarWidget + 'a>,
+        widget: Box<dyn GroupItemReading + 'a>,
         target: HoverTarget,
     },
     Slider {
-        widget: &'a dyn BarWidget,
+        widget: &'a dyn GroupItemReading,
         target: HoverTarget,
         draw: DrawControl<'a, M>,
     },
@@ -135,7 +139,7 @@ enum ItemKind<'a, M> {
 }
 
 impl<'a, M: 'a> ItemKind<'a, M> {
-    fn announcing_widget(&self) -> Option<&dyn BarWidget> {
+    fn announcing_widget(&self) -> Option<&dyn GroupItemReading> {
         match self {
             ItemKind::Reading { widget, .. } => Some(widget.as_ref()),
             ItemKind::Slider { widget, .. } => Some(*widget),
@@ -206,7 +210,7 @@ impl<M> Press<M> {
 }
 
 pub(super) struct HandlePreview<'p> {
-    pub widget: &'p dyn BarWidget,
+    pub widget: &'p dyn GroupItemReading,
     pub target: &'p HoverTarget,
 }
 
@@ -235,7 +239,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub fn reading(widget: impl BarWidget + 'a, target: impl Into<HoverTarget>) -> Self {
+    pub fn reading(widget: impl GroupItemReading + 'a, target: impl Into<HoverTarget>) -> Self {
         Self::of_kind(ItemKind::Reading {
             widget: Box::new(widget),
             target: target.into(),
@@ -507,7 +511,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let tint_of = |widget: &dyn BarWidget| StateTint::opaque(widget.state(clock));
+        let tint_of = |widget: &dyn GroupItemReading| StateTint::opaque(widget.state(clock));
         let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
         match &self.kind {
             ItemKind::Reading { widget, .. } => MenuParts {
@@ -640,12 +644,12 @@ mod tests {
 
     struct NamedReading;
 
-    impl BarWidget for NamedReading {
+    impl GroupItemReading for NamedReading {
         fn name(&self) -> &'static str {
             "Named reading"
         }
 
-        fn icon(&self) -> Glyph {
+        fn icon(&self) -> IconGlyph {
             Phosphor::Question(Weight::Regular).into()
         }
 

@@ -12,7 +12,8 @@ use uom::si::{f64::Frequency, frequency::megahertz, ratio::percent};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -121,12 +122,12 @@ impl ControllerLinkReading<'_> {
     }
 }
 
-impl BarWidget for ControllerLinkReading<'_> {
+impl GroupItemReading for ControllerLinkReading<'_> {
     fn name(&self) -> &'static str {
         CONTROLLER_LAG_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.unstable() {
             Phosphor::LinkBreak(Weight::Regular).into()
         } else {

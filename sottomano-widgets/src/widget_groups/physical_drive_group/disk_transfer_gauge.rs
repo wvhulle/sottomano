@@ -10,7 +10,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -32,7 +33,7 @@ fn background_rate() -> InformationRate {
     InformationRate::new::<kibibyte_per_second>(BACKGROUND_TRANSFER_KIB_PER_S)
 }
 
-impl BarWidget for DiskTransfer {
+impl GroupItemReading for DiskTransfer {
     fn name(&self) -> &'static str {
         match self.direction {
             DiskTransferDirection::Read => DISK_READS_ITEM_NAME,
@@ -40,7 +41,7 @@ impl BarWidget for DiskTransfer {
         }
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let direction_icon = match self.direction {
             DiskTransferDirection::Read => Phosphor::TrayArrowUp(Weight::Regular),
             DiskTransferDirection::Write => Phosphor::TrayArrowDown(Weight::Regular),
@@ -82,12 +83,12 @@ impl BarWidget for DiskTransfer {
     }
 }
 
-impl BarWidget for DiskActivity {
+impl GroupItemReading for DiskActivity {
     fn name(&self) -> &'static str {
         DISK_ACTIVITY_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.read.icon()
     }
 

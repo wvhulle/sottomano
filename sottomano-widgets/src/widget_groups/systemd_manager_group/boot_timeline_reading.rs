@@ -10,7 +10,8 @@ use sottomano_sources::systemd_units_journal::boot_timeline::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         localized_quantities::Quantity,
@@ -53,12 +54,12 @@ fn login_record(stage: &str, took: Duration, meaning: &str) -> TableRecord<2> {
     )
 }
 
-impl BarWidget for BootTimeline {
+impl GroupItemReading for BootTimeline {
     fn name(&self) -> &'static str {
         "Boot timeline"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::RocketLaunch(Weight::Regular).into()
     }
 
@@ -156,12 +157,12 @@ pub struct StartupUnits<'a> {
     pub timeline: &'a BootTimeline,
 }
 
-impl BarWidget for StartupUnits<'_> {
+impl GroupItemReading for StartupUnits<'_> {
     fn name(&self) -> &'static str {
         "Startup units"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Stack(Weight::Regular).into()
     }
 

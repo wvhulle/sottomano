@@ -7,7 +7,6 @@ use crate::{
     hover_tooltips::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
     widget_groups::group_menus::{GroupMenus, PinnedEntry},
     widgets::{
-        bar_widget::Glyph,
         cascade_row::CascadeDirection,
         configured_theme::{secondary_text_color, text_color},
         glyph_button,
@@ -17,6 +16,7 @@ use crate::{
             menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, menu_row_height},
             satellite_panels::SatellitePanels,
         },
+        icon_glyph::IconGlyph,
         list_end_corners::ListEndCorners,
         phosphor::{Phosphor, Weight},
         uniform_width_column::uniform_width_column,
@@ -204,12 +204,12 @@ fn group_row<'a, M: Clone + 'a>(
             name: group_title.to_string().into(),
             trailing: vec![
                 pin,
-                Glyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
+                IconGlyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
             ],
         },
         CascadeDirection::Leftward => MenuRowContent {
             leading: vec![
-                Glyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
+                IconGlyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
             ],
             parts: entry.face,
             name: group_title.to_string().into(),

@@ -4,7 +4,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -13,12 +14,12 @@ use crate::{
     },
 };
 
-impl BarWidget for Battery {
+impl GroupItemReading for Battery {
     fn name(&self) -> &'static str {
         "Battery"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::BatteryCharging(Weight::Regular).into()
     }
 

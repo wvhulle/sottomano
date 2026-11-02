@@ -7,7 +7,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -15,7 +16,7 @@ use crate::{
     },
 };
 
-impl BarWidget for GpuMemory {
+impl GroupItemReading for GpuMemory {
     fn name(&self) -> &'static str {
         match self {
             GpuMemory::Dedicated(_) => "VRAM",
@@ -23,7 +24,7 @@ impl BarWidget for GpuMemory {
         }
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Memory(Weight::Regular).into()
     }
 

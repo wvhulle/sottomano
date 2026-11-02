@@ -11,7 +11,8 @@ use crate::{
     clock::Clock,
     widget_groups::echo_probe_window_rows::probe_window_section,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -46,12 +47,12 @@ pub struct InterfaceAddressReading {
     pub family: AddressFamily,
 }
 
-impl BarWidget for InterfaceAddressReading {
+impl GroupItemReading for InterfaceAddressReading {
     fn name(&self) -> &'static str {
         self.family.title()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.family {
             AddressFamily::Ipv4 => Phosphor::NumberCircleFour(Weight::Regular).into(),
             AddressFamily::Ipv6 => Phosphor::NumberCircleSix(Weight::Regular).into(),
@@ -65,12 +66,12 @@ impl BarWidget for InterfaceAddressReading {
 
 pub struct InterfaceDnsReading;
 
-impl BarWidget for InterfaceDnsReading {
+impl GroupItemReading for InterfaceDnsReading {
     fn name(&self) -> &'static str {
         "DNS"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::AddressBook(Weight::Regular).into()
     }
 

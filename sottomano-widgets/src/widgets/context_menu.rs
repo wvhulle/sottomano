@@ -8,10 +8,10 @@ use sottomano_config::Config;
 
 use crate::widgets::{
     activity_line::activity_line,
-    bar_widget::Glyph,
     configured_theme::{
         background_strong_color, background_weak_color, secondary_text_color, text_color,
     },
+    icon_glyph::IconGlyph,
     list_end_corners::ListEndCorners,
     phosphor::{Phosphor, Weight},
     text::bar_text,
@@ -109,7 +109,7 @@ fn entry<'a, M: Clone + 'a>(
             };
             content = content
                 .push(space::horizontal())
-                .push(Glyph::from(chevron).view(icon_size, color));
+                .push(IconGlyph::from(chevron).view(icon_size, color));
         }
     }
 

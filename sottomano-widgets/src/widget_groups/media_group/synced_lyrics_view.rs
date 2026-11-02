@@ -11,8 +11,9 @@ use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         karaoke_lyric_line::{
             INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
         },
@@ -28,12 +29,12 @@ use crate::{
 const LINES_BEFORE_CURRENT: usize = 2;
 const LINES_AFTER_CURRENT: usize = 3;
 
-impl BarWidget for TrackLyrics {
+impl GroupItemReading for TrackLyrics {
     fn name(&self) -> &'static str {
         "Lyrics"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self {
             TrackLyrics::Synced(_) => Phosphor::MicrophoneStage(Weight::Regular).into(),
             TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
@@ -42,7 +43,7 @@ impl BarWidget for TrackLyrics {
         }
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::MicrophoneSlash(Weight::Regular).into()
     }
 
@@ -141,7 +142,7 @@ fn current_lyric_line<'a>(
 ) -> GroupItem<'a, MediaMessage> {
     let identity = ItemIdentity {
         name: "Lyrics".into(),
-        icon: ItemIcon::Glyph {
+        icon: ItemIcon::IconGlyph {
             glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
             state: WidgetState::Idle,
         },

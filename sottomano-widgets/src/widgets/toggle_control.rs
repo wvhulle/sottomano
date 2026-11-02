@@ -6,8 +6,9 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::{
@@ -58,12 +59,12 @@ impl IconToggle {
     }
 }
 
-impl BarWidget for IconToggle {
+impl GroupItemReading for IconToggle {
     fn name(&self) -> &'static str {
         self.name
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.icon.with_weight(Weight::Regular).into()
     }
 
@@ -76,7 +77,7 @@ impl BarWidget for IconToggle {
     }
 }
 
-pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + BarWidget {
+pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + GroupItemReading {
     #[must_use]
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> Result<(), Self::Error>;
@@ -153,8 +154,10 @@ impl<S: ToggleableSource> ToggleControl<S> {
         self.reading.get()
     }
 
-    pub fn reading(&self) -> Option<&dyn BarWidget> {
-        self.reading.get().map(|display| display as &dyn BarWidget)
+    pub fn reading(&self) -> Option<&dyn GroupItemReading> {
+        self.reading
+            .get()
+            .map(|display| display as &dyn GroupItemReading)
     }
 
     pub fn group_item<M: 'static>(

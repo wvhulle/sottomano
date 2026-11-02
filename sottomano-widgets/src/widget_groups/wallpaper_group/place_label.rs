@@ -4,7 +4,8 @@ use sottomano_sources::wallpaper_place_article::{Position, Wallpaper};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -18,12 +19,12 @@ pub struct Place {
     position: Option<Position>,
 }
 
-impl BarWidget for Place {
+impl GroupItemReading for Place {
     fn name(&self) -> &'static str {
         "Wallpaper place"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::MapPin(Weight::Regular).into()
     }
 

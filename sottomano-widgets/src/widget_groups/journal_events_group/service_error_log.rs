@@ -5,7 +5,8 @@ use crate::{
     clock::Clock,
     widget_groups::journal_events_group::MESSAGE_CAP,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -33,12 +34,12 @@ impl IntoTableRecord<3> for &UnitErrors {
     }
 }
 
-impl BarWidget for ServiceErrors {
+impl GroupItemReading for ServiceErrors {
     fn name(&self) -> &'static str {
         "Service errors"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::WarningCircle(Weight::Regular).into()
     }
 

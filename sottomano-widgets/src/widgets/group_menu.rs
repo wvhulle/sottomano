@@ -30,9 +30,9 @@ use crate::{
         GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry, PromotedGroup,
     },
     widgets::{
-        bar_widget::Glyph,
         cascade_row::CascadeOrientation,
         configured_theme::text_color,
+        icon_glyph::IconGlyph,
         pager_slot::PagerSlot,
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -45,7 +45,7 @@ use crate::{
 
 pub struct GroupMenu<'a, M> {
     title: &'static str,
-    glyph: Glyph,
+    glyph: IconGlyph,
     group_menus: &'a GroupMenus,
     messenger: MenuMessenger<'a, M>,
     members: Vec<GroupContent<'a, M>>,

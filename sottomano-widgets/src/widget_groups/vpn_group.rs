@@ -184,7 +184,7 @@ impl VpnGroup {
 
     #[must_use]
     pub fn tooltip_for(&self, target: &VpnTarget, clock: Clock) -> Option<Tooltip> {
-        use crate::widgets::bar_widget::BarWidget;
+        use crate::widgets::group_item_reading::GroupItemReading;
         match target {
             VpnTarget::NetworkManagerVpn(name) => {
                 let vpn_connection = self

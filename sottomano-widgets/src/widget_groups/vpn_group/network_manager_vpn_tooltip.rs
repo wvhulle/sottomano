@@ -6,7 +6,8 @@ use sottomano_sources::network_connectivity::network_manager_vpn_connections::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -18,12 +19,12 @@ pub(super) const VPN_CONNECTION_ITEM_NAME: &str = "VPN connection";
 
 pub(super) const NETWORK_MANAGER_VPNS_ITEM_NAME: &str = "NetworkManager VPNs";
 
-impl BarWidget for NetworkManagerVpns {
+impl GroupItemReading for NetworkManagerVpns {
     fn name(&self) -> &'static str {
         NETWORK_MANAGER_VPNS_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::LockKey(Weight::Regular).into()
     }
 
@@ -32,12 +33,12 @@ impl BarWidget for NetworkManagerVpns {
     }
 }
 
-impl BarWidget for VpnConnection {
+impl GroupItemReading for VpnConnection {
     fn name(&self) -> &'static str {
         VPN_CONNECTION_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::LockKey(Weight::Regular).into()
     }
 

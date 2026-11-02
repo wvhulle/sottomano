@@ -5,7 +5,6 @@ pub mod anchored_popup;
 pub mod announced_level;
 pub mod app_window_focus;
 pub mod appearance_presets;
-pub mod bar_widget;
 pub mod cascade_row;
 pub mod child_view;
 pub mod configured_theme;
@@ -19,10 +18,12 @@ pub mod fair_widths;
 pub mod favicon;
 pub mod gauge;
 pub mod group_item;
+pub mod group_item_reading;
 pub mod group_menu;
 pub mod hardware_section;
 pub mod hover_fetched_snapshot;
 pub mod huggingface_hub_sections;
+pub mod icon_glyph;
 pub mod icon_handle;
 pub mod idle;
 pub mod inline_slider;
@@ -82,7 +83,7 @@ pub const DISABLED_ALPHA: f32 = 0.4;
 
 use iced::{Color, Element, Theme, widget::button};
 
-use crate::widgets::bar_widget::Glyph;
+use crate::widgets::icon_glyph::IconGlyph;
 
 pub fn flat_button<'a>(
     text_color: impl Fn(&Theme) -> Color + 'a,
@@ -95,7 +96,7 @@ pub fn flat_button<'a>(
 }
 
 pub fn glyph_button<'a, Message: Clone + 'a>(
-    glyph: impl Into<Glyph>,
+    glyph: impl Into<IconGlyph>,
     size: f32,
     color: impl Fn(&Theme) -> Color + Copy + 'a,
     on_press: Message,

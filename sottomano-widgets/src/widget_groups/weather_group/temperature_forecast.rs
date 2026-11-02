@@ -9,7 +9,8 @@ use uom::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
@@ -19,19 +20,19 @@ use crate::{
     },
 };
 
-impl BarWidget for Temperature {
+impl GroupItemReading for Temperature {
     fn name(&self) -> &'static str {
         "Temperature forecast"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.condition
             .map_or_else(Self::fallback_icon, |condition| {
                 WeatherIcon::Sky(condition, self.daylight).into()
             })
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         WeatherIcon::Thermometer.into()
     }
 
@@ -78,7 +79,7 @@ impl IntoTableRecord<3> for &HourlyTemperature {
             [
                 weather_temperature(self.temp).into(),
                 self.condition.map_or(ValueCell::Blank, |condition| {
-                    ValueCell::Glyph(WeatherIcon::Sky(condition, self.daylight).into())
+                    ValueCell::IconGlyph(WeatherIcon::Sky(condition, self.daylight).into())
                 }),
                 self.condition
                     .map_or(ValueCell::Blank, |condition| condition.to_string().into()),

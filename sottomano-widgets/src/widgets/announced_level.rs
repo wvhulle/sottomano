@@ -6,7 +6,7 @@ use sottomano_sources::desktop_notifications::notification_data::{
 };
 use uom::si::f64::Ratio;
 
-use crate::{hover_tooltips::HoverTarget, widgets::bar_widget::Glyph};
+use crate::{hover_tooltips::HoverTarget, widgets::icon_glyph::IconGlyph};
 
 const LEVEL_TOAST_LIFETIME: Duration = Duration::from_millis(1_500);
 
@@ -21,7 +21,7 @@ pub struct AnnouncedLevel {
 #[derive(Debug, Clone)]
 pub struct LevelReading<Message> {
     pub hover_target: HoverTarget,
-    pub glyph: Glyph,
+    pub glyph: IconGlyph,
     pub level: AnnouncedLevel,
     pub on_body_clicked: Message,
 }

@@ -11,7 +11,8 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
         widget_state::WidgetState,
@@ -33,12 +34,12 @@ pub struct OfflineSnapshot<S> {
     pub offline_reason: Box<InternetUnreachable>,
 }
 
-impl<S: BarWidget> BarWidget for OfflineSnapshot<S> {
+impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
     fn name(&self) -> &'static str {
         self.held_snapshot.name()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.held_snapshot.icon()
     }
 
@@ -87,12 +88,12 @@ pub struct SnapshotPlaceholder<S> {
     pub placeholder_source: PhantomData<S>,
 }
 
-impl<S: SnapshotSource + BarWidget> BarWidget for SnapshotPlaceholder<S> {
+impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlaceholder<S> {
     fn name(&self) -> &'static str {
         S::NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         S::fallback_icon()
     }
 

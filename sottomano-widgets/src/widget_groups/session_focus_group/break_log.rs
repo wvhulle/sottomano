@@ -7,7 +7,8 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -135,12 +136,12 @@ impl BreakLog<'_> {
     }
 }
 
-impl BarWidget for BreakLog<'_> {
+impl GroupItemReading for BreakLog<'_> {
     fn name(&self) -> &'static str {
         "Breaks"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Coffee(Weight::Regular).into()
     }
 

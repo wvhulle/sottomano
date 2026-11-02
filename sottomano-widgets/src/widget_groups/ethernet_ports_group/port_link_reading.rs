@@ -7,7 +7,8 @@ use crate::{
     clock::Clock,
     widget_groups::interface_address_sections::link_stats_section,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -54,12 +55,12 @@ fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
     }
 }
 
-impl BarWidget for PortLinkReading<'_> {
+impl GroupItemReading for PortLinkReading<'_> {
     fn name(&self) -> &'static str {
         "Link"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.port_state.attachment {
             InterfaceAttachment::BuiltIn => Phosphor::Network(Weight::Regular).into(),
             InterfaceAttachment::Usb => Phosphor::Usb(Weight::Regular).into(),
@@ -100,12 +101,12 @@ impl PortConnectionSwitch<'_> {
     }
 }
 
-impl BarWidget for PortConnectionSwitch<'_> {
+impl GroupItemReading for PortConnectionSwitch<'_> {
     fn name(&self) -> &'static str {
         "Connection"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.port_state.connected {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {

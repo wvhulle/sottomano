@@ -25,13 +25,14 @@ use crate::{
         activity_line::activity_line,
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
-        bar_widget::{BarWidget, Glyph},
         configured_theme::{primary_color, secondary_text_color, text_color},
         expand_animation::expand_animation,
         flat_button,
         group_item::{
             GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue, MenuItemAction, MenuParts,
         },
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
         reveal::reveal_x,
@@ -159,12 +160,12 @@ impl<M> GroupEvent<M> {
 
 pub enum HandleFace<'a> {
     Icon {
-        glyph: Glyph,
+        glyph: IconGlyph,
         handle: GroupHandle,
     },
     IconColoredBy {
-        glyph: Glyph,
-        reading: &'a dyn BarWidget,
+        glyph: IconGlyph,
+        reading: &'a dyn GroupItemReading,
         handle: GroupHandle,
     },
     FirstItem,
@@ -191,7 +192,7 @@ impl<'a> HandleFace<'a> {
             GroupItem::composed(
                 ItemIdentity {
                     name: group_title.to_string().into(),
-                    icon: ItemIcon::Glyph { glyph, state },
+                    icon: ItemIcon::IconGlyph { glyph, state },
                 },
                 ItemHover::ByChildren {
                     row_target: HoverTarget::GroupHandle(handle),
@@ -243,7 +244,7 @@ enum FaceGlyphTint {
 
 fn icon_face_glyph<'a, Message: 'a>(
     config: &Config,
-    glyph: Glyph,
+    glyph: IconGlyph,
     tint: FaceGlyphTint,
 ) -> Element<'a, Message> {
     let icon_size = config.theme.font.icon_size_px;
