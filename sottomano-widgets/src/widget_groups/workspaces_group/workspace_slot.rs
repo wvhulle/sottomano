@@ -189,6 +189,7 @@ impl<'s> WorkspaceSlot<'s> {
             edge,
             drag,
             clock,
+            ..
         } = self.slot_context;
         let Some(charge) = drag.hover_charge(
             self.key(),

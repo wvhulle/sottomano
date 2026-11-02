@@ -19,7 +19,10 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::widgets::{
     configured_theme::ThemedColor,
     list_end_corners::ListEndCorners,
-    pointer_drag::{DragEvent, DragView, PanelSlotList},
+    pointer_drag::{
+        DragEvent, DragView, PanelSlotList,
+        slot_group::{SlotGroup, SlotGroupFrame},
+    },
     shared_metrics::{ACCENT_STROKE_PX, pill_corners},
 };
 
@@ -39,6 +42,8 @@ pub fn slot_pager<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
         motion: config.desktop_panels.slot_drag.focus_indicator_duration,
         indicator_thickness: ACCENT_STROKE_PX,
         highlight: None,
+        groups: Vec::new(),
+        group_gap: config.theme.spacing.item_gap,
         frame_corners: Radius::default(),
         left_list_message: None,
     }
@@ -57,6 +62,8 @@ pub struct SlotPager<'a, Message, Key> {
     motion: Duration,
     indicator_thickness: f32,
     highlight: Option<SlotHighlight<'a, Key>>,
+    groups: Vec<SlotGroup<'a, Message>>,
+    group_gap: f32,
     frame_corners: Radius,
     left_list_message: Option<Message>,
 }
@@ -78,6 +85,12 @@ impl<'a, Message, Key> SlotPager<'a, Message, Key> {
             key,
             color: Box::new(color),
         });
+        self
+    }
+
+    #[must_use]
+    pub fn groups(mut self, groups: Vec<SlotGroup<'a, Message>>) -> Self {
+        self.groups = groups;
         self
     }
 
@@ -363,6 +376,73 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
         travel.aim(span, now);
         travel.is_animating(now)
     }
+
+    fn laid_out_headings(
+        &mut self,
+        trees: &mut [Tree],
+        renderer: &iced::Renderer,
+        limits: &Limits,
+    ) -> Vec<Node> {
+        let along_vertical_edge = self.along_vertical_edge();
+        let height = limits.max().height;
+        let heading_limits = if along_vertical_edge {
+            Limits::new(Size::ZERO, limits.max())
+        } else {
+            Limits::new(Size::ZERO, Size::new(f32::INFINITY, height))
+        };
+        self.groups
+            .iter_mut()
+            .zip(trees)
+            .map(|(group, tree)| {
+                let mut node =
+                    group
+                        .heading
+                        .as_widget_mut()
+                        .layout(tree, renderer, &heading_limits);
+                if !along_vertical_edge {
+                    node.align_mut(Alignment::Start, Alignment::Center, Size::new(0.0, height));
+                }
+                node
+            })
+            .collect()
+    }
+
+    fn group_frame(&self, group_index: usize, layout: Layout<'_>) -> Option<SlotGroupFrame> {
+        let group = self.groups.get(group_index)?;
+        let heading = layout.children().nth(self.slots.len() + group_index)?;
+        let slots = layout
+            .children()
+            .skip(group.positions.start)
+            .take(group.positions.len())
+            .map(|slot| slot.bounds())
+            .reduce(|covered, slot| covered.union(&slot))?;
+        Some(SlotGroupFrame::around_slots(
+            self.along_vertical_edge(),
+            heading.bounds(),
+            slots,
+            group.enclosure_thickness,
+            group.enclosure_radius,
+        ))
+    }
+
+    fn highlighted_group_index(&self) -> Option<usize> {
+        let highlighted_position = self.highlighted_position()?;
+        self.groups
+            .iter()
+            .position(|group| group.positions.contains(&highlighted_position))
+    }
+
+    fn ungrouped_highlight(&self, slots_bounds: Rectangle, slot: Rectangle) -> renderer::Quad {
+        renderer::Quad {
+            bounds: edge_backdrop(self.edge, slots_bounds, slot),
+            border: Border {
+                radius: self.highlighted_corners(),
+                ..Border::default()
+            },
+            snap: false,
+            ..renderer::Quad::default()
+        }
+    }
 }
 
 impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, iced::Renderer>
@@ -383,7 +463,11 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
     }
 
     fn children(&self) -> Vec<Tree> {
-        self.slots.iter().map(Tree::new).collect()
+        self.slots
+            .iter()
+            .chain(self.groups.iter().map(|group| &group.heading))
+            .map(Tree::new)
+            .collect()
     }
 
     fn diff(&self, tree: &mut Tree) {
@@ -391,6 +475,9 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
             state, children, ..
         } = tree;
         let state = state.downcast_mut::<State<Key>>();
+        let mut previous_headings = children
+            .split_off(state.keys.len().min(children.len()))
+            .into_iter();
         let mut previous: HashMap<Key, Tree> = mem::take(&mut state.keys)
             .into_iter()
             .zip(mem::take(children))
@@ -407,6 +494,17 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
                 None => Tree::new(slot),
             })
             .collect();
+        children.extend(
+            self.groups
+                .iter()
+                .map(|group| match previous_headings.next() {
+                    Some(mut kept) => {
+                        kept.diff(group.heading.as_widget());
+                        kept
+                    }
+                    None => Tree::new(&group.heading),
+                }),
+        );
         state.keys.clone_from(&self.keys);
         state.slot_starts.retain(|key, _| self.keys.contains(key));
     }
@@ -420,18 +518,39 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let nodes = self.laid_out_slots(&mut tree.children, renderer, limits);
+        let (slot_trees, heading_trees) = tree.children.split_at_mut(self.slots.len());
+        let nodes = self.laid_out_slots(slot_trees, renderer, limits);
+        let heading_nodes = self.laid_out_headings(heading_trees, renderer, limits);
         let state = tree.state.downcast_mut::<State<Key>>();
-        let (placed, end) = self.keys.clone().into_iter().zip(nodes).fold(
-            (Vec::new(), 0.0),
-            |(mut placed, target), (key, node)| {
-                let next = target + self.extent(&node) + self.spacing;
-                let start = self.sliding_start(state, key, target);
-                placed.push(self.placed_at(node, start));
-                (placed, next)
-            },
+        let mut placed = Vec::with_capacity(nodes.len() + heading_nodes.len());
+        let mut heading_starts = Vec::with_capacity(heading_nodes.len());
+        let mut target = 0.0;
+        for (position, (key, node)) in self.keys.clone().into_iter().zip(nodes).enumerate() {
+            let leading_extent = self
+                .groups
+                .iter()
+                .zip(&heading_nodes)
+                .find(|(group, _)| group.positions.start == position)
+                .map(|(group, heading)| self.extent(heading) + group.enclosure_thickness);
+            target += leading_extent.unwrap_or(0.0);
+            let extent = self.extent(&node);
+            let start = self.sliding_start(state, key, target);
+            heading_starts.extend(leading_extent.map(|leading_extent| start - leading_extent));
+            placed.push(self.placed_at(node, start));
+            let trailing_extent = self
+                .groups
+                .iter()
+                .find(|group| group.positions.end == position + 1)
+                .map_or(0.0, |group| group.enclosure_thickness + self.group_gap);
+            target += extent + self.spacing + trailing_extent;
+        }
+        placed.extend(
+            heading_nodes
+                .into_iter()
+                .zip(heading_starts)
+                .map(|(heading, start)| self.placed_at(heading, start)),
         );
-        let along = (end - self.spacing).max(0.0);
+        let along = (target - self.spacing).max(0.0);
         let size = if self.along_vertical_edge() {
             let widest = placed
                 .iter()
@@ -501,31 +620,66 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         viewport: &Rectangle,
     ) {
         let slots_bounds = layout.bounds();
+        for (group_index, group) in self.groups.iter().enumerate() {
+            if let Some(frame) = self.group_frame(group_index, layout) {
+                frame.draw(
+                    renderer,
+                    (group.enclosure_color)(theme),
+                    (group.inner_color)(theme),
+                );
+            }
+        }
         let highlighted = self
             .highlight
             .as_ref()
             .zip(self.travelled_highlight(tree, layout));
+        let highlighted_group_index = self.highlighted_group_index();
         if let Some((highlight, slot)) = highlighted {
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: edge_backdrop(self.edge, slots_bounds, slot),
-                    border: Border {
-                        radius: self.highlighted_corners(),
-                        ..Border::default()
-                    },
-                    snap: false,
-                    ..renderer::Quad::default()
-                },
-                (highlight.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
-            );
+            let enclosing_group = highlighted_group_index.and_then(|group_index| {
+                self.group_frame(group_index, layout)
+                    .zip(self.groups.get(group_index))
+            });
+            match enclosing_group {
+                Some((frame, group)) => {
+                    let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
+                    renderer.fill_quad(
+                        frame.highlight_inside(resting_slot),
+                        (group.highlight_color)(theme),
+                    );
+                }
+                None => {
+                    renderer.fill_quad(
+                        self.ungrouped_highlight(slots_bounds, slot),
+                        (highlight.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
+                    );
+                }
+            }
         }
         for ((slot, tree), layout) in self.slots.iter().zip(&tree.children).zip(layout.children()) {
             slot.as_widget()
                 .draw(tree, renderer, theme, style, layout, cursor, viewport);
         }
+        let heading_layouts = layout.children().skip(self.slots.len());
+        let heading_trees = tree.children.iter().skip(self.slots.len());
+        for ((group, heading_tree), heading_layout) in
+            self.groups.iter().zip(heading_trees).zip(heading_layouts)
+        {
+            group.heading.as_widget().draw(
+                heading_tree,
+                renderer,
+                theme,
+                style,
+                heading_layout,
+                cursor,
+                viewport,
+            );
+        }
         let Some((highlight, slot)) = highlighted else {
             return;
         };
+        if highlighted_group_index.is_some() {
+            return;
+        }
         renderer.fill_quad(
             renderer::Quad {
                 bounds: band_clear_of_corners(

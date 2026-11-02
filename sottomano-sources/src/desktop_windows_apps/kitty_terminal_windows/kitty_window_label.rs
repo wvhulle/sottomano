@@ -11,7 +11,7 @@ const SSH_VALUE_FLAGS: [&str; 20] = [
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KittyWindowLabel {
     pub working_location: WorkingLocation,
-    pub foreground_activity: Option<ForegroundActivity>,
+    pub foreground_activity: ForegroundActivity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +22,9 @@ pub enum WorkingLocation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ForegroundActivity {
+    ShellPrompt {
+        shell_name: String,
+    },
     ShellCommand {
         command_line: String,
         program_name: Option<String>,
@@ -46,6 +49,7 @@ impl ForegroundActivity {
     #[must_use]
     pub fn display_text(&self) -> &str {
         match self {
+            ForegroundActivity::ShellPrompt { shell_name } => shell_name,
             ForegroundActivity::ShellCommand { command_line, .. } => command_line,
             ForegroundActivity::ProgramTitle { title, .. } => title,
         }
@@ -54,6 +58,7 @@ impl ForegroundActivity {
     #[must_use]
     pub fn command_name(&self) -> Option<&str> {
         match self {
+            ForegroundActivity::ShellPrompt { .. } => None,
             ForegroundActivity::ShellCommand {
                 command_line,
                 program_name,
@@ -65,23 +70,26 @@ impl ForegroundActivity {
 
 pub struct ActiveKittyWindow<'a> {
     pub shell: ShellState<'a>,
-    pub title_format: ShellTitleFormat,
+    pub shell_name: &'a str,
     pub foreground_program: Option<&'a [String]>,
 }
 
 impl ActiveKittyWindow<'_> {
     pub fn window_label(&self) -> KittyWindowLabel {
         let program_name = self.foreground_program.and_then(program_name);
-        let foreground_activity = match self.title_format.read(&self.shell) {
-            ShellTitle::IdlePrompt => None,
-            ShellTitle::RunningCommand(command_line) => Some(ForegroundActivity::ShellCommand {
+        let title_format = ShellTitleFormat::from(self.shell_name);
+        let foreground_activity = match title_format.read(&self.shell) {
+            ShellTitle::IdlePrompt => ForegroundActivity::ShellPrompt {
+                shell_name: self.shell_name.to_owned(),
+            },
+            ShellTitle::RunningCommand(command_line) => ForegroundActivity::ShellCommand {
                 command_line: command_line.to_owned(),
                 program_name,
-            }),
-            ShellTitle::ProgramTitle => Some(ForegroundActivity::ProgramTitle {
+            },
+            ShellTitle::ProgramTitle => ForegroundActivity::ProgramTitle {
                 title: self.shell.title.to_owned(),
                 program_name,
-            }),
+            },
         };
         let remote_host = self
             .foreground_program
@@ -146,8 +154,9 @@ mod tests {
                 home: Path::new(HOME),
                 at_prompt: false,
                 reported_command_line: "",
+                has_foreground_program: foreground_program.is_some(),
             },
-            title_format: ShellTitleFormat::Nushell,
+            shell_name: "nu",
             foreground_program,
         }
         .window_label()
@@ -165,12 +174,37 @@ mod tests {
     }
 
     #[test]
-    fn an_idle_nushell_prompt_has_no_foreground_activity() {
+    fn an_idle_nushell_prompt_is_titled_with_the_shell_name() {
         assert_eq!(
             window_label("~/Downloads", "/home/user/Downloads", None),
             KittyWindowLabel {
                 working_location: local_directory("~/Downloads"),
-                foreground_activity: None,
+                foreground_activity: ForegroundActivity::ShellPrompt {
+                    shell_name: "nu".to_owned(),
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn an_idle_prompt_is_titled_with_whichever_shell_the_window_runs() {
+        let label = ActiveKittyWindow {
+            shell: ShellState {
+                title: "user@host:/srv",
+                cwd: Path::new("/srv"),
+                home: Path::new(HOME),
+                at_prompt: false,
+                reported_command_line: "",
+                has_foreground_program: false,
+            },
+            shell_name: "xonsh",
+            foreground_program: None,
+        }
+        .window_label();
+        assert_eq!(
+            label.foreground_activity,
+            ForegroundActivity::ShellPrompt {
+                shell_name: "xonsh".to_owned(),
             }
         );
     }
@@ -181,10 +215,10 @@ mod tests {
             window_label("~/Downloads> sleep", "/home/user/Downloads", None),
             KittyWindowLabel {
                 working_location: local_directory("~/Downloads"),
-                foreground_activity: Some(ForegroundActivity::ShellCommand {
+                foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "sleep".to_owned(),
                     program_name: None,
-                }),
+                },
             }
         );
     }
@@ -196,10 +230,10 @@ mod tests {
             window_label("✳ Session name", "/tmp", Some(&claude)),
             KittyWindowLabel {
                 working_location: local_directory("/tmp"),
-                foreground_activity: Some(ForegroundActivity::ProgramTitle {
+                foreground_activity: ForegroundActivity::ProgramTitle {
                     title: "✳ Session name".to_owned(),
                     program_name: Some("claude".to_owned()),
-                }),
+                },
             }
         );
     }
