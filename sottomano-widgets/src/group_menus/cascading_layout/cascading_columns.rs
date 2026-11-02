@@ -54,7 +54,7 @@ pub(crate) fn one_row_per_identity<'a, M>(
 pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub config: &'a Config,
     pub direction: CascadeDirection,
-    pub menu: &'p GroupMenuMessenger<'a, M>,
+    pub menu: &'p GroupMenuMessenger<M>,
     pub group_menus: &'p GroupMenuState,
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }

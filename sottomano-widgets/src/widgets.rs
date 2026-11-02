@@ -26,7 +26,6 @@ pub mod localized_durations;
 pub mod localized_quantities;
 pub mod localized_time;
 pub mod most_used_model;
-pub mod named_reading;
 pub mod ongoing_toast;
 pub mod phosphor;
 pub mod pointer_drag;
