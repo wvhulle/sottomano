@@ -357,16 +357,19 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 
 #[cfg(test)]
 mod tests {
-    use iced::{Settings, Size};
+    use iced::{Settings, Size, widget::Row};
     use iced_controller_diagram::ControllerArtwork;
     use iced_test::Simulator;
-    use sottomano_config::Config;
+    use sottomano_config::{Config, screen_edges::Position};
 
     use super::{GroupEvent, GroupMenuView, InspectionCard};
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
-        group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+        group_items::{
+            group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
+            group_item_reading::GroupItemReading,
+        },
         group_menus::{
             cascading_layout::{
                 cascade_row::{CascadeDirection, CascadeOrientation},
@@ -376,7 +379,7 @@ mod tests {
                 GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
                 OpenGroupLimit,
             },
-            group_menu_state::{GroupMenuMessage, GroupMenuState, GroupMenuTopic},
+            group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
         },
         hover_cards::{
             HoverTarget, PopupMessage,
@@ -547,5 +550,49 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_pinned_composed_item_draws_its_value_on_the_panel() {
+        let config = Config::default();
+        let clock = Clock::real();
+        let target = HoverTarget::Workspace(7);
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::TogglePin {
+            menu: GroupMenuTopic::Media,
+            entry: GroupMenuPin::Item {
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+                item_key: target.stable_item_key(),
+            },
+        });
+        let expansion = WidgetGroupExpansion::default();
+        let group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Media,
+            &expansion,
+            |_| SmokeMessage,
+            [GroupItem::composed_pinnable(
+                ComposedGroupItemFace {
+                    name: "Lyrics".into(),
+                    icon: GroupItemIcon::Absent,
+                },
+                target,
+                GroupItemValue::drawn(|_| iced::widget::text("the sung line").into()),
+            )],
+        );
+        let panel_views: Vec<_> = GroupMenuView::new(
+            GroupMenuTopic::Media,
+            &group_menus,
+            |_| SmokeMessage,
+            [group],
+        )
+        .panel_views(&config, Position::Top, clock)
+        .collect();
+        assert_eq!(panel_views.len(), 2);
+        let mut panel = Simulator::with_size(
+            Settings::default(),
+            Size::new(1200.0, 100.0),
+            Row::with_children(panel_views),
+        );
+        assert!(panel.find("the sung line").is_ok());
     }
 }
