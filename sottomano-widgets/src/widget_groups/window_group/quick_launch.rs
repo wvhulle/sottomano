@@ -1,10 +1,6 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
-use iced::{
-    Element, Task,
-    widget::{Row, hover, image, svg},
-};
-use sottomano_config::Config;
+use iced::Task;
 use sottomano_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{desktop_entry_app_icons::DesktopEntries, niri_action_requests},
@@ -14,21 +10,19 @@ use crate::{
     desktop_index::DesktopIndex,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::LabeledValue,
-        widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
-        },
+        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
     },
 };
 
 const MAX_ITEMS: usize = 4;
-const RESTING_OPACITY: f32 = 0.65;
 
 #[derive(Default)]
 pub struct QuickLaunch {
@@ -95,7 +89,6 @@ impl QuickLaunch {
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
-        config: &'a Config,
     ) -> GroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         Self::expandable_group(
@@ -103,55 +96,25 @@ impl QuickLaunch {
             QuickLaunchMessage::Expansion,
             app_ids
                 .iter()
-                .filter(|app_id| index.app_icon(app_id).is_some())
-                .take(MAX_ITEMS)
-                .map(move |app_id| {
-                    GroupItem::hoverable_element(
-                        HoverTarget::QuickLaunch(app_id.clone()),
-                        move |reveal| {
-                            icon_slot(config, index, app_id, reveal)
-                                .unwrap_or_else(|| Row::new().into())
-                                .map(GroupEvent::Group)
-                        },
+                .filter_map(move |app_id| {
+                    let icon_path = index.app_icon(app_id)?;
+                    Some(
+                        GroupItem::composed(
+                            ItemIdentity {
+                                name: app_id.clone().into(),
+                                icon: ItemIcon::Image(IconHandle::at(icon_path)),
+                            },
+                            ItemHover::WholeItem(HoverTarget::QuickLaunch(app_id.clone())),
+                            ItemValue::Nothing,
+                        )
+                        .on_press("launch", QuickLaunchMessage::Launch(app_id.clone())),
                     )
-                    .on_press("launch", QuickLaunchMessage::Launch(app_id.clone()))
-                }),
+                })
+                .take(MAX_ITEMS),
         )
         .face(HandleFace::Icon {
             glyph: Phosphor::Rocket(Weight::Regular).into(),
             handle: GroupHandle::QuickLaunch,
         })
-    }
-}
-
-fn icon_slot<'a>(
-    config: &Config,
-    index: &DesktopIndex,
-    app_id: &str,
-    reveal: f32,
-) -> Option<Element<'a, QuickLaunchMessage>> {
-    let path = index.app_icon(app_id)?;
-    let side = config.theme.font.icon_size_px;
-    let resting = icon_image(path, side, reveal * RESTING_OPACITY);
-    let bright = icon_image(path, side, reveal);
-    Some(hover(resting, bright))
-}
-
-fn icon_image<'a>(path: &Path, side: f32, opacity: f32) -> Element<'a, QuickLaunchMessage> {
-    let is_svg = path
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"));
-    if is_svg {
-        svg(svg::Handle::from_path(path))
-            .width(side)
-            .height(side)
-            .opacity(opacity)
-            .into()
-    } else {
-        image(image::Handle::from_path(path))
-            .width(side)
-            .height(side)
-            .opacity(opacity)
-            .into()
     }
 }

@@ -153,10 +153,12 @@ impl ShowcaseState {
             )))
         }));
         let mut group_menus = GroupMenus::default();
-        if let GroupShown::PinnedFrom { menu, group_title } = demo.shown {
+        if let GroupShown::PinnedFrom { menu, group_title } = &demo.shown {
             let _unsaved_pin = group_menus.update(GroupMenuMessage::TogglePin {
-                menu,
-                entry: PinnedEntry::Group { group_title },
+                menu: *menu,
+                entry: PinnedEntry::Group {
+                    group_title: group_title.clone(),
+                },
             });
         }
         let state = ShowcaseState {
@@ -276,7 +278,7 @@ impl ShowcaseState {
             .and_then(|row| {
                 self.group
                     .tooltip_for(&row.target, &self.config, self.clock)
-                    .map(|tooltip| tooltip.with_announcement(row.announcement))
+                    .map(|tooltip| tooltip.with_announcement(row.announcement.clone()))
             })
             .unwrap_or_else(Tooltip::empty);
         let anchor = self

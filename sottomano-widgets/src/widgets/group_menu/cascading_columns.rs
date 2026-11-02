@@ -14,16 +14,13 @@ use crate::{
         group_item::{MenuItemAction, MenuParts},
         group_menu::{
             GroupMenuSurfaces, InspectionCard, MenuMessenger,
-            menu_row::{
-                MenuRowContent, MenuRowLook, hovered_menu_row, inert_menu_row, menu_row_height,
-                pressable_menu_row,
-            },
+            menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, menu_row_height},
             satellite_panels::SatellitePanels,
         },
         list_end_corners::ListEndCorners,
         phosphor::{Phosphor, Weight},
         uniform_width_column::uniform_width_column,
-        widget_group::{CascadeItem, GroupEvent, GroupTitle, GroupTitleClaim, TitleRow},
+        widget_group::{CascadeItem, GroupEvent, GroupTitle, GroupTitleClaim, ItemPin, TitleRow},
     },
 };
 
@@ -64,7 +61,7 @@ pub(super) fn duplicate_group_titles(
                         || claim.title_row == TitleRow::OwnRow)
             })
         })
-        .map(|(_, claim)| claim.group_title)
+        .map(|(_, claim)| claim.group_title.clone())
         .collect()
 }
 
@@ -100,7 +97,7 @@ pub(super) fn cascading_columns<
         .filter(|member| *member < entries.len())
         .map(|member| OpenGroup {
             member,
-            group_title: entries[member].title_claim.group_title,
+            group_title: entries[member].title_claim.group_title.clone(),
             items: take(&mut entries[member].items),
         });
     let open_member = open_group.as_ref().map(|open| open.member);
@@ -141,15 +138,15 @@ fn open_group_satellites<
     let card_position = inspected_target.and_then(|target| {
         items
             .iter()
-            .position(|item| item.action.inspected_target() == Some(target))
+            .position(|item| item.action.inspected_target() == target)
     });
     let item_count = items.len();
     let item_corners = layout.satellite_panels.frame_corners;
     let is_inspected = |item: &CascadeItem<'a, M>| {
-        inspected_target.is_some_and(|target| item.action.inspected_target() == Some(target))
+        inspected_target.is_some_and(|target| item.action.inspected_target() == target)
     };
     let item_list =
-        item_menu(layout, group_title, items, &is_inspected, item_corners).map(Outer::from);
+        item_menu(layout, &group_title, items, &is_inspected, item_corners).map(Outer::from);
     let item_panel = layout.satellite_panels.beside_row(
         layout.config,
         item_list,
@@ -183,13 +180,15 @@ fn group_row<'a, M: Clone + 'a>(
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
     let group_title = entry.title_claim.group_title;
-    let pinned_entry = PinnedEntry::Group { group_title };
+    let pinned_entry = PinnedEntry::Group {
+        group_title: group_title.clone(),
+    };
     let pin = marked_by_menu_pin(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
             icon_size,
             secondary_text_color,
-            layout.menu.toggle_pin(pinned_entry),
+            layout.menu.toggle_pin(pinned_entry.clone()),
         ),
         pinned_entry,
     );
@@ -229,7 +228,7 @@ fn group_row<'a, M: Clone + 'a>(
 
 fn item_menu<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: GroupTitle,
+    group_title: &GroupTitle,
     items: Vec<CascadeItem<'a, M>>,
     is_inspected: &dyn Fn(&CascadeItem<'a, M>) -> bool,
     panel_corners: Radius,
@@ -247,47 +246,43 @@ fn item_menu<'a, M: Clone + 'a>(
 
 fn item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: GroupTitle,
+    group_title: &GroupTitle,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let marked_target = item.action.inspected_target().cloned();
-    let row = unmarked_item_row(layout, group_title, item, look);
-    match marked_target {
-        Some(target) => marked_by_hover_target(row, target),
-        None => row,
-    }
+    let marked_target = item.action.inspected_target().clone();
+    marked_by_hover_target(
+        unmarked_item_row(layout, group_title, item, look),
+        marked_target,
+    )
 }
 
 fn unmarked_item_row<'a, M: Clone + 'a>(
     layout: &CascadeLayout<'_, 'a, M>,
-    group_title: GroupTitle,
+    group_title: &GroupTitle,
     item: CascadeItem<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let item_pin = item.pinnable.then(|| {
-        glyph_button(
+    let item_pin = match item.pin {
+        ItemPin::Unpinnable => None,
+        ItemPin::Pinnable(item_name) => Some(glyph_button(
             Phosphor::PushPin(Weight::Regular),
             layout.config.theme.font.icon_size_px,
             secondary_text_color,
             layout.menu.toggle_pin(PinnedEntry::Item {
-                group_title,
-                item_name: item.name,
+                group_title: group_title.clone(),
+                item_name,
             }),
-        )
-    });
+        )),
+    };
     let content = MenuRowContent {
         leading: Vec::new(),
         parts: item.parts,
-        name: item.name.into(),
+        name: item.name,
         trailing: item_pin.into_iter().collect(),
     };
     let config = layout.config;
     match item.action {
-        MenuItemAction::Inert => inert_menu_row(config, content),
-        MenuItemAction::Press(press) => {
-            pressable_menu_row(config, content, look, GroupEvent::Group(press))
-        }
         MenuItemAction::Inspect(inspected_row) => {
             let inspect = layout.menu.inspect_row(inspected_row);
             hovered_menu_row(config, content, look, inspect.clone(), inspect)
@@ -315,8 +310,8 @@ mod tests {
     };
     use crate::widgets::group_item::MenuParts;
 
-    const ETHERNET_TITLE: GroupTitle = GroupTitle::Fixed("Ethernet");
-    const DRIVE_TITLE: GroupTitle = GroupTitle::Fixed("Drive");
+    const ETHERNET_TITLE: GroupTitle = GroupTitle::fixed("Ethernet");
+    const DRIVE_TITLE: GroupTitle = GroupTitle::fixed("Drive");
 
     fn own_row(group_title: GroupTitle) -> GroupTitleClaim {
         GroupTitleClaim {

@@ -394,10 +394,7 @@ impl ShowcasedGroup {
                 vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
             }
             ShowcasedGroup::AppearancePresets(menu) => {
-                vec![
-                    menu.group_content(config)
-                        .map(ShowcaseMessage::AppearancePresets),
-                ]
+                vec![menu.group_content().map(ShowcaseMessage::AppearancePresets)]
             }
             ShowcasedGroup::Audio(group) => {
                 vec![group.group_content(config).map(ShowcaseMessage::Audio)]

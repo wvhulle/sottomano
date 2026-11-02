@@ -17,7 +17,6 @@ use sottomano_widgets::{
         group_menus::{GroupMenuKind, group_source_demand::GroupSourceDemand},
         journal_events_group::JournalEventsGroup,
         login_session_group::LoginSessionGroup,
-        media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
@@ -53,7 +52,7 @@ impl ShellWidgetGroups {
                     buses,
                     self.group_menus.source_demand(
                         GroupMenuKind::Agenda,
-                        &[GroupTitle::Fixed(WeatherGroup::TITLE)],
+                        &[GroupTitle::fixed(WeatherGroup::TITLE)],
                     ),
                 )
                 .map(Message::Weather),
@@ -68,7 +67,7 @@ impl ShellWidgetGroups {
                     &config.widget_groups.temperature_sensors.cpu,
                     self.group_menus.source_demand(
                         GroupMenuKind::Hardware,
-                        &[GroupTitle::Fixed(ComputeGroup::TITLE)],
+                        &[GroupTitle::fixed(ComputeGroup::TITLE)],
                     ),
                 )
                 .map(Message::Compute),
@@ -82,7 +81,7 @@ impl ShellWidgetGroups {
                     &config.widget_groups.temperature_sensors.drive,
                     self.group_menus.source_demand(
                         GroupMenuKind::Hardware,
-                        &[GroupTitle::Fixed(PhysicalDriveGroup::TITLE)],
+                        &[GroupTitle::fixed(PhysicalDriveGroup::TITLE)],
                     ),
                 )
                 .map(Message::Drive),
@@ -127,7 +126,7 @@ impl ShellWidgetGroups {
                     buses,
                     self.group_menus.source_demand(
                         GroupMenuKind::Network,
-                        &[GroupTitle::Fixed(ReachabilityGroup::TITLE)],
+                        &[GroupTitle::fixed(ReachabilityGroup::TITLE)],
                     ),
                 )
                 .map(Message::Reachability),
@@ -136,7 +135,7 @@ impl ShellWidgetGroups {
                     buses,
                     &self.group_menus.source_demand(
                         GroupMenuKind::Network,
-                        &[GroupTitle::Fixed(VpnGroup::TITLE)],
+                        &[GroupTitle::fixed(VpnGroup::TITLE)],
                     ),
                 )
                 .map(Message::Vpn),
@@ -168,7 +167,7 @@ impl ShellWidgetGroups {
                     buses,
                     self.group_menus.source_demand(
                         GroupMenuKind::Media,
-                        &[GroupTitle::Fixed(GamepadGroup::TITLE)],
+                        &[GroupTitle::fixed(GamepadGroup::TITLE)],
                     ),
                 )
                 .map(Message::Gamepad),
@@ -179,7 +178,7 @@ impl ShellWidgetGroups {
                     &config.widget_groups.media_lyrics,
                     &self.group_menus.source_demand(
                         GroupMenuKind::Media,
-                        &[GroupTitle::Fixed(MediaGroup::TITLE)],
+                        &self.media_group.player_group_titles(),
                     ),
                 )
                 .map(Message::Media),

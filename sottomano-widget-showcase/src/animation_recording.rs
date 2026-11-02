@@ -194,7 +194,7 @@ impl<'session> DemoRecorder<'session> {
                 self.press_at(pointer)
             }
             Step::PressPin(entry) => {
-                let pointer = self.locate(MenuPinWidget(*entry));
+                let pointer = self.locate(MenuPinWidget(entry.clone()));
                 self.press_at(pointer)
             }
             Step::HoverText(shown) => {

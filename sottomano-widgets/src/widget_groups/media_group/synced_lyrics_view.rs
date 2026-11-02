@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use iced::{Alignment, alignment::Horizontal, widget::Row};
+use iced::alignment::Horizontal;
 use sottomano_config::Config;
 use sottomano_sources::media_playback_audio::{
     lrclib_synced_lyrics::{TimedLyricLine, TrackLyrics},
@@ -10,20 +10,17 @@ use sottomano_sources::media_playback_audio::{
 use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
-    hover_tooltips::{PressHints, hoverable},
     widgets::{
         bar_widget::{BarWidget, Glyph},
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         karaoke_lyric_line::{
             INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
         },
         keyed_record_table::{ColumnHeading, TableRecord},
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
-        source_reading::icon_value_gap,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_group::GroupEvent,
         widget_state::{StateTint, WidgetState},
     },
 };
@@ -142,16 +139,20 @@ fn current_lyric_line<'a>(
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
 ) -> GroupItem<'a, MediaMessage> {
-    GroupItem::element(move |reveal| {
+    let identity = ItemIdentity {
+        name: "Lyrics".into(),
+        icon: ItemIcon::Glyph {
+            glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
+            state: WidgetState::Idle,
+        },
+    };
+    let hover = ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into());
+    let value = ItemValue::drawn(move |reveal| {
         let tinted = move |state| StateTint {
             state,
             opacity: reveal,
         };
-        let lyrics_icon = Glyph::from(Phosphor::MicrophoneStage(Weight::Regular))
-            .view(config.theme.font.icon_size_px, move |theme| {
-                tinted(WidgetState::Idle).color(theme)
-            });
-        let karaoke_line = KaraokeLyricLine::new(
+        KaraokeLyricLine::new(
             timed_line,
             PlaybackPosition {
                 progress: media.progress,
@@ -163,17 +164,10 @@ fn current_lyric_line<'a>(
                 sung: Box::new(move |theme| tinted(WidgetState::Live).color(theme)),
                 unsung: Box::new(move |theme| tinted(WidgetState::Off).color(theme)),
             },
-        );
-        hoverable(
-            Row::with_children([lyrics_icon, karaoke_line.into()])
-                .spacing(icon_value_gap(config))
-                .align_y(Alignment::Center)
-                .into(),
-            PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into(),
-            PressHints::default(),
-            GroupEvent::Tooltip,
         )
-    })
+        .into()
+    });
+    GroupItem::composed(identity, hover, value)
 }
 
 #[cfg(test)]

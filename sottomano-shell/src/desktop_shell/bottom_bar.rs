@@ -50,7 +50,7 @@ impl DesktopShell {
             start: [self
                 .widget_groups
                 .appearance_presets_menu
-                .group_content(&self.config)
+                .group_content()
                 .map(Message::AppearancePresets)],
             end_menus: [self.services_menu(), self.session_group_menu()],
             end: [self

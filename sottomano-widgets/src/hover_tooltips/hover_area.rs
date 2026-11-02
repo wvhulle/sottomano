@@ -58,11 +58,11 @@ struct HoverState {
 
 impl<M> HoverArea<'_, M> {
     fn enter(&self, state: &mut HoverState, anchor: Rectangle) -> M {
-        state.announced = self.announcement;
+        state.announced = self.announcement.clone();
         (self.wrap)(TooltipMessage::EnterAnchor {
             target: self.target.clone(),
             anchor,
-            announcement: self.announcement,
+            announcement: self.announcement.clone(),
         })
     }
 
@@ -76,10 +76,10 @@ impl<M> HoverArea<'_, M> {
         if !state.hovered || state.announced == self.announcement {
             return None;
         }
-        state.announced = self.announcement;
+        state.announced = self.announcement.clone();
         Some((self.wrap)(TooltipMessage::AnnouncementChanged {
             target: self.target.clone(),
-            announcement: self.announcement,
+            announcement: self.announcement.clone(),
         }))
     }
 

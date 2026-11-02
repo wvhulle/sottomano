@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::BTreeMap,
     fmt::{Display, Formatter, Result as FmtResult},
     rc::Rc,
@@ -28,7 +29,9 @@ use crate::{
         configured_theme::{primary_color, secondary_text_color, text_color},
         expand_animation::expand_animation,
         flat_button,
-        group_item::{GroupItem, MenuItemAction, MenuParts},
+        group_item::{
+            GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue, MenuItemAction, MenuParts,
+        },
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
         reveal::reveal_x,
@@ -37,11 +40,11 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupTitle {
-    Fixed(&'static str),
+    Named(Cow<'static, str>),
     Numbered {
-        base_title: &'static str,
+        base_title: Cow<'static, str>,
         ordinal: u8,
     },
 }
@@ -50,20 +53,27 @@ const MOST_SIBLINGS_PER_TITLE: usize = 8;
 
 impl GroupTitle {
     #[must_use]
-    pub fn numbered_siblings(base_title: &'static str) -> Vec<Self> {
+    pub const fn fixed(title: &'static str) -> Self {
+        GroupTitle::Named(Cow::Borrowed(title))
+    }
+
+    #[must_use]
+    pub fn numbered_siblings(base_title: impl Into<Cow<'static, str>>) -> Vec<Self> {
+        let base_title = base_title.into();
         (0..MOST_SIBLINGS_PER_TITLE)
-            .map(|position| Self::numbered_from_second(base_title, position))
+            .map(|position| Self::numbered_from_second(base_title.clone(), position))
             .collect()
     }
 
     #[must_use]
-    pub fn numbered_from_second(base_title: &'static str, position: usize) -> Self {
+    pub fn numbered_from_second(base_title: impl Into<Cow<'static, str>>, position: usize) -> Self {
+        let base_title = base_title.into();
         match u8::try_from(position + 1) {
             Ok(ordinal) if ordinal > 1 => GroupTitle::Numbered {
                 base_title,
                 ordinal,
             },
-            Ok(_) | Err(_) => GroupTitle::Fixed(base_title),
+            Ok(_) | Err(_) => GroupTitle::Named(base_title),
         }
     }
 }
@@ -71,7 +81,7 @@ impl GroupTitle {
 impl Display for GroupTitle {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            GroupTitle::Fixed(title) => formatter.write_str(title),
+            GroupTitle::Named(title) => formatter.write_str(title),
             GroupTitle::Numbered {
                 base_title,
                 ordinal,
@@ -86,7 +96,7 @@ pub enum TitleRow {
     SharedWithSameTitle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupTitleClaim {
     pub group_title: GroupTitle,
     pub title_row: TitleRow,
@@ -172,22 +182,30 @@ impl<'a> HandleFace<'a> {
 
     fn into_face_item<M: Clone + 'a>(
         self,
-        config: &'a Config,
+        group_title: &GroupTitle,
         items: &mut Vec<GroupItem<'a, M>>,
         handle_announcement: HoverAnnouncement,
         clock: Clock,
     ) -> GroupItem<'a, M> {
+        let glyph_face = |glyph, state, handle| {
+            GroupItem::composed(
+                ItemIdentity {
+                    name: group_title.to_string().into(),
+                    icon: ItemIcon::Glyph { glyph, state },
+                },
+                ItemHover::ByChildren {
+                    row_target: HoverTarget::GroupHandle(handle),
+                },
+                ItemValue::Nothing,
+            )
+        };
         match self {
-            HandleFace::Icon { glyph, .. } => {
-                GroupItem::element(move |_| icon_face_glyph(config, glyph, FaceGlyphTint::Text))
-            }
-            HandleFace::IconColoredBy { glyph, reading, .. } => GroupItem::element(move |_| {
-                icon_face_glyph(
-                    config,
-                    glyph,
-                    FaceGlyphTint::ReadingState(reading.state(clock)),
-                )
-            }),
+            HandleFace::Icon { glyph, handle } => glyph_face(glyph, WidgetState::Idle, handle),
+            HandleFace::IconColoredBy {
+                glyph,
+                reading,
+                handle,
+            } => glyph_face(glyph, reading.state(clock), handle),
             HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
         }
     }
@@ -310,9 +328,14 @@ pub(super) struct MenuMember<'a, M> {
     pub cascade_items: Vec<CascadeItem<'a, M>>,
 }
 
+pub(super) enum ItemPin {
+    Unpinnable,
+    Pinnable(&'static str),
+}
+
 pub(super) struct CascadeItem<'a, M> {
-    pub name: &'static str,
-    pub pinnable: bool,
+    pub name: Cow<'static, str>,
+    pub pin: ItemPin,
     pub action: MenuItemAction<M>,
     pub parts: MenuParts<'a, M>,
 }
@@ -326,7 +349,7 @@ pub trait WidgetGroup {
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> GroupContent<'a, M> {
         Self::expandable_group_titled(
-            GroupTitle::Fixed(Self::TITLE),
+            GroupTitle::fixed(Self::TITLE),
             expansion,
             on_expansion,
             items,
@@ -343,7 +366,7 @@ pub trait WidgetGroup {
     }
 
     fn fixed_group<'a, M: Clone + 'a>(item: Option<GroupItem<'a, M>>) -> GroupContent<'a, M> {
-        GroupContent::single(GroupTitle::Fixed(Self::TITLE), item)
+        GroupContent::single(GroupTitle::fixed(Self::TITLE), item)
     }
 }
 
@@ -395,8 +418,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     }
 
     pub(super) fn title_claim(&self) -> Option<GroupTitleClaim> {
-        (!self.items.is_empty()).then_some(GroupTitleClaim {
-            group_title: self.group_title,
+        (!self.items.is_empty()).then(|| GroupTitleClaim {
+            group_title: self.group_title.clone(),
             title_row: self.title_row,
         })
     }
@@ -497,7 +520,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     }
 
     pub(crate) fn group_title(&self) -> GroupTitle {
-        self.group_title
+        self.group_title.clone()
     }
 
     pub(super) fn pinned_item_views<Outer: From<GroupEvent<M>> + 'a>(
@@ -514,10 +537,12 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         items
             .into_iter()
             .filter_map(|item| {
-                let item_name = item.pinned_item_name(group_title, group_menus, menu)?;
-                let pinned_announcement =
-                    HoverAnnouncement::from_group_handle(group_title, PressHints::default())
-                        .pinned_by(PanelPin::ItemPinnedFrom { menu, item_name });
+                let item_name = item.pinned_item_name(&group_title, group_menus, menu)?;
+                let pinned_announcement = HoverAnnouncement::from_group_handle(
+                    group_title.clone(),
+                    PressHints::default(),
+                )
+                .pinned_by(PanelPin::ItemPinnedFrom { menu, item_name });
                 let item = item.acting_as_handle(pinned_announcement);
                 Some(fixed_view(
                     slice::from_ref(&item),
@@ -564,12 +589,14 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .filter(|item| {
                 item.alignment() == ItemAlignment::Unaligned
                     && item
-                        .pinned_item_name(group_title, group_menus, menu)
+                        .pinned_item_name(&group_title, group_menus, menu)
                         .is_none()
             })
             .map(|item| CascadeItem {
-                name: item.menu_name().unwrap_or_default(),
-                pinnable: item.pinnable_name().is_some(),
+                name: item.menu_name(),
+                pin: item
+                    .pinnable_name()
+                    .map_or(ItemPin::Unpinnable, ItemPin::Pinnable),
                 action: item.menu_action(),
                 parts: item.menu_parts(config, clock),
             })
@@ -621,12 +648,13 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             ));
         };
         let handle_announcement = HoverAnnouncement::from_group_handle(
-            group_title,
+            group_title.clone(),
             PressHints::group_handle(expansion.expanded, scroll_does),
         )
         .pinned_by(panel_pin);
         let face_target = face.hover_target();
-        let face = face.into_face_item(config, &mut items, handle_announcement, clock);
+        let face =
+            face.into_face_item(&group_title, &mut items, handle_announcement.clone(), clock);
         let handle_target = items
             .iter()
             .find_map(GroupItem::handle_preview)
@@ -659,7 +687,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 Some(target) => announcing_hoverable(
                     handle,
                     target.clone(),
-                    handle_announcement,
+                    handle_announcement.clone(),
                     GroupEvent::Tooltip,
                 ),
                 None => handle,

@@ -11,21 +11,21 @@ use sottomano_sources::{
 };
 
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_tooltips::HoverTarget,
     widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
         bar_widget::Glyph,
         configured_theme::text_color,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{GroupContent, GroupEvent, WidgetGroup},
-        widget_state::{StateTint, WidgetState},
+        widget_group::{GroupContent, WidgetGroup},
+        widget_state::WidgetState,
     },
 };
 
@@ -187,23 +187,19 @@ impl SessionMenu {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self, config: &'a Config) -> GroupContent<'a, SessionMessage> {
-        let glyph = Glyph::from(Phosphor::Power(Weight::Regular));
+    pub fn group_content<'a>(&self) -> GroupContent<'a, SessionMessage> {
         Self::fixed_group((!self.permissions.allowed.is_empty()).then(|| {
-            GroupItem::element(move |reveal| {
-                hoverable(
-                    glyph.view(config.theme.font.icon_size_px, {
-                        let tint = StateTint {
-                            state: WidgetState::Idle,
-                            opacity: reveal,
-                        };
-                        move |theme| tint.color(theme)
-                    }),
-                    SessionTarget::Menu.into(),
-                    PressHints::default(),
-                    GroupEvent::Tooltip,
-                )
-            })
+            GroupItem::composed(
+                ItemIdentity {
+                    name: Self::TITLE.into(),
+                    icon: ItemIcon::Glyph {
+                        glyph: Phosphor::Power(Weight::Regular).into(),
+                        state: WidgetState::Idle,
+                    },
+                },
+                ItemHover::WholeItem(SessionTarget::Menu.into()),
+                ItemValue::Nothing,
+            )
         }))
     }
 }
