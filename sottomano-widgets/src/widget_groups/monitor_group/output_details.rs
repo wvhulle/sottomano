@@ -79,10 +79,9 @@ impl ConnectedOutput<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{
-        hover_card_body::{Section, SectionBody},
-        simple_icons::SimpleIcon,
-        value_cells::ValueCell,
+    use crate::{
+        hover_cards::hover_card_body::{Section, SectionBody},
+        widgets::{simple_icons::SimpleIcon, value_cells::ValueCell},
     };
 
     fn laptop_panel() -> HashMap<String, OutputInfo> {

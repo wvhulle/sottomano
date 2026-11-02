@@ -4,9 +4,9 @@ use chrono::Locale;
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,

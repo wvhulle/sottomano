@@ -11,15 +11,16 @@ use super::{
 };
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{
+        HoverCardBody, ReadingSections, Section, hover_card_figure_payloads::ThreadCell,
+    },
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{
-            HoverCardBody, ReadingSections, Section, hover_card_figure_payloads::ThreadCell,
-        },
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

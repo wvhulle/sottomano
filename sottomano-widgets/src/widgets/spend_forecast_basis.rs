@@ -6,8 +6,9 @@ use sottomano_sources::ai_usage_spend::{
     working_time_forecast::{SpendBudget, SpendPacing},
 };
 
-use crate::widgets::{
-    hover_card_body::Section, localized_quantities::Quantity, value_cells::LabeledValue,
+use crate::{
+    hover_cards::hover_card_body::Section,
+    widgets::{localized_quantities::Quantity, value_cells::LabeledValue},
 };
 
 const CLOCK_FORMAT: &str = "%H:%M";

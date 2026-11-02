@@ -8,22 +8,24 @@ use sottomano_sources::{
 
 use crate::{
     desktop_index::DesktopIndex,
-    hover_cards::{GroupHandle, HoverTarget},
-    widgets::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+    group_items::group_item::{
+        ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

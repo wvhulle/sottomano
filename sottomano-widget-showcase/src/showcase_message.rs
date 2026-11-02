@@ -1,6 +1,7 @@
 use sottomano_sources::desktop_windows_apps::niri_action_requests::ActionFailure;
 use sottomano_widgets::{
     clock::Clock,
+    group_menus::group_menu_state::GroupMenuMessage,
     hover_cards::{HoverCardMessage, PopupMessage},
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
@@ -8,13 +9,13 @@ use sottomano_widgets::{
         appearance_presets_group::AppearancePresetsMessage, audio_group::AudioMessage,
         caldav_group::CaldavMessage, claude_usage_group::ClaudeUsageMessage,
         compute_group::ComputeMessage, gamepad_group::GamepadMessage,
-        group_menus::GroupMenuMessage, idle_timeouts_group::IdleTimeoutsMessage,
-        login_session_group::LoginSessionMessage, media_group::MediaMessage,
-        memory_board_group::MemoryBoardMessage, voice_dictation_group::VoiceDictationMessage,
-        vpn_group::VpnMessage, wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
-        window_group::WindowGroupMessage, workspaces_group::WorkspacesMessage,
+        idle_timeouts_group::IdleTimeoutsMessage, login_session_group::LoginSessionMessage,
+        media_group::MediaMessage, memory_board_group::MemoryBoardMessage,
+        voice_dictation_group::VoiceDictationMessage, vpn_group::VpnMessage,
+        wallpaper_group::WallpaperMessage, weather_group::WeatherMessage,
+        widget_group_content::GroupEvent, window_group::WindowGroupMessage,
+        workspaces_group::WorkspacesMessage,
     },
-    widgets::widget_group::GroupEvent,
 };
 
 #[derive(Debug, Clone)]

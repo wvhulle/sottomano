@@ -19,14 +19,18 @@ use super::{
 };
 use crate::{
     clock::Clock,
-    widgets::{
+    group_items::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::{HoverCardBody, Section, hover_card_figure_payloads::ThreadCell},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{
+        HoverCardBody, Section, hover_card_figure_payloads::ThreadCell,
+    },
+    widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

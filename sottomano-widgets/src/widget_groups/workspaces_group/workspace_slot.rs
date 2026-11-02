@@ -8,16 +8,18 @@ use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{
+    desktop_panels::{
+        panel_slot::PanelSlot,
+        panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
+    },
     hover_cards::{HoverTarget, PressHints, hoverable},
-    panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
+    widget_groups::workspaces_group::marker_track::MarkerTrack,
     widgets::{
         activity_line::edge_activity_line,
         configured_theme::{
             ThemedColor, background_strong_color, danger_color, primary_color, primary_weak_color,
             secondary_text_color, text_color,
         },
-        marker_track::MarkerTrack,
-        pager_slot::PagerSlot,
         pointer_drag::{DraggedPanelSlot, draggable_slot::draggable_slot},
         text::panel_text,
     },
@@ -270,12 +272,12 @@ impl<'s> WorkspaceSlot<'s> {
 
     pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
         let PanelSlotContext { config, edge, .. } = self.slot_context;
-        let pager_slot = PagerSlot::new(self.label(), self.edge_line())
+        let panel_slot = PanelSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
             .spaced_by(config.layout.panel.widget_spacing)
             .view(config, edge);
         self.hit_area(
-            container(pager_slot)
+            container(panel_slot)
                 .style(self.drop_tint(Radius::default()))
                 .into(),
         )

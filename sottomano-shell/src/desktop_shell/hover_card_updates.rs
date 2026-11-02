@@ -2,16 +2,19 @@ use std::time::Instant;
 
 use iced::Task;
 use sottomano_widgets::{
-    hover_cards::{GroupHandle, HoverCardMessage, HoverTarget, hover_card_transition::Departed},
+    hover_cards::{
+        GroupHandle, HoverCardMessage, HoverTarget,
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
+        hover_card_transition::Departed,
+    },
     layer_surfaces::PanelEdge,
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
         workspaces_group::workspace_hover_card,
-    },
-    widgets::hover_card_body::{
-        HoverCardBody,
-        hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
 };
 use tokio::time::sleep_until;

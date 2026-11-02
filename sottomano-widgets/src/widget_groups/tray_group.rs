@@ -21,25 +21,30 @@ use tokio::sync::mpsc;
 use self::menu_lines::TrayMenuLines;
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget, PressHints, hoverable},
+    group_items::{
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget, PressHints,
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+        hoverable,
+    },
+    widget_groups::widget_group_content::{
+        GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
+        WidgetGroupExpansionMessage, WidgetGroupFace,
+    },
     widgets::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
         configured_theme::primary_color,
         context_menu::context_menu,
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        widget_group::{
-            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupFace,
-        },
     },
 };
 

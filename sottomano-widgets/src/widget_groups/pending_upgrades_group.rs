@@ -13,21 +13,23 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::terminal_command::TerminalCommand,
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-        icon_glyph::IconGlyph,
-        latest_snapshot::LatestSnapshot,
-        localized_quantities::Quantity,
-        phosphor::Phosphor,
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading,
         reading_display_state::ReadingDisplayState,
-        value_cells::LabeledValue,
-        widget_group::{
+    },
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::{
+        terminal_command::TerminalCommand,
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+    },
+    widgets::{
+        icon_glyph::IconGlyph, latest_snapshot::LatestSnapshot, localized_quantities::Quantity,
+        phosphor::Phosphor, value_cells::LabeledValue,
     },
 };
 

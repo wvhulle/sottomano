@@ -2,6 +2,7 @@ pub mod process_tree;
 pub mod quick_launch;
 mod window_hover_card;
 pub mod window_list;
+pub mod window_list_viewport;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -21,13 +22,13 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
-    panel_slot_drag::PanelSlotContext,
-    widgets::{
+    desktop_panels::panel_slot_drag::PanelSlotContext,
+    hover_cards::{
+        HoverTarget,
         hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        widget_group::GroupEvent,
-        window_icon::WindowAssets,
     },
+    widget_groups::widget_group_content::GroupEvent,
+    widgets::window_icon::WindowAssets,
 };
 
 #[derive(Default)]

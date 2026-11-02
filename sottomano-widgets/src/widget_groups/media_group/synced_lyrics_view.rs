@@ -10,20 +10,22 @@ use sottomano_sources::media_playback_audio::{
 use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
-    widgets::{
+    group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
         group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
+    widget_groups::media_group::karaoke_lyric_line::{
+        INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
+    },
+    widgets::{
         icon_glyph::IconGlyph,
-        karaoke_lyric_line::{
-            INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
-        },
         keyed_record_table::{ColumnHeading, TableRecord},
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         value_cells::ValueCell,
     },
 };
@@ -177,7 +179,9 @@ fn current_lyric_line<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{hover_card_body::SectionBody, keyed_record_table::KeyedTableRow};
+    use crate::{
+        hover_cards::hover_card_body::SectionBody, widgets::keyed_record_table::KeyedTableRow,
+    };
 
     fn verse_lines() -> TrackLyrics {
         TrackLyrics::synced_from_lrc(

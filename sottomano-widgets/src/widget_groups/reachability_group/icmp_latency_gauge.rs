@@ -5,13 +5,14 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::HoverCardBody,
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
     },
 };
 

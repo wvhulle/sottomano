@@ -11,23 +11,29 @@ use sottomano_sources::{
 };
 
 use crate::{
-    hover_cards::HoverTarget,
-    widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
-    widgets::{
-        configured_theme::text_color,
-        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+    group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::{
+        idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
+        widget_group_content::{WidgetGroup, WidgetGroupContent},
+    },
+    widgets::{
+        configured_theme::text_color,
+        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
-        widget_group::{WidgetGroup, WidgetGroupContent},
     },
 };
 

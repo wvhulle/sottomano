@@ -21,13 +21,13 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_lifecycle::ToastKind};
 use crate::{
+    desktop_panels::panel_frame::LayerFrameStyle,
+    notification_toasts::markup_body::MarkupBody,
     toast_messages::{NotificationMessage, ReplyMessage},
     widgets::{
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         localized_durations::relative_moment_text,
-        markup_body::MarkupBody,
-        panel_frame::LayerFrameStyle,
         shell_layer_appearance::LayerAppearance,
         text::{FontFaces, panel_text},
     },

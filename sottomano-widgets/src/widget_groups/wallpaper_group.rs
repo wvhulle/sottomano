@@ -16,16 +16,12 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_cards::HoverTarget,
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        latest_snapshot::LatestSnapshot,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
     },
+    widgets::latest_snapshot::LatestSnapshot,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

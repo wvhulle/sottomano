@@ -8,15 +8,16 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
         amount_text::{percent_text, spend_text},
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::{LabeledValue, ValueCell},
     },
 };

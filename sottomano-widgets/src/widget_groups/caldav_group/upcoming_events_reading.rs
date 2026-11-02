@@ -10,15 +10,16 @@ use sottomano_sources::caldav_tasks_events::{
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
@@ -216,11 +217,11 @@ mod tests {
 
     use crate::{
         clock::Clock,
-        widget_groups::caldav_group::CaldavTarget,
-        widgets::{
-            group_item_reading::GroupItemReading, latest_snapshot::LatestSnapshot,
-            reading_display_state::ReadingDisplayState,
+        group_items::{
+            group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
         },
+        widget_groups::caldav_group::CaldavTarget,
+        widgets::latest_snapshot::LatestSnapshot,
     };
 
     fn event_list_without_events(failed_subscription_names: Vec<String>) -> UpcomingEventList {

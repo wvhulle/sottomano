@@ -23,24 +23,26 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::login_session_group::{
-        account_face::AccountFace, compositor_face::CompositorFace,
-        desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
-        power_policy_face::PowerPolicyFace, seat_face::SeatFace,
-        service_manager_face::ServiceManagerFace,
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
     },
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        phosphor::{Phosphor, Weight},
-        widget_group::{
+    widget_groups::{
+        login_session_group::{
+            account_face::AccountFace, compositor_face::CompositorFace,
+            desktop_services_face::DesktopServicesFace, kernel_face::KernelFace,
+            login_face::LoginFace, power_policy_face::PowerPolicyFace, seat_face::SeatFace,
+            service_manager_face::ServiceManagerFace,
+        },
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
         },
+    },
+    widgets::{
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
     },
 };
 

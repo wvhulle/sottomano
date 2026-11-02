@@ -25,26 +25,31 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::voice_dictation_group::{
-        dictation_phase_item::{press_does, shows_pipeline},
-        inference_hardware_item::InferenceHardware,
-        runtime_configuration_item::RuntimeConfiguration,
-        speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
-    },
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_fetched_snapshot::HoverFetchedSnapshot,
-        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
-        phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
-        widget_group::{
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    widget_groups::{
+        voice_dictation_group::{
+            dictation_phase_item::{press_does, shows_pipeline},
+            inference_hardware_item::InferenceHardware,
+            runtime_configuration_item::RuntimeConfiguration,
+            speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
+        },
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
         },
+    },
+    widgets::{
+        hover_fetched_snapshot::HoverFetchedSnapshot,
+        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
     },
 };
 

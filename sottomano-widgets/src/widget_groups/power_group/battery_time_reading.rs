@@ -14,19 +14,21 @@ use uom::si::{
 
 use crate::{
     clock::Clock,
+    group_items::{
+        gauge::percent_text,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::power_group::{
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         sqlite_charge_power_curve,
     },
     widgets::{
-        gauge::percent_text,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

@@ -1,4 +1,5 @@
 pub mod inline_strip;
+pub mod marker_track;
 pub mod sidebar_column;
 pub mod workspace_hover_card;
 pub mod workspace_preview;
@@ -17,13 +18,15 @@ use sottomano_sources::desktop_windows_apps::{
 
 use self::workspace_slot::WorkspaceSlot;
 use crate::{
+    desktop_panels::{
+        panel_frame::panel_frame,
+        panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
+    },
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
-    panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     widgets::{
         configured_theme::secondary_text_color,
         flat_button, glyph_button,
         icon_glyph::IconGlyph,
-        panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         text::panel_text,
     },
@@ -323,7 +326,7 @@ mod tests {
     use super::{
         EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer, WorkspaceSwitch, classify_switch,
     };
-    use crate::panel_slot_drag::pager_drag_simulation::{
+    use crate::desktop_panels::panel_slot_drag::pager_drag_simulation::{
         SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, three_workspaces_three_windows,
     };
 

@@ -1,0 +1,717 @@
+use std::{borrow::Cow, rc::Rc};
+
+use chrono::Locale;
+use iced::{
+    Alignment, Element,
+    widget::{Row, Space, button, mouse_area},
+};
+use sottomano_config::{Config, severity::Severity};
+
+use crate::{
+    clock::Clock,
+    group_items::{
+        aligned_quantity::{AlignedQuantity, ItemAlignment},
+        group_item_reading::GroupItemReading,
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
+        slider_control::{ControlMessage, SliderControl},
+        source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
+        toggle_control::IconToggle,
+    },
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
+    hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable},
+    widget_groups::widget_group_content::{GroupEvent, WidgetGroupTitle},
+    widgets::{
+        announced_level::LevelReading,
+        configured_theme::text_color,
+        flat_button,
+        icon_glyph::IconGlyph,
+        icon_handle::IconHandle,
+        ongoing_toast::{
+            OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
+            reading_display_state_alert_severity,
+        },
+    },
+};
+
+const TABLE_ICON_GAP_EMS: f32 = 0.75;
+
+type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ItemPlacement {
+    Panel,
+    Table,
+    Menu,
+}
+
+pub(crate) struct MenuParts<'a, M> {
+    pub icon: Element<'a, GroupEvent<M>>,
+    pub value: Element<'a, GroupEvent<M>>,
+}
+
+pub(crate) enum MenuItemAction<M> {
+    Inspect(InspectedRow),
+    PressAndInspect {
+        press: M,
+        inspected_row: InspectedRow,
+    },
+}
+
+impl<M> MenuItemAction<M> {
+    pub(crate) fn inspected_target(&self) -> &HoverTarget {
+        match self {
+            MenuItemAction::Inspect(inspected_row)
+            | MenuItemAction::PressAndInspect { inspected_row, .. } => &inspected_row.target,
+        }
+    }
+}
+
+pub struct ComposedGroupItemFace {
+    pub name: Cow<'static, str>,
+    pub icon: GroupItemIcon,
+}
+
+pub enum GroupItemIcon {
+    IconGlyph {
+        glyph: IconGlyph,
+        state: ReadingDisplayState,
+    },
+    Image(IconHandle),
+    Absent,
+}
+
+impl GroupItemIcon {
+    fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
+        let side = config.theme.font.icon_size_px;
+        match self {
+            GroupItemIcon::IconGlyph { glyph, state } => {
+                let tint = ReadingStateTint {
+                    state: *state,
+                    opacity,
+                };
+                Some(glyph.view(side, move |theme| tint.color(theme)))
+            }
+            GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
+            GroupItemIcon::Absent => None,
+        }
+    }
+}
+
+pub enum GroupItemHoverArea {
+    WholeItem(HoverTarget),
+    ByChildren { row_target: HoverTarget },
+}
+
+pub enum GroupItemValue<'a, M> {
+    Nothing,
+    Drawn(DrawItem<'a, M>),
+}
+
+impl<'a, M: 'a> GroupItemValue<'a, M> {
+    pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
+        GroupItemValue::Drawn(Box::new(draw))
+    }
+
+    fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent<M>>> {
+        match self {
+            GroupItemValue::Nothing => None,
+            GroupItemValue::Drawn(draw) => Some(draw(reveal)),
+        }
+    }
+}
+
+enum GroupItemContent<'a, M> {
+    Reading {
+        widget: Box<dyn GroupItemReading + 'a>,
+        target: HoverTarget,
+    },
+    Slider {
+        widget: &'a dyn GroupItemReading,
+        target: HoverTarget,
+        draw: DrawControl<'a, M>,
+    },
+    Composed {
+        identity: ComposedGroupItemFace,
+        hover: GroupItemHoverArea,
+        value: GroupItemValue<'a, M>,
+    },
+}
+
+impl<'a, M: 'a> GroupItemContent<'a, M> {
+    fn announcing_widget(&self) -> Option<&dyn GroupItemReading> {
+        match self {
+            GroupItemContent::Reading { widget, .. } => Some(widget.as_ref()),
+            GroupItemContent::Slider { widget, .. } => Some(*widget),
+            GroupItemContent::Composed { .. } => None,
+        }
+    }
+
+    fn hover_target(&self) -> &HoverTarget {
+        match self {
+            GroupItemContent::Reading { target, .. }
+            | GroupItemContent::Slider { target, .. }
+            | GroupItemContent::Composed {
+                hover:
+                    GroupItemHoverArea::WholeItem(target)
+                    | GroupItemHoverArea::ByChildren { row_target: target },
+                ..
+            } => target,
+        }
+    }
+
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItemContent<'a, Outer> {
+        let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Outer> {
+            Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
+        };
+        let lift_control = |draw: DrawControl<'a, M>| -> DrawControl<'a, Outer> {
+            Box::new(move |reveal, clock, placement| {
+                draw(reveal, clock, placement).map(move |event| event.map(lift))
+            })
+        };
+        match self {
+            GroupItemContent::Reading { widget, target } => {
+                GroupItemContent::Reading { widget, target }
+            }
+            GroupItemContent::Slider {
+                widget,
+                target,
+                draw,
+            } => GroupItemContent::Slider {
+                widget,
+                target,
+                draw: lift_control(draw),
+            },
+            GroupItemContent::Composed {
+                identity,
+                hover,
+                value,
+            } => GroupItemContent::Composed {
+                identity,
+                hover,
+                value: match value {
+                    GroupItemValue::Nothing => GroupItemValue::Nothing,
+                    GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(lift_draw(draw)),
+                },
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
+struct Press<M> {
+    does: &'static str,
+    message: M,
+}
+
+impl<M> Press<M> {
+    fn map<Outer>(self, lift: fn(M) -> Outer) -> Press<Outer> {
+        Press {
+            does: self.does,
+            message: lift(self.message),
+        }
+    }
+}
+
+pub(crate) struct HandlePreview<'p> {
+    pub widget: &'p dyn GroupItemReading,
+    pub target: &'p HoverTarget,
+}
+
+pub struct GroupItem<'a, M> {
+    kind: GroupItemContent<'a, M>,
+    on_press: Option<Press<M>>,
+    on_right_press: Option<Press<M>>,
+    handle_announcement: HoverAnnouncement,
+    previewed_on_handle: bool,
+    ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
+    ongoing_toasts: Vec<OngoingToast<M>>,
+    alignment: ItemAlignment,
+}
+
+impl<'a, M: 'a> GroupItem<'a, M> {
+    fn of_kind(kind: GroupItemContent<'a, M>) -> Self {
+        Self {
+            kind,
+            on_press: None,
+            on_right_press: None,
+            handle_announcement: HoverAnnouncement::default(),
+            previewed_on_handle: false,
+            ongoing_toast_action_buttons: Vec::new(),
+            ongoing_toasts: Vec::new(),
+            alignment: ItemAlignment::Unaligned,
+        }
+    }
+
+    pub fn reading(widget: impl GroupItemReading + 'a, target: impl Into<HoverTarget>) -> Self {
+        Self::of_kind(GroupItemContent::Reading {
+            widget: Box::new(widget),
+            target: target.into(),
+        })
+    }
+
+    pub fn slider(
+        slider: &'a SliderControl,
+        config: &'a Config,
+        on_control: impl Fn(ControlMessage) -> M + 'a,
+    ) -> Self {
+        let on_control = Rc::new(on_control);
+        Self::of_kind(GroupItemContent::Slider {
+            widget: slider,
+            target: slider.target().clone(),
+            draw: Box::new(move |reveal, clock, placement| {
+                let on_control = Rc::clone(&on_control);
+                let slider_view = match placement {
+                    ItemPlacement::Panel => slider.view(config, reveal, clock),
+                    ItemPlacement::Table => {
+                        slider.always_open_view(config, clock, table_icon_gap(config))
+                    }
+                    ItemPlacement::Menu => slider.menu_view(config, table_icon_gap(config)),
+                };
+                slider_view.map(move |message| match message {
+                    ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
+                    message => GroupEvent::Group(on_control(message)),
+                })
+            }),
+        })
+    }
+
+    pub fn composed(
+        identity: ComposedGroupItemFace,
+        hover: GroupItemHoverArea,
+        value: GroupItemValue<'a, M>,
+    ) -> Self {
+        Self::of_kind(GroupItemContent::Composed {
+            identity,
+            hover,
+            value,
+        })
+    }
+
+    #[must_use]
+    pub(crate) fn acting_as_handle(self, handle_announcement: HoverAnnouncement) -> Self {
+        Self {
+            handle_announcement,
+            ..self
+        }
+    }
+
+    pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
+        Self::reading(toggle, target).on_press(toggle.press_does(), message)
+    }
+
+    #[must_use]
+    pub fn on_press(self, does: &'static str, message: M) -> Self {
+        Self {
+            on_press: Some(Press { does, message }),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn on_right_press(self, does: &'static str, message: M) -> Self {
+        Self {
+            on_right_press: Some(Press { does, message }),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn previewed_on_handle(self) -> Self {
+        self.previewed_on_handle_if(true)
+    }
+
+    #[must_use]
+    pub fn previewed_on_handle_if(self, previewed: bool) -> Self {
+        Self {
+            previewed_on_handle: previewed,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn aligned_as(self, quantity: AlignedQuantity) -> Self {
+        Self {
+            alignment: ItemAlignment::Aligned(quantity),
+            ..self
+        }
+    }
+
+    pub(crate) fn alignment(&self) -> ItemAlignment {
+        self.alignment
+    }
+
+    #[must_use]
+    pub fn ongoing_toasts(self, ongoing_toasts: impl IntoIterator<Item = OngoingToast<M>>) -> Self {
+        Self {
+            ongoing_toasts: ongoing_toasts.into_iter().collect(),
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn ongoing_toast_action_buttons(
+        self,
+        buttons: impl IntoIterator<Item = OngoingToastActionButton<M>>,
+    ) -> Self {
+        Self {
+            ongoing_toast_action_buttons: buttons.into_iter().collect(),
+            ..self
+        }
+    }
+
+    pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
+        GroupItem {
+            kind: self.kind.map(lift),
+            on_press: self.on_press.map(|press| press.map(lift)),
+            on_right_press: self.on_right_press.map(|press| press.map(lift)),
+            handle_announcement: self.handle_announcement,
+            previewed_on_handle: self.previewed_on_handle,
+            ongoing_toast_action_buttons: self
+                .ongoing_toast_action_buttons
+                .into_iter()
+                .map(|button| button.map_message(lift))
+                .collect(),
+            ongoing_toasts: self
+                .ongoing_toasts
+                .into_iter()
+                .map(|alert| alert.map_messages(lift))
+                .collect(),
+            alignment: self.alignment,
+        }
+    }
+
+    fn announcement(&self) -> HoverAnnouncement {
+        let handle_hints = self.handle_announcement.press_hints;
+        HoverAnnouncement {
+            press_hints: PressHints {
+                left: self
+                    .on_press
+                    .as_ref()
+                    .map(|press| press.does)
+                    .or(handle_hints.left),
+                right: self
+                    .on_right_press
+                    .as_ref()
+                    .map(|press| press.does)
+                    .or(handle_hints.right),
+                ..handle_hints
+            },
+            origin: self.handle_announcement.origin.clone(),
+        }
+    }
+
+    pub(crate) fn handle_preview(&self) -> Option<HandlePreview<'_>> {
+        if !self.previewed_on_handle {
+            return None;
+        }
+        Some(HandlePreview {
+            widget: self.kind.announcing_widget()?,
+            target: self.kind.hover_target(),
+        })
+    }
+
+    pub(crate) fn level_reading(
+        &self,
+        on_body_clicked: M,
+        locale: Locale,
+        clock: Clock,
+    ) -> Option<LevelReading<M>> {
+        let widget = self.kind.announcing_widget()?;
+        widget.announced_level(locale).map(|level| LevelReading {
+            hover_target: self.kind.hover_target().clone(),
+            glyph: widget.icon_at(clock),
+            level,
+            on_body_clicked,
+        })
+    }
+
+    pub(crate) fn ongoing_toasts_with_reading(
+        &self,
+        on_body_clicked: M,
+        locale: Locale,
+        clock: Clock,
+    ) -> impl Iterator<Item = OngoingToast<M>>
+    where
+        M: Clone,
+    {
+        let quota_toast = self.kind.announcing_widget().and_then(|widget| {
+            OngoingToast::from_quota_pace(
+                self.kind.hover_target().clone(),
+                widget,
+                on_body_clicked.clone(),
+                locale,
+                clock,
+            )
+        });
+        let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
+            OngoingToast::from_reading_display_state(
+                self.kind.hover_target().clone(),
+                widget,
+                on_body_clicked,
+                locale,
+                clock,
+            )
+        });
+        ongoing_toast
+            .map(|alert| {
+                self.ongoing_toast_action_buttons
+                    .iter()
+                    .cloned()
+                    .fold(alert, OngoingToast::with_action_button)
+            })
+            .into_iter()
+            .chain(quota_toast)
+            .chain(self.ongoing_toasts.iter().cloned())
+    }
+
+    pub(crate) fn ongoing_alert_severity(&self, clock: Clock) -> Option<Severity> {
+        let alerting_widget = self.kind.announcing_widget();
+        alerting_widget
+            .and_then(|widget| reading_display_state_alert_severity(widget, clock))
+            .into_iter()
+            .chain(alerting_widget.and_then(|widget| quota_pace_alert_severity(widget, clock)))
+            .chain(self.ongoing_toasts.iter().map(|toast| toast.severity))
+            .max()
+    }
+
+    pub(crate) fn view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        self.placed_view(config, reveal, clock, ItemPlacement::Panel)
+    }
+
+    pub(crate) fn table_cell_view(
+        &self,
+        config: &Config,
+        clock: Clock,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        self.placed_view(config, 1.0, clock, ItemPlacement::Table)
+    }
+
+    pub(crate) fn menu_action(&self) -> MenuItemAction<M>
+    where
+        M: Clone,
+    {
+        let inspected_row = InspectedRow {
+            target: self.kind.hover_target().clone(),
+            announcement: self.announcement(),
+        };
+        match &self.on_press {
+            Some(press) => MenuItemAction::PressAndInspect {
+                press: press.message.clone(),
+                inspected_row,
+            },
+            None => MenuItemAction::Inspect(inspected_row),
+        }
+    }
+
+    pub(crate) fn menu_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
+    where
+        M: Clone,
+    {
+        let tint_of = |widget: &dyn GroupItemReading| ReadingStateTint::opaque(widget.state(clock));
+        let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
+        match &self.kind {
+            GroupItemContent::Reading { widget, .. } => MenuParts {
+                icon: reading_icon(config, widget.as_ref(), tint_of(widget.as_ref()), clock),
+                value: reading_value(config, widget.as_ref(), tint_of(widget.as_ref()), clock)
+                    .unwrap_or_else(empty),
+            },
+            GroupItemContent::Slider { widget, draw, .. } => MenuParts {
+                icon: reading_icon(config, *widget, tint_of(*widget), clock),
+                value: draw(1.0, clock, ItemPlacement::Menu),
+            },
+            GroupItemContent::Composed {
+                identity, value, ..
+            } => MenuParts {
+                icon: identity.icon.view(config, 1.0).unwrap_or_else(empty),
+                value: value.view(1.0).unwrap_or_else(empty),
+            },
+        }
+    }
+
+    pub(crate) fn pinnable_name(&self) -> Option<&'static str> {
+        match &self.kind {
+            GroupItemContent::Reading { widget, .. } => Some(widget.name()),
+            GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
+        }
+    }
+
+    pub(crate) fn pinned_item_name(
+        &self,
+        group_title: &WidgetGroupTitle,
+        group_menus: &GroupMenuState,
+        menu: GroupMenuTopic,
+    ) -> Option<&'static str> {
+        self.pinnable_name().filter(|item_name| {
+            group_menus.is_pinned(
+                menu,
+                GroupMenuPin::Item {
+                    group_title: group_title.clone(),
+                    item_name,
+                },
+            )
+        })
+    }
+
+    pub(crate) fn menu_name(&self) -> Cow<'static, str> {
+        match &self.kind {
+            GroupItemContent::Reading { widget, .. } => widget.name().into(),
+            GroupItemContent::Slider { widget, .. } => widget.name().into(),
+            GroupItemContent::Composed { identity, .. } => identity.name.clone(),
+        }
+    }
+
+    pub(crate) fn placed_view(
+        &self,
+        config: &Config,
+        reveal: f32,
+        clock: Clock,
+        placement: ItemPlacement,
+    ) -> Element<'a, GroupEvent<M>>
+    where
+        M: Clone,
+    {
+        let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
+        {
+            ItemPlacement::Panel => announcing_hoverable(
+                element,
+                target.clone(),
+                self.announcement(),
+                GroupEvent::HoverCard,
+            ),
+            ItemPlacement::Table | ItemPlacement::Menu => element,
+        };
+        let mut element = match &self.kind {
+            GroupItemContent::Reading { widget, target } => explained(
+                source_reading(config, widget.as_ref(), reveal, clock),
+                target,
+            ),
+            GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement),
+            GroupItemContent::Composed {
+                identity,
+                hover,
+                value,
+            } => {
+                let composed_row = Row::with_children(
+                    identity
+                        .icon
+                        .view(config, reveal)
+                        .into_iter()
+                        .chain(value.view(reveal)),
+                )
+                .spacing(icon_value_gap(config))
+                .align_y(Alignment::Center)
+                .into();
+                match hover {
+                    GroupItemHoverArea::WholeItem(target) => explained(composed_row, target),
+                    GroupItemHoverArea::ByChildren { .. } => composed_row,
+                }
+            }
+        };
+        if let Some(press) = self.on_press.clone() {
+            element = button(element)
+                .padding(0)
+                .style(flat_button(text_color))
+                .on_press(GroupEvent::Group(press.message))
+                .into();
+        }
+        if let Some(press) = self.on_right_press.clone() {
+            element = mouse_area(element)
+                .on_right_press(GroupEvent::Group(press.message))
+                .into();
+        }
+        element
+    }
+}
+
+fn table_icon_gap(config: &Config) -> f32 {
+    TABLE_ICON_GAP_EMS * config.theme.font.text_size_px
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        hover_cards::hover_card_body::HoverCardBody,
+        widget_groups::session_power_group::SessionTarget,
+        widgets::phosphor::{Phosphor, Weight},
+    };
+
+    struct NamedReading;
+
+    impl GroupItemReading for NamedReading {
+        fn name(&self) -> &'static str {
+            "Named reading"
+        }
+
+        fn icon(&self) -> IconGlyph {
+            Phosphor::Question(Weight::Regular).into()
+        }
+
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
+        }
+    }
+
+    fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
+        GroupItem::composed(
+            ComposedGroupItemFace {
+                name: "Composed row".into(),
+                icon: GroupItemIcon::Absent,
+            },
+            hover,
+            GroupItemValue::Nothing,
+        )
+    }
+
+    fn whole_item_hover() -> GroupItemHoverArea {
+        GroupItemHoverArea::WholeItem(SessionTarget::Menu.into())
+    }
+
+    #[test]
+    fn composed_item_reports_its_identity_name() {
+        assert_eq!(
+            composed_with(whole_item_hover()).menu_name(),
+            "Composed row"
+        );
+    }
+
+    #[test]
+    fn row_action_follows_the_hover_owner() {
+        let children_hover = GroupItemHoverArea::ByChildren {
+            row_target: SessionTarget::Menu.into(),
+        };
+        assert!(matches!(
+            composed_with(children_hover).menu_action(),
+            MenuItemAction::Inspect(_)
+        ));
+        assert!(matches!(
+            composed_with(whole_item_hover()).menu_action(),
+            MenuItemAction::Inspect(_)
+        ));
+        assert!(matches!(
+            composed_with(whole_item_hover())
+                .on_press("press", ())
+                .menu_action(),
+            MenuItemAction::PressAndInspect { .. }
+        ));
+    }
+
+    #[test]
+    fn only_readings_are_pinnable() {
+        let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        assert_eq!(reading.pinnable_name(), Some("Named reading"));
+        assert_eq!(composed_with(whole_item_hover()).pinnable_name(), None);
+    }
+}

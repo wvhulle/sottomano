@@ -14,12 +14,15 @@ use uom::{fmt::DisplayStyle::Abbreviation, si::f64::Velocity};
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::weather_group::precipitation_type_forecast::{
         MODEL_QUARTER_HOUR, model_quarter_glyph, model_quarter_text, quarters_not_yet_over,
     },
     widgets::{
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
@@ -27,7 +30,6 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
     },

@@ -21,10 +21,10 @@ use super::{
     toast_placement::{AnchoredToast, ToastAnchor},
 };
 use crate::{
+    desktop_panels::region_reporter::RegionRoles,
     toast_messages::NotificationMessage,
     widgets::{
         child_view::{ChildView, ChildViewMut},
-        region_reporter::RegionRoles,
         shell_layer_appearance::LayerAppearance,
     },
 };

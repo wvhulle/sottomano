@@ -20,18 +20,20 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widgets::{
-        group_item::GroupItem,
+    group_items::group_item::GroupItem,
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

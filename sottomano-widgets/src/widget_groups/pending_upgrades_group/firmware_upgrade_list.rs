@@ -7,6 +7,12 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item::GroupItem,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         pending_upgrades_group::{
             PendingUpgradesGroup, PendingUpgradesMessage, PendingUpgradesTarget,
@@ -14,15 +20,11 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        group_item::GroupItem,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::ValueCell,
     },
 };

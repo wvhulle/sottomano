@@ -12,8 +12,11 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
+    group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, PopupMessage,
+        anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
         hover_card_transition::{
             Departed, DepartedContent, HoverCardTransition, Occupant, Placement, ShownTarget,
@@ -21,13 +24,7 @@ use crate::{
     },
     layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
     widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
-    widgets::{
-        anchored_popup::{PopupFraming, PopupMorph, Rendering, anchored_popup},
-        cascade_row::{CascadeOrientation, cascade_row},
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        shell_layer_appearance::LayerAppearance,
-        window_icon::WindowAssets,
-    },
+    widgets::{shell_layer_appearance::LayerAppearance, window_icon::WindowAssets},
 };
 
 pub const HIDE_GRACE: Duration = Duration::from_millis(250);

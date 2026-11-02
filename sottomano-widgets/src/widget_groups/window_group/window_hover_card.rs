@@ -10,8 +10,8 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::{
     clock::Clock,
+    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
     widgets::{
-        hover_card_body::{HoverCardBody, ReadingSections, Section},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},

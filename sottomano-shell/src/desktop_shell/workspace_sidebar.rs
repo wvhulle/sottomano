@@ -5,12 +5,12 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    widget_groups::{
-        sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
-    },
-    widgets::{
+    desktop_panels::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
+    },
+    widget_groups::{
+        sidebar_settings_group::WorkspacesPlacement, workspaces_group::sidebar_column,
     },
 };
 

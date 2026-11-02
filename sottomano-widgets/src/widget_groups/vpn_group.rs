@@ -25,18 +25,20 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
-    widgets::{
-        group_item::GroupItem,
+    group_items::group_item::GroupItem,
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 
@@ -187,7 +189,7 @@ impl VpnGroup {
 
     #[must_use]
     pub fn hover_card_for(&self, target: &VpnTarget, clock: Clock) -> Option<HoverCard> {
-        use crate::widgets::group_item_reading::GroupItemReading;
+        use crate::group_items::group_item_reading::GroupItemReading;
         match target {
             VpnTarget::NetworkManagerVpn(name) => {
                 let vpn_connection = self

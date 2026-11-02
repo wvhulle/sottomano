@@ -3,14 +3,12 @@ use sottomano_config::theme::palette::Palette;
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, upsert_column, with_table};
 
 use crate::{
+    group_items::toggle_control::{IconToggle, SwitchPresses},
     widget_groups::niri_window_group::{
         NiriWindowMessage,
         niri_kdl_rules::{HeatedWindow, NiriRulesFile, NiriStyling, SwitchHeat},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        toggle_control::{IconToggle, SwitchPresses},
-    },
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS switch_heat_borders (

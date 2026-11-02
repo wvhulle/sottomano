@@ -6,15 +6,16 @@ use sottomano_config::Config;
 use self::sqlite_layer_appearance::{AppearanceSetting, AppearanceValue};
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
-    widgets::{
+    group_items::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
+    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
     },
 };
 
@@ -382,12 +383,10 @@ impl LayerAppearanceControls {
 mod tests {
     use super::{AppearanceMessage, LayerAppearanceControls};
     use crate::{
+        group_items::slider_control::ControlMessage,
         hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
-        widgets::{
-            shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
-            slider_control::ControlMessage,
-        },
+        widgets::shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
     };
 
     fn panel_controls() -> LayerAppearanceControls {

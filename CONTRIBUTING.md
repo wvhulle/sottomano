@@ -3,6 +3,27 @@
 The rules the code in sottomano follows. Setup, building, CI and the tour
 recordings are in [docs/development.md](docs/development.md).
 
+## Vocabulary
+
+The shell is one hierarchy: a panel has zones, a zone holds group menus and
+widget groups, a menu holds groups, a group holds items, and an item explains
+itself with a hover card. Each level has one module in `sottomano-widgets/src/`
+and one type prefix, so a name says where it sits:
+
+| Level | Module | Prefix |
+|---|---|---|
+| Panel, zone | `desktop_panels/` | `Panel` |
+| Menu | `group_menus/` | `GroupMenu` |
+| Group | `widget_groups/` | `WidgetGroup` |
+| Item | `group_items/` | `GroupItem` |
+| Card | `hover_cards/` | `HoverCard` |
+
+`widgets/` holds only iced primitives and helpers that belong to no level. A
+module used by one group lives in that group. Pins and layouts describe things
+in the hierarchy rather than adding levels, and panels declare what they contain:
+a menu or group never says where it sits. Side surfaces of a cascading menu are
+satellites, and "panel" always means the bar along a screen edge.
+
 ## Conventions
 
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;
@@ -30,8 +51,7 @@ recordings are in [docs/development.md](docs/development.md).
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and
-  methods on the owning type (`sottomano-widgets/src/widgets/`,
-  `sottomano-widgets/src/widget_groups/`).
+  methods on the owning type.
 - Widget state lives in its widget and routes through its group's `Action` —
   no `App`-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.

@@ -5,14 +5,16 @@ use sottomano_sources::media_playback_audio::pipewire_audio::{
 use super::ControlKind;
 use crate::{
     clock::Clock,
-    widgets::{
+    group_items::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
-        hover_card_body::HoverCardBody,
+        slider_control::{ControlMessage, SliderControl, percent_f},
+    },
+    hover_cards::hover_card_body::HoverCardBody,
+    widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        slider_control::{ControlMessage, SliderControl, percent_f},
         value_cells::LabeledValue,
     },
 };

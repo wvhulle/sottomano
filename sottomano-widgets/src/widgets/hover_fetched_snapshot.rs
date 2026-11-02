@@ -14,7 +14,7 @@ use tokio::time::sleep;
 
 use crate::{
     clock::Clock,
-    widgets::hover_card_body::{
+    hover_cards::hover_card_body::{
         HoverCardBody, ReadingSections, Section,
         hover_card_source_delivery::{DeliveryTiming, SourcedSections},
     },
@@ -319,7 +319,7 @@ mod tests {
     use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
-    use crate::widgets::hover_card_body::{
+    use crate::hover_cards::hover_card_body::{
         Heading, SectionBody, hover_card_source_delivery::SectionsDeliveryState,
     };
 

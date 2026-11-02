@@ -4,7 +4,7 @@ use iced::{Element, mouse::ScrollDelta};
 use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, SeekMode, micros};
 
-use crate::widgets::{inline_slider::inline_slider, slider_control::scroll_direction};
+use crate::{group_items::slider_control::scroll_direction, widgets::inline_slider::inline_slider};
 
 const SCROLL_SEEK_STEP: Duration = Duration::from_secs(5);
 const DRAG_STEP_SECONDS: f32 = 1.0;

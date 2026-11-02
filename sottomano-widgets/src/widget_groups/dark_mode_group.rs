@@ -28,23 +28,26 @@ use self::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::dark_mode_group::auto_switch_toggle::{
-        AutoSwitchToggle, ScheduleStatus, SwitchDecision,
-    },
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        latest_snapshot::CommandOutcome,
-        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
-        weather_icons::WeatherIcon,
-        widget_group::{
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    widget_groups::{
+        dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
         },
+    },
+    widgets::{
+        latest_snapshot::CommandOutcome,
+        phosphor::{Phosphor, Weight},
+        weather_icons::WeatherIcon,
     },
 };
 

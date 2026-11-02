@@ -12,14 +12,15 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::{LabeledValue, ValueCell},
     },
 };

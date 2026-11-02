@@ -13,13 +13,14 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        reading_display_state::ReadingDisplayState,
+    },
     hover_cards::HoverTarget,
     widgets::{
-        amount_text::percent_text,
-        group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        localized_durations::duration_text,
+        amount_text::percent_text, localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        reading_display_state::ReadingDisplayState,
     },
 };
 
@@ -278,9 +279,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        hover_cards::hover_card_body::HoverCardBody,
         widget_groups::power_group::PowerTarget,
         widgets::{
-            hover_card_body::HoverCardBody,
             icon_glyph::IconGlyph,
             phosphor::{Phosphor, Weight},
         },

@@ -23,27 +23,36 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_cards::{HoverTarget, PressHints, hoverable},
-    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
-    widgets::{
-        app_window_focus::AppWindowFocus,
-        confirm_button::{ConfirmButton, Press},
+    group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-        icon_handle::IconHandle,
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        value_cells::LabeledValue,
-        widget_group::{
+    },
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        HoverTarget, PressHints,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        hoverable,
+    },
+    widget_groups::{
+        media_group::confirm_button::{ConfirmButton, Press},
+        widget_group_content::{
             GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
             WidgetGroupExpansionMessage, WidgetGroupTitle,
         },
     },
+    widgets::{
+        app_window_focus::AppWindowFocus,
+        icon_handle::IconHandle,
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
+        value_cells::LabeledValue,
+    },
 };
 
+pub mod confirm_button;
+pub mod karaoke_lyric_line;
 mod seek_bar;
 mod session_controls;
 mod synced_lyrics_view;

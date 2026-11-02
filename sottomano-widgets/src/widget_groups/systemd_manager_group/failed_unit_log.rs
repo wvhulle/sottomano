@@ -17,6 +17,11 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         systemd_manager_group::{
             SystemdManagerGroup, SystemdManagerMessage, SystemdTarget, unit_scope_icon,
@@ -24,9 +29,6 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
@@ -34,7 +36,6 @@ use crate::{
             OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
         },
         phosphor::Weight,
-        reading_display_state::ReadingDisplayState,
         value_cells::ValueCell,
     },
 };
@@ -250,7 +251,7 @@ mod tests {
     use sottomano_sources::systemd_units_journal::SystemdUnitScope;
 
     use super::*;
-    use crate::widgets::hover_card_body::{Section, SectionBody};
+    use crate::hover_cards::hover_card_body::{Section, SectionBody};
 
     fn failed(name: &str, age: Option<Duration>) -> FailedUnitInfo {
         FailedUnitInfo {

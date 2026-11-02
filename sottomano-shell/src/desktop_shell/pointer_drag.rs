@@ -6,14 +6,17 @@ use sottomano_config::screen_edges::Position;
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_widgets::{
     background_work::niri_action,
-    panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
+    desktop_panels::{
+        panel_frame::LayerFrameStyle,
+        panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
+    },
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
     },
     widgets::{
-        panel_frame::LayerFrameStyle,
+        pointer_drag,
         pointer_drag::{
-            self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
+            ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
         },
     },
 };

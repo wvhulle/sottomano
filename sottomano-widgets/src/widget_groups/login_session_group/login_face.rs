@@ -5,9 +5,9 @@ use sottomano_sources::login_session_presence::logind_session_facts::{
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, ReadingSections, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},

@@ -31,18 +31,22 @@ use x3d_cache_preference_toggle::ChipletRoles;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        toggle_control::{ToggleControl, ToggleMessage},
+    },
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    },
+    widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        toggle_control::{ToggleControl, ToggleMessage},
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
     },
 };
 
@@ -347,8 +351,8 @@ mod tests {
     use super::{ComputeGroup, GroupSourceDemand, WidgetGroupExpansionMessage};
     use crate::{
         clock::Clock,
-        widget_groups::group_menus::{AlertPromotedGroup, GroupMenuState, GroupMenuTopic},
-        widgets::widget_group::WidgetGroupTitle,
+        group_menus::group_menu_state::{AlertPromotedGroup, GroupMenuState, GroupMenuTopic},
+        widget_groups::widget_group_content::WidgetGroupTitle,
     };
 
     const TEMPERATURE_AND_CACHE_TOGGLE: usize = 2;

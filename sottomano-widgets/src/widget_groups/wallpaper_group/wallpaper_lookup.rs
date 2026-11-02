@@ -15,9 +15,9 @@ use sottomano_sources::{
 use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,

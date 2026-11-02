@@ -10,12 +10,11 @@ use sottomano_sources::{
 use super::core_grid_sections::topology_facts;
 use crate::{
     clock::Clock,
+    group_items::{group_item_reading::GroupItemReading, toggle_control::ToggleableSource},
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        toggle_control::ToggleableSource,
         value_cells::LabeledValue,
     },
 };

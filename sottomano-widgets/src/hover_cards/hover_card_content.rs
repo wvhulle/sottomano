@@ -15,19 +15,11 @@ use sottomano_config::Config;
 
 use crate::{
     clock::Clock,
+    group_items::reading_display_state::ReadingDisplayState,
+    group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
-    },
-    widget_groups::{
-        group_menus::GroupMenuPin, window_group::process_tree::ProcessTree,
-        workspaces_group::workspace_preview::WorkspaceSchematic,
-    },
-    widgets::{
-        configured_theme::{
-            primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
-            success_shades, text_color,
-        },
         hover_card_body::{
             Heading, Section, SectionBody, SectionHeading,
             hover_card_figure_payloads::{ChipletCells, ControllerCallouts},
@@ -35,12 +27,21 @@ use crate::{
                 DeliveryTiming, HoverCard, SectionsDeliveryState, SourcedSections,
             },
         },
+    },
+    widget_groups::{
+        window_group::process_tree::ProcessTree,
+        workspaces_group::workspace_preview::WorkspaceSchematic,
+    },
+    widgets::{
+        configured_theme::{
+            primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
+            success_shades, text_color,
+        },
         icon_glyph::IconGlyph,
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
-        reading_display_state::ReadingDisplayState,
         refresh_dial::RefreshDial,
         text::{FontFaces, LINE_HEIGHT, panel_text},
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},

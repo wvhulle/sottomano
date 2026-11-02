@@ -7,12 +7,12 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::{
     desktop_index::DesktopIndex,
-    widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
-    widgets::hover_card_body::{
+    hover_cards::hover_card_body::{
         HoverCardBody, Section,
         hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
         hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
+    widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
 };
 
 #[must_use]

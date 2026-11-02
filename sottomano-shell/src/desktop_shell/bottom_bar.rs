@@ -1,11 +1,11 @@
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
-        group_menus::GroupMenuTopic, sidebar_settings_group::WorkspacesPlacement,
+        sidebar_settings_group::WorkspacesPlacement, widget_group_content::WidgetGroupContent,
         workspaces_group::inline_strip,
     },
-    widgets::{group_menu::GroupMenuView, widget_group::WidgetGroupContent},
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};

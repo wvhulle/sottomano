@@ -4,8 +4,8 @@ use sottomano_sources::ai_usage_spend::gguf_header_model_card::{
 
 use crate::{
     clock::Clock,
+    hover_cards::hover_card_body::{ReadingSections, Section},
     widgets::{
-        hover_card_body::{ReadingSections, Section},
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
@@ -84,7 +84,9 @@ impl ReadingSections for GgufModelCard {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{hover_card_body::SectionBody, keyed_record_table::RecordCells};
+    use crate::{
+        hover_cards::hover_card_body::SectionBody, widgets::keyed_record_table::RecordCells,
+    };
 
     #[test]
     fn base_models_link_to_their_hugging_face_repository() {

@@ -4,6 +4,7 @@ use sottomano_config::{Config, SecretPaths};
 use sottomano_sources::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
 use sottomano_widgets::{
     clock::Clock,
+    group_menus::group_menu_state::GroupMenuState,
     hover_cards::hover_card_surfaces::HoverCardSurfaceStyle,
     notification_toasts::{NotificationSettings, ToastContext},
     widget_groups::{
@@ -20,7 +21,6 @@ use sottomano_widgets::{
         ethernet_ports_group::EthernetPortsGroup,
         gamepad_group::GamepadGroup,
         gpu_group::GpuGroup,
-        group_menus::GroupMenuState,
         idle_timeouts_group::IdleTimeoutsGroup,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,

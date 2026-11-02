@@ -4,9 +4,9 @@ use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,

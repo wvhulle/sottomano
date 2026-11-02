@@ -4,18 +4,22 @@ use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
-    widgets::{
+    group_items::{
         group_item_reading::GroupItemReading,
+        slider_control::{Action, ControlMessage, SliderControl},
+    },
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widgets::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
-        slider_control::{Action, ControlMessage, SliderControl},
         value_cells::{LabeledValue, ValueCell},
     },
 };

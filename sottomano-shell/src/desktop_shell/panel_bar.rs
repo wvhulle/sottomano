@@ -5,13 +5,12 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    widget_groups::group_menus::GroupMenuTopic,
-    widgets::{
-        group_menu::GroupMenuView,
+    desktop_panels::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
-        widget_group::WidgetGroupContent,
     },
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::widget_group_content::WidgetGroupContent,
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};

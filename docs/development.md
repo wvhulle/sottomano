@@ -11,7 +11,8 @@ workspace:
 - `sottomano-config/` holds the TOML config types and their loading.
 - `sottomano-sources/` holds the data sources and sinks the shell reads and
   writes.
-- `sottomano-widgets/` holds the widgets, widget groups and hover cards.
+- `sottomano-widgets/` holds the panels, group menus, widget groups, group items
+  and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
   Each widget group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`)
   and defines the `Message` they produce.

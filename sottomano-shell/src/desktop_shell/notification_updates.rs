@@ -2,14 +2,15 @@ use std::collections::HashMap;
 
 use iced::{Task, window::Id};
 use sottomano_widgets::{
+    group_menus::group_menu_state::AlertPromotedGroup,
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
-        group_menus::AlertPromotedGroup,
-        notification_group::{self, NotificationGroupMessage},
+        notification_group,
+        notification_group::NotificationGroupMessage,
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
+        widget_group_content::GroupToastRequests,
     },
-    widgets::widget_group::GroupToastRequests,
 };
 
 use crate::{

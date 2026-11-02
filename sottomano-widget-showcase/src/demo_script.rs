@@ -5,6 +5,7 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     hover_cards::{GroupHandle, HoverTarget},
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
@@ -13,7 +14,6 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageTarget,
         compute_group::ComputeTarget,
         gamepad_group::GamepadTarget,
-        group_menus::{GroupMenuPin, GroupMenuTopic},
         login_session_group::LoginSessionTarget,
         media_group::{MediaTarget, PlayerTarget},
         memory_board_group::MemoryBoardTarget,
@@ -21,9 +21,9 @@ use sottomano_widgets::{
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
+        widget_group_content::WidgetGroupTitle,
         window_group::WindowTarget,
     },
-    widgets::widget_group::WidgetGroupTitle,
 };
 
 use crate::{

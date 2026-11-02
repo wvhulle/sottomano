@@ -11,7 +11,7 @@ use super::{
     },
 };
 use crate::{
-    panel_slot_drag::PanelSlotContext,
+    desktop_panels::panel_slot_drag::PanelSlotContext,
     widgets::pointer_drag::{PanelSlotList, slot_pager::slot_pager},
 };
 
@@ -70,7 +70,7 @@ mod tests {
     use super::inline_view;
     use crate::{
         clock::Clock,
-        panel_slot_drag::{
+        desktop_panels::panel_slot_drag::{
             DragMessage, PanelSlotContext,
             pager_drag_simulation::{
                 SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, dragging_from_start, sweep_across_panel,

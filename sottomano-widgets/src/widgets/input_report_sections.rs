@@ -6,10 +6,12 @@ use sottomano_sources::{
 };
 use uom::si::{f64::Ratio, ratio::percent};
 
-use crate::widgets::{
-    hover_card_body::Section,
-    localized_quantities::Quantity,
-    value_cells::{LabeledValue, ValueCell},
+use crate::{
+    hover_cards::hover_card_body::Section,
+    widgets::{
+        localized_quantities::Quantity,
+        value_cells::{LabeledValue, ValueCell},
+    },
 };
 
 const NOTICEABLE_LOSS_PERCENT: f64 = 5.0;

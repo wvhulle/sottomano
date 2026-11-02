@@ -24,18 +24,21 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widgets::{
+    group_items::{
         group_item::GroupItem,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
-        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
+        latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
     },
 };
 

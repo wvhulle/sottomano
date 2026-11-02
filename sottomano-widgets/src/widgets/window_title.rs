@@ -10,9 +10,9 @@ use iced::{
 use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
-use crate::widgets::{
-    reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    text::{FontFaces, LINE_HEIGHT},
+use crate::{
+    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    widgets::text::{FontFaces, LINE_HEIGHT},
 };
 
 const SEPARATOR: &str = " · ";

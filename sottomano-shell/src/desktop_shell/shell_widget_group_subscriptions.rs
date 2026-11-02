@@ -6,6 +6,7 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     background_work::snapshot_subscription,
+    group_menus::{group_menu_state::GroupMenuTopic, group_source_demand::GroupSourceDemand},
     widget_groups::{
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
@@ -14,7 +15,6 @@ use sottomano_widgets::{
         dark_mode_group::DarkModeGroup,
         ethernet_ports_group::PORT_TITLES,
         gamepad_group::{GamepadGroup, GamepadWindowClaim},
-        group_menus::{GroupMenuTopic, group_source_demand::GroupSourceDemand},
         journal_events_group::JournalEventsGroup,
         login_session_group::LoginSessionGroup,
         memory_board_group::MemoryBoardGroup,
@@ -30,10 +30,10 @@ use sottomano_widgets::{
         tray_group::TrayGroup,
         vpn_group::VpnGroup,
         weather_group::WeatherGroup,
+        widget_group_content::{WidgetGroup, WidgetGroupTitle},
         wifi_adapters_group::ADAPTER_TITLES,
         window_group::WindowGroup,
     },
-    widgets::widget_group::{WidgetGroup, WidgetGroupTitle},
 };
 
 use crate::{desktop_shell::shell_widget_groups::ShellWidgetGroups, shell_message::Message};

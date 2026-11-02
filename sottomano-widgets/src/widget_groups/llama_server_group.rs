@@ -18,17 +18,17 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
+    group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
     widgets::{
-        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         phosphor::{Phosphor, Weight},
-        toggle_control::SwitchPresses,
-        unit_switch::UnitSwitchFace,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

@@ -4,19 +4,20 @@ use sottomano_sources::systemd_units_journal::journal_coredumps::CoredumpEntry;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         journal_events_group::{JournalEventsGroup, JournalEventsMessage, JournalTarget},
         terminal_command::TerminalCommand,
     },
     widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::ValueCell,
     },
 };

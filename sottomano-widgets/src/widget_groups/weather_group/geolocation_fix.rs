@@ -5,9 +5,9 @@ use uom::si::length::kilometer;
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},

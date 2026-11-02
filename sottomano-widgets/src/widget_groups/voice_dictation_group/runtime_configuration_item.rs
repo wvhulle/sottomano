@@ -4,13 +4,14 @@ use notulist_client::DictationEngine;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::HoverCardBody,
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::{LabeledValue, ValueCell},
     },
 };

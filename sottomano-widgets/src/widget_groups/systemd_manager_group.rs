@@ -25,22 +25,27 @@ use sottomano_sources::{
 
 use crate::{
     background_work::{copy_to_clipboard, snapshot_subscription},
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::terminal_command::TerminalCommand,
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::{
+        terminal_command::TerminalCommand,
+        widget_group_content::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
+    },
+    widgets::{
         icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

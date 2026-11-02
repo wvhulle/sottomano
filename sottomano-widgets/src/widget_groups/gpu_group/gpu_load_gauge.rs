@@ -3,9 +3,9 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::HoverCardBody,
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},

@@ -8,11 +8,13 @@ use sottomano_sources::cpu_memory_compute::{
 use uom::si::f64::{Frequency, Ratio};
 
 use super::cpu_clock_limit_causes::{cause_level, causes_text};
-use crate::widgets::{
-    hover_card_body::Section,
-    keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
-    localized_quantities::Quantity,
-    value_cells::ValueCell,
+use crate::{
+    hover_cards::hover_card_body::Section,
+    widgets::{
+        keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
+        localized_quantities::Quantity,
+        value_cells::ValueCell,
+    },
 };
 
 struct PhysicalCoreClock {

@@ -13,15 +13,12 @@ use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
-    widgets::{
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        latest_snapshot::LatestSnapshot,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
     },
+    widgets::latest_snapshot::LatestSnapshot,
 };
 
 pub const TICK: Duration = Duration::from_secs(1);

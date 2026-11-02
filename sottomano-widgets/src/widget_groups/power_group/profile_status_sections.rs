@@ -5,8 +5,8 @@ use sottomano_sources::battery_power_profiles::power_profiles_daemon::{
 
 use crate::{
     clock::Clock,
+    hover_cards::hover_card_body::{ReadingSections, Section},
     widgets::{
-        hover_card_body::{ReadingSections, Section},
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         value_cells::LabeledValue,
     },

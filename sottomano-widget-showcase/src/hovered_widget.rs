@@ -1,6 +1,6 @@
 use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
-use sottomano_widgets::{hover_cards::HoverTarget, widget_groups::group_menus::GroupMenuPin};
+use sottomano_widgets::{group_menus::group_menu_state::GroupMenuPin, hover_cards::HoverTarget};
 
 pub struct HoveredWidget(pub HoverTarget);
 

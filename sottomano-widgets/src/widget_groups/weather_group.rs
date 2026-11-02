@@ -26,20 +26,19 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::{
-        group_menus::group_source_demand::GroupSourceDemand,
-        weather_group::rain_intensity::{RainForecast, RainSources},
-    },
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
-        latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
-        widget_group::{
+    },
+    widget_groups::{
+        weather_group::rain_intensity::{RainForecast, RainSources},
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
+    widgets::latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

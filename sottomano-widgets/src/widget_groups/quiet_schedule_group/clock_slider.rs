@@ -1,7 +1,7 @@
 use chrono::{NaiveTime, TimeDelta, Timelike};
 
 use super::{CLOCK_MINUTES, CLOCK_STEP_MINUTES, QuietScheduleTarget};
-use crate::widgets::{slider_control::SliderControl, weather_icons::WeatherIcon};
+use crate::{group_items::slider_control::SliderControl, widgets::weather_icons::WeatherIcon};
 
 pub(super) fn new_clock_slider(
     name: &'static str,
