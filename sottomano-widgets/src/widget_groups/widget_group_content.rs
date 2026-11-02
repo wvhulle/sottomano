@@ -220,44 +220,6 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
     }
 }
 
-enum WidgetGroupShape<'a, M> {
-    Expandable {
-        expansion: &'a WidgetGroupExpansion,
-        on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
-        face: WidgetGroupFace<'a>,
-        scroll_does: Option<&'static str>,
-    },
-    Fixed,
-}
-
-impl<'a, M: 'a> WidgetGroupShape<'a, M> {
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> WidgetGroupShape<'a, Outer> {
-        match self {
-            WidgetGroupShape::Expandable {
-                expansion,
-                on_expansion,
-                face,
-                scroll_does,
-            } => WidgetGroupShape::Expandable {
-                expansion,
-                on_expansion: Rc::new(move |message| lift(on_expansion(message))),
-                face,
-                scroll_does,
-            },
-            WidgetGroupShape::Fixed => WidgetGroupShape::Fixed,
-        }
-    }
-
-    fn expand_message(&self) -> Option<M> {
-        match self {
-            WidgetGroupShape::Expandable { on_expansion, .. } => {
-                Some(on_expansion(WidgetGroupExpansionMessage::Expand))
-            }
-            WidgetGroupShape::Fixed => None,
-        }
-    }
-}
-
 pub(crate) struct GroupMenuRowParts<'a, M> {
     pub group_identity: WidgetGroupIdentity,
     pub group_title: WidgetGroupTitle,
@@ -289,7 +251,10 @@ pub struct WidgetGroupContent<'a, M> {
     group_identity: WidgetGroupIdentity,
     group_title: WidgetGroupTitle,
     alert_promotion: AlertPromotion,
-    handle: WidgetGroupShape<'a, M>,
+    expansion: &'a WidgetGroupExpansion,
+    on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
+    face: WidgetGroupFace<'a>,
+    scroll_does: Option<&'static str>,
     items: Vec<GroupItem<'a, M>>,
     panel_pin: PanelPinOrigin,
 }
@@ -321,24 +286,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             group_identity,
             group_title,
             alert_promotion: AlertPromotion::OntoPanel,
-            handle: WidgetGroupShape::Expandable {
-                expansion,
-                on_expansion: Rc::new(on_expansion),
-                face: WidgetGroupFace::FirstItem,
-                scroll_does: None,
-            },
+            expansion,
+            on_expansion: Rc::new(on_expansion),
+            face: WidgetGroupFace::FirstItem,
+            scroll_does: None,
             items: items.into_iter().collect(),
-            panel_pin: PanelPinOrigin::Unpinned,
-        }
-    }
-
-    pub fn fixed(family: WidgetGroupFamily, item: Option<GroupItem<'a, M>>) -> Self {
-        Self {
-            group_identity: WidgetGroupIdentity::sole(family),
-            group_title: WidgetGroupTitle::fixed(family.title()),
-            alert_promotion: AlertPromotion::OntoPanel,
-            handle: WidgetGroupShape::Fixed,
-            items: item.into_iter().collect(),
             panel_pin: PanelPinOrigin::Unpinned,
         }
     }
@@ -370,23 +322,16 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn face(mut self, face: WidgetGroupFace<'a>) -> Self {
-        if let WidgetGroupShape::Expandable { face: current, .. } = &mut self.handle {
-            *current = face;
-        }
-        self
+    pub fn face(self, face: WidgetGroupFace<'a>) -> Self {
+        Self { face, ..self }
     }
 
     #[must_use]
-    pub fn forwards_scroll(mut self, scroll_does: Option<&'static str>) -> Self {
-        if let WidgetGroupShape::Expandable {
-            scroll_does: current,
-            ..
-        } = &mut self.handle
-        {
-            *current = scroll_does;
+    pub fn forwards_scroll(self, scroll_does: Option<&'static str>) -> Self {
+        Self {
+            scroll_does,
+            ..self
         }
-        self
     }
 
     #[must_use]
@@ -409,7 +354,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             group_identity: self.group_identity,
             group_title: self.group_title,
             alert_promotion: self.alert_promotion,
-            handle: self.handle.map(lift),
+            expansion: self.expansion,
+            on_expansion: {
+                let on_expansion = self.on_expansion;
+                Rc::new(move |message| lift(on_expansion(message)))
+            },
+            face: self.face,
+            scroll_does: self.scroll_does,
             items: self.items.into_iter().map(|item| item.map(lift)).collect(),
             panel_pin: self.panel_pin,
         }
@@ -417,10 +368,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
-        match self.handle.expand_message() {
-            Some(expand) => self.toast_requests_revealed_by(&expand, locale, clock),
-            None => GroupToastRequests::default(),
-        }
+        let expand = (self.on_expansion)(WidgetGroupExpansionMessage::Expand);
+        self.toast_requests_revealed_by(&expand, locale, clock)
     }
 
     fn toast_requests_revealed_by(
@@ -446,14 +395,10 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     pub(crate) fn highest_alert_severity(&self, clock: Clock) -> Severity {
-        self.handle
-            .expand_message()
-            .and_then(|_| {
-                self.items
-                    .iter()
-                    .filter_map(|item| item.ongoing_alert_severity(clock))
-                    .max()
-            })
+        self.items
+            .iter()
+            .filter_map(|item| item.ongoing_alert_severity(clock))
+            .max()
             .unwrap_or_default()
     }
 
@@ -531,15 +476,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
-            handle,
+            face,
             items,
             ..
         } = self;
-        let face = match handle {
-            WidgetGroupShape::Expandable { face, .. } => face,
-            WidgetGroupShape::Fixed => WidgetGroupFace::FirstItem,
-        }
-        .into_menu_parts(config, &items, clock);
+        let face = face.into_menu_parts(config, &items, clock);
         let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
             if let ItemAlignment::Aligned(quantity) = item.alignment() {
                 aligned.insert(quantity, item.table_cell_view(config, clock));
@@ -576,6 +517,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         })
     }
 
+    #[must_use]
     pub fn view(
         self,
         config: &'a Config,
@@ -603,26 +545,14 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         let WidgetGroupContent {
             group_identity,
             group_title,
-            handle,
-            mut items,
-            panel_pin,
-            ..
-        } = self;
-        let WidgetGroupShape::Expandable {
             expansion,
             on_expansion,
             face,
             scroll_does,
-        } = handle
-        else {
-            return Some(fixed_view(
-                &items,
-                highest_alert_severity,
-                config,
-                panel_position,
-                clock,
-            ));
-        };
+            mut items,
+            panel_pin,
+            ..
+        } = self;
         let handle_announcement = HoverAnnouncement::from_group_handle(
             group_title.clone(),
             PressHints::group_handle(expansion.expanded, scroll_does),
@@ -698,7 +628,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 }
 
-fn fixed_view<'a, M: Clone + 'a>(
+pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     items: &[GroupItem<'a, M>],
     highest_alert_severity: Severity,
     config: &'a Config,

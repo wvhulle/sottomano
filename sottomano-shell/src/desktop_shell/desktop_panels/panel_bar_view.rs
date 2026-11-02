@@ -66,6 +66,11 @@ impl DesktopShell {
                 .view(config, position, self.clock)
                 .into_iter()
                 .collect(),
+            PanelZoneEntry::Fixed(entry) => self
+                .fixed_panel_group(entry)
+                .view(config, position, self.clock)
+                .into_iter()
+                .collect(),
             PanelZoneEntry::InlineWorkspaces => self
                 .inline_workspaces(position, output)
                 .into_iter()

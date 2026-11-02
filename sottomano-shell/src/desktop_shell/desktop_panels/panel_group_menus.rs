@@ -1,13 +1,15 @@
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
-        notification_group::NotificationStatus, widget_group_content::WidgetGroupContent,
+        fixed_panel_group::FixedPanelGroup, notification_group::NotificationStatus,
+        widget_group_content::WidgetGroupContent,
     },
 };
 
 use crate::{
     desktop_shell::{
-        DesktopShell, desktop_panels::panel_bar_composition::StandaloneWidgetGroup,
+        DesktopShell,
+        desktop_panels::panel_bar_composition::{FixedPanelEntry, StandaloneWidgetGroup},
         gamepad_window_claim,
     },
     shell_message::Message,
@@ -39,6 +41,24 @@ impl DesktopShell {
         }
     }
 
+    pub(in crate::desktop_shell) fn fixed_panel_group(
+        &self,
+        entry: FixedPanelEntry,
+    ) -> FixedPanelGroup<'_, Message> {
+        match entry {
+            FixedPanelEntry::SessionPower => self
+                .widget_groups
+                .session_power_group
+                .group_content()
+                .map(Message::Session),
+            FixedPanelEntry::AppearancePresets => self
+                .widget_groups
+                .appearance_presets_group
+                .group_content()
+                .map(Message::AppearancePresets),
+        }
+    }
+
     pub(in crate::desktop_shell) fn standalone_group(
         &self,
         group: StandaloneWidgetGroup,
@@ -55,16 +75,6 @@ impl DesktopShell {
                 .notification_group
                 .group_content(self.notification_status())
                 .map(Message::NotificationGroup),
-            StandaloneWidgetGroup::SessionPower => self
-                .widget_groups
-                .session_power_group
-                .group_content()
-                .map(Message::Session),
-            StandaloneWidgetGroup::AppearancePresets => self
-                .widget_groups
-                .appearance_presets_group
-                .group_content()
-                .map(Message::AppearancePresets),
             StandaloneWidgetGroup::Tray => self
                 .widget_groups
                 .tray_group

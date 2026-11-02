@@ -404,9 +404,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::Wallpaper(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
             }
-            ShowcasedGroup::AppearancePresets(menu) => {
-                vec![menu.group_content().map(ShowcaseMessage::AppearancePresets)]
-            }
+            ShowcasedGroup::AppearancePresets(_) => Vec::new(),
             ShowcasedGroup::Audio(group) => {
                 vec![group.group_content(config).map(ShowcaseMessage::Audio)]
             }
@@ -449,6 +447,12 @@ impl ShowcasedGroup {
         let position = self.position();
         match self {
             ShowcasedGroup::BottomPanel(session) => session.workspaces_and_windows(config, clock),
+            ShowcasedGroup::AppearancePresets(menu) => menu
+                .group_content()
+                .map(ShowcaseMessage::AppearancePresets)
+                .view(config, position, clock)
+                .into_iter()
+                .collect(),
             ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),
             _ => self
                 .group_contents(config, clock)
