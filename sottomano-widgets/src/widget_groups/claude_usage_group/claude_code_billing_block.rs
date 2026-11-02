@@ -74,7 +74,7 @@ impl GroupItemReading for ClaudeCcusageBlock {
         ])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.active.is_some()
     }
 }

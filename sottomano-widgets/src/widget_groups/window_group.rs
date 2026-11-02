@@ -20,9 +20,9 @@ use sottomano_sources::{
 use window_list::{WindowList, WindowListMessage};
 
 use crate::{
-    bar_slot_drag::BarSlotContext,
     clock::Clock,
     hover_tooltips::HoverTarget,
+    panel_slot_drag::PanelSlotContext,
     widgets::{
         tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
         widget_group::GroupEvent,
@@ -145,7 +145,7 @@ impl WindowGroup {
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
-        slot_context: BarSlotContext<'a>,
+        slot_context: PanelSlotContext<'a>,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
         let config = slot_context.config;
         let quick_launch = self

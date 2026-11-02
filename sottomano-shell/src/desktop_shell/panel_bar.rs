@@ -61,10 +61,10 @@ impl DesktopShell {
         .height(Length::Fill)
         .align_y(Alignment::Center)
         .padding([0.0, spacing.group_padding]);
-        self.bar_band(position, clusters)
+        self.panel_band(position, clusters)
     }
 
-    fn bar_band<'a>(
+    fn panel_band<'a>(
         &'a self,
         position: Position,
         content: impl Into<Element<'a, Message>>,

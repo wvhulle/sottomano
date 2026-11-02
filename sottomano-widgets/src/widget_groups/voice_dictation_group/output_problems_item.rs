@@ -40,7 +40,7 @@ impl GroupItemReading for NotulistOutputProblems {
             .filter(|count| *count > 1)
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         !self.problems.is_empty()
     }
 
@@ -92,11 +92,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn no_problems_stay_out_of_the_bar() {
+    fn no_problems_stay_off_the_panel() {
         let quiet = NotulistOutputProblems {
             problems: Vec::new(),
         };
-        assert!(!quiet.visible_in_bar());
+        assert!(!quiet.visible_on_panel());
     }
 
     #[test]

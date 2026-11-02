@@ -174,7 +174,7 @@ impl DesktopShell {
     }
 
     #[must_use]
-    pub fn bar_clearance(&self, output: &str) -> Padding {
+    pub fn panel_clearance(&self, output: &str) -> Padding {
         Padding::ZERO
             .top(self.reserved_zone(output, Position::Top) as f32)
             .bottom(self.reserved_zone(output, Position::Bottom) as f32)

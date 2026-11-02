@@ -15,7 +15,7 @@ pub struct GroupSourceDemand<'a> {
 
 impl<'a> GroupSourceDemand<'a> {
     #[must_use]
-    pub const fn on_bar() -> Self {
+    pub const fn on_panel() -> Self {
         Self {
             surface: GroupSurface::WidgetGroupFace,
             pinned_item_names: Vec::new(),
@@ -24,12 +24,12 @@ impl<'a> GroupSourceDemand<'a> {
 
     pub(super) fn in_menu(
         menu_open: bool,
-        on_bar: bool,
+        on_panel: bool,
         pinned_item_names: impl IntoIterator<Item = &'a str>,
     ) -> Self {
         let surface = if menu_open {
             GroupSurface::AllRows
-        } else if on_bar {
+        } else if on_panel {
             GroupSurface::WidgetGroupFace
         } else {
             GroupSurface::Hidden
@@ -106,7 +106,7 @@ mod tests {
         GroupSourceDemand::in_menu(false, false, NO_ITEMS)
     }
 
-    fn bar_group() -> GroupSourceDemand<'static> {
+    fn panel_group() -> GroupSourceDemand<'static> {
         GroupSourceDemand::in_menu(false, true, NO_ITEMS)
     }
 
@@ -134,23 +134,27 @@ mod tests {
     }
 
     #[test]
-    fn collapsed_bar_group_shows_only_its_face() {
-        let demand = bar_group();
+    fn collapsed_panel_group_shows_only_its_face() {
+        let demand = panel_group();
         assert!(demand.shows_face_reading(WIND_ITEM));
         assert!(!demand.shows_row_reading(WIND_ITEM));
     }
 
     #[test]
-    fn expanded_bar_group_shows_every_row() {
-        assert!(bar_group().expanded_when(true).shows_row_reading(WIND_ITEM));
+    fn expanded_panel_group_shows_every_row() {
+        assert!(
+            panel_group()
+                .expanded_when(true)
+                .shows_row_reading(WIND_ITEM)
+        );
     }
 
     #[test]
-    fn groups_placed_on_the_bar_outside_a_menu_follow_the_same_rule() {
-        assert_eq!(GroupSourceDemand::on_bar(), bar_group());
+    fn groups_placed_on_the_panel_outside_a_menu_follow_the_same_rule() {
+        assert_eq!(GroupSourceDemand::on_panel(), panel_group());
         assert_eq!(
-            GroupSourceDemand::on_bar().expanded_when(true),
-            bar_group().expanded_when(true)
+            GroupSourceDemand::on_panel().expanded_when(true),
+            panel_group().expanded_when(true)
         );
     }
 

@@ -27,7 +27,7 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
-        text::bar_text,
+        text::panel_text,
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
@@ -501,7 +501,7 @@ impl SliderControl {
                 locale: config.calendar.locale,
             },
             &config.theme.font,
-            bar_text(
+            panel_text(
                 &config.theme.font,
                 self.readout_text(config.calendar.locale),
             )

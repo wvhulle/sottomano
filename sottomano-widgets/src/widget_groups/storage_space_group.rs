@@ -67,7 +67,7 @@ impl GroupItemReading for BlockFilesystemDiscovery {
         Phosphor::Folders(Weight::Regular).into()
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         false
     }
 

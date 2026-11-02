@@ -91,7 +91,7 @@ pub fn anchored_popup<'a, Message: 'a>(
         renderings,
         anchor,
         edge_inset: config.layout.panel.height + config.layout.overlay.panel_gap,
-        bar_thickness: config.layout.panel.height,
+        panel_thickness: config.layout.panel.height,
         popup_gap: config.layout.overlay.panel_gap,
         leading_icon_center: config.layout.overlay.content_inset + config.layout.panel.height / 2.0,
         position,
@@ -107,7 +107,7 @@ struct AnchoredPopup<'a, Message> {
     renderings: Vec<Rendering<'a, Message>>,
     anchor: Rectangle,
     edge_inset: f32,
-    bar_thickness: f32,
+    panel_thickness: f32,
     popup_gap: f32,
     leading_icon_center: f32,
     position: Position,
@@ -136,10 +136,10 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         self.anchor.x + self.anchor.width
     }
 
-    fn bar_edge(&self, surface: Size) -> f32 {
+    fn panel_edge(&self, surface: Size) -> f32 {
         match self.position {
-            Position::Top => self.bar_thickness,
-            Position::Bottom => surface.height - self.bar_thickness,
+            Position::Top => self.panel_thickness,
+            Position::Bottom => surface.height - self.panel_thickness,
             Position::Left => self.anchor_edge_x(),
         }
     }
@@ -391,7 +391,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
         let popup = state.current;
         state.connector = ConnectorTriangle::between(
             self.anchor,
-            self.bar_edge(surface),
+            self.panel_edge(surface),
             popup,
             self.position.into(),
             self.radius,

@@ -264,10 +264,10 @@ impl ShowcaseState {
         match self.demo.shown {
             GroupShown::InMenu(kind) | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
-                .bar_views(&self.config, self.group.position(), self.clock)
+                .panel_views(&self.config, self.group.position(), self.clock)
                 .flatten()
                 .collect(),
-            GroupShown::OnBar => self.group.panel_groups(&self.config, self.clock),
+            GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
         }
     }
 

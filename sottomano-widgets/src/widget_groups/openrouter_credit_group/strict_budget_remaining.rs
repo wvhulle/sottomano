@@ -56,7 +56,7 @@ impl GroupItemReading for OpenRouterStrictBudget {
         )
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.credits.total.is_positive() || !self.key_limits.is_empty()
     }
 }

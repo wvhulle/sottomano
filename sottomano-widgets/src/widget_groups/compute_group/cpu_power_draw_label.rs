@@ -33,7 +33,7 @@ fn package_draw(power: &CpuPower) -> Option<Power> {
 }
 
 impl GroupItemReading for CpuPower {
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         package_draw(self).is_some()
     }
 

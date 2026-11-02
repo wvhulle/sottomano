@@ -76,7 +76,7 @@ impl GroupItemReading for CopilotCcusage {
         ])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.period.usage.active()
     }
 

@@ -11,8 +11,8 @@ use super::{
     },
 };
 use crate::{
-    bar_slot_drag::BarSlotContext,
-    widgets::pointer_drag::{BarSlotList, slot_pager::slot_pager},
+    panel_slot_drag::PanelSlotContext,
+    widgets::pointer_drag::{PanelSlotList, slot_pager::slot_pager},
 };
 
 pub fn inline_view<'a>(
@@ -20,9 +20,9 @@ pub fn inline_view<'a>(
     output: &str,
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
-    slot_context: BarSlotContext<'_>,
+    slot_context: PanelSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    let BarSlotContext {
+    let PanelSlotContext {
         config, edge, drag, ..
     } = slot_context;
     let workspaces = niri.workspaces_for_output(output);
@@ -38,13 +38,14 @@ pub fn inline_view<'a>(
     let slots = order
         .iter()
         .enumerate()
-        .map(|(position_in_bar, workspace)| {
-            let workspace_slot = WorkspaceSlot::new(workspace, niri, position_in_bar, slot_context);
+        .map(|(position_in_panel, workspace)| {
+            let workspace_slot =
+                WorkspaceSlot::new(workspace, niri, position_in_panel, slot_context);
             (workspace_slot.key(), workspace_slot.inline_view())
         });
     let pager = slot_pager(slots, edge, config)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
-        .draggable(BarSlotList::Workspaces, &drag, dragged);
+        .draggable(PanelSlotList::Workspaces, &drag, dragged);
     Some(
         Row::new()
             .push(pager)
@@ -68,18 +69,18 @@ mod tests {
 
     use super::inline_view;
     use crate::{
-        bar_slot_drag::{
-            BarSlotContext, DragMessage,
+        clock::Clock,
+        panel_slot_drag::{
+            DragMessage, PanelSlotContext,
             pager_drag_simulation::{
-                SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, dragging_from_start, sweep_across_bar,
+                SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, dragging_from_start, sweep_across_panel,
                 three_workspaces_three_windows,
             },
         },
-        clock::Clock,
         widget_groups::workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage,
         },
-        widgets::pointer_drag::{BarSlotList, DragEvent, DraggedBarSlot},
+        widgets::pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
     };
 
     #[test]
@@ -87,10 +88,10 @@ mod tests {
         let config = Config::default();
         let niri_snapshot = three_workspaces_three_windows();
         let drag_view = dragging_from_start(
-            DraggedBarSlot::Workspace(SIMULATED_WORKSPACE_IDS[0]),
+            DraggedPanelSlot::Workspace(SIMULATED_WORKSPACE_IDS[0]),
             &config,
         );
-        let slot_context = BarSlotContext {
+        let slot_context = PanelSlotContext {
             config: &config,
             edge: Position::Bottom,
             drag: drag_view,
@@ -105,7 +106,7 @@ mod tests {
         )
         .expect("three workspaces on the output");
         let drag_events: Vec<DragEvent<_>> =
-            sweep_across_bar(pager_element, config.layout.panel.height)
+            sweep_across_panel(pager_element, config.layout.panel.height)
                 .into_iter()
                 .filter_map(|workspaces_message| match workspaces_message {
                     WorkspacesMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),
@@ -122,7 +123,7 @@ mod tests {
         assert_eq!(entered_positions, [0, 1, 2]);
         assert!(matches!(
             drag_events.last(),
-            Some(DragEvent::LeftList(BarSlotList::Workspaces))
+            Some(DragEvent::LeftList(PanelSlotList::Workspaces))
         ));
     }
 }

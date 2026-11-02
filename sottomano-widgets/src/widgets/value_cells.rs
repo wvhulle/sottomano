@@ -27,7 +27,7 @@ use crate::widgets::{
     localized_quantities::Quantity,
     localized_time::LocalizedTimeFormat,
     pressable_text::pressable_text,
-    text::{FontFaces, LINE_HEIGHT, bar_text},
+    text::{FontFaces, LINE_HEIGHT, panel_text},
     transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
 };
 
@@ -317,7 +317,7 @@ impl<Message: 'static> ValueCellView<Message> {
         let font = self.face(face);
         TransitioningText::new(
             container(
-                bar_text(font, text.clone())
+                panel_text(font, text.clone())
                     .font(self.styled_face(font))
                     .style(move |theme| TextStyle {
                         color: Some(color(theme)),
@@ -341,7 +341,7 @@ impl<Message: 'static> ValueCellView<Message> {
         row: &ValueCell,
     ) -> Element<'static, Message> {
         let text = path.display().to_string();
-        let unwrapped = bar_text(&self.prose_font, text.clone())
+        let unwrapped = panel_text(&self.prose_font, text.clone())
             .font(self.styled_face(&self.prose_font))
             .style(move |theme| TextStyle {
                 color: Some(color(theme)),
@@ -448,7 +448,7 @@ pub fn wrapped_text<Message>(
     wrapping: Wrapping,
 ) -> Container<'static, Message> {
     container(
-        bar_text(font, text)
+        panel_text(font, text)
             .style(move |theme| TextStyle {
                 color: Some(color(theme)),
             })

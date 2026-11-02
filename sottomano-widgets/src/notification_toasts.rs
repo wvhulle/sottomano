@@ -160,7 +160,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
         config: &'a Config,
         theme: &'a Theme,
         overlay_appearance: LayerAppearance,
-        bar_clearance: Padding,
+        panel_clearance: Padding,
         clock: Clock,
     ) -> WindowAnchoredToasts<'a> {
         let now = clock.instant;
@@ -185,7 +185,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 animating: notif.is_animating(now),
             })
             .collect();
-        WindowAnchoredToasts::new(toasts, bar_clearance, &overlay_appearance, config)
+        WindowAnchoredToasts::new(toasts, panel_clearance, &overlay_appearance, config)
     }
 
     #[must_use]

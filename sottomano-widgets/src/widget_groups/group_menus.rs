@@ -194,7 +194,7 @@ impl GroupMenuState {
             .recently_open_menus
             .iter()
             .any(|recent| recent.menu == menu);
-        let on_bar = group_titles.iter().any(|group_title| {
+        let on_panel = group_titles.iter().any(|group_title| {
             self.is_pinned(
                 menu,
                 GroupMenuPin::Group {
@@ -215,7 +215,7 @@ impl GroupMenuState {
             }
             StoredGroupMenuPin::Group { .. } | StoredGroupMenuPin::Item { .. } => None,
         });
-        GroupSourceDemand::in_menu(menu_open, on_bar, pinned_item_names)
+        GroupSourceDemand::in_menu(menu_open, on_panel, pinned_item_names)
     }
 
     #[must_use]
@@ -318,19 +318,19 @@ mod tests {
         group_menus.source_demand(GroupMenuTopic::Hardware, &[WidgetGroupTitle::fixed("GPU")])
     }
 
-    fn collapsed_on_bar() -> GroupSourceDemand<'static> {
-        GroupSourceDemand::on_bar()
+    fn collapsed_on_panel() -> GroupSourceDemand<'static> {
+        GroupSourceDemand::on_panel()
     }
 
     #[test]
     fn unpinning_an_expanded_group_drops_its_demand() {
         let mut group_menus = GroupMenuState::default();
         let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
-        assert_eq!(gpu_demand(&group_menus), collapsed_on_bar());
+        assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
         let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
         assert_ne!(
             gpu_demand(&group_menus).expanded_when(true),
-            collapsed_on_bar().expanded_when(true)
+            collapsed_on_panel().expanded_when(true)
         );
     }
 
@@ -345,9 +345,9 @@ mod tests {
             }],
             Clock::real().instant,
         );
-        assert_eq!(gpu_demand(&group_menus), collapsed_on_bar());
+        assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
         group_menus.track_source_demand(None, Vec::new(), Clock::real().instant);
-        assert_ne!(gpu_demand(&group_menus), collapsed_on_bar());
+        assert_ne!(gpu_demand(&group_menus), collapsed_on_panel());
     }
 
     #[test]
@@ -376,14 +376,14 @@ mod tests {
                 GroupMenuTopic::Hardware,
                 &WidgetGroupTitle::numbered_siblings("USB Ethernet")
             ),
-            collapsed_on_bar()
+            collapsed_on_panel()
         );
         assert_ne!(
             group_menus.source_demand(
                 GroupMenuTopic::Hardware,
                 &WidgetGroupTitle::numbered_siblings("Ethernet")
             ),
-            collapsed_on_bar()
+            collapsed_on_panel()
         );
     }
 
@@ -403,7 +403,7 @@ mod tests {
                 GroupMenuTopic::Network,
                 &WidgetGroupTitle::numbered_siblings("Wi-Fi")
             ),
-            collapsed_on_bar()
+            collapsed_on_panel()
         );
     }
 
@@ -419,7 +419,7 @@ mod tests {
                 GroupMenuTopic::Hardware,
                 &WidgetGroupTitle::numbered_siblings("GPU")
             ),
-            collapsed_on_bar()
+            collapsed_on_panel()
         );
     }
 
@@ -429,7 +429,7 @@ mod tests {
         let opened_at = Clock::real().instant;
         group_menus.track_source_demand(Some(GroupMenuTopic::Hardware), Vec::new(), opened_at);
         let while_open = gpu_demand(&group_menus);
-        assert_ne!(while_open, collapsed_on_bar());
+        assert_ne!(while_open, collapsed_on_panel());
         let shortly_after = opened_at + Duration::from_secs(1);
         group_menus.track_source_demand(None, Vec::new(), shortly_after);
         assert_eq!(

@@ -11,7 +11,7 @@ use crate::{
         flat_button,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::icon_value_gap,
-        text::{FontFaces, bar_text},
+        text::{FontFaces, panel_text},
         toggle_control::SwitchPresses,
     },
 };
@@ -60,7 +60,7 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
             opacity: self.reveal,
         };
         let faces = FontFaces::from(&self.config.theme.font);
-        let initial = bar_text(
+        let initial = panel_text(
             &self.config.theme.font,
             weekday_initial(day, self.config.calendar.locale),
         )

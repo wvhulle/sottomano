@@ -92,7 +92,7 @@ impl GroupItemReading for DiskActivity {
         self.read.icon()
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         false
     }
 

@@ -17,15 +17,15 @@ use sottomano_sources::desktop_windows_apps::{
 
 use self::workspace_slot::WorkspaceSlot;
 use crate::{
-    bar_slot_drag::{BarSlotContext, DragMessage, SlotDragEvent},
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+    panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     widgets::{
         configured_theme::secondary_text_color,
         flat_button, glyph_button,
         icon_glyph::IconGlyph,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
-        text::bar_text,
+        text::panel_text,
     },
 };
 
@@ -239,7 +239,7 @@ fn empty_workspaces_toggle<'a>(
     }
     let font = &config.theme.font;
     let face: Element<'a, WorkspacesMessage> = match folding.mode {
-        EmptyWorkspaces::Folded => bar_text(font, format!("+{toggled_count}"))
+        EmptyWorkspaces::Folded => panel_text(font, format!("+{toggled_count}"))
             .style(|theme| text::Style {
                 color: Some(secondary_text_color(theme)),
             })
@@ -271,9 +271,9 @@ pub fn drag_ghost<'a>(
     niri: &niri_window_snapshot::Snapshot,
     output: &str,
     workspace_id: u64,
-    slot_context: BarSlotContext<'_>,
+    slot_context: PanelSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    let BarSlotContext { config, drag, .. } = slot_context;
+    let PanelSlotContext { config, drag, .. } = slot_context;
     let workspace = niri
         .workspaces_for_output(output)
         .iter()
@@ -323,7 +323,7 @@ mod tests {
     use super::{
         EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer, WorkspaceSwitch, classify_switch,
     };
-    use crate::bar_slot_drag::pager_drag_simulation::{
+    use crate::panel_slot_drag::pager_drag_simulation::{
         SIMULATED_OUTPUT, SIMULATED_WORKSPACE_IDS, three_workspaces_three_windows,
     };
 

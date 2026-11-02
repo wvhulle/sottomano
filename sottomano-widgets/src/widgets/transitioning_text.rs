@@ -272,18 +272,18 @@ impl<Message> TransitioningText<'_, Message> {
 
     fn fill_bars(&self, renderer: &mut iced::Renderer, area: Rectangle, background: Background) {
         let line_height = self.line_height();
-        let bar_height = line_height * BAR_HEIGHT_FRACTION;
+        let panel_height = line_height * BAR_HEIGHT_FRACTION;
         let rows = ((area.height / line_height).round() as usize).max(1);
         (0..rows).for_each(|row| {
             renderer.fill_quad(
                 Quad {
                     bounds: Rectangle {
                         x: area.x,
-                        y: area.y + row as f32 * line_height + (line_height - bar_height) / 2.0,
+                        y: area.y + row as f32 * line_height + (line_height - panel_height) / 2.0,
                         width: area.width,
-                        height: bar_height,
+                        height: panel_height,
                     },
-                    border: Border::default().rounded(bar_height / 4.0),
+                    border: Border::default().rounded(panel_height / 4.0),
                     ..Quad::default()
                 },
                 background,

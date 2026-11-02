@@ -35,7 +35,7 @@ use crate::{
         pressable_text::pressable_text,
         reading_display_state::ReadingDisplayState,
         refresh_dial::RefreshDial,
-        text::{FontFaces, LINE_HEIGHT, bar_text},
+        text::{FontFaces, LINE_HEIGHT, panel_text},
         tooltip_body::{
             Heading, Section, SectionBody, SectionHeading,
             tooltip_figure_payloads::{ChipletCells, ControllerCallouts},
@@ -208,7 +208,7 @@ impl<'a> TooltipContent<'a> {
         let font = &self.config.theme.font;
         let label = row([
             IconGlyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
-            bar_text(font, "unpin from the panel").into(),
+            panel_text(font, "unpin from the panel").into(),
         ])
         .spacing(self.config.layout.overlay.row_spacing)
         .align_y(Vertical::Center);
@@ -411,13 +411,13 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn small_dim_text(&self, text: String) -> Text<'static> {
-        bar_text(&self.config.theme.font, text)
+        panel_text(&self.config.theme.font, text)
             .size(self.config.theme.font.small_text_size_px)
             .style(text::secondary)
     }
 
     fn bold_title(&self, title: &str) -> Text<'static> {
-        bar_text(&self.config.theme.font, title.to_owned())
+        panel_text(&self.config.theme.font, title.to_owned())
             .font(FontFaces::from(&self.config.theme.font).bold)
             .style(text::base)
     }
@@ -557,7 +557,7 @@ impl<'a> TooltipContent<'a> {
                 |drawn, callout| {
                     drawn.callout(
                         callout.anchor,
-                        bar_text(font, callout.label.clone())
+                        panel_text(font, callout.label.clone())
                             .style(ReadingDisplayState::from(callout.level).text_style()),
                     )
                 },
@@ -572,7 +572,7 @@ impl<'a> TooltipContent<'a> {
                 .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing));
             Column::with_children([
                 container(
-                    bar_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
+                    panel_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
                 )
                 .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing))
                 .into(),

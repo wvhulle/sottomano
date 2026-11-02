@@ -127,7 +127,7 @@ impl MemoryBoardGroup {
                 self.hardware
                     .get()
                     .map(|hardware| &hardware.machine)
-                    .filter(GroupItemReading::visible_in_bar)
+                    .filter(GroupItemReading::visible_on_panel)
                     .map(|machine| GroupItem::reading(machine, MemoryBoardTarget::Board)),
             ]
             .into_iter()
@@ -167,7 +167,7 @@ impl MemoryBoardGroup {
             MemoryBoardTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
                 self.hardware
-                    .tooltip_with(machine.visible_in_bar().then(|| machine.tooltip(clock))?)
+                    .tooltip_with(machine.visible_on_panel().then(|| machine.tooltip(clock))?)
             }
         }
     }

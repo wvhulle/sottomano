@@ -8,7 +8,7 @@ use sottomano_widgets::{
     hover_tooltips::TooltipMessage,
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
-        DraggedBarSlot,
+        DraggedPanelSlot,
         drag_ghost::{GhostPlacement, drag_ghost},
     },
 };
@@ -66,16 +66,16 @@ impl DesktopShell {
     }
 
     fn drag_ghost_layer<'a>(&'a self, window: Id, output: &'a str) -> Option<Element<'a, Message>> {
-        let slot_context = self.bar_slot_context(Position::Bottom);
+        let slot_context = self.panel_slot_context(Position::Bottom);
         let view = slot_context.drag;
         let drag = view.drag.filter(|drag| drag.surface == window)?;
         let snapshot = &self.niri_snapshot;
         let card = match drag.item {
-            DraggedBarSlot::Workspace(workspace) => {
+            DraggedPanelSlot::Workspace(workspace) => {
                 workspaces_group::drag_ghost(snapshot, output, workspace, slot_context)?
                     .map(Message::from)
             }
-            DraggedBarSlot::Window { window, .. } => self
+            DraggedPanelSlot::Window { window, .. } => self
                 .widget_groups
                 .window_group
                 .window_list
@@ -89,12 +89,12 @@ impl DesktopShell {
                 .map(|message| Message::WindowGroup(WindowGroupMessage::WindowList(message))),
         };
         let placement = match drag.item {
-            DraggedBarSlot::Window { .. } if view.has_left_its_list() => {
+            DraggedPanelSlot::Window { .. } if view.has_left_its_list() => {
                 GhostPlacement::BesideCursor {
                     gap: self.config.theme.font.icon_size_px,
                 }
             }
-            DraggedBarSlot::Window { .. } | DraggedBarSlot::Workspace(_) => {
+            DraggedPanelSlot::Window { .. } | DraggedPanelSlot::Workspace(_) => {
                 GhostPlacement::UnderCursor
             }
         };

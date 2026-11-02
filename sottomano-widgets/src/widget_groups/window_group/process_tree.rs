@@ -27,7 +27,7 @@ use crate::{
         localized_durations::duration_text,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
-        text::{FontFaces, bar_text, column_heading},
+        text::{FontFaces, column_heading, panel_text},
         transitioning_text::{TransitionStyle, TransitioningText},
     },
 };
@@ -180,7 +180,7 @@ impl<'a> ProcessTree<'a> {
                             let calm = if is_root { success_color } else { text_color };
                             let color = severity_tint(level, calm);
                             let name =
-                                bar_text(&monospace, listing.label()).style(styled_by(color));
+                                panel_text(&monospace, listing.label()).style(styled_by(color));
                             let name = if is_root { name.font(bold) } else { name };
                             let cell = TransitioningText::new(
                                 container(name).max_width(NAME_WIDTH_PX),
@@ -206,7 +206,7 @@ impl<'a> ProcessTree<'a> {
                                 ))
                         }
                         Entry::Elided { hidden } => Row::new().push(blank(caret_size)).push(
-                            bar_text(&font, format!("+{hidden} more")).style(text::secondary),
+                            panel_text(&font, format!("+{hidden} more")).style(text::secondary),
                         ),
                     };
                     let row = row.spacing(CARET_GAP_PX).align_y(Alignment::Center);
@@ -248,7 +248,7 @@ impl<'a> ProcessTree<'a> {
             let text = field(&listing);
             let color = severity_tint(listing.level(), secondary_text_color);
             let cell = TransitioningText::new(
-                bar_text(&font, text.clone()).style(styled_by(color)),
+                panel_text(&font, text.clone()).style(styled_by(color)),
                 text.clone(),
                 transition,
                 &font,

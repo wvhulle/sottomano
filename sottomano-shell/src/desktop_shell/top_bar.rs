@@ -36,14 +36,14 @@ impl DesktopShell {
             Position::Top,
             start_menus
                 .into_iter()
-                .flat_map(|group_menu| group_menu.bar_views(config, Position::Top, self.clock)),
+                .flat_map(|group_menu| group_menu.panel_views(config, Position::Top, self.clock)),
             center
                 .map(view)
                 .into_iter()
-                .chain(agenda_group_menu.bar_views(config, Position::Top, self.clock))
+                .chain(agenda_group_menu.panel_views(config, Position::Top, self.clock))
                 .chain([view(notifications)]),
             media_group_menu
-                .bar_views(config, Position::Top, self.clock)
+                .panel_views(config, Position::Top, self.clock)
                 .chain(end.map(view)),
         )
     }

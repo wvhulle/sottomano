@@ -38,7 +38,7 @@ use crate::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupShown {
-    OnBar,
+    OnPanel,
     InMenu(GroupMenuTopic),
     PinnedFrom {
         menu: GroupMenuTopic,
@@ -340,7 +340,7 @@ pub const DEMOS: &[Demo] = &[
         name: "appearance_looks",
         group: appearance_presets::group,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[
             Step::Hover(HoverTarget::AppearancePresets(
                 AppearancePresetsTarget::Menu,
@@ -386,7 +386,7 @@ pub const DEMOS: &[Demo] = &[
         name: "audio_volume",
         group: audio::group,
         live: audio::live,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[
             Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
             Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
@@ -491,28 +491,28 @@ pub const DEMOS: &[Demo] = &[
         name: "bottom_workspaces",
         group: niri_session::bottom_bar,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
     Demo {
         name: "bottom_window",
         group: niri_session::bottom_bar,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
     },
     Demo {
         name: "bottom_process_inspector",
         group: niri_session::bottom_bar,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],
     },
     Demo {
         name: "sidebar_workspaces",
         group: niri_session::workspace_sidebar,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[
             Step::Hover(HoverTarget::Workspace(1)),
             Step::Hover(HoverTarget::Workspace(4)),
@@ -524,7 +524,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_arrival",
         group: notification_toasts::arrival,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[
             Step::HoverText(notification_toasts::ARRIVAL_SUMMARY),
             Step::RestFor(Duration::from_secs(5)),
@@ -534,14 +534,14 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_progress",
         group: notification_toasts::progress,
         live: notification_toasts::downloading,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[Step::RestFor(Duration::from_secs(10))],
     },
     Demo {
         name: "toast_actions",
         group: notification_toasts::actions,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[
             Step::HoverText("Later"),
             Step::HoverText("Decline"),
@@ -552,7 +552,7 @@ pub const DEMOS: &[Demo] = &[
         name: "toast_window_anchored",
         group: notification_toasts::next_to_window,
         live: unchanging,
-        shown: GroupShown::OnBar,
+        shown: GroupShown::OnPanel,
         script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
     },
     Demo {

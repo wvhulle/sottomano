@@ -533,7 +533,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
         config: &'a Config,
-        bar_position: Position,
+        panel_position: Position,
         clock: Clock,
     ) -> Vec<Option<Element<'a, Outer>>> {
         let WidgetGroupContent {
@@ -553,7 +553,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     slice::from_ref(&item),
                     item.ongoing_alert_severity(clock).unwrap_or_default(),
                     config,
-                    bar_position,
+                    panel_position,
                     clock,
                 ))
             })
@@ -623,7 +623,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     pub fn view<Outer: From<GroupEvent<M>> + 'a>(
         self,
         config: &'a Config,
-        bar_position: Position,
+        panel_position: Position,
         clock: Clock,
     ) -> Option<Element<'a, Outer>> {
         if self.items.is_empty() {
@@ -648,7 +648,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 &items,
                 highest_alert_severity,
                 config,
-                bar_position,
+                panel_position,
                 clock,
             ));
         };
@@ -714,7 +714,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 }))
                 .align_y(Alignment::Center);
             PagerSlot::new(inner.into(), edge_indicator.view(config, reveal))
-                .view(config, bar_position)
+                .view(config, panel_position)
         });
         Some(
             Element::from(mouse_area(animated).on_enter(on_enter).on_exit(on_exit))
@@ -727,7 +727,7 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     items: &[GroupItem<'a, M>],
     highest_alert_severity: Severity,
     config: &'a Config,
-    bar_position: Position,
+    panel_position: Position,
     clock: Clock,
 ) -> Element<'a, Outer> {
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
@@ -740,7 +740,7 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     }
     .view(config, 0.0);
     PagerSlot::new(row.into(), indicator)
-        .view(config, bar_position)
+        .view(config, panel_position)
         .map(Outer::from)
 }
 

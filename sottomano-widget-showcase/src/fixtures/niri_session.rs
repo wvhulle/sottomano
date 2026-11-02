@@ -203,7 +203,7 @@ struct PlacedWindow {
 }
 
 pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::BottomBar(Box::new(session(
+    ShowcasedGroup::BottomPanel(Box::new(session(
         &NAMED_WORKSPACES[..BOTTOM_BAR_WORKSPACE_COUNT],
     )))
 }

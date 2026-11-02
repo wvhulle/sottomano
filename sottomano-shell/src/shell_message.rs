@@ -15,10 +15,10 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
 use sottomano_widgets::{
-    bar_slot_drag::DragMessage,
     desktop_index::ResolvedIcons,
     hover_tooltips::{PopupMessage, TooltipMessage},
     layer_surfaces::SurfaceRequest,
+    panel_slot_drag::DragMessage,
     toast_messages::NotificationMessage,
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage,

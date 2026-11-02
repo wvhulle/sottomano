@@ -13,7 +13,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         steady_label_width::{LabelShape, steady_label_width},
-        text::{FontFaces, bar_text},
+        text::{FontFaces, panel_text},
     },
 };
 
@@ -144,7 +144,7 @@ fn label_text<'a, Message: 'a>(
             };
             steady_label_width(
                 shape,
-                bar_text(&config.theme.font, label)
+                panel_text(&config.theme.font, label)
                     .style(tint.text_style())
                     .into(),
             )

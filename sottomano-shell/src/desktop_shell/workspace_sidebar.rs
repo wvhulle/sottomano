@@ -45,7 +45,7 @@ impl DesktopShell {
                         .sidebar_settings_group
                         .empty_workspace_folding(),
                     frame_style.drawn_corners(outlined_sides),
-                    self.bar_slot_context(Position::Left),
+                    self.panel_slot_context(Position::Left),
                 )
             })
             .map(|workspaces| {

@@ -109,7 +109,7 @@ impl GroupItemReading for Vec<KernelOccurrence> {
         ))])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         !self.is_empty()
     }
 }

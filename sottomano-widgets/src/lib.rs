@@ -1,10 +1,10 @@
 pub mod background_work;
-pub mod bar_slot_drag;
 pub mod clock;
 pub mod desktop_index;
 pub mod hover_tooltips;
 pub mod layer_surfaces;
 pub mod notification_toasts;
+pub mod panel_slot_drag;
 pub mod toast_messages;
 pub mod widget_groups;
 pub mod widgets;

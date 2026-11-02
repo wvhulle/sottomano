@@ -18,7 +18,7 @@ use crate::{
 };
 
 impl GroupItemReading for MachineInfo {
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.hardware_vendor.is_some() || self.hardware_model.is_some()
     }
 

@@ -71,7 +71,7 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
         .titled("Usage Credits")])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.used.is_positive() || self.limit.is_some()
     }
 
