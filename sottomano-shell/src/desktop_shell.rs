@@ -1,18 +1,16 @@
-pub mod bottom_bar;
 mod config_adoption;
+pub mod desktop_panels;
 mod group_actions;
 pub mod hover_card_updates;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
 mod niri_event_updates;
 pub mod notification_updates;
-pub mod panel_bar;
 pub mod pointer_drag;
 mod shell_widget_group_readings;
 mod shell_widget_group_subscriptions;
 pub mod shell_widget_groups;
 mod sqlite_app_launches;
-pub mod top_bar;
 pub mod workspace_sidebar;
 
 use std::{
@@ -462,9 +460,7 @@ impl DesktopShell {
         let HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic)) = target else {
             return None;
         };
-        let group_menu = self
-            .bar_group_menus()
-            .find(|group_menu| group_menu.topic() == *topic)?;
+        let group_menu = self.group_menu_of(*topic);
         let inspected_hover_card = self
             .widget_groups
             .group_menus

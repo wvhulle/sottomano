@@ -13,7 +13,13 @@ use sottomano_widgets::{
     },
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{
+        DesktopShell,
+        desktop_panels::panel_bar_composition::{BOTTOM_PANEL, TOP_PANEL},
+    },
+    shell_message::Message,
+};
 
 fn anchor_hover_cards_on_surface(
     surface: Id,
@@ -55,9 +61,9 @@ impl DesktopShell {
         .center_y(Length::Fill);
         stack![
             column![
-                on_edge(Position::Top, self.top_bar()),
+                on_edge(Position::Top, self.panel_bar_view(&TOP_PANEL, output)),
                 workspace_sidebar,
-                on_edge(Position::Bottom, self.bottom_bar(output)),
+                on_edge(Position::Bottom, self.panel_bar_view(&BOTTOM_PANEL, output)),
             ]
             .padding(float)
         ]

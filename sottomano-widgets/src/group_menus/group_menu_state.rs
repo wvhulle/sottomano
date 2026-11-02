@@ -33,6 +33,18 @@ pub enum GroupMenuTopic {
 }
 
 impl GroupMenuTopic {
+    pub const ALL: [GroupMenuTopic; 9] = [
+        GroupMenuTopic::Hardware,
+        GroupMenuTopic::Network,
+        GroupMenuTopic::Agenda,
+        GroupMenuTopic::Media,
+        GroupMenuTopic::Display,
+        GroupMenuTopic::Services,
+        GroupMenuTopic::Session,
+        GroupMenuTopic::Appearance,
+        GroupMenuTopic::Behaviour,
+    ];
+
     #[must_use]
     pub const fn title(self) -> &'static str {
         match self {
