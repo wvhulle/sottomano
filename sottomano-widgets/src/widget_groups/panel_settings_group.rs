@@ -4,20 +4,26 @@ use sottomano_sources::sqlite_state_store::Columns;
 
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::sqlite_shell_settings_row::{self, ShellSetting},
-    widgets::{
+    group_items::{
         group_item::GroupItem,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
-        phosphor::{Phosphor, Weight},
-        shell_layer_appearance::{LayerAppearance, ShellLayer},
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        widget_group::{
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+    },
+    widget_groups::{
+        sqlite_shell_settings_row,
+        sqlite_shell_settings_row::ShellSetting,
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
         },
+    },
+    widgets::{
+        layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
+        phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
     },
 };
 

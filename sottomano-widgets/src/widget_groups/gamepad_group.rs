@@ -48,21 +48,25 @@ use self::{
 use crate::{
     background_work::{niri_action, snapshot_subscription},
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::group_menus::group_source_demand::GroupSourceDemand,
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        toggle_control::{IconToggle, SwitchPresses},
+    },
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody, Section,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    },
+    widgets::{
         input_report_sections::MeasuredReportTiming,
         phosphor::{Phosphor, Weight},
-        toggle_control::{IconToggle, SwitchPresses},
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
     },
 };
 

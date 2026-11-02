@@ -1,8 +1,10 @@
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    widget_groups::{group_menus::GroupMenuTopic, notification_group::NotificationStatus},
-    widgets::{group_menu::GroupMenuView, widget_group::WidgetGroupContent},
+    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
+    widget_groups::{
+        notification_group::NotificationStatus, widget_group_content::WidgetGroupContent,
+    },
 };
 
 use crate::{

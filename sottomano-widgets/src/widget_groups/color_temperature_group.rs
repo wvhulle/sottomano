@@ -17,19 +17,23 @@ use uom::si::thermodynamic_temperature::kelvin;
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widgets::{
+    group_items::{
         group_item::GroupItem,
-        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-        latest_snapshot::LatestSnapshot,
-        phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
+        latest_snapshot::LatestSnapshot,
+        phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

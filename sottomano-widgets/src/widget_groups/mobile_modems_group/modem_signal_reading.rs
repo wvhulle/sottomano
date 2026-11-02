@@ -4,15 +4,16 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        gauge::percent_fill, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::interface_address_sections::{AddressFamily, signal_level},
     widgets::{
-        gauge::percent_fill,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

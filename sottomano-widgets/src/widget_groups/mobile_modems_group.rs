@@ -18,21 +18,22 @@ use self::modem_signal_reading::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::{
-        group_menus::group_source_demand::GroupSourceDemand,
-        interface_address_sections::{AddressFamily, InterfaceAddressReading},
-    },
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        value_cells::LabeledValue,
-        widget_group::{
+    },
+    widget_groups::{
+        interface_address_sections::{AddressFamily, InterfaceAddressReading},
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupTitle,
         },
+    },
+    widgets::{
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        value_cells::LabeledValue,
     },
 };
 

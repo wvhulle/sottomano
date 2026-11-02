@@ -3,9 +3,9 @@ use sottomano_sources::wallpaper_place_article::Wallpaper;
 
 use crate::{
     clock::Clock,
+    group_items::group_item_reading::GroupItemReading,
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},

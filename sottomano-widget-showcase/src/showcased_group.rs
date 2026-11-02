@@ -17,8 +17,11 @@ use sottomano_sources::{
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_cards::HoverTarget,
-    panel_slot_drag::PanelSlotContext,
+    desktop_panels::{
+        panel_frame::{LayerFrameStyle, OutlinedSides},
+        panel_slot_drag::PanelSlotContext,
+    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
@@ -38,6 +41,7 @@ use sottomano_widgets::{
         vpn_group::VpnGroup,
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
+        widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
@@ -48,11 +52,8 @@ use sottomano_widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::{background_color, primary_color, secondary_text_color, success_color},
         favicon::Favicons,
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        panel_frame::{LayerFrameStyle, OutlinedSides},
         pointer_drag::DragView,
         shell_layer_appearance::ShellLayer,
-        widget_group::WidgetGroupContent,
         window_icon::WindowAssets,
     },
 };

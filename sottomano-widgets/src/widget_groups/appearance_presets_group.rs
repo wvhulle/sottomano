@@ -2,22 +2,26 @@ use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_cards::HoverTarget,
-    widgets::{
-        appearance_presets::{AppearancePreset, ShellAppearance},
-        configured_theme::text_color,
-        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+    group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::widget_group_content::{WidgetGroup, WidgetGroupContent},
+    widgets::{
+        appearance_presets::{AppearancePreset, ShellAppearance},
+        configured_theme::text_color,
+        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
-        widget_group::{WidgetGroup, WidgetGroupContent},
     },
 };
 

@@ -6,18 +6,19 @@ use sottomano_sources::screen_brightness_color::solar_switch_schedule::{
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{
+        HoverCardBody,
+        hover_card_source_delivery::{DeliveryTiming, HoverCard},
+    },
     widget_groups::dark_mode_group::sqlite_dark_mode_schedule::DarkModeSchedule,
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{
-            HoverCardBody,
-            hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::{LabeledValue, ValueCell},
     },
 };

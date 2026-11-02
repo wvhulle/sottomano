@@ -2,27 +2,32 @@ use iced::Task;
 
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
-    widget_groups::{
-        quiet_schedule_group::QuietScheduleTarget,
-        sqlite_shell_settings_row::{self, ShellSetting},
-    },
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+        toggle_control::{IconToggle, SwitchPresses},
+    },
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::{
+        quiet_schedule_group::QuietScheduleTarget,
+        sqlite_shell_settings_row,
+        sqlite_shell_settings_row::ShellSetting,
+        widget_group_content::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+    },
+    widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
-        toggle_control::{IconToggle, SwitchPresses},
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        },
     },
 };
 

@@ -1,0 +1,116 @@
+use std::borrow::Cow;
+
+use iced::{
+    Alignment, Background, Border, Element, Length, Padding, Theme,
+    border::Radius,
+    widget::{Row, button, container, mouse_area, text::Wrapping},
+};
+use sottomano_config::Config;
+
+use crate::{
+    group_items::group_item::MenuParts,
+    widget_groups::widget_group_content::GroupEvent,
+    widgets::{
+        configured_theme::{primary_weak_color, text_color},
+        text::panel_text,
+    },
+};
+
+pub(crate) struct MenuRowContent<'a, M> {
+    pub leading: Vec<Element<'a, GroupEvent<M>>>,
+    pub parts: MenuParts<'a, M>,
+    pub name: Cow<'static, str>,
+    pub trailing: Vec<Element<'a, GroupEvent<M>>>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct MenuRowLook {
+    pub highlighted: bool,
+    pub corners: Radius,
+}
+
+pub(crate) fn menu_row_height(config: &Config) -> f32 {
+    config.layout.panel.height + config.layout.overlay.row_spacing
+}
+
+fn pressable_menu_row<'a, M: Clone + 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+    look: MenuRowLook,
+    press: GroupEvent<M>,
+) -> Element<'a, GroupEvent<M>> {
+    button(menu_line(config, content))
+        .width(Length::Fill)
+        .height(menu_row_height(config))
+        .padding(menu_row_padding(config))
+        .style(move |theme, status| menu_row_style(theme, status, look))
+        .on_press(press)
+        .into()
+}
+
+pub(crate) fn hovered_menu_row<'a, M: Clone + 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+    look: MenuRowLook,
+    press: GroupEvent<M>,
+    hover: GroupEvent<M>,
+) -> Element<'a, GroupEvent<M>> {
+    mouse_area(pressable_menu_row(config, content, look, press))
+        .on_enter(hover)
+        .into()
+}
+
+fn menu_line<'a, M: 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+) -> Row<'a, GroupEvent<M>> {
+    let MenuRowContent {
+        leading,
+        parts,
+        name,
+        trailing,
+    } = content;
+    Row::new()
+        .extend(leading)
+        .push(leading_icon_slot(config, parts.icon))
+        .push(
+            container(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
+                .width(Length::Fill)
+                .clip(true),
+        )
+        .push(parts.value)
+        .extend(trailing)
+        .spacing(config.layout.overlay.column_spacing)
+        .height(Length::Fill)
+        .align_y(Alignment::Center)
+}
+
+fn leading_icon_slot<'a, M: 'a>(
+    config: &Config,
+    icon: Element<'a, GroupEvent<M>>,
+) -> Element<'a, GroupEvent<M>> {
+    let slot_width = config.layout.panel.height;
+    let glyph_inset = (slot_width - config.theme.font.icon_size_px) / 2.0;
+    container(icon)
+        .width(slot_width)
+        .padding(Padding::ZERO.left(glyph_inset))
+        .into()
+}
+
+fn menu_row_padding(config: &Config) -> Padding {
+    Padding::ZERO.horizontal(config.layout.overlay.content_inset)
+}
+
+fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {
+    let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
+    button::Style {
+        background: (look.highlighted || hovered)
+            .then(|| Background::Color(primary_weak_color(theme))),
+        text_color: text_color(theme),
+        border: Border {
+            radius: look.corners,
+            ..Border::default()
+        },
+        ..button::Style::default()
+    }
+}

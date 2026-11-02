@@ -1,7 +1,6 @@
-use crate::widgets::{
-    phosphor::{Phosphor, Weight},
-    toggle_control::SwitchPresses,
-    unit_switch::UnitSwitchFace,
+use crate::{
+    group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 pub const SUN_FOLLOW: UnitSwitchFace = UnitSwitchFace {

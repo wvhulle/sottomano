@@ -15,20 +15,18 @@ use sottomano_sources::login_session_presence::{
 pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     clock::Clock,
-    hover_cards::GroupHandle,
+    group_items::{group_item::GroupItem, slider_control::ControlMessage},
+    hover_cards::{GroupHandle, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
     widgets::{
-        group_item::GroupItem,
-        hover_card_body::hover_card_source_delivery::HoverCard,
         idle::{
             ActionTrigger, performed_idle_action_edges,
             timer::{IdleTimer, TimerChange},
         },
         phosphor::{Phosphor, Weight},
-        slider_control::ControlMessage,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

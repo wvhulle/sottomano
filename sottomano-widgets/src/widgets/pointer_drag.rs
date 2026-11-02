@@ -12,7 +12,7 @@ use iced::{
     window,
 };
 
-use crate::widgets::panel_frame::LayerFrameStyle;
+use crate::desktop_panels::panel_frame::LayerFrameStyle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DraggedPanelSlot {

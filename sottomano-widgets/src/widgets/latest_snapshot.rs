@@ -7,18 +7,20 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::{
+        HoverTarget,
         hover_card_body::{
             HoverCardBody, ReadingSections, Section,
             hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
         },
-        icon_glyph::IconGlyph,
-        offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
-        reading_display_state::ReadingDisplayState,
     },
+    widgets::icon_glyph::IconGlyph,
 };
 
 pub struct FailedSnapshotFetch<S: SnapshotSource> {

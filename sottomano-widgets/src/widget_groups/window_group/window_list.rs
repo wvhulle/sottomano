@@ -22,28 +22,36 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_cards::{HoverCardMessage, PressHints, hoverable},
-    panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
-    widget_groups::window_group::{WindowTarget, process_tree::Folding},
+    desktop_panels::{
+        panel_frame::panel_frame,
+        panel_slot::PanelSlot,
+        panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
+    },
+    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
+    hover_cards::{
+        HoverCardMessage, PressHints,
+        hover_card_body::{Section, hover_card_source_delivery::SourcedSections},
+        hoverable,
+    },
+    widget_groups::window_group::{
+        WindowTarget,
+        process_tree::Folding,
+        window_list_viewport::{Metrics, window_list_viewport},
+    },
     widgets::{
         DISABLED_ALPHA,
         activity_line::activity_line,
         configured_theme::{
             background_color, background_strong_color, danger_color, primary_color, warning_color,
         },
-        hover_card_body::{Section, hover_card_source_delivery::SourcedSections},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
-        pager_slot::PagerSlot,
-        panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
             DraggedPanelSlot, PanelSlotList, draggable_slot::draggable_slot, slot_pager::slot_pager,
         },
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         text::FontFaces,
         window_icon::{WindowAssets, window_icon},
-        window_list_viewport::{Metrics, window_list_viewport},
         window_title::WindowTitle,
     },
 };
@@ -444,7 +452,7 @@ impl WindowSlot<'_> {
         let tiled =
             self.window_entry.layout.column.is_some() && !self.window_entry.layout.is_floating;
         let pressable = draggable_slot(
-            self.pager_slot(icons),
+            self.panel_slot(icons),
             press,
             tiled,
             &self.slot_context.drag,
@@ -458,7 +466,7 @@ impl WindowSlot<'_> {
         }
     }
 
-    fn pager_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
+    fn panel_slot<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
         let config = self.slot_context.config;
         let window = self.window_entry.id;
         let press_hints = self.press_hints();
@@ -490,11 +498,11 @@ impl WindowSlot<'_> {
             .extend(inspecting)
             .spacing(config.layout.panel.widget_spacing)
             .align_y(Alignment::Center);
-        let pager_slot = PagerSlot::new(content.into(), self.indicator_line())
+        let panel_slot = PanelSlot::new(content.into(), self.indicator_line())
             .spaced_by(config.layout.panel.group_spacing);
         match self.progress_ticks() {
-            Some(ticks) => pager_slot.ticks(ticks),
-            None => pager_slot,
+            Some(ticks) => panel_slot.ticks(ticks),
+            None => panel_slot,
         }
         .view(config, self.slot_context.edge)
     }
@@ -633,7 +641,7 @@ mod tests {
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
-        panel_slot_drag::{
+        desktop_panels::panel_slot_drag::{
             DragMessage, PanelSlotContext,
             pager_drag_simulation::{
                 SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,

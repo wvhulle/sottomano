@@ -20,25 +20,25 @@ use sottomano_sources::screen_brightness_color::solar_switch_schedule::ColorMode
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
+    desktop_panels::panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
+    group_menus::{
+        cascading_layout::cascade_row::CascadeOrientation,
+        group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
+        group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
+    },
     hover_cards::{
         GroupHandle, HoverCardHost, HoverCardMessage, HoverTarget,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
     toast_messages::NotificationMessage,
-    widget_groups::{
-        appearance_presets_group::AppearancePresetsMessage,
-        group_menus::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
-    },
+    widget_groups::appearance_presets_group::AppearancePresetsMessage,
     widgets::{
         appearance_presets::ShellAppearance,
-        cascade_row::CascadeOrientation,
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
-        hover_card_body::hover_card_source_delivery::HoverCard,
-        panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         text::FontFaces,
         window_icon::WindowAssets,
     },

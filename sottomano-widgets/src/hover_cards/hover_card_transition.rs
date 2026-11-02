@@ -5,9 +5,8 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 
-use crate::{
-    hover_cards::{HoverAnnouncement, HoverTarget},
-    widgets::hover_card_body::hover_card_source_delivery::HoverCard,
+use crate::hover_cards::{
+    HoverAnnouncement, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
 };
 
 #[derive(Debug, Clone)]

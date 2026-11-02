@@ -1,8 +1,11 @@
+pub mod anchored_popup;
 pub mod core_grid;
 pub mod hover_area;
+pub mod hover_card_body;
 pub mod hover_card_content;
 pub mod hover_card_surfaces;
 pub mod hover_card_transition;
+pub mod popup_connector;
 
 use iced::{Rectangle, window::Id};
 use sottomano_config::screen_edges::Position;
@@ -13,6 +16,7 @@ pub use crate::hover_cards::{
     hover_card_surfaces::HoverCardHost,
 };
 use crate::{
+    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::AudioTarget,
@@ -27,7 +31,6 @@ use crate::{
         ethernet_ports_group::EthernetPortTarget,
         gamepad_group::GamepadTarget,
         gpu_group::GpuTarget,
-        group_menus::{GroupMenuPin, GroupMenuTopic},
         journal_events_group::JournalTarget,
         llama_server_group::LlamaServerTarget,
         login_session_group::LoginSessionTarget,
@@ -54,13 +57,11 @@ use crate::{
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
+        widget_group_content::WidgetGroupTitle,
         wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupMessage, WindowTarget},
     },
-    widgets::{
-        phosphor::{Phosphor, Weight},
-        widget_group::WidgetGroupTitle,
-    },
+    widgets::phosphor::{Phosphor, Weight},
 };
 
 #[derive(Debug, Clone, PartialEq)]

@@ -7,14 +7,15 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
         value_cells::{LabeledValue, ValueCell},
     },

@@ -18,15 +18,17 @@ use super::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    widgets::{
+    group_items::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
-        hover_card_body::{
-            HoverCardBody, Section,
-            hover_card_source_delivery::{HoverCard, SourcedSections},
-        },
-        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
+    },
+    hover_cards::hover_card_body::{
+        HoverCardBody, Section,
+        hover_card_source_delivery::{HoverCard, SourcedSections},
+    },
+    widgets::{
+        latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         value_cells::{LabeledValue, ValueCell},
     },
 };

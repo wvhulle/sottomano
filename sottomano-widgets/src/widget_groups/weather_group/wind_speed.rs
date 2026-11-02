@@ -3,10 +3,12 @@ use sottomano_sources::weather::open_meteo_wind::Wind;
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::HoverCardBody,
     widgets::{
-        group_item_reading::GroupItemReading, hover_card_body::HoverCardBody,
-        icon_glyph::IconGlyph, localized_quantities::Quantity,
-        reading_display_state::ReadingDisplayState, value_cells::LabeledValue,
+        icon_glyph::IconGlyph, localized_quantities::Quantity, value_cells::LabeledValue,
         weather_icons::WeatherIcon,
     },
 };

@@ -7,13 +7,15 @@ use uom::si::f64::ThermodynamicTemperature;
 
 use crate::{
     clock::Clock,
-    widgets::{
+    group_items::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::{HoverCardBody, Section},
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
+    widgets::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

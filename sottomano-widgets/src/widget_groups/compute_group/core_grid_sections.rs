@@ -1,12 +1,12 @@
 use sottomano_sources::cpu_memory_compute::cpu_topology::{CoreGroup, CpuTopology};
 use uom::si::information::mebibyte;
 
-use crate::widgets::{
-    hover_card_body::{
+use crate::{
+    hover_cards::hover_card_body::{
         Section,
         hover_card_figure_payloads::{ChipletCells, PhysicalCoreCells, ThreadCell},
     },
-    value_cells::LabeledValue,
+    widgets::value_cells::LabeledValue,
 };
 
 pub trait PerCoreReading {

@@ -1,6 +1,6 @@
 use sottomano_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment;
 
-use crate::widgets::widget_group::WidgetGroupTitle;
+use crate::widget_groups::widget_group_content::WidgetGroupTitle;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AttachmentTitles {

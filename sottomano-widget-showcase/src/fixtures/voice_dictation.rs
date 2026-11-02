@@ -17,10 +17,10 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
+    group_items::unit_switch::UnitSwitchMessage,
     widget_groups::voice_dictation_group::{
         VoiceDictationGroup, VoiceDictationMessage, VoiceDictationTarget,
     },
-    widgets::unit_switch::UnitSwitchMessage,
 };
 
 use crate::showcased_group::ShowcasedGroup;

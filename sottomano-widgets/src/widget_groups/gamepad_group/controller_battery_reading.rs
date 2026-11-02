@@ -4,12 +4,13 @@ use sottomano_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadP
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::HoverCardBody,
     widgets::{
-        group_item_reading::GroupItemReading,
-        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::LabeledValue,
     },
 };

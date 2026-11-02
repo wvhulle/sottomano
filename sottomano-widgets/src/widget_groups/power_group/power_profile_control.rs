@@ -19,17 +19,17 @@ use uom::si::{f64::Power, power::watt};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
+    group_items::slider_control::{Action, ControlMessage, SliderControl},
+    hover_cards::hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     widget_groups::power_group::{
         PowerTarget,
         estimate_columns::{ESTIMATE_HEADINGS, Forecast, Unforecastable},
         sqlite_power_draw_regression,
     },
     widgets::{
-        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         keyed_record_table::{IntoTableRecord, TableRecord},
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        slider_control::{Action, ControlMessage, SliderControl},
         value_cells::LabeledValue,
     },
 };

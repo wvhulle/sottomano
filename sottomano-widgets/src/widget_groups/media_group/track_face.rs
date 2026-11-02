@@ -9,17 +9,21 @@ use uom::si::f64::Ratio;
 use super::{
     MediaMessage, MediaTarget, PlayerMessage, PlayerTarget, RAISE_PLAYER_HINT, player_message,
 };
-use crate::widgets::{
-    gauge::Gauge,
-    group_item::{
-        ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+use crate::{
+    group_items::{
+        gauge::Gauge,
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
-    icon_glyph::IconGlyph,
-    icon_handle::IconHandle,
-    phosphor::{Phosphor, Weight},
-    reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    simple_icons::SimpleIcon,
-    text::{FontFaces, LINE_HEIGHT},
+    widgets::{
+        icon_glyph::IconGlyph,
+        icon_handle::IconHandle,
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        text::{FontFaces, LINE_HEIGHT},
+    },
 };
 
 fn playback_state(media: &Media) -> ReadingDisplayState {

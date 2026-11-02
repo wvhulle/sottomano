@@ -17,8 +17,8 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
+    group_items::toggle_control::ToggleMessage,
     widget_groups::compute_group::{ComputeGroup, ComputeMessage, ComputeTarget},
-    widgets::toggle_control::ToggleMessage,
 };
 use uom::si::{
     f64::{Frequency, Power, Ratio, ThermodynamicTemperature},

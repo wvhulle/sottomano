@@ -2,6 +2,7 @@ mod clock_slider;
 pub mod quiet_window;
 mod sqlite_quiet_hours;
 mod sqlite_working_days;
+pub mod weekday_picker;
 
 use std::{ops::RangeInclusive, time::Duration};
 
@@ -21,29 +22,37 @@ use self::{
 };
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
-    widgets::{
+    group_items::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        slider_control::{Action, ControlMessage, SliderControl},
+        toggle_control::{IconToggle, SwitchPresses},
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+    },
+    widget_groups::{
+        quiet_schedule_group::{
+            quiet_window::{Phase, QuietWindow},
+            weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
+        },
+        widget_group_content::{
+            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+    },
+    widgets::{
         idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        slider_control::{Action, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPresses},
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
-        weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
-        widget_group::{
-            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupFace,
-        },
     },
 };
 

@@ -24,7 +24,11 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_cards::HoverTarget,
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    hover_cards::{
+        HoverTarget,
+        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
+    },
     widget_groups::{
         niri_window_group::niri_kdl_rules::HeatedWindow,
         session_focus_group::{
@@ -36,16 +40,11 @@ use crate::{
             session_face::SessionFace,
             window_usage::WindowUsage,
         },
-    },
-    widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
-        ongoing_toast::OngoingToastActionButton,
-        widget_group::{
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
+    widgets::ongoing_toast::OngoingToastActionButton,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

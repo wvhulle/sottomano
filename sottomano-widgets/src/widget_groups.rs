@@ -10,9 +10,9 @@ pub mod copilot_usage_group;
 pub mod dark_mode_group;
 mod echo_probe_window_rows;
 pub mod ethernet_ports_group;
+pub mod expand_animation;
 pub mod gamepad_group;
 pub mod gpu_group;
-pub mod group_menus;
 pub mod idle_timeouts_group;
 mod interface_address_sections;
 mod interface_group_titles;
@@ -45,6 +45,7 @@ pub mod voice_dictation_group;
 pub mod vpn_group;
 pub mod wallpaper_group;
 pub mod weather_group;
+pub mod widget_group_content;
 pub mod wifi_adapters_group;
 pub mod window_group;
 pub mod workspaces_group;
@@ -56,7 +57,7 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::{hover_card_body::Section, value_cells::LabeledValue};
+use crate::{hover_cards::hover_card_body::Section, widgets::value_cells::LabeledValue};
 
 impl From<GgufHeaderError> for Section {
     fn from(error: GgufHeaderError) -> Self {

@@ -12,7 +12,7 @@ use super::{
     },
 };
 use crate::{
-    panel_slot_drag::PanelSlotContext,
+    desktop_panels::panel_slot_drag::PanelSlotContext,
     widgets::{
         list_end_corners::ListEndCorners,
         pointer_drag::{PanelSlotList, slot_pager::slot_pager},

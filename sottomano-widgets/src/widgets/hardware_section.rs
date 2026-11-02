@@ -5,11 +5,13 @@ use sottomano_sources::{
     },
 };
 
-use crate::widgets::{
-    hover_card_body::Section,
-    localized_quantities::{DisplayUnit, Quantity},
-    value_cells::{LabeledValue, ValueCell},
-    vendor_logo::{PciVendorId, VendorLogo},
+use crate::{
+    hover_cards::hover_card_body::Section,
+    widgets::{
+        localized_quantities::{DisplayUnit, Quantity},
+        value_cells::{LabeledValue, ValueCell},
+        vendor_logo::{PciVendorId, VendorLogo},
+    },
 };
 
 impl Section {

@@ -3,10 +3,12 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, Interval, LAST_DAY,
 };
 
-use crate::widgets::{
-    hover_card_body::{HoverCardBody, Section},
-    keyed_record_table::{ColumnHeading, TableRecord},
-    value_cells::{LabeledValue, ValueCell},
+use crate::{
+    hover_cards::hover_card_body::{HoverCardBody, Section},
+    widgets::{
+        keyed_record_table::{ColumnHeading, TableRecord},
+        value_cells::{LabeledValue, ValueCell},
+    },
 };
 
 pub struct WindowUsage<'a> {

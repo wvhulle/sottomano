@@ -2,8 +2,8 @@ use sottomano_sources::voice_dictation_input::huggingface_model_card::HuggingFac
 
 use crate::{
     clock::Clock,
+    hover_cards::hover_card_body::{ReadingSections, Section},
     widgets::{
-        hover_card_body::{ReadingSections, Section},
         localized_quantities::Quantity,
         value_cells::{LabeledValue, ValueCell},
     },

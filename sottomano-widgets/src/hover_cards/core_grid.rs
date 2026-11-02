@@ -6,12 +6,12 @@ use sottomano_config::Config;
 use uom::si::ratio::ratio;
 
 use crate::{
-    hover_cards::PopupMessage,
-    widgets::{
-        configured_theme::secondary_text_color,
+    group_items::reading_display_state::ReadingDisplayState,
+    hover_cards::{
+        PopupMessage,
         hover_card_body::hover_card_figure_payloads::{PhysicalCoreCells, ThreadCell},
-        reading_display_state::ReadingDisplayState,
     },
+    widgets::configured_theme::secondary_text_color,
 };
 
 const OUTLINE_PX: f32 = 1.0;

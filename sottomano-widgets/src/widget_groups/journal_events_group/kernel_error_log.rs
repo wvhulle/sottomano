@@ -4,6 +4,11 @@ use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelOccur
 
 use crate::{
     clock::Clock,
+    group_items::{
+        group_item::GroupItem, group_item_reading::GroupItemReading,
+        reading_display_state::ReadingDisplayState,
+    },
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::{
         journal_events_group::{
             JournalEventsGroup, JournalEventsMessage, JournalTarget, MESSAGE_CAP,
@@ -11,14 +16,10 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        reading_display_state::ReadingDisplayState,
         value_cells::ValueCell,
     },
 };
@@ -124,7 +125,7 @@ mod tests {
     use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
 
     use super::*;
-    use crate::widgets::hover_card_body::SectionBody;
+    use crate::hover_cards::hover_card_body::SectionBody;
 
     #[test]
     fn hover_card_lists_latest_messages_oldest_first_after_a_hidden_notice() {

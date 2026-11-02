@@ -3,12 +3,12 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    widgets::{
+    group_items::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
-        hover_card_body::HoverCardBody,
-        icon_glyph::IconGlyph,
         reading_display_state::ReadingDisplayState,
     },
+    hover_cards::hover_card_body::HoverCardBody,
+    widgets::icon_glyph::IconGlyph,
 };
 
 pub struct NamedReading<'a> {

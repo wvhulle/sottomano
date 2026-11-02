@@ -13,10 +13,12 @@ use iced::{
 };
 use sottomano_config::{Config, severity::Severity};
 
-use crate::widgets::{
-    configured_theme::{background_color, background_strong_color, primary_color, text_color},
-    reading_display_state::ReadingDisplayState,
-    rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
+use crate::{
+    group_items::reading_display_state::ReadingDisplayState,
+    widgets::{
+        configured_theme::{background_color, background_strong_color, primary_color, text_color},
+        rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
+    },
 };
 
 const RESTING_KNOB_PER_GLYPH: f32 = 0.17;

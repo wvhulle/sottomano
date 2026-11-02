@@ -22,26 +22,27 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+    group_menus::group_source_demand::GroupSourceDemand,
+    hover_cards::{
+        GroupHandle, HoverTarget,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
+    },
     widget_groups::{
-        group_menus::group_source_demand::GroupSourceDemand,
         reachability_group::{
             metered_volume_tally::{MeteredVolumeTally, TallyFollowUp},
             sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
         },
+        widget_group_content::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
     widgets::{
-        group_item::GroupItem,
-        group_item_reading::GroupItemReading,
-        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

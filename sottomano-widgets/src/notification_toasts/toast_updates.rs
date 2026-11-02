@@ -29,10 +29,10 @@ use crate::{
     layer_surfaces::SurfaceRequest,
     notification_toasts::{NotificationSettings, ToastLayerHost},
     toast_messages::NotificationMessage,
+    widget_groups::widget_group_content::GroupToastRequests,
     widgets::{
         announced_level::LevelReading,
         ongoing_toast::{OngoingKey, OngoingToast},
-        widget_group::GroupToastRequests,
     },
 };
 

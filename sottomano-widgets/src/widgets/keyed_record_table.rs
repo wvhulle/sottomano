@@ -7,15 +7,17 @@ use iced::{
 };
 use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
 
-use crate::widgets::{
-    configured_theme::background_strong_color,
-    content_sized_table::{
-        ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
+use crate::{
+    group_items::reading_display_state::ReadingDisplayState,
+    widgets::{
+        configured_theme::background_strong_color,
+        content_sized_table::{
+            ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
+        },
+        ellipsis_rule::ellipsis_rule,
+        text::{LINE_HEIGHT, column_heading},
+        value_cells::{LabeledValue, ValueCell, ValueCellView},
     },
-    ellipsis_rule::ellipsis_rule,
-    reading_display_state::ReadingDisplayState,
-    text::{LINE_HEIGHT, column_heading},
-    value_cells::{LabeledValue, ValueCell, ValueCellView},
 };
 
 const SEPARATOR_RULE_THICKNESS_PX: f32 = 1.0;

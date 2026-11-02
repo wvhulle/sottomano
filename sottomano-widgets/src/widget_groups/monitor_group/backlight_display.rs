@@ -1,9 +1,9 @@
 use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, BacklightKind};
 
 use crate::{
+    hover_cards::hover_card_body::{HoverCardBody, Section},
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
-        hover_card_body::{HoverCardBody, Section},
         phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },

@@ -11,8 +11,8 @@ use iced::{
 };
 
 use crate::{
+    group_menus::group_menu_state::GroupMenuPin,
     hover_cards::{HoverAnnouncement, HoverCardMessage, HoverTarget, PressHints},
-    widget_groups::group_menus::GroupMenuPin,
 };
 
 pub fn hoverable<'a, M: 'a>(

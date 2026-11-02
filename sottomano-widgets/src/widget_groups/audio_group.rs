@@ -15,18 +15,22 @@ use sottomano_sources::{
 use self::channel_level_control::{audio_output_icon, feed, input_glyph};
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widgets::{
+    group_items::{
         group_item::GroupItem,
+        slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
+    },
+    widget_groups::widget_group_content::{
+        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupFace,
+    },
+    widgets::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
-        slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         value_cells::LabeledValue,
-        widget_group::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
-        },
     },
 };
 

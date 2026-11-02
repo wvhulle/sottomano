@@ -6,29 +6,35 @@ use sottomano_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_cards::{GroupHandle, HoverTarget},
-    widget_groups::niri_window_group::{
-        niri_kdl_rules::{
-            AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
-        },
-        switch_heat_borders::SwitchHeatBorders,
-    },
-    widgets::{
+    group_items::{
         aligned_quantity::AlignedQuantity,
         group_item::GroupItem,
+        slider_control::{Action as SliderAction, ControlMessage, SliderControl},
+        toggle_control::{IconToggle, SwitchPresses},
+    },
+    hover_cards::{
+        GroupHandle, HoverTarget,
         hover_card_body::{
             Section,
             hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
         },
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        slider_control::{Action as SliderAction, ControlMessage, SliderControl},
-        toggle_control::{IconToggle, SwitchPresses},
-        value_cells::{LabeledValue, ValueCell},
-        widget_group::{
+    },
+    widget_groups::{
+        niri_window_group::{
+            niri_kdl_rules::{
+                AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+            },
+            switch_heat_borders::SwitchHeatBorders,
+        },
+        widget_group_content::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
         },
+    },
+    widgets::{
+        phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
+        value_cells::{LabeledValue, ValueCell},
     },
 };
 
