@@ -141,6 +141,15 @@ pub struct AudioState {
     pub windows: Arc<HashMap<i32, WindowAudio>>,
 }
 
+impl AudioState {
+    fn channel(&self, direction: Direction) -> Option<&ChannelLevels> {
+        match direction {
+            Direction::Output => self.sink.as_ref(),
+            Direction::Input => self.source.as_ref(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum AudioEvent {
     Connected(Commands),
@@ -325,13 +334,6 @@ enum Direction {
 }
 
 impl Direction {
-    fn target(self) -> Target {
-        match self {
-            Direction::Output => Target::DefaultSink,
-            Direction::Input => Target::DefaultSource,
-        }
-    }
-
     fn label(self) -> &'static str {
         match self {
             Direction::Output => "sink",
@@ -405,7 +407,7 @@ struct AppStream {
 }
 
 #[derive(Debug, Default)]
-struct Graph {
+struct AudioGraph {
     nodes: HashMap<u32, AudioNode>,
     streams: HashMap<u32, AppStream>,
     routes: HashMap<u32, HashMap<u32, Route>>,
@@ -414,7 +416,83 @@ struct Graph {
     default_source: Option<String>,
 }
 
-impl Graph {
+struct DefaultNode<'graph> {
+    id: u32,
+    node: &'graph AudioNode,
+}
+
+impl AudioGraph {
+    fn add_node(&mut self, id: u32, node: AudioNode) {
+        self.nodes.insert(id, node);
+    }
+
+    fn set_placement(&mut self, id: u32, placement: RoutePlacement) {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.placement = Some(placement);
+        }
+    }
+
+    fn set_kind_hint(&mut self, id: u32, kind: OutputKind) {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.props_kind = Some(kind);
+        }
+    }
+
+    fn set_device_kind(&mut self, id: u32, kind: OutputKind) {
+        self.device_kinds.insert(id, kind);
+    }
+
+    fn merge_levels(&mut self, id: u32, update: LevelsUpdate) {
+        if let Some(node) = self.nodes.get_mut(&id) {
+            node.levels.merge(update);
+        } else if let Some(stream) = self.streams.get_mut(&id) {
+            stream.levels.merge(update);
+        }
+    }
+
+    fn add_stream(&mut self, id: u32, stream: AppStream) {
+        self.streams.insert(id, stream);
+    }
+
+    fn set_stream_info(&mut self, id: u32, pid: Option<i32>, running: bool) {
+        if let Some(stream) = self.streams.get_mut(&id) {
+            if pid.is_some() {
+                stream.pid = pid;
+            }
+            stream.running = running;
+        }
+    }
+
+    fn merge_route_levels(&mut self, device: u32, route: RouteLevels) {
+        let entry = self
+            .routes
+            .entry(device)
+            .or_default()
+            .entry(route.route_device)
+            .or_insert_with(|| Route {
+                index: route.index,
+                port_kind: None,
+                levels: Levels::default(),
+            });
+        entry.index = route.index;
+        entry.port_kind = route.port_kind;
+        entry.levels.merge(route.update);
+    }
+
+    fn set_default(&mut self, change: DefaultNodeChange) {
+        match change.direction {
+            Direction::Output => self.default_sink = change.name,
+            Direction::Input => self.default_source = change.name,
+        }
+    }
+
+    fn remove_object(&mut self, id: u32) {
+        self.nodes.remove(&id);
+        self.streams.remove(&id);
+        self.routes.remove(&id);
+        self.device_kinds.remove(&id);
+    }
+
     fn default_name(&self, direction: Direction) -> Option<&str> {
         match direction {
             Direction::Output => self.default_sink.as_deref(),
@@ -428,50 +506,78 @@ impl Graph {
             .filter(|node| node.direction == direction)
             .count()
     }
+
+    fn default_node(&self, direction: Direction) -> Option<DefaultNode<'_>> {
+        let name = self.default_name(direction)?;
+        self.nodes
+            .iter()
+            .filter(|(_, node)| node.name == name)
+            .max_by_key(|(id, node)| (node.serial, **id))
+            .map(|(id, node)| DefaultNode { id: *id, node })
+    }
+
+    fn active_route(&self, node: &AudioNode) -> Option<&Route> {
+        let placement = node.placement.as_ref()?;
+        self.routes
+            .get(&placement.device)?
+            .get(&placement.route_device)
+    }
+
+    fn effective_levels<'graph>(&'graph self, node: &'graph AudioNode) -> &'graph Levels {
+        self.active_route(node)
+            .map_or(&node.levels, |route| &route.levels)
+    }
+
+    fn channel_levels(&self, direction: Direction) -> Option<ChannelLevels> {
+        let DefaultNode { node, .. } = self.default_node(direction)?;
+        let levels = self.effective_levels(node);
+        let percent = levels.percent();
+        Some(ChannelLevels {
+            percent,
+            muted: levels.mute || percent == 0,
+            device: node.description.clone(),
+        })
+    }
+
+    fn resolved_output_kind(&self, node: &AudioNode) -> OutputKind {
+        self.active_route(node)
+            .and_then(|route| route.port_kind)
+            .or(node.props_kind)
+            .or_else(|| self.device_kinds.get(&node.device_id?).copied())
+            .unwrap_or_else(|| OutputKind::of_node_name(&node.name))
+    }
+
+    fn window_audio(&self) -> HashMap<i32, WindowAudio> {
+        let mut by_pid: HashMap<i32, WindowAudio> = HashMap::new();
+        for stream in self.streams.values() {
+            let Some(pid) = stream.pid else { continue };
+            let entry = by_pid.entry(pid).or_insert(WindowAudio {
+                playing: false,
+                muted: true,
+            });
+            entry.playing |= stream.running;
+            entry.muted &= stream.levels.mute;
+        }
+        by_pid
+    }
+
+    fn audio_state(&self) -> AudioState {
+        AudioState {
+            sink: self.channel_levels(Direction::Output),
+            source: self.channel_levels(Direction::Input),
+            output_kind: self
+                .default_node(Direction::Output)
+                .map(|default_sink| self.resolved_output_kind(default_sink.node))
+                .unwrap_or_default(),
+            windows: Arc::new(self.window_audio()),
+        }
+    }
 }
 
-#[derive(Debug)]
-enum Event {
-    NodeAdded {
-        id: u32,
-        node: AudioNode,
-    },
-    NodePlacement {
-        id: u32,
-        placement: RoutePlacement,
-    },
-    NodeKindHint {
-        id: u32,
-        kind: OutputKind,
-    },
-    DeviceKind {
-        id: u32,
-        kind: OutputKind,
-    },
-    Levels {
-        id: u32,
-        update: LevelsUpdate,
-    },
-    StreamAdded {
-        id: u32,
-        stream: AppStream,
-    },
-    StreamInfo {
-        id: u32,
-        pid: Option<i32>,
-        running: bool,
-    },
-    RouteLevels {
-        device: u32,
-        route: RouteLevels,
-    },
-    DefaultChanged {
-        direction: Direction,
-        name: Option<String>,
-    },
-    Removed {
-        id: u32,
-    },
+#[derive(Debug, PartialEq, Eq)]
+struct DefaultNodeChange {
+    direction: Direction,
+    name: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -480,172 +586,6 @@ struct RouteLevels {
     route_device: u32,
     port_kind: Option<OutputKind>,
     update: LevelsUpdate,
-}
-
-fn reduce(graph: &mut Graph, event: Event) {
-    match event {
-        Event::NodeAdded { id, node } => {
-            graph.nodes.insert(id, node);
-        }
-        Event::NodePlacement { id, placement } => {
-            if let Some(node) = graph.nodes.get_mut(&id) {
-                node.placement = Some(placement);
-            }
-        }
-        Event::NodeKindHint { id, kind } => {
-            if let Some(node) = graph.nodes.get_mut(&id) {
-                node.props_kind = Some(kind);
-            }
-        }
-        Event::DeviceKind { id, kind } => {
-            graph.device_kinds.insert(id, kind);
-        }
-        Event::Levels { id, update } => {
-            if let Some(node) = graph.nodes.get_mut(&id) {
-                node.levels.merge(update);
-            } else if let Some(stream) = graph.streams.get_mut(&id) {
-                stream.levels.merge(update);
-            }
-        }
-        Event::StreamAdded { id, stream } => {
-            graph.streams.insert(id, stream);
-        }
-        Event::StreamInfo { id, pid, running } => {
-            if let Some(stream) = graph.streams.get_mut(&id) {
-                if pid.is_some() {
-                    stream.pid = pid;
-                }
-                stream.running = running;
-            }
-        }
-        Event::RouteLevels { device, route } => {
-            let entry = graph
-                .routes
-                .entry(device)
-                .or_default()
-                .entry(route.route_device)
-                .or_insert_with(|| Route {
-                    index: route.index,
-                    port_kind: None,
-                    levels: Levels::default(),
-                });
-            entry.index = route.index;
-            entry.port_kind = route.port_kind;
-            entry.levels.merge(route.update);
-        }
-        Event::DefaultChanged { direction, name } => match direction {
-            Direction::Output => graph.default_sink = name,
-            Direction::Input => graph.default_source = name,
-        },
-        Event::Removed { id } => {
-            graph.nodes.remove(&id);
-            graph.streams.remove(&id);
-            graph.routes.remove(&id);
-            graph.device_kinds.remove(&id);
-        }
-    }
-}
-
-fn node_id_by_name(graph: &Graph, name: &str) -> Option<u32> {
-    graph
-        .nodes
-        .iter()
-        .filter(|(_, node)| node.name == name)
-        .max_by_key(|(id, node)| (node.serial, **id))
-        .map(|(id, _)| *id)
-}
-
-fn default_node_id(graph: &Graph, target: Target) -> Option<u32> {
-    let name = match target {
-        Target::DefaultSink => graph.default_sink.as_deref()?,
-        Target::DefaultSource => graph.default_source.as_deref()?,
-        Target::AppStreams(_) => return None,
-    };
-    node_id_by_name(graph, name)
-}
-
-fn route_levels<'graph>(graph: &'graph Graph, node: &AudioNode) -> Option<&'graph Levels> {
-    let placement = node.placement.as_ref()?;
-    let route = graph.routes.get(&placement.device)?;
-    Some(&route.get(&placement.route_device)?.levels)
-}
-
-fn effective_levels<'graph>(graph: &'graph Graph, node: &'graph AudioNode) -> &'graph Levels {
-    route_levels(graph, node).unwrap_or(&node.levels)
-}
-
-fn reading(graph: &Graph, name: &str) -> Option<ChannelLevels> {
-    let node = graph.nodes.get(&node_id_by_name(graph, name)?)?;
-    let levels = effective_levels(graph, node);
-    let percent = levels.percent();
-    Some(ChannelLevels {
-        percent,
-        muted: levels.mute || percent == 0,
-        device: node.description.clone(),
-    })
-}
-
-fn active_port_kind(graph: &Graph, node: &AudioNode) -> Option<OutputKind> {
-    let placement = node.placement.as_ref()?;
-    graph
-        .routes
-        .get(&placement.device)?
-        .get(&placement.route_device)?
-        .port_kind
-}
-
-fn resolved_output_kind(graph: &Graph, node: &AudioNode) -> OutputKind {
-    active_port_kind(graph, node)
-        .or(node.props_kind)
-        .or_else(|| graph.device_kinds.get(&node.device_id?).copied())
-        .unwrap_or_else(|| OutputKind::of_node_name(&node.name))
-}
-
-fn default_output_kind(graph: &Graph) -> OutputKind {
-    graph
-        .default_sink
-        .as_deref()
-        .and_then(|name| graph.nodes.get(&node_id_by_name(graph, name)?))
-        .map(|node| resolved_output_kind(graph, node))
-        .unwrap_or_default()
-}
-
-fn snapshot(graph: &Graph) -> AudioState {
-    AudioState {
-        sink: graph
-            .default_sink
-            .as_deref()
-            .and_then(|name| reading(graph, name)),
-        source: graph
-            .default_source
-            .as_deref()
-            .and_then(|name| reading(graph, name)),
-        output_kind: default_output_kind(graph),
-        windows: Arc::new(window_audio(graph)),
-    }
-}
-
-fn window_audio(graph: &Graph) -> HashMap<i32, WindowAudio> {
-    let mut by_pid: HashMap<i32, WindowAudio> = HashMap::new();
-    for stream in graph.streams.values() {
-        let Some(pid) = stream.pid else { continue };
-        let entry = by_pid.entry(pid).or_insert(WindowAudio {
-            playing: false,
-            muted: true,
-        });
-        entry.playing |= stream.running;
-        entry.muted &= stream.levels.mute;
-    }
-    by_pid
-}
-
-fn stream_ids(graph: &Graph, pid: i32) -> Vec<u32> {
-    graph
-        .streams
-        .iter()
-        .filter(|(_, stream)| stream.pid == Some(pid))
-        .map(|(id, _)| *id)
-        .collect()
 }
 
 enum LevelChange {
@@ -728,117 +668,91 @@ impl GraphEnumeration {
 }
 
 #[derive(Default)]
-struct Session {
-    graph: Graph,
+struct BoundAudioSession {
+    graph: AudioGraph,
     proxies: Proxies,
     enumeration: GraphEnumeration,
     reported_missing: HashSet<Direction>,
 }
 
-enum Destination<'session> {
-    Route {
-        device: &'session Device,
-        index: u32,
-        route_device: u32,
-    },
-    NodeProps(&'session Node),
-}
-
-fn destination(session: &Session, id: u32) -> Option<Destination<'_>> {
-    route_destination(session, id).or_else(|| {
-        Some(Destination::NodeProps(
-            &session.proxies.nodes.get(&id)?.proxy,
-        ))
-    })
-}
-
-fn route_destination(session: &Session, id: u32) -> Option<Destination<'_>> {
-    let placement = session.graph.nodes.get(&id)?.placement.as_ref()?;
-    let route = session
-        .graph
-        .routes
-        .get(&placement.device)?
-        .get(&placement.route_device)?;
-    Some(Destination::Route {
-        device: &session.proxies.devices.get(&placement.device)?.proxy,
-        index: route.index,
-        route_device: placement.route_device,
-    })
-}
-
-fn apply(session: &Session, target: Target, kind: CommandKind) -> Option<i64> {
-    if let Target::AppStreams(pid) = target {
-        return apply_to_streams(session, pid, kind);
+fn apply_level_command(
+    session: &BoundAudioSession,
+    target: Target,
+    kind: CommandKind,
+) -> Option<i64> {
+    match target {
+        Target::DefaultSink => apply_to_default(session, Direction::Output, kind),
+        Target::DefaultSource => apply_to_default(session, Direction::Input, kind),
+        Target::AppStreams(pid) => apply_to_streams(session, pid, kind),
     }
-    let id = default_node_id(&session.graph, target)?;
-    let node = session.graph.nodes.get(&id)?;
-    let resolved = resolve(effective_levels(&session.graph, node), kind)?;
-    write(session, id, &resolved.change)?;
+}
+
+fn apply_to_default(
+    session: &BoundAudioSession,
+    direction: Direction,
+    kind: CommandKind,
+) -> Option<i64> {
+    let DefaultNode { id, node } = session.graph.default_node(direction)?;
+    let resolved = resolve(session.graph.effective_levels(node), kind)?;
+    write_level_change(session, id, &resolved.change)?;
     Some(resolved.percent)
 }
 
-fn apply_to_streams(session: &Session, pid: i32, kind: CommandKind) -> Option<i64> {
-    let ids = stream_ids(&session.graph, pid);
-    let muted = !ids.is_empty() && ids.iter().all(|id| session.graph.streams[id].levels.mute);
-    ids.iter()
-        .filter_map(|id| {
-            let levels = &session.graph.streams.get(id)?.levels;
+fn apply_to_streams(session: &BoundAudioSession, pid: i32, kind: CommandKind) -> Option<i64> {
+    let app_streams: Vec<_> = session
+        .graph
+        .streams
+        .iter()
+        .filter(|(_, stream)| stream.pid == Some(pid))
+        .collect();
+    let muted = !app_streams.is_empty() && app_streams.iter().all(|(_, stream)| stream.levels.mute);
+    app_streams
+        .iter()
+        .filter_map(|(id, stream)| {
             let resolved = match kind {
                 CommandKind::ToggleMute => Resolved {
                     change: LevelChange::Mute(!muted),
-                    percent: levels.percent(),
+                    percent: stream.levels.percent(),
                 },
-                _ => resolve(levels, kind)?,
+                CommandKind::SetVolume(_) | CommandKind::AdjustVolume(_) => {
+                    resolve(&stream.levels, kind)?
+                }
             };
-            write(session, *id, &resolved.change)?;
+            write_level_change(session, **id, &resolved.change)?;
             Some(resolved.percent)
         })
         .reduce(|_, percent| percent)
 }
 
-fn write(session: &Session, id: u32, change: &LevelChange) -> Option<()> {
-    match destination(session, id)? {
-        Destination::Route {
-            device,
-            index,
-            route_device,
-        } => {
-            let bytes = pod_bytes(&route_object(index, route_device, change))?;
-            device.set_param(ParamType::Route, 0, Pod::from_bytes(&bytes)?);
-        }
-        Destination::NodeProps(node) => {
-            let bytes = pod_bytes(&props_object(vec![level_property(change)]))?;
-            node.set_param(ParamType::Props, 0, Pod::from_bytes(&bytes)?);
-        }
-    }
+fn write_level_change(session: &BoundAudioSession, id: u32, change: &LevelChange) -> Option<()> {
+    write_to_route(session, id, change).or_else(|| write_to_node_props(session, id, change))
+}
+
+fn write_to_route(session: &BoundAudioSession, id: u32, change: &LevelChange) -> Option<()> {
+    let node = session.graph.nodes.get(&id)?;
+    let placement = node.placement.as_ref()?;
+    let route = session.graph.active_route(node)?;
+    let device = &session.proxies.devices.get(&placement.device)?.proxy;
+    let bytes = pod_bytes(&route_object(route.index, placement.route_device, change))?;
+    device.set_param(ParamType::Route, 0, Pod::from_bytes(&bytes)?);
     Some(())
 }
 
-type Publisher = Rc<watch::Sender<AudioState>>;
-type Shared = Rc<RefCell<Session>>;
-
-fn dispatch(session: &Shared, states: &Publisher, event: Event) {
-    reduce(&mut session.borrow_mut().graph, event);
-    let next = snapshot(&session.borrow().graph);
-    states.send_if_modified(|current| {
-        if *current == next {
-            return false;
-        }
-        report_unresolved(current, &next, &session.borrow().graph);
-        *current = next;
-        true
-    });
-    report_missing_defaults(&mut session.borrow_mut());
+fn write_to_node_props(session: &BoundAudioSession, id: u32, change: &LevelChange) -> Option<()> {
+    let node = &session.proxies.nodes.get(&id)?.proxy;
+    let bytes = pod_bytes(&props_object(vec![level_property(change)]))?;
+    node.set_param(ParamType::Props, 0, Pod::from_bytes(&bytes)?);
+    Some(())
 }
 
-fn report_missing_defaults(session: &mut Session) {
+fn report_missing_defaults(session: &mut BoundAudioSession) {
     if !matches!(session.enumeration, GraphEnumeration::Settled) {
         return;
     }
     for direction in [Direction::Output, Direction::Input] {
         let graph = &session.graph;
         let present = graph.node_count(direction);
-        if default_node_id(graph, direction.target()).is_some() || present == 0 {
+        if graph.default_node(direction).is_some() || present == 0 {
             session.reported_missing.remove(&direction);
         } else if session.reported_missing.insert(direction) {
             let label = direction.label();
@@ -856,18 +770,60 @@ fn report_missing_defaults(session: &mut Session) {
     }
 }
 
-fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &Graph) {
-    if previous.sink.is_some() && next.sink.is_none() {
-        tracing::warn!(
-            "audio: default sink {:?} no longer resolves to a node",
-            graph.default_sink
-        );
+fn report_unresolved(previous: &AudioState, next: &AudioState, graph: &AudioGraph) {
+    for direction in [Direction::Output, Direction::Input] {
+        if previous.channel(direction).is_some() && next.channel(direction).is_none() {
+            tracing::warn!(
+                "audio: default {} {:?} no longer resolves to a node",
+                direction.label(),
+                graph.default_name(direction)
+            );
+        }
     }
-    if previous.source.is_some() && next.source.is_none() {
-        tracing::warn!(
-            "audio: default source {:?} no longer resolves to a node",
-            graph.default_source
-        );
+}
+
+#[derive(Clone)]
+struct LiveAudioGraph {
+    session: Rc<RefCell<BoundAudioSession>>,
+    states: watch::Sender<AudioState>,
+}
+
+impl LiveAudioGraph {
+    fn new(states: watch::Sender<AudioState>) -> Self {
+        Self {
+            session: Rc::default(),
+            states,
+        }
+    }
+
+    fn update(&self, change: impl FnOnce(&mut AudioGraph)) {
+        let mut session = self.session.borrow_mut();
+        change(&mut session.graph);
+        let next = session.graph.audio_state();
+        self.states.send_if_modified(|current| {
+            if *current == next {
+                return false;
+            }
+            report_unresolved(current, &next, &session.graph);
+            *current = next;
+            true
+        });
+        report_missing_defaults(&mut session);
+    }
+
+    fn settle_enumeration(&self, finished: AsyncSeq, core: &CoreRc) {
+        let mut session = self.session.borrow_mut();
+        session.enumeration = session.enumeration.advanced(finished, || core.sync(0));
+        report_missing_defaults(&mut session);
+    }
+
+    fn remove_object(&self, id: u32) {
+        {
+            let mut session = self.session.borrow_mut();
+            session.proxies.nodes.remove(&id);
+            session.proxies.devices.remove(&id);
+        }
+        self.update(|graph| graph.remove_object(id));
     }
 }
 
@@ -905,15 +861,19 @@ fn run(
         }
     };
     let _ = connected.send(Ok(()));
-    let states = Rc::new(states.clone());
-    serve(&pipewire, &states, peaks, commands);
+    serve(
+        &pipewire,
+        &LiveAudioGraph::new(states.clone()),
+        peaks,
+        commands,
+    );
     states.send_replace(AudioState::default());
     peaks.send_replace(Peaks::default());
 }
 
 fn serve(
     pipewire: &PipewireConnection,
-    states: &Publisher,
+    live_graph: &LiveAudioGraph,
     peaks: &watch::Sender<Peaks>,
     commands: CommandReceiver<Command>,
 ) {
@@ -923,12 +883,12 @@ fn serve(
         registry,
     } = pipewire;
     let _meters = peak_level_meter::attach(core, peaks);
-    let session = Shared::default();
 
     let _attached = commands.attach(main_loop.loop_(), {
-        let session = session.clone();
+        let live_graph = live_graph.clone();
         move |command: Command| {
-            let outcome = apply(&session.borrow(), command.target, command.kind);
+            let outcome =
+                apply_level_command(&live_graph.session.borrow(), command.target, command.kind);
             let _ = command.reply.send(outcome);
         }
     });
@@ -940,12 +900,8 @@ fn serve(
         })
         .done({
             let core = core.clone();
-            let session = session.clone();
-            move |_, finished| {
-                let mut owned = session.borrow_mut();
-                owned.enumeration = owned.enumeration.advanced(finished, || core.sync(0));
-                report_missing_defaults(&mut owned);
-            }
+            let live_graph = live_graph.clone();
+            move |_, finished| live_graph.settle_enumeration(finished, &core)
         })
         .register();
 
@@ -953,42 +909,28 @@ fn serve(
         .add_listener_local()
         .global({
             let registry = registry.clone();
-            let session = session.clone();
-            let states = states.clone();
-            move |global| track(&registry, &session, &states, global)
+            let live_graph = live_graph.clone();
+            move |global| track_global(&registry, &live_graph, global)
         })
         .global_remove({
-            let session = session.clone();
-            let states = states.clone();
-            move |id| {
-                {
-                    let mut owned = session.borrow_mut();
-                    owned.proxies.nodes.remove(&id);
-                    owned.proxies.devices.remove(&id);
-                }
-                dispatch(&session, &states, Event::Removed { id });
-            }
+            let live_graph = live_graph.clone();
+            move |id| live_graph.remove_object(id)
         })
         .register();
 
-    session.borrow_mut().enumeration = GraphEnumeration::started(core.sync(0));
+    live_graph.session.borrow_mut().enumeration = GraphEnumeration::started(core.sync(0));
 
     main_loop.run();
 }
 
-fn track(
-    registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
-    global: &GlobalObject<&DictRef>,
-) {
+fn track_global(registry: &Registry, live_graph: &LiveAudioGraph, global: &GlobalObject<&DictRef>) {
     let Some(props) = global.props else {
         return;
     };
     match global.type_ {
-        ObjectType::Node => track_node(registry, session, states, global, props),
-        ObjectType::Device => track_device(registry, session, states, global, props),
-        ObjectType::Metadata => track_defaults(registry, session, states, global, props),
+        ObjectType::Node => track_node(registry, live_graph, global, props),
+        ObjectType::Device => track_device(registry, live_graph, global, props),
+        ObjectType::Metadata => track_defaults(registry, live_graph, global, props),
         _ => {}
     }
 }
@@ -1002,73 +944,90 @@ fn bind<P: ProxyT>(registry: &Registry, global: &GlobalObject<&DictRef>, label: 
 
 fn track_node(
     registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
+    live_graph: &LiveAudioGraph,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
     let id = global.id;
     if let Some(direction) = node_direction(props) {
-        if let Some(node) = node_from_props(props, direction) {
-            track_levelled_node(
-                registry,
-                session,
-                states,
-                global,
-                "node",
-                on_node_info(id, session, states),
-                Event::NodeAdded { id, node },
-            );
+        let Some(node) = node_from_props(props, direction) else {
+            return;
+        };
+        let on_info = {
+            let live_graph = live_graph.clone();
+            move |info: &NodeInfoRef| {
+                let Some(props) = info.props() else {
+                    return;
+                };
+                if let Some(placement) = route_placement(props) {
+                    live_graph.update(|graph| graph.set_placement(id, placement));
+                }
+                if let Some(kind) = OutputKind::of_described_props(props, "device.icon_name") {
+                    live_graph.update(|graph| graph.set_kind_hint(id, kind));
+                }
+            }
+        };
+        if let Some(bound_node) = bind_levelled_node(registry, live_graph, global, "node", on_info)
+        {
+            live_graph.update(|graph| graph.add_node(id, node));
+            keep_node_proxy(live_graph, id, bound_node);
         }
     } else if is_output_stream(props) {
-        track_levelled_node(
-            registry,
-            session,
-            states,
-            global,
-            "stream",
-            on_stream_info(id, session, states),
-            Event::StreamAdded {
-                id,
-                stream: stream_from_props(props),
-            },
-        );
+        let on_info = {
+            let live_graph = live_graph.clone();
+            move |info: &NodeInfoRef| {
+                let pid = info.props().and_then(stream_pid);
+                let running = matches!(info.state(), NodeState::Running);
+                live_graph.update(|graph| graph.set_stream_info(id, pid, running));
+            }
+        };
+        if let Some(bound_stream) =
+            bind_levelled_node(registry, live_graph, global, "stream", on_info)
+        {
+            live_graph.update(|graph| graph.add_stream(id, stream_from_props(props)));
+            keep_node_proxy(live_graph, id, bound_stream);
+        }
     }
 }
 
-fn track_levelled_node(
+fn keep_node_proxy(live_graph: &LiveAudioGraph, id: u32, bound_node: Bound<Node, NodeListener>) {
+    live_graph
+        .session
+        .borrow_mut()
+        .proxies
+        .nodes
+        .insert(id, bound_node);
+}
+
+fn bind_levelled_node(
     registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
+    live_graph: &LiveAudioGraph,
     global: &GlobalObject<&DictRef>,
     label: &str,
     on_info: impl Fn(&NodeInfoRef) + 'static,
-    added: Event,
-) {
-    let Some(proxy) = bind::<Node>(registry, global, label) else {
-        return;
-    };
+) -> Option<Bound<Node, NodeListener>> {
+    let proxy = bind::<Node>(registry, global, label)?;
     proxy.subscribe_params(&[ParamType::Props]);
     let id = global.id;
+    let live_graph = live_graph.clone();
     let listener = proxy
         .add_listener_local()
         .info(on_info)
-        .param(on_levels_param(id, session, states))
+        .param(move |_, _, _, _, param| {
+            if let Some(update) = param.and_then(parse_props) {
+                live_graph.update(|graph| graph.merge_levels(id, update));
+            }
+        })
         .register();
-    dispatch(session, states, added);
-    session.borrow_mut().proxies.nodes.insert(
-        id,
-        Bound {
-            proxy,
-            _listener: listener,
-        },
-    );
+    Some(Bound {
+        proxy,
+        _listener: listener,
+    })
 }
 
 fn track_device(
     registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
+    live_graph: &LiveAudioGraph,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
@@ -1082,11 +1041,39 @@ fn track_device(
     let id = global.id;
     let listener = proxy
         .add_listener_local()
-        .info(on_device_info(id, session, states))
-        .param(on_device_param(id, session, states))
+        .info({
+            let live_graph = live_graph.clone();
+            move |info: &DeviceInfoRef| {
+                if info.change_mask().contains(DeviceChangeMask::PROPS)
+                    && let Some(kind) = info
+                        .props()
+                        .and_then(|props| OutputKind::of_described_props(props, "device.icon-name"))
+                {
+                    live_graph.update(|graph| graph.set_device_kind(id, kind));
+                }
+                if info.change_mask().contains(DeviceChangeMask::PARAMS)
+                    && let Some(device) = live_graph.session.borrow().proxies.devices.get(&id)
+                {
+                    device
+                        .proxy
+                        .enum_params(0, Some(ParamType::Route), 0, u32::MAX);
+                }
+            }
+        })
+        .param({
+            let live_graph = live_graph.clone();
+            move |_, param_type, _, _, param| {
+                if param_type != ParamType::Route {
+                    return;
+                }
+                if let Some(route) = param.and_then(parse_route) {
+                    live_graph.update(|graph| graph.merge_route_levels(id, route));
+                }
+            }
+        })
         .register();
     proxy.enum_params(0, Some(ParamType::Route), 0, u32::MAX);
-    session.borrow_mut().proxies.devices.insert(
+    live_graph.session.borrow_mut().proxies.devices.insert(
         id,
         Bound {
             proxy,
@@ -1097,8 +1084,7 @@ fn track_device(
 
 fn track_defaults(
     registry: &Registry,
-    session: &Shared,
-    states: &Publisher,
+    live_graph: &LiveAudioGraph,
     global: &GlobalObject<&DictRef>,
     props: &DictRef,
 ) {
@@ -1110,124 +1096,37 @@ fn track_defaults(
     };
     let listener = proxy
         .add_listener_local()
-        .property(on_default_property(session, states))
+        .property({
+            let live_graph = live_graph.clone();
+            move |_, key, _, value| {
+                if let Some(change) = default_node_change(key, value) {
+                    live_graph.update(|graph| graph.set_default(change));
+                }
+                0
+            }
+        })
         .register();
-    session.borrow_mut().proxies.defaults.push(Bound {
-        proxy,
-        _listener: listener,
-    });
+    live_graph
+        .session
+        .borrow_mut()
+        .proxies
+        .defaults
+        .push(Bound {
+            proxy,
+            _listener: listener,
+        });
 }
 
-fn on_node_info(id: u32, session: &Shared, states: &Publisher) -> impl Fn(&NodeInfoRef) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |info| {
-        let Some(props) = info.props() else {
-            return;
-        };
-        if let Some(placement) = route_placement(props) {
-            dispatch(&session, &states, Event::NodePlacement { id, placement });
-        }
-        if let Some(kind) = OutputKind::of_described_props(props, "device.icon_name") {
-            dispatch(&session, &states, Event::NodeKindHint { id, kind });
-        }
-    }
-}
-
-fn on_levels_param(
-    id: u32,
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |_, _, _, _, param| {
-        if let Some(update) = param.and_then(parse_props) {
-            dispatch(&session, &states, Event::Levels { id, update });
-        }
-    }
-}
-
-fn on_stream_info(
-    id: u32,
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(&NodeInfoRef) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |info| {
-        let pid = info.props().and_then(stream_pid);
-        let running = matches!(info.state(), NodeState::Running);
-        dispatch(&session, &states, Event::StreamInfo { id, pid, running });
-    }
-}
-
-fn on_device_info(
-    id: u32,
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(&DeviceInfoRef) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |info| {
-        if info.change_mask().contains(DeviceChangeMask::PROPS)
-            && let Some(kind) = info
-                .props()
-                .and_then(|props| OutputKind::of_described_props(props, "device.icon-name"))
-        {
-            dispatch(&session, &states, Event::DeviceKind { id, kind });
-        }
-        if info.change_mask().contains(DeviceChangeMask::PARAMS)
-            && let Some(device) = session.borrow().proxies.devices.get(&id)
-        {
-            device
-                .proxy
-                .enum_params(0, Some(ParamType::Route), 0, u32::MAX);
-        }
-    }
-}
-
-fn on_device_param(
-    id: u32,
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(i32, ParamType, u32, u32, Option<&Pod>) + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |_, param_type, _, _, param| {
-        if param_type != ParamType::Route {
-            return;
-        }
-        if let Some(route) = param.and_then(parse_route) {
-            dispatch(&session, &states, Event::RouteLevels { device: id, route });
-        }
-    }
-}
-
-fn on_default_property(
-    session: &Shared,
-    states: &Publisher,
-) -> impl Fn(u32, Option<&str>, Option<&str>, Option<&str>) -> i32 + 'static {
-    let session = session.clone();
-    let states = states.clone();
-    move |_, key, _, value| {
-        if let Some(event) = default_event(key, value) {
-            dispatch(&session, &states, event);
-        }
-        0
-    }
-}
-
-fn default_event(key: Option<&str>, value: Option<&str>) -> Option<Event> {
-    let changed = |direction| Event::DefaultChanged {
+fn default_node_change(key: Option<&str>, value: Option<&str>) -> Option<DefaultNodeChange> {
+    let direction = match key? {
+        "default.audio.sink" => Direction::Output,
+        "default.audio.source" => Direction::Input,
+        _ => return None,
+    };
+    Some(DefaultNodeChange {
         direction,
         name: value.and_then(default_node_name),
-    };
-    match key? {
-        "default.audio.sink" => Some(changed(Direction::Output)),
-        "default.audio.source" => Some(changed(Direction::Input)),
-        _ => None,
-    }
+    })
 }
 
 fn node_direction(props: &DictRef) -> Option<Direction> {
@@ -1445,22 +1344,13 @@ mod tests {
         }
     }
 
-    fn graph_with(events: Vec<Event>) -> Graph {
-        let mut graph = Graph::default();
-        for event in events {
-            reduce(&mut graph, event);
-        }
-        graph
-    }
-
-    fn session_with_undefaulted_sink(enumeration: GraphEnumeration) -> Session {
-        Session {
-            graph: graph_with(vec![Event::NodeAdded {
-                id: 56,
-                node: node(Direction::Output, "speaker", &[cubic(54)]),
-            }]),
+    fn session_with_undefaulted_sink(enumeration: GraphEnumeration) -> BoundAudioSession {
+        let mut graph = AudioGraph::default();
+        graph.add_node(56, node(Direction::Output, "speaker", &[cubic(54)]));
+        BoundAudioSession {
+            graph,
             enumeration,
-            ..Session::default()
+            ..BoundAudioSession::default()
         }
     }
 
@@ -1505,230 +1395,215 @@ mod tests {
 
     #[test]
     fn reading_prefers_route_over_node_props() {
-        let graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 56,
-                node: node(Direction::Output, "speaker", &[cubic(54)]),
-            },
-            Event::NodePlacement {
-                id: 56,
-                placement: RoutePlacement {
-                    device: 46,
-                    route_device: 3,
-                },
-            },
-            Event::RouteLevels {
+        let mut graph = AudioGraph::default();
+        graph.add_node(56, node(Direction::Output, "speaker", &[cubic(54)]));
+        graph.set_placement(
+            56,
+            RoutePlacement {
                 device: 46,
-                route: RouteLevels {
-                    index: 3,
-                    route_device: 3,
-                    port_kind: None,
-                    update: LevelsUpdate {
-                        channel_volumes: Some(vec![cubic(29)]),
-                        mute: None,
-                    },
+                route_device: 3,
+            },
+        );
+        graph.merge_route_levels(
+            46,
+            RouteLevels {
+                index: 3,
+                route_device: 3,
+                port_kind: None,
+                update: LevelsUpdate {
+                    channel_volumes: Some(vec![cubic(29)]),
+                    mute: None,
                 },
             },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("speaker".to_owned()),
-            },
-        ]);
-        assert_eq!(snapshot(&graph).sink.unwrap().percent, 29);
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("speaker".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().sink.unwrap().percent, 29);
     }
 
     #[test]
     fn reading_falls_back_to_node_props_without_route() {
-        let graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 7,
-                node: node(Direction::Output, "null-sink", &[cubic(42)]),
-            },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("null-sink".to_owned()),
-            },
-        ]);
-        assert_eq!(snapshot(&graph).sink.unwrap().percent, 42);
+        let mut graph = AudioGraph::default();
+        graph.add_node(7, node(Direction::Output, "null-sink", &[cubic(42)]));
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("null-sink".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().sink.unwrap().percent, 42);
     }
 
     #[test]
     fn highest_serial_wins_when_names_collide_on_a_recycled_id() {
-        let graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 91,
-                node: AudioNode {
-                    serial: 1593,
-                    ..node(Direction::Output, "bluez", &[cubic(10)])
-                },
+        let mut graph = AudioGraph::default();
+        graph.add_node(
+            91,
+            AudioNode {
+                serial: 1593,
+                ..node(Direction::Output, "bluez", &[cubic(10)])
             },
-            Event::NodeAdded {
-                id: 90,
-                node: AudioNode {
-                    serial: 29349,
-                    ..node(Direction::Output, "bluez", &[cubic(70)])
-                },
+        );
+        graph.add_node(
+            90,
+            AudioNode {
+                serial: 29349,
+                ..node(Direction::Output, "bluez", &[cubic(70)])
             },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("bluez".to_owned()),
-            },
-        ]);
-        assert_eq!(snapshot(&graph).sink.unwrap().percent, 70);
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("bluez".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().sink.unwrap().percent, 70);
     }
 
     #[test]
     fn a_headset_connect_then_disconnect_round_trips() {
-        let built_in = vec![
-            Event::NodeAdded {
-                id: 58,
-                node: AudioNode {
-                    serial: 58,
-                    ..node(Direction::Input, "mic1", &[cubic(60)])
-                },
-            },
-            Event::DefaultChanged {
-                direction: Direction::Input,
-                name: Some("mic1".to_owned()),
-            },
-        ];
-        let mut graph = graph_with(built_in);
-        assert_eq!(snapshot(&graph).source.unwrap().percent, 60);
-
-        for event in [
-            Event::NodeAdded {
-                id: 97,
-                node: AudioNode {
-                    serial: 1593,
-                    ..node(Direction::Input, "bluez_in", &[])
-                },
-            },
-            Event::NodePlacement {
-                id: 97,
-                placement: RoutePlacement {
-                    device: 93,
-                    route_device: 0,
-                },
-            },
-            Event::RouteLevels {
-                device: 93,
-                route: RouteLevels {
-                    index: 0,
-                    route_device: 0,
-                    port_kind: None,
-                    update: LevelsUpdate {
-                        channel_volumes: Some(vec![cubic(35)]),
-                        mute: Some(false),
-                    },
-                },
-            },
-            Event::DefaultChanged {
-                direction: Direction::Input,
-                name: Some("bluez_in".to_owned()),
-            },
-        ] {
-            reduce(&mut graph, event);
-        }
-        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
-
-        reduce(&mut graph, Event::Removed { id: 97 });
-        reduce(&mut graph, Event::Removed { id: 93 });
-        assert!(snapshot(&graph).source.is_none());
-
-        reduce(
-            &mut graph,
-            Event::DefaultChanged {
-                direction: Direction::Input,
-                name: Some("mic1".to_owned()),
+        let mut graph = AudioGraph::default();
+        graph.add_node(
+            58,
+            AudioNode {
+                serial: 58,
+                ..node(Direction::Input, "mic1", &[cubic(60)])
             },
         );
-        assert_eq!(snapshot(&graph).source.unwrap().percent, 60);
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Input,
+            name: Some("mic1".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().source.unwrap().percent, 60);
+
+        graph.add_node(
+            97,
+            AudioNode {
+                serial: 1593,
+                ..node(Direction::Input, "bluez_in", &[])
+            },
+        );
+        graph.set_placement(
+            97,
+            RoutePlacement {
+                device: 93,
+                route_device: 0,
+            },
+        );
+        graph.merge_route_levels(
+            93,
+            RouteLevels {
+                index: 0,
+                route_device: 0,
+                port_kind: None,
+                update: LevelsUpdate {
+                    channel_volumes: Some(vec![cubic(35)]),
+                    mute: Some(false),
+                },
+            },
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Input,
+            name: Some("bluez_in".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().source.unwrap().percent, 35);
+
+        graph.remove_object(97);
+
+        graph.remove_object(93);
+
+        assert!(graph.audio_state().source.is_none());
+
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Input,
+            name: Some("mic1".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().source.unwrap().percent, 60);
     }
 
     #[test]
     fn a_bluez_profile_switch_recovers_the_reading() {
-        let mut graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 97,
-                node: AudioNode {
-                    serial: 1593,
-                    ..node(Direction::Input, "bluez_in", &[cubic(35)])
-                },
-            },
-            Event::DefaultChanged {
-                direction: Direction::Input,
-                name: Some("bluez_in".to_owned()),
-            },
-        ]);
-        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
-
-        reduce(&mut graph, Event::Removed { id: 97 });
-        assert!(snapshot(&graph).source.is_none());
-
-        reduce(
-            &mut graph,
-            Event::NodeAdded {
-                id: 101,
-                node: AudioNode {
-                    serial: 29349,
-                    ..node(Direction::Input, "bluez_in", &[cubic(35)])
-                },
+        let mut graph = AudioGraph::default();
+        graph.add_node(
+            97,
+            AudioNode {
+                serial: 1593,
+                ..node(Direction::Input, "bluez_in", &[cubic(35)])
             },
         );
-        assert_eq!(snapshot(&graph).source.unwrap().percent, 35);
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Input,
+            name: Some("bluez_in".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().source.unwrap().percent, 35);
+
+        graph.remove_object(97);
+
+        assert!(graph.audio_state().source.is_none());
+
+        graph.add_node(
+            101,
+            AudioNode {
+                serial: 29349,
+                ..node(Direction::Input, "bluez_in", &[cubic(35)])
+            },
+        );
+
+        assert_eq!(graph.audio_state().source.unwrap().percent, 35);
     }
 
     #[test]
     fn removing_a_device_drops_its_routes() {
-        let mut graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 56,
-                node: node(Direction::Output, "speaker", &[cubic(54)]),
-            },
-            Event::NodePlacement {
-                id: 56,
-                placement: RoutePlacement {
-                    device: 46,
-                    route_device: 3,
-                },
-            },
-            Event::RouteLevels {
+        let mut graph = AudioGraph::default();
+        graph.add_node(56, node(Direction::Output, "speaker", &[cubic(54)]));
+        graph.set_placement(
+            56,
+            RoutePlacement {
                 device: 46,
-                route: RouteLevels {
-                    index: 3,
-                    route_device: 3,
-                    port_kind: None,
-                    update: LevelsUpdate {
-                        channel_volumes: Some(vec![cubic(29)]),
-                        mute: None,
-                    },
+                route_device: 3,
+            },
+        );
+        graph.merge_route_levels(
+            46,
+            RouteLevels {
+                index: 3,
+                route_device: 3,
+                port_kind: None,
+                update: LevelsUpdate {
+                    channel_volumes: Some(vec![cubic(29)]),
+                    mute: None,
                 },
             },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("speaker".to_owned()),
-            },
-        ]);
-        reduce(&mut graph, Event::Removed { id: 46 });
-        assert_eq!(snapshot(&graph).sink.unwrap().percent, 54);
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("speaker".to_owned()),
+        });
+
+        graph.remove_object(46);
+
+        assert_eq!(graph.audio_state().sink.unwrap().percent, 54);
     }
 
     #[test]
     fn a_metadata_clear_never_forgets_the_default() {
-        let mut graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 56,
-                node: node(Direction::Output, "speaker", &[cubic(54)]),
-            },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("speaker".to_owned()),
-            },
-        ]);
-        assert!(default_event(None, None).is_none());
-        assert_eq!(snapshot(&graph).sink.unwrap().percent, 54);
-        reduce(&mut graph, Event::Removed { id: 56 });
-        assert!(snapshot(&graph).sink.is_none());
+        let mut graph = AudioGraph::default();
+        graph.add_node(56, node(Direction::Output, "speaker", &[cubic(54)]));
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("speaker".to_owned()),
+        });
+
+        assert!(default_node_change(None, None).is_none());
+        assert_eq!(graph.audio_state().sink.unwrap().percent, 54);
+        graph.remove_object(56);
+
+        assert!(graph.audio_state().sink.is_none());
     }
 
     #[test]
@@ -1795,73 +1670,66 @@ mod tests {
         assert_eq!(OutputKind::of_port_type("speaker"), None);
     }
 
-    fn bluez_headset_events() -> Vec<Event> {
-        vec![
-            Event::NodeAdded {
-                id: 97,
-                node: AudioNode {
-                    device_id: Some(93),
-                    ..node(Direction::Output, "bluez_output.00_11_22.1", &[cubic(40)])
-                },
+    fn bluez_headset_graph() -> AudioGraph {
+        let mut graph = AudioGraph::default();
+        graph.add_node(
+            97,
+            AudioNode {
+                device_id: Some(93),
+                ..node(Direction::Output, "bluez_output.00_11_22.1", &[cubic(40)])
             },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("bluez_output.00_11_22.1".to_owned()),
-            },
-        ]
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("bluez_output.00_11_22.1".to_owned()),
+        });
+        graph
     }
 
     #[test]
     fn a_bluez_sink_takes_the_device_form_factor() {
-        let mut graph = graph_with(bluez_headset_events());
-        assert_eq!(snapshot(&graph).output_kind, OutputKind::Speaker);
-        reduce(
-            &mut graph,
-            Event::DeviceKind {
-                id: 93,
-                kind: OutputKind::Headset,
-            },
-        );
-        assert_eq!(snapshot(&graph).output_kind, OutputKind::Headset);
-        reduce(&mut graph, Event::Removed { id: 93 });
-        assert_eq!(snapshot(&graph).output_kind, OutputKind::Speaker);
+        let mut graph = bluez_headset_graph();
+        assert_eq!(graph.audio_state().output_kind, OutputKind::Speaker);
+        graph.set_device_kind(93, OutputKind::Headset);
+
+        assert_eq!(graph.audio_state().output_kind, OutputKind::Headset);
+        graph.remove_object(93);
+
+        assert_eq!(graph.audio_state().output_kind, OutputKind::Speaker);
     }
 
     #[test]
     fn the_active_port_beats_device_and_node_name() {
-        let graph = graph_with(vec![
-            Event::NodeAdded {
-                id: 56,
-                node: AudioNode {
-                    device_id: Some(46),
-                    ..node(Direction::Output, "alsa_output.analog-stereo", &[cubic(54)])
-                },
+        let mut graph = AudioGraph::default();
+        graph.add_node(
+            56,
+            AudioNode {
+                device_id: Some(46),
+                ..node(Direction::Output, "alsa_output.analog-stereo", &[cubic(54)])
             },
-            Event::DeviceKind {
-                id: 46,
-                kind: OutputKind::Speaker,
-            },
-            Event::NodePlacement {
-                id: 56,
-                placement: RoutePlacement {
-                    device: 46,
-                    route_device: 3,
-                },
-            },
-            Event::RouteLevels {
+        );
+        graph.set_device_kind(46, OutputKind::Speaker);
+        graph.set_placement(
+            56,
+            RoutePlacement {
                 device: 46,
-                route: RouteLevels {
-                    index: 2,
-                    route_device: 3,
-                    port_kind: Some(OutputKind::Headphones),
-                    update: LevelsUpdate::default(),
-                },
+                route_device: 3,
             },
-            Event::DefaultChanged {
-                direction: Direction::Output,
-                name: Some("alsa_output.analog-stereo".to_owned()),
+        );
+        graph.merge_route_levels(
+            46,
+            RouteLevels {
+                index: 2,
+                route_device: 3,
+                port_kind: Some(OutputKind::Headphones),
+                update: LevelsUpdate::default(),
             },
-        ]);
-        assert_eq!(snapshot(&graph).output_kind, OutputKind::Headphones);
+        );
+        graph.set_default(DefaultNodeChange {
+            direction: Direction::Output,
+            name: Some("alsa_output.analog-stereo".to_owned()),
+        });
+
+        assert_eq!(graph.audio_state().output_kind, OutputKind::Headphones);
     }
 }
