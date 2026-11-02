@@ -13,7 +13,10 @@ use sottomano_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{
-        kitty_terminal_windows::WindowProcesses,
+        kitty_terminal_windows::{
+            WindowProcesses,
+            kitty_window_label::{ForegroundActivity, KittyWindowLabel, WorkingLocation},
+        },
         niri_window_snapshot::Snapshot,
         nix_package_facts::{
             ClosureFacts, Definition, Generation, NixPackageFacts, NixpkgsEntry, Origin, Upstream,
@@ -28,7 +31,8 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     hover_cards::HoverTarget,
     widget_groups::window_group::{
-        WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
+        WindowGroup, WindowGroupMessage, WindowRowLayout, WindowTarget,
+        window_list::WindowListMessage,
     },
     widgets::favicon::Favicons,
 };
@@ -188,6 +192,51 @@ const PLACED_WINDOWS: &[PlacedWindow] = &[
     },
 ];
 
+const KITTY_APP_ID: &str = "kitty";
+const PROJECT_DIRECTORY: &str = "weather-station";
+const NOTES_DIRECTORY: &str = "~/notes";
+const SECOND_PROJECT_TERMINAL: u64 = 21;
+const IDLE_PROJECT_TERMINAL: u64 = 22;
+const NOTES_TERMINAL: u64 = 23;
+
+const KITTY_TERMINALS: &[PlacedWindow] = &[
+    PlacedWindow {
+        id: SECOND_PROJECT_TERMINAL,
+        app_id: KITTY_APP_ID,
+        title: "hx src/main.rs",
+        workspace: CODING_WORKSPACE,
+        column: 1,
+    },
+    PlacedWindow {
+        id: TERMINAL_WINDOW,
+        app_id: KITTY_APP_ID,
+        title: "cargo test",
+        workspace: CODING_WORKSPACE,
+        column: 2,
+    },
+    PlacedWindow {
+        id: IDLE_PROJECT_TERMINAL,
+        app_id: KITTY_APP_ID,
+        title: "weather-station",
+        workspace: CODING_WORKSPACE,
+        column: 3,
+    },
+    PlacedWindow {
+        id: NOTES_TERMINAL,
+        app_id: KITTY_APP_ID,
+        title: "jj log",
+        workspace: CODING_WORKSPACE,
+        column: 4,
+    },
+    PlacedWindow {
+        id: 24,
+        app_id: "org.gnome.Nautilus",
+        title: "Pictures",
+        workspace: CODING_WORKSPACE,
+        column: 5,
+    },
+];
+
 struct NamedWorkspace {
     id: u64,
     name: &'static str,
@@ -205,15 +254,92 @@ struct PlacedWindow {
 pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::BottomPanel(Box::new(session(
         &NAMED_WORKSPACES[..BOTTOM_BAR_WORKSPACE_COUNT],
+        PLACED_WINDOWS,
+        &WindowProcesses::default(),
+        WindowRowLayout::default(),
     )))
 }
 
 pub fn workspace_sidebar(_clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::WorkspaceSidebar(Box::new(session(NAMED_WORKSPACES)))
+    ShowcasedGroup::WorkspaceSidebar(Box::new(session(
+        NAMED_WORKSPACES,
+        PLACED_WINDOWS,
+        &WindowProcesses::default(),
+        WindowRowLayout::default(),
+    )))
 }
 
-fn session(shown_workspaces: &[NamedWorkspace]) -> ShowcasedNiriSession {
-    let shown_windows: Vec<&PlacedWindow> = PLACED_WINDOWS
+pub fn terminals_grouped_by_directory(_clock: Clock) -> ShowcasedGroup {
+    terminals_in_layout(WindowRowLayout::GroupedByLocation)
+}
+
+pub fn terminals_in_flat_rows(_clock: Clock) -> ShowcasedGroup {
+    terminals_in_layout(WindowRowLayout::Flat)
+}
+
+fn terminals_in_layout(window_row_layout: WindowRowLayout) -> ShowcasedGroup {
+    ShowcasedGroup::BottomPanel(Box::new(session(
+        &NAMED_WORKSPACES[..BOTTOM_BAR_WORKSPACE_COUNT],
+        KITTY_TERMINALS,
+        &kitty_terminal_labels(),
+        window_row_layout,
+    )))
+}
+
+fn kitty_label_in(directory: &str, foreground_activity: ForegroundActivity) -> KittyWindowLabel {
+    KittyWindowLabel {
+        working_location: WorkingLocation::LocalDirectory(directory.to_owned()),
+        foreground_activity,
+    }
+}
+
+fn typed_command(command_line: &str) -> ForegroundActivity {
+    ForegroundActivity::ShellCommand {
+        command_line: command_line.to_owned(),
+        program_name: None,
+    }
+}
+
+fn kitty_terminal_labels() -> WindowProcesses {
+    WindowProcesses::default()
+        .with_kitty_label(
+            SECOND_PROJECT_TERMINAL,
+            window_pid(SECOND_PROJECT_TERMINAL),
+            kitty_label_in(PROJECT_DIRECTORY, typed_command("hx src/main.rs")),
+        )
+        .with_kitty_label(
+            TERMINAL_WINDOW,
+            window_pid(TERMINAL_WINDOW),
+            kitty_label_in(PROJECT_DIRECTORY, typed_command("cargo test")),
+        )
+        .with_kitty_label(
+            IDLE_PROJECT_TERMINAL,
+            window_pid(IDLE_PROJECT_TERMINAL),
+            kitty_label_in(
+                PROJECT_DIRECTORY,
+                ForegroundActivity::ShellPrompt {
+                    shell_name: "nu".to_owned(),
+                },
+            ),
+        )
+        .with_kitty_label(
+            NOTES_TERMINAL,
+            window_pid(NOTES_TERMINAL),
+            kitty_label_in(NOTES_DIRECTORY, typed_command("jj log")),
+        )
+}
+
+fn window_pid(window: u64) -> i32 {
+    TERMINAL_PID + i32::try_from(window).expect("few fixture windows") - 2
+}
+
+fn session(
+    shown_workspaces: &[NamedWorkspace],
+    placed_windows: &[PlacedWindow],
+    window_processes: &WindowProcesses,
+    window_row_layout: WindowRowLayout,
+) -> ShowcasedNiriSession {
+    let shown_windows: Vec<&PlacedWindow> = placed_windows
         .iter()
         .filter(|placed| {
             shown_workspaces
@@ -227,9 +353,10 @@ fn session(shown_workspaces: &[NamedWorkspace]) -> ShowcasedNiriSession {
             let _ = state.apply(event);
             state
         });
-    let snapshot = Snapshot::derive(&niri, &WindowProcesses::default());
+    let snapshot = Snapshot::derive(&niri, window_processes);
     ShowcasedNiriSession {
         window_group: WindowGroup::default(),
+        window_row_layout,
         niri,
         snapshot,
         desktop_entries: bundled_app_icons(&shown_windows),
@@ -293,7 +420,7 @@ fn window(placed: &PlacedWindow) -> Window {
         id: placed.id,
         title: Some(placed.title.to_owned()),
         app_id: Some(placed.app_id.to_owned()),
-        pid: Some(TERMINAL_PID + i32::try_from(placed.id).expect("few fixture windows") - 2),
+        pid: Some(window_pid(placed.id)),
         workspace_id: Some(placed.workspace),
         is_focused: placed.id == TERMINAL_WINDOW,
         is_floating: false,

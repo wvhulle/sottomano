@@ -48,6 +48,24 @@ pub struct WindowProcesses {
 
 impl WindowProcesses {
     #[must_use]
+    pub fn with_kitty_label(
+        mut self,
+        window: u64,
+        shown_pid: i32,
+        kitty_label: KittyWindowLabel,
+    ) -> Self {
+        self.by_window.insert(
+            window,
+            PairedWindow {
+                shown: shown_pid,
+                pids: vec![shown_pid],
+                kitty_label: Some(kitty_label),
+            },
+        );
+        self
+    }
+
+    #[must_use]
     pub fn of_window(&self, window: u64) -> Option<&[i32]> {
         self.by_window
             .get(&window)
