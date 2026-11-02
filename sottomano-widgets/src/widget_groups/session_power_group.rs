@@ -25,9 +25,8 @@ use crate::{
         },
     },
     widget_groups::{
+        fixed_panel_group::FixedPanelGroup,
         idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
-        widget_group_content::WidgetGroupContent,
-        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         configured_theme::text_color,
@@ -193,22 +192,19 @@ impl SessionPowerGroup {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, SessionMessage> {
-        WidgetGroupContent::fixed(
-            WidgetGroupFamily::SessionPower,
-            (!self.permissions.allowed.is_empty()).then(|| {
-                GroupItem::composed(
-                    ComposedGroupItemFace {
-                        name: WidgetGroupFamily::SessionPower.title().into(),
-                        icon: GroupItemIcon::IconGlyph {
-                            glyph: Phosphor::Power(Weight::Regular).into(),
-                            state: ReadingDisplayState::Idle,
-                        },
+    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, SessionMessage> {
+        FixedPanelGroup::new((!self.permissions.allowed.is_empty()).then(|| {
+            GroupItem::composed(
+                ComposedGroupItemFace {
+                    name: "Session".into(),
+                    icon: GroupItemIcon::IconGlyph {
+                        glyph: Phosphor::Power(Weight::Regular).into(),
+                        state: ReadingDisplayState::Idle,
                     },
-                    GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
-                    GroupItemValue::Nothing,
-                )
-            }),
-        )
+                },
+                GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
+                GroupItemValue::Nothing,
+            )
+        }))
     }
 }

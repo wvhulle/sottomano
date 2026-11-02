@@ -8,7 +8,6 @@ use strum::IntoStaticStr;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IntoStaticStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum WidgetGroupFamily {
-    AppearancePresets,
     Audio,
     BluetoothAdapters,
     Caldav,
@@ -42,7 +41,6 @@ pub enum WidgetGroupFamily {
     QuietSchedule,
     Reachability,
     SessionFocus,
-    SessionPower,
     SidebarSettings,
     StorageSpace,
     SystemdManager,
@@ -58,7 +56,6 @@ impl WidgetGroupFamily {
     #[must_use]
     pub const fn title(self) -> &'static str {
         match self {
-            WidgetGroupFamily::AppearancePresets => "Looks",
             WidgetGroupFamily::Audio => "Audio",
             WidgetGroupFamily::BluetoothAdapters => "Bluetooth",
             WidgetGroupFamily::Caldav => "Calendar",
@@ -92,7 +89,6 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::QuietSchedule => "Quiet schedule",
             WidgetGroupFamily::Reachability => "Reachability",
             WidgetGroupFamily::SessionFocus => "Focus session",
-            WidgetGroupFamily::SessionPower => "Session",
             WidgetGroupFamily::SidebarSettings => "Sidebar",
             WidgetGroupFamily::StorageSpace => "Filesystem",
             WidgetGroupFamily::SystemdManager => "Systemd",

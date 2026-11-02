@@ -2,8 +2,9 @@ use sottomano_config::screen_edges::Position;
 use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
 use self::{
-    PanelZoneEntry::{InlineWorkspaces, Menu, OutputWindows, Standalone},
-    StandaloneWidgetGroup::{AppearancePresets, Clock, Notifications, SessionPower, Tray},
+    FixedPanelEntry::{AppearancePresets, SessionPower},
+    PanelZoneEntry::{Fixed, InlineWorkspaces, Menu, OutputWindows, Standalone},
+    StandaloneWidgetGroup::{Clock, Notifications, Tray},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,15 +18,20 @@ pub(in crate::desktop_shell) enum PanelZone {
 pub(in crate::desktop_shell) enum StandaloneWidgetGroup {
     Clock,
     Notifications,
+    Tray,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::desktop_shell) enum FixedPanelEntry {
     SessionPower,
     AppearancePresets,
-    Tray,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::desktop_shell) enum PanelZoneEntry {
     Menu(GroupMenuTopic),
     Standalone(StandaloneWidgetGroup),
+    Fixed(FixedPanelEntry),
     InlineWorkspaces,
     OutputWindows,
 }
@@ -68,7 +74,7 @@ pub(in crate::desktop_shell) const TOP_PANEL: PanelBarComposition = PanelBarComp
         Menu(GroupMenuTopic::Agenda),
         Standalone(Notifications),
     ],
-    end: &[Menu(GroupMenuTopic::Media), Standalone(SessionPower)],
+    end: &[Menu(GroupMenuTopic::Media), Fixed(SessionPower)],
 };
 
 pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarComposition {
@@ -77,7 +83,7 @@ pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarC
         Menu(GroupMenuTopic::Appearance),
         Menu(GroupMenuTopic::Behaviour),
         Menu(GroupMenuTopic::Display),
-        Standalone(AppearancePresets),
+        Fixed(AppearancePresets),
         InlineWorkspaces,
     ],
     center: &[OutputWindows],
@@ -95,7 +101,7 @@ fn all_panel_entries() -> impl Iterator<Item = PanelZoneEntry> {
 pub(in crate::desktop_shell) fn composed_menu_topics() -> impl Iterator<Item = GroupMenuTopic> {
     all_panel_entries().filter_map(|entry| match entry {
         Menu(topic) => Some(topic),
-        Standalone(_) | InlineWorkspaces | OutputWindows => None,
+        Standalone(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
     })
 }
 
@@ -103,7 +109,7 @@ pub(in crate::desktop_shell) fn composed_standalone_groups()
 -> impl Iterator<Item = StandaloneWidgetGroup> {
     all_panel_entries().filter_map(|entry| match entry {
         Standalone(group) => Some(group),
-        Menu(_) | InlineWorkspaces | OutputWindows => None,
+        Menu(_) | Fixed(_) | InlineWorkspaces | OutputWindows => None,
     })
 }
 
@@ -112,8 +118,8 @@ mod tests {
     use sottomano_widgets::group_menus::group_menu_state::GroupMenuTopic;
 
     use super::{
-        AppearancePresets, BOTTOM_PANEL, Clock, Notifications, PanelZone, SessionPower,
-        StandaloneWidgetGroup, TOP_PANEL, Tray, composed_menu_topics, composed_standalone_groups,
+        BOTTOM_PANEL, Clock, Notifications, PanelZone, StandaloneWidgetGroup, TOP_PANEL, Tray,
+        composed_menu_topics, composed_standalone_groups,
     };
     use crate::desktop_shell::desktop_panels::panel_bar_composition::{Menu, Standalone};
 
@@ -129,7 +135,7 @@ mod tests {
     #[test]
     fn standalone_groups_appear_once() {
         let composed: Vec<StandaloneWidgetGroup> = composed_standalone_groups().collect();
-        for group in [Clock, Notifications, SessionPower, AppearancePresets, Tray] {
+        for group in [Clock, Notifications, Tray] {
             assert_eq!(
                 composed.iter().filter(|placed| **placed == group).count(),
                 1

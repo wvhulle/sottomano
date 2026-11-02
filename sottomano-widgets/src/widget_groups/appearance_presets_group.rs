@@ -15,9 +15,7 @@ use crate::{
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::{
-        widget_group_content::WidgetGroupContent, widget_group_identity::WidgetGroupFamily,
-    },
+    widget_groups::fixed_panel_group::FixedPanelGroup,
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::text_color,
@@ -96,20 +94,17 @@ impl AppearancePresetsGroup {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, AppearancePresetsMessage> {
-        WidgetGroupContent::fixed(
-            WidgetGroupFamily::AppearancePresets,
-            Some(GroupItem::composed(
-                ComposedGroupItemFace {
-                    name: WidgetGroupFamily::AppearancePresets.title().into(),
-                    icon: GroupItemIcon::IconGlyph {
-                        glyph: Phosphor::Palette(Weight::Regular).into(),
-                        state: ReadingDisplayState::Idle,
-                    },
+    pub fn group_content<'a>(&self) -> FixedPanelGroup<'a, AppearancePresetsMessage> {
+        FixedPanelGroup::new(Some(GroupItem::composed(
+            ComposedGroupItemFace {
+                name: "Looks".into(),
+                icon: GroupItemIcon::IconGlyph {
+                    glyph: Phosphor::Palette(Weight::Regular).into(),
+                    state: ReadingDisplayState::Idle,
                 },
-                GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
-                GroupItemValue::Nothing,
-            )),
-        )
+            },
+            GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
+            GroupItemValue::Nothing,
+        )))
     }
 }
