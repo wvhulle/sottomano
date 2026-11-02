@@ -4,7 +4,6 @@ use niri_ipc::{
     Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::{
     kitty_terminal_windows::WindowProcesses, niri_window_snapshot::Snapshot,
 };
@@ -85,7 +84,7 @@ pub(crate) fn three_workspaces_three_windows() -> Snapshot {
     Snapshot::derive(&niri_state, &WindowProcesses::default())
 }
 
-pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot, config: &Config) -> DragView {
+pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot) -> DragView {
     DragView {
         drag: Some(ActiveDrag {
             item: dragged_item,
@@ -94,7 +93,7 @@ pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot, config: &Confi
             from: 0,
             target: DragTarget::OwnList(0),
         }),
-        ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance(), config),
+        ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
     }
 }
 

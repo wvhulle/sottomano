@@ -3,10 +3,7 @@ use sottomano_config::Config;
 use sottomano_sources::media_playback_audio::mpris_players::{Command, LoopMode, Media, Status};
 
 use crate::{
-    group_items::{
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::icon_value_gap,
-    },
+    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     hover_cards::{HoverCardMessage, PressHints, hoverable},
     widget_groups::media_group::{MediaTarget, PlayerTarget},
     widgets::{
@@ -235,7 +232,7 @@ impl<'a, Message: 'a + Clone> From<TransportControls<'_, Message>> for Element<'
             controls.loop_mode(),
         ];
         Row::with_children(buttons.into_iter().flatten())
-            .spacing(icon_value_gap(controls.config))
+            .spacing(controls.config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
             .into()
     }

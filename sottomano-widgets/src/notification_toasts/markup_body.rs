@@ -13,15 +13,13 @@ use sottomano_config::theme::font::ResolvedFont;
 
 use crate::widgets::text::{FontFaces, LINE_HEIGHT};
 
-const CODE_BLOCK_PADDING_PX: f32 = 6.0;
-const COLUMN_GAP_PX: f32 = 8.0;
-
 pub struct MarkupBody<'a> {
     markup: &'a str,
     font: &'a ResolvedFont,
     size: f32,
     monospace: Font,
     block_spacing: f32,
+    column_gap: f32,
     corner_radius: f32,
 }
 
@@ -34,6 +32,7 @@ impl<'a> MarkupBody<'a> {
             size: font.text_size_px,
             monospace: Font::MONOSPACE,
             block_spacing: 0.0,
+            column_gap: 0.0,
             corner_radius: 0.0,
         }
     }
@@ -46,6 +45,11 @@ impl<'a> MarkupBody<'a> {
     #[must_use]
     pub fn monospace(self, monospace: Font) -> Self {
         Self { monospace, ..self }
+    }
+
+    #[must_use]
+    pub fn column_gap(self, column_gap: f32) -> Self {
+        Self { column_gap, ..self }
     }
 
     #[must_use]
@@ -93,7 +97,7 @@ impl<'a> MarkupBody<'a> {
         }
         let corner_radius = self.corner_radius;
         container(flowing)
-            .padding(CODE_BLOCK_PADDING_PX)
+            .padding(self.block_spacing)
             .width(Length::Fill)
             .style(move |theme| {
                 container::rounded_box(theme).border(border::rounded(corner_radius))
@@ -131,7 +135,7 @@ impl<'a> MarkupBody<'a> {
         .align_y(Vertical::Top);
         table::table([key_column, value_column], rows)
             .separator(0.0)
-            .padding_x(COLUMN_GAP_PX / 2.0)
+            .padding_x(self.column_gap / 2.0)
             .padding_y(self.block_spacing / 2.0)
             .into()
     }

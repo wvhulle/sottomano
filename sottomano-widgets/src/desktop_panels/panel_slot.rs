@@ -5,6 +5,18 @@ use iced::{
 };
 use sottomano_config::{Config, screen_edges::Position};
 
+use crate::widgets::shared_metrics::ACCENT_STROKE_PX;
+
+pub(crate) fn dragged_slot_content<'a, Message: 'a>(
+    content: impl Into<Element<'a, Message>>,
+    config: &Config,
+) -> Element<'a, Message> {
+    container(content)
+        .padding([0.0, config.theme.spacing.item_gap])
+        .center_y(config.desktop_panels.height)
+        .into()
+}
+
 pub struct PanelSlot<'a, Message> {
     content: Element<'a, Message>,
     indicator: Element<'a, Message>,
@@ -36,8 +48,8 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
     }
 
     #[must_use]
-    pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let band = config.widget_group_layout.edge_indicator_thickness;
+    pub fn view(self, position: Position) -> Element<'a, Message> {
+        let band = ACCENT_STROKE_PX;
         let Self {
             content,
             indicator,

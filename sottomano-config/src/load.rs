@@ -54,12 +54,12 @@ struct UserConfig {
     theme: ThemeChoice,
     desktop_panels: DesktopPanelsConfig<Spacing>,
     group_menus: GroupMenusConfig,
-    widget_group_layout: WidgetGroupLayoutConfig<Spacing>,
-    group_items: GroupItemsConfig<Spacing>,
-    hover_cards: HoverCardsConfig<Spacing>,
-    overlay_surfaces: OverlaySurfacesConfig<Spacing>,
+    widget_group_layout: WidgetGroupLayoutConfig,
+    group_items: GroupItemsConfig,
+    hover_cards: HoverCardsConfig,
+    overlay_surfaces: OverlaySurfacesConfig,
     widget_groups: WidgetGroupsConfig,
-    notification_toasts: NotificationToastsConfig<Spacing>,
+    notification_toasts: NotificationToastsConfig,
     calendar: CalendarChoice,
     launched_programs: LaunchedPrograms,
 }
@@ -80,15 +80,16 @@ impl UserConfig {
                 monospace_font: font::resolve(&self.theme.font, FontRole::Monospace)
                     .map_err(LoadError::Font)?,
                 palette: self.theme.palette,
+                spacing: self.theme.spacing.resolve(em_px),
             },
             desktop_panels: self.desktop_panels.resolve(em_px),
             group_menus: self.group_menus,
-            widget_group_layout: self.widget_group_layout.resolve(em_px),
-            group_items: self.group_items.resolve(em_px),
-            hover_cards: self.hover_cards.resolve(em_px),
-            overlay_surfaces: self.overlay_surfaces.resolve(em_px),
+            widget_group_layout: self.widget_group_layout,
+            group_items: self.group_items,
+            hover_cards: self.hover_cards,
+            overlay_surfaces: self.overlay_surfaces,
             widget_groups: self.widget_groups,
-            notification_toasts: self.notification_toasts.resolve(em_px),
+            notification_toasts: self.notification_toasts,
             calendar: Calendar {
                 locale,
                 other_time_zones: self.calendar.other_time_zones,
@@ -229,6 +230,84 @@ mod tests {
                 "window_list",
                 "[widget_groups.window_list]\nprogress = true\n",
             ),
+            (
+                "content_inset",
+                "[overlay_surfaces]\ncontent_inset = \"10px\"\n",
+            ),
+            ("row_gap", "[overlay_surfaces]\nrow_gap = \"4px\"\n"),
+            ("column_gap", "[overlay_surfaces]\ncolumn_gap = \"14px\"\n"),
+            (
+                "section_gap",
+                "[overlay_surfaces]\nsection_gap = \"16px\"\n",
+            ),
+            (
+                "satellite_gap",
+                "[overlay_surfaces]\nsatellite_gap = \"14px\"\n",
+            ),
+            ("item_gap", "[group_items]\nitem_gap = \"4px\"\n"),
+            ("slider_width", "[group_items]\nslider_width = \"60px\"\n"),
+            (
+                "slider_stroke_width",
+                "[group_items]\nslider_stroke_width = \"2px\"\n",
+            ),
+            (
+                "frame_outline_width",
+                "[desktop_panels]\nframe_outline_width = \"1px\"\n",
+            ),
+            (
+                "group_edge_padding",
+                "[desktop_panels]\ngroup_edge_padding = \"5px\"\n",
+            ),
+            (
+                "joined_group_gap",
+                "[desktop_panels]\njoined_group_gap = \"11px\"\n",
+            ),
+            (
+                "framed_group_gap",
+                "[desktop_panels]\nframed_group_gap = \"4px\"\n",
+            ),
+            (
+                "start_distance",
+                "[desktop_panels.slot_drag]\nstart_distance = \"6px\"\n",
+            ),
+            (
+                "edge_indicator_thickness",
+                "[widget_group_layout]\nedge_indicator_thickness = \"2.4px\"\n",
+            ),
+            (
+                "value_column_width",
+                "[hover_cards]\nvalue_column_width = \"620px\"\n",
+            ),
+            (
+                "edge_gap",
+                "[notification_toasts.placement]\nedge_gap = \"24px\"\n",
+            ),
+            (
+                "window_right_offset",
+                "[notification_toasts.placement]\nwindow_right_offset = \"12px\"\n",
+            ),
+            (
+                "window_top_offset",
+                "[notification_toasts.placement]\nwindow_top_offset = \"48px\"\n",
+            ),
+            ("width", "[notification_toasts.card]\nwidth = \"440px\"\n"),
+            (
+                "icon_size",
+                "[notification_toasts.card]\nicon_size = \"44px\"\n",
+            ),
+            (
+                "app_badge_size",
+                "[notification_toasts.card]\napp_badge_size = \"20px\"\n",
+            ),
+            (
+                "image_preview_max_height",
+                "[notification_toasts.card]\nimage_preview_max_height = \"180px\"\n",
+            ),
+            (
+                "small_text_size",
+                "[theme.font]\nsmall_text_size = \"12px\"\n",
+            ),
+            ("icon_size", "[theme.font]\nicon_size = \"15.5px\"\n"),
         ];
         for (table_name, toml) in removed_tables {
             let file = file_containing("old-keys", toml);
@@ -241,12 +320,12 @@ mod tests {
 
     #[test]
     fn spacing_in_em_resolves_against_the_text_size() {
-        let file = file_containing("em", "[overlay_surfaces]\ncontent_inset = \"0.5em\"\n");
+        let file = file_containing("em", "[theme.spacing]\nsurface_inset = \"0.5em\"\n");
         let read = file.read().unwrap();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        let overlay = read.overlay_surfaces.resolve(14.0);
-        assert!((overlay.content_inset - 7.0).abs() < f32::EPSILON);
-        assert!((overlay.row_gap - 4.0).abs() < f32::EPSILON);
+        let spacing = read.theme.spacing.resolve(14.0);
+        assert!((spacing.surface_inset - 7.0).abs() < f32::EPSILON);
+        assert!((spacing.item_gap - 4.0).abs() < f32::EPSILON);
     }
 
     #[test]

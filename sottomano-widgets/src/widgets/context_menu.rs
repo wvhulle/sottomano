@@ -2,7 +2,7 @@ use iced::{
     Background, Border, Color, Element, Length, Padding, Theme,
     alignment::Vertical,
     border::Radius,
-    widget::{Column, Row, button, space, text},
+    widget::{Row, button, container, space, text},
 };
 use sottomano_config::Config;
 
@@ -14,10 +14,10 @@ use crate::widgets::{
     icon_glyph::IconGlyph,
     list_end_corners::ListEndCorners,
     phosphor::{Phosphor, Weight},
+    shared_metrics::OUTLINE_WIDTH_PX,
     text::panel_text,
+    uniform_width_column::uniform_width_column,
 };
-
-const DIVIDER_THICKNESS: f32 = 1.0;
 
 pub enum Trailing {
     Nothing,
@@ -43,7 +43,7 @@ pub enum ContextMenuLine<'a, M> {
     Divider,
 }
 
-const CONTEXT_MENU_WIDTH_PX: f32 = 250.0;
+const CONTEXT_MENU_MAX_WIDTH_PX: f32 = 400.0;
 
 pub fn context_menu<'a, M: Clone + 'a>(
     config: &Config,
@@ -52,17 +52,16 @@ pub fn context_menu<'a, M: Clone + 'a>(
 ) -> Element<'a, M> {
     let kept_lines = without_redundant_dividers(lines.into_iter().collect());
     let end_corners = ListEndCorners::new(kept_lines.len(), popup_corners);
-    Column::with_children(
-        kept_lines
-            .into_iter()
-            .enumerate()
-            .map(|(position, line)| match line {
+    container(
+        uniform_width_column(kept_lines.into_iter().enumerate().map(
+            |(position, line)| match line {
                 ContextMenuLine::Row(row) => entry(config, row, end_corners.radius_at(position)),
                 ContextMenuLine::Divider => divider(),
-            }),
+            },
+        ))
+        .spacing(config.theme.spacing.item_gap),
     )
-    .spacing(config.overlay_surfaces.row_gap)
-    .width(CONTEXT_MENU_WIDTH_PX)
+    .max_width(CONTEXT_MENU_MAX_WIDTH_PX)
     .into()
 }
 
@@ -72,7 +71,7 @@ fn entry<'a, M: Clone + 'a>(
     highlight_radius: Radius,
 ) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
-    let row_spacing = config.overlay_surfaces.row_gap;
+    let row_spacing = config.theme.spacing.item_gap;
     let color: fn(&Theme) -> Color = match row.press {
         ContextMenuRowPress::Enabled(_) => text_color,
         ContextMenuRowPress::Disabled => secondary_text_color,
@@ -117,7 +116,7 @@ fn entry<'a, M: Clone + 'a>(
     }
 
     let glyph_column = icon_size + row_spacing;
-    let inset = config.overlay_surfaces.content_inset;
+    let inset = config.theme.spacing.surface_inset;
     let padding = Padding {
         top: row_spacing,
         right: inset,
@@ -154,7 +153,7 @@ fn button_style(
 }
 
 fn divider<'a, Message: 'a>() -> Element<'a, Message> {
-    activity_line(background_weak_color, 1.0, DIVIDER_THICKNESS)
+    activity_line(background_weak_color, 1.0, OUTLINE_WIDTH_PX)
 }
 
 fn without_redundant_dividers<M>(

@@ -2,10 +2,7 @@ use iced::{Alignment, Element, Theme, widget::row};
 use sottomano_config::Config;
 
 use crate::{
-    group_items::{
-        reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::icon_value_gap,
-    },
+    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
@@ -87,7 +84,7 @@ impl ConfirmButton {
                 on_cancel
             ),
         ]
-        .spacing(icon_value_gap(config))
+        .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center)
         .into()
     }

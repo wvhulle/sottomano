@@ -29,7 +29,7 @@ pub(crate) fn quantity_table<'a, M: 'a>(
         return None;
     }
     let font = &config.theme.font;
-    let overlay_surfaces = &config.overlay_surfaces;
+    let spacing = &config.theme.spacing;
     let quantity_rows =
         aligned_quantity_rows(members.iter().map(|member| member.aligned.keys().copied()));
     let row_height = menu_row_height(config);
@@ -65,9 +65,9 @@ pub(crate) fn quantity_table<'a, M: 'a>(
     Some(
         container(
             Row::with_children(once(label_column.into()).chain(member_columns))
-                .spacing(overlay_surfaces.column_gap),
+                .spacing(spacing.group_gap),
         )
-        .padding(Padding::ZERO.horizontal(overlay_surfaces.content_inset))
+        .padding(Padding::ZERO.horizontal(spacing.surface_inset))
         .into(),
     )
 }

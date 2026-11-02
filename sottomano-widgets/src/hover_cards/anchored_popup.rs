@@ -89,14 +89,14 @@ pub fn anchored_popup<'a, Message: 'a>(
     config: &Config,
     overlay_appearance: LayerAppearance,
 ) -> Element<'a, Message> {
-    let overlay_frame = LayerFrameStyle::new(&overlay_appearance, config);
+    let overlay_frame = LayerFrameStyle::new(&overlay_appearance);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
-        edge_inset: config.desktop_panels.height + config.overlay_surfaces.satellite_gap,
+        edge_inset: config.desktop_panels.height + config.theme.spacing.group_gap,
         panel_thickness: config.desktop_panels.height,
-        popup_gap: config.overlay_surfaces.satellite_gap,
-        leading_icon_center: config.overlay_surfaces.content_inset
+        popup_gap: config.theme.spacing.group_gap,
+        leading_icon_center: config.theme.spacing.surface_inset
             + config.desktop_panels.height / 2.0,
         position,
         morph,

@@ -1,5 +1,5 @@
 use iced::{
-    Border, Color, Element, Padding, Shadow, Theme, Vector,
+    Border, Color, Element, Shadow, Theme, Vector,
     alignment::Vertical,
     border::Radius,
     widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
@@ -18,15 +18,13 @@ use crate::{
             primary_color, secondary_text_color, text_color,
         },
         favicon::Favicons,
+        shared_metrics::OUTLINE_WIDTH_PX,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
     },
 };
 
-const TILE_LABEL_GAP_PX: f32 = 5.0;
 const TILE_LABEL_WIDTH_RATIO: f32 = 2.5;
-const TILE_BORDER_PX: f32 = 2.0;
-const TILE_PADDING: Padding = Padding::new(4.0);
 const FLOATING_SHADOW_ALPHA: f32 = 0.45;
 const FLOATING_SHADOW_OFFSET: Vector = Vector::new(0.0, 2.0);
 const FLOATING_SHADOW_BLUR_PX: f32 = 6.0;
@@ -102,7 +100,7 @@ impl<'a> WorkspaceSchematic<'a> {
             .filter(|_| width >= side * TILE_LABEL_WIDTH_RATIO)
             .map(|label| self.label(label));
         let content = RowWidget::with_children(icon.into_iter().chain(label).collect::<Vec<_>>())
-            .spacing(TILE_LABEL_GAP_PX)
+            .spacing(self.config.theme.spacing.item_gap)
             .align_y(Vertical::Top);
 
         let outline = tile_outline(tile);
@@ -112,7 +110,7 @@ impl<'a> WorkspaceSchematic<'a> {
         button(content)
             .width(width)
             .height(height)
-            .padding(TILE_PADDING)
+            .padding(self.config.theme.spacing.item_gap)
             .clip(true)
             .on_press(PopupMessage::FocusWindow(tile.window))
             .style(move |theme, status| {
@@ -131,7 +129,7 @@ impl<'a> WorkspaceSchematic<'a> {
                         } else {
                             outline(theme)
                         },
-                        width: TILE_BORDER_PX,
+                        width: OUTLINE_WIDTH_PX,
                         radius,
                     },
                     shadow: floating_lift(theme, floating),

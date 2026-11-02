@@ -37,18 +37,16 @@ secondary = "#bfbdb6"
 
 [theme.font]
 text_size = "14px"
-small_text_size = "12px"
-icon_size = "15.5px"
+
+[theme.spacing]
+item_gap = "4px"
+surface_inset = "10px"
+group_gap = "14px"
 
 [desktop_panels]
 height = "24px"
-frame_outline_width = "1px"
-group_edge_padding = "5px"
-joined_group_gap = "11px"
-framed_group_gap = "4px"
 
 [desktop_panels.slot_drag]
-start_distance = "6px"
 ghost_scale = 1.08
 spring_load_delay = "600ms"
 focus_indicator_duration = "160ms"
@@ -57,17 +55,12 @@ focus_indicator_duration = "160ms"
 alert_promotion_severity = "warning"
 
 [widget_group_layout]
-edge_indicator_thickness = "2.4px"
 expansion_duration = "90ms"
 
 [group_items]
-item_gap = "4px"
-slider_width = "60px"
-slider_stroke_width = "2px"
 slider_expansion_duration = "90ms"
 
 [hover_cards]
-value_column_width = "620px"
 copy_flash_duration = "700ms"
 
 [hover_cards.loading]
@@ -87,11 +80,6 @@ duration = "350ms"
 glyph_change = "55ms"
 
 [overlay_surfaces]
-content_inset = "10px"
-row_gap = "4px"
-column_gap = "14px"
-section_gap = "16px"
-satellite_gap = "14px"
 surface_morph_duration = "160ms"
 
 [widget_groups.window]
@@ -215,9 +203,6 @@ lrclib_lookup = true
 
 [notification_toasts.placement]
 fallback_corner = "bottom-right"
-edge_gap = "24px"
-window_right_offset = "12px"
-window_top_offset = "48px"
 
 [notification_toasts.lifetime]
 low_severity_timeout = "8s"
@@ -225,10 +210,6 @@ normal_severity_timeout = "12s"
 critical_severity_timeout = "0s"
 
 [notification_toasts.card]
-width = "440px"
-icon_size = "44px"
-app_badge_size = "20px"
-image_preview_max_height = "180px"
 appear = "90ms"
 dismiss_fade = "140ms"
 expire_fade = "220ms"

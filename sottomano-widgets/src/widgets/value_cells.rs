@@ -30,8 +30,6 @@ use crate::widgets::{
     transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
 };
 
-const BRAND_GLYPH_GAP_PX: f32 = 4.0;
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ValueCell {
     Blank,
@@ -179,6 +177,7 @@ pub struct ValueCellView<Message> {
     pub figure_font: ResolvedFont,
     pub prose_font: ResolvedFont,
     pub max_width: f32,
+    pub glyph_gap: f32,
     pub wrapping: Wrapping,
     pub locale: Locale,
     pub now: DateTime<Utc>,
@@ -197,6 +196,7 @@ impl<Message> Clone for ValueCellView<Message> {
             figure_font: self.figure_font.clone(),
             prose_font: self.prose_font.clone(),
             max_width: self.max_width,
+            glyph_gap: self.glyph_gap,
             wrapping: self.wrapping,
             locale: self.locale,
             now: self.now,
@@ -279,14 +279,14 @@ impl<Message: 'static> ValueCellView<Message> {
             ValueCell::BrandedLink { label, url, glyph } => {
                 let underlined = self.underlined_label(label, color, row);
                 let branded = Row::with_children([self.glyph(glyph, color), underlined])
-                    .spacing(BRAND_GLYPH_GAP_PX)
+                    .spacing(self.glyph_gap)
                     .align_y(Vertical::Center);
                 self.openable(branded.into(), url)
             }
             ValueCell::BrandedText { text, glyph } => {
                 let copyable = self.copyable_text(text, CellTypeFace::Prose, color, row);
                 Row::with_children([self.glyph(glyph, color), copyable])
-                    .spacing(BRAND_GLYPH_GAP_PX)
+                    .spacing(self.glyph_gap)
                     .align_y(Vertical::Center)
                     .into()
             }

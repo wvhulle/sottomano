@@ -85,7 +85,7 @@ fn undragged_slot_context(config: &Config, edge: Position, clock: Clock) -> Pane
         edge,
         drag: DragView {
             drag: None,
-            ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance(), config),
+            ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
         },
         clock,
     }
@@ -281,7 +281,7 @@ impl ShowcasedNiriSession {
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(&self.snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance(), config).drawn_corners(
+            LayerFrameStyle::new(&ShellLayer::Sidebar.default_appearance()).drawn_corners(
                 OutlinedSides::inward_of(Position::Left)
                     .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
             ),

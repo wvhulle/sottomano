@@ -251,9 +251,9 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             cursor_hovering: false,
             expanded: false,
         }
-        .view(config, 0.0);
+        .view(0.0);
         PanelSlot::new(handle, indicator)
-            .view(config, panel_position)
+            .view(panel_position)
             .map(M::from)
     }
 

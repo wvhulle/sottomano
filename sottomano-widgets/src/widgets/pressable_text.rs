@@ -11,13 +11,15 @@ use iced::{
     },
     border::Radius,
     mouse::{Cursor, Interaction},
+    widget::container,
     window,
 };
 
-use crate::widgets::configured_theme::AccentShades;
+use crate::widgets::{
+    configured_theme::AccentShades,
+    shared_metrics::{OUTLINE_WIDTH_PX, SMALL_CORNER_RADIUS_PX},
+};
 
-const BORDER_PX: f32 = 1.0;
-const RADIUS_PX: f32 = 3.0;
 const PADDING: Padding = Padding {
     top: 1.0,
     right: 4.0,
@@ -34,7 +36,7 @@ pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     interaction: Interaction,
 ) -> Element<'a, Message> {
     Element::new(PressableText {
-        content: content.into(),
+        content: container(content).padding(PADDING).into(),
         payload,
         on_press: Box::new(on_press),
         accent,
@@ -102,13 +104,11 @@ impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let child = self.content.as_widget_mut().layout(
-            &mut tree.children[0],
-            renderer,
-            &limits.shrink(PADDING),
-        );
-        let padded = child.size().expand(PADDING);
-        Node::with_children(padded, vec![child.move_to((PADDING.left, PADDING.top))])
+        let child = self
+            .content
+            .as_widget_mut()
+            .layout(&mut tree.children[0], renderer, limits);
+        Node::with_children(child.size(), vec![child])
     }
 
     fn update(
@@ -179,8 +179,8 @@ impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
                     bounds: layout.bounds(),
                     border: Border {
                         color: if copied { accent.base } else { accent.weak },
-                        width: BORDER_PX,
-                        radius: Radius::new(RADIUS_PX),
+                        width: OUTLINE_WIDTH_PX,
+                        radius: Radius::new(SMALL_CORNER_RADIUS_PX),
                     },
                     ..renderer::Quad::default()
                 },

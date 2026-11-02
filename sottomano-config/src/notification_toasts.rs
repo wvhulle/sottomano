@@ -5,53 +5,19 @@ use serde::{Deserialize, Serialize};
 use crate::{
     screen_edges::{HEdge, VEdge},
     severity::Severity,
-    spacing::Spacing,
 };
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(
-    default,
-    deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + From<f32>")
-)]
-pub struct NotificationToastsConfig<L = f32> {
-    pub placement: ToastPlacementConfig<L>,
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct NotificationToastsConfig {
+    pub placement: ToastPlacementConfig,
     pub lifetime: ToastLifetimeConfig,
-    pub card: ToastCardConfig<L>,
-}
-
-impl<L: From<f32>> Default for NotificationToastsConfig<L> {
-    fn default() -> Self {
-        Self {
-            placement: ToastPlacementConfig::default(),
-            lifetime: ToastLifetimeConfig::default(),
-            card: ToastCardConfig::default(),
-        }
-    }
-}
-
-impl NotificationToastsConfig<Spacing> {
-    #[must_use]
-    pub fn resolve(self, em_px: f32) -> NotificationToastsConfig {
-        NotificationToastsConfig {
-            placement: self.placement.resolve(em_px),
-            lifetime: self.lifetime,
-            card: self.card.resolve(em_px),
-        }
-    }
+    pub card: ToastCardConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(
-    default,
-    deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + From<f32>")
-)]
-pub struct ToastCardConfig<L = f32> {
-    pub width: L,
-    pub icon_size: L,
-    pub app_badge_size: L,
-    pub image_preview_max_height: L,
+#[serde(default, deny_unknown_fields)]
+pub struct ToastCardConfig {
     #[serde(with = "humantime_serde")]
     pub appear: Duration,
     #[serde(with = "humantime_serde")]
@@ -62,33 +28,13 @@ pub struct ToastCardConfig<L = f32> {
     pub motion: Duration,
 }
 
-impl<L: From<f32>> Default for ToastCardConfig<L> {
+impl Default for ToastCardConfig {
     fn default() -> Self {
         Self {
-            width: L::from(440.0),
-            icon_size: L::from(44.0),
-            app_badge_size: L::from(20.0),
-            image_preview_max_height: L::from(180.0),
             appear: Duration::from_millis(90),
             dismiss_fade: Duration::from_millis(140),
             expire_fade: Duration::from_millis(220),
             motion: Duration::from_millis(160),
-        }
-    }
-}
-
-impl ToastCardConfig<Spacing> {
-    #[must_use]
-    pub fn resolve(self, em_px: f32) -> ToastCardConfig {
-        ToastCardConfig {
-            width: self.width.resolve(em_px),
-            icon_size: self.icon_size.resolve(em_px),
-            app_badge_size: self.app_badge_size.resolve(em_px),
-            image_preview_max_height: self.image_preview_max_height.resolve(em_px),
-            appear: self.appear,
-            dismiss_fade: self.dismiss_fade,
-            expire_fade: self.expire_fade,
-            motion: self.motion,
         }
     }
 }
@@ -124,37 +70,15 @@ impl FallbackCorner {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(
-    default,
-    deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + From<f32>")
-)]
-pub struct ToastPlacementConfig<L = f32> {
+#[serde(default, deny_unknown_fields)]
+pub struct ToastPlacementConfig {
     pub fallback_corner: FallbackCorner,
-    pub edge_gap: L,
-    pub window_right_offset: L,
-    pub window_top_offset: L,
 }
 
-impl<L: From<f32>> Default for ToastPlacementConfig<L> {
+impl Default for ToastPlacementConfig {
     fn default() -> Self {
         Self {
             fallback_corner: FallbackCorner::BottomRight,
-            edge_gap: L::from(24.0),
-            window_right_offset: L::from(12.0),
-            window_top_offset: L::from(48.0),
-        }
-    }
-}
-
-impl ToastPlacementConfig<Spacing> {
-    #[must_use]
-    pub fn resolve(self, em_px: f32) -> ToastPlacementConfig {
-        ToastPlacementConfig {
-            fallback_corner: self.fallback_corner,
-            edge_gap: self.edge_gap.resolve(em_px),
-            window_right_offset: self.window_right_offset.resolve(em_px),
-            window_top_offset: self.window_top_offset.resolve(em_px),
         }
     }
 }

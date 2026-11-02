@@ -22,12 +22,11 @@ impl DesktopShell {
         window: Id,
         output: &str,
     ) -> Element<'a, Message> {
-        let config = &self.config;
         let sidebar = self
             .widget_groups
             .sidebar_settings_group
             .sidebar_appearance();
-        let frame_style = LayerFrameStyle::new(&sidebar, config);
+        let frame_style = LayerFrameStyle::new(&sidebar);
         let outlined_sides = OutlinedSides::inward_of(Position::Left)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed_workspaces = (self

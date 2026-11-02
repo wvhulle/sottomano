@@ -13,12 +13,13 @@ use iced::{
     widget::container,
 };
 use iced_exwlshell::BlurRegions;
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_config::screen_edges::Position;
 
 use crate::{
     desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows},
     widgets::{
         configured_theme::{background_color, background_strong_color, text_color},
+        shared_metrics::OUTLINE_WIDTH_PX,
         shell_layer_appearance::LayerAppearance,
     },
 };
@@ -33,10 +34,10 @@ pub struct LayerFrameStyle {
 
 impl LayerFrameStyle {
     #[must_use]
-    pub fn new(appearance: &LayerAppearance, config: &Config) -> Self {
+    pub fn new(appearance: &LayerAppearance) -> Self {
         Self {
             appearance: *appearance,
-            outline_width: config.desktop_panels.frame_outline_width,
+            outline_width: OUTLINE_WIDTH_PX,
         }
     }
 
@@ -392,7 +393,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
 #[cfg(test)]
 mod tests {
     use iced::{Rectangle, widget::space};
-    use sottomano_config::{Config, screen_edges::Position};
+    use sottomano_config::screen_edges::Position;
 
     use super::{LayerFrameStyle, OutlinedSides, panel_frame};
     use crate::widgets::shell_layer_appearance::LayerAppearance;
@@ -403,12 +404,9 @@ mod tests {
             corner_radius_px: 8.0,
             ..LayerAppearance::default()
         };
-        let frame = panel_frame::<()>(
-            space(),
-            LayerFrameStyle::new(&appearance, &Config::default()),
-        )
-        .outlined_sides(OutlinedSides::inward_of(Position::Top))
-        .blurred(true);
+        let frame = panel_frame::<()>(space(), LayerFrameStyle::new(&appearance))
+            .outlined_sides(OutlinedSides::inward_of(Position::Top))
+            .blurred(true);
         let pill = Rectangle {
             x: 10.0,
             y: 0.0,

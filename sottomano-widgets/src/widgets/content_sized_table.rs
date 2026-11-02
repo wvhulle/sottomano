@@ -67,8 +67,8 @@ pub struct ContentSizedTable<'a, Message> {
     cells: Vec<Element<'a, Message>>,
     row_spans: Vec<RowSpan>,
     alignments: Vec<CellAlignment>,
-    padding_x: f32,
-    padding_y: f32,
+    column_gap: f32,
+    row_gap: f32,
 }
 
 pub fn content_sized_table<'a, Row: Clone, Message>(
@@ -101,8 +101,8 @@ pub fn content_sized_spanning_table<'a, Row: Clone, Message>(
         cells: table_cells.cells,
         row_spans: table_cells.row_spans,
         alignments,
-        padding_x: 0.0,
-        padding_y: 0.0,
+        column_gap: 0.0,
+        row_gap: 0.0,
     }
 }
 
@@ -209,8 +209,8 @@ pub fn content_sized_spanning_grid<'a, Message: 'a>(
                 align_y: Vertical::Center,
             })
             .collect(),
-        padding_x: 0.0,
-        padding_y: 0.0,
+        column_gap: 0.0,
+        row_gap: 0.0,
     }
 }
 
@@ -222,16 +222,15 @@ impl<'a, Message: 'a> From<ContentSizedTable<'a, Message>> for Element<'a, Messa
 
 impl<Message> ContentSizedTable<'_, Message> {
     #[must_use]
-    pub fn padding_x(self, padding_x: f32) -> Self {
-        Self { padding_x, ..self }
+    pub fn column_gap(self, column_gap: f32) -> Self {
+        Self { column_gap, ..self }
     }
 
     #[must_use]
-    pub fn padding_y(self, padding_y: f32) -> Self {
-        Self { padding_y, ..self }
+    pub fn row_gap(self, row_gap: f32) -> Self {
+        Self { row_gap, ..self }
     }
 
-    #[allow(clippy::cast_precision_loss)]
     fn fitted_column_widths(
         &self,
         placed_cells: &[PlacedCell],
@@ -250,8 +249,7 @@ impl<Message> ContentSizedTable<'_, Message> {
                     .fold(0.0, f32::max)
             })
             .collect();
-        let cell_padding = 2.0 * self.padding_x * natural_widths.len() as f32;
-        let room_for_cells = max_width - cell_padding;
+        let room_for_cells = max_width - total_gap(natural_widths.len(), self.column_gap);
         if natural_widths.iter().sum::<f32>() > room_for_cells {
             fair_widths(&natural_widths, room_for_cells)
         } else {
@@ -315,10 +313,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
             .map(|(cell, cell_tree)| cell.as_widget_mut().layout(cell_tree, renderer, &intrinsic))
             .collect();
         let column_widths = self.fitted_column_widths(&placed_cells, &nodes, limits.max().width);
-        let span = |extents: &[f32], padding: f32| {
-            extents.iter().sum::<f32>() + 2.0 * padding * extents.len() as f32
-        };
-        let table_width = span(&column_widths, self.padding_x);
+        let table_width = span(&column_widths, self.column_gap);
         placed_cells.iter().for_each(|placed| {
             let cell = &mut self.cells[placed.position];
             let fixed_width = match placed.row_span {
@@ -361,8 +356,8 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
                     .fold(0.0, f32::max)
             })
             .collect();
-        let column_starts = cell_starts(&column_widths, self.padding_x);
-        let row_starts = cell_starts(&row_heights, self.padding_y);
+        let column_starts = cell_starts(&column_widths, self.column_gap);
+        let row_starts = cell_starts(&row_heights, self.row_gap);
         placed_cells.iter().for_each(|placed| {
             let node = &mut nodes[placed.position];
             match placed.row_span {
@@ -386,7 +381,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
             }
         });
         Node::with_children(
-            Size::new(table_width, span(&row_heights, self.padding_y)),
+            Size::new(table_width, span(&row_heights, self.row_gap)),
             nodes,
         )
     }
@@ -511,12 +506,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for ContentSizedTable
     }
 }
 
-fn cell_starts(extents: &[f32], padding: f32) -> Vec<f32> {
+#[allow(clippy::cast_precision_loss)]
+fn total_gap(cell_count: usize, gap: f32) -> f32 {
+    gap * cell_count.saturating_sub(1) as f32
+}
+
+fn span(extents: &[f32], gap: f32) -> f32 {
+    extents.iter().sum::<f32>() + total_gap(extents.len(), gap)
+}
+
+fn cell_starts(extents: &[f32], gap: f32) -> Vec<f32> {
     extents
         .iter()
-        .scan(padding, |start, extent| {
+        .scan(0.0, |start, extent| {
             let current = *start;
-            *start += extent + 2.0 * padding;
+            *start += extent + gap;
             Some(current)
         })
         .collect()

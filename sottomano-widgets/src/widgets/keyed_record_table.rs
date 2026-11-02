@@ -15,12 +15,11 @@ use crate::{
             ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
         },
         ellipsis_rule::ellipsis_rule,
+        shared_metrics::OUTLINE_WIDTH_PX,
         text::{LINE_HEIGHT, column_heading},
         value_cells::{LabeledValue, ValueCell, ValueCellView},
     },
 };
-
-const SEPARATOR_RULE_THICKNESS_PX: f32 = 1.0;
 
 static BLANK_CELL: ValueCell = ValueCell::Blank;
 
@@ -352,8 +351,8 @@ impl KeyedRecordTable {
             once(style.key_column(line_height_px)).chain(value_columns),
             self.rows.iter().flat_map(spannable_rows),
         )
-        .padding_x(style.column_gap / 2.0)
-        .padding_y(style.row_spacing / 2.0)
+        .column_gap(style.column_gap)
+        .row_gap(style.row_spacing)
         .into()
     }
 }
@@ -424,7 +423,7 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
 }
 
 pub fn separator_rule<'a, Message: 'a>() -> Element<'a, Message> {
-    rule::horizontal(SEPARATOR_RULE_THICKNESS_PX)
+    rule::horizontal(OUTLINE_WIDTH_PX)
         .style(rule::default)
         .into()
 }

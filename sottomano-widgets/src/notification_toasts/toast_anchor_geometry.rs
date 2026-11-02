@@ -2,33 +2,53 @@ use std::collections::HashMap;
 
 use iced::{Point, Rectangle, Size};
 use sottomano_config::{
-    notification_toasts::ToastPlacementConfig,
+    Config,
     screen_edges::{HEdge, VEdge},
 };
 
 use super::toast_placement::{AnchorGroup, ToastAnchor};
 
-pub const STACK_SPACING: f32 = 8.0;
+#[derive(Debug, Clone, Copy)]
+pub struct ToastAnchorSpacing {
+    edge_gap: f32,
+    window_right_offset: f32,
+    window_top_offset: f32,
+    stack_gap: f32,
+}
+
+impl ToastAnchorSpacing {
+    #[must_use]
+    pub fn from_config(config: &Config) -> Self {
+        let panel_height = config.desktop_panels.height;
+        let group_gap = config.theme.spacing.group_gap;
+        Self {
+            edge_gap: panel_height,
+            window_right_offset: group_gap,
+            window_top_offset: 2.0 * panel_height,
+            stack_gap: group_gap,
+        }
+    }
+}
 
 #[must_use]
 pub fn origins(
     anchors: &[ToastAnchor],
     sizes: &[Size],
     area: Rectangle,
-    config: &ToastPlacementConfig,
+    spacing: &ToastAnchorSpacing,
 ) -> Vec<Point> {
     let slots = share_displaced_top(
         anchors
             .iter()
             .zip(sizes)
-            .map(|(&anchor, &size)| Slot::resolve(anchor, size, area, config))
+            .map(|(&anchor, &size)| Slot::resolve(anchor, size, area, spacing))
             .collect(),
     );
     let mut placed: Vec<Placed> = grouped(&slots)
         .into_values()
         .flat_map(|members| {
             let heights: Vec<f32> = members.iter().map(|&index| sizes[index].height).collect();
-            let leading = leading_offsets(&heights);
+            let leading = leading_offsets(&heights, spacing.stack_gap);
             let extent = group_extent(&heights, &leading);
             members
                 .iter()
@@ -36,10 +56,10 @@ pub fn origins(
                 .map(|(&index, leading)| Placed {
                     index,
                     origin: clamped(
-                        slots[index].origin(sizes[index], leading, extent, area, config),
+                        slots[index].origin(sizes[index], leading, extent, area, spacing),
                         sizes[index],
                         area,
-                        config,
+                        spacing,
                     ),
                 })
                 .collect::<Vec<_>>()
@@ -71,13 +91,13 @@ impl Slot {
         anchor: ToastAnchor,
         size: Size,
         area: Rectangle,
-        config: &ToastPlacementConfig,
+        spacing: &ToastAnchorSpacing,
     ) -> Self {
         let ToastAnchor::Window { bounds, .. } = anchor else {
             return Self::Anchored(anchor);
         };
-        let origin = window_origin(bounds, size, config);
-        match overflowed_edge(origin.x, size, area, config) {
+        let origin = window_origin(bounds, size, spacing);
+        match overflowed_edge(origin.x, size, area, spacing) {
             Some(horizontal) => Self::Displaced {
                 horizontal,
                 top: origin.y,
@@ -99,12 +119,12 @@ impl Slot {
         leading: f32,
         extent: f32,
         area: Rectangle,
-        config: &ToastPlacementConfig,
+        spacing: &ToastAnchorSpacing,
     ) -> Point {
         match self {
-            Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, area, config),
+            Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, area, spacing),
             Self::Displaced { horizontal, top } => {
-                Point::new(edge_x(horizontal, size, area, config), top + leading)
+                Point::new(edge_x(horizontal, size, area, spacing), top + leading)
             }
         }
     }
@@ -137,12 +157,12 @@ fn grouped(slots: &[Slot]) -> HashMap<SlotGroup, Vec<usize>> {
         })
 }
 
-fn leading_offsets(heights: &[f32]) -> Vec<f32> {
+fn leading_offsets(heights: &[f32], stack_gap: f32) -> Vec<f32> {
     heights
         .iter()
         .scan(0.0, |running, height| {
             let leading = *running;
-            *running += height + STACK_SPACING;
+            *running += height + stack_gap;
             Some(leading)
         })
         .collect()
@@ -161,9 +181,9 @@ fn member_origin(
     leading: f32,
     extent: f32,
     area: Rectangle,
-    config: &ToastPlacementConfig,
+    spacing: &ToastAnchorSpacing,
 ) -> Point {
-    let gap = config.edge_gap;
+    let gap = spacing.edge_gap;
     match anchor {
         ToastAnchor::Edge {
             vertical,
@@ -174,17 +194,17 @@ fn member_origin(
                 VEdge::Bottom => area.y + area.height - gap - leading - size.height,
                 VEdge::Center => area.y + (area.height - extent) / 2.0 + leading,
             };
-            Point::new(edge_x(horizontal, size, area, config), y)
+            Point::new(edge_x(horizontal, size, area, spacing), y)
         }
         ToastAnchor::Window { bounds, .. } => {
-            let origin = window_origin(bounds, size, config);
+            let origin = window_origin(bounds, size, spacing);
             Point::new(origin.x, origin.y + leading)
         }
     }
 }
 
-fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> f32 {
-    let gap = config.edge_gap;
+fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, spacing: &ToastAnchorSpacing) -> f32 {
+    let gap = spacing.edge_gap;
     match horizontal {
         HEdge::Left => area.x + gap,
         HEdge::Right => area.x + area.width - size.width - gap,
@@ -192,23 +212,23 @@ fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, config: &ToastPlacemen
     }
 }
 
-fn window_origin(bounds: Rectangle, size: Size, config: &ToastPlacementConfig) -> Point {
-    let from_right = config.window_right_offset;
+fn window_origin(bounds: Rectangle, size: Size, spacing: &ToastAnchorSpacing) -> Point {
+    let from_right = spacing.window_right_offset;
     let x = if bounds.width >= size.width + 2.0 * from_right {
         bounds.x + bounds.width - size.width - from_right
     } else {
         bounds.center_x() - size.width / 2.0
     };
-    Point::new(x, bounds.y + config.window_top_offset)
+    Point::new(x, bounds.y + spacing.window_top_offset)
 }
 
 fn overflowed_edge(
     x: f32,
     size: Size,
     area: Rectangle,
-    config: &ToastPlacementConfig,
+    spacing: &ToastAnchorSpacing,
 ) -> Option<HEdge> {
-    let gap = config.edge_gap;
+    let gap = spacing.edge_gap;
     if x < area.x + gap {
         Some(HEdge::Left)
     } else if x > area.x + area.width - size.width - gap {
@@ -218,8 +238,8 @@ fn overflowed_edge(
     }
 }
 
-fn clamped(origin: Point, size: Size, area: Rectangle, config: &ToastPlacementConfig) -> Point {
-    let gap = config.edge_gap;
+fn clamped(origin: Point, size: Size, area: Rectangle, spacing: &ToastAnchorSpacing) -> Point {
+    let gap = spacing.edge_gap;
     let left = area.x + gap;
     let top = area.y + gap;
     Point::new(
@@ -239,6 +259,12 @@ mod tests {
     const SURFACE: Size = Size::new(1920.0, 1080.0);
     const CARD: Size = Size::new(380.0, 100.0);
     const WINDOW_TOP: f32 = 88.0;
+    const DEFAULT_ANCHOR_SPACING: ToastAnchorSpacing = ToastAnchorSpacing {
+        edge_gap: 24.0,
+        window_right_offset: 14.0,
+        window_top_offset: 48.0,
+        stack_gap: 14.0,
+    };
 
     fn window(id: u64, x: f32) -> ToastAnchor {
         ToastAnchor::Window {
@@ -253,7 +279,7 @@ mod tests {
             anchors,
             &sizes,
             Rectangle::with_size(SURFACE),
-            &ToastPlacementConfig::default(),
+            &DEFAULT_ANCHOR_SPACING,
         )
     }
 
@@ -265,7 +291,7 @@ mod tests {
     fn scrolling_a_window_off_screen_moves_its_toast_sideways_only() {
         assert_eq!(
             placed(&[window(1, 600.0)])[0],
-            Point::new(1008.0, WINDOW_TOP)
+            Point::new(1006.0, WINDOW_TOP)
         );
         assert_eq!(
             placed(&[window(1, -1300.0)])[0],
@@ -280,7 +306,10 @@ mod tests {
         assert_eq!(origins[0], Point::new(24.0, WINDOW_TOP));
         assert_eq!(
             origins[1],
-            Point::new(24.0, WINDOW_TOP + CARD.height + STACK_SPACING)
+            Point::new(
+                24.0,
+                WINDOW_TOP + CARD.height + DEFAULT_ANCHOR_SPACING.stack_gap
+            )
         );
     }
 }

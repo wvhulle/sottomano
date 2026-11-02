@@ -36,13 +36,12 @@ use crate::{
         inline_slider::inline_slider,
         phosphor::Phosphor,
         reveal::reveal_x,
+        shared_metrics::SCROLL_LINE_STEP_PX,
         text::panel_text,
         value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
     },
 };
-
-const PIXELS_PER_SCROLL_STEP: f32 = 40.0;
 
 pub fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
     match delta {
@@ -57,7 +56,7 @@ pub fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
         }
         ScrollDelta::Pixels { y, .. } => {
             *accum += y;
-            if accum.abs() >= PIXELS_PER_SCROLL_STEP {
+            if accum.abs() >= SCROLL_LINE_STEP_PX {
                 let step = if *accum > 0.0 { 1 } else { -1 };
                 *accum = 0.0;
                 Some(step)
@@ -420,7 +419,7 @@ impl SliderControl {
             self.inline_slider_view(config),
             self.readout_view(config),
         ])
-        .spacing(config.group_items.item_gap)
+        .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
         let mut area = mouse_area(opened).on_scroll(ControlMessage::Scroll);
         if self.right_click.is_some() {
@@ -433,7 +432,7 @@ impl SliderControl {
     pub fn menu_view<'a>(&self, config: &Config) -> Element<'a, ControlMessage> {
         let opened =
             Row::with_children([self.inline_slider_view(config), self.readout_view(config)])
-                .spacing(config.group_items.item_gap)
+                .spacing(config.theme.spacing.item_gap)
                 .align_y(Alignment::Center);
         mouse_area(opened).on_scroll(ControlMessage::Scroll).into()
     }
@@ -451,7 +450,7 @@ impl SliderControl {
                 .on_press(ControlMessage::Press)
                 .into()
         };
-        let gap = config.group_items.item_gap;
+        let gap = config.theme.spacing.item_gap;
         let revealed = Row::with_children([
             self.inline_slider_view(config),
             closing_button(self.readout_view(config)),

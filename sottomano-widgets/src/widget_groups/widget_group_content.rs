@@ -20,7 +20,7 @@ use crate::{
         group_item_gestures::GroupItemGestures,
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::{icon_value_gap, reading_value},
+        source_reading::reading_value,
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
@@ -39,6 +39,7 @@ use crate::{
         icon_glyph::IconGlyph,
         ongoing_toast::OngoingToast,
         reveal::reveal_x,
+        shared_metrics::ACCENT_STROKE_PX,
     },
 };
 
@@ -619,8 +620,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     revealed_content(config, reveal, items_row(config, &items, reveal, clock))
                 }))
                 .align_y(Alignment::Center);
-            PanelSlot::new(inner.into(), edge_indicator.view(config, reveal))
-                .view(config, panel_position)
+            PanelSlot::new(inner.into(), edge_indicator.view(reveal)).view(panel_position)
         });
         Some(Element::from(
             mouse_area(animated).on_enter(on_enter).on_exit(on_exit),
@@ -636,15 +636,15 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
-        .spacing(config.group_items.item_gap)
+        .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
     let indicator = EdgeIndicator {
         highest_alert_severity,
         cursor_hovering: false,
         expanded: false,
     }
-    .view(config, 0.0);
-    PanelSlot::new(row.into(), indicator).view(config, panel_position)
+    .view(0.0);
+    PanelSlot::new(row.into(), indicator).view(panel_position)
 }
 
 #[derive(Clone, Copy)]
@@ -655,8 +655,8 @@ pub(crate) struct EdgeIndicator {
 }
 
 impl EdgeIndicator {
-    pub(crate) fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
-        let thickness = config.widget_group_layout.edge_indicator_thickness;
+    pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
+        let thickness = ACCENT_STROKE_PX;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
@@ -688,7 +688,7 @@ fn items_row<'a, M: Clone + 'a>(
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
     Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
-        .spacing(config.group_items.item_gap)
+        .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center)
         .into()
 }
@@ -718,7 +718,7 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
         return Row::new().into();
     };
     reveal_x(
-        container(value).padding(Padding::ZERO.left(icon_value_gap(config))),
+        container(value).padding(Padding::ZERO.left(config.theme.spacing.item_gap)),
         hidden,
     )
 }
@@ -728,7 +728,7 @@ fn revealed_content<'a, Message: 'a>(
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let gap = config.group_items.item_gap;
+    let gap = config.theme.spacing.item_gap;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }
 
