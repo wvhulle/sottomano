@@ -13,7 +13,10 @@ use crate::{
         sqlite_group_menu_pins::StoredGroupMenuPin, sqlite_group_menu_presentation,
     },
     hover_cards::HoverTarget,
-    widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+    widget_groups::{
+        widget_group_content::{WidgetGroupExpansion, WidgetGroupExpansionMessage},
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+    },
     widgets::phosphor::{Phosphor, Weight},
 };
 
@@ -146,6 +149,7 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         scrolled_px: f32,
     },
+    SettingsExpansion(WidgetGroupExpansionMessage),
     PresentationLoaded(GroupMenuPresentation),
     SwitchPresentation(GroupMenuPresentation),
     Closed,
@@ -171,6 +175,7 @@ struct RecentlyOpenMenu {
 
 #[derive(Default)]
 pub struct GroupMenuState {
+    settings_expansion: WidgetGroupExpansion,
     presentation: GroupMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
     inspection: GroupMenuInspection,
@@ -234,6 +239,15 @@ impl GroupMenuState {
             StoredGroupMenuPin::Group { .. } => false,
         });
         GroupSourceDemand::in_menu(menu_open, group_pinned || group_promoted, item_pinned)
+    }
+
+    #[must_use]
+    pub(crate) const fn settings_expansion(&self) -> &WidgetGroupExpansion {
+        &self.settings_expansion
+    }
+
+    pub fn collapse_settings(&mut self) {
+        let _collapsed = self.settings_expansion.collapse();
     }
 
     #[must_use]
@@ -309,6 +323,10 @@ impl GroupMenuState {
             }
             GroupMenuMessage::MenuScrolled { menu, scrolled_px } => {
                 self.inspection = take(&mut self.inspection).scrolled_to(menu, scrolled_px);
+                Task::none()
+            }
+            GroupMenuMessage::SettingsExpansion(expansion) => {
+                let _collapsed = self.settings_expansion.update(expansion);
                 Task::none()
             }
             GroupMenuMessage::PresentationLoaded(presentation) => {
