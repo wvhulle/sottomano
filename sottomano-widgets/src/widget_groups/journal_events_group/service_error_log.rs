@@ -10,9 +10,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::WidgetState,
     },
 };
 
@@ -47,7 +47,7 @@ impl GroupItemReading for ServiceErrors {
         u32::try_from(self.by_unit_oldest_first.len()).ok()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         self.by_unit_oldest_first
             .iter()
             .map(|errors| errors.severity)

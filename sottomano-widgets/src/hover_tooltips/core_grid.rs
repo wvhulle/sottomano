@@ -9,8 +9,8 @@ use crate::{
     hover_tooltips::PopupMessage,
     widgets::{
         configured_theme::secondary_text_color,
+        reading_display_state::ReadingDisplayState,
         tooltip_body::tooltip_figure_payloads::{PhysicalCoreCells, ThreadCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -62,7 +62,7 @@ impl<'a> CoreCellGrid<'a> {
 }
 
 fn thread_column(thread: ThreadCell, height: f32) -> Element<'static, PopupMessage> {
-    let state = WidgetState::from(thread.level);
+    let state = ReadingDisplayState::from(thread.level);
     progress_bar(0.0..=1.0, thread.fill.get::<ratio>() as f32)
         .vertical()
         .length(height)

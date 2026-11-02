@@ -9,9 +9,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         toggle_control::ToggleableSource,
         tooltip_body::TooltipBody,
-        widget_state::WidgetState,
     },
 };
 
@@ -28,8 +28,8 @@ impl GroupItemReading for AutoBrightness {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.auto)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.auto)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

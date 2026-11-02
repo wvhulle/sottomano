@@ -13,9 +13,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -88,15 +88,15 @@ impl GroupItemReading for PowerDraw {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.status != Some(ChargeStatus::Discharging) {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         } else if self.power > Power::new::<watt>(POWER_CRITICAL_W) {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else if self.power > Power::new::<watt>(POWER_WARN_W) {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

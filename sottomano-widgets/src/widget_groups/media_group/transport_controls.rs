@@ -8,8 +8,8 @@ use crate::{
     widgets::{
         glyph_button,
         phosphor::{Phosphor, Weight},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::icon_value_gap,
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -48,9 +48,9 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
         self.config.theme.font.icon_size_px
     }
 
-    fn foreground(&self) -> StateTint {
-        StateTint {
-            state: WidgetState::On,
+    fn foreground(&self) -> ReadingStateTint {
+        ReadingStateTint {
+            state: ReadingDisplayState::On,
             opacity: self.reveal,
         }
     }
@@ -64,10 +64,10 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     where
         Message: 'a,
     {
-        let state = WidgetState::of_toggle(active);
+        let state = ReadingDisplayState::of_toggle(active);
         self.control(
             icon.with_weight(state.weight()),
-            StateTint {
+            ReadingStateTint {
                 state,
                 opacity: self.reveal,
             },
@@ -78,7 +78,7 @@ impl<'c, Message: Clone> TransportControls<'c, Message> {
     fn control<'a>(
         &self,
         glyph: Phosphor,
-        tint: StateTint,
+        tint: ReadingStateTint,
         press: TransportPress,
     ) -> Element<'a, Message>
     where

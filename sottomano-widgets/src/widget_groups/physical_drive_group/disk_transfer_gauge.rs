@@ -14,9 +14,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -49,11 +49,11 @@ impl GroupItemReading for DiskTransfer {
         direction_icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.rate <= background_rate() {
-            WidgetState::Off
+            ReadingDisplayState::Off
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

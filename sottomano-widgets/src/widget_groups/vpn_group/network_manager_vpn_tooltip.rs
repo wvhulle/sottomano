@@ -9,9 +9,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -42,17 +42,17 @@ impl GroupItemReading for VpnConnection {
         Phosphor::LockKey(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match &self.activity {
-            VpnActivity::Inactive => WidgetState::Off,
+            VpnActivity::Inactive => ReadingDisplayState::Off,
             VpnActivity::Active(tunnel) => match tunnel.vpn_state {
-                VpnState::Activated => WidgetState::On,
-                VpnState::Failed => WidgetState::Warning,
-                VpnState::Disconnected => WidgetState::Off,
+                VpnState::Activated => ReadingDisplayState::On,
+                VpnState::Failed => ReadingDisplayState::Warning,
+                VpnState::Disconnected => ReadingDisplayState::Off,
                 VpnState::Preparing
                 | VpnState::NeedsAuthentication
                 | VpnState::Connecting
-                | VpnState::AwaitingAddress => WidgetState::Pending,
+                | VpnState::AwaitingAddress => ReadingDisplayState::Pending,
             },
         }
     }

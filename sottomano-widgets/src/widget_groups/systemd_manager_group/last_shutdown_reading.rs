@@ -12,9 +12,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::WidgetState,
     },
 };
 
@@ -58,7 +58,7 @@ impl GroupItemReading for LastShutdown {
         Some(duration_text(self.duration, locale))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         self.slowest_stops
             .iter()
             .map(|stop| stop.outcome.severity())

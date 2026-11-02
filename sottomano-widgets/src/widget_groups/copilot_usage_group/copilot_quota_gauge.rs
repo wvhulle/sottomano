@@ -13,10 +13,10 @@ use crate::{
         localized_quantities::{DisplayUnit, Quantity},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -33,7 +33,7 @@ impl GroupItemReading for CopilotMetered {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_used(self.used_share))
             .into()

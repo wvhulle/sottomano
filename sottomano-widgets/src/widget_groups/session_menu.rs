@@ -20,12 +20,12 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         widget_group::{GroupContent, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -194,7 +194,7 @@ impl SessionMenu {
                     name: Self::TITLE.into(),
                     icon: ItemIcon::IconGlyph {
                         glyph: Phosphor::Power(Weight::Regular).into(),
-                        state: WidgetState::Idle,
+                        state: ReadingDisplayState::Idle,
                     },
                 },
                 ItemHover::WholeItem(SessionTarget::Menu.into()),

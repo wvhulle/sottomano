@@ -9,10 +9,10 @@ use crate::{
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
         flat_button,
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::icon_value_gap,
         text::{FontFaces, bar_text},
         toggle_control::SwitchPresses,
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -55,8 +55,8 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
         Message: 'a,
     {
         let chosen = self.chosen.contains(day);
-        let tint = StateTint {
-            state: WidgetState::of_toggle(chosen),
+        let tint = ReadingStateTint {
+            state: ReadingDisplayState::of_toggle(chosen),
             opacity: self.reveal,
         };
         let faces = FontFaces::from(&self.config.theme.font);

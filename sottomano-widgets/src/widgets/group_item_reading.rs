@@ -9,8 +9,8 @@ use crate::{
         announced_level::AnnouncedLevel,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
-        widget_state::WidgetState,
     },
 };
 
@@ -40,8 +40,8 @@ pub trait GroupItemReading {
         None
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Idle
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Idle
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
@@ -100,7 +100,7 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).label(clock, locale)
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         (**self).state(clock)
     }
 

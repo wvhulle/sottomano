@@ -11,9 +11,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -112,7 +112,7 @@ impl GroupItemReading for ContextSwitchRate<'_> {
         Some(format!("{}/h", self.per_hour(clock.utc())))
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.severity(clock.utc()).into()
     }
 

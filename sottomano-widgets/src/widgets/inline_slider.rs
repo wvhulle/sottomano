@@ -15,8 +15,8 @@ use sottomano_config::{Config, severity::Severity};
 
 use crate::widgets::{
     configured_theme::{background_color, background_strong_color, primary_color, text_color},
+    reading_display_state::ReadingDisplayState,
     rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
-    widget_state::WidgetState,
 };
 
 const RESTING_KNOB_PER_GLYPH: f32 = 0.17;
@@ -119,14 +119,14 @@ impl InteractionAccents {
     fn resting(self, theme: &Theme) -> Color {
         match self.level {
             Severity::Normal => text_color(theme),
-            other => WidgetState::from(other).color(theme),
+            other => ReadingDisplayState::from(other).color(theme),
         }
     }
 
     fn engaged(self, theme: &Theme) -> Color {
         match self.level {
             Severity::Normal => primary_color(theme),
-            other => WidgetState::from(other).color(theme),
+            other => ReadingDisplayState::from(other).color(theme),
         }
     }
 }

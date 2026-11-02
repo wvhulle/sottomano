@@ -12,10 +12,10 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -197,23 +197,25 @@ fn undetermined_tooltip(tunnel: &Tunnel) -> TooltipBody {
     )
 }
 
-fn client_state(tunnel: &Tunnel) -> WidgetState {
+fn client_state(tunnel: &Tunnel) -> ReadingDisplayState {
     match tunnel.statistics_access {
-        StatisticsAccess::Read if tunnel.peers.iter().any(Peer::connected) => WidgetState::On,
-        StatisticsAccess::Read => WidgetState::Pending,
+        StatisticsAccess::Read if tunnel.peers.iter().any(Peer::connected) => {
+            ReadingDisplayState::On
+        }
+        StatisticsAccess::Read => ReadingDisplayState::Pending,
         StatisticsAccess::TunnelDown
         | StatisticsAccess::NeedsNetAdmin
-        | StatisticsAccess::Unreadable(_) => WidgetState::On,
+        | StatisticsAccess::Unreadable(_) => ReadingDisplayState::On,
     }
 }
 
-fn server_state(tunnel: &Tunnel) -> WidgetState {
+fn server_state(tunnel: &Tunnel) -> ReadingDisplayState {
     match tunnel.statistics_access {
-        StatisticsAccess::Read if tunnel.connected_peers() > 0 => WidgetState::On,
-        StatisticsAccess::Read => WidgetState::Idle,
+        StatisticsAccess::Read if tunnel.connected_peers() > 0 => ReadingDisplayState::On,
+        StatisticsAccess::Read => ReadingDisplayState::Idle,
         StatisticsAccess::TunnelDown
         | StatisticsAccess::NeedsNetAdmin
-        | StatisticsAccess::Unreadable(_) => WidgetState::On,
+        | StatisticsAccess::Unreadable(_) => ReadingDisplayState::On,
     }
 }
 
@@ -230,17 +232,17 @@ impl GroupItemReading for Tunnel {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.switching() {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
         if !self.up() {
-            return WidgetState::Off;
+            return ReadingDisplayState::Off;
         }
         match self.role {
             TunnelRole::Server { .. } => server_state(self),
             TunnelRole::Client => client_state(self),
-            TunnelRole::Undetermined => WidgetState::On,
+            TunnelRole::Undetermined => ReadingDisplayState::On,
         }
     }
 

@@ -18,9 +18,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -177,7 +177,7 @@ impl GroupItemReading for DailyTotalsGauge {
         })
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         Quota::worst_severity(&self.quotas())
             .unwrap_or_default()
             .into()

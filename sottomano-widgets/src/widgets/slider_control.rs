@@ -24,6 +24,7 @@ use crate::{
         icon_glyph::IconGlyph,
         inline_slider::inline_slider,
         phosphor::Phosphor,
+        reading_display_state::ReadingDisplayState,
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
         text::bar_text,
@@ -33,7 +34,6 @@ use crate::{
         },
         value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
-        widget_state::WidgetState,
     },
 };
 
@@ -576,9 +576,9 @@ impl GroupItemReading for SliderControl {
         self.label.and_then(|format| format(self.current(), locale))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.disabled {
-            WidgetState::Off
+            ReadingDisplayState::Off
         } else {
             self.severity().into()
         }

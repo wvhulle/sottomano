@@ -12,10 +12,10 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -39,7 +39,7 @@ impl GroupItemReading for OpenRouterSpend {
             .then(|| format!("{} today", spend_text(&today)))
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         Quota::worst_severity(&self.quotas(clock.utc()))
             .map_or(self.daily_severity(), |monthly| {
                 monthly.max(self.daily_severity())

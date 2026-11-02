@@ -14,9 +14,9 @@ use crate::{
         input_report_sections::KernelErrorListing,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -99,12 +99,12 @@ impl GroupItemReading for AdapterRadioReading<'_> {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.adapter.power {
-            AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => WidgetState::Pending,
-            AdapterPower::Off => WidgetState::Off,
-            AdapterPower::On(_) if !self.kernel_errors.is_empty() => WidgetState::Warning,
-            AdapterPower::On(_) => WidgetState::Idle,
+            AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => ReadingDisplayState::Pending,
+            AdapterPower::Off => ReadingDisplayState::Off,
+            AdapterPower::On(_) if !self.kernel_errors.is_empty() => ReadingDisplayState::Warning,
+            AdapterPower::On(_) => ReadingDisplayState::Idle,
         }
     }
 
@@ -146,11 +146,11 @@ impl GroupItemReading for AdapterPowerSwitch<'_> {
         Some(power_description(&self.adapter.power).to_owned())
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.adapter.power {
-            AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => WidgetState::Pending,
-            AdapterPower::Off => WidgetState::Off,
-            AdapterPower::On(_) => WidgetState::On,
+            AdapterPower::SwitchingOn | AdapterPower::SwitchingOff => ReadingDisplayState::Pending,
+            AdapterPower::Off => ReadingDisplayState::Off,
+            AdapterPower::On(_) => ReadingDisplayState::On,
         }
     }
 

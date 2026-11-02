@@ -11,9 +11,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -74,9 +74,9 @@ impl GroupItemReading for ModemSignalReading<'_> {
         Phosphor::Broadcast(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if modem_switching(self.modem) {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
         if modem_connected(self.modem) {
             return self
@@ -85,7 +85,7 @@ impl GroupItemReading for ModemSignalReading<'_> {
                 .map_or(Severity::Normal, signal_level)
                 .into();
         }
-        WidgetState::Off
+        ReadingDisplayState::Off
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -147,11 +147,11 @@ impl GroupItemReading for ModemConnectionSwitch<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if modem_switching(self.modem) {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
-        WidgetState::of_toggle(modem_connected(self.modem))
+        ReadingDisplayState::of_toggle(modem_connected(self.modem))
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -220,8 +220,8 @@ impl GroupItemReading for AllMobileRadiosSwitch {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.radio_on)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.radio_on)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

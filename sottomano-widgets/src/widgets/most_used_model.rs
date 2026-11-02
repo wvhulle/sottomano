@@ -15,9 +15,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -137,8 +137,8 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModel<'_, SPANS> {
         Some(self.0.top()?.model.clone())
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Idle
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Idle
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -161,8 +161,8 @@ impl<const SPANS: usize> GroupItemReading for MostUsedModelSpend<'_, SPANS> {
         Some(spend_text(&self.0.top()?.cost))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Idle
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Idle
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

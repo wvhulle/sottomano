@@ -13,12 +13,12 @@ use crate::{
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -141,8 +141,8 @@ impl GroupItemReading for AutoSwitchToggle {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.saved_schedule.auto_switch_armed)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.saved_schedule.auto_switch_armed)
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {

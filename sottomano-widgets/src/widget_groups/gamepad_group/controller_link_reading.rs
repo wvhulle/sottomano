@@ -17,9 +17,9 @@ use crate::{
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -148,11 +148,11 @@ impl GroupItemReading for ControllerLinkReading<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.unstable() {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

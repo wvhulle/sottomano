@@ -33,9 +33,9 @@ use crate::{
             OngoingKey, OngoingToast, OngoingToastActionButton, definition_list, moment_text,
         },
         phosphor::Weight,
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::WidgetState,
     },
 };
 
@@ -205,7 +205,7 @@ impl GroupItemReading for FailedUnits {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         UNIT_FAILURE_PRIORITY.severity().into()
     }
 

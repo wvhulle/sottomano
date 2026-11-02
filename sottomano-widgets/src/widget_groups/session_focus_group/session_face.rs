@@ -15,9 +15,9 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -175,7 +175,7 @@ impl GroupItemReading for SessionFace<'_> {
             .map(|whole_minutes| duration_text(whole_minutes, locale))
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.severity(clock.utc()).into()
     }
 

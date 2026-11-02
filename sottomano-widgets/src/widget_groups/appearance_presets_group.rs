@@ -10,12 +10,12 @@ use crate::{
         group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         widget_group::{GroupContent, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -97,7 +97,7 @@ impl AppearancePresetsMenu {
                 name: Self::TITLE.into(),
                 icon: ItemIcon::IconGlyph {
                     glyph: Phosphor::Palette(Weight::Regular).into(),
-                    state: WidgetState::Idle,
+                    state: ReadingDisplayState::Idle,
                 },
             },
             ItemHover::WholeItem(AppearancePresetsTarget::Menu.into()),

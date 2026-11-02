@@ -25,9 +25,9 @@ use crate::{
         localized_quantities::Quantity,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::ThreadCell},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -59,7 +59,7 @@ impl GroupItemReading for Temperature {
         Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         let critical_sustained = self.critical_since.is_some_and(|since| {
             clock
                 .wall
@@ -209,8 +209,8 @@ mod tests {
     fn critical_heat_counts_as_warning_until_sustained() {
         let clock = Clock::real();
         let fresh = hot_reading(Some(clock.wall));
-        assert_eq!(fresh.state(clock), WidgetState::Warning);
+        assert_eq!(fresh.state(clock), ReadingDisplayState::Warning);
         let sustained = hot_reading(Some(clock.wall - SUSTAINED_CRITICAL));
-        assert_eq!(sustained.state(clock), WidgetState::Critical);
+        assert_eq!(sustained.state(clock), ReadingDisplayState::Critical);
     }
 }

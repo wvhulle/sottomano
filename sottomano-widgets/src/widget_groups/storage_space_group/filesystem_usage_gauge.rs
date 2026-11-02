@@ -15,9 +15,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -128,7 +128,7 @@ impl GroupItemReading for FilesystemUsage {
         Phosphor::Folders(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         self.space_severity().into()
     }
 

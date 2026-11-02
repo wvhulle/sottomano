@@ -14,10 +14,10 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -34,7 +34,7 @@ impl GroupItemReading for ClaudeUsageWindows {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_used(self.fullest_window_used()))
             .into()

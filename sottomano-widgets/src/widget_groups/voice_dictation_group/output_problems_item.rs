@@ -7,9 +7,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -26,11 +26,11 @@ impl GroupItemReading for NotulistOutputProblems {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.problems.iter().any(OutputProblem::blocks_typing) {
-            WidgetState::Failed
+            ReadingDisplayState::Failed
         } else {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         }
     }
 
@@ -112,8 +112,8 @@ mod tests {
                 ),
             ],
         };
-        assert_eq!(discarded.state(Clock::real()), WidgetState::Warning);
-        assert_eq!(blocked.state(Clock::real()), WidgetState::Failed);
+        assert_eq!(discarded.state(Clock::real()), ReadingDisplayState::Warning);
+        assert_eq!(blocked.state(Clock::real()), ReadingDisplayState::Failed);
         assert_eq!(blocked.badge(), Some(2));
     }
 

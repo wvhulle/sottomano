@@ -9,9 +9,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -40,11 +40,11 @@ impl GroupItemReading for SlotOccupancy<'_> {
         Some(format!("{}/{}", self.busy(), self.0.len()))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.busy() > 0 {
-            WidgetState::On
+            ReadingDisplayState::On
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

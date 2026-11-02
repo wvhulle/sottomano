@@ -34,10 +34,10 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -318,9 +318,9 @@ impl GroupItemReading for SystemdManagerGroup {
         Phosphor::Speedometer(Weight::Regular).into()
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         if self.boot.get().is_none() {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
         self.current_health()
             .into_iter()

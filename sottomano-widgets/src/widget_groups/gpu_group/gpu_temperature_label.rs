@@ -12,9 +12,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -32,7 +32,7 @@ impl GroupItemReading for GpuTemperatureLabel {
         Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         let reached = |limit: Option<ThermodynamicTemperature>| {
             limit.is_some_and(|limit| self.current >= limit)
         };

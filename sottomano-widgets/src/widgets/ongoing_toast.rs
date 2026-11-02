@@ -19,7 +19,7 @@ use crate::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        widget_state::WidgetState,
+        reading_display_state::ReadingDisplayState,
     },
 };
 
@@ -126,20 +126,20 @@ pub struct OngoingToast<Message> {
     pub action_buttons: Vec<OngoingToastActionButton<Message>>,
 }
 
-const fn alerting_severity_of(state: WidgetState) -> Severity {
+const fn alerting_severity_of(state: ReadingDisplayState) -> Severity {
     match state {
-        WidgetState::Warning => Severity::Warning,
-        WidgetState::Critical => Severity::Critical,
-        WidgetState::Failed
-        | WidgetState::Off
-        | WidgetState::Idle
-        | WidgetState::Pending
-        | WidgetState::On
-        | WidgetState::Live => Severity::Normal,
+        ReadingDisplayState::Warning => Severity::Warning,
+        ReadingDisplayState::Critical => Severity::Critical,
+        ReadingDisplayState::Failed
+        | ReadingDisplayState::Off
+        | ReadingDisplayState::Idle
+        | ReadingDisplayState::Pending
+        | ReadingDisplayState::On
+        | ReadingDisplayState::Live => Severity::Normal,
     }
 }
 
-pub fn widget_state_alert_severity(
+pub fn reading_display_state_alert_severity(
     widget: &dyn GroupItemReading,
     clock: Clock,
 ) -> Option<Severity> {
@@ -167,14 +167,14 @@ pub fn quota_pace_alert_severity(widget: &dyn GroupItemReading, clock: Clock) ->
 }
 
 impl<Message> OngoingToast<Message> {
-    pub fn from_widget_state(
+    pub fn from_reading_display_state(
         hover_target: HoverTarget,
         widget: &dyn GroupItemReading,
         on_body_clicked: Message,
         locale: Locale,
         clock: Clock,
     ) -> Option<Self> {
-        let severity = widget_state_alert_severity(widget, clock)?;
+        let severity = reading_display_state_alert_severity(widget, clock)?;
         let OngoingToastThreshold::NotifyFromSeverity { summary_text, .. } =
             widget.ongoing_toast_threshold()
         else {
@@ -287,7 +287,7 @@ mod tests {
     };
 
     struct FixedReading {
-        state: WidgetState,
+        state: ReadingDisplayState,
         threshold: OngoingToastThreshold,
     }
 
@@ -300,7 +300,7 @@ mod tests {
             Phosphor::Question(Weight::Regular).into()
         }
 
-        fn state(&self, _clock: Clock) -> WidgetState {
+        fn state(&self, _clock: Clock) -> ReadingDisplayState {
             self.state
         }
 
@@ -323,8 +323,11 @@ mod tests {
         summary_text: "summary",
     };
 
-    fn alert_for(state: WidgetState, threshold: OngoingToastThreshold) -> Option<OngoingToast<u8>> {
-        OngoingToast::from_widget_state(
+    fn alert_for(
+        state: ReadingDisplayState,
+        threshold: OngoingToastThreshold,
+    ) -> Option<OngoingToast<u8>> {
+        OngoingToast::from_reading_display_state(
             HoverTarget::Power(PowerTarget::BatteryTime),
             &FixedReading { state, threshold },
             0,
@@ -335,22 +338,28 @@ mod tests {
 
     #[test]
     fn widgets_that_never_notify_have_no_alert() {
-        assert!(alert_for(WidgetState::Critical, OngoingToastThreshold::NeverNotify).is_none());
+        assert!(
+            alert_for(
+                ReadingDisplayState::Critical,
+                OngoingToastThreshold::NeverNotify
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn readings_below_the_minimum_level_have_no_alert() {
-        assert!(alert_for(WidgetState::Idle, FROM_WARNING).is_none());
-        assert!(alert_for(WidgetState::Warning, FROM_CRITICAL).is_none());
+        assert!(alert_for(ReadingDisplayState::Idle, FROM_WARNING).is_none());
+        assert!(alert_for(ReadingDisplayState::Warning, FROM_CRITICAL).is_none());
         assert_eq!(
-            alert_for(WidgetState::Critical, FROM_CRITICAL).map(|alert| alert.severity),
+            alert_for(ReadingDisplayState::Critical, FROM_CRITICAL).map(|alert| alert.severity),
             Some(Severity::Critical)
         );
     }
 
     #[test]
     fn failed_readings_never_alert() {
-        assert!(alert_for(WidgetState::Failed, FROM_WARNING).is_none());
+        assert!(alert_for(ReadingDisplayState::Failed, FROM_WARNING).is_none());
     }
 
     fn proceed_button(button_label: &str, on_button_pressed: u8) -> OngoingToastActionButton<u8> {
@@ -435,7 +444,7 @@ mod tests {
 
     #[test]
     fn mapping_messages_keeps_the_body_message_and_the_action_buttons() {
-        let alert = alert_for(WidgetState::Warning, FROM_WARNING)
+        let alert = alert_for(ReadingDisplayState::Warning, FROM_WARNING)
             .expect("warning reading alerts")
             .with_action_button(proceed_button("first", 1))
             .with_action_button(proceed_button("second", 2))

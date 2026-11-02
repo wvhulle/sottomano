@@ -9,9 +9,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -60,12 +60,14 @@ impl GroupItemReading for NotulistDictation {
         .into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.phase {
-            DictationPhase::Idle => WidgetState::Idle,
-            DictationPhase::Listening => WidgetState::Live,
-            DictationPhase::LoadingModel | DictationPhase::Finishing => WidgetState::Pending,
-            DictationPhase::StoppedByError(_) => WidgetState::Failed,
+            DictationPhase::Idle => ReadingDisplayState::Idle,
+            DictationPhase::Listening => ReadingDisplayState::Live,
+            DictationPhase::LoadingModel | DictationPhase::Finishing => {
+                ReadingDisplayState::Pending
+            }
+            DictationPhase::StoppedByError(_) => ReadingDisplayState::Failed,
         }
     }
 

@@ -13,11 +13,11 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             ReadingSections, Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
-        widget_state::WidgetState,
     },
 };
 
@@ -44,8 +44,8 @@ impl<S: SnapshotSource<Error: Into<Section>>> GroupItemReading for FailedSnapsho
         self.icon
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Failed
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Failed
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -635,7 +635,7 @@ mod tests {
         assert_eq!(latest.get(), Some(&CountedSnapshot(1)));
         assert_eq!(
             latest.display().map(|widget| widget.state(clock_at(13))),
-            Some(WidgetState::Off)
+            Some(ReadingDisplayState::Off)
         );
         latest.receive(polled_delivery(Ok(CountedSnapshot(2))), clock_at(16));
         assert!(matches!(latest, LatestSnapshot::SnapshotHeld { .. }));

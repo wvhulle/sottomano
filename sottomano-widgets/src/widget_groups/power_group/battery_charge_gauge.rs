@@ -8,9 +8,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -23,13 +23,13 @@ impl GroupItemReading for Battery {
         Phosphor::BatteryCharging(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.capacity <= Ratio::new::<percent>(15.0) {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else if self.capacity <= Ratio::new::<percent>(30.0) {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

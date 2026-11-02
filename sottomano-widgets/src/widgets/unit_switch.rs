@@ -18,10 +18,10 @@ use crate::{
         icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPresses,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -57,11 +57,11 @@ impl GroupItemReading for UnitSwitchReading {
         self.shown_glyph
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.activity {
-            UnitActivity::Running => WidgetState::On,
-            UnitActivity::Starting | UnitActivity::Stopping => WidgetState::Pending,
-            UnitActivity::Stopped => WidgetState::Off,
+            UnitActivity::Running => ReadingDisplayState::On,
+            UnitActivity::Starting | UnitActivity::Stopping => ReadingDisplayState::Pending,
+            UnitActivity::Stopped => ReadingDisplayState::Off,
         }
     }
 

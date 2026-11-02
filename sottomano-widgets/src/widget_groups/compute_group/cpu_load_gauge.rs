@@ -16,11 +16,11 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             ReadingSections, Section, TooltipBody, tooltip_figure_payloads::ThreadCell,
         },
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -117,7 +117,7 @@ impl GroupItemReading for CpuUsage {
         Phosphor::Cpu(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         busy_level(self.busy).into()
     }
 

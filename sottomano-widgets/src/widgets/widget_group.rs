@@ -35,9 +35,9 @@ use crate::{
         icon_glyph::IconGlyph,
         ongoing_toast::OngoingToast,
         pager_slot::PagerSlot,
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         reveal::reveal_x,
         source_reading::{icon_value_gap, reading_value},
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -201,7 +201,9 @@ impl<'a> HandleFace<'a> {
             )
         };
         match self {
-            HandleFace::Icon { glyph, handle } => glyph_face(glyph, WidgetState::Idle, handle),
+            HandleFace::Icon { glyph, handle } => {
+                glyph_face(glyph, ReadingDisplayState::Idle, handle)
+            }
             HandleFace::IconColoredBy {
                 glyph,
                 reading,
@@ -239,7 +241,7 @@ impl<'a> HandleFace<'a> {
 #[derive(Clone, Copy)]
 enum FaceGlyphTint {
     Text,
-    ReadingState(WidgetState),
+    ReadingState(ReadingDisplayState),
 }
 
 fn icon_face_glyph<'a, Message: 'a>(
@@ -764,8 +766,8 @@ impl EdgeIndicator {
                 .height(Length::Fixed(thickness))
                 .into(),
             severity @ (Severity::Warning | Severity::Critical) => {
-                let tint = StateTint {
-                    state: WidgetState::from(severity),
+                let tint = ReadingStateTint {
+                    state: ReadingDisplayState::from(severity),
                     opacity: revealing_opacity,
                 };
                 activity_line(move |theme| tint.color(theme), 1.0, thickness)
@@ -803,7 +805,7 @@ fn collapsing_previewed_value<'a, M: 'a, Message: 'a>(
             reading_value(
                 config,
                 widget,
-                StateTint::opaque(widget.state(clock)),
+                ReadingStateTint::opaque(widget.state(clock)),
                 clock,
             )
         })

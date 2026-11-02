@@ -15,9 +15,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -30,7 +30,7 @@ impl GroupItemReading for DriveHealth {
         Phosphor::Thermometer(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         let error_level = if self.errors.iter().any(|errors| errors.total() > 0) {
             Severity::Critical
         } else {

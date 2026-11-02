@@ -8,9 +8,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -79,14 +79,14 @@ impl GroupItemReading for AllergenConcentration {
         .into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         let thresholds = ConcentrationThresholds::recommended_for(self.allergen);
         if self.grains_per_cubic_metre >= thresholds.high {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else if self.grains_per_cubic_metre >= thresholds.moderate {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

@@ -21,9 +21,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -109,11 +109,11 @@ impl GroupItemReading for OpenTaskList {
         (overdue_count > 0).then(|| overdue_count.to_string())
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         if self.overdue_task_count(clock.local()) > 0 {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

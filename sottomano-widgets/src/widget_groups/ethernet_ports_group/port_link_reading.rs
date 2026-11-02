@@ -10,9 +10,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -41,11 +41,11 @@ fn connection_description(port_state: &PortState) -> &'static str {
     }
 }
 
-fn connection_state(port_state: &PortState) -> WidgetState {
+fn connection_state(port_state: &PortState) -> ReadingDisplayState {
     if port_state.switching {
-        return WidgetState::Pending;
+        return ReadingDisplayState::Pending;
     }
-    WidgetState::of_toggle(port_state.connected)
+    ReadingDisplayState::of_toggle(port_state.connected)
 }
 
 fn attachment_description(attachment: InterfaceAttachment) -> &'static str {
@@ -74,7 +74,7 @@ impl GroupItemReading for PortLinkReading<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         connection_state(self.port_state)
     }
 
@@ -114,7 +114,7 @@ impl GroupItemReading for PortConnectionSwitch<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         connection_state(self.port_state)
     }
 

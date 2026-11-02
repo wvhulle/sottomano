@@ -9,8 +9,8 @@ use crate::{
         confirm_button::ConfirmButton,
         glyph_button,
         phosphor::{Phosphor, Weight},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::icon_value_gap,
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -57,8 +57,8 @@ impl<'c, Message: Clone> SessionControls<'c, Message> {
         Message: 'a,
     {
         self.stoppable().then(|| {
-            let state = WidgetState::of_toggle(false);
-            let tint = StateTint {
+            let state = ReadingDisplayState::of_toggle(false);
+            let tint = ReadingStateTint {
                 state,
                 opacity: self.reveal,
             };

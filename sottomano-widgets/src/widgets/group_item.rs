@@ -23,13 +23,13 @@ use crate::{
         icon_handle::IconHandle,
         ongoing_toast::{
             OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
-            widget_state_alert_severity,
+            reading_display_state_alert_severity,
         },
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
         source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
         widget_group::{GroupEvent, GroupTitle},
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -75,7 +75,7 @@ pub struct ItemIdentity {
 pub enum ItemIcon {
     IconGlyph {
         glyph: IconGlyph,
-        state: WidgetState,
+        state: ReadingDisplayState,
     },
     Image(IconHandle),
     Absent,
@@ -86,7 +86,7 @@ impl ItemIcon {
         let side = config.theme.font.icon_size_px;
         match self {
             ItemIcon::IconGlyph { glyph, state } => {
-                let tint = StateTint {
+                let tint = ReadingStateTint {
                     state: *state,
                     opacity,
                 };
@@ -437,7 +437,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             )
         });
         let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
-            OngoingToast::from_widget_state(
+            OngoingToast::from_reading_display_state(
                 self.kind.hover_target().clone(),
                 widget,
                 on_body_clicked,
@@ -460,7 +460,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub(super) fn ongoing_alert_severity(&self, clock: Clock) -> Option<Severity> {
         let alerting_widget = self.kind.announcing_widget();
         alerting_widget
-            .and_then(|widget| widget_state_alert_severity(widget, clock))
+            .and_then(|widget| reading_display_state_alert_severity(widget, clock))
             .into_iter()
             .chain(alerting_widget.and_then(|widget| quota_pace_alert_severity(widget, clock)))
             .chain(self.ongoing_toasts.iter().map(|toast| toast.severity))
@@ -511,7 +511,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let tint_of = |widget: &dyn GroupItemReading| StateTint::opaque(widget.state(clock));
+        let tint_of = |widget: &dyn GroupItemReading| ReadingStateTint::opaque(widget.state(clock));
         let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
         match &self.kind {
             ItemKind::Reading { widget, .. } => MenuParts {

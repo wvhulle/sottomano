@@ -11,8 +11,8 @@ use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::widgets::{
+    reading_display_state::{ReadingDisplayState, ReadingStateTint},
     text::{FontFaces, LINE_HEIGHT},
-    widget_state::{StateTint, WidgetState},
 };
 
 const SEPARATOR: &str = " · ";
@@ -93,8 +93,8 @@ fn styled_span(content: &str, font: Font) -> Span<'static> {
 
 impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
     fn from(title: WindowTitle<'_>) -> Self {
-        let tint = StateTint {
-            state: WidgetState::Idle,
+        let tint = ReadingStateTint {
+            state: ReadingDisplayState::Idle,
             opacity: title.opacity,
         };
         rich_text(title.spans())

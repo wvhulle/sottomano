@@ -6,8 +6,8 @@ use crate::{
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
         icon_glyph::IconGlyph,
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
-        widget_state::WidgetState,
     },
 };
 
@@ -32,7 +32,7 @@ impl GroupItemReading for NamedReading<'_> {
         })
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.reading.state(clock)
     }
 

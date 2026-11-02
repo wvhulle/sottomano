@@ -12,7 +12,7 @@ use uom::{
 
 use crate::widgets::{
     configured_theme::{background_strong_color, secondary_text_color},
-    widget_state::StateTint,
+    reading_display_state::ReadingStateTint,
 };
 
 const GIRTH: f32 = 3.0;
@@ -30,14 +30,14 @@ pub fn percent_text(fraction: Ratio) -> String {
 
 pub struct Gauge {
     fill: Ratio,
-    tint: StateTint,
+    tint: ReadingStateTint,
     height: f32,
     live: Ratio,
 }
 
 impl Gauge {
     #[must_use]
-    pub fn new(fill: Ratio, tint: StateTint, height: f32) -> Self {
+    pub fn new(fill: Ratio, tint: ReadingStateTint, height: f32) -> Self {
         Self {
             fill,
             tint,
