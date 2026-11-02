@@ -77,8 +77,9 @@ mod tests {
                 three_workspaces_three_windows,
             },
         },
-        widget_groups::workspaces_group::{
-            EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage,
+        widget_groups::{
+            window_group::WindowRowLayout,
+            workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, WorkspacesMessage},
         },
         widgets::pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
     };
@@ -95,6 +96,7 @@ mod tests {
             drag: drag_view,
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
+            window_row_layout: WindowRowLayout::default(),
         };
         let pager_element = inline_view(
             &niri_snapshot,

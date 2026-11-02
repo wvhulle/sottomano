@@ -143,6 +143,7 @@ impl<'a> WorkspaceSchematic<'a> {
         WindowTitle::new(label, self.config)
             .size(self.config.theme.font.small_text_size_px)
             .wrapping(Wrapping::WordOrGlyph)
+            .location_above_title()
             .into()
     }
 }
