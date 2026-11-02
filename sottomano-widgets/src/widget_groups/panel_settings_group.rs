@@ -12,10 +12,12 @@ use crate::{
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
+        sqlite_singleton_flag::{self, SingletonFlag},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
+        window_group::WindowRowLayout,
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -70,10 +72,31 @@ fn pinned_groups_toggle(groups_auto_collapse: bool) -> IconToggle {
     )
 }
 
+fn window_row_layout_toggle(window_row_layout: WindowRowLayout) -> IconToggle {
+    IconToggle::new(
+        "Group windows by directory",
+        Phosphor::Folders(Weight::Regular),
+        window_row_layout == WindowRowLayout::GroupedByLocation,
+        SwitchPresses {
+            turning_on: "enclose neighbouring windows from one directory under one heading",
+            turning_off: "show every window on its own with its directory",
+        },
+    )
+}
+
+async fn load_window_row_layout() -> WindowRowLayout {
+    if sqlite_singleton_flag::load(SingletonFlag::WindowsGroupedByLocation, true).await {
+        WindowRowLayout::GroupedByLocation
+    } else {
+        WindowRowLayout::Flat
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PanelSettingsTarget {
     DisconnectedGroups,
     AutoCollapseGroups,
+    WindowRowLayout,
     FloatOffset,
     Appearance(AppearanceTarget),
 }
@@ -89,15 +112,18 @@ pub enum PanelSettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
+    ToggleWindowRowLayout,
     FloatOffset(ControlMessage),
     Appearance(AppearanceMessage),
     LayoutLoaded(PanelLayout),
+    WindowRowLayoutLoaded(WindowRowLayout),
 }
 
 pub struct PanelSettingsGroup {
     expansion: WidgetGroupExpansion,
     disconnected_groups: bool,
     auto_collapse_groups: bool,
+    window_row_layout: WindowRowLayout,
     float_offset: SliderControl,
     appearance: LayerAppearanceControls,
 }
@@ -109,6 +135,7 @@ impl Default for PanelSettingsGroup {
             expansion: WidgetGroupExpansion::default(),
             disconnected_groups: defaults.disconnected_groups,
             auto_collapse_groups: defaults.auto_collapse_groups,
+            window_row_layout: WindowRowLayout::default(),
             float_offset: SliderControl::new(
                 "Float offset",
                 0.0..=24.0,
@@ -133,6 +160,10 @@ impl PanelSettingsGroup {
                 sqlite_panel_layout::load(),
                 PanelSettingsMessage::LayoutLoaded,
             ),
+            Task::perform(
+                load_window_row_layout(),
+                PanelSettingsMessage::WindowRowLayoutLoaded,
+            ),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
         ])
     }
@@ -145,6 +176,11 @@ impl PanelSettingsGroup {
     #[must_use]
     pub fn groups_auto_collapse(&self) -> bool {
         self.auto_collapse_groups
+    }
+
+    #[must_use]
+    pub fn window_row_layout(&self) -> WindowRowLayout {
+        self.window_row_layout
     }
 
     #[must_use]
@@ -165,6 +201,9 @@ impl PanelSettingsGroup {
             }
             PanelSettingsTarget::AutoCollapseGroups => {
                 pinned_groups_toggle(self.auto_collapse_groups).switch_hover_card(clock)
+            }
+            PanelSettingsTarget::WindowRowLayout => {
+                window_row_layout_toggle(self.window_row_layout).switch_hover_card(clock)
             }
             PanelSettingsTarget::FloatOffset => self.float_offset.readout_hover_card("Offset"),
             PanelSettingsTarget::Appearance(target) => {
@@ -214,6 +253,23 @@ impl PanelSettingsGroup {
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 self.auto_collapse_groups = !self.auto_collapse_groups;
                 Action::Run(Task::future(sqlite_panel_layout::save(self.stored_layout())).discard())
+            }
+            PanelSettingsMessage::ToggleWindowRowLayout => {
+                self.window_row_layout = match self.window_row_layout {
+                    WindowRowLayout::Flat => WindowRowLayout::GroupedByLocation,
+                    WindowRowLayout::GroupedByLocation => WindowRowLayout::Flat,
+                };
+                Action::Run(
+                    Task::future(sqlite_singleton_flag::save(
+                        SingletonFlag::WindowsGroupedByLocation,
+                        self.window_row_layout == WindowRowLayout::GroupedByLocation,
+                    ))
+                    .discard(),
+                )
+            }
+            PanelSettingsMessage::WindowRowLayoutLoaded(window_row_layout) => {
+                self.window_row_layout = window_row_layout;
+                Action::Run(Task::none())
             }
             PanelSettingsMessage::FloatOffset(control) => self.update_float_offset(control),
             PanelSettingsMessage::Appearance(msg) => Action::Run(
@@ -270,6 +326,11 @@ impl PanelSettingsGroup {
                     PanelSettingsTarget::AutoCollapseGroups,
                     PanelSettingsMessage::ToggleAutoCollapseGroups,
                 ),
+                GroupItem::toggle(
+                    window_row_layout_toggle(self.window_row_layout),
+                    PanelSettingsTarget::WindowRowLayout,
+                    PanelSettingsMessage::ToggleWindowRowLayout,
+                ),
                 GroupItem::slider(
                     &self.float_offset,
                     config,
@@ -296,6 +357,7 @@ mod tests {
         PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
         sqlite_panel_layout::{CREATE_TABLE, read_layout, write_layout},
     };
+    use crate::widget_groups::window_group::WindowRowLayout;
 
     #[tokio::test]
     async fn panel_layout_survives_a_round_trip() {
@@ -329,6 +391,22 @@ mod tests {
             )
             .await;
         assert!(refused.is_err());
+    }
+
+    #[test]
+    fn windows_are_grouped_by_location_until_a_stored_layout_says_otherwise() {
+        let mut panel_settings_group = PanelSettingsGroup::default();
+        assert_eq!(
+            panel_settings_group.window_row_layout(),
+            WindowRowLayout::GroupedByLocation
+        );
+        let _ = panel_settings_group.update(PanelSettingsMessage::WindowRowLayoutLoaded(
+            WindowRowLayout::Flat,
+        ));
+        assert_eq!(
+            panel_settings_group.window_row_layout(),
+            WindowRowLayout::Flat
+        );
     }
 
     #[test]

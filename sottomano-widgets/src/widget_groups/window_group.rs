@@ -1,8 +1,11 @@
+mod flat_window_rows;
+mod location_grouped_window_rows;
 pub mod process_tree;
 pub mod quick_launch;
 mod window_hover_card;
 pub mod window_list;
 pub mod window_list_viewport;
+mod window_row_presentation;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -46,6 +49,13 @@ pub enum WindowGroupMessage {
 pub enum Action {
     Run(Task<WindowGroupMessage>),
     WindowList(window_list::Action),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WindowRowLayout {
+    Flat,
+    #[default]
+    GroupedByLocation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

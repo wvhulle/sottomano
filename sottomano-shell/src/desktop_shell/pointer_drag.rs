@@ -63,6 +63,7 @@ impl DesktopShell {
                 .panel_settings_group
                 .panel_appearance()
                 .corner_radius_px,
+            window_row_layout: self.widget_groups.panel_settings_group.window_row_layout(),
         }
     }
 

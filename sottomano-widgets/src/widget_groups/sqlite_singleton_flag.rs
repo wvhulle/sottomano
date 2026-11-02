@@ -6,6 +6,7 @@ pub enum SingletonFlag {
     ToastSpatialLayout,
     WorkspacesInSidebar,
     AutoCollapseWorkspaces,
+    WindowsGroupedByLocation,
 }
 
 impl SingletonFlag {
@@ -35,6 +36,12 @@ impl SingletonFlag {
                     enabled INTEGER NOT NULL
                 )"
             }
+            Self::WindowsGroupedByLocation => {
+                "CREATE TABLE IF NOT EXISTS windows_grouped_by_location (
+                    id INTEGER PRIMARY KEY CHECK (id = 0),
+                    enabled INTEGER NOT NULL
+                )"
+            }
         }
     }
 
@@ -44,6 +51,7 @@ impl SingletonFlag {
             Self::ToastSpatialLayout => "toast_spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
             Self::AutoCollapseWorkspaces => "auto_collapse_workspaces",
+            Self::WindowsGroupedByLocation => "windows_grouped_by_location",
         }
     }
 }
@@ -110,11 +118,12 @@ mod tests {
 
     use super::{SingletonFlag, read_flag, write_flag};
 
-    const ALL_FLAGS: [SingletonFlag; 4] = [
+    const ALL_FLAGS: [SingletonFlag; 5] = [
         SingletonFlag::NotificationSound,
         SingletonFlag::ToastSpatialLayout,
         SingletonFlag::WorkspacesInSidebar,
         SingletonFlag::AutoCollapseWorkspaces,
+        SingletonFlag::WindowsGroupedByLocation,
     ];
 
     #[tokio::test]
