@@ -419,13 +419,12 @@ impl ShowcaseState {
         let framed = self.strip_groups().into_iter().map(|group| {
             let content = match position {
                 Position::Left => container(group),
-                Position::Top | Position::Bottom => container(group)
-                    .height(Length::Fixed(panel.height))
-                    .align_y(Vertical::Center)
-                    .padding([
-                        0.0,
-                        layer.frame_corner_inset() + self.config.theme.spacing.item_gap,
-                    ]),
+                Position::Top | Position::Bottom => {
+                    container(container(group).padding([0.0, self.config.theme.spacing.item_gap]))
+                        .height(Length::Fixed(panel.height))
+                        .align_y(Vertical::Center)
+                        .padding([0.0, layer.frame_corner_inset()])
+                }
             };
             panel_frame(content, frame_style)
                 .outlined_sides(outlined_sides)

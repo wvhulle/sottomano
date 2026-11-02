@@ -231,6 +231,14 @@ impl<Message> ContentSizedTable<'_, Message> {
         Self { row_gap, ..self }
     }
 
+    #[must_use]
+    pub fn cells_aligned_y(mut self, align_y: Vertical) -> Self {
+        self.alignments
+            .iter_mut()
+            .for_each(|alignment| alignment.align_y = align_y);
+        self
+    }
+
     fn fitted_column_widths(
         &self,
         placed_cells: &[PlacedCell],

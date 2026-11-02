@@ -172,10 +172,12 @@ impl<'a> HoverCardContent<'a> {
                 group_title,
                 panel_pin,
             } => {
-                let title: Element<'static, PopupMessage> =
+                let title: Element<'static, PopupMessage> = container(
                     container(self.small_dim_text(group_title.to_string()))
-                        .padding(self.edge_row_padding())
-                        .into();
+                        .padding(self.title_padding()),
+                )
+                .padding(self.edge_row_padding())
+                .into();
                 let unpin = match panel_pin {
                     PanelPinOrigin::Unpinned => None,
                     PanelPinOrigin::GroupPinnedFrom { menu, group } => {
@@ -214,7 +216,7 @@ impl<'a> HoverCardContent<'a> {
         ])
         .spacing(self.config.theme.spacing.item_gap)
         .align_y(Vertical::Center);
-        button(label)
+        button(container(label).padding(self.title_padding()))
             .width(Length::Fill)
             .padding(
                 self.edge_row_padding()
@@ -290,12 +292,15 @@ impl<'a> HoverCardContent<'a> {
         delivery_timing: Option<Element<'static, PopupMessage>>,
     ) -> Element<'static, PopupMessage> {
         container(
-            row(hints
-                .into_iter()
-                .chain(once(Space::new().width(Length::Fill).into()))
-                .chain(delivery_timing))
-            .spacing(self.config.theme.spacing.group_gap)
-            .align_y(Vertical::Center),
+            container(
+                row(hints
+                    .into_iter()
+                    .chain(once(Space::new().width(Length::Fill).into()))
+                    .chain(delivery_timing))
+                .spacing(self.config.theme.spacing.group_gap)
+                .align_y(Vertical::Center),
+            )
+            .padding(self.title_padding()),
         )
         .padding(self.edge_row_padding())
         .into()
@@ -316,10 +321,7 @@ impl<'a> HoverCardContent<'a> {
     }
 
     fn edge_row_padding(&self) -> Padding {
-        let spacing = &self.config.theme.spacing;
-        Padding::ZERO
-            .left(spacing.surface_inset + spacing.item_gap)
-            .right(spacing.surface_inset)
+        Padding::ZERO.horizontal(self.config.theme.spacing.surface_inset)
     }
 
     fn inset(&self, content: Element<'static, PopupMessage>) -> Element<'static, PopupMessage> {

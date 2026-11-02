@@ -498,7 +498,7 @@ impl WindowSlot<'_> {
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center);
         let panel_slot = PanelSlot::new(content.into(), self.indicator_line())
-            .spaced_by(config.theme.spacing.group_gap);
+            .padded_along_panel(config.theme.spacing.item_gap);
         match self.progress_ticks() {
             Some(ticks) => panel_slot.ticks(ticks),
             None => panel_slot,

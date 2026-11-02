@@ -8,24 +8,18 @@ use sottomano_config::{
 
 use super::toast_placement::{AnchorGroup, ToastAnchor};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct ToastAnchorSpacing {
     edge_gap: f32,
-    window_right_offset: f32,
-    window_top_offset: f32,
-    stack_gap: f32,
+    card_gap: f32,
 }
 
 impl ToastAnchorSpacing {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let panel_height = config.desktop_panels.height;
-        let group_gap = config.theme.spacing.group_gap;
         Self {
-            edge_gap: panel_height,
-            window_right_offset: group_gap,
-            window_top_offset: 2.0 * panel_height,
-            stack_gap: group_gap,
+            edge_gap: config.desktop_panels.height,
+            card_gap: config.theme.spacing.group_gap,
         }
     }
 }
@@ -48,7 +42,7 @@ pub fn origins(
         .into_values()
         .flat_map(|members| {
             let heights: Vec<f32> = members.iter().map(|&index| sizes[index].height).collect();
-            let leading = leading_offsets(&heights, spacing.stack_gap);
+            let leading = leading_offsets(&heights, spacing.card_gap);
             let extent = group_extent(&heights, &leading);
             members
                 .iter()
@@ -157,12 +151,12 @@ fn grouped(slots: &[Slot]) -> HashMap<SlotGroup, Vec<usize>> {
         })
 }
 
-fn leading_offsets(heights: &[f32], stack_gap: f32) -> Vec<f32> {
+fn leading_offsets(heights: &[f32], card_gap: f32) -> Vec<f32> {
     heights
         .iter()
         .scan(0.0, |running, height| {
             let leading = *running;
-            *running += height + stack_gap;
+            *running += height + card_gap;
             Some(leading)
         })
         .collect()
@@ -213,13 +207,13 @@ fn edge_x(horizontal: HEdge, size: Size, area: Rectangle, spacing: &ToastAnchorS
 }
 
 fn window_origin(bounds: Rectangle, size: Size, spacing: &ToastAnchorSpacing) -> Point {
-    let from_right = spacing.window_right_offset;
+    let from_right = spacing.card_gap;
     let x = if bounds.width >= size.width + 2.0 * from_right {
         bounds.x + bounds.width - size.width - from_right
     } else {
         bounds.center_x() - size.width / 2.0
     };
-    Point::new(x, bounds.y + spacing.window_top_offset)
+    Point::new(x, bounds.y + spacing.edge_gap)
 }
 
 fn overflowed_edge(
@@ -258,12 +252,10 @@ mod tests {
 
     const SURFACE: Size = Size::new(1920.0, 1080.0);
     const CARD: Size = Size::new(380.0, 100.0);
-    const WINDOW_TOP: f32 = 88.0;
+    const WINDOW_TOP: f32 = 64.0;
     const DEFAULT_ANCHOR_SPACING: ToastAnchorSpacing = ToastAnchorSpacing {
         edge_gap: 24.0,
-        window_right_offset: 14.0,
-        window_top_offset: 48.0,
-        stack_gap: 14.0,
+        card_gap: 14.0,
     };
 
     fn window(id: u64, x: f32) -> ToastAnchor {
@@ -308,7 +300,7 @@ mod tests {
             origins[1],
             Point::new(
                 24.0,
-                WINDOW_TOP + CARD.height + DEFAULT_ANCHOR_SPACING.stack_gap
+                WINDOW_TOP + CARD.height + DEFAULT_ANCHOR_SPACING.card_gap
             )
         );
     }
