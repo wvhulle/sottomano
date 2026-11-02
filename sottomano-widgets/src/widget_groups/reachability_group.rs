@@ -91,24 +91,21 @@ impl ReachabilityGroup {
         &self,
         config: &ReachabilityConfig,
         buses: &DesktopBuses,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<ReachabilityMessage> {
         let demand = demand.expanded_when(self.expansion.is_expanded());
         Subscription::batch([
             snapshot_subscription::<InterfaceThroughput>(buses.clone())
                 .map(ReachabilityMessage::Throughput),
             demand.while_face_shown(
-                &[connectivity_state_reading::CONNECTIVITY_ITEM_NAME],
                 snapshot_subscription::<UplinkConnectivity>(buses.clone())
                     .map(ReachabilityMessage::Connectivity),
             ),
             demand.while_rows_shown(
-                &[icmp_latency_gauge::INTERNET_LATENCY_ITEM_NAME],
                 snapshot_subscription::<InternetLatency>(config.latency_target)
                     .map(ReachabilityMessage::Latency),
             ),
             demand.while_rows_shown(
-                &[tcp_retransmit_reading::TCP_RETRANSMISSIONS_ITEM_NAME],
                 snapshot_subscription::<TcpRetransmissions>(())
                     .map(ReachabilityMessage::TcpRetransmissions),
             ),

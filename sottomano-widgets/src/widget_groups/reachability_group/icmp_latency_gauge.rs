@@ -16,8 +16,6 @@ use crate::{
     },
 };
 
-pub(super) const INTERNET_LATENCY_ITEM_NAME: &str = "Internet latency";
-
 const SCALE_START: Duration = Duration::from_millis(5);
 const SCALE_END: Duration = Duration::from_millis(500);
 
@@ -29,7 +27,7 @@ fn fraction_of_scale(round_trip: Duration) -> f64 {
 
 impl GroupItemReading for InternetLatency {
     fn name(&self) -> &'static str {
-        INTERNET_LATENCY_ITEM_NAME
+        "Internet latency"
     }
 
     fn icon(&self) -> IconGlyph {

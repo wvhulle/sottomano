@@ -16,8 +16,6 @@ use crate::{
     },
 };
 
-pub(super) const TCP_RETRANSMISSIONS_ITEM_NAME: &str = "TCP retransmissions";
-
 const NOTICEABLE_SHARE_PERCENT: f64 = 0.5;
 const WARNING_SHARE_PERCENT: f64 = 2.0;
 const CRITICAL_SHARE_PERCENT: f64 = 5.0;
@@ -40,7 +38,7 @@ fn severity(retransmissions: &TcpRetransmissions) -> Severity {
 
 impl GroupItemReading for TcpRetransmissions {
     fn name(&self) -> &'static str {
-        TCP_RETRANSMISSIONS_ITEM_NAME
+        "TCP retransmissions"
     }
 
     fn icon(&self) -> IconGlyph {

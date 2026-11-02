@@ -7,37 +7,28 @@ enum GroupSurface {
     AllRows,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GroupSourceDemand<'a> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GroupSourceDemand {
     surface: GroupSurface,
-    pinned_item_names: Vec<&'a str>,
 }
 
-impl<'a> GroupSourceDemand<'a> {
+impl GroupSourceDemand {
     #[must_use]
     pub const fn on_panel() -> Self {
         Self {
             surface: GroupSurface::WidgetGroupFace,
-            pinned_item_names: Vec::new(),
         }
     }
 
-    pub(crate) fn in_menu(
-        menu_open: bool,
-        on_panel: bool,
-        pinned_item_names: impl IntoIterator<Item = &'a str>,
-    ) -> Self {
-        let surface = if menu_open {
+    pub(crate) fn in_menu(menu_open: bool, on_panel: bool, item_pinned: bool) -> Self {
+        let surface = if menu_open || item_pinned {
             GroupSurface::AllRows
         } else if on_panel {
             GroupSurface::WidgetGroupFace
         } else {
             GroupSurface::Hidden
         };
-        Self {
-            surface,
-            pinned_item_names: pinned_item_names.into_iter().collect(),
-        }
+        Self { surface }
     }
 
     #[must_use]
@@ -48,42 +39,24 @@ impl<'a> GroupSourceDemand<'a> {
         self
     }
 
-    fn pins_any_item(&self, item_names: &[&str]) -> bool {
-        item_names
-            .iter()
-            .any(|item_name| self.pinned_item_names.contains(item_name))
+    fn shows_face_reading(self) -> bool {
+        self.surface != GroupSurface::Hidden
     }
 
-    fn shows_face_reading(&self, item_names: &[&str]) -> bool {
-        self.surface != GroupSurface::Hidden || self.pins_any_item(item_names)
+    fn shows_row_reading(self) -> bool {
+        self.surface == GroupSurface::AllRows
     }
 
-    fn shows_row_reading(&self, item_names: &[&str]) -> bool {
-        self.surface == GroupSurface::AllRows || self.pins_any_item(item_names)
+    pub fn while_face_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+        subscription_when(self.shows_face_reading(), subscription)
     }
 
-    fn shows_any_reading(&self) -> bool {
-        self.surface != GroupSurface::Hidden || !self.pinned_item_names.is_empty()
+    pub fn while_rows_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+        subscription_when(self.shows_row_reading(), subscription)
     }
 
-    pub fn while_face_shown<M>(
-        &self,
-        item_names: &[&str],
-        subscription: Subscription<M>,
-    ) -> Subscription<M> {
-        subscription_when(self.shows_face_reading(item_names), subscription)
-    }
-
-    pub fn while_rows_shown<M>(
-        &self,
-        item_names: &[&str],
-        subscription: Subscription<M>,
-    ) -> Subscription<M> {
-        subscription_when(self.shows_row_reading(item_names), subscription)
-    }
-
-    pub fn while_any_reading_shown<M>(&self, subscription: Subscription<M>) -> Subscription<M> {
-        subscription_when(self.shows_any_reading(), subscription)
+    pub fn while_any_reading_shown<M>(self, subscription: Subscription<M>) -> Subscription<M> {
+        subscription_when(self.shows_face_reading(), subscription)
     }
 }
 
@@ -99,78 +72,44 @@ fn subscription_when<M>(wanted: bool, subscription: Subscription<M>) -> Subscrip
 mod tests {
     use super::GroupSourceDemand;
 
-    const WIND_ITEM: &[&str] = &["Wind"];
-    const NO_ITEMS: [&str; 0] = [];
-
-    fn hidden_group() -> GroupSourceDemand<'static> {
-        GroupSourceDemand::in_menu(false, false, NO_ITEMS)
-    }
-
-    fn panel_group() -> GroupSourceDemand<'static> {
-        GroupSourceDemand::in_menu(false, true, NO_ITEMS)
-    }
-
-    fn open_menu_group() -> GroupSourceDemand<'static> {
-        GroupSourceDemand::in_menu(true, false, NO_ITEMS)
+    #[test]
+    fn a_hidden_group_runs_no_reading() {
+        let demand = GroupSourceDemand::in_menu(false, false, false);
+        assert!(!demand.shows_face_reading());
+        assert!(!demand.shows_row_reading());
     }
 
     #[test]
-    fn hidden_group_shows_no_reading() {
-        let demand = hidden_group();
-        assert!(!demand.shows_face_reading(WIND_ITEM));
-        assert!(!demand.shows_row_reading(WIND_ITEM));
-        assert!(!demand.shows_any_reading());
+    fn an_open_menu_runs_every_row() {
+        assert!(GroupSourceDemand::in_menu(true, false, false).shows_row_reading());
     }
 
     #[test]
-    fn open_menu_shows_every_row_whether_pinned_or_not() {
-        for demand in [
-            open_menu_group(),
-            GroupSourceDemand::in_menu(true, true, NO_ITEMS),
-        ] {
-            assert!(demand.shows_face_reading(WIND_ITEM));
-            assert!(demand.shows_row_reading(WIND_ITEM));
-        }
+    fn a_collapsed_panel_group_runs_only_its_face() {
+        let demand = GroupSourceDemand::on_panel();
+        assert!(demand.shows_face_reading());
+        assert!(!demand.shows_row_reading());
     }
 
     #[test]
-    fn collapsed_panel_group_shows_only_its_face() {
-        let demand = panel_group();
-        assert!(demand.shows_face_reading(WIND_ITEM));
-        assert!(!demand.shows_row_reading(WIND_ITEM));
-    }
-
-    #[test]
-    fn expanded_panel_group_shows_every_row() {
+    fn an_expanded_panel_group_runs_every_row() {
         assert!(
-            panel_group()
+            GroupSourceDemand::on_panel()
                 .expanded_when(true)
-                .shows_row_reading(WIND_ITEM)
+                .shows_row_reading()
         );
     }
 
     #[test]
-    fn groups_placed_on_the_panel_outside_a_menu_follow_the_same_rule() {
-        assert_eq!(GroupSourceDemand::on_panel(), panel_group());
-        assert_eq!(
-            GroupSourceDemand::on_panel().expanded_when(true),
-            panel_group().expanded_when(true)
-        );
+    fn expanding_is_ignored_while_the_group_is_hidden() {
+        let demand = GroupSourceDemand::in_menu(false, false, false).expanded_when(true);
+        assert!(!demand.shows_row_reading());
     }
 
     #[test]
-    fn expanded_flag_is_ignored_while_the_group_is_hidden() {
-        let demand = hidden_group().expanded_when(true);
-        assert_eq!(demand, hidden_group());
-        assert!(!demand.shows_row_reading(WIND_ITEM));
-    }
-
-    #[test]
-    fn pinned_item_shows_only_that_item_of_a_hidden_group() {
-        let demand = GroupSourceDemand::in_menu(false, false, ["Wind"]);
-        assert!(demand.shows_row_reading(WIND_ITEM));
-        assert!(demand.shows_face_reading(WIND_ITEM));
-        assert!(!demand.shows_row_reading(&["Pollen"]));
-        assert!(demand.shows_any_reading());
+    fn a_pinned_item_runs_every_row_of_its_family() {
+        let demand = GroupSourceDemand::in_menu(false, false, true);
+        assert!(demand.shows_face_reading());
+        assert!(demand.shows_row_reading());
     }
 }

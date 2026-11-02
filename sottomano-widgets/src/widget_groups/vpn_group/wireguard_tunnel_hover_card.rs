@@ -20,13 +20,9 @@ use crate::{
     },
 };
 
-pub(super) const WIREGUARD_TUNNEL_ITEM_NAME: &str = "WireGuard tunnel";
-
-pub(super) const WIREGUARD_ITEM_NAME: &str = "WireGuard";
-
 impl GroupItemReading for Wireguard {
     fn name(&self) -> &'static str {
-        WIREGUARD_ITEM_NAME
+        "WireGuard"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -222,7 +218,7 @@ fn server_state(tunnel: &Tunnel) -> ReadingDisplayState {
 
 impl GroupItemReading for Tunnel {
     fn name(&self) -> &'static str {
-        WIREGUARD_TUNNEL_ITEM_NAME
+        "WireGuard tunnel"
     }
 
     fn icon(&self) -> IconGlyph {

@@ -132,6 +132,16 @@ impl PressHints {
     }
 }
 
+impl HoverTarget {
+    #[must_use]
+    pub fn stable_item_key(&self) -> String {
+        match self {
+            HoverTarget::Media(player) => format!("Media({:?})", player.control),
+            durable_target => format!("{durable_target:?}"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseGesture {
     LeftClick,
@@ -207,7 +217,7 @@ pub enum PanelPinOrigin {
     ItemPinnedFrom {
         menu: GroupMenuTopic,
         group: Box<WidgetGroupIdentity>,
-        item_name: &'static str,
+        item_key: String,
     },
 }
 
@@ -305,6 +315,33 @@ pub enum PopupMessage {
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Cow;
+
+    use super::HoverTarget;
+    use crate::widget_groups::{
+        media_group::{MediaTarget, PlayerTarget},
+        vpn_group::VpnTarget,
+    };
+
+    #[test]
+    fn sibling_targets_have_their_own_item_keys() {
+        let tunnel =
+            |name: &'static str| HoverTarget::from(VpnTarget::Wireguard(Cow::Borrowed(name)));
+        assert_ne!(
+            tunnel("wg0").stable_item_key(),
+            tunnel("wg1").stable_item_key()
+        );
+    }
+
+    #[test]
+    fn a_player_item_key_ignores_its_session_bus() {
+        let on_bus = |bus: &str| HoverTarget::from(PlayerTarget::of(bus, MediaTarget::Track));
+        assert_eq!(
+            on_bus(":1.40").stable_item_key(),
+            on_bus(":1.41").stable_item_key()
+        );
+    }
+
     use super::*;
 
     #[test]

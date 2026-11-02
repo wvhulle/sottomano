@@ -168,25 +168,19 @@ impl ComputeGroup {
     pub fn subscription(
         &self,
         sensor: &SensorConfig,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<ComputeMessage> {
         let demand = demand.expanded_when(self.expansion.is_expanded());
         Subscription::batch([
             demand.while_face_shown(
-                &[cpu_load_gauge::CPU_LOAD_ITEM_NAME],
                 snapshot_subscription::<CpuUsage>(()).map(ComputeMessage::CpuLoad),
             ),
             demand.while_rows_shown(
-                &[
-                    cpu_clock_label::CPU_CLOCK_ITEM_NAME,
-                    cpu_clock_limit_causes::CPU_CLOCK_LIMITS_ITEM_NAME,
-                ],
                 snapshot_subscription::<CpuClock>(()).map(ComputeMessage::CpuClock),
             ),
             snapshot_subscription::<Temperature>(sensor.clone())
                 .map(ComputeMessage::CpuTemperature),
             demand.while_rows_shown(
-                &[cpu_power_draw_label::CPU_POWER_DRAW_ITEM_NAME],
                 snapshot_subscription::<CpuPower>(()).map(ComputeMessage::CpuPowerDraw),
             ),
             ToggleControl::<X3dCachePreference>::subscription(())
@@ -361,11 +355,11 @@ mod tests {
     const WITH_LOAD_GAUGE: usize = 3;
     const WITH_EVERY_ROW: usize = 5;
 
-    fn running_sources(group: &ComputeGroup, demand: GroupSourceDemand<'_>) -> usize {
+    fn running_sources(group: &ComputeGroup, demand: GroupSourceDemand) -> usize {
         into_recipes(group.subscription(&SensorConfig::default(), demand)).len()
     }
 
-    fn demand_in(group_menus: &GroupMenuState) -> GroupSourceDemand<'_> {
+    fn demand_in(group_menus: &GroupMenuState) -> GroupSourceDemand {
         group_menus.source_demand(WidgetGroupFamily::Compute)
     }
 

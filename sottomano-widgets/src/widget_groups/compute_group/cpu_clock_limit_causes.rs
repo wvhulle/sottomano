@@ -20,8 +20,6 @@ use crate::{
     },
 };
 
-pub(super) const CPU_CLOCK_LIMITS_ITEM_NAME: &str = "CPU clock limits";
-
 pub(super) fn cause_text(cause: FrequencyLimitCause) -> String {
     match cause {
         FrequencyLimitCause::BoostDisabled => "boost off".to_owned(),
@@ -105,7 +103,7 @@ impl ClockLimitCauses<'_> {
 
 impl GroupItemReading for ClockLimitCauses<'_> {
     fn name(&self) -> &'static str {
-        CPU_CLOCK_LIMITS_ITEM_NAME
+        "CPU clock limits"
     }
 
     fn icon(&self) -> IconGlyph {

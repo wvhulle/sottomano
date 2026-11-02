@@ -21,12 +21,6 @@ use crate::{
     },
 };
 
-pub(super) const DISK_WRITES_ITEM_NAME: &str = "Disk writes";
-
-pub(super) const DISK_READS_ITEM_NAME: &str = "Disk reads";
-
-pub(super) const DISK_ACTIVITY_ITEM_NAME: &str = "Disk activity";
-
 const BACKGROUND_TRANSFER_KIB_PER_S: f64 = 64.0;
 const SCALE_END_GIB_PER_S: f64 = 4.0;
 
@@ -37,8 +31,8 @@ fn background_rate() -> InformationRate {
 impl GroupItemReading for DiskTransfer {
     fn name(&self) -> &'static str {
         match self.direction {
-            DiskTransferDirection::Read => DISK_READS_ITEM_NAME,
-            DiskTransferDirection::Write => DISK_WRITES_ITEM_NAME,
+            DiskTransferDirection::Read => "Disk reads",
+            DiskTransferDirection::Write => "Disk writes",
         }
     }
 
@@ -86,7 +80,7 @@ impl GroupItemReading for DiskTransfer {
 
 impl GroupItemReading for DiskActivity {
     fn name(&self) -> &'static str {
-        DISK_ACTIVITY_ITEM_NAME
+        "Disk activity"
     }
 
     fn icon(&self) -> IconGlyph {

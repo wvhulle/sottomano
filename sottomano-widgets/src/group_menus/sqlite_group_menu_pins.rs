@@ -13,8 +13,8 @@ pub const CREATE_ITEM_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_grou
     menu_topic TEXT NOT NULL,
     group_family TEXT NOT NULL,
     group_instance TEXT NOT NULL,
-    item_name TEXT NOT NULL,
-    PRIMARY KEY (menu_topic, group_family, group_instance, item_name)
+    item_key TEXT NOT NULL,
+    PRIMARY KEY (menu_topic, group_family, group_instance, item_key)
 )";
 
 const CREATE_PIN_TABLES: [&str; 2] = [CREATE_GROUP_PINS_TABLE, CREATE_ITEM_PINS_TABLE];
@@ -30,7 +30,7 @@ pub enum StoredGroupMenuPin {
         menu_topic: String,
         group_family: String,
         group_instance: String,
-        item_name: String,
+        item_key: String,
     },
 }
 
@@ -74,7 +74,7 @@ async fn read_pins(
     }
     let mut item_rows = connection
         .query(
-            "SELECT menu_topic, group_family, group_instance, item_name FROM pinned_group_items",
+            "SELECT menu_topic, group_family, group_instance, item_key FROM pinned_group_items",
             (),
         )
         .await?;
@@ -84,7 +84,7 @@ async fn read_pins(
             menu_topic: item_columns.text(&row, "menu_topic")?,
             group_family: item_columns.text(&row, "group_family")?,
             group_instance: item_columns.text(&row, "group_instance")?,
-            item_name: item_columns.text(&row, "item_name")?,
+            item_key: item_columns.text(&row, "item_key")?,
         });
     }
     Ok(pins)
@@ -123,14 +123,14 @@ async fn write_pin(
             menu_topic,
             group_family,
             group_instance,
-            item_name,
+            item_key,
         } => {
             let statement = if pinned {
                 "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
-                 item_name) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING"
+                 item_key) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING"
             } else {
                 "DELETE FROM pinned_group_items WHERE menu_topic = ?1 AND group_family = ?2 AND \
-                 group_instance = ?3 AND item_name = ?4"
+                 group_instance = ?3 AND item_key = ?4"
             };
             connection
                 .execute(
@@ -139,7 +139,7 @@ async fn write_pin(
                         menu_topic.as_str(),
                         group_family.as_str(),
                         group_instance.as_str(),
-                        item_name.as_str(),
+                        item_key.as_str(),
                     ),
                 )
                 .await?;
@@ -167,7 +167,7 @@ mod tests {
             menu_topic: "HardwareMenu".to_owned(),
             group_family: "gpu".to_owned(),
             group_instance: String::new(),
-            item_name: "GPU load".to_owned(),
+            item_key: "gpu_load".to_owned(),
         }
     }
 

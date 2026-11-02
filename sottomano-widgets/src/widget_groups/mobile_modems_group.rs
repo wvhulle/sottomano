@@ -92,7 +92,7 @@ impl MobileModemsGroup {
 
     pub fn subscription(
         buses: &DesktopBuses,
-        demand: &GroupSourceDemand<'_>,
+        demand: &GroupSourceDemand,
     ) -> Subscription<MobileModemsMessage> {
         demand.while_any_reading_shown(
             snapshot_subscription::<MobileModems>(buses.clone()).map(MobileModemsMessage::Snapshot),

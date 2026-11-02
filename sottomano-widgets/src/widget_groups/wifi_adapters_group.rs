@@ -114,7 +114,7 @@ impl WifiAdaptersGroup {
     pub fn subscription(
         &self,
         buses: &DesktopBuses,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<WifiAdaptersMessage> {
         let any_adapter_expanded = self
             .sessions
@@ -126,7 +126,6 @@ impl WifiAdaptersGroup {
                 snapshot_subscription::<Wifi>(buses.clone()).map(WifiAdaptersMessage::Snapshot),
             ),
             demand.while_rows_shown(
-                &[],
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(WifiAdaptersMessage::GatewayLatencies),
             ),
