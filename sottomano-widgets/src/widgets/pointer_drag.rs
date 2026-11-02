@@ -1,5 +1,6 @@
 pub mod drag_ghost;
 pub mod draggable_slot;
+pub mod slot_group;
 pub mod slot_pager;
 
 use std::{fmt::Debug, hash::Hash};

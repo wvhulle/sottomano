@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     AgentWindow,
     kitty_window_label::{ActiveKittyWindow, KittyWindowLabel, program_name},
-    shell_prompt_title::{ShellState, ShellTitleFormat},
+    shell_prompt_title::ShellState,
 };
 
 const FRAME_START: &[u8] = b"\x1bP@kitty-cmd";
@@ -175,7 +175,6 @@ impl ForegroundProcess {
 impl KittyWindow {
     fn window_label(&self, home: &Path) -> Option<KittyWindowLabel> {
         let shell_name = program_name(&self.cmdline)?;
-        let title_format = ShellTitleFormat::try_from(shell_name.as_str()).ok()?;
         let foreground_program = self
             .foreground_processes
             .iter()
@@ -189,8 +188,9 @@ impl KittyWindow {
                 home,
                 at_prompt: self.at_prompt,
                 reported_command_line: &self.last_reported_cmdline,
+                has_foreground_program: foreground_program.is_some(),
             },
-            title_format,
+            shell_name: &shell_name,
             foreground_program,
         };
         Some(active_window.window_label())
@@ -268,10 +268,10 @@ mod tests {
             window.kitty_label,
             Some(KittyWindowLabel {
                 working_location: WorkingLocation::LocalDirectory("/srv".to_owned()),
-                foreground_activity: Some(ForegroundActivity::ShellCommand {
+                foreground_activity: ForegroundActivity::ShellCommand {
                     command_line: "pkill".to_owned(),
                     program_name: None,
-                }),
+                },
             })
         );
     }

@@ -7,20 +7,14 @@ const NUSHELL_COMMAND_SEPARATOR: &str = "> ";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellTitleFormat {
     Nushell,
-    KittyIntegration,
+    AnyShell,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UnsupportedShell;
-
-impl TryFrom<&str> for ShellTitleFormat {
-    type Error = UnsupportedShell;
-
-    fn try_from(shell_name: &str) -> Result<Self, Self::Error> {
+impl From<&str> for ShellTitleFormat {
+    fn from(shell_name: &str) -> Self {
         match shell_name {
-            "nu" => Ok(ShellTitleFormat::Nushell),
-            "bash" | "zsh" | "fish" => Ok(ShellTitleFormat::KittyIntegration),
-            _ => Err(UnsupportedShell),
+            "nu" => ShellTitleFormat::Nushell,
+            _ => ShellTitleFormat::AnyShell,
         }
     }
 }
@@ -38,13 +32,14 @@ pub struct ShellState<'a> {
     pub home: &'a Path,
     pub at_prompt: bool,
     pub reported_command_line: &'a str,
+    pub has_foreground_program: bool,
 }
 
 impl ShellTitleFormat {
     pub fn read<'a>(self, shell: &ShellState<'a>) -> ShellTitle<'a> {
         match self {
             ShellTitleFormat::Nushell => read_nushell_title(shell),
-            ShellTitleFormat::KittyIntegration => read_kitty_integration_title(shell),
+            ShellTitleFormat::AnyShell => read_any_shell_title(shell),
         }
     }
 }
@@ -63,8 +58,8 @@ fn read_nushell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
     }
 }
 
-fn read_kitty_integration_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
-    if shell.at_prompt {
+fn read_any_shell_title<'a>(shell: &ShellState<'a>) -> ShellTitle<'a> {
+    if shell.at_prompt || !shell.has_foreground_program {
         return ShellTitle::IdlePrompt;
     }
     if !shell.reported_command_line.is_empty() && shell.title == shell.reported_command_line {
@@ -84,6 +79,7 @@ mod tests {
             home: Path::new("/home/user"),
             at_prompt,
             reported_command_line: reported,
+            has_foreground_program: true,
         }
     }
 
@@ -97,9 +93,9 @@ mod tests {
     }
 
     #[test]
-    fn kitty_integrated_shells_report_the_prompt_and_command_line() {
+    fn integrated_shells_report_the_prompt_and_command_line() {
         let read = |title, at_prompt, reported| {
-            ShellTitleFormat::KittyIntegration.read(&shell_state(title, at_prompt, reported))
+            ShellTitleFormat::AnyShell.read(&shell_state(title, at_prompt, reported))
         };
         assert_eq!(read("…/a/b/c", true, ""), ShellTitle::IdlePrompt);
         assert_eq!(
@@ -113,15 +109,26 @@ mod tests {
     }
 
     #[test]
-    fn only_known_shells_have_a_title_format() {
+    fn a_shell_without_integration_is_idle_when_nothing_else_runs_in_the_foreground() {
+        let idle = ShellState {
+            has_foreground_program: false,
+            ..shell_state("user@host:~/proj", false, "")
+        };
+        let busy = shell_state("user@host:~/proj", false, "");
         assert_eq!(
-            ShellTitleFormat::try_from("nu"),
-            Ok(ShellTitleFormat::Nushell)
+            ShellTitleFormat::AnyShell.read(&idle),
+            ShellTitle::IdlePrompt
         );
         assert_eq!(
-            ShellTitleFormat::try_from("zsh"),
-            Ok(ShellTitleFormat::KittyIntegration)
+            ShellTitleFormat::AnyShell.read(&busy),
+            ShellTitle::ProgramTitle
         );
-        assert_eq!(ShellTitleFormat::try_from("xonsh"), Err(UnsupportedShell));
+    }
+
+    #[test]
+    fn only_nushell_has_its_own_title_format() {
+        assert_eq!(ShellTitleFormat::from("nu"), ShellTitleFormat::Nushell);
+        assert_eq!(ShellTitleFormat::from("zsh"), ShellTitleFormat::AnyShell);
+        assert_eq!(ShellTitleFormat::from("xonsh"), ShellTitleFormat::AnyShell);
     }
 }

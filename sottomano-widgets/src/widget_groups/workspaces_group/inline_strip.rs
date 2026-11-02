@@ -94,6 +94,7 @@ mod tests {
             edge: Position::Bottom,
             drag: drag_view,
             clock: Clock::real(),
+            panel_corner_radius_px: 0.0,
         };
         let pager_element = inline_view(
             &niri_snapshot,

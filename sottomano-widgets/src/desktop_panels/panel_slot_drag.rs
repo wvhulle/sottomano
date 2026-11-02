@@ -21,6 +21,7 @@ pub struct PanelSlotContext<'a> {
     pub edge: Position,
     pub drag: DragView,
     pub clock: Clock,
+    pub panel_corner_radius_px: f32,
 }
 
 #[derive(Debug, Clone, Copy)]

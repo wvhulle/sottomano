@@ -58,6 +58,11 @@ impl DesktopShell {
             edge,
             drag: self.drag_view(),
             clock: self.clock,
+            panel_corner_radius_px: self
+                .widget_groups
+                .panel_settings_group
+                .panel_appearance()
+                .corner_radius_px,
         }
     }
 

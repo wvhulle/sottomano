@@ -1,21 +1,19 @@
-use std::iter;
-
 use iced::{
-    Element, Font,
+    Color, Element, Font, Theme, border,
     widget::{
         rich_text, span,
-        text::{Span, Wrapping},
+        text::{self, Span, Wrapping},
     },
 };
 use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
-use crate::{
-    group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
-    widgets::text::{FontFaces, LINE_HEIGHT},
+use crate::widgets::{
+    configured_theme::text_color,
+    text::{FontFaces, LINE_HEIGHT},
 };
 
-const SEPARATOR: &str = " · ";
+const CHIP_TEXT_GAP: &str = " ";
 
 pub struct WindowTitle<'a> {
     label: &'a WindowLabel,
@@ -23,6 +21,8 @@ pub struct WindowTitle<'a> {
     size: f32,
     opacity: f32,
     wrapping: Wrapping,
+    shows_location: bool,
+    color: fn(&Theme) -> Color,
 }
 
 impl<'a> WindowTitle<'a> {
@@ -34,6 +34,8 @@ impl<'a> WindowTitle<'a> {
             size: config.theme.font.text_size_px,
             opacity: 1.0,
             wrapping: Wrapping::default(),
+            shows_location: true,
+            color: text_color,
         }
     }
 
@@ -52,37 +54,40 @@ impl<'a> WindowTitle<'a> {
         Self { wrapping, ..self }
     }
 
-    fn main_span(&self, content: &str) -> Span<'static> {
+    #[must_use]
+    pub fn without_location(self) -> Self {
+        Self {
+            shows_location: false,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn color(self, color: fn(&Theme) -> Color) -> Self {
+        Self { color, ..self }
+    }
+
+    fn regular_span(&self, content: &str) -> Span<'static> {
         styled_span(content, FontFaces::from(&self.config.theme.font).regular)
     }
 
-    fn context_span(&self, content: &str) -> Span<'static> {
-        styled_span(content, FontFaces::from(&self.config.theme.font).regular)
-    }
-
-    fn separator_span(&self) -> Span<'static> {
-        styled_span(SEPARATOR, FontFaces::from(&self.config.theme.font).regular)
+    fn chip_span(&self, location: &str) -> Span<'static> {
+        let chip_background = Color::from(self.config.theme.palette.background_strong.components)
+            .scale_alpha(self.opacity);
+        self.regular_span(&format!(" {location} "))
+            .background(chip_background)
+            .border(border::rounded(self.size / 4.0))
     }
 
     fn spans(&self) -> Vec<Span<'static>> {
-        match self.label {
-            WindowLabel::KittyAgent(kitty) => {
-                iter::once(self.main_span(kitty.working_location.display_text()))
-                    .chain(kitty.foreground_activity.iter().flat_map(|activity| {
-                        [
-                            self.separator_span(),
-                            self.context_span(activity.display_text()),
-                        ]
-                    }))
-                    .collect()
-            }
-            WindowLabel::Firefox { page, .. } | WindowLabel::BrandedBrowser(page) => page
-                .site
-                .iter()
-                .flat_map(|site| [self.context_span(site), self.separator_span()])
-                .chain(iter::once(self.main_span(&page.page)))
-                .collect(),
-            WindowLabel::Titled(title) => vec![self.main_span(title)],
+        let own_text = self.regular_span(self.label.own_text());
+        match self.label.location_text().filter(|_| self.shows_location) {
+            Some(location) => vec![
+                self.chip_span(location),
+                self.regular_span(CHIP_TEXT_GAP),
+                own_text,
+            ],
+            None => vec![own_text],
         }
     }
 }
@@ -93,12 +98,11 @@ fn styled_span(content: &str, font: Font) -> Span<'static> {
 
 impl<'a, Message: 'a> From<WindowTitle<'_>> for Element<'a, Message> {
     fn from(title: WindowTitle<'_>) -> Self {
-        let tint = ReadingStateTint {
-            state: ReadingDisplayState::Idle,
-            opacity: title.opacity,
-        };
+        let WindowTitle { color, opacity, .. } = title;
         rich_text(title.spans())
-            .style(tint.text_style())
+            .style(move |theme: &Theme| text::Style {
+                color: Some(color(theme).scale_alpha(opacity)),
+            })
             .size(title.size)
             .line_height(LINE_HEIGHT)
             .wrapping(title.wrapping)
