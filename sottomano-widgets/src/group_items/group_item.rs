@@ -97,6 +97,12 @@ impl GroupItemIcon {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ComposedItemPinning {
+    Unpinnable,
+    PinnableByTarget,
+}
+
 pub enum GroupItemHoverArea {
     WholeItem(HoverTarget),
     ByChildren { row_target: HoverTarget },
@@ -134,6 +140,7 @@ enum GroupItemContent<'a, M> {
         identity: ComposedGroupItemFace,
         hover: GroupItemHoverArea,
         value: GroupItemValue<'a, M>,
+        pinning: ComposedItemPinning,
     },
 }
 
@@ -185,9 +192,11 @@ impl<'a, M: 'a> GroupItemContent<'a, M> {
                 identity,
                 hover,
                 value,
+                pinning,
             } => GroupItemContent::Composed {
                 identity,
                 hover,
+                pinning,
                 value: match value {
                     GroupItemValue::Nothing => GroupItemValue::Nothing,
                     GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(lift_draw(draw)),
@@ -267,6 +276,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             identity,
             hover,
             value,
+            pinning: ComposedItemPinning::Unpinnable,
+        })
+    }
+
+    pub fn composed_pinnable(
+        identity: ComposedGroupItemFace,
+        target: impl Into<HoverTarget>,
+        value: GroupItemValue<'a, M>,
+    ) -> Self {
+        Self::of_kind(GroupItemContent::Composed {
+            identity,
+            hover: GroupItemHoverArea::WholeItem(target.into()),
+            value,
+            pinning: ComposedItemPinning::PinnableByTarget,
         })
     }
 
@@ -511,7 +534,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(crate) fn pinnable_key(&self) -> Option<String> {
         match &self.kind {
-            GroupItemContent::Reading { target, .. } => Some(target.stable_item_key()),
+            GroupItemContent::Reading { target, .. }
+            | GroupItemContent::Composed {
+                hover: GroupItemHoverArea::WholeItem(target),
+                pinning: ComposedItemPinning::PinnableByTarget,
+                ..
+            } => Some(target.stable_item_key()),
             GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
         }
     }
@@ -571,6 +599,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 identity,
                 hover,
                 value,
+                ..
             } => {
                 let composed_row = Row::with_children(
                     identity
@@ -699,6 +728,21 @@ mod tests {
             item.gestures().right,
             GroupItemGesture::Performs { .. }
         ));
+    }
+
+    #[test]
+    fn a_composed_item_can_share_the_pin_of_the_reading_it_replaces() {
+        let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        let composed: GroupItem<'static, ()> = GroupItem::composed_pinnable(
+            ComposedGroupItemFace {
+                name: "Composed row".into(),
+                icon: GroupItemIcon::Absent,
+            },
+            SessionTarget::Menu,
+            GroupItemValue::Nothing,
+        );
+        assert!(reading.pinnable_key().is_some());
+        assert_eq!(reading.pinnable_key(), composed.pinnable_key());
     }
 
     #[test]

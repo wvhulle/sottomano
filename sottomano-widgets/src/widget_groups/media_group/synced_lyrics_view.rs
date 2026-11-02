@@ -11,9 +11,7 @@ use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
     group_items::{
-        group_item::{
-            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-        },
+        group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
@@ -151,8 +149,6 @@ fn current_lyric_line<'a>(
             state: ReadingDisplayState::Idle,
         },
     };
-    let hover =
-        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into());
     let value = GroupItemValue::drawn(move |reveal| {
         let tinted = move |state| ReadingStateTint {
             state,
@@ -173,7 +169,11 @@ fn current_lyric_line<'a>(
         )
         .into()
     });
-    GroupItem::composed(identity, hover, value)
+    GroupItem::composed_pinnable(
+        identity,
+        PlayerTarget::of(&media.bus, MediaTarget::Lyrics),
+        value,
+    )
 }
 
 #[cfg(test)]
