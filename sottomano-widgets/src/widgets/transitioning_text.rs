@@ -22,8 +22,8 @@ use iced::{
     window,
 };
 use sottomano_config::{
+    hover_cards::{HoverCardLoading, IntroEffect, PlaceholderEffect, ReplaceEffect},
     theme::font::ResolvedFont,
-    tooltips::{HoverCardLoading, IntroEffect, PlaceholderEffect, ReplaceEffect},
 };
 
 use crate::widgets::{

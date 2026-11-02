@@ -39,7 +39,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     let accents = InteractionAccents { level };
     let geometry = FaceGeometry::from_sizes(
         config.theme.font.icon_size_px,
-        config.panel_bar.slider_stroke,
+        config.group_items.slider_stroke_width,
     );
     let face = SliderFace {
         range: range.clone(),
@@ -48,7 +48,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         accents,
         geometry,
         face_size: Size::new(
-            config.panel_bar.slider_width,
+            config.group_items.slider_width,
             Slider::<f32, Message>::DEFAULT_HEIGHT,
         ),
     };
@@ -72,7 +72,7 @@ fn interaction_slider<'a, Message: Clone + 'a>(
     slider(range, value, on_change)
         .step(step)
         .on_release(on_release)
-        .width(config.panel_bar.slider_width)
+        .width(config.group_items.slider_width)
         .style(move |_theme, _status| slider::Style {
             rail: slider::Rail {
                 backgrounds: (Color::TRANSPARENT.into(), Color::TRANSPARENT.into()),

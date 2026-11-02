@@ -9,24 +9,31 @@ use toml::{de, ser};
 
 use super::{
     calendar::{self, Calendar, CalendarChoice},
+    desktop_panels::DesktopPanelsConfig,
+    group_items::GroupItemsConfig,
+    group_menus::GroupMenusConfig,
+    hover_cards::HoverCardsConfig,
     launched_programs::LaunchedPrograms,
-    layout::{LayoutConfig, spacing::Spacing},
     notification_toasts::NotificationToastsConfig,
-    panel_bar::PanelBarConfig,
+    overlay_surfaces::OverlaySurfacesConfig,
+    spacing::Spacing,
     theme::{
         Theme, ThemeChoice,
         font::{self, FontError, FontRole},
     },
-    tooltips::TooltipsConfig,
+    widget_group_layout::WidgetGroupLayoutConfig,
     widget_groups::WidgetGroupsConfig,
 };
 
 #[derive(Debug, Clone)]
 pub struct Config {
     pub theme: Theme,
-    pub layout: LayoutConfig,
-    pub panel_bar: PanelBarConfig,
-    pub tooltips: TooltipsConfig,
+    pub desktop_panels: DesktopPanelsConfig,
+    pub group_menus: GroupMenusConfig,
+    pub widget_group_layout: WidgetGroupLayoutConfig,
+    pub group_items: GroupItemsConfig,
+    pub hover_cards: HoverCardsConfig,
+    pub overlay_surfaces: OverlaySurfacesConfig,
     pub widget_groups: WidgetGroupsConfig,
     pub notification_toasts: NotificationToastsConfig,
     pub calendar: Calendar,
@@ -45,9 +52,12 @@ impl Default for Config {
 #[serde(default, deny_unknown_fields)]
 struct UserConfig {
     theme: ThemeChoice,
-    layout: LayoutConfig<Spacing>,
-    panel_bar: PanelBarConfig<Spacing>,
-    tooltips: TooltipsConfig<Spacing>,
+    desktop_panels: DesktopPanelsConfig<Spacing>,
+    group_menus: GroupMenusConfig,
+    widget_group_layout: WidgetGroupLayoutConfig<Spacing>,
+    group_items: GroupItemsConfig<Spacing>,
+    hover_cards: HoverCardsConfig<Spacing>,
+    overlay_surfaces: OverlaySurfacesConfig<Spacing>,
     widget_groups: WidgetGroupsConfig,
     notification_toasts: NotificationToastsConfig<Spacing>,
     calendar: CalendarChoice,
@@ -71,9 +81,12 @@ impl UserConfig {
                     .map_err(LoadError::Font)?,
                 palette: self.theme.palette,
             },
-            layout: self.layout.resolve(em_px),
-            panel_bar: self.panel_bar.resolve(em_px),
-            tooltips: self.tooltips.resolve(em_px),
+            desktop_panels: self.desktop_panels.resolve(em_px),
+            group_menus: self.group_menus,
+            widget_group_layout: self.widget_group_layout.resolve(em_px),
+            group_items: self.group_items.resolve(em_px),
+            hover_cards: self.hover_cards.resolve(em_px),
+            overlay_surfaces: self.overlay_surfaces.resolve(em_px),
             widget_groups: self.widget_groups,
             notification_toasts: self.notification_toasts.resolve(em_px),
             calendar: Calendar {
@@ -207,26 +220,38 @@ mod tests {
 
     #[test]
     fn keys_from_before_the_rename_are_rejected() {
-        let file = file_containing("old-keys", "[chrome]\nouter_height_px = 28.0\n");
-        let error = file.load().unwrap_err();
-        fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        assert!(matches!(error, LoadError::Invalid { .. }));
-        assert!(error.to_string().contains("chrome"));
+        let removed_tables = [
+            ("chrome", "[chrome]\nouter_height_px = 28.0\n"),
+            ("panel_bar", "[panel_bar]\nslider_width = \"60px\"\n"),
+            ("tooltips", "[tooltips]\nvalue_width = \"620px\"\n"),
+            ("layout", "[layout.panel]\nheight = \"24px\"\n"),
+            (
+                "window_list",
+                "[widget_groups.window_list]\nprogress = true\n",
+            ),
+        ];
+        for (table_name, toml) in removed_tables {
+            let file = file_containing("old-keys", toml);
+            let error = file.load().unwrap_err();
+            fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
+            assert!(matches!(error, LoadError::Invalid { .. }));
+            assert!(error.to_string().contains(table_name));
+        }
     }
 
     #[test]
     fn spacing_in_em_resolves_against_the_text_size() {
-        let file = file_containing("em", "[layout.overlay]\ncontent_inset = \"0.5em\"\n");
+        let file = file_containing("em", "[overlay_surfaces]\ncontent_inset = \"0.5em\"\n");
         let read = file.read().unwrap();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
-        let overlay = read.layout.resolve(14.0).overlay;
+        let overlay = read.overlay_surfaces.resolve(14.0);
         assert!((overlay.content_inset - 7.0).abs() < f32::EPSILON);
-        assert!((overlay.row_spacing - 4.0).abs() < f32::EPSILON);
+        assert!((overlay.row_gap - 4.0).abs() < f32::EPSILON);
     }
 
     #[test]
     fn a_bare_number_is_rejected_as_spacing() {
-        let file = file_containing("bare", "[layout.panel]\nheight = 24\n");
+        let file = file_containing("bare", "[desktop_panels]\nheight = 24\n");
         let read = file.read();
         fs::remove_dir_all(file.path().parent().unwrap()).unwrap();
         assert!(matches!(read, Err(LoadError::Invalid { .. })));

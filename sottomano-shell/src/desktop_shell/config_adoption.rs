@@ -1,7 +1,7 @@
 use std::{mem, sync::Arc};
 
 use iced::{Task, font};
-use sottomano_config::{Config, LoadError, panel_bar::PanelBarConfig, theme::Theme};
+use sottomano_config::{Config, LoadError, theme::Theme};
 use sottomano_sources::blocking_background_work::blocking;
 use sottomano_widgets::widgets::{configured_theme::configured_theme, text::FontFaces};
 
@@ -25,7 +25,7 @@ impl DesktopShell {
             self.notifications
                 .withdraw_config_error(&self.config, self.clock.instant),
             self.adopt_fonts(&previous.theme),
-            self.adopt_panel_bar(&previous.panel_bar),
+            self.adopt_panel_geometry(&previous),
         ])
     }
 
@@ -45,8 +45,12 @@ impl DesktopShell {
         })
     }
 
-    pub(super) fn adopt_panel_bar(&mut self, previous: &PanelBarConfig) -> Task<Message> {
-        if self.config.panel_bar == *previous {
+    pub(super) fn adopt_panel_geometry(&mut self, previous: &Config) -> Task<Message> {
+        let unchanged = self.config.desktop_panels == previous.desktop_panels
+            && self.config.widget_group_layout == previous.widget_group_layout
+            && self.config.group_items == previous.group_items
+            && self.config.group_menus == previous.group_menus;
+        if unchanged {
             return Task::none();
         }
         Task::batch([self.resize_backdrops(), self.reserve()])

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct FocusTimeConfig {
+pub struct SessionFocusConfig {
     #[serde(with = "humantime_serde")]
     pub idle_detection_delay: Duration,
     #[serde(with = "humantime_serde")]
@@ -28,7 +28,7 @@ pub struct FocusTimeConfig {
     pub project_daily_budget_minutes: BTreeMap<String, u32>,
 }
 
-impl Default for FocusTimeConfig {
+impl Default for SessionFocusConfig {
     fn default() -> Self {
         Self {
             idle_detection_delay: Duration::from_secs(30),
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn budgets_are_keyed_by_verbatim_app_id_and_project_path() {
-        let config: FocusTimeConfig = toml::from_str(
+        let config: SessionFocusConfig = toml::from_str(
             "[app_daily_budget_minutes]\nfirefox = \
              120\n[project_daily_budget_minutes]\n\"/home/me/Code/sottomano\" = 240\n",
         )
@@ -70,6 +70,6 @@ mod tests {
 
     #[test]
     fn unknown_fields_are_rejected() {
-        assert!(toml::from_str::<FocusTimeConfig>("day_starts_at = \"07:00\"\n").is_err());
+        assert!(toml::from_str::<SessionFocusConfig>("day_starts_at = \"07:00\"\n").is_err());
     }
 }

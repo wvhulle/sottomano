@@ -240,7 +240,7 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
 
         let framed_card = container(body_row)
             .width(Length::Fixed(card.config.notification_toasts.card.width))
-            .padding(card.config.layout.overlay.content_inset)
+            .padding(card.config.overlay_surfaces.content_inset)
             .style(move |_| style);
 
         mouse_area(framed_card)
@@ -287,7 +287,7 @@ impl<Routed> ToastCard<'_, Routed> {
         let font = &self.config.theme.font;
         MarkupBody::new(body, font)
             .size(font.small_text_size_px)
-            .block_spacing(self.config.layout.overlay.row_spacing)
+            .block_spacing(self.config.overlay_surfaces.row_gap)
             .corner_radius(self.overlay_appearance.corner_radius_px)
             .into()
     }
@@ -346,7 +346,7 @@ impl<Routed> ToastCard<'_, Routed> {
         }
 
         let mut column = Column::new()
-            .spacing(self.config.layout.overlay.row_spacing)
+            .spacing(self.config.overlay_surfaces.row_gap)
             .push(title);
         if let Some(body) = body_text {
             let body = Row::new()

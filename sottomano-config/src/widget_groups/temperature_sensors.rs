@@ -2,13 +2,6 @@ use serde::{Deserialize, Serialize, Serializer};
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct TemperatureSensorsConfig {
-    pub cpu: SensorConfig,
-    pub drive: SensorConfig,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
-#[serde(default, deny_unknown_fields)]
 pub struct SensorConfig {
     pub sensor: SensorChoice,
     pub warning_celsius: Threshold,
@@ -106,7 +99,14 @@ impl Serialize for SensorChoice {
 mod tests {
     use super::*;
 
-    fn parse(toml: &str) -> TemperatureSensorsConfig {
+    #[derive(Default, Deserialize)]
+    #[serde(default)]
+    struct CpuAndDriveSensors {
+        cpu: SensorConfig,
+        drive: SensorConfig,
+    }
+
+    fn parse(toml: &str) -> CpuAndDriveSensors {
         toml::from_str(toml).unwrap()
     }
 

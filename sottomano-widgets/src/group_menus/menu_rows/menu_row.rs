@@ -30,7 +30,7 @@ pub(crate) struct MenuRowLook {
 }
 
 pub(crate) fn menu_row_height(config: &Config) -> f32 {
-    config.layout.panel.height + config.layout.overlay.row_spacing
+    config.desktop_panels.height + config.overlay_surfaces.row_gap
 }
 
 fn pressable_menu_row<'a, M: Clone + 'a>(
@@ -80,7 +80,7 @@ fn menu_line<'a, M: 'a>(
         )
         .push(parts.value)
         .extend(trailing)
-        .spacing(config.layout.overlay.column_spacing)
+        .spacing(config.overlay_surfaces.column_gap)
         .height(Length::Fill)
         .align_y(Alignment::Center)
 }
@@ -89,7 +89,7 @@ fn leading_icon_slot<'a, M: 'a>(
     config: &Config,
     icon: Element<'a, GroupEvent<M>>,
 ) -> Element<'a, GroupEvent<M>> {
-    let slot_width = config.layout.panel.height;
+    let slot_width = config.desktop_panels.height;
     let glyph_inset = (slot_width - config.theme.font.icon_size_px) / 2.0;
     container(icon)
         .width(slot_width)
@@ -98,7 +98,7 @@ fn leading_icon_slot<'a, M: 'a>(
 }
 
 fn menu_row_padding(config: &Config) -> Padding {
-    Padding::ZERO.horizontal(config.layout.overlay.content_inset)
+    Padding::ZERO.horizontal(config.overlay_surfaces.content_inset)
 }
 
 fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {

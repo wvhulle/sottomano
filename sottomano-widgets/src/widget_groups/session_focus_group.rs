@@ -10,7 +10,7 @@ mod window_usage;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::{Subscription, Task};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, widget_groups::focus_time::FocusTimeConfig};
+use sottomano_config::{Config, widget_groups::session_focus::SessionFocusConfig};
 use sottomano_sources::{
     blocking_background_work::blocking,
     desktop_notifications::notification_data::ActionTint,
@@ -88,7 +88,7 @@ impl WidgetGroup for SessionFocusGroup {
 
 impl SessionFocusGroup {
     #[must_use]
-    pub fn started_at(config: &FocusTimeConfig, now: DateTime<Utc>) -> Self {
+    pub fn started_at(config: &SessionFocusConfig, now: DateTime<Utc>) -> Self {
         let tracker = FocusTracker::started_at(now);
         let daily_totals = DailyTotalsGauge::new(&tracker.ledger().accounted(config), now);
         Self {
@@ -99,14 +99,14 @@ impl SessionFocusGroup {
         }
     }
 
-    pub fn refresh_daily_totals(&mut self, config: &FocusTimeConfig, clock: Clock) {
+    pub fn refresh_daily_totals(&mut self, config: &SessionFocusConfig, clock: Clock) {
         let now = clock.utc();
         if !self.daily_totals.computed_in_second_of(now) {
             self.recompute_daily_totals(config, now);
         }
     }
 
-    fn recompute_daily_totals(&mut self, config: &FocusTimeConfig, now: DateTime<Utc>) {
+    fn recompute_daily_totals(&mut self, config: &SessionFocusConfig, now: DateTime<Utc>) {
         self.daily_totals = DailyTotalsGauge::new(&self.tracker.ledger().accounted(config), now);
     }
 
@@ -121,7 +121,7 @@ impl SessionFocusGroup {
         )
     }
 
-    pub fn subscription(config: &FocusTimeConfig) -> Subscription<SessionFocusMessage> {
+    pub fn subscription(config: &SessionFocusConfig) -> Subscription<SessionFocusMessage> {
         Subscription::run_with(config.idle_detection_delay, FocusTracker::idle_messages)
             .map(SessionFocusMessage::Tracker)
     }
@@ -134,7 +134,7 @@ impl SessionFocusGroup {
     pub fn screen_power_changed(
         &mut self,
         edge: ScreenEdge,
-        config: &FocusTimeConfig,
+        config: &SessionFocusConfig,
         clock: Clock,
     ) -> Task<SessionFocusMessage> {
         self.update(
@@ -159,7 +159,7 @@ impl SessionFocusGroup {
     pub fn update(
         &mut self,
         message: SessionFocusMessage,
-        config: &FocusTimeConfig,
+        config: &SessionFocusConfig,
         clock: Clock,
     ) -> Task<SessionFocusMessage> {
         match message {
@@ -191,7 +191,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger()
-                .accounted(&config.widget_groups.focus_time),
+                .accounted(&config.widget_groups.session_focus),
             snooze: self.snooze,
         }
     }
@@ -201,7 +201,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger()
-                .accounted(&config.widget_groups.focus_time),
+                .accounted(&config.widget_groups.session_focus),
         }
     }
 
@@ -210,7 +210,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger()
-                .accounted(&config.widget_groups.focus_time),
+                .accounted(&config.widget_groups.session_focus),
         }
     }
 
@@ -219,7 +219,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger()
-                .accounted(&config.widget_groups.focus_time),
+                .accounted(&config.widget_groups.session_focus),
         }
     }
 
@@ -233,7 +233,7 @@ impl SessionFocusGroup {
         let accounting = self
             .tracker
             .ledger()
-            .accounted(&config.widget_groups.focus_time);
+            .accounted(&config.widget_groups.session_focus);
         let now = clock.utc();
         let mut windows: Vec<_> = niri.windows.windows.values().collect();
         windows.sort_by_key(|window| window.id);
@@ -257,7 +257,7 @@ impl SessionFocusGroup {
             accounting: self
                 .tracker
                 .ledger()
-                .accounted(&config.widget_groups.focus_time),
+                .accounted(&config.widget_groups.session_focus),
             window,
         };
         HoverCard::sourced(usage.body(clock.utc()), DeliveryTiming::LivePush)

@@ -55,7 +55,7 @@ pub fn vertical_view<'a>(
             )
         });
     let pager = slot_pager(rows, Position::Left, config)
-        .spacing(config.layout.panel.widget_spacing)
+        .spacing(config.group_items.item_gap)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)
         .draggable(PanelSlotList::Workspaces, &drag, dragged);
@@ -69,7 +69,7 @@ pub fn vertical_view<'a>(
                 empty_workspace_folding,
                 config,
             ))
-            .spacing(config.layout.panel.widget_spacing)
+            .spacing(config.group_items.item_gap)
             .align_x(Alignment::Center)
             .into(),
     )

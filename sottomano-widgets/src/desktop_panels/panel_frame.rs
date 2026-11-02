@@ -36,7 +36,7 @@ impl LayerFrameStyle {
     pub fn new(appearance: &LayerAppearance, config: &Config) -> Self {
         Self {
             appearance: *appearance,
-            outline_width: config.panel_bar.frame_outline,
+            outline_width: config.desktop_panels.frame_outline_width,
         }
     }
 

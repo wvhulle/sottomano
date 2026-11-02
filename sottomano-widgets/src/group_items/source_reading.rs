@@ -96,7 +96,7 @@ pub fn reading_icon<'a, Message: 'a>(
 
 #[must_use]
 pub fn icon_value_gap(config: &Config) -> f32 {
-    config.layout.panel.widget_spacing / 2.0
+    config.group_items.item_gap / 2.0
 }
 
 pub fn reading_value<'a, Message: 'a>(

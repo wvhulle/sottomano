@@ -50,16 +50,16 @@ impl DesktopShell {
         center: impl IntoIterator<Item = Option<Element<'a, Message>>>,
         end: impl IntoIterator<Item = Option<Element<'a, Message>>>,
     ) -> Element<'a, Message> {
-        let spacing = &self.config.layout.panel;
+        let panels = &self.config.desktop_panels;
         let clusters = row![
             self.group_cluster(position, start),
             container(self.group_cluster(position, center)).center_x(Length::Fill),
             self.group_cluster(position, end),
         ]
-        .spacing(spacing.group_spacing)
+        .spacing(panels.joined_group_gap)
         .height(Length::Fill)
         .align_y(Alignment::Center)
-        .padding([0.0, spacing.group_padding]);
+        .padding([0.0, panels.group_edge_padding]);
         self.panel_band(position, clusters)
     }
 
@@ -82,7 +82,7 @@ impl DesktopShell {
             .groups_disconnected();
         let band = container(centered)
             .width(Length::Fill)
-            .height(Length::Fixed(self.config.layout.panel.height));
+            .height(Length::Fixed(self.config.desktop_panels.height));
         if !groups_joined {
             let roles = RegionRoles {
                 takes_input: true,
@@ -126,11 +126,11 @@ impl DesktopShell {
             }
             panel_frame(
                 container(group)
-                    .height(Length::Fixed(config.layout.panel.height))
+                    .height(Length::Fixed(config.desktop_panels.height))
                     .align_y(Vertical::Center)
                     .padding([
                         0.0,
-                        panels.frame_corner_inset() + config.layout.panel.group_padding,
+                        panels.frame_corner_inset() + config.desktop_panels.group_edge_padding,
                     ]),
                 frame_style,
             )
@@ -139,9 +139,9 @@ impl DesktopShell {
             .into()
         });
         let spacing = if groups_disconnected {
-            config.layout.panel.widget_spacing
+            config.desktop_panels.framed_group_gap
         } else {
-            config.layout.panel.group_spacing
+            config.desktop_panels.joined_group_gap
         };
         Row::with_children(framed)
             .spacing(spacing)

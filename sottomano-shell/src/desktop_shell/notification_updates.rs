@@ -51,7 +51,7 @@ impl DesktopShell {
                     .map(|group_menu| group_menu.toast_requests(locale, self.clock)),
             )
             .collect();
-        let promotion_severity = self.config.panel_bar.group_menu_promotion_severity;
+        let promotion_severity = self.config.group_menus.alert_promotion_severity;
         let promoted_groups = group_menus
             .iter()
             .flat_map(|group_menu| group_menu.promoted_groups(promotion_severity, self.clock))

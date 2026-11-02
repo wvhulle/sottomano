@@ -85,7 +85,7 @@ impl DesktopShell {
                 let DragTransition { drag, outcome } = pointer_drag::advance(
                     mem::replace(&mut self.pointer_drag, PointerDrag::Idle),
                     event,
-                    self.config.panel_bar.drag_start_distance,
+                    self.config.desktop_panels.slot_drag.start_distance,
                     self.clock.instant,
                 );
                 self.pointer_drag = drag;
@@ -113,12 +113,11 @@ impl DesktopShell {
             DragOutcome::Dropped(drag) => self.drop_dragged(drag),
             DragOutcome::HoveringForeign(hover) => match hover.item {
                 DraggedPanelSlot::Workspace(_) => {
-                    let (task, handle) =
-                        Task::future(sleep(self.config.panel_bar.drag_spring_load))
-                            .map(move |()| {
-                                Message::PointerDrag(DragMessage::HoverSpringLoaded(hover))
-                            })
-                            .abortable();
+                    let (task, handle) = Task::future(sleep(
+                        self.config.desktop_panels.slot_drag.spring_load_delay,
+                    ))
+                    .map(move |()| Message::PointerDrag(DragMessage::HoverSpringLoaded(hover)))
+                    .abortable();
                     self.spring_load = Some(handle.abort_on_drop());
                     task
                 }

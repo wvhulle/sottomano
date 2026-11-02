@@ -189,12 +189,14 @@ impl<'s> WorkspaceSlot<'s> {
             drag,
             clock,
         } = self.slot_context;
-        let Some(charge) =
-            drag.hover_charge(self.key(), config.panel_bar.drag_spring_load, clock.instant)
-        else {
+        let Some(charge) = drag.hover_charge(
+            self.key(),
+            config.desktop_panels.slot_drag.spring_load_delay,
+            clock.instant,
+        ) else {
             return self.urgency_line();
         };
-        let thickness = config.panel_bar.indicator_thickness;
+        let thickness = config.widget_group_layout.edge_indicator_thickness;
         let charge_bar = progress_bar(0.0..=1.0, charge)
             .girth(thickness)
             .style(move |theme| progress_bar::Style {
@@ -215,7 +217,10 @@ impl<'s> WorkspaceSlot<'s> {
             self.slot_context.edge,
             self.tone.tint(danger_color),
             opacity,
-            self.slot_context.config.panel_bar.indicator_thickness,
+            self.slot_context
+                .config
+                .widget_group_layout
+                .edge_indicator_thickness,
         )
     }
 
@@ -237,7 +242,10 @@ impl<'s> WorkspaceSlot<'s> {
             .collect();
         MarkerTrack::new(
             colors,
-            self.slot_context.config.panel_bar.indicator_thickness,
+            self.slot_context
+                .config
+                .widget_group_layout
+                .edge_indicator_thickness,
             marker_edge,
         )
     }
@@ -274,7 +282,7 @@ impl<'s> WorkspaceSlot<'s> {
         let PanelSlotContext { config, edge, .. } = self.slot_context;
         let panel_slot = PanelSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
-            .spaced_by(config.layout.panel.widget_spacing)
+            .spaced_by(config.group_items.item_gap)
             .view(config, edge);
         self.hit_area(
             container(panel_slot)
@@ -293,8 +301,8 @@ impl<'s> WorkspaceSlot<'s> {
                 .width(Length::Shrink)
                 .align_x(Alignment::Center);
         let label_with_edge = row![label_over_markers, self.edge_line()]
-            .spacing(config.layout.panel.widget_spacing)
-            .height(config.layout.panel.height)
+            .spacing(config.group_items.item_gap)
+            .height(config.desktop_panels.height)
             .align_y(Alignment::Center);
         self.hit_area(
             container(label_with_edge)

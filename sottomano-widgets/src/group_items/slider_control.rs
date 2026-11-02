@@ -399,7 +399,7 @@ impl SliderControl {
         reveal: f32,
         clock: Clock,
     ) -> Element<'a, ControlMessage> {
-        let expansion = config.panel_bar.slider_expansion;
+        let expansion = config.group_items.slider_expansion_duration;
         expand_animation(self.open, expansion, move |expand| {
             if expand > 0.0 {
                 self.expanded_view(config, expand, clock)
@@ -452,7 +452,7 @@ impl SliderControl {
                 .on_press(ControlMessage::Press)
                 .into()
         };
-        let gap = config.layout.panel.widget_spacing;
+        let gap = config.group_items.item_gap;
         let revealed = Row::with_children([
             self.inline_slider_view(config),
             closing_button(self.readout_view(config)),

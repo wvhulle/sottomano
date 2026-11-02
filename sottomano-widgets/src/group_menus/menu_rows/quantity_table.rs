@@ -57,8 +57,8 @@ pub(crate) fn quantity_table<'a, M: 'a>(
                 .collect(),
             rows.into_iter().map(SpannableRow::Columned),
         )
-        .padding_x(config.layout.overlay.row_spacing)
-        .padding_y(config.layout.overlay.row_spacing / 2.0)
+        .padding_x(config.overlay_surfaces.row_gap)
+        .padding_y(config.overlay_surfaces.row_gap / 2.0)
         .into(),
     )
 }

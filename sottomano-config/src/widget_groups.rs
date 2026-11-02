@@ -1,9 +1,9 @@
 pub mod caldav_account;
-pub mod focus_time;
 pub mod gamepad_bindings;
 pub mod media_lyrics;
 pub mod rain_alerts;
 pub mod reachability;
+pub mod session_focus;
 pub mod spend_budget;
 pub mod systemd_manager;
 pub mod temperature_sensors;
@@ -13,39 +13,64 @@ use serde::{Deserialize, Serialize};
 
 use crate::widget_groups::{
     caldav_account::CaldavAccountConfig,
-    focus_time::FocusTimeConfig,
     gamepad_bindings::GamepadBindingsConfig,
     media_lyrics::MediaLyricsConfig,
     rain_alerts::RainAlertsConfig,
     reachability::ReachabilityConfig,
+    session_focus::SessionFocusConfig,
     spend_budget::{ClaudeCodeBudgetConfig, CopilotCliBudgetConfig, OpenRouterBudgetConfig},
     systemd_manager::SystemdManagerConfig,
-    temperature_sensors::TemperatureSensorsConfig,
+    temperature_sensors::SensorConfig,
     tray::TrayConfig,
 };
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct WidgetGroupsConfig {
-    pub window_list: WindowListConfig,
+    pub window: WindowGroupConfig,
     pub workspaces: WorkspacesConfig,
     pub tray: TrayConfig,
-    pub temperature_sensors: TemperatureSensorsConfig,
+    pub compute: ComputeGroupConfig,
+    pub physical_drive: PhysicalDriveGroupConfig,
     pub systemd_manager: SystemdManagerConfig,
     pub claude_usage: ClaudeCodeBudgetConfig,
     pub copilot_usage: CopilotCliBudgetConfig,
     pub openrouter_credit: OpenRouterBudgetConfig,
-    pub focus_time: FocusTimeConfig,
-    pub rain_alerts: RainAlertsConfig,
+    pub session_focus: SessionFocusConfig,
+    pub weather: WeatherGroupConfig,
     pub reachability: ReachabilityConfig,
     pub gamepad: GamepadBindingsConfig,
     pub caldav: CaldavAccountConfig,
-    pub media_lyrics: MediaLyricsConfig,
+    pub media: MediaGroupConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ComputeGroupConfig {
+    pub temperature_sensors: SensorConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PhysicalDriveGroupConfig {
+    pub temperature_sensors: SensorConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct WeatherGroupConfig {
+    pub rain_alerts: RainAlertsConfig,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MediaGroupConfig {
+    pub lyrics: MediaLyricsConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct WindowListConfig {
+pub struct WindowGroupConfig {
     pub audio_indicator: bool,
     pub progress: bool,
     pub count_badge: bool,
@@ -53,7 +78,7 @@ pub struct WindowListConfig {
     pub agents: WindowAgentsConfig,
 }
 
-impl Default for WindowListConfig {
+impl Default for WindowGroupConfig {
     fn default() -> Self {
         Self {
             audio_indicator: true,

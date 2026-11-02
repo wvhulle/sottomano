@@ -178,7 +178,7 @@ impl DesktopShell {
         let dispatched = self.dispatch_message(message);
         self.widget_groups
             .session_focus_group
-            .refresh_daily_totals(&self.config.widget_groups.focus_time, self.clock);
+            .refresh_daily_totals(&self.config.widget_groups.session_focus, self.clock);
         let reheated = if reheat_due {
             self.widget_groups
                 .reheat_switch_heat(&self.config, &self.niri, self.clock)
@@ -262,7 +262,11 @@ impl DesktopShell {
             Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
                 self.widget_groups
                     .session_focus_group
-                    .screen_power_changed(edge, &self.config.widget_groups.focus_time, self.clock)
+                    .screen_power_changed(
+                        edge,
+                        &self.config.widget_groups.session_focus,
+                        self.clock,
+                    )
                     .map(Message::SessionFocus)
             }
             Message::IdleTimeouts(msg) => self

@@ -144,7 +144,7 @@ impl WindowList {
             self.package_facts.start_hover_fetch(
                 PackageWatch {
                     watched,
-                    upstream_branch: config.widget_groups.window_list.nixpkgs_branch.clone(),
+                    upstream_branch: config.widget_groups.window.nixpkgs_branch.clone(),
                 },
                 |fetched| WindowListMessage::PackageFactsRead(Box::new(fetched)),
                 config,
@@ -319,7 +319,7 @@ impl WindowList {
             slot_context,
         };
         if drag.has_left_its_list() {
-            let inset = config.layout.overlay.content_inset;
+            let inset = config.overlay_surfaces.content_inset;
             let circle = drag
                 .ghost_frame
                 .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
@@ -334,8 +334,8 @@ impl WindowList {
         Some(
             panel_frame(
                 container(window_slot.button_content(icons))
-                    .padding([0.0, config.layout.panel.group_padding])
-                    .center_y(config.layout.panel.height),
+                    .padding([0.0, config.desktop_panels.group_edge_padding])
+                    .center_y(config.desktop_panels.height),
                 drag.ghost_frame,
             )
             .into(),
@@ -352,7 +352,7 @@ impl WindowList {
         Extras {
             audio: config
                 .widget_groups
-                .window_list
+                .window
                 .audio_indicator
                 .then(|| window_entry.pid.and_then(|pid| audio?.get(&pid)).copied())
                 .flatten(),
@@ -385,7 +385,7 @@ struct Extras<'a> {
 
 impl Extras<'_> {
     fn progress(&self, config: &Config) -> Option<f32> {
-        if !config.widget_groups.window_list.progress {
+        if !config.widget_groups.window.progress {
             return None;
         }
         self.job
@@ -396,7 +396,7 @@ impl Extras<'_> {
     fn count(&self, config: &Config) -> Option<i64> {
         config
             .widget_groups
-            .window_list
+            .window
             .count_badge
             .then(|| self.launcher?.count)
             .flatten()
@@ -496,10 +496,10 @@ impl WindowSlot<'_> {
             .push(picking)
             .extend(usage)
             .extend(inspecting)
-            .spacing(config.layout.panel.widget_spacing)
+            .spacing(config.group_items.item_gap)
             .align_y(Alignment::Center);
         let panel_slot = PanelSlot::new(content.into(), self.indicator_line())
-            .spaced_by(config.layout.panel.group_spacing);
+            .spaced_by(config.desktop_panels.joined_group_gap);
         match self.progress_ticks() {
             Some(ticks) => panel_slot.ticks(ticks),
             None => panel_slot,
@@ -529,7 +529,7 @@ impl WindowSlot<'_> {
             .extend(self.badged_icon(icons))
             .extend(title.map(Element::from))
             .extend(self.audio_glyph())
-            .spacing(config.layout.panel.widget_spacing)
+            .spacing(config.group_items.item_gap)
             .align_y(Alignment::Center)
             .into()
     }
@@ -564,14 +564,17 @@ impl WindowSlot<'_> {
         activity_line(
             danger_color,
             severity * self.opacity,
-            self.slot_context.config.panel_bar.indicator_thickness,
+            self.slot_context
+                .config
+                .widget_group_layout
+                .edge_indicator_thickness,
         )
     }
 
     fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
         let config = self.slot_context.config;
         let fraction = self.extras.progress(config)?;
-        let thickness = config.panel_bar.indicator_thickness;
+        let thickness = config.widget_group_layout.edge_indicator_thickness;
         let opacity = self.opacity;
         Some(
             progress_bar(0.0..=1.0, fraction)
@@ -603,7 +606,7 @@ impl WindowSlot<'_> {
                     color: Some(background_color(theme).scale_alpha(opacity)),
                 }),
         )
-        .padding([0.0, config.layout.panel.widget_spacing])
+        .padding([0.0, config.group_items.item_gap])
         .style(move |theme| {
             container::Style::default()
                 .background(danger_color(theme).scale_alpha(opacity))
@@ -689,7 +692,7 @@ mod tests {
             )
             .expect("three windows on the active workspace");
         let drag_events: Vec<DragEvent<_>> =
-            sweep_across_panel(pager_element, config.layout.panel.height)
+            sweep_across_panel(pager_element, config.desktop_panels.height)
                 .into_iter()
                 .filter_map(|window_list_message| match window_list_message {
                     WindowListMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),

@@ -284,8 +284,8 @@ pub fn drag_ghost<'a>(
     Some(
         panel_frame(
             container(WorkspaceSlot::ghost(workspace, niri, slot_context).label())
-                .padding([0.0, config.layout.panel.group_padding])
-                .center_y(config.layout.panel.height),
+                .padding([0.0, config.desktop_panels.group_edge_padding])
+                .center_y(config.desktop_panels.height),
             drag.ghost_frame,
         )
         .into(),

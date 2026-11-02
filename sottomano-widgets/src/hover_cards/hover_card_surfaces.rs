@@ -370,9 +370,10 @@ impl HoverCardHost {
                 placement.anchor,
                 placement.position,
                 PopupMorph {
-                    progress: self
-                        .transition
-                        .morph_progress(clock.instant, config.tooltips.popup_morph),
+                    progress: self.transition.morph_progress(
+                        clock.instant,
+                        config.overlay_surfaces.surface_morph_duration,
+                    ),
                     shown: self.transition.shown_target(),
                 },
                 config,

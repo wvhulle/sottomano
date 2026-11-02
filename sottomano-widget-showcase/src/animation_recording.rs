@@ -535,7 +535,8 @@ impl RecordingSession {
     }
 
     pub fn record(&mut self, demo: &'static Demo, start: Clock, output_root: &Path) {
-        let margin_pixels = (self.config.layout.overlay.panel_gap * SCALE_FACTOR).round() as u16;
+        let margin_pixels =
+            (self.config.overlay_surfaces.satellite_gap * SCALE_FACTOR).round() as u16;
         let mut recorder =
             DemoRecorder::start(demo, &self.config, start, &mut self.layout_renderer);
         let opening = recorder.rest();

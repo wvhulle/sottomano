@@ -161,7 +161,7 @@ impl ShellWidgetGroups {
             ),
             llama_server_group: LlamaServerGroup::default(),
             session_focus_group: SessionFocusGroup::started_at(
-                &config.widget_groups.focus_time,
+                &config.widget_groups.session_focus,
                 clock.utc(),
             ),
             login_session_group: LoginSessionGroup::default(),
@@ -289,7 +289,7 @@ impl ShellWidgetGroups {
                 .map(Message::LlamaServer),
             Message::SessionFocus(msg) => self
                 .session_focus_group
-                .update(msg, &config.widget_groups.focus_time, clock)
+                .update(msg, &config.widget_groups.session_focus, clock)
                 .map(Message::SessionFocus),
             Message::LoginSession(msg) => self
                 .login_session_group

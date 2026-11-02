@@ -183,7 +183,7 @@ impl DesktopShell {
     #[allow(clippy::cast_possible_truncation)]
     fn reserved_zone(&self, output: &str, position: Position) -> i32 {
         let thickness = match position {
-            Position::Top | Position::Bottom => self.config.layout.panel.height,
+            Position::Top | Position::Bottom => self.config.desktop_panels.height,
             Position::Left => self
                 .panels()
                 .find(|(_, panel_output)| *panel_output == output)
@@ -268,7 +268,10 @@ impl DesktopShell {
     pub fn reconcile_overlay_surfaces(&mut self) -> Task<Message> {
         let hover_card_surfaces = self
             .hover_card
-            .reconcile_surfaces(self.clock.instant, self.config.tooltips.popup_morph)
+            .reconcile_surfaces(
+                self.clock.instant,
+                self.config.overlay_surfaces.surface_morph_duration,
+            )
             .map(Message::from);
         Task::batch([
             hover_card_surfaces,
@@ -312,7 +315,7 @@ impl DesktopShell {
     }
 
     fn open_backdrop(&mut self, output: &str, position: Position) -> Task<Message> {
-        let height = self.config.layout.panel.height as u32;
+        let height = self.config.desktop_panels.height as u32;
         let settings = backdrop_settings(output, position, height);
         let id = Id::unique();
         self.backdrops.insert(id, position);
@@ -320,7 +323,7 @@ impl DesktopShell {
     }
 
     pub fn resize_backdrops(&self) -> Task<Message> {
-        let height = self.config.layout.panel.height as u32;
+        let height = self.config.desktop_panels.height as u32;
         Task::batch(self.backdrops.iter().flat_map(move |(&id, &position)| {
             [
                 Task::done(Message::LayoutChange {

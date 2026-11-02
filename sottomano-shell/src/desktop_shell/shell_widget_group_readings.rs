@@ -25,7 +25,7 @@ impl ShellWidgetGroups {
         let on_buses = |refresh: &dyn Fn(&DesktopBuses) -> Task<Message>| {
             buses.map_or_else(Task::none, refresh)
         };
-        let sensors = &config.widget_groups.temperature_sensors;
+        let widget_group_settings = &config.widget_groups;
         let working_days = self.quiet_schedule_group.working_days();
         match target {
             HoverTarget::Weather(target) => self
@@ -33,7 +33,8 @@ impl ShellWidgetGroups {
                 .refresh(*target, buses)
                 .map(Message::Weather),
             HoverTarget::Compute(target) => {
-                ComputeGroup::refresh(*target, &sensors.cpu).map(Message::Compute)
+                ComputeGroup::refresh(*target, &widget_group_settings.compute.temperature_sensors)
+                    .map(Message::Compute)
             }
             HoverTarget::MemoryBoard(target) => {
                 MemoryBoardGroup::refresh(*target, buses).map(Message::MemoryBoard)
@@ -45,7 +46,10 @@ impl ShellWidgetGroups {
                 .map(Message::Storage),
             HoverTarget::Drive(target) => self
                 .physical_drive_group
-                .refresh(target, &sensors.drive)
+                .refresh(
+                    target,
+                    &widget_group_settings.physical_drive.temperature_sensors,
+                )
                 .map(Message::Drive),
             HoverTarget::Clock(target) => ClockGroup::refresh(target).map(Message::Clock),
             HoverTarget::DarkMode(target) => DarkModeGroup::refresh(*target).map(Message::DarkMode),

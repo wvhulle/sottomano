@@ -57,7 +57,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
                 ContextMenuLine::Divider => divider(),
             }),
     )
-    .spacing(config.layout.overlay.row_spacing)
+    .spacing(config.overlay_surfaces.row_gap)
     .width(CONTEXT_MENU_WIDTH_PX)
     .into()
 }
@@ -68,7 +68,7 @@ fn entry<'a, M: Clone + 'a>(
     highlight_radius: Radius,
 ) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
-    let row_spacing = config.layout.overlay.row_spacing;
+    let row_spacing = config.overlay_surfaces.row_gap;
     let color: fn(&Theme) -> Color = if row.enabled {
         text_color
     } else {
@@ -114,7 +114,7 @@ fn entry<'a, M: Clone + 'a>(
     }
 
     let glyph_column = icon_size + row_spacing;
-    let inset = config.layout.overlay.content_inset;
+    let inset = config.overlay_surfaces.content_inset;
     let padding = Padding {
         top: row_spacing,
         right: inset,
