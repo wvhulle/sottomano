@@ -75,7 +75,7 @@ pub enum RevealFoldTimer {
 #[derive(Debug, Clone, Default)]
 pub struct EmptyWorkspaceFolding {
     mode: EmptyWorkspaces,
-    revealed_while_stepping: bool,
+    temporarily_revealed: bool,
     active_workspace_by_output: HashMap<String, u64>,
 }
 
@@ -94,8 +94,17 @@ impl EmptyWorkspaceFolding {
     }
 
     pub fn toggle_mode(&mut self) {
-        self.mode = self.mode.toggled();
-        self.revealed_while_stepping = false;
+        self.adopt_mode(self.mode.toggled());
+    }
+
+    pub fn toggle_temporary_reveal(&mut self) {
+        self.temporarily_revealed =
+            self.mode == EmptyWorkspaces::Folded && !self.temporarily_revealed;
+    }
+
+    pub fn adopt_mode(&mut self, mode: EmptyWorkspaces) {
+        self.mode = mode;
+        self.temporarily_revealed = false;
     }
 
     pub fn observe_workspace_switch(
@@ -145,21 +154,21 @@ impl EmptyWorkspaceFolding {
         }
         match workspace_switch {
             WorkspaceSwitch::Step { landed_on_empty }
-                if landed_on_empty || self.revealed_while_stepping =>
+                if landed_on_empty || self.temporarily_revealed =>
             {
-                self.revealed_while_stepping = true;
+                self.temporarily_revealed = true;
                 RevealFoldTimer::Restart
             }
             WorkspaceSwitch::Unchanged | WorkspaceSwitch::Step { .. } => RevealFoldTimer::Keep,
             WorkspaceSwitch::Jump => {
-                self.revealed_while_stepping = false;
+                self.temporarily_revealed = false;
                 RevealFoldTimer::Stop
             }
         }
     }
 
-    pub fn fold_stepping_reveal(&mut self) {
-        self.revealed_while_stepping = false;
+    pub fn fold_temporary_reveal(&mut self) {
+        self.temporarily_revealed = false;
     }
 
     fn hides(
@@ -168,7 +177,7 @@ impl EmptyWorkspaceFolding {
         workspace: &niri_window_snapshot::WorkspaceIndicator,
     ) -> bool {
         self.mode == EmptyWorkspaces::Folded
-            && !self.revealed_while_stepping
+            && !self.temporarily_revealed
             && !is_in_use(niri, workspace)
     }
 }
@@ -230,30 +239,32 @@ fn empty_workspaces_toggle<'a>(
     folding: &EmptyWorkspaceFolding,
     config: &Config,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    let toggled_count = niri
+    if folding.mode == EmptyWorkspaces::Shown {
+        return None;
+    }
+    let unused_count = niri
         .workspaces_for_output(output)
         .iter()
-        .filter(|workspace| match folding.mode {
-            EmptyWorkspaces::Folded => folding.hides(niri, workspace),
-            EmptyWorkspaces::Shown => !is_in_use(niri, workspace),
-        })
+        .filter(|workspace| !is_in_use(niri, workspace))
         .count();
-    if toggled_count == 0 {
+    if unused_count == 0 {
         return None;
     }
     let font = &config.theme.font;
-    let face: Element<'a, WorkspacesMessage> = match folding.mode {
-        EmptyWorkspaces::Folded => panel_text(font, format!("+{toggled_count}"))
+    let face: Element<'a, WorkspacesMessage> = if folding.temporarily_revealed {
+        IconGlyph::from(Phosphor::CaretUp(Weight::Regular))
+            .view(font.icon_size_px, secondary_text_color)
+    } else {
+        panel_text(font, format!("+{unused_count}"))
             .style(|theme| text::Style {
                 color: Some(secondary_text_color(theme)),
             })
-            .into(),
-        EmptyWorkspaces::Shown => IconGlyph::from(Phosphor::CaretUp(Weight::Regular))
-            .view(font.icon_size_px, secondary_text_color),
+            .into()
     };
-    let does = match folding.mode {
-        EmptyWorkspaces::Folded => "show the empty workspaces",
-        EmptyWorkspaces::Shown => "hide the empty workspaces",
+    let does = if folding.temporarily_revealed {
+        "hide the empty workspaces"
+    } else {
+        "show the empty workspaces until the next workspace switch"
     };
     Some(hoverable(
         button(face)
@@ -390,9 +401,9 @@ mod tests {
             }),
             RevealFoldTimer::Restart
         );
-        assert!(folding.revealed_while_stepping);
-        folding.fold_stepping_reveal();
-        assert!(!folding.revealed_while_stepping);
+        assert!(folding.temporarily_revealed);
+        folding.fold_temporary_reveal();
+        assert!(!folding.temporarily_revealed);
     }
 
     #[test]
@@ -404,7 +415,7 @@ mod tests {
             }),
             RevealFoldTimer::Keep
         );
-        assert!(!folding.revealed_while_stepping);
+        assert!(!folding.temporarily_revealed);
     }
 
     #[test]
@@ -419,7 +430,7 @@ mod tests {
             }),
             RevealFoldTimer::Restart
         );
-        assert!(folding.revealed_while_stepping);
+        assert!(folding.temporarily_revealed);
     }
 
     #[test]
@@ -432,7 +443,48 @@ mod tests {
             folding.apply_switch(WorkspaceSwitch::Jump),
             RevealFoldTimer::Stop
         );
-        assert!(!folding.revealed_while_stepping);
+        assert!(!folding.temporarily_revealed);
+    }
+
+    #[test]
+    fn a_pressed_reveal_keeps_the_mode_and_folds_on_a_jump() {
+        let mut folding = EmptyWorkspaceFolding::default();
+        folding.toggle_temporary_reveal();
+        assert!(folding.temporarily_revealed);
+        assert_eq!(folding.mode(), EmptyWorkspaces::Folded);
+        assert_eq!(
+            folding.apply_switch(WorkspaceSwitch::Jump),
+            RevealFoldTimer::Stop
+        );
+        assert!(!folding.temporarily_revealed);
+    }
+
+    #[test]
+    fn a_pressed_reveal_starts_folding_after_a_step() {
+        let mut folding = EmptyWorkspaceFolding::default();
+        folding.toggle_temporary_reveal();
+        assert_eq!(
+            folding.apply_switch(WorkspaceSwitch::Step {
+                landed_on_empty: false
+            }),
+            RevealFoldTimer::Restart
+        );
+    }
+
+    #[test]
+    fn pressing_reveal_twice_folds_again() {
+        let mut folding = EmptyWorkspaceFolding::default();
+        folding.toggle_temporary_reveal();
+        folding.toggle_temporary_reveal();
+        assert!(!folding.temporarily_revealed);
+    }
+
+    #[test]
+    fn showing_all_empties_ignores_a_reveal_press() {
+        let mut folding = EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown);
+        folding.toggle_temporary_reveal();
+        assert!(!folding.temporarily_revealed);
+        assert_eq!(folding.mode(), EmptyWorkspaces::Shown);
     }
 
     #[test]

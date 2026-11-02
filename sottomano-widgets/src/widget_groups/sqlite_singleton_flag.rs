@@ -5,6 +5,7 @@ pub enum SingletonFlag {
     NotificationSound,
     ToastSpatialLayout,
     WorkspacesInSidebar,
+    AutoCollapseWorkspaces,
 }
 
 impl SingletonFlag {
@@ -28,6 +29,12 @@ impl SingletonFlag {
                     enabled INTEGER NOT NULL
                 )"
             }
+            Self::AutoCollapseWorkspaces => {
+                "CREATE TABLE IF NOT EXISTS auto_collapse_workspaces (
+                    id INTEGER PRIMARY KEY CHECK (id = 0),
+                    enabled INTEGER NOT NULL
+                )"
+            }
         }
     }
 
@@ -36,6 +43,7 @@ impl SingletonFlag {
             Self::NotificationSound => "notification_sound",
             Self::ToastSpatialLayout => "toast_spatial_layout",
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
+            Self::AutoCollapseWorkspaces => "auto_collapse_workspaces",
         }
     }
 }
@@ -102,10 +110,11 @@ mod tests {
 
     use super::{SingletonFlag, read_flag, write_flag};
 
-    const ALL_FLAGS: [SingletonFlag; 3] = [
+    const ALL_FLAGS: [SingletonFlag; 4] = [
         SingletonFlag::NotificationSound,
         SingletonFlag::ToastSpatialLayout,
         SingletonFlag::WorkspacesInSidebar,
+        SingletonFlag::AutoCollapseWorkspaces,
     ];
 
     #[tokio::test]

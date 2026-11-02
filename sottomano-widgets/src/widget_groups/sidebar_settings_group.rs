@@ -18,7 +18,7 @@ use crate::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
         widget_group_identity::WidgetGroupFamily,
-        workspaces_group::{EmptyWorkspaceFolding, RevealFoldTimer},
+        workspaces_group::{EmptyWorkspaceFolding, EmptyWorkspaces, RevealFoldTimer},
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -65,9 +65,30 @@ fn workspaces_sidebar_toggle(placement: WorkspacesPlacement) -> IconToggle {
     )
 }
 
+async fn load_empty_workspaces_mode() -> EmptyWorkspaces {
+    if sqlite_singleton_flag::load(SingletonFlag::AutoCollapseWorkspaces, true).await {
+        EmptyWorkspaces::Folded
+    } else {
+        EmptyWorkspaces::Shown
+    }
+}
+
+fn auto_collapse_workspaces_toggle(empty_workspaces_mode: EmptyWorkspaces) -> IconToggle {
+    IconToggle::new(
+        "Auto-collapse unused workspaces",
+        Phosphor::CaretUp(Weight::Regular),
+        empty_workspaces_mode == EmptyWorkspaces::Folded,
+        SwitchPresses {
+            turning_on: "fold empty workspaces away while they are unused",
+            turning_off: "keep empty workspaces listed",
+        },
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SidebarSettingsTarget {
     WorkspacesPlacement,
+    AutoCollapseWorkspaces,
     Appearance(AppearanceTarget),
 }
 
@@ -82,9 +103,11 @@ pub enum SidebarSettingsMessage {
     Expansion(WidgetGroupExpansionMessage),
     ToggleWorkspacesPlacement,
     ToggleEmptyWorkspaces,
-    FoldSteppingReveal,
+    ToggleAutoCollapseWorkspaces,
+    FoldTemporaryReveal,
     Appearance(AppearanceMessage),
     PlacementLoaded(WorkspacesPlacement),
+    EmptyWorkspacesModeLoaded(EmptyWorkspaces),
 }
 
 pub struct SidebarSettingsGroup {
@@ -116,6 +139,10 @@ impl SidebarSettingsGroup {
                 load_workspaces_placement(),
                 SidebarSettingsMessage::PlacementLoaded,
             ),
+            Task::perform(
+                load_empty_workspaces_mode(),
+                SidebarSettingsMessage::EmptyWorkspacesModeLoaded,
+            ),
             LayerAppearanceControls::load(ShellLayer::Sidebar)
                 .map(SidebarSettingsMessage::Appearance),
         ])
@@ -143,7 +170,7 @@ impl SidebarSettingsGroup {
             }
             RevealFoldTimer::Restart => {
                 let (timer, handle) = Task::future(sleep(REVEAL_FOLD_DELAY))
-                    .map(|()| SidebarSettingsMessage::FoldSteppingReveal)
+                    .map(|()| SidebarSettingsMessage::FoldTemporaryReveal)
                     .abortable();
                 self.reveal_fold_timer = Some(handle.abort_on_drop());
                 timer
@@ -161,6 +188,10 @@ impl SidebarSettingsGroup {
         match target {
             SidebarSettingsTarget::WorkspacesPlacement => {
                 workspaces_sidebar_toggle(self.workspaces_placement).switch_hover_card(clock)
+            }
+            SidebarSettingsTarget::AutoCollapseWorkspaces => {
+                auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode())
+                    .switch_hover_card(clock)
             }
             SidebarSettingsTarget::Appearance(target) => {
                 self.appearance.hover_card_for(target, clock)
@@ -191,12 +222,21 @@ impl SidebarSettingsGroup {
                 .discard()
             }
             SidebarSettingsMessage::ToggleEmptyWorkspaces => {
-                self.empty_workspace_folding.toggle_mode();
+                self.empty_workspace_folding.toggle_temporary_reveal();
                 self.reveal_fold_timer = None;
                 Task::none()
             }
-            SidebarSettingsMessage::FoldSteppingReveal => {
-                self.empty_workspace_folding.fold_stepping_reveal();
+            SidebarSettingsMessage::ToggleAutoCollapseWorkspaces => {
+                self.empty_workspace_folding.toggle_mode();
+                self.reveal_fold_timer = None;
+                Task::future(sqlite_singleton_flag::save(
+                    SingletonFlag::AutoCollapseWorkspaces,
+                    self.empty_workspace_folding.mode() == EmptyWorkspaces::Folded,
+                ))
+                .discard()
+            }
+            SidebarSettingsMessage::FoldTemporaryReveal => {
+                self.empty_workspace_folding.fold_temporary_reveal();
                 self.reveal_fold_timer = None;
                 Task::none()
             }
@@ -206,6 +246,12 @@ impl SidebarSettingsGroup {
                 .map(SidebarSettingsMessage::Appearance),
             SidebarSettingsMessage::PlacementLoaded(placement) => {
                 self.workspaces_placement = placement;
+                Task::none()
+            }
+            SidebarSettingsMessage::EmptyWorkspacesModeLoaded(empty_workspaces_mode) => {
+                self.empty_workspace_folding
+                    .adopt_mode(empty_workspaces_mode);
+                self.reveal_fold_timer = None;
                 Task::none()
             }
         }
@@ -220,11 +266,18 @@ impl SidebarSettingsGroup {
             WidgetGroupFamily::SidebarSettings,
             &self.expansion,
             SidebarSettingsMessage::Expansion,
-            [GroupItem::toggle(
-                workspaces_sidebar_toggle(self.workspaces_placement),
-                SidebarSettingsTarget::WorkspacesPlacement,
-                SidebarSettingsMessage::ToggleWorkspacesPlacement,
-            )]
+            [
+                GroupItem::toggle(
+                    workspaces_sidebar_toggle(self.workspaces_placement),
+                    SidebarSettingsTarget::WorkspacesPlacement,
+                    SidebarSettingsMessage::ToggleWorkspacesPlacement,
+                ),
+                GroupItem::toggle(
+                    auto_collapse_workspaces_toggle(self.empty_workspace_folding.mode()),
+                    SidebarSettingsTarget::AutoCollapseWorkspaces,
+                    SidebarSettingsMessage::ToggleAutoCollapseWorkspaces,
+                ),
+            ]
             .into_iter()
             .chain(
                 sidebar_shown
@@ -245,6 +298,7 @@ impl SidebarSettingsGroup {
 #[cfg(test)]
 mod tests {
     use super::{SidebarSettingsGroup, SidebarSettingsMessage, WorkspacesPlacement};
+    use crate::widget_groups::workspaces_group::EmptyWorkspaces;
 
     #[test]
     fn a_loaded_placement_reads_back_unchanged() {
@@ -255,6 +309,28 @@ mod tests {
         assert_eq!(
             sidebar_settings_group.workspaces_placement(),
             WorkspacesPlacement::BottomPanel
+        );
+    }
+
+    #[test]
+    fn revealing_empty_workspaces_leaves_auto_collapse_on() {
+        let mut sidebar_settings_group = SidebarSettingsGroup::default();
+        let _ = sidebar_settings_group.update(SidebarSettingsMessage::ToggleEmptyWorkspaces);
+        assert_eq!(
+            sidebar_settings_group.empty_workspace_folding().mode(),
+            EmptyWorkspaces::Folded
+        );
+    }
+
+    #[test]
+    fn a_loaded_empty_workspaces_mode_reads_back_unchanged() {
+        let mut sidebar_settings_group = SidebarSettingsGroup::default();
+        let _ = sidebar_settings_group.update(SidebarSettingsMessage::EmptyWorkspacesModeLoaded(
+            EmptyWorkspaces::Shown,
+        ));
+        assert_eq!(
+            sidebar_settings_group.empty_workspace_folding().mode(),
+            EmptyWorkspaces::Shown
         );
     }
 }
