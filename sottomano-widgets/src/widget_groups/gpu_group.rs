@@ -33,7 +33,7 @@ use crate::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
-        widget_group_identity::WidgetGroupFamily,
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -127,6 +127,10 @@ impl GpuDevice {
             limit: self.model.power_limit,
         })
     }
+}
+
+fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
+    WidgetGroupIdentity::durable(WidgetGroupFamily::Gpu, bus.0.clone())
 }
 
 #[derive(Default)]
@@ -297,7 +301,8 @@ impl GpuGroup {
         self.devices
             .iter()
             .filter(|(_, device)| device.is_awake())
-            .map(|(bus, device)| {
+            .enumerate()
+            .map(|(position, (bus, device))| {
                 let expanded_bus = bus.clone();
                 let target = |reading| GpuTarget {
                     bus: bus.clone(),
@@ -325,8 +330,12 @@ impl GpuGroup {
                         .power_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
                 ];
-                WidgetGroupContent::expandable(
-                    WidgetGroupFamily::Gpu,
+                WidgetGroupContent::expandable_instance(
+                    gpu_group_identity(bus),
+                    WidgetGroupTitle::numbered_from_second(
+                        WidgetGroupFamily::Gpu.title(),
+                        position,
+                    ),
                     &device.expansion,
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),
@@ -388,5 +397,26 @@ impl GpuGroup {
             }
             GpuReading::Power => snapshot.hover_card_with(device.power_label()?.hover_card(clock)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PciBusId, WidgetGroupFamily, WidgetGroupTitle, gpu_group_identity};
+
+    #[test]
+    fn each_gpu_has_its_own_identity() {
+        let on_bus = |bus: &str| gpu_group_identity(&PciBusId(bus.to_owned()));
+        assert_ne!(on_bus("0000:03:00.0"), on_bus("0000:0b:00.0"));
+    }
+
+    #[test]
+    fn only_later_gpus_are_numbered() {
+        let title_at = |position| {
+            WidgetGroupTitle::numbered_from_second(WidgetGroupFamily::Gpu.title(), position)
+                .to_string()
+        };
+        assert_eq!(title_at(0), "GPU");
+        assert_eq!(title_at(1), "GPU 2");
     }
 }

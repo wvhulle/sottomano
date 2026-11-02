@@ -65,7 +65,7 @@ use crate::{
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
-        widget_group_identity::WidgetGroupFamily,
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         input_report_sections::MeasuredReportTiming,
@@ -80,6 +80,19 @@ pub enum GamepadTarget {
     Link { slot: usize },
     UsbCable { slot: usize },
     NiriControl { slot: usize },
+}
+
+impl GamepadTarget {
+    #[must_use]
+    pub const fn stable_item_name(&self) -> &'static str {
+        match self {
+            GamepadTarget::Controller { .. } => "controller",
+            GamepadTarget::Battery { .. } => "battery",
+            GamepadTarget::Link { .. } => "link",
+            GamepadTarget::UsbCable { .. } => "usb_cable",
+            GamepadTarget::NiriControl { .. } => "niri_control",
+        }
+    }
 }
 
 impl From<GamepadTarget> for HoverTarget {
@@ -208,6 +221,20 @@ fn handover_key(link: &PhysicalGamepadLink) -> &str {
         } => hardware_address,
         ControllerIdentity::Unaddressed => &link.kernel_device,
     }
+}
+
+fn controller_group_titles(names: &[&str]) -> Vec<WidgetGroupTitle> {
+    names
+        .iter()
+        .enumerate()
+        .map(|(position, name)| {
+            let earlier_namesakes = names[..position]
+                .iter()
+                .filter(|earlier_name| *earlier_name == name)
+                .count();
+            WidgetGroupTitle::numbered_from_second((*name).to_owned(), earlier_namesakes)
+        })
+        .collect()
 }
 
 fn niri_control_toggle(driving_niri: bool) -> IconToggle {
@@ -659,6 +686,7 @@ impl GamepadGroup {
         &'a self,
         gamepad: &'a ConnectedGamepad,
         link: &'a PhysicalGamepadLink,
+        group_title: WidgetGroupTitle,
         bindings: &'a GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'a>,
     ) -> Option<WidgetGroupContent<'a, GamepadMessage>> {
@@ -697,8 +725,9 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => item,
             }
         });
-        Some(WidgetGroupContent::expandable(
-            WidgetGroupFamily::Gamepad,
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::Gamepad, handover_key(link).to_owned()),
+            group_title,
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [
@@ -719,10 +748,16 @@ impl GamepadGroup {
         bindings: &'a GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'a>,
     ) -> Vec<WidgetGroupContent<'a, GamepadMessage>> {
-        self.controllers_in_player_order()
-            .into_iter()
-            .filter_map(|(gamepad, link)| {
-                self.controller_group(gamepad, link, bindings, window_claim)
+        let controllers = self.controllers_in_player_order();
+        let names: Vec<&str> = controllers
+            .iter()
+            .map(|(gamepad, _)| gamepad.name.as_str())
+            .collect();
+        controllers
+            .iter()
+            .zip(controller_group_titles(&names))
+            .filter_map(|((gamepad, link), group_title)| {
+                self.controller_group(gamepad, link, group_title, bindings, window_claim)
             })
             .collect()
     }
@@ -1111,5 +1146,22 @@ mod tests {
             GamepadWindowClaim::Focused("steam_app_1091500"),
         );
         assert!(settings.gate.silenced_by_window_claim);
+    }
+
+    #[test]
+    fn namesake_controllers_get_numbered_titles() {
+        let titles: Vec<String> = controller_group_titles(&["DualSense", "Xbox", "DualSense"])
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(titles, ["DualSense", "Xbox", "DualSense 2"]);
+    }
+
+    #[test]
+    fn a_controller_item_name_ignores_its_slot() {
+        assert_eq!(
+            GamepadTarget::Battery { slot: 0 }.stable_item_name(),
+            GamepadTarget::Battery { slot: 3 }.stable_item_name()
+        );
     }
 }

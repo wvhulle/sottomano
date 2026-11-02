@@ -141,6 +141,7 @@ impl HoverTarget {
     pub fn stable_item_key(&self) -> String {
         match self {
             HoverTarget::Media(player) => format!("Media({:?})", player.control),
+            HoverTarget::Gamepad(target) => format!("Gamepad({})", target.stable_item_name()),
             durable_target => format!("{durable_target:?}"),
         }
     }
