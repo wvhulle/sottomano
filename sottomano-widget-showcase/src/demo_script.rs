@@ -5,7 +5,13 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
+    group_menus::{
+        group_menu_presentation::{
+            GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
+            OpenGroupLimit,
+        },
+        group_menu_state::{GroupMenuPin, GroupMenuTopic},
+    },
     hover_cards::HoverTarget,
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
@@ -40,6 +46,10 @@ use crate::{
 pub enum GroupShown {
     OnPanel,
     InMenu(GroupMenuTopic),
+    InMenuPresented {
+        menu: GroupMenuTopic,
+        presentation: GroupMenuPresentation,
+    },
     PinnedFrom {
         menu: GroupMenuTopic,
         group: WidgetGroupIdentity,
@@ -498,6 +508,83 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
+    },
+    Demo {
+        name: "group_menu_cascading_press",
+        group: group_menu_members::hardware_group_menu,
+        live: group_menu_members::hardware_menu_live,
+        shown: GroupShown::InMenuPresented {
+            menu: GroupMenuTopic::Hardware,
+            presentation: GroupMenuPresentation {
+                layout: GroupMenuLayout::Cascading,
+                cascading_reveal_trigger: GroupRevealTrigger::Press,
+                accordion_open_limit: OpenGroupLimit::Several,
+                hover_card_placement: HoverCardPlacement::BesideRow,
+            },
+        },
+        script: &[
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressText("Compute"),
+            Step::HoverText("CPU load"),
+        ],
+    },
+    Demo {
+        name: "group_menu_accordion_several",
+        group: group_menu_members::hardware_group_menu,
+        live: group_menu_members::hardware_menu_live,
+        shown: GroupShown::InMenuPresented {
+            menu: GroupMenuTopic::Hardware,
+            presentation: GroupMenuPresentation {
+                layout: GroupMenuLayout::Accordion,
+                cascading_reveal_trigger: GroupRevealTrigger::Hover,
+                accordion_open_limit: OpenGroupLimit::Several,
+                hover_card_placement: HoverCardPlacement::BesideRow,
+            },
+        },
+        script: &[
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressText("Compute"),
+            Step::PressText("Memory"),
+            Step::HoverText("CPU load"),
+        ],
+    },
+    Demo {
+        name: "group_menu_accordion_one",
+        group: group_menu_members::hardware_group_menu,
+        live: group_menu_members::hardware_menu_live,
+        shown: GroupShown::InMenuPresented {
+            menu: GroupMenuTopic::Hardware,
+            presentation: GroupMenuPresentation {
+                layout: GroupMenuLayout::Accordion,
+                cascading_reveal_trigger: GroupRevealTrigger::Hover,
+                accordion_open_limit: OpenGroupLimit::One,
+                hover_card_placement: HoverCardPlacement::BesideRow,
+            },
+        },
+        script: &[
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressText("Compute"),
+            Step::PressText("Memory"),
+        ],
+    },
+    Demo {
+        name: "group_menu_inline_card",
+        group: group_menu_members::hardware_group_menu,
+        live: group_menu_members::hardware_menu_live,
+        shown: GroupShown::InMenuPresented {
+            menu: GroupMenuTopic::Hardware,
+            presentation: GroupMenuPresentation {
+                layout: GroupMenuLayout::Accordion,
+                cascading_reveal_trigger: GroupRevealTrigger::Hover,
+                accordion_open_limit: OpenGroupLimit::Several,
+                hover_card_placement: HoverCardPlacement::InlineWithRow,
+            },
+        },
+        script: &[
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressText("Compute"),
+            Step::PressText("CPU load"),
+        ],
     },
     Demo {
         name: "group_menu_media",

@@ -18,6 +18,16 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_pin.webp" width="640" alt="Pinning the memory group from the Hardware menu, which moves it onto the panel">
 
+The Menus group in the Behaviour menu changes how every menu opens. In an accordion, pressing a row opens the group's items below it, and several groups can stay open. Cards can open below their row instead of beside it.
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1081" alt="Opening two groups of the Hardware menu as an accordion and hovering CPU load">
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_one.webp" width="427" alt="An accordion that keeps one group open, switching from Compute to Memory">
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_inline_card.webp" width="668" alt="Pressing CPU load in an accordion opens its card below the row">
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_cascading_press.webp" width="1227" alt="A cascading menu that opens a group on press">
+
 | Menu | Panel | Groups |
 |---|---|---|
 | Hardware | top, left | power, compute, memory and board, GPUs, storage, drives |

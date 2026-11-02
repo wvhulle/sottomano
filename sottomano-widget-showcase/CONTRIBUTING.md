@@ -20,7 +20,7 @@ through `iced_test`'s emulator and writes `recordings/<name>.webp`, a lossless
 animated WebP cropped in both directions to what the demo shows, plus the panel
 gap as a margin. A group whose handle previews one of its items is opened by
 pressing that item's target. A handle without a preview is opened with
-`HoverTarget::GroupHandle`.
+`HoverTarget::GroupFace`.
 
 Recordings are reproducible: rendering twice gives identical files, which
 `nix build .#readme-recordings --check` verifies. Time is data: every preset

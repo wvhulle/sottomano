@@ -53,7 +53,7 @@ fn disconnected_toggle(groups_disconnected: bool) -> IconToggle {
         groups_disconnected,
         SwitchPresses {
             turning_on: "draw each group in its own frame",
-            turning_off: "join the groups into one bar",
+            turning_off: "join the groups into one panel",
         },
     )
 }

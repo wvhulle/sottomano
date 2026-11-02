@@ -153,6 +153,10 @@ impl ShowcaseState {
             )))
         }));
         let mut group_menus = GroupMenuState::default();
+        if let GroupShown::InMenuPresented { presentation, .. } = &demo.shown {
+            let _unsaved_presentation =
+                group_menus.update(GroupMenuMessage::PresentationLoaded(*presentation));
+        }
         if let GroupShown::PinnedFrom { menu, group } = &demo.shown {
             let _unsaved_pin = group_menus.update(GroupMenuMessage::TogglePin {
                 menu: *menu,
@@ -262,7 +266,9 @@ impl ShowcaseState {
 
     fn strip_groups(&self) -> Vec<Element<'_, ShowcaseMessage>> {
         match self.demo.shown {
-            GroupShown::InMenu(kind) | GroupShown::PinnedFrom { menu: kind, .. } => self
+            GroupShown::InMenu(kind)
+            | GroupShown::InMenuPresented { menu: kind, .. }
+            | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
                 .panel_views(&self.config, self.group.position(), self.clock)
                 .flatten()
