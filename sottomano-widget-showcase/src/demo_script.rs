@@ -456,6 +456,20 @@ pub const DEMOS: &[Demo] = &[
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
     },
     Demo {
+        name: "bottom_window_directory_groups",
+        group: niri_session::terminals_grouped_by_directory,
+        live: unchanging,
+        shown: GroupShown::OnPanel,
+        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
+    },
+    Demo {
+        name: "bottom_window_flat_rows",
+        group: niri_session::terminals_in_flat_rows,
+        live: unchanging,
+        shown: GroupShown::OnPanel,
+        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
+    },
+    Demo {
         name: "bottom_process_inspector",
         group: niri_session::bottom_bar,
         live: unchanging,

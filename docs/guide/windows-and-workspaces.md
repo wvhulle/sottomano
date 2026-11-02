@@ -14,6 +14,18 @@ A window's title, application and workspace.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_window.webp" width="518" alt="Hovering a window in the bottom panel">
 
+## Windows: Directory groups
+
+Neighbouring terminals in one directory share a heading, with the selected window in the accent colour.
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_window_directory_groups.webp" width="779" alt="Terminals grouped under their working directory in the bottom panel">
+
+## Windows: Flat rows
+
+With grouping turned off in the panel settings, each window shows its own directory.
+
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/bottom_window_flat_rows.webp" width="995" alt="Terminals listed one by one with their working directory in the bottom panel">
+
 ## Windows: Process inspector
 
 The process tree behind a window, to see what a terminal is really running.

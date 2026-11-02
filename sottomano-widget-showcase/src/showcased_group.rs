@@ -42,7 +42,7 @@ use sottomano_widgets::{
         wallpaper_group::WallpaperGroup,
         weather_group::WeatherGroup,
         widget_group_content::WidgetGroupContent,
-        window_group::{WindowGroup, WindowTarget},
+        window_group::{WindowGroup, WindowRowLayout, WindowTarget},
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
             workspace_hover_card,
@@ -79,15 +79,23 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
         .collect()
 }
 
-fn undragged_slot_context(config: &Config, edge: Position, clock: Clock) -> PanelSlotContext<'_> {
+fn undragged_slot_context(
+    config: &Config,
+    edge: Position,
+    clock: Clock,
+    window_row_layout: WindowRowLayout,
+) -> PanelSlotContext<'_> {
+    let panel_appearance = ShellLayer::Panels.default_appearance();
     PanelSlotContext {
         config,
         edge,
         drag: DragView {
             drag: None,
-            ghost_frame: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
+            ghost_frame: LayerFrameStyle::new(&panel_appearance),
         },
         clock,
+        panel_corner_radius_px: panel_appearance.corner_radius_px,
+        window_row_layout,
     }
 }
 
@@ -263,6 +271,7 @@ pub struct ShowcasedMedia {
 
 pub struct ShowcasedNiriSession {
     pub window_group: WindowGroup,
+    pub window_row_layout: WindowRowLayout,
     pub niri: EventStreamState,
     pub snapshot: Snapshot,
     pub desktop_entries: DesktopIndex,
@@ -285,7 +294,7 @@ impl ShowcasedNiriSession {
                 OutlinedSides::inward_of(Position::Left)
                     .all_when_floating(SHOWCASE_FLOAT_OFFSET_PX),
             ),
-            undragged_slot_context(config, Position::Left, clock),
+            undragged_slot_context(config, Position::Left, clock, self.window_row_layout),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from))
         .into_iter()
@@ -303,7 +312,7 @@ impl ShowcasedNiriSession {
             SHOWCASE_OUTPUT,
             Some(&configured_in_fixture_order(snapshot)),
             &EmptyWorkspaceFolding::new(EmptyWorkspaces::Shown),
-            undragged_slot_context(config, Position::Bottom, clock),
+            undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
         )
         .map(|workspaces| workspaces.map(ShowcaseMessage::from));
         let windows = self
@@ -317,7 +326,7 @@ impl ShowcasedNiriSession {
                 },
                 None,
                 SHOWCASE_OUTPUT,
-                undragged_slot_context(config, Position::Bottom, clock),
+                undragged_slot_context(config, Position::Bottom, clock, self.window_row_layout),
             )
             .map(|element| {
                 element.map(|event| ShowcaseMessage::from(event.map(ShowcaseMessage::WindowGroup)))
