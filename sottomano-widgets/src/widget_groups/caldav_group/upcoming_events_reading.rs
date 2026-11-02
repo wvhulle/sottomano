@@ -210,16 +210,24 @@ impl GroupItemReading for UpcomingEventList {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use chrono::Locale;
-    use sottomano_sources::caldav_tasks_events::{
-        caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
+    use sottomano_sources::{
+        caldav_tasks_events::{
+            caldav_server_provider::CaldavProvider, caldav_upcoming_events::UpcomingEventList,
+        },
+        network_connectivity::internet_connectivity_gate::InternetUnreachable,
     };
 
     use crate::{
         clock::Clock,
         group_items::{
-            group_item_reading::GroupItemReading, reading_display_state::ReadingDisplayState,
+            group_item_reading::GroupItemReading,
+            offline_internet_reading::{PlaceholderCause, SnapshotPlaceholder},
+            reading_display_state::ReadingDisplayState,
         },
+        hover_cards::hover_card_body::{HoverCardBody, Section},
         widget_groups::caldav_group::CaldavTarget,
         widgets::latest_snapshot::LatestSnapshot,
     };
@@ -246,6 +254,40 @@ mod tests {
             pending_events
                 .group_item_while_pending::<()>(CaldavTarget::UpcomingEvents)
                 .is_some()
+        );
+    }
+
+    fn event_placeholder(
+        placeholder_cause: PlaceholderCause,
+    ) -> SnapshotPlaceholder<UpcomingEventList> {
+        SnapshotPlaceholder {
+            placeholder_cause,
+            placeholder_source: PhantomData,
+        }
+    }
+
+    #[test]
+    fn a_pending_reading_draws_no_label_until_its_data_arrives() {
+        let pending_events = event_placeholder(PlaceholderCause::AwaitingFirstSnapshot);
+        assert_eq!(pending_events.label(Clock::real(), Locale::en_US), None);
+        assert_eq!(
+            pending_events.state(Clock::real()),
+            ReadingDisplayState::Pending,
+        );
+        assert_eq!(
+            pending_events.hover_card(Clock::real()),
+            HoverCardBody::sections([Section::section_seeding()]),
+        );
+    }
+
+    #[test]
+    fn an_offline_placeholder_is_not_reported_as_pending() {
+        let offline_events =
+            event_placeholder(PlaceholderCause::Offline(InternetUnreachable::NoConnection));
+        assert_eq!(offline_events.label(Clock::real(), Locale::en_US), None);
+        assert_eq!(
+            offline_events.state(Clock::real()),
+            ReadingDisplayState::Off
         );
     }
 
