@@ -75,10 +75,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for MenuRowsViewport<
         style: &renderer::Style,
         layout: Layout<'_>,
         cursor: Cursor,
-        _viewport: &Rectangle,
+        viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        renderer.with_layer(bounds, |renderer| {
+        let Some(content_clip) = bounds.intersection(viewport) else {
+            return;
+        };
+        renderer.with_layer(content_clip, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
                 renderer,
@@ -86,7 +89,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for MenuRowsViewport<
                 style,
                 layout.children().next().unwrap(),
                 clip_cursor(cursor, bounds),
-                &bounds,
+                &content_clip,
             );
         });
     }

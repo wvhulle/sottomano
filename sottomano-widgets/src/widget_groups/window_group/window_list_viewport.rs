@@ -144,8 +144,10 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
         viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
-        let clip = visible_strip(bounds, viewport);
-        renderer.with_layer(clip, |renderer| {
+        let Some(content_clip) = visible_strip(bounds, viewport).intersection(viewport) else {
+            return;
+        };
+        renderer.with_layer(content_clip, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
                 renderer,
@@ -153,7 +155,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
                 style,
                 layout.children().next().unwrap(),
                 clip_cursor(cursor, bounds),
-                &clip,
+                &content_clip,
             );
         });
     }

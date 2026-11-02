@@ -17,8 +17,6 @@ use crate::{
     widgets::{icon_glyph::IconGlyph, value_cells::LabeledValue},
 };
 
-const AWAITING_SNAPSHOT_LABEL: &str = "Loading…";
-
 impl From<InternetUnreachable> for Section {
     fn from(offline_reason: InternetUnreachable) -> Self {
         Section::dictionary([
@@ -95,21 +93,17 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
         S::fallback_icon()
     }
 
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        match self.placeholder_cause {
-            PlaceholderCause::Offline(_) => None,
-            PlaceholderCause::AwaitingFirstSnapshot => Some(AWAITING_SNAPSHOT_LABEL.to_owned()),
-        }
-    }
-
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        ReadingDisplayState::Off
+        match self.placeholder_cause {
+            PlaceholderCause::Offline(_) => ReadingDisplayState::Off,
+            PlaceholderCause::AwaitingFirstSnapshot => ReadingDisplayState::Pending,
+        }
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         HoverCardBody::sections([match &self.placeholder_cause {
             PlaceholderCause::Offline(offline_reason) => offline_reason.clone().into(),
-            PlaceholderCause::AwaitingFirstSnapshot => Section::note(AWAITING_SNAPSHOT_LABEL),
+            PlaceholderCause::AwaitingFirstSnapshot => Section::section_seeding(),
         }])
     }
 }
