@@ -271,7 +271,6 @@ impl ShowcaseState {
             | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
                 .panel_views(&self.config, self.group.position(), self.clock)
-                .flatten()
                 .collect(),
             GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
         }

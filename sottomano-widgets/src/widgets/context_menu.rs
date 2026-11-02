@@ -25,13 +25,17 @@ pub enum Trailing {
     Submenu { open: bool },
 }
 
+pub enum ContextMenuRowPress<M> {
+    Enabled(M),
+    Disabled,
+}
+
 pub struct ContextMenuRow<'a, M> {
     pub leading: Option<Element<'a, M>>,
     pub label: Option<String>,
     pub trailing: Trailing,
-    pub enabled: bool,
     pub depth: usize,
-    pub on_press: Option<M>,
+    pub press: ContextMenuRowPress<M>,
 }
 
 pub enum ContextMenuLine<'a, M> {
@@ -69,10 +73,9 @@ fn entry<'a, M: Clone + 'a>(
 ) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
     let row_spacing = config.overlay_surfaces.row_gap;
-    let color: fn(&Theme) -> Color = if row.enabled {
-        text_color
-    } else {
-        secondary_text_color
+    let color: fn(&Theme) -> Color = match row.press {
+        ContextMenuRowPress::Enabled(_) => text_color,
+        ContextMenuRowPress::Disabled => secondary_text_color,
     };
 
     let mut content = Row::new()
@@ -125,9 +128,9 @@ fn entry<'a, M: Clone + 'a>(
         .width(Length::Fill)
         .padding(padding)
         .style(move |theme, status| button_style(theme, status, color, highlight_radius));
-    match row.on_press.filter(|_| row.enabled) {
-        Some(message) => styled.on_press(message).into(),
-        None => styled.into(),
+    match row.press {
+        ContextMenuRowPress::Enabled(message) => styled.on_press(message).into(),
+        ContextMenuRowPress::Disabled => styled.into(),
     }
 }
 

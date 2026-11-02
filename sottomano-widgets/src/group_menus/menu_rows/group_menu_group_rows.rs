@@ -141,17 +141,17 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     }
 }
 
-pub(crate) fn item_menu<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
+pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     group: &WidgetGroupIdentity,
     items: Vec<GroupMenuItemRow<'a, M>>,
     is_inspected: &dyn Fn(&GroupMenuItemRow<'a, M>) -> bool,
     panel_corners: Radius,
-    mut inline_card: Option<Element<'a, Outer>>,
-) -> Element<'a, Outer> {
+    mut inline_card: Option<Element<'a, M>>,
+) -> Element<'a, M> {
     let growth = layout.cascade_satellite_panels.growth;
     let end_corners = ListEndCorners::new(items.len(), panel_corners);
-    let rows: Vec<Element<'a, Outer>> = items
+    let rows: Vec<Element<'a, M>> = items
         .into_iter()
         .enumerate()
         .flat_map(|(position, item)| {
@@ -160,7 +160,7 @@ pub(crate) fn item_menu<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
                 highlighted: inspected,
                 corners: end_corners.radius_at(position),
             };
-            let row = item_row(layout, group, item, look).map(Outer::from);
+            let row = item_row(layout, group, item, look).map(M::from);
             match (inspected.then(|| inline_card.take()).flatten(), growth) {
                 (Some(card_view), PanelGrowth::Downward) => vec![row, card_view],
                 (Some(card_view), PanelGrowth::Upward) => vec![card_view, row],

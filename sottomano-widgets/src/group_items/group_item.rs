@@ -12,7 +12,7 @@ use crate::{
     group_items::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
-        group_item_reading::GroupItemReading,
+        group_item_reading::{GroupItemReading, state_weighted_icon},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
         source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
@@ -44,6 +44,21 @@ pub(crate) enum ItemPlacement {
     Panel,
     Table,
     Menu,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DrawnItemPlacement {
+    Panel,
+    Table,
+}
+
+impl From<DrawnItemPlacement> for ItemPlacement {
+    fn from(placement: DrawnItemPlacement) -> Self {
+        match placement {
+            DrawnItemPlacement::Panel => ItemPlacement::Panel,
+            DrawnItemPlacement::Table => ItemPlacement::Table,
+        }
+    }
 }
 
 pub(crate) struct MenuParts<'a, M> {
@@ -380,7 +395,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let widget = self.kind.announcing_widget()?;
         widget.announced_level(locale).map(|level| LevelReading {
             hover_target: self.kind.hover_target().clone(),
-            glyph: widget.icon_at(clock),
+            glyph: state_weighted_icon(widget, clock),
             level,
             on_body_clicked,
         })
@@ -444,7 +459,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, reveal, clock, ItemPlacement::Panel)
+        self.placed_view(config, reveal, clock, DrawnItemPlacement::Panel)
     }
 
     pub(crate) fn table_cell_view(
@@ -455,7 +470,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, 1.0, clock, ItemPlacement::Table)
+        self.placed_view(config, 1.0, clock, DrawnItemPlacement::Table)
     }
 
     pub(crate) fn inspected_target(&self) -> &HoverTarget {
@@ -531,27 +546,27 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         config: &Config,
         reveal: f32,
         clock: Clock,
-        placement: ItemPlacement,
+        placement: DrawnItemPlacement,
     ) -> Element<'a, GroupEvent<M>>
     where
         M: Clone,
     {
         let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
         {
-            ItemPlacement::Panel => announcing_hoverable(
+            DrawnItemPlacement::Panel => announcing_hoverable(
                 element,
                 target.clone(),
                 self.announcement(),
                 GroupEvent::HoverCard,
             ),
-            ItemPlacement::Table | ItemPlacement::Menu => element,
+            DrawnItemPlacement::Table => element,
         };
         let mut element = match &self.kind {
             GroupItemContent::Reading { widget, target } => explained(
                 source_reading(config, widget.as_ref(), reveal, clock),
                 target,
             ),
-            GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement),
+            GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement.into()),
             GroupItemContent::Composed {
                 identity,
                 hover,

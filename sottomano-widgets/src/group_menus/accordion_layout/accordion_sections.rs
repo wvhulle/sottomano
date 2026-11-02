@@ -69,15 +69,11 @@ struct InspectedAccordionRow {
     card_view: Element<'static, PopupMessage>,
 }
 
-pub(crate) fn accordion_sections<
-    'a,
-    M: Clone + 'a,
-    Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
->(
+pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a>(
     entries: Vec<GroupMenuGroupRow<'a, M>>,
     layout: &GroupMenuRowContext<'_, 'a, M>,
     card: &InspectionCard<'_, 'a>,
-) -> Option<GroupMenuCascadeSurfaces<'a, Outer>> {
+) -> Option<GroupMenuCascadeSurfaces<'a, M>> {
     if entries.is_empty() {
         return None;
     }
@@ -98,7 +94,7 @@ pub(crate) fn accordion_sections<
         layout.presentation.hover_card_placement == HoverCardPlacement::InlineWithRow;
     let scrolled_px = layout.group_menus.scrolled_px(topic);
     let mut beside_card = None;
-    let section_views: Vec<Element<'a, Outer>> = entries
+    let section_views: Vec<Element<'a, M>> = entries
         .into_iter()
         .enumerate()
         .map(|(section, mut entry)| {
@@ -113,7 +109,7 @@ pub(crate) fn accordion_sections<
                 highlighted: open,
                 corners: corners.radius_at(rows_above_header(&sections, section, growth)),
             };
-            let header: Element<'a, Outer> = group_row(layout, entry, header_look).map(Outer::from);
+            let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
             let item_views = items.into_iter().enumerate().flat_map(|(item, row)| {
                 let rows_above = rows_above_item(&sections, section, item, growth);
                 let inspected =
@@ -122,12 +118,11 @@ pub(crate) fn accordion_sections<
                     highlighted: inspected,
                     corners: corners.radius_at(rows_above),
                 };
-                let row_view: Element<'a, Outer> =
-                    item_row(layout, &group, row, look).map(Outer::from);
+                let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);
                 let card_view = inspected.then(|| card.view(layout.config)).flatten();
                 match (card_view, inline_cards) {
                     (Some(card_view), true) => {
-                        let card_view: Element<'a, Outer> = card_view.map(Outer::from);
+                        let card_view: Element<'a, M> = card_view.map(M::from);
                         match growth {
                             PanelGrowth::Downward => vec![row_view, card_view],
                             PanelGrowth::Upward => vec![card_view, row_view],
@@ -143,7 +138,7 @@ pub(crate) fn accordion_sections<
                     (None, _) => vec![row_view],
                 }
             });
-            let rows: Vec<Element<'a, Outer>> = match growth {
+            let rows: Vec<Element<'a, M>> = match growth {
                 PanelGrowth::Downward => once(header).chain(item_views).collect(),
                 PanelGrowth::Upward => item_views.chain(once(header)).collect(),
             };
@@ -154,7 +149,7 @@ pub(crate) fn accordion_sections<
     let primary = menu_rows_viewport(
         uniform_width_column(section_views),
         scrolled_px,
-        move |scrolled_px| Outer::from(scroll_message(scrolled_px)),
+        move |scrolled_px| M::from(scroll_message(scrolled_px)),
     );
     let satellites = beside_card
         .map(|inspected| {
@@ -162,7 +157,7 @@ pub(crate) fn accordion_sections<
                 inspected.rows_above as f32 * menu_row_height(layout.config) - scrolled_px;
             layout.cascade_satellite_panels.beside_row(
                 layout.config,
-                inspected.card_view.map(Outer::from),
+                inspected.card_view.map(M::from),
                 row_top,
             )
         })

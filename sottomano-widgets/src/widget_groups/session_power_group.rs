@@ -31,7 +31,9 @@ use crate::{
     },
     widgets::{
         configured_theme::text_color,
-        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+        context_menu::{
+            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu,
+        },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -67,9 +69,8 @@ impl SessionMenuEntry {
             ),
             label: Some(self.action.verb().to_owned()),
             trailing: note,
-            enabled: true,
             depth: 0,
-            on_press: Some(SessionMessage::Press(self.action)),
+            press: ContextMenuRowPress::Enabled(SessionMessage::Press(self.action)),
         })
     }
 }

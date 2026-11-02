@@ -21,7 +21,9 @@ use crate::{
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::text_color,
-        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+        context_menu::{
+            ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing, context_menu,
+        },
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
     },
@@ -58,9 +60,8 @@ fn preset_menu_row<'a>(
         } else {
             Trailing::Nothing
         },
-        enabled: true,
         depth: 0,
-        on_press: Some(AppearancePresetsMessage::Apply(preset)),
+        press: ContextMenuRowPress::Enabled(AppearancePresetsMessage::Apply(preset)),
     })
 }
 

@@ -153,7 +153,7 @@ impl WindowGroup {
             .quick_launch
             .group_content(icons.entries, output)
             .map(WindowGroupMessage::QuickLaunch)
-            .view(config, slot_context.edge, slot_context.clock);
+            .view_events(config, slot_context.edge, slot_context.clock);
         let window_list = self
             .window_list
             .view(niri, icons, audio, output, slot_context)

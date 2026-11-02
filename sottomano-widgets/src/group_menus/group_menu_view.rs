@@ -224,12 +224,15 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             })
     }
 
-    fn handle_view<Outer: From<GroupEvent<M>> + 'a>(
+    fn handle_view(
         &self,
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Element<'a, Outer> {
+    ) -> Element<'a, M>
+    where
+        M: From<GroupEvent<M>>,
+    {
         let highest_alert_severity = self
             .groups
             .iter()
@@ -254,43 +257,52 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         .view(config, 0.0);
         PanelSlot::new(handle, indicator)
             .view(config, panel_position)
-            .map(Outer::from)
+            .map(M::from)
     }
 
-    pub fn panel_views<Outer: From<GroupEvent<M>> + 'a>(
+    pub fn panel_views(
         self,
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> impl Iterator<Item = Option<Element<'a, Outer>>> + 'a {
+    ) -> impl Iterator<Item = Element<'a, M>> + 'a
+    where
+        M: From<GroupEvent<M>>,
+    {
         let handle_slot = self.handle_view(config, panel_position, clock);
         let promotion_severity = config.group_menus.alert_promotion_severity;
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
-        once(Some(handle_slot)).chain(self.groups.into_iter().flat_map(move |member| {
+        once(handle_slot).chain(self.groups.into_iter().flat_map(move |member| {
             let group_entry = GroupMenuPin::Group(member.group_identity().clone());
             if group_menus.is_pinned(topic, group_entry) {
-                return vec![
-                    member
-                        .pinned_from(topic)
-                        .view(config, panel_position, clock),
-                ];
+                return member
+                    .pinned_from(topic)
+                    .view(config, panel_position, clock)
+                    .into_iter()
+                    .collect();
             }
             if member.promoted_by_alert(promotion_severity, clock) {
-                return vec![member.view(config, panel_position, clock)];
+                return member
+                    .view(config, panel_position, clock)
+                    .into_iter()
+                    .collect();
             }
             member.pinned_item_views(group_menus, topic, config, panel_position, clock)
         }))
     }
 
     #[must_use]
-    pub fn surfaces<Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a>(
+    pub fn surfaces(
         self,
         config: &'a Config,
         appearance: &LayerAppearance,
         card: &InspectionCard<'_, 'a>,
         orientation: CascadeOrientation,
-    ) -> Option<GroupMenuCascadeSurfaces<'a, Outer>> {
+    ) -> Option<GroupMenuCascadeSurfaces<'a, M>>
+    where
+        M: From<GroupEvent<M>> + From<PopupMessage>,
+    {
         let GroupMenuView {
             group_menus,
             messenger,
@@ -312,7 +324,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| {
             Element::from(container(table).padding(config.overlay_surfaces.content_inset))
-                .map(Outer::from)
+                .map(M::from)
         });
         let cascade_satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);
         let row_context = GroupMenuRowContext {
