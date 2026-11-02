@@ -34,8 +34,6 @@ use crate::{
     },
 };
 
-const TABLE_ICON_GAP_EMS: f32 = 0.75;
-
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
 type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
 
@@ -254,10 +252,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 let on_control = Rc::clone(&on_control);
                 let slider_view = match placement {
                     ItemPlacement::Panel => slider.view(config, reveal, clock),
-                    ItemPlacement::Table => {
-                        slider.always_open_view(config, clock, table_icon_gap(config))
-                    }
-                    ItemPlacement::Menu => slider.menu_view(config, table_icon_gap(config)),
+                    ItemPlacement::Table => slider.always_open_view(config, clock),
+                    ItemPlacement::Menu => slider.menu_view(config),
                 };
                 slider_view.map(move |message| match message {
                     ControlMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
@@ -631,10 +627,6 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
         element
     }
-}
-
-fn table_icon_gap(config: &Config) -> f32 {
-    TABLE_ICON_GAP_EMS * config.theme.font.text_size_px
 }
 
 #[cfg(test)]
