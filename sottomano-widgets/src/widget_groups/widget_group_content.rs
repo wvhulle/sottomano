@@ -15,15 +15,16 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
-            MenuItemAction, MenuParts,
+            MenuParts,
         },
+        group_item_gestures::GroupItemGestures,
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         source_reading::{icon_value_gap, reading_value},
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, PanelPinOrigin, PressHints,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, InspectedRow, PanelPinOrigin, PressHints,
         announcing_hoverable,
     },
     widget_groups::{
@@ -273,7 +274,8 @@ pub(crate) enum GroupItemPin {
 pub(crate) struct GroupMenuItemRow<'a, M> {
     pub name: Cow<'static, str>,
     pub pin: GroupItemPin,
-    pub action: MenuItemAction<M>,
+    pub inspected_row: InspectedRow,
+    pub gestures: GroupItemGestures<M>,
     pub parts: MenuParts<'a, M>,
 }
 
@@ -545,7 +547,8 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 pin: item
                     .pinnable_key()
                     .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
-                action: item.menu_action(),
+                inspected_row: item.inspected_row(),
+                gestures: item.gestures(),
                 parts: item.menu_parts(config, clock),
             })
             .collect();

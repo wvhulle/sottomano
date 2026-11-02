@@ -11,6 +11,7 @@ use crate::{
     clock::Clock,
     group_items::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
+        group_item_gestures::{GroupItemGesture, GroupItemGestures},
         group_item_reading::GroupItemReading,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
@@ -48,23 +49,6 @@ pub(crate) enum ItemPlacement {
 pub(crate) struct MenuParts<'a, M> {
     pub icon: Element<'a, GroupEvent<M>>,
     pub value: Element<'a, GroupEvent<M>>,
-}
-
-pub(crate) enum MenuItemAction<M> {
-    Inspect(InspectedRow),
-    PressAndInspect {
-        press: M,
-        inspected_row: InspectedRow,
-    },
-}
-
-impl<M> MenuItemAction<M> {
-    pub(crate) fn inspected_target(&self) -> &HoverTarget {
-        match self {
-            MenuItemAction::Inspect(inspected_row)
-            | MenuItemAction::PressAndInspect { inspected_row, .. } => &inspected_row.target,
-        }
-    }
 }
 
 pub struct ComposedGroupItemFace {
@@ -198,21 +182,6 @@ impl<'a, M: 'a> GroupItemContent<'a, M> {
     }
 }
 
-#[derive(Clone)]
-struct Press<M> {
-    does: &'static str,
-    message: M,
-}
-
-impl<M> Press<M> {
-    fn map<Outer>(self, lift: fn(M) -> Outer) -> Press<Outer> {
-        Press {
-            does: self.does,
-            message: lift(self.message),
-        }
-    }
-}
-
 pub(crate) struct HandlePreview<'p> {
     pub widget: &'p dyn GroupItemReading,
     pub target: &'p HoverTarget,
@@ -220,8 +189,7 @@ pub(crate) struct HandlePreview<'p> {
 
 pub struct GroupItem<'a, M> {
     kind: GroupItemContent<'a, M>,
-    on_press: Option<Press<M>>,
-    on_right_press: Option<Press<M>>,
+    gestures: GroupItemGestures<M>,
     handle_announcement: HoverAnnouncement,
     previewed_on_handle: bool,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
@@ -233,8 +201,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     fn of_kind(kind: GroupItemContent<'a, M>) -> Self {
         Self {
             kind,
-            on_press: None,
-            on_right_press: None,
+            gestures: GroupItemGestures::inert(),
             handle_announcement: HoverAnnouncement::default(),
             previewed_on_handle: false,
             ongoing_toast_action_buttons: Vec::new(),
@@ -301,19 +268,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
-    pub fn on_press(self, does: &'static str, message: M) -> Self {
-        Self {
-            on_press: Some(Press { does, message }),
-            ..self
-        }
+    pub fn on_press(mut self, description: &'static str, message: M) -> Self {
+        self.gestures.left = GroupItemGesture::Performs {
+            description,
+            message,
+        };
+        self
     }
 
     #[must_use]
-    pub fn on_right_press(self, does: &'static str, message: M) -> Self {
-        Self {
-            on_right_press: Some(Press { does, message }),
-            ..self
-        }
+    pub fn on_right_press(mut self, description: &'static str, message: M) -> Self {
+        self.gestures.right = GroupItemGesture::Performs {
+            description,
+            message,
+        };
+        self
     }
 
     #[must_use]
@@ -363,8 +332,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub(crate) fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItem<'a, Outer> {
         GroupItem {
             kind: self.kind.map(lift),
-            on_press: self.on_press.map(|press| press.map(lift)),
-            on_right_press: self.on_right_press.map(|press| press.map(lift)),
+            gestures: self.gestures.map(lift),
             handle_announcement: self.handle_announcement,
             previewed_on_handle: self.previewed_on_handle,
             ongoing_toast_action_buttons: self
@@ -385,16 +353,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let handle_hints = self.handle_announcement.press_hints;
         HoverAnnouncement {
             press_hints: PressHints {
-                left: self
-                    .on_press
-                    .as_ref()
-                    .map(|press| press.does)
-                    .or(handle_hints.left),
-                right: self
-                    .on_right_press
-                    .as_ref()
-                    .map(|press| press.does)
-                    .or(handle_hints.right),
+                left: self.gestures.left.description().or(handle_hints.left),
+                right: self.gestures.right.description().or(handle_hints.right),
                 ..handle_hints
             },
             origin: self.handle_announcement.origin.clone(),
@@ -498,21 +458,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         self.placed_view(config, 1.0, clock, ItemPlacement::Table)
     }
 
-    pub(crate) fn menu_action(&self) -> MenuItemAction<M>
+    pub(crate) fn inspected_row(&self) -> InspectedRow {
+        InspectedRow {
+            target: self.kind.hover_target().clone(),
+            announcement: self.announcement(),
+        }
+    }
+
+    pub(crate) fn gestures(&self) -> GroupItemGestures<M>
     where
         M: Clone,
     {
-        let inspected_row = InspectedRow {
-            target: self.kind.hover_target().clone(),
-            announcement: self.announcement(),
-        };
-        match &self.on_press {
-            Some(press) => MenuItemAction::PressAndInspect {
-                press: press.message.clone(),
-                inspected_row,
-            },
-            None => MenuItemAction::Inspect(inspected_row),
-        }
+        self.gestures.clone()
     }
 
     pub(crate) fn menu_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
@@ -619,16 +576,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 }
             }
         };
-        if let Some(press) = self.on_press.clone() {
+        if let GroupItemGesture::Performs { message, .. } = self.gestures.left.clone() {
             element = button(element)
                 .padding(0)
                 .style(flat_button(text_color))
-                .on_press(GroupEvent::Group(press.message))
+                .on_press(GroupEvent::Group(message))
                 .into();
         }
-        if let Some(press) = self.on_right_press.clone() {
+        if let GroupItemGesture::Performs { message, .. } = self.gestures.right.clone() {
             element = mouse_area(element)
-                .on_right_press(GroupEvent::Group(press.message))
+                .on_right_press(GroupEvent::Group(message))
                 .into();
         }
         element
@@ -711,23 +668,24 @@ mod tests {
     }
 
     #[test]
-    fn row_action_follows_the_hover_owner() {
-        let children_hover = GroupItemHoverArea::ByChildren {
-            row_target: SessionTarget::Menu.into(),
-        };
+    fn items_without_a_press_have_inert_gestures() {
+        assert_eq!(
+            composed_with(whole_item_hover()).gestures(),
+            GroupItemGestures::inert()
+        );
+    }
+
+    #[test]
+    fn every_announced_gesture_has_a_handler() {
+        let item = composed_with(whole_item_hover())
+            .on_press("left action", ())
+            .on_right_press("right action", ());
+        let hints = item.announcement().press_hints;
+        assert_eq!(hints.left, item.gestures().left.description());
+        assert_eq!(hints.right, item.gestures().right.description());
         assert!(matches!(
-            composed_with(children_hover).menu_action(),
-            MenuItemAction::Inspect(_)
-        ));
-        assert!(matches!(
-            composed_with(whole_item_hover()).menu_action(),
-            MenuItemAction::Inspect(_)
-        ));
-        assert!(matches!(
-            composed_with(whole_item_hover())
-                .on_press("press", ())
-                .menu_action(),
-            MenuItemAction::PressAndInspect { .. }
+            item.gestures().right,
+            GroupItemGesture::Performs { .. }
         ));
     }
 
