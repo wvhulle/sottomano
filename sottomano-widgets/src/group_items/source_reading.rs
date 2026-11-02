@@ -8,7 +8,7 @@ use crate::{
     clock::Clock,
     group_items::{
         gauge::Gauge,
-        group_item_reading::GroupItemReading,
+        group_item_reading::{GroupItemReading, state_weighted_icon},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
     widgets::{
@@ -75,8 +75,7 @@ pub fn reading_icon<'a, Message: 'a>(
     tint: ReadingStateTint,
     clock: Clock,
 ) -> Element<'a, Message> {
-    let bare_icon = widget
-        .icon_at(clock)
+    let bare_icon = state_weighted_icon(widget, clock)
         .view(config.theme.font.icon_size_px, move |theme| {
             tint.color(theme)
         });

@@ -1,7 +1,6 @@
 use std::{
     hash::{Hash, Hasher},
     path::{Path, PathBuf},
-    ptr::fn_addr_eq,
     time::Duration,
 };
 
@@ -72,7 +71,9 @@ pub struct SliderReadout {
 
 impl PartialEq for SliderReadout {
     fn eq(&self, other: &Self) -> bool {
-        self.value_bits == other.value_bits && fn_addr_eq(self.format, other.format)
+        self.value_bits == other.value_bits
+            && (self.format)(f32::from_bits(self.value_bits), Locale::POSIX)
+                == (other.format)(f32::from_bits(other.value_bits), Locale::POSIX)
     }
 }
 

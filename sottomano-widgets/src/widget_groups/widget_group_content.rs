@@ -473,14 +473,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         self.group_title.clone()
     }
 
-    pub(crate) fn pinned_item_views<Outer: From<GroupEvent<M>> + 'a>(
+    pub(crate) fn pinned_item_views(
         self,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Vec<Option<Element<'a, Outer>>> {
+    ) -> Vec<Element<'a, M>>
+    where
+        M: From<GroupEvent<M>>,
+    {
         let WidgetGroupContent {
             group_identity,
             group_title,
@@ -501,15 +504,17 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     item_key,
                 });
                 let item = item.acting_as_handle(pinned_announcement);
-                Some(fixed_view(
-                    slice::from_ref(&item),
-                    item.ongoing_alert_severity(clock).unwrap_or_default(),
-                    config,
-                    panel_position,
-                    clock,
-                ))
+                Some(
+                    fixed_view(
+                        slice::from_ref(&item),
+                        item.ongoing_alert_severity(clock).unwrap_or_default(),
+                        config,
+                        panel_position,
+                        clock,
+                    )
+                    .map(M::from),
+                )
             })
-            .map(Some)
             .collect()
     }
 
@@ -571,12 +576,26 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         })
     }
 
-    pub fn view<Outer: From<GroupEvent<M>> + 'a>(
+    pub fn view(
         self,
         config: &'a Config,
         panel_position: Position,
         clock: Clock,
-    ) -> Option<Element<'a, Outer>> {
+    ) -> Option<Element<'a, M>>
+    where
+        M: From<GroupEvent<M>>,
+    {
+        self.view_events(config, panel_position, clock)
+            .map(|element| element.map(M::from))
+    }
+
+    #[must_use]
+    pub fn view_events(
+        self,
+        config: &'a Config,
+        panel_position: Position,
+        clock: Clock,
+    ) -> Option<Element<'a, GroupEvent<M>>> {
         if self.items.is_empty() {
             return None;
         }
@@ -673,20 +692,19 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             PanelSlot::new(inner.into(), edge_indicator.view(config, reveal))
                 .view(config, panel_position)
         });
-        Some(
-            Element::from(mouse_area(animated).on_enter(on_enter).on_exit(on_exit))
-                .map(Outer::from),
-        )
+        Some(Element::from(
+            mouse_area(animated).on_enter(on_enter).on_exit(on_exit),
+        ))
     }
 }
 
-fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
+fn fixed_view<'a, M: Clone + 'a>(
     items: &[GroupItem<'a, M>],
     highest_alert_severity: Severity,
     config: &'a Config,
     panel_position: Position,
     clock: Clock,
-) -> Element<'a, Outer> {
+) -> Element<'a, GroupEvent<M>> {
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
         .spacing(config.group_items.item_gap)
         .align_y(Alignment::Center);
@@ -696,9 +714,7 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
         expanded: false,
     }
     .view(config, 0.0);
-    PanelSlot::new(row.into(), indicator)
-        .view(config, panel_position)
-        .map(Outer::from)
+    PanelSlot::new(row.into(), indicator).view(config, panel_position)
 }
 
 #[derive(Clone, Copy)]

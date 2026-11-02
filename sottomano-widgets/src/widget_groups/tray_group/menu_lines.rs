@@ -5,7 +5,7 @@ use sottomano_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, Me
 
 use crate::widgets::{
     configured_theme::text_color,
-    context_menu::{ContextMenuLine, ContextMenuRow, Trailing},
+    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing},
     icon_glyph::IconGlyph,
     icon_handle::PixmapHandles,
     phosphor::{Phosphor, Weight},
@@ -90,9 +90,12 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
             leading,
             label: node.label.clone(),
             trailing,
-            enabled: node.enabled,
             depth,
-            on_press: Some(on_press),
+            press: if node.enabled {
+                ContextMenuRowPress::Enabled(on_press)
+            } else {
+                ContextMenuRowPress::Disabled
+            },
         })
     }
 }

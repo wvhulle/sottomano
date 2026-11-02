@@ -54,21 +54,26 @@ impl DesktopShell {
         entry: PanelZoneEntry,
         position: Position,
         output: &'a str,
-    ) -> Vec<Option<Element<'a, Message>>> {
+    ) -> Vec<Element<'a, Message>> {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic)
                 .panel_views(config, position, self.clock)
                 .collect(),
-            PanelZoneEntry::Standalone(group) => {
-                vec![
-                    self.standalone_group(group)
-                        .view(config, position, self.clock),
-                ]
-            }
-            PanelZoneEntry::InlineWorkspaces => vec![self.inline_workspaces(position, output)],
-            PanelZoneEntry::OutputWindows => vec![self.window_group_view(position, output)],
+            PanelZoneEntry::Standalone(group) => self
+                .standalone_group(group)
+                .view(config, position, self.clock)
+                .into_iter()
+                .collect(),
+            PanelZoneEntry::InlineWorkspaces => self
+                .inline_workspaces(position, output)
+                .into_iter()
+                .collect(),
+            PanelZoneEntry::OutputWindows => self
+                .window_group_view(position, output)
+                .into_iter()
+                .collect(),
         }
     }
 
@@ -118,7 +123,7 @@ impl DesktopShell {
     fn panel_zone_row<'a>(
         &'a self,
         position: Position,
-        groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
+        groups: impl IntoIterator<Item = Element<'a, Message>>,
     ) -> Element<'a, Message> {
         let config = &self.config;
         let panels = self.widget_groups.panel_settings_group.panel_appearance();
@@ -129,7 +134,7 @@ impl DesktopShell {
         let frame_style = LayerFrameStyle::new(&panels, config);
         let outlined_sides = OutlinedSides::inward_of(position)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
-        let framed = groups.into_iter().flatten().map(|group| {
+        let framed = groups.into_iter().map(|group| {
             if !groups_disconnected {
                 return group;
             }

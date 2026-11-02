@@ -90,35 +90,23 @@ impl MetadataPressure {
     }
 }
 
-pub trait SpaceSeverity {
-    fn free_space_severity(&self) -> Severity;
-    fn metadata_pressure(&self) -> MetadataPressure;
-
-    fn space_severity(&self) -> Severity {
-        self.free_space_severity()
-            .max(self.metadata_pressure().severity())
+fn free_space_severity(usage: &FilesystemUsage) -> Severity {
+    let capped_by_capacity = |absolute_threshold: ByteSize, capacity_share: f64| {
+        absolute_threshold.min(ByteSize::b(
+            (usage.total.as_u64() as f64 * capacity_share) as u64,
+        ))
+    };
+    if usage.free < capped_by_capacity(FREE_CRITICAL, FREE_CRITICAL_SHARE) {
+        Severity::Critical
+    } else if usage.free < capped_by_capacity(FREE_WARN, FREE_WARN_SHARE) {
+        Severity::Warning
+    } else {
+        Severity::Normal
     }
 }
 
-impl SpaceSeverity for FilesystemUsage {
-    fn free_space_severity(&self) -> Severity {
-        let capped_by_capacity = |absolute_threshold: ByteSize, capacity_share: f64| {
-            absolute_threshold.min(ByteSize::b(
-                (self.total.as_u64() as f64 * capacity_share) as u64,
-            ))
-        };
-        if self.free < capped_by_capacity(FREE_CRITICAL, FREE_CRITICAL_SHARE) {
-            Severity::Critical
-        } else if self.free < capped_by_capacity(FREE_WARN, FREE_WARN_SHARE) {
-            Severity::Warning
-        } else {
-            Severity::Normal
-        }
-    }
-
-    fn metadata_pressure(&self) -> MetadataPressure {
-        MetadataPressure::of(&self.filesystem)
-    }
+pub(crate) fn filesystem_space_severity(usage: &FilesystemUsage) -> Severity {
+    free_space_severity(usage).max(MetadataPressure::of(&usage.filesystem).severity())
 }
 
 impl GroupItemReading for FilesystemUsage {
@@ -131,11 +119,12 @@ impl GroupItemReading for FilesystemUsage {
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
-        self.space_severity().into()
+        filesystem_space_severity(self).into()
     }
 
     fn ongoing_toast_threshold(&self) -> OngoingToastThreshold {
-        let summary_text = if self.metadata_pressure() == MetadataPressure::Exhausted {
+        let summary_text = if MetadataPressure::of(&self.filesystem) == MetadataPressure::Exhausted
+        {
             "No room left for metadata"
         } else {
             "Disk almost full"
@@ -161,10 +150,10 @@ impl GroupItemReading for FilesystemUsage {
         let capacity = Section::dictionary([
             LabeledValue::new("Mounted at", mount_points),
             LabeledValue::new("Used", Quantity::share(percent_fill(self.used_pct()))),
-            LabeledValue::new("Free", Quantity::size(self.free)).level(self.free_space_severity()),
+            LabeledValue::new("Free", Quantity::size(self.free)).level(free_space_severity(self)),
             LabeledValue::new("Total", Quantity::size(self.total)),
         ]);
-        let pressure = self.metadata_pressure();
+        let pressure = MetadataPressure::of(&self.filesystem);
         let filesystem_sections = match &self.filesystem {
             Filesystem::Btrfs(space) => btrfs_sections(space, pressure),
             Filesystem::Bcachefs(space) => bcachefs_sections(space, pressure),
@@ -298,19 +287,19 @@ mod tests {
     #[test]
     fn small_boot_partition_mostly_free_is_normal() {
         let usage = vfat_usage_with(ByteSize::gib(2), ByteSize::mib(1700));
-        assert_eq!(usage.free_space_severity(), Severity::Normal);
+        assert_eq!(free_space_severity(&usage), Severity::Normal);
     }
 
     #[test]
     fn small_boot_partition_nearly_full_is_critical() {
         let usage = vfat_usage_with(ByteSize::gib(2), ByteSize::mib(50));
-        assert_eq!(usage.free_space_severity(), Severity::Critical);
+        assert_eq!(free_space_severity(&usage), Severity::Critical);
     }
 
     #[test]
     fn large_disk_below_absolute_thresholds_still_warns() {
         let usage = vfat_usage_with(ByteSize::tb(2), ByteSize::gb(50));
-        assert_eq!(usage.free_space_severity(), Severity::Warning);
+        assert_eq!(free_space_severity(&usage), Severity::Warning);
     }
 
     #[test]

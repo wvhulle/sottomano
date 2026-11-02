@@ -27,15 +27,11 @@ struct OpenGroup<'a, M> {
     items: Vec<GroupMenuItemRow<'a, M>>,
 }
 
-pub(crate) fn cascading_columns<
-    'a,
-    M: Clone + 'a,
-    Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
->(
+pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a>(
     mut entries: Vec<GroupMenuGroupRow<'a, M>>,
     layout: &GroupMenuRowContext<'_, 'a, M>,
     card: &InspectionCard<'_, 'a>,
-) -> Option<GroupMenuCascadeSurfaces<'a, Outer>> {
+) -> Option<GroupMenuCascadeSurfaces<'a, M>> {
     if entries.is_empty() {
         return None;
     }
@@ -65,9 +61,9 @@ pub(crate) fn cascading_columns<
     });
     Some(GroupMenuCascadeSurfaces {
         primary: menu_rows_viewport(
-            Element::from(uniform_width_column(group_rows)).map(Outer::from),
+            Element::from(uniform_width_column(group_rows)).map(M::from),
             scrolled_px,
-            move |scrolled_px| Outer::from(scroll_message(scrolled_px)),
+            move |scrolled_px| M::from(scroll_message(scrolled_px)),
         ),
         satellites: open_group
             .map(|open| open_group_satellites(layout, open, card))
@@ -75,15 +71,11 @@ pub(crate) fn cascading_columns<
     })
 }
 
-fn open_group_satellites<
-    'a,
-    M: Clone + 'a,
-    Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
->(
+fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage> + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     open: OpenGroup<'a, M>,
     card: &InspectionCard<'_, 'a>,
-) -> Vec<Element<'a, Outer>> {
+) -> Vec<Element<'a, M>> {
     let scrolled_px = layout.group_menus.scrolled_px(layout.menu.topic);
     let OpenGroup {
         position: open_position,
@@ -106,7 +98,7 @@ fn open_group_satellites<
     let inline_card = inline_cards
         .then(|| card_position.and_then(|_| card.view(layout.config)))
         .flatten()
-        .map(|card_view| card_view.map(Outer::from));
+        .map(|card_view| card_view.map(M::from));
     let item_list = item_menu(
         layout,
         &group_identity,
@@ -132,7 +124,7 @@ fn open_group_satellites<
                 ) - scrolled_px;
                 layout.cascade_satellite_panels.beside_row(
                     layout.config,
-                    card_view.map(Outer::from),
+                    card_view.map(M::from),
                     card_row_top,
                 )
             })

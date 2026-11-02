@@ -17,25 +17,18 @@ use crate::{
     shell_message::{Message, OutputChange},
 };
 
-trait EdgeStripLayer {
-    fn anchor(self) -> Anchor;
-    fn strip_size(self, thickness: u32) -> LayerSize;
+fn panel_edge_anchor(position: Position) -> Anchor {
+    match position {
+        Position::Top => Anchor::Top | Anchor::Left | Anchor::Right,
+        Position::Bottom => Anchor::Bottom | Anchor::Left | Anchor::Right,
+        Position::Left => Anchor::Left | Anchor::Top | Anchor::Bottom,
+    }
 }
 
-impl EdgeStripLayer for Position {
-    fn anchor(self) -> Anchor {
-        match self {
-            Position::Top => Anchor::Top | Anchor::Left | Anchor::Right,
-            Position::Bottom => Anchor::Bottom | Anchor::Left | Anchor::Right,
-            Position::Left => Anchor::Left | Anchor::Top | Anchor::Bottom,
-        }
-    }
-
-    fn strip_size(self, thickness: u32) -> LayerSize {
-        match self {
-            Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
-            Position::Left => LayerSize::fill_height(thickness),
-        }
+fn panel_edge_strip_size(position: Position, thickness: u32) -> LayerSize {
+    match position {
+        Position::Top | Position::Bottom => LayerSize::fill_width(thickness),
+        Position::Left => LayerSize::fill_height(thickness),
     }
 }
 
@@ -74,9 +67,9 @@ fn notification_toasts_settings(output: &str) -> NewLayerShellSettings {
 
 fn reservation_settings(output: &str, position: Position, zone: i32) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: position.strip_size(1),
+        size: panel_edge_strip_size(position, 1),
         exclusive_zone: Some(zone),
-        anchor: position.anchor(),
+        anchor: panel_edge_anchor(position),
         layer: Layer::Bottom,
         events_transparent: true,
         ..base_settings(Some(output), "sottomano-reservation")
@@ -103,9 +96,9 @@ fn backdrop_margin(position: Position, height: u32) -> Margin {
 
 fn backdrop_settings(output: &str, position: Position, height: u32) -> NewLayerShellSettings {
     NewLayerShellSettings {
-        size: position.strip_size(height),
+        size: panel_edge_strip_size(position, height),
         exclusive_zone: Some(-1),
-        anchor: position.anchor(),
+        anchor: panel_edge_anchor(position),
         layer: Layer::Background,
         margin: Some(backdrop_margin(position, height)),
         events_transparent: true,
@@ -328,8 +321,8 @@ impl DesktopShell {
             [
                 Task::done(Message::LayoutChange {
                     id,
-                    anchor: position.anchor(),
-                    size: position.strip_size(height),
+                    anchor: panel_edge_anchor(position),
+                    size: panel_edge_strip_size(position, height),
                 }),
                 Task::done(Message::MarginChange {
                     id,
