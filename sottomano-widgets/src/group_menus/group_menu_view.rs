@@ -1,10 +1,7 @@
 use std::iter::once;
 
 use chrono::Locale;
-use iced::{
-    Element,
-    widget::{Column, container},
-};
+use iced::{Element, widget::Column};
 use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
@@ -322,10 +319,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 member.menu_member(config, card.clock, group_menus, messenger.topic)
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
-        let table = quantity_table(table_columns, config).map(|table| {
-            Element::from(container(table).padding(config.overlay_surfaces.content_inset))
-                .map(M::from)
-        });
+        let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
         let cascade_satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);
         let row_context = GroupMenuRowContext {
             config,

@@ -3,16 +3,17 @@ use std::{
     iter::once,
 };
 
-use iced::{Element, alignment::Horizontal, widget::Space};
+use iced::{
+    Alignment, Element, Padding,
+    widget::{Column, Row, Space, container},
+};
 use sottomano_config::Config;
 
 use crate::{
     group_items::aligned_quantity::AlignedQuantity,
+    group_menus::menu_rows::menu_row::menu_row_height,
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupTitle},
-    widgets::{
-        content_sized_table::{SpannableRow, content_sized_spanning_grid},
-        text::{column_heading, row_key_label},
-    },
+    widgets::text::{column_heading, row_key_label},
 };
 
 pub(crate) struct QuantityTableColumn<'a, M> {
@@ -28,37 +29,45 @@ pub(crate) fn quantity_table<'a, M: 'a>(
         return None;
     }
     let font = &config.theme.font;
+    let overlay_surfaces = &config.overlay_surfaces;
     let quantity_rows =
         aligned_quantity_rows(members.iter().map(|member| member.aligned.keys().copied()));
-    let column_count = members.len() + 1;
-    let header_row = once(Space::new().into())
-        .chain(
-            members
-                .iter()
-                .map(|member| column_heading(font, member.group_title.to_string()).into()),
-        )
-        .collect();
-    let mut columns: Vec<_> = members.into_iter().map(|member| member.aligned).collect();
-    let quantity_cells = quantity_rows.iter().map(|quantity| {
-        once(row_key_label(font, quantity.to_string()).into())
-            .chain(columns.iter_mut().map(|column| {
-                column
+    let row_height = menu_row_height(config);
+    let table_cell = |content: Element<'a, GroupEvent<M>>| -> Element<'a, GroupEvent<M>> {
+        container(content).center_y(row_height).into()
+    };
+    let label_column = Column::with_children(
+        once(Element::from(Space::new()))
+            .chain(
+                quantity_rows
+                    .iter()
+                    .map(|quantity| row_key_label(font, quantity.to_string()).into()),
+            )
+            .map(table_cell),
+    )
+    .align_x(Alignment::End);
+    let member_columns = members.into_iter().map(|mut member| {
+        Column::with_children(
+            once(Element::from(column_heading(
+                font,
+                member.group_title.to_string(),
+            )))
+            .chain(quantity_rows.iter().map(|quantity| {
+                member
+                    .aligned
                     .remove(quantity)
                     .unwrap_or_else(|| Space::new().into())
             }))
-            .collect()
-    });
-    let rows: Vec<Vec<Element<'a, GroupEvent<M>>>> =
-        once(header_row).chain(quantity_cells).collect();
-    Some(
-        content_sized_spanning_grid(
-            once(Horizontal::Right)
-                .chain(vec![Horizontal::Left; column_count - 1])
-                .collect(),
-            rows.into_iter().map(SpannableRow::Columned),
+            .map(table_cell),
         )
-        .padding_x(config.overlay_surfaces.row_gap)
-        .padding_y(config.overlay_surfaces.row_gap / 2.0)
+        .into()
+    });
+    Some(
+        container(
+            Row::with_children(once(label_column.into()).chain(member_columns))
+                .spacing(overlay_surfaces.column_gap),
+        )
+        .padding(Padding::ZERO.horizontal(overlay_surfaces.content_inset))
         .into(),
     )
 }

@@ -110,12 +110,7 @@ fn leading_icon_slot<'a, M: 'a>(
     config: &Config,
     icon: Element<'a, GroupEvent<M>>,
 ) -> Element<'a, GroupEvent<M>> {
-    let slot_width = config.desktop_panels.height;
-    let glyph_inset = (slot_width - config.theme.font.icon_size_px) / 2.0;
-    container(icon)
-        .width(slot_width)
-        .padding(Padding::ZERO.left(glyph_inset))
-        .into()
+    container(icon).width(config.desktop_panels.height).into()
 }
 
 fn menu_row_padding(config: &Config) -> Padding {
