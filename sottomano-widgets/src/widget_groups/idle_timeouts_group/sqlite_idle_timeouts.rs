@@ -7,12 +7,9 @@ use sottomano_sources::{
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_timeouts (
-    id INTEGER PRIMARY KEY CHECK (id = 0),
-    lock_user INTEGER,
-    screen_off INTEGER,
-    standby INTEGER,
-    power_down INTEGER
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS idle_action_timeouts (
+    idle_action TEXT PRIMARY KEY,
+    after_seconds INTEGER NOT NULL
 )";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -69,43 +66,53 @@ pub async fn save(timeouts: Timeouts) -> bool {
 async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, StoreError> {
     let mut rows = connection
         .query(
-            "SELECT lock_user, screen_off, standby, power_down FROM idle_timeouts WHERE id = 0",
+            "SELECT idle_action, after_seconds FROM idle_action_timeouts",
             (),
         )
         .await?;
     let columns = Columns::of(&rows);
-    let Some(row) = rows.next().await? else {
-        return Ok(Timeouts::default());
-    };
-    Ok(Timeouts {
-        lock_user: columns.duration(&row, "lock_user"),
-        screen_off: columns.duration(&row, "screen_off"),
-        sleep: columns.duration(&row, "standby"),
-        power_down: columns.duration(&row, "power_down"),
-    })
+    let mut timeouts = Timeouts::default();
+    while let Some(row) = rows.next().await? {
+        let after = Some(Duration::from_secs(
+            u64::try_from(columns.integer(&row, "after_seconds")?).unwrap_or_default(),
+        ));
+        match columns.text(&row, "idle_action")?.as_str() {
+            "lock_user" => timeouts.lock_user = after,
+            "screen_off" => timeouts.screen_off = after,
+            "sleep" => timeouts.sleep = after,
+            "power_down" => timeouts.power_down = after,
+            _ => {}
+        }
+    }
+    Ok(timeouts)
 }
 
 async fn write_timeouts(
     connection: &turso::Connection,
     timeouts: Timeouts,
 ) -> Result<(), StoreError> {
-    let seconds = |timeout: Option<Duration>| {
-        timeout.map(|duration| i64::try_from(duration.as_secs()).unwrap_or(i64::MAX))
-    };
     connection
-        .execute(
-            "INSERT INTO idle_timeouts (id, lock_user, screen_off, standby, power_down)
-         VALUES (0, ?1, ?2, ?3, ?4)
-         ON CONFLICT(id) DO UPDATE SET lock_user = ?1, screen_off = ?2, standby = ?3, power_down = \
-             ?4",
-            (
-                seconds(timeouts.lock_user),
-                seconds(timeouts.screen_off),
-                seconds(timeouts.sleep),
-                seconds(timeouts.power_down),
-            ),
-        )
+        .execute("DELETE FROM idle_action_timeouts", ())
         .await?;
+    let enabled_actions = [
+        ("lock_user", timeouts.lock_user),
+        ("screen_off", timeouts.screen_off),
+        ("sleep", timeouts.sleep),
+        ("power_down", timeouts.power_down),
+    ];
+    for (idle_action, timeout) in enabled_actions {
+        if let Some(duration) = timeout {
+            connection
+                .execute(
+                    "INSERT INTO idle_action_timeouts (idle_action, after_seconds) VALUES (?1, ?2)",
+                    (
+                        idle_action,
+                        i64::try_from(duration.as_secs()).unwrap_or(i64::MAX),
+                    ),
+                )
+                .await?;
+        }
+    }
     Ok(())
 }
 

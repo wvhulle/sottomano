@@ -6,14 +6,12 @@ use sottomano_sources::{
 
 const TTL_DAYS: i64 = 60;
 
-pub const SCHEMA: [&str; 2] = [
-    "CREATE TABLE IF NOT EXISTS launch_events (
-        workspace TEXT NOT NULL,
-        app_id TEXT NOT NULL,
-        launched_at TEXT NOT NULL
-    )",
-    "DROP TABLE IF EXISTS launches",
-];
+pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS launch_events (
+    workspace TEXT NOT NULL,
+    app_id TEXT NOT NULL,
+    launched_at TEXT NOT NULL,
+    PRIMARY KEY (workspace, app_id, launched_at)
+)"];
 
 pub async fn load() -> Vec<Launch> {
     with_table("launch store: load failed", &SCHEMA, read_launches)
@@ -61,7 +59,8 @@ async fn read_launches(connection: &turso::Connection) -> Result<Vec<Launch>, St
 async fn write_launch(connection: &turso::Connection, launch: &Launch) -> Result<(), StoreError> {
     connection
         .execute(
-            "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3)",
+            "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3) ON \
+             CONFLICT DO NOTHING",
             (
                 launch.workspace.clone(),
                 launch.app_id.clone(),

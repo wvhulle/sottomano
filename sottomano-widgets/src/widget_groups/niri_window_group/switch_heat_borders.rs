@@ -13,7 +13,7 @@ use crate::{
 
 const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS switch_heat_borders (
     id INTEGER PRIMARY KEY CHECK (id = 0),
-    shown INTEGER
+    shown INTEGER NOT NULL
 )";
 
 const SHOWN_BY_DEFAULT: bool = true;

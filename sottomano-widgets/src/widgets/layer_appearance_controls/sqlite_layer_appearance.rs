@@ -1,6 +1,4 @@
-use sottomano_sources::sqlite_state_store::{
-    Columns, StoreError, add_missing_column, flag, real, with_table,
-};
+use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, real, with_table};
 
 use crate::widgets::shell_layer_appearance::{
     LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer,
@@ -8,14 +6,14 @@ use crate::widgets::shell_layer_appearance::{
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS layer_appearance (
     layer TEXT PRIMARY KEY,
-    opacity REAL,
-    corner_radius_px REAL,
-    blurred INTEGER,
-    drop_shadow INTEGER,
-    shadow_softness_px REAL,
-    shadow_opacity REAL,
-    outline INTEGER,
-    outline_opacity REAL
+    opacity REAL NOT NULL,
+    corner_radius_px REAL NOT NULL,
+    blurred INTEGER NOT NULL,
+    drop_shadow INTEGER NOT NULL,
+    shadow_softness_px REAL NOT NULL,
+    shadow_opacity REAL NOT NULL,
+    outline INTEGER NOT NULL,
+    outline_opacity REAL NOT NULL
 )";
 
 #[derive(Debug, Clone, Copy)]
@@ -70,23 +68,15 @@ impl ShellLayer {
     }
 }
 
-async fn with_appearance_table<T>(
+async fn with_table_for_appearance<T>(
     label: &str,
     work: impl AsyncFnOnce(&turso::Connection) -> Result<T, StoreError>,
 ) -> Option<T> {
-    with_table(label, &[CREATE_TABLE], async |connection| {
-        add_later_columns(connection).await?;
-        work(connection).await
-    })
-    .await
-}
-
-async fn add_later_columns(connection: &turso::Connection) -> Result<(), StoreError> {
-    add_missing_column(connection, "layer_appearance", "outline_opacity", "REAL").await
+    with_table(label, &[CREATE_TABLE], work).await
 }
 
 pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: AppearanceValue) -> bool {
-    with_appearance_table(
+    with_table_for_appearance(
         &format!(
             "layer appearance: save {} {} failed",
             layer.key(),
@@ -99,7 +89,7 @@ pub async fn save(layer: ShellLayer, setting: AppearanceSetting, value: Appearan
 }
 
 pub async fn save_appearance(layer: ShellLayer, appearance: LayerAppearance) -> bool {
-    with_appearance_table(
+    with_table_for_appearance(
         &format!("layer appearance: save {} failed", layer.key()),
         async |connection| write_appearance(connection, layer, appearance).await,
     )
@@ -109,11 +99,38 @@ pub async fn save_appearance(layer: ShellLayer, appearance: LayerAppearance) -> 
 
 pub async fn load(layer: ShellLayer) -> LayerAppearance {
     let defaults = layer.default_appearance();
-    with_appearance_table("layer appearance: load failed", async |connection| {
+    with_table_for_appearance("layer appearance: load failed", async |connection| {
         read_layer_appearance(connection, layer, defaults).await
     })
     .await
     .unwrap_or(defaults)
+}
+
+async fn insert_default_row(
+    connection: &turso::Connection,
+    layer: ShellLayer,
+) -> Result<(), StoreError> {
+    let defaults = layer.default_appearance();
+    connection
+        .execute(
+            "INSERT INTO layer_appearance (layer, opacity, corner_radius_px, blurred, drop_shadow,
+                 shadow_softness_px, shadow_opacity, outline, outline_opacity)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             ON CONFLICT(layer) DO NOTHING",
+            (
+                layer.key(),
+                real(defaults.opacity),
+                real(defaults.corner_radius_px),
+                flag(defaults.blurred),
+                flag(defaults.shadow.cast),
+                real(defaults.shadow.softness_px),
+                real(defaults.shadow.opacity),
+                flag(defaults.outline.drawn),
+                real(defaults.outline.opacity),
+            ),
+        )
+        .await?;
+    Ok(())
 }
 
 async fn write_setting(
@@ -122,13 +139,11 @@ async fn write_setting(
     setting: AppearanceSetting,
     value: turso::Value,
 ) -> Result<(), StoreError> {
+    insert_default_row(connection, layer).await?;
     let column = setting.column();
     connection
         .execute(
-            format!(
-                "INSERT INTO layer_appearance (layer, {column}) VALUES (?1, ?2)
-             ON CONFLICT(layer) DO UPDATE SET {column} = ?2"
-            ),
+            format!("UPDATE layer_appearance SET {column} = ?2 WHERE layer = ?1"),
             (layer.key(), value),
         )
         .await?;
@@ -181,31 +196,24 @@ async fn read_layer_appearance(
     let Some(row) = rows.next().await? else {
         return Ok(defaults);
     };
-    let real = |setting: AppearanceSetting, fallback: f32| {
-        columns
-            .optional_real(&row, setting.column())
-            .map_or(fallback, |value| value as f32)
+    let real = |setting: AppearanceSetting| -> Result<f32, StoreError> {
+        Ok(columns.real(&row, setting.column())? as f32)
     };
-    let flag = |setting: AppearanceSetting, fallback: bool| {
-        columns
-            .optional_flag(&row, setting.column())
-            .unwrap_or(fallback)
+    let flag = |setting: AppearanceSetting| -> Result<bool, StoreError> {
+        Ok(columns.integer(&row, setting.column())? != 0)
     };
     Ok(LayerAppearance {
-        opacity: real(AppearanceSetting::Opacity, defaults.opacity),
-        corner_radius_px: real(AppearanceSetting::CornerRadius, defaults.corner_radius_px),
-        blurred: flag(AppearanceSetting::Blurred, defaults.blurred),
+        opacity: real(AppearanceSetting::Opacity)?,
+        corner_radius_px: real(AppearanceSetting::CornerRadius)?,
+        blurred: flag(AppearanceSetting::Blurred)?,
         shadow: ShadowStyle {
-            cast: flag(AppearanceSetting::DropShadow, defaults.shadow.cast),
-            softness_px: real(
-                AppearanceSetting::ShadowSoftness,
-                defaults.shadow.softness_px,
-            ),
-            opacity: real(AppearanceSetting::ShadowOpacity, defaults.shadow.opacity),
+            cast: flag(AppearanceSetting::DropShadow)?,
+            softness_px: real(AppearanceSetting::ShadowSoftness)?,
+            opacity: real(AppearanceSetting::ShadowOpacity)?,
         },
         outline: OutlineStyle {
-            drawn: flag(AppearanceSetting::Outline, defaults.outline.drawn),
-            opacity: real(AppearanceSetting::OutlineOpacity, defaults.outline.opacity),
+            drawn: flag(AppearanceSetting::Outline)?,
+            opacity: real(AppearanceSetting::OutlineOpacity)?,
         },
     })
 }
@@ -215,47 +223,9 @@ mod tests {
     use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, real};
 
     use super::{
-        AppearanceSetting, CREATE_TABLE, add_later_columns, read_layer_appearance,
-        write_appearance, write_setting,
+        AppearanceSetting, CREATE_TABLE, read_layer_appearance, write_appearance, write_setting,
     };
     use crate::widgets::shell_layer_appearance::{LayerAppearance, ShellLayer};
-
-    const TABLE_BEFORE_OUTLINE_OPACITY: &str = "CREATE TABLE layer_appearance (
-        layer TEXT PRIMARY KEY,
-        opacity REAL,
-        corner_radius_px REAL,
-        blurred INTEGER,
-        drop_shadow INTEGER,
-        shadow_softness_px REAL,
-        shadow_opacity REAL,
-        outline INTEGER
-    )";
-
-    #[tokio::test]
-    async fn table_from_before_outline_opacity_keeps_rows_and_accepts_it() {
-        let connection = in_memory_connection(&[
-            TABLE_BEFORE_OUTLINE_OPACITY,
-            "INSERT INTO layer_appearance (layer, opacity) VALUES ('sidebar', 0.25)",
-        ])
-        .await;
-        add_later_columns(&connection).await.unwrap();
-        add_later_columns(&connection).await.unwrap();
-        write_setting(
-            &connection,
-            ShellLayer::Sidebar,
-            AppearanceSetting::OutlineOpacity,
-            real(0.75),
-        )
-        .await
-        .unwrap();
-
-        let sidebar =
-            read_layer_appearance(&connection, ShellLayer::Sidebar, LayerAppearance::default())
-                .await
-                .unwrap();
-        assert!((sidebar.opacity - 0.25).abs() < f32::EPSILON);
-        assert!((sidebar.outline.opacity - 0.75).abs() < f32::EPSILON);
-    }
 
     #[tokio::test]
     async fn every_setting_round_trips_within_its_own_layer() {

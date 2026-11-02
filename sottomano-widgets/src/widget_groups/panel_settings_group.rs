@@ -1,6 +1,7 @@
+mod sqlite_panel_layout;
+
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::sqlite_state_store::Columns;
 
 use crate::{
     clock::Clock,
@@ -11,8 +12,6 @@ use crate::{
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
-        sqlite_shell_settings_row,
-        sqlite_shell_settings_row::ShellSetting,
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -39,33 +38,6 @@ impl Default for PanelLayout {
             auto_collapse_groups: true,
             float_offset_px: 0.0,
         }
-    }
-}
-
-async fn load_panel_layout() -> PanelLayout {
-    sqlite_shell_settings_row::load_stored_row(
-        "shell settings: load panel layout failed",
-        PanelLayout::default(),
-        panel_layout_from_columns,
-    )
-    .await
-}
-
-fn panel_layout_from_columns(
-    columns: &Columns,
-    row: &turso::Row,
-    defaults: PanelLayout,
-) -> PanelLayout {
-    PanelLayout {
-        float_offset_px: columns
-            .optional_real(row, "float_offset_px")
-            .map_or(defaults.float_offset_px, |offset| offset as f32),
-        disconnected_groups: columns
-            .optional_flag(row, "disconnected_groups")
-            .unwrap_or(defaults.disconnected_groups),
-        auto_collapse_groups: columns
-            .optional_flag(row, "auto_collapse_groups")
-            .unwrap_or(defaults.auto_collapse_groups),
     }
 }
 
@@ -157,7 +129,10 @@ impl Default for PanelSettingsGroup {
 impl PanelSettingsGroup {
     pub fn load() -> Task<PanelSettingsMessage> {
         Task::batch([
-            Task::perform(load_panel_layout(), PanelSettingsMessage::LayoutLoaded),
+            Task::perform(
+                sqlite_panel_layout::load(),
+                PanelSettingsMessage::LayoutLoaded,
+            ),
             LayerAppearanceControls::load(ShellLayer::Panels).map(PanelSettingsMessage::Appearance),
         ])
     }
@@ -198,6 +173,14 @@ impl PanelSettingsGroup {
         }
     }
 
+    fn stored_layout(&self) -> PanelLayout {
+        PanelLayout {
+            disconnected_groups: self.disconnected_groups,
+            auto_collapse_groups: self.auto_collapse_groups,
+            float_offset_px: self.float_offset.settled_value(),
+        }
+    }
+
     fn adopt_layout(&mut self, panel_layout: PanelLayout) {
         self.disconnected_groups = panel_layout.disconnected_groups;
         self.auto_collapse_groups = panel_layout.auto_collapse_groups;
@@ -226,21 +209,11 @@ impl PanelSettingsGroup {
             }
             PanelSettingsMessage::ToggleDisconnectedGroups => {
                 self.disconnected_groups = !self.disconnected_groups;
-                Action::Run(
-                    Task::future(sqlite_shell_settings_row::save(
-                        ShellSetting::DisconnectedGroups(self.disconnected_groups),
-                    ))
-                    .discard(),
-                )
+                Action::Run(Task::future(sqlite_panel_layout::save(self.stored_layout())).discard())
             }
             PanelSettingsMessage::ToggleAutoCollapseGroups => {
                 self.auto_collapse_groups = !self.auto_collapse_groups;
-                Action::Run(
-                    Task::future(sqlite_shell_settings_row::save(
-                        ShellSetting::AutoCollapseGroups(self.auto_collapse_groups),
-                    ))
-                    .discard(),
-                )
+                Action::Run(Task::future(sqlite_panel_layout::save(self.stored_layout())).discard())
             }
             PanelSettingsMessage::FloatOffset(control) => self.update_float_offset(control),
             PanelSettingsMessage::Appearance(msg) => Action::Run(
@@ -259,9 +232,10 @@ impl PanelSettingsGroup {
     fn update_float_offset(&mut self, control: ControlMessage) -> Action {
         let settled_before = self.float_offset.settled_value();
         let persisting = match self.float_offset.update(control) {
-            SliderAction::Commit(value) => Task::future(sqlite_shell_settings_row::save(
-                ShellSetting::FloatOffset(value),
-            ))
+            SliderAction::Commit(value) => Task::future(sqlite_panel_layout::save(PanelLayout {
+                float_offset_px: value,
+                ..self.stored_layout()
+            }))
             .map(move |ok| {
                 PanelSettingsMessage::FloatOffset(ControlMessage::Persisted { value, ok })
             }),
@@ -316,52 +290,45 @@ impl PanelSettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use iced::futures::{StreamExt, stream};
     use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{PanelLayout, PanelSettingsGroup, PanelSettingsMessage, panel_layout_from_columns};
-    use crate::widget_groups::sqlite_shell_settings_row::{
-        CREATE_TABLE, ShellSetting, read_stored_row, write_setting,
+    use super::{
+        PanelLayout, PanelSettingsGroup, PanelSettingsMessage,
+        sqlite_panel_layout::{CREATE_TABLE, read_layout, write_layout},
     };
 
-    async fn stored_panel_layout(connection: &turso::Connection) -> PanelLayout {
-        read_stored_row(
-            connection,
-            PanelLayout::default(),
-            panel_layout_from_columns,
-        )
-        .await
-        .unwrap()
-    }
-
     #[tokio::test]
-    async fn panel_layout_settings_round_trip_to_their_own_columns() {
+    async fn panel_layout_survives_a_round_trip() {
         let connection = in_memory_connection(&[CREATE_TABLE]).await;
-        stream::iter([
-            ShellSetting::FloatOffset(3.25),
-            ShellSetting::DisconnectedGroups(true),
-            ShellSetting::AutoCollapseGroups(false),
-        ])
-        .for_each(async |setting| write_setting(&connection, setting).await.unwrap())
-        .await;
-
-        let panel_layout = stored_panel_layout(&connection).await;
-        assert!((panel_layout.float_offset_px - 3.25).abs() < f32::EPSILON);
-        assert!(panel_layout.disconnected_groups);
-        assert!(!panel_layout.auto_collapse_groups);
+        let stored = PanelLayout {
+            disconnected_groups: true,
+            auto_collapse_groups: false,
+            float_offset_px: 3.25,
+        };
+        write_layout(&connection, stored).await.unwrap();
+        assert_eq!(read_layout(&connection).await.unwrap(), stored);
     }
 
     #[tokio::test]
     async fn an_unwritten_panel_layout_keeps_its_defaults() {
         let connection = in_memory_connection(&[CREATE_TABLE]).await;
-        write_setting(&connection, ShellSetting::Sound(false))
-            .await
-            .unwrap();
-
         assert_eq!(
-            stored_panel_layout(&connection).await,
+            read_layout(&connection).await.unwrap(),
             PanelLayout::default()
         );
+    }
+
+    #[tokio::test]
+    async fn the_panel_layout_table_refuses_a_missing_value() {
+        let connection = in_memory_connection(&[CREATE_TABLE]).await;
+        let refused = connection
+            .execute(
+                "INSERT INTO panel_layout (id, disconnected_groups, auto_collapse_groups, \
+                 float_offset_px) VALUES (0, NULL, 1, 0.0)",
+                (),
+            )
+            .await;
+        assert!(refused.is_err());
     }
 
     #[test]

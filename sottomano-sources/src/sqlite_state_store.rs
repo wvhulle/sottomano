@@ -119,40 +119,6 @@ pub async fn upsert_column(
     Ok(())
 }
 
-async fn table_has_column(
-    conn: &turso::Connection,
-    table: &str,
-    column: &str,
-) -> Result<bool, StoreError> {
-    let mut rows = conn
-        .query(format!("PRAGMA table_info({table})"), ())
-        .await?;
-    let columns = Columns::of(&rows);
-    while let Some(row) = rows.next().await? {
-        if columns.text(&row, "name")? == column {
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-pub async fn add_missing_column(
-    conn: &turso::Connection,
-    table: &str,
-    column: &str,
-    sql_declaration: &str,
-) -> Result<(), StoreError> {
-    if table_has_column(conn, table, column).await? {
-        return Ok(());
-    }
-    let alter_statement = format!("ALTER TABLE {table} ADD COLUMN {column} {sql_declaration}");
-    match conn.execute(alter_statement, ()).await {
-        Ok(_) => Ok(()),
-        Err(_) if table_has_column(conn, table, column).await? => Ok(()),
-        Err(alter_error) => Err(alter_error.into()),
-    }
-}
-
 #[must_use]
 pub fn real(value: f32) -> turso::Value {
     turso::Value::Real(f64::from(value))

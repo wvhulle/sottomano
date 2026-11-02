@@ -76,15 +76,15 @@ impl GroupMenuTopic {
 
     const fn storage_key(self) -> &'static str {
         match self {
-            GroupMenuTopic::Hardware => "HardwareMenu",
-            GroupMenuTopic::Network => "NetworkMenu",
-            GroupMenuTopic::Agenda => "AgendaMenu",
-            GroupMenuTopic::Media => "MediaMenu",
-            GroupMenuTopic::Display => "DisplayMenu",
-            GroupMenuTopic::Services => "ServicesMenu",
-            GroupMenuTopic::Session => "SessionMenu",
-            GroupMenuTopic::Appearance => "AppearanceMenu",
-            GroupMenuTopic::Behaviour => "BehaviourMenu",
+            GroupMenuTopic::Hardware => "hardware",
+            GroupMenuTopic::Network => "network",
+            GroupMenuTopic::Agenda => "agenda",
+            GroupMenuTopic::Media => "media",
+            GroupMenuTopic::Display => "display",
+            GroupMenuTopic::Services => "services",
+            GroupMenuTopic::Session => "session",
+            GroupMenuTopic::Appearance => "appearance",
+            GroupMenuTopic::Behaviour => "behaviour",
         }
     }
 }

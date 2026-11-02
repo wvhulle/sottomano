@@ -17,8 +17,7 @@ use crate::{
     },
     widget_groups::{
         quiet_schedule_group::QuietScheduleTarget,
-        sqlite_shell_settings_row,
-        sqlite_shell_settings_row::ShellSetting,
+        sqlite_singleton_flag::{self, SingletonFlag},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -90,11 +89,7 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
 impl NotificationGroup {
     pub fn load() -> Task<NotificationGroupMessage> {
         Task::perform(
-            sqlite_shell_settings_row::load_stored_flag(
-                "shell settings: load sound failed",
-                "sound",
-                true,
-            ),
+            sqlite_singleton_flag::load(SingletonFlag::NotificationSound, true),
             NotificationGroupMessage::SoundLoaded,
         )
     }
@@ -132,9 +127,10 @@ impl NotificationGroup {
             NotificationGroupMessage::ToggleSound => {
                 self.alert_sound = !self.alert_sound;
                 Action::Run(
-                    Task::future(sqlite_shell_settings_row::save(ShellSetting::Sound(
+                    Task::future(sqlite_singleton_flag::save(
+                        SingletonFlag::NotificationSound,
                         self.alert_sound,
-                    )))
+                    ))
                     .discard(),
                 )
             }
