@@ -132,6 +132,7 @@
           tailscale
           xdg-utils
           wl-clipboard
+          systemd
         ])
         ++ [
           umbra.packages.${system}.default

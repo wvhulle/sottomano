@@ -6,6 +6,16 @@ use std::{
 
 use tokio::process::Command;
 
+const TRANSIENT_SCOPE_PROGRAM: &str = "systemd-run";
+const BACKGROUND_SCOPE_ARGS: [&str; 6] = [
+    "--user",
+    "--scope",
+    "--quiet",
+    "--collect",
+    "--slice=background.slice",
+    "--",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     NotInstalled { program: String },
@@ -75,6 +85,17 @@ pub async fn output(program: &str, args: &[&str]) -> Result<String, Error> {
         .output()
         .await
         .map_err(|error| spawn_failure(program, &error))?;
+    captured(program, &output)
+}
+
+pub async fn background_output(program: &str, args: &[&str]) -> Result<String, Error> {
+    let output = Command::new(TRANSIENT_SCOPE_PROGRAM)
+        .args(BACKGROUND_SCOPE_ARGS)
+        .arg(program)
+        .args(args)
+        .output()
+        .await
+        .map_err(|error| spawn_failure(TRANSIENT_SCOPE_PROGRAM, &error))?;
     captured(program, &output)
 }
 

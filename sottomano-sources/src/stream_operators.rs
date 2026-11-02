@@ -4,15 +4,15 @@ use std::{
     future::{Future, ready},
     pin::Pin,
     task::{Context, Poll, ready},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use futures::{
-    Stream, StreamExt, TryStreamExt,
+    FutureExt, Stream, StreamExt, TryStreamExt,
     stream::{self, Fuse, FusedStream},
 };
 use pin_project_lite::pin_project;
-use tokio::time::{Sleep, sleep_until};
+use tokio::time::{Sleep, sleep, sleep_until};
 
 use crate::{SnapshotDelivery, SnapshotSource};
 
@@ -158,6 +158,18 @@ where
 }
 
 pub trait StreamOperators: Stream + Sized {
+    fn at_most_once_per(self, minimum_gap: Duration) -> impl Stream<Item = ()> + Send
+    where
+        Self: Stream<Item = ()> + Send,
+    {
+        stream::unfold(Box::pin(self.fuse()), move |mut triggers| async move {
+            triggers.next().await?;
+            sleep(minimum_gap).await;
+            while let Some(Some(())) = triggers.next().now_or_never() {}
+            Some(((), triggers))
+        })
+    }
+
     fn distinct_until_changed(self) -> impl Stream<Item = Self::Item> + Send
     where
         Self: Send,
@@ -269,5 +281,51 @@ where
             }
             polled => polled,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::pin::pin;
+
+    use futures::channel::mpsc;
+    use tokio::time::{self, timeout};
+
+    use super::*;
+
+    const MINIMUM_GAP: Duration = Duration::from_secs(60);
+
+    #[tokio::test(start_paused = true)]
+    async fn a_burst_of_triggers_yields_once_after_the_gap() {
+        let started = time::Instant::now();
+        let burst = stream::iter([(), (), ()]).chain(stream::pending());
+        let mut limited = pin!(burst.at_most_once_per(MINIMUM_GAP));
+        assert_eq!(limited.next().await, Some(()));
+        assert_eq!(started.elapsed(), MINIMUM_GAP);
+        assert!(timeout(MINIMUM_GAP * 10, limited.next()).await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn triggers_arriving_after_a_yield_wait_a_full_gap() {
+        let started = time::Instant::now();
+        let (trigger_sender, trigger_receiver) = mpsc::unbounded();
+        let mut limited = pin!(trigger_receiver.at_most_once_per(MINIMUM_GAP));
+        trigger_sender.unbounded_send(()).unwrap();
+        assert_eq!(limited.next().await, Some(()));
+        trigger_sender.unbounded_send(()).unwrap();
+        assert_eq!(limited.next().await, Some(()));
+        assert_eq!(started.elapsed(), MINIMUM_GAP * 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn silence_yields_nothing() {
+        let mut limited = pin!(stream::pending::<()>().at_most_once_per(MINIMUM_GAP));
+        assert!(timeout(MINIMUM_GAP * 10, limited.next()).await.is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_ended_trigger_stream_ends_the_limited_stream() {
+        let mut limited = pin!(stream::empty::<()>().at_most_once_per(MINIMUM_GAP));
+        assert_eq!(limited.next().await, None);
     }
 }

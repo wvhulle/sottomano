@@ -287,6 +287,8 @@ After=graphical-session.target
 ExecStart=%h/.cargo/bin/sottomano
 Restart=on-failure
 RestartSec=2
+Slice=session.slice
+CPUWeight=500
 
 [Install]
 WantedBy=graphical-session.target
@@ -296,6 +298,16 @@ Use `%h/.nix-profile/bin/sottomano` for a Nix profile install, then enable it:
 
 ```bash
 systemctl --user enable --now sottomano.service
+```
+
+`session.slice` and the raised weight keep the bar responsive when apps load the
+machine. Its frames only reach the screen through niri, so give niri at least the
+same weight in `~/.config/systemd/user/niri.service.d/sottomano-priority.conf`,
+which takes effect at the next login:
+
+```ini
+[Service]
+CPUWeight=1000
 ```
 
 Include the layer rules sottomano writes in `~/.config/niri/config.kdl`:

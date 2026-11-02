@@ -193,6 +193,13 @@ in
         source = tomlFormat.generate "sottomano.toml" cfg.settings;
       };
 
+      "systemd/user/niri.service.d/sottomano-priority.conf" = lib.mkIf cfg.systemdUnit {
+        text = ''
+          [Service]
+          CPUWeight=1000
+        '';
+      };
+
       "sottomano/openrouter-management-key" =
         lib.mkIf (cfg.secretFiles."openrouter-management-key" != null)
           {
@@ -245,6 +252,8 @@ in
         ExecStart = lib.getExe cfg.package;
         Restart = "on-failure";
         RestartSec = 2;
+        Slice = "session.slice";
+        CPUWeight = 500;
       };
       Install.WantedBy = [ "graphical-session.target" ];
     };
