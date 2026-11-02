@@ -11,7 +11,7 @@ use crate::{
     group_items::group_item::MenuParts,
     widget_groups::widget_group_content::GroupEvent,
     widgets::{
-        configured_theme::{primary_weak_color, text_color},
+        configured_theme::{background_weak_color, primary_weak_color, text_color},
         text::panel_text,
     },
 };
@@ -23,9 +23,30 @@ pub(crate) struct MenuRowContent<'a, M> {
     pub trailing: Vec<Element<'a, GroupEvent<M>>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MenuRowEmphasis {
+    Plain,
+    OpenGroup,
+    Selected,
+}
+
+impl MenuRowEmphasis {
+    pub(crate) const fn selected_when(selected: bool) -> Self {
+        if selected {
+            Self::Selected
+        } else {
+            Self::Plain
+        }
+    }
+
+    pub(crate) const fn open_group_when(open: bool) -> Self {
+        if open { Self::OpenGroup } else { Self::Plain }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct MenuRowLook {
-    pub highlighted: bool,
+    pub emphasis: MenuRowEmphasis,
     pub corners: Radius,
 }
 
@@ -104,8 +125,15 @@ fn menu_row_padding(config: &Config) -> Padding {
 fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {
     let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
     button::Style {
-        background: (look.highlighted || hovered)
-            .then(|| Background::Color(primary_weak_color(theme))),
+        background: match (look.emphasis, hovered) {
+            (MenuRowEmphasis::Selected, _) | (_, true) => {
+                Some(Background::Color(primary_weak_color(theme)))
+            }
+            (MenuRowEmphasis::OpenGroup, false) => {
+                Some(Background::Color(background_weak_color(theme)))
+            }
+            (MenuRowEmphasis::Plain, false) => None,
+        },
         text_color: text_color(theme),
         border: Border {
             radius: look.corners,

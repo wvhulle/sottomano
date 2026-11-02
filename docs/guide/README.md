@@ -8,7 +8,7 @@ A page about a group that lives in a menu opens with that group in its menu next
 
 Most groups live in menus behind a single icon on a panel, so the panels stay short. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open toward the side of the screen with more room, downward from the top panel and upward from the bottom panel.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="786" alt="Opening the Media menu, hovering its rows and then the microphone">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="895" alt="Opening the Media menu, hovering its rows and then the microphone">
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_appearance.webp" width="756" alt="Opening the Appearance menu with its settings lined up in a table">
 
@@ -20,9 +20,9 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 
 The Menus group in the Behaviour menu changes how every menu opens. In an accordion, pressing a row opens the group's items below it, and several groups can stay open. Cards can open below their row instead of beside it.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1081" alt="Opening two groups of the Hardware menu as an accordion and hovering CPU load">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1111" alt="Opening two groups of the Hardware menu as an accordion and hovering CPU load">
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_one.webp" width="427" alt="An accordion that keeps one group open, switching from Compute to Memory">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_one.webp" width="457" alt="An accordion that keeps one group open, switching from Compute to Memory">
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_inline_card.webp" width="668" alt="Pressing CPU load in an accordion opens its card below the row">
 

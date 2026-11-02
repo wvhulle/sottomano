@@ -12,7 +12,7 @@ use crate::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_row},
-            menu_row::{MenuRowLook, menu_row_height},
+            menu_row::{MenuRowEmphasis, MenuRowLook, menu_row_height},
         },
     },
     hover_cards::PopupMessage,
@@ -108,7 +108,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 Vec::new()
             };
             let header_look = MenuRowLook {
-                highlighted: open,
+                emphasis: MenuRowEmphasis::open_group_when(open),
                 corners: corners.radius_at(rows_above_header(&sections, section, growth)),
             };
             let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
@@ -117,7 +117,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 let inspected =
                     inspected_target.is_some_and(|target| row.inspected_target == *target);
                 let look = MenuRowLook {
-                    highlighted: inspected,
+                    emphasis: MenuRowEmphasis::selected_when(inspected),
                     corners: corners.radius_at(rows_above),
                 };
                 let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);
