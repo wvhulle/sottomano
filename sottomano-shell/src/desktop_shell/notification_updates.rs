@@ -14,7 +14,10 @@ use sottomano_widgets::{
 };
 
 use crate::{
-    desktop_shell::{DesktopShell, bottom_bar::BottomBarGroups, top_bar::TopBarGroups},
+    desktop_shell::{
+        DesktopShell,
+        desktop_panels::panel_bar_composition::{composed_menu_topics, composed_standalone_groups},
+    },
     shell_message::Message,
 };
 
@@ -26,25 +29,14 @@ pub(super) struct GroupAlertScan {
 impl DesktopShell {
     pub(super) fn scan_group_alerts(&self) -> GroupAlertScan {
         let locale = self.config.calendar.locale;
-        let TopBarGroups {
-            center,
-            notifications,
-            end,
-            ..
-        } = self.top_bar_groups();
-        let BottomBarGroups {
-            start: bottom_start,
-            end: bottom_end,
-            ..
-        } = self.bottom_bar_groups();
-        let group_menus: Vec<_> = self.bar_group_menus().collect();
-        let toast_requests = center
-            .iter()
-            .chain([&notifications])
-            .chain(&end)
-            .chain(&bottom_start)
-            .chain(&bottom_end)
-            .map(|group| group.toast_requests(locale, self.clock))
+        let group_menus: Vec<_> = composed_menu_topics()
+            .map(|topic| self.group_menu_of(topic))
+            .collect();
+        let toast_requests = composed_standalone_groups()
+            .map(|group| {
+                self.standalone_group(group)
+                    .toast_requests(locale, self.clock)
+            })
             .chain(
                 group_menus
                     .iter()

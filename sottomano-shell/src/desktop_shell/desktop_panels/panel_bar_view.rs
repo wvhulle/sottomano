@@ -9,58 +9,67 @@ use sottomano_widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
-    group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
-    widget_groups::widget_group_content::WidgetGroupContent,
+    widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
 };
 
-use crate::{desktop_shell::DesktopShell, shell_message::Message};
+use crate::{
+    desktop_shell::{
+        DesktopShell,
+        desktop_panels::panel_bar_composition::{PanelBarComposition, PanelZone, PanelZoneEntry},
+    },
+    shell_message::Message,
+};
 
 impl DesktopShell {
-    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenuView<'_, Message>> {
-        [
-            self.hardware_group_menu(),
-            self.network_group_menu(),
-            self.agenda_group_menu(),
-            self.media_group_menu(),
-            self.display_group_menu(),
-            self.services_group_menu(),
-            self.session_group_menu(),
-        ]
-        .into_iter()
-        .chain(self.settings_menus())
-    }
-
-    pub(super) fn group_menu<'a>(
+    pub(in crate::desktop_shell) fn panel_bar_view<'a>(
         &'a self,
-        topic: GroupMenuTopic,
-        groups: impl IntoIterator<Item = WidgetGroupContent<'a, Message>>,
-    ) -> GroupMenuView<'a, Message> {
-        GroupMenuView::new(
-            topic,
-            &self.widget_groups.group_menus,
-            Message::GroupMenuState,
-            groups,
-        )
-    }
-
-    pub(super) fn panel_bar<'a>(
-        &'a self,
-        position: Position,
-        start: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-        center: impl IntoIterator<Item = Option<Element<'a, Message>>>,
-        end: impl IntoIterator<Item = Option<Element<'a, Message>>>,
+        composition: &PanelBarComposition,
+        output: &'a str,
     ) -> Element<'a, Message> {
+        let position = composition.position;
+        let zone_row = |zone| {
+            self.panel_zone_row(
+                position,
+                composition
+                    .entries_in(zone)
+                    .iter()
+                    .flat_map(|entry| self.panel_entry_views(*entry, position, output)),
+            )
+        };
         let panels = &self.config.desktop_panels;
-        let clusters = row![
-            self.group_cluster(position, start),
-            container(self.group_cluster(position, center)).center_x(Length::Fill),
-            self.group_cluster(position, end),
+        let panel_zone_rows = row![
+            zone_row(PanelZone::Start),
+            container(zone_row(PanelZone::Center)).center_x(Length::Fill),
+            zone_row(PanelZone::End),
         ]
         .spacing(panels.joined_group_gap)
         .height(Length::Fill)
         .align_y(Alignment::Center)
         .padding([0.0, panels.group_edge_padding]);
-        self.panel_band(position, clusters)
+        self.panel_band(position, panel_zone_rows)
+    }
+
+    fn panel_entry_views<'a>(
+        &'a self,
+        entry: PanelZoneEntry,
+        position: Position,
+        output: &'a str,
+    ) -> Vec<Option<Element<'a, Message>>> {
+        let config = &self.config;
+        match entry {
+            PanelZoneEntry::Menu(topic) => self
+                .group_menu_of(topic)
+                .panel_views(config, position, self.clock)
+                .collect(),
+            PanelZoneEntry::Standalone(group) => {
+                vec![
+                    self.standalone_group(group)
+                        .view(config, position, self.clock),
+                ]
+            }
+            PanelZoneEntry::InlineWorkspaces => vec![self.inline_workspaces(position, output)],
+            PanelZoneEntry::OutputWindows => vec![self.window_group_view(position, output)],
+        }
     }
 
     fn panel_band<'a>(
@@ -106,7 +115,7 @@ impl DesktopShell {
         region_reporter(column![strip], roles).into()
     }
 
-    fn group_cluster<'a>(
+    fn panel_zone_row<'a>(
         &'a self,
         position: Position,
         groups: impl IntoIterator<Item = Option<Element<'a, Message>>>,
@@ -148,5 +157,46 @@ impl DesktopShell {
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .into()
+    }
+
+    fn inline_workspaces<'a>(
+        &'a self,
+        position: Position,
+        output: &'a str,
+    ) -> Option<Element<'a, Message>> {
+        match self
+            .widget_groups
+            .sidebar_settings_group
+            .workspaces_placement()
+        {
+            WorkspacesPlacement::Sidebar => None,
+            WorkspacesPlacement::BottomPanel => inline_strip::inline_view(
+                &self.niri_snapshot,
+                output,
+                self.configured_workspaces.as_ref(),
+                self.widget_groups
+                    .sidebar_settings_group
+                    .empty_workspace_folding(),
+                self.panel_slot_context(position),
+            )
+            .map(|workspaces| workspaces.map(Message::from)),
+        }
+    }
+
+    fn window_group_view<'a>(
+        &'a self,
+        position: Position,
+        output: &'a str,
+    ) -> Option<Element<'a, Message>> {
+        self.widget_groups
+            .window_group
+            .view(
+                &self.niri_snapshot,
+                self.window_assets(),
+                self.widget_groups.audio_group.window_audio(),
+                output,
+                self.panel_slot_context(position),
+            )
+            .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }
 }
