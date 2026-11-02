@@ -7,8 +7,9 @@ use sottomano_config::Config;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::Gauge,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         steady_label_width::{LabelShape, steady_label_width},
         text::{FontFaces, bar_text},
@@ -18,7 +19,7 @@ use crate::{
 
 pub fn source_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     opacity: f32,
     clock: Clock,
 ) -> Element<'a, Message> {
@@ -27,7 +28,7 @@ pub fn source_reading<'a, Message: 'a>(
 
 pub fn labeled_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     opacity: f32,
     clock: Clock,
 ) -> Element<'a, Message> {
@@ -36,10 +37,10 @@ pub fn labeled_reading<'a, Message: 'a>(
 
 fn composed_reading<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     opacity: f32,
     clock: Clock,
-    value: fn(&Config, &dyn BarWidget, StateTint, Clock) -> Option<Element<'a, Message>>,
+    value: fn(&Config, &dyn GroupItemReading, StateTint, Clock) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
     let tint = StateTint {
         state: widget.state(clock),
@@ -63,7 +64,7 @@ fn composed_reading<'a, Message: 'a>(
 
 pub fn reading_icon<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     tint: StateTint,
     clock: Clock,
 ) -> Element<'a, Message> {
@@ -93,7 +94,7 @@ pub fn icon_value_gap(config: &Config) -> f32 {
 
 pub fn reading_value<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
@@ -112,7 +113,7 @@ pub fn reading_value<'a, Message: 'a>(
 
 fn label_value<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
@@ -124,7 +125,7 @@ fn label_value<'a, Message: 'a>(
 
 fn label_text<'a, Message: 'a>(
     config: &Config,
-    widget: &dyn BarWidget,
+    widget: &dyn GroupItemReading,
     tint: StateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
@@ -146,7 +147,7 @@ fn label_text<'a, Message: 'a>(
 }
 
 fn failure_marker<'a, Message: 'a>(config: &Config, tint: StateTint) -> Element<'a, Message> {
-    Glyph::from(Phosphor::Warning(Weight::Thin))
+    IconGlyph::from(Phosphor::Warning(Weight::Thin))
         .view(config.theme.font.icon_size_px, move |theme| {
             tint.color(theme)
         })

@@ -13,8 +13,9 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         toggle_control::SwitchPresses,
@@ -34,7 +35,7 @@ pub struct UnitSwitchFace {
 #[derive(Clone, Copy)]
 struct UnitSwitchReading {
     face: UnitSwitchFace,
-    shown_glyph: Glyph,
+    shown_glyph: IconGlyph,
     activity: UnitActivity,
 }
 
@@ -47,12 +48,12 @@ impl UnitSwitchReading {
     }
 }
 
-impl BarWidget for UnitSwitchReading {
+impl GroupItemReading for UnitSwitchReading {
     fn name(&self) -> &'static str {
         self.face.name
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.shown_glyph
     }
 
@@ -204,7 +205,7 @@ impl UnitSwitch {
 
     pub fn group_item_with_glyph<'a, M: 'a>(
         &self,
-        shown_glyph: Glyph,
+        shown_glyph: IconGlyph,
         serving: bool,
         target: impl Into<HoverTarget>,
         pressed: M,

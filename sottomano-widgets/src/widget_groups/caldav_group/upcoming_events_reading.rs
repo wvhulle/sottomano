@@ -11,7 +11,8 @@ use sottomano_sources::caldav_tasks_events::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
@@ -129,16 +130,16 @@ fn starts_label(start: AgendaMoment, now: DateTime<Local>, locale: Locale) -> St
         .unwrap_or_else(|| LocalizedTimeFormat::AbbreviatedWeekday.format(&begins, locale))
 }
 
-impl BarWidget for UpcomingEventList {
+impl GroupItemReading for UpcomingEventList {
     fn name(&self) -> &'static str {
         "Upcoming events"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Self::fallback_icon()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::CalendarDots(Weight::Regular).into()
     }
 
@@ -217,7 +218,8 @@ mod tests {
         clock::Clock,
         widget_groups::caldav_group::CaldavTarget,
         widgets::{
-            bar_widget::BarWidget, latest_snapshot::LatestSnapshot, widget_state::WidgetState,
+            group_item_reading::GroupItemReading, latest_snapshot::LatestSnapshot,
+            widget_state::WidgetState,
         },
     };
 

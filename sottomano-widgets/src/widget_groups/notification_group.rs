@@ -8,8 +8,9 @@ use crate::{
         sqlite_shell_settings_row::{self, ShellSetting},
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         toggle_control::{IconToggle, SwitchPresses},
@@ -180,12 +181,12 @@ pub struct NotificationStatus {
     pub held: usize,
 }
 
-impl BarWidget for NotificationStatus {
+impl GroupItemReading for NotificationStatus {
     fn name(&self) -> &'static str {
         "Notifications"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.quiet {
             Phosphor::ChatCircleSlash(Weight::Regular).into()
         } else {
@@ -226,12 +227,12 @@ struct DoNotDisturbStatus {
     quiet: bool,
 }
 
-impl BarWidget for DoNotDisturbStatus {
+impl GroupItemReading for DoNotDisturbStatus {
     fn name(&self) -> &'static str {
         "Do not disturb"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Prohibit(Weight::Regular).into()
     }
 

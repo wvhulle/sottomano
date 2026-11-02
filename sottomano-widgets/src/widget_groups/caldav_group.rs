@@ -22,8 +22,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        bar_widget::Glyph,
         group_item::GroupItem,
+        icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -146,7 +146,7 @@ impl CaldavGroup {
         }
     }
 
-    fn account_handle_glyph(&self) -> Glyph {
+    fn account_handle_glyph(&self) -> IconGlyph {
         let provider = self
             .upcoming_events
             .get()

@@ -31,8 +31,8 @@ use crate::{
         service_manager_face::ServiceManagerFace,
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
@@ -243,7 +243,8 @@ impl LoginSessionGroup {
 
     #[must_use]
     pub fn tooltip_for(&self, target: LoginSessionTarget, clock: Clock) -> Option<Tooltip> {
-        let session_face = |face: &dyn BarWidget| self.identity.tooltip_with(face.tooltip(clock));
+        let session_face =
+            |face: &dyn GroupItemReading| self.identity.tooltip_with(face.tooltip(clock));
         let identity = self.identity.get();
         match target {
             LoginSessionTarget::Kernel => self.system.tooltip_with(

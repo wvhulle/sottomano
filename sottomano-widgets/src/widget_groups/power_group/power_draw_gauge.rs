@@ -9,7 +9,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -74,12 +75,12 @@ impl ReadingSections for ChargerSupply {
     }
 }
 
-impl BarWidget for PowerDraw {
+impl GroupItemReading for PowerDraw {
     fn name(&self) -> &'static str {
         "Power draw"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.on_battery() {
             Phosphor::Plugs(Weight::Regular).into()
         } else {

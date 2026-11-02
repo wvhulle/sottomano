@@ -8,8 +8,9 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -37,12 +38,12 @@ impl ReadingSections for MemoryProcesses {
     }
 }
 
-impl BarWidget for Memory {
+impl GroupItemReading for Memory {
     fn name(&self) -> &'static str {
         "Memory"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Memory(Weight::Regular).into()
     }
 

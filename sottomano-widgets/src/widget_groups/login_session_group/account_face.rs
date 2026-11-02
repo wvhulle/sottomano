@@ -4,7 +4,8 @@ use sottomano_sources::login_session_presence::logind_session_facts::SessionIden
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -15,12 +16,12 @@ pub struct AccountFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl BarWidget for AccountFace<'_> {
+impl GroupItemReading for AccountFace<'_> {
     fn name(&self) -> &'static str {
         "Account"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::User(Weight::Regular).into()
     }
 

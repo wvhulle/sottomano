@@ -5,7 +5,8 @@ use sottomano_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadP
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
@@ -34,12 +35,12 @@ impl ControllerBatteryReading {
     }
 }
 
-impl BarWidget for ControllerBatteryReading {
+impl GroupItemReading for ControllerBatteryReading {
     fn name(&self) -> &'static str {
         "Controller battery"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.power {
             GamepadPower::Charging(_) => Phosphor::BatteryCharging(Weight::Regular).into(),
             GamepadPower::Full => Phosphor::BatteryFull(Weight::Regular).into(),

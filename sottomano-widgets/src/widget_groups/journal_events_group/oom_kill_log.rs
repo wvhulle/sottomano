@@ -9,8 +9,9 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -53,12 +54,12 @@ impl JournalEventsGroup {
     }
 }
 
-impl BarWidget for Vec<OomKillEntry> {
+impl GroupItemReading for Vec<OomKillEntry> {
     fn name(&self) -> &'static str {
         "OOM kills"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Memory(Weight::Regular).into()
     }
 

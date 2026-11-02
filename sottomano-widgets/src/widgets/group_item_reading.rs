@@ -1,5 +1,4 @@
 use chrono::{DateTime, Locale, Utc};
-use iced::{Color, Element, Theme};
 use sottomano_config::severity::Severity;
 use sottomano_sources::ai_usage_spend::usage_quota::Quota;
 use uom::si::f64::Ratio;
@@ -8,43 +7,12 @@ use crate::{
     clock::Clock,
     widgets::{
         announced_level::AnnouncedLevel,
-        phosphor::{Phosphor, Weight, view_phosphor},
-        simple_icons::{SimpleIcon, view_simple_icon},
+        icon_glyph::IconGlyph,
+        phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
-        weather_icons::WeatherIcon,
         widget_state::WidgetState,
     },
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Glyph {
-    Phosphor(Phosphor),
-    SimpleIcon(SimpleIcon),
-    WeatherIcon(WeatherIcon),
-}
-
-impl Glyph {
-    #[must_use]
-    pub const fn with_weight(self, weight: Weight) -> Self {
-        match self {
-            Glyph::Phosphor(icon) => Glyph::Phosphor(icon.with_weight(weight)),
-            Glyph::SimpleIcon(_) | Glyph::WeatherIcon(_) => self,
-        }
-    }
-
-    #[must_use]
-    pub fn view<'a, Message: 'a>(
-        self,
-        size: f32,
-        color: impl Fn(&Theme) -> Color + 'a,
-    ) -> Element<'a, Message> {
-        match self {
-            Glyph::Phosphor(icon) => view_phosphor(icon, size, color),
-            Glyph::SimpleIcon(icon) => view_simple_icon(icon, size, color),
-            Glyph::WeatherIcon(icon) => icon.view(size, color),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OngoingToastThreshold {
@@ -55,13 +23,13 @@ pub enum OngoingToastThreshold {
     },
 }
 
-pub trait BarWidget {
+pub trait GroupItemReading {
     fn name(&self) -> &'static str;
 
-    fn icon(&self) -> Glyph;
+    fn icon(&self) -> IconGlyph;
 
     #[must_use]
-    fn fallback_icon() -> Glyph
+    fn fallback_icon() -> IconGlyph
     where
         Self: Sized,
     {
@@ -114,17 +82,17 @@ pub trait BarWidget {
 
     fn tooltip(&self, clock: Clock) -> TooltipBody;
 
-    fn icon_at(&self, clock: Clock) -> Glyph {
+    fn icon_at(&self, clock: Clock) -> IconGlyph {
         self.icon().with_weight(self.state(clock).weight())
     }
 }
 
-impl<W: BarWidget + ?Sized> BarWidget for &W {
+impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &ForwardedReading {
     fn name(&self) -> &'static str {
         (**self).name()
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         (**self).icon()
     }
 

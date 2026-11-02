@@ -6,7 +6,8 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -16,7 +17,7 @@ use crate::{
     },
 };
 
-impl BarWidget for MachineInfo {
+impl GroupItemReading for MachineInfo {
     fn visible_in_bar(&self) -> bool {
         self.hardware_vendor.is_some() || self.hardware_model.is_some()
     }
@@ -25,15 +26,16 @@ impl BarWidget for MachineInfo {
         "Board"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let board_logo = self
             .board_pci_vendor
             .and_then(|vendor| PciVendorId(vendor).vendor_logo());
         let coreboot_logo =
             (self.firmware_vendor.as_deref() == Some("coreboot")).then_some(SimpleIcon::Coreboot);
-        board_logo
-            .or(coreboot_logo)
-            .map_or_else(|| Phosphor::Circuitry(Weight::Regular).into(), Glyph::from)
+        board_logo.or(coreboot_logo).map_or_else(
+            || Phosphor::Circuitry(Weight::Regular).into(),
+            IconGlyph::from,
+        )
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

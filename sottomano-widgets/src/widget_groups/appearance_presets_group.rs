@@ -5,10 +5,10 @@ use crate::{
     hover_tooltips::HoverTarget,
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
-        bar_widget::Glyph,
         configured_theme::text_color,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
         group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             TooltipBody,
@@ -41,7 +41,9 @@ fn preset_menu_row<'a>(
     config: &Config,
 ) -> MenuLine<'a, AppearancePresetsMessage> {
     MenuLine::Row(MenuRow {
-        leading: Some(Glyph::from(preset.icon()).view(config.theme.font.icon_size_px, text_color)),
+        leading: Some(
+            IconGlyph::from(preset.icon()).view(config.theme.font.icon_size_px, text_color),
+        ),
         label: Some(preset.name().to_owned()),
         trailing: if preset.is_shown_by(current) {
             Trailing::Note("current".to_owned())
@@ -93,7 +95,7 @@ impl AppearancePresetsMenu {
         Self::fixed_group(Some(GroupItem::composed(
             ItemIdentity {
                 name: Self::TITLE.into(),
-                icon: ItemIcon::Glyph {
+                icon: ItemIcon::IconGlyph {
                     glyph: Phosphor::Palette(Weight::Regular).into(),
                     state: WidgetState::Idle,
                 },

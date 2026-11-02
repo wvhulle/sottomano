@@ -4,7 +4,8 @@ use uom::si::{f64::Frequency, frequency::hertz};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -20,16 +21,16 @@ impl GenerationRate {
     }
 }
 
-impl BarWidget for GenerationRate {
+impl GroupItemReading for GenerationRate {
     fn name(&self) -> &'static str {
         "Generation rate"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Lightning(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Lightning(Weight::Regular).into()
     }
 

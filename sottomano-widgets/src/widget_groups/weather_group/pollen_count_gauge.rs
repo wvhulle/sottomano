@@ -4,7 +4,8 @@ use uom::si::{f64::Ratio, ratio::ratio};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -60,12 +61,12 @@ impl ConcentrationThresholds {
     }
 }
 
-impl BarWidget for AllergenConcentration {
+impl GroupItemReading for AllergenConcentration {
     fn name(&self) -> &'static str {
         ALLERGEN_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let weight = Weight::Regular;
         match self.allergen {
             Allergen::Alder => Phosphor::Leaf(weight),
@@ -119,16 +120,16 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
     Quantity::measured(grains_per_cubic_metre, DisplayUnit::GrainsPerCubicMeter, 0)
 }
 
-impl BarWidget for Pollen {
+impl GroupItemReading for Pollen {
     fn name(&self) -> &'static str {
         POLLEN_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Flower(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Flower(Weight::Regular).into()
     }
 

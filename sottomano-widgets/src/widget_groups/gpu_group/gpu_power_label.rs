@@ -8,7 +8,8 @@ use uom::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -20,12 +21,12 @@ fn watt_text(power: Power) -> String {
     format!("{:.0}", power.into_format_args(watt, Abbreviation))
 }
 
-impl BarWidget for GpuPowerDraw {
+impl GroupItemReading for GpuPowerDraw {
     fn name(&self) -> &'static str {
         "GPU power"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Lightning(Weight::Regular).into()
     }
 

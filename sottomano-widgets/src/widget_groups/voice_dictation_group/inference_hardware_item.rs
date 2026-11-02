@@ -4,7 +4,8 @@ use super::speech_model_item::non_empty;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
@@ -42,12 +43,12 @@ impl InferenceHardware<'_> {
     }
 }
 
-impl BarWidget for InferenceHardware<'_> {
+impl GroupItemReading for InferenceHardware<'_> {
     fn name(&self) -> &'static str {
         "Inference hardware"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let backend = self.0.compute_device.as_str();
         if backend.starts_with("CUDA") || self.gpu_name_mentions(&["NVIDIA", "GeForce"]) {
             SimpleIcon::NVIDIA.into()
@@ -64,7 +65,7 @@ impl BarWidget for InferenceHardware<'_> {
         }
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Cpu(Weight::Regular).into()
     }
 

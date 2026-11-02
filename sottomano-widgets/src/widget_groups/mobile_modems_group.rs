@@ -24,8 +24,8 @@ use crate::{
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,

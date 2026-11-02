@@ -6,7 +6,8 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         toggle_control::ToggleableSource,
         tooltip_body::TooltipBody,
@@ -14,12 +15,12 @@ use crate::{
     },
 };
 
-impl BarWidget for AutoBrightness {
+impl GroupItemReading for AutoBrightness {
     fn name(&self) -> &'static str {
         "Auto-brightness"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.auto {
             Phosphor::Eye(Weight::Regular).into()
         } else {

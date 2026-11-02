@@ -16,8 +16,9 @@ use crate::{
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
@@ -102,7 +103,10 @@ impl PendingUpgradesGroup {
             PendingUpgradesMessage::Expansion,
             [
                 has_categories.then(|| {
-                    GroupItem::reading(self as &dyn BarWidget, PendingUpgradesTarget::Summary)
+                    GroupItem::reading(
+                        self as &dyn GroupItemReading,
+                        PendingUpgradesTarget::Summary,
+                    )
                 }),
                 self.firmware_upgrade_item(config),
                 self.firmware
@@ -114,17 +118,17 @@ impl PendingUpgradesGroup {
         )
     }
 
-    fn categories(&self) -> [Option<&dyn BarWidget>; 1] {
+    fn categories(&self) -> [Option<&dyn GroupItemReading>; 1] {
         [self.firmware.display()]
     }
 }
 
-impl BarWidget for PendingUpgradesGroup {
+impl GroupItemReading for PendingUpgradesGroup {
     fn name(&self) -> &'static str {
         "Pending upgrades"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ArrowCircleUp(Weight::Regular).into()
     }
 
@@ -133,7 +137,7 @@ impl BarWidget for PendingUpgradesGroup {
             .categories()
             .into_iter()
             .flatten()
-            .filter_map(BarWidget::badge)
+            .filter_map(GroupItemReading::badge)
             .sum();
         (total > 0).then_some(total)
     }

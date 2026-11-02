@@ -4,7 +4,8 @@ use sottomano_sources::wallpaper_place_article::Wallpaper;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
@@ -18,12 +19,12 @@ pub struct Article {
     summary: Option<String>,
 }
 
-impl BarWidget for Article {
+impl GroupItemReading for Article {
     fn name(&self) -> &'static str {
         "Wallpaper article"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         SimpleIcon::Wikipedia.into()
     }
 

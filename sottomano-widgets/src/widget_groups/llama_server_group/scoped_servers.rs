@@ -19,8 +19,8 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{
             Section, TooltipBody,

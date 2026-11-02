@@ -29,8 +29,8 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         input_report_sections::MeasuredReportTiming,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::tooltip_source_delivery::Tooltip,

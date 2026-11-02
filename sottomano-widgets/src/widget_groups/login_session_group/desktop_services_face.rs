@@ -3,7 +3,8 @@ use sottomano_sources::systemd_units_journal::graphical_session_target::Graphica
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -13,12 +14,12 @@ use crate::{
 
 pub struct DesktopServicesFace;
 
-impl BarWidget for DesktopServicesFace {
+impl GroupItemReading for DesktopServicesFace {
     fn name(&self) -> &'static str {
         "Desktop services"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ListChecks(Weight::Regular).into()
     }
 

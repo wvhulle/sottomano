@@ -6,7 +6,8 @@ use sottomano_sources::host_machine_identity::hostname1_os_identity::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, TooltipBody},
@@ -19,15 +20,18 @@ pub struct KernelFace<'a> {
     pub system: &'a OperatingSystemIdentity,
 }
 
-impl BarWidget for KernelFace<'_> {
+impl GroupItemReading for KernelFace<'_> {
     fn name(&self) -> &'static str {
         "Kernel"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         DistributionIds(&self.system.distribution_ids)
             .vendor_logo()
-            .map_or_else(|| Phosphor::LinuxLogo(Weight::Regular).into(), Glyph::from)
+            .map_or_else(
+                || Phosphor::LinuxLogo(Weight::Regular).into(),
+                IconGlyph::from,
+            )
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {

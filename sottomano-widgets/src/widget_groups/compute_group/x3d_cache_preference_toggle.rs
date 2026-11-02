@@ -11,7 +11,8 @@ use super::core_grid_sections::topology_facts;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         toggle_control::ToggleableSource,
         tooltip_body::{Section, TooltipBody},
@@ -19,12 +20,12 @@ use crate::{
     },
 };
 
-impl BarWidget for X3dCachePreference {
+impl GroupItemReading for X3dCachePreference {
     fn name(&self) -> &'static str {
         "X3D scheduling preference"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self {
             X3dCachePreference::Cache => Phosphor::Warehouse(Weight::Regular).into(),
             X3dCachePreference::Frequency => Phosphor::Speedometer(Weight::Regular).into(),

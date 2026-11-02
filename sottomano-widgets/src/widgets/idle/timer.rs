@@ -6,7 +6,7 @@ use crate::{
     clock::Clock,
     hover_tooltips::HoverTarget,
     widgets::{
-        bar_widget::BarWidget,
+        group_item_reading::GroupItemReading,
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
@@ -53,7 +53,7 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn reading(&self) -> &dyn BarWidget {
+    pub fn reading(&self) -> &dyn GroupItemReading {
         &self.control
     }
 

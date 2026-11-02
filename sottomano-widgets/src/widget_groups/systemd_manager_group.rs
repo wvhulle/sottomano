@@ -28,8 +28,9 @@ use crate::{
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -290,30 +291,30 @@ impl SystemdManagerGroup {
         })
     }
 
-    fn current_health(&self) -> [Option<&dyn BarWidget>; 4] {
+    fn current_health(&self) -> [Option<&dyn GroupItemReading>; 4] {
         [
             self.slow_system_jobs
                 .visible_reading()
-                .map(|w| w as &dyn BarWidget),
+                .map(|w| w as &dyn GroupItemReading),
             self.slow_user_jobs
                 .visible_reading()
-                .map(|w| w as &dyn BarWidget),
+                .map(|w| w as &dyn GroupItemReading),
             self.failed_system
                 .visible_reading()
-                .map(|w| w as &dyn BarWidget),
+                .map(|w| w as &dyn GroupItemReading),
             self.failed_user
                 .visible_reading()
-                .map(|w| w as &dyn BarWidget),
+                .map(|w| w as &dyn GroupItemReading),
         ]
     }
 }
 
-impl BarWidget for SystemdManagerGroup {
+impl GroupItemReading for SystemdManagerGroup {
     fn name(&self) -> &'static str {
         "Systemd"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Speedometer(Weight::Regular).into()
     }
 

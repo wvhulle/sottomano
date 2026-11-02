@@ -15,8 +15,9 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
@@ -90,7 +91,7 @@ pub(super) fn slow_jobs_item<'a>(
         .ongoing_toasts(slow_job_toasts)
 }
 
-impl BarWidget for SlowJobs {
+impl GroupItemReading for SlowJobs {
     fn visible_in_bar(&self) -> bool {
         !self.is_empty()
     }
@@ -102,7 +103,7 @@ impl BarWidget for SlowJobs {
         }
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::HourglassMedium(Weight::Regular).into()
     }
 

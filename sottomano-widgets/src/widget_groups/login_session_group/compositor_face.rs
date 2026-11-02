@@ -7,7 +7,8 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -19,12 +20,12 @@ pub struct CompositorFace<'a> {
     pub identity: &'a SessionIdentity,
 }
 
-impl BarWidget for CompositorFace<'_> {
+impl GroupItemReading for CompositorFace<'_> {
     fn name(&self) -> &'static str {
         "Compositor"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let desktop_name = self.identity.desktop.as_deref().unwrap_or_default();
         match desktop_name.to_ascii_lowercase().as_str() {
             "niri" => SimpleIcon::niri.into(),

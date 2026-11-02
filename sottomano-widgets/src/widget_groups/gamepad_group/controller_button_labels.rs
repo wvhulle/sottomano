@@ -2,7 +2,7 @@ use iced_controller_diagram::ControllerModel;
 use sottomano_config::widget_groups::gamepad_bindings::GamepadButton;
 
 use crate::widgets::{
-    bar_widget::Glyph,
+    icon_glyph::IconGlyph,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,
 };
@@ -48,7 +48,7 @@ impl ControllerFamily {
     }
 
     #[must_use]
-    pub fn brand_glyph(self) -> Glyph {
+    pub fn brand_glyph(self) -> IconGlyph {
         match self {
             ControllerFamily::PlayStation => SimpleIcon::PlayStation.into(),
             ControllerFamily::Nintendo | ControllerFamily::Xbox => {

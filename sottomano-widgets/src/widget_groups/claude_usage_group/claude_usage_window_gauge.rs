@@ -10,7 +10,8 @@ use uom::si::{f64::Ratio, ratio::percent};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_used,
@@ -20,16 +21,16 @@ use crate::{
     },
 };
 
-impl BarWidget for ClaudeUsageWindows {
+impl GroupItemReading for ClaudeUsageWindows {
     fn name(&self) -> &'static str {
         "Claude usage"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 

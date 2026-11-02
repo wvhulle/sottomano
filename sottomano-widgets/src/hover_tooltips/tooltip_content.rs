@@ -23,11 +23,11 @@ use crate::{
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
-        bar_widget::Glyph,
         configured_theme::{
             primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
             success_shades, text_color,
         },
+        icon_glyph::IconGlyph,
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -206,7 +206,7 @@ impl<'a> TooltipContent<'a> {
     fn unpin_action_row(&self, unpin: PopupMessage) -> Element<'static, PopupMessage> {
         let font = &self.config.theme.font;
         let label = row([
-            Glyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
+            IconGlyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
             bar_text(font, "unpin from the panel").into(),
         ])
         .spacing(self.config.layout.overlay.row_spacing)
@@ -270,7 +270,7 @@ impl<'a> TooltipContent<'a> {
             }
             SectionsDeliveryState::AwaitingDelivery => row([
                 self.small_dim_text("loading".to_owned()).into(),
-                Glyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
+                IconGlyph::from(Phosphor::HourglassMedium(Weight::Regular)).view(
                     self.config.theme.font.small_text_size_px,
                     secondary_text_color,
                 ),
@@ -325,7 +325,7 @@ impl<'a> TooltipContent<'a> {
             let does = press_hints.does(gesture)?;
             Some(
                 row([
-                    Glyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
+                    IconGlyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
                     self.small_dim_text(does.to_owned()).into(),
                 ])
                 .spacing(self.config.layout.overlay.row_spacing)
@@ -367,12 +367,12 @@ impl<'a> TooltipContent<'a> {
             ),
             DeliveryTiming::LivePush => labelled(
                 self.small_dim_text("live".to_owned()),
-                Glyph::from(Phosphor::Pulse(Weight::Regular))
+                IconGlyph::from(Phosphor::Pulse(Weight::Regular))
                     .view(glyph_size, secondary_text_color),
             ),
             DeliveryTiming::SingleRead => labelled(
                 self.small_dim_text("read once".to_owned()),
-                Glyph::from(Phosphor::PushPin(Weight::Regular))
+                IconGlyph::from(Phosphor::PushPin(Weight::Regular))
                     .view(glyph_size, secondary_text_color),
             ),
         }

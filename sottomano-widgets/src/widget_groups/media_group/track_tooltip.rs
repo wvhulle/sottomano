@@ -6,7 +6,7 @@ use sottomano_sources::media_playback_audio::mpris_players::Media;
 use crate::{
     desktop_index::DesktopIndex,
     widgets::{
-        bar_widget::Glyph,
+        icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
         tooltip_body::Section,
         value_cells::{LabeledValue, ValueCell},
@@ -31,7 +31,7 @@ impl SearchPlatform {
         }
     }
 
-    fn glyph(self) -> Glyph {
+    fn glyph(self) -> IconGlyph {
         match self {
             Self::YouTubeMusic => SimpleIcon::YouTubeMusic.into(),
             Self::Spotify => SimpleIcon::Spotify.into(),

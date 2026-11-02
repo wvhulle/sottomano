@@ -32,8 +32,8 @@ use crate::{
         weather_group::rain_intensity::{RainForecast, RainSources},
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
@@ -256,7 +256,7 @@ impl WeatherGroup {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(
-                    concentration as &dyn BarWidget,
+                    concentration as &dyn GroupItemReading,
                     WeatherTarget::Allergen(concentration.allergen),
                 )
             })

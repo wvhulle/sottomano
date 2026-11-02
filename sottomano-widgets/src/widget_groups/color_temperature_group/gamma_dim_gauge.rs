@@ -4,8 +4,9 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -13,12 +14,12 @@ use crate::{
     },
 };
 
-impl BarWidget for ColorTemperature {
+impl GroupItemReading for ColorTemperature {
     fn name(&self) -> &'static str {
         "Screen dimming"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ThermometerHot(Weight::Regular).into()
     }
 

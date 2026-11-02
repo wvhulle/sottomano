@@ -6,7 +6,8 @@ use sottomano_sources::ai_usage_spend::llama_server_slots::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{ReadingSections, Section, TooltipBody},
@@ -28,16 +29,16 @@ impl From<LlamaModelStatus> for ValueCell {
     }
 }
 
-impl BarWidget for LlamaModel {
+impl GroupItemReading for LlamaModel {
     fn name(&self) -> &'static str {
         "Loaded model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Brain(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Brain(Weight::Regular).into()
     }
 
@@ -64,12 +65,12 @@ pub struct ServedModel<'a> {
     pub resident: Option<&'a LlamaModel>,
 }
 
-impl BarWidget for ServedModel<'_> {
+impl GroupItemReading for ServedModel<'_> {
     fn name(&self) -> &'static str {
         "Loaded model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Brain(Weight::Regular).into()
     }
 

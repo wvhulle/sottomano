@@ -4,7 +4,8 @@ use sottomano_sources::voice_dictation_input::notulist_dbus_engine::NotulistEngi
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
@@ -15,12 +16,12 @@ use crate::{
 
 const HUGGING_FACE_SITE: &str = "https://huggingface.co";
 
-impl BarWidget for NotulistEngine {
+impl GroupItemReading for NotulistEngine {
     fn name(&self) -> &'static str {
         "Speech model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match &self.engine {
             EngineState::SpeechModelReady(engine) if !engine.model_repository.is_empty() => {
                 SimpleIcon::HuggingFace.into()
@@ -31,7 +32,7 @@ impl BarWidget for NotulistEngine {
         }
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Brain(Weight::Regular).into()
     }
 

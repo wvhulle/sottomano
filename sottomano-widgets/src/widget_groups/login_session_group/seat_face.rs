@@ -5,7 +5,8 @@ use chrono::Locale;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, TooltipBody},
@@ -18,12 +19,12 @@ pub struct SeatFace<'a> {
     pub virtual_terminal: Option<NonZeroU32>,
 }
 
-impl BarWidget for SeatFace<'_> {
+impl GroupItemReading for SeatFace<'_> {
     fn name(&self) -> &'static str {
         "Seat"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 

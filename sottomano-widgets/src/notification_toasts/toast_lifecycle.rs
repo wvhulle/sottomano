@@ -19,7 +19,7 @@ use crate::{
     hover_tooltips::HoverTarget,
     widgets::{
         announced_level::LevelReading,
-        bar_widget::Glyph,
+        icon_glyph::IconGlyph,
         ongoing_toast::{OngoingKey, OngoingToast},
     },
 };
@@ -61,7 +61,7 @@ pub enum EventSource {
     ShellFailure,
     LevelAnnouncement {
         hover_target: HoverTarget,
-        glyph: Glyph,
+        glyph: IconGlyph,
     },
 }
 
@@ -88,7 +88,7 @@ impl<Routed> ToastKind<Routed> {
         )
     }
 
-    pub(super) fn glyph(&self) -> Option<Glyph> {
+    pub(super) fn glyph(&self) -> Option<IconGlyph> {
         match self {
             Self::Event {
                 source: EventSource::LevelAnnouncement { glyph, .. },

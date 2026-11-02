@@ -28,11 +28,11 @@ use crate::{
     widgets::{
         DISABLED_ALPHA,
         activity_line::activity_line,
-        bar_widget::Glyph,
         configured_theme::{
             background_color, background_strong_color, danger_color, primary_color, warning_color,
         },
         hover_fetched_snapshot::HoverFetchedSnapshot,
+        icon_glyph::IconGlyph,
         pager_slot::PagerSlot,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
@@ -504,7 +504,7 @@ impl WindowSlot<'_> {
             state: WidgetState::Off,
             opacity: self.opacity,
         };
-        Glyph::from(icon(tint.state.weight())).view(
+        IconGlyph::from(icon(tint.state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
             move |theme| tint.color(theme),
         )
@@ -541,7 +541,7 @@ impl WindowSlot<'_> {
             state,
             opacity: self.opacity,
         };
-        Some(Glyph::from(icon.with_weight(state.weight())).view(
+        Some(IconGlyph::from(icon.with_weight(state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
             move |theme| tint.color(theme),
         ))

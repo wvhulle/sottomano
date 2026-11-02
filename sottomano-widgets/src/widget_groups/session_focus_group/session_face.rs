@@ -9,7 +9,8 @@ use crate::{
     clock::Clock,
     widget_groups::session_focus_group::WarningSnooze,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
@@ -158,12 +159,12 @@ impl SessionFace<'_> {
     }
 }
 
-impl BarWidget for SessionFace<'_> {
+impl GroupItemReading for SessionFace<'_> {
     fn name(&self) -> &'static str {
         "Focus session"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::UserFocus(Weight::Regular).into()
     }
 

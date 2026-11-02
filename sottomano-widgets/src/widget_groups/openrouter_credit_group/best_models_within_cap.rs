@@ -8,7 +8,8 @@ use crate::{
     clock::Clock,
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -22,16 +23,16 @@ const LISTED_MODELS: usize = 16;
 const ANALYSIS_LEADERBOARD_URL: &str = "https://artificialanalysis.ai/models";
 const OPENROUTER_TOOL_MODELS_URL: &str = "https://openrouter.ai/models?supported_parameters=tools";
 
-impl BarWidget for OpenRouterModelRankings {
+impl GroupItemReading for OpenRouterModelRankings {
     fn name(&self) -> &'static str {
         "Best coding models within price cap"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Ranking(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Ranking(Weight::Regular).into()
     }
 

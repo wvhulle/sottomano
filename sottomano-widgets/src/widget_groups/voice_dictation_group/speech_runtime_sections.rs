@@ -2,7 +2,7 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
 use crate::widgets::{
-    bar_widget::Glyph,
+    icon_glyph::IconGlyph,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,
     tooltip_body::Section,
@@ -12,7 +12,7 @@ use crate::widgets::{
 const ONNX_RUNTIME_NAME: &str = "ONNX Runtime";
 
 #[must_use]
-pub fn idle_runtime_glyph() -> Glyph {
+pub fn idle_runtime_glyph() -> IconGlyph {
     Phosphor::Engine(Weight::Regular).into()
 }
 
@@ -20,7 +20,7 @@ pub struct SpeechRuntime<'a>(pub &'a DictationEngine);
 
 impl SpeechRuntime<'_> {
     #[must_use]
-    pub fn glyph(&self) -> Glyph {
+    pub fn glyph(&self) -> IconGlyph {
         if self.0.inference_runtime == ONNX_RUNTIME_NAME {
             SimpleIcon::ONNX.into()
         } else {

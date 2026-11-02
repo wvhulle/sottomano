@@ -8,7 +8,8 @@ use uom::si::f64::ThermodynamicTemperature;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -22,12 +23,12 @@ pub struct GpuTemperatureLabel {
     pub limits: GpuTemperatureLimits,
 }
 
-impl BarWidget for GpuTemperatureLabel {
+impl GroupItemReading for GpuTemperatureLabel {
     fn name(&self) -> &'static str {
         "GPU temperature"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ThermometerSimple(Weight::Regular).into()
     }
 

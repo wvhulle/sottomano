@@ -5,7 +5,8 @@ use notulist_client::DictationEngine;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -46,16 +47,16 @@ impl RuntimeConfiguration<'_> {
     }
 }
 
-impl BarWidget for RuntimeConfiguration<'_> {
+impl GroupItemReading for RuntimeConfiguration<'_> {
     fn name(&self) -> &'static str {
         "Runtime configuration"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::SlidersHorizontal(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::SlidersHorizontal(Weight::Regular).into()
     }
 

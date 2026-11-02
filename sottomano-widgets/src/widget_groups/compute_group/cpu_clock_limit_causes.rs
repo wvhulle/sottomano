@@ -10,7 +10,8 @@ use super::core_grid_sections::cpu_ranges;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -101,12 +102,12 @@ impl ClockLimitCauses<'_> {
     }
 }
 
-impl BarWidget for ClockLimitCauses<'_> {
+impl GroupItemReading for ClockLimitCauses<'_> {
     fn name(&self) -> &'static str {
         CPU_CLOCK_LIMITS_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Gauge(Weight::Regular).into()
     }
 

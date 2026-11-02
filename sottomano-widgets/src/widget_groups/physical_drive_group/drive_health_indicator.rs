@@ -11,7 +11,8 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -20,12 +21,12 @@ use crate::{
     },
 };
 
-impl BarWidget for DriveHealth {
+impl GroupItemReading for DriveHealth {
     fn name(&self) -> &'static str {
         "Drive health"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Thermometer(Weight::Regular).into()
     }
 

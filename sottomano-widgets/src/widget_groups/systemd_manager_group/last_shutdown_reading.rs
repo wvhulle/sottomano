@@ -7,7 +7,8 @@ use sottomano_sources::systemd_units_journal::journal_previous_shutdown::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -44,12 +45,12 @@ impl IntoTableRecord<2> for &UnitStop {
     }
 }
 
-impl BarWidget for LastShutdown {
+impl GroupItemReading for LastShutdown {
     fn name(&self) -> &'static str {
         "Last shutdown"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Power(Weight::Regular).into()
     }
 

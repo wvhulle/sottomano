@@ -11,7 +11,8 @@ use uom::si::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -39,7 +40,7 @@ fn severity(throughput: &Throughput) -> Severity {
     }
 }
 
-impl BarWidget for Throughput {
+impl GroupItemReading for Throughput {
     fn name(&self) -> &'static str {
         match self.direction {
             NetworkTrafficDirection::Upload => "Upload",
@@ -47,7 +48,7 @@ impl BarWidget for Throughput {
         }
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         let direction_icon = match self.direction {
             NetworkTrafficDirection::Upload => Phosphor::UploadSimple(Weight::Regular),
             NetworkTrafficDirection::Download => Phosphor::DownloadSimple(Weight::Regular),
@@ -97,12 +98,12 @@ impl BarWidget for Throughput {
     }
 }
 
-impl BarWidget for InterfaceThroughput {
+impl GroupItemReading for InterfaceThroughput {
     fn name(&self) -> &'static str {
         "Network throughput"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 

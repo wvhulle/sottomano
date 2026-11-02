@@ -478,7 +478,7 @@ fn player_group<'a>(
         GroupItem::composed(
             ItemIdentity {
                 name: "Position".into(),
-                icon: ItemIcon::Glyph {
+                icon: ItemIcon::IconGlyph {
                     glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
                     state: WidgetState::Idle,
                 },

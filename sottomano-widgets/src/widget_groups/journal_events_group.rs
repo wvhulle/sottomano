@@ -23,8 +23,9 @@ use crate::{
     hover_tooltips::HoverTarget,
     widget_groups::terminal_command::TerminalCommand,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::Phosphor,
@@ -146,8 +147,9 @@ impl JournalEventsGroup {
             &self.expansion,
             JournalEventsMessage::Expansion,
             [
-                has_kinds
-                    .then(|| GroupItem::reading(self as &dyn BarWidget, JournalTarget::Events)),
+                has_kinds.then(|| {
+                    GroupItem::reading(self as &dyn GroupItemReading, JournalTarget::Events)
+                }),
                 self.kernel_log_item(config),
                 self.service_errors
                     .visible_reading()
@@ -173,7 +175,7 @@ impl JournalEventsGroup {
         )
     }
 
-    fn kinds(&self) -> [Option<&dyn BarWidget>; 4] {
+    fn kinds(&self) -> [Option<&dyn GroupItemReading>; 4] {
         [
             self.kernel.display(),
             self.service_errors.display(),
@@ -183,12 +185,12 @@ impl JournalEventsGroup {
     }
 }
 
-impl BarWidget for JournalEventsGroup {
+impl GroupItemReading for JournalEventsGroup {
     fn name(&self) -> &'static str {
         "Journal events"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Scroll(Weight::Regular).into()
     }
 
@@ -197,7 +199,7 @@ impl BarWidget for JournalEventsGroup {
             .kinds()
             .into_iter()
             .flatten()
-            .filter_map(BarWidget::badge)
+            .filter_map(GroupItemReading::badge)
             .sum();
         (total > 0).then_some(total)
     }

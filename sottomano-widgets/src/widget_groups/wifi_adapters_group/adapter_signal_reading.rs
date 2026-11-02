@@ -5,8 +5,9 @@ use crate::{
     clock::Clock,
     widget_groups::interface_address_sections::{link_stats_section, signal_level},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -38,12 +39,12 @@ fn connection_description(adapter: &WifiAdapter) -> &'static str {
     }
 }
 
-impl BarWidget for AdapterSignalReading<'_> {
+impl GroupItemReading for AdapterSignalReading<'_> {
     fn name(&self) -> &'static str {
         "Signal"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::WifiHigh(Weight::Regular).into()
     }
 
@@ -105,12 +106,12 @@ impl AdapterConnectionSwitch<'_> {
     }
 }
 
-impl BarWidget for AdapterConnectionSwitch<'_> {
+impl GroupItemReading for AdapterConnectionSwitch<'_> {
     fn name(&self) -> &'static str {
         "Connection"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.adapter.connected {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
@@ -144,12 +145,12 @@ impl AllWifiRadiosSwitch {
     }
 }
 
-impl BarWidget for AllWifiRadiosSwitch {
+impl GroupItemReading for AllWifiRadiosSwitch {
     fn name(&self) -> &'static str {
         "All Wi-Fi radios"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.radio_enabled {
             Phosphor::WifiHigh(Weight::Regular).into()
         } else {

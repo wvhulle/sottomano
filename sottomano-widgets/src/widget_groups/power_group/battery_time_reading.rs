@@ -19,8 +19,9 @@ use crate::{
         sqlite_charge_power_curve,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_text,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
@@ -164,7 +165,7 @@ pub(super) struct IdleBattery {
 }
 
 impl IdleBattery {
-    fn icon(self) -> Glyph {
+    fn icon(self) -> IconGlyph {
         match self.reason {
             IdleReason::Full | IdleReason::AtLimit => Phosphor::BatteryFull(Weight::Regular).into(),
             IdleReason::Inhibited => Phosphor::PauseCircle(Weight::Regular).into(),
@@ -205,12 +206,12 @@ pub(super) enum BatteryTime {
     Countdown(Countdown),
 }
 
-impl BarWidget for BatteryTime {
+impl GroupItemReading for BatteryTime {
     fn name(&self) -> &'static str {
         "Battery time"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self {
             BatteryTime::Idle(idle) => idle.icon(),
             BatteryTime::Countdown(_) => Phosphor::HourglassMedium(Weight::Regular).into(),

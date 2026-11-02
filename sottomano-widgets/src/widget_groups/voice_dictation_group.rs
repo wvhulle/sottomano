@@ -33,8 +33,8 @@ use crate::{
         speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         phosphor::{Phosphor, Weight},

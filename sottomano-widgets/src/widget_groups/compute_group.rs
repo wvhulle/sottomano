@@ -34,8 +34,8 @@ use crate::{
     hover_tooltips::HoverTarget,
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
@@ -237,18 +237,18 @@ impl ComputeGroup {
                 self.cpu_clock
                     .get()
                     .map(|clock| ClockLimitCauses { clock })
-                    .filter(BarWidget::visible_in_bar)
+                    .filter(GroupItemReading::visible_in_bar)
                     .map(|limits| GroupItem::reading(limits, ComputeTarget::CpuClockLimits)),
                 self.cpu_temperature
                     .group_item(ComputeTarget::CpuTemperature),
                 self.cpu_power_draw
                     .get()
-                    .filter(BarWidget::visible_in_bar)
+                    .filter(GroupItemReading::visible_in_bar)
                     .map(|power| GroupItem::reading(power, ComputeTarget::CpuPowerDraw)),
                 self.host_hardware
                     .get()
                     .map(|hardware| &hardware.cpu)
-                    .filter(BarWidget::visible_in_bar)
+                    .filter(GroupItemReading::visible_in_bar)
                     .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel)),
                 self.x3d_cache_preference.group_item(
                     ComputeTarget::X3dCachePreference,

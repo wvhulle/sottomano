@@ -16,7 +16,8 @@ use super::{article_label::Article, photo_credit::Photo, place_label::Place};
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -124,12 +125,12 @@ impl SnapshotSource for Lookup {
     }
 }
 
-impl BarWidget for Lookup {
+impl GroupItemReading for Lookup {
     fn name(&self) -> &'static str {
         "Wallpaper lookup"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Image(Weight::Regular).into()
     }
 

@@ -11,8 +11,9 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
@@ -55,12 +56,12 @@ impl IntoTableRecord<2> for &KernelOccurrence {
     }
 }
 
-impl BarWidget for Vec<KernelOccurrence> {
+impl GroupItemReading for Vec<KernelOccurrence> {
     fn name(&self) -> &'static str {
         "Kernel log"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::LinuxLogo(Weight::Regular).into()
     }
 

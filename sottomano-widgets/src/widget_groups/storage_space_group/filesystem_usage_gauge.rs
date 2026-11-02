@@ -10,8 +10,9 @@ use uom::si::f64::Ratio;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph, OngoingToastThreshold},
         gauge::percent_fill,
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -118,12 +119,12 @@ impl SpaceSeverity for FilesystemUsage {
     }
 }
 
-impl BarWidget for FilesystemUsage {
+impl GroupItemReading for FilesystemUsage {
     fn name(&self) -> &'static str {
         "Disk usage"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Folders(Weight::Regular).into()
     }
 

@@ -7,7 +7,8 @@ use crate::{
     clock::Clock,
     widget_groups::echo_probe_window_rows::{probe_window_section, probe_window_severity},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
         widget_state::WidgetState,
@@ -25,12 +26,12 @@ fn fraction_of_scale(round_trip: Duration) -> f64 {
     (log_position / log_width_of_scale).clamp(0.0, 1.0)
 }
 
-impl BarWidget for InternetLatency {
+impl GroupItemReading for InternetLatency {
     fn name(&self) -> &'static str {
         INTERNET_LATENCY_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Timer(Weight::Regular).into()
     }
 

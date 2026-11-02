@@ -16,7 +16,7 @@ use crate::{
     hover_tooltips::HoverTarget,
     widgets::{
         amount_text::percent_text,
-        bar_widget::{BarWidget, OngoingToastThreshold},
+        group_item_reading::{GroupItemReading, OngoingToastThreshold},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         widget_state::WidgetState,
@@ -139,7 +139,10 @@ const fn alerting_severity_of(state: WidgetState) -> Severity {
     }
 }
 
-pub fn widget_state_alert_severity(widget: &dyn BarWidget, clock: Clock) -> Option<Severity> {
+pub fn widget_state_alert_severity(
+    widget: &dyn GroupItemReading,
+    clock: Clock,
+) -> Option<Severity> {
     let OngoingToastThreshold::NotifyFromSeverity {
         minimum_severity, ..
     } = widget.ongoing_toast_threshold()
@@ -155,7 +158,7 @@ fn alerting_quota_severity(quota: &Quota) -> Option<Severity> {
     (severity >= Severity::Warning).then_some(severity)
 }
 
-pub fn quota_pace_alert_severity(widget: &dyn BarWidget, clock: Clock) -> Option<Severity> {
+pub fn quota_pace_alert_severity(widget: &dyn GroupItemReading, clock: Clock) -> Option<Severity> {
     widget
         .quota_windows(clock.utc())
         .iter()
@@ -166,7 +169,7 @@ pub fn quota_pace_alert_severity(widget: &dyn BarWidget, clock: Clock) -> Option
 impl<Message> OngoingToast<Message> {
     pub fn from_widget_state(
         hover_target: HoverTarget,
-        widget: &dyn BarWidget,
+        widget: &dyn GroupItemReading,
         on_body_clicked: Message,
         locale: Locale,
         clock: Clock,
@@ -192,7 +195,7 @@ impl<Message> OngoingToast<Message> {
 
     pub fn from_quota_pace(
         hover_target: impl Into<HoverTarget>,
-        widget: &dyn BarWidget,
+        widget: &dyn GroupItemReading,
         on_body_clicked: Message,
         locale: Locale,
         clock: Clock,
@@ -277,7 +280,7 @@ mod tests {
     use crate::{
         widget_groups::power_group::PowerTarget,
         widgets::{
-            bar_widget::Glyph,
+            icon_glyph::IconGlyph,
             phosphor::{Phosphor, Weight},
             tooltip_body::TooltipBody,
         },
@@ -288,12 +291,12 @@ mod tests {
         threshold: OngoingToastThreshold,
     }
 
-    impl BarWidget for FixedReading {
+    impl GroupItemReading for FixedReading {
         fn name(&self) -> &'static str {
             "Fixed reading"
         }
 
-        fn icon(&self) -> Glyph {
+        fn icon(&self) -> IconGlyph {
             Phosphor::Question(Weight::Regular).into()
         }
 

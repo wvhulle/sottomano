@@ -6,7 +6,8 @@ use uom::si::length::kilometer;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
@@ -33,7 +34,7 @@ impl MapService {
         }
     }
 
-    fn glyph(self) -> Glyph {
+    fn glyph(self) -> IconGlyph {
         match self {
             Self::GoogleMaps => SimpleIcon::GoogleMaps.into(),
             Self::OpenStreetMap => SimpleIcon::OpenStreetMap.into(),
@@ -56,12 +57,12 @@ impl MapService {
     }
 }
 
-impl BarWidget for Location {
+impl GroupItemReading for Location {
     fn name(&self) -> &'static str {
         "Location"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         match self.geo.origin {
             FixOrigin::Manual => Phosphor::MapPinLine(Weight::Regular).into(),
             FixOrigin::Pinned => Phosphor::PushPin(Weight::Regular).into(),
@@ -69,7 +70,7 @@ impl BarWidget for Location {
         }
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::MapPin(Weight::Regular).into()
     }
 

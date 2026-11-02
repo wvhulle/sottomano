@@ -12,7 +12,8 @@ use super::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
@@ -107,12 +108,12 @@ impl PerCoreReading for CoreReading {
     }
 }
 
-impl BarWidget for CpuUsage {
+impl GroupItemReading for CpuUsage {
     fn name(&self) -> &'static str {
         CPU_LOAD_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Cpu(Weight::Regular).into()
     }
 

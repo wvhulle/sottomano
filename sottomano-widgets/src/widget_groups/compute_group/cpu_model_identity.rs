@@ -4,14 +4,15 @@ use sottomano_sources::host_machine_identity::udev_hardware_identity::CpuModel;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         vendor_logo::VendorLogo,
     },
 };
 
-impl BarWidget for CpuModel {
+impl GroupItemReading for CpuModel {
     fn visible_in_bar(&self) -> bool {
         self.identity.name.is_some()
     }
@@ -20,13 +21,13 @@ impl BarWidget for CpuModel {
         "CPU model"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         self.identity
             .vendor
             .and_then(|vendor| vendor.vendor_logo())
             .map_or_else(
                 || Phosphor::IdentificationCard(Weight::Regular).into(),
-                Glyph::from,
+                IconGlyph::from,
             )
     }
 

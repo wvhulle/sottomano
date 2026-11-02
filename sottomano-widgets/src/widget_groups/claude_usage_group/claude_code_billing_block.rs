@@ -5,7 +5,8 @@ use crate::{
     clock::Clock,
     widgets::{
         amount_text::spend_text,
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         spend_to_level::level_from_cost,
@@ -15,16 +16,16 @@ use crate::{
     },
 };
 
-impl BarWidget for ClaudeCcusageBlock {
+impl GroupItemReading for ClaudeCcusageBlock {
     fn name(&self) -> &'static str {
         "Claude Code billing block"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Timer(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Timer(Weight::Regular).into()
     }
 

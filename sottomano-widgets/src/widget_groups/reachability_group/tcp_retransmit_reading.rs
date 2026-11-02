@@ -5,7 +5,8 @@ use uom::si::ratio::percent;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::TooltipBody,
@@ -36,12 +37,12 @@ fn severity(retransmissions: &TcpRetransmissions) -> Severity {
     }
 }
 
-impl BarWidget for TcpRetransmissions {
+impl GroupItemReading for TcpRetransmissions {
     fn name(&self) -> &'static str {
         TCP_RETRANSMISSIONS_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ArrowCounterClockwise(Weight::Regular).into()
     }
 

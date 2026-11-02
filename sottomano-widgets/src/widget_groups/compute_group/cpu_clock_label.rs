@@ -14,7 +14,8 @@ use super::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -28,12 +29,12 @@ fn frequency_text(frequency: Frequency) -> String {
     format!("{:.2}", frequency.into_format_args(gigahertz, Abbreviation))
 }
 
-impl BarWidget for CpuClock {
+impl GroupItemReading for CpuClock {
     fn name(&self) -> &'static str {
         CPU_CLOCK_ITEM_NAME
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::WaveSine(Weight::Regular).into()
     }
 

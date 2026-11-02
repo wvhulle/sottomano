@@ -1,7 +1,7 @@
 use iced::{Color, Element, Theme, widget::svg};
 pub use sottomano_icon_sets::SimpleIcon;
 
-use crate::widgets::bar_widget::Glyph;
+use crate::widgets::icon_glyph::IconGlyph;
 
 #[must_use]
 pub fn view_simple_icon<'a, Message: 'a>(
@@ -18,8 +18,8 @@ pub fn view_simple_icon<'a, Message: 'a>(
         .into()
 }
 
-impl From<SimpleIcon> for Glyph {
+impl From<SimpleIcon> for IconGlyph {
     fn from(icon: SimpleIcon) -> Self {
-        Glyph::SimpleIcon(icon)
+        IconGlyph::SimpleIcon(icon)
     }
 }

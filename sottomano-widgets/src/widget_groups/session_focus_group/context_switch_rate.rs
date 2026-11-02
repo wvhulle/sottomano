@@ -7,7 +7,8 @@ use sottomano_sources::login_session_presence::focus_time_ledger::{
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -98,12 +99,12 @@ impl ContextSwitchRate<'_> {
     }
 }
 
-impl BarWidget for ContextSwitchRate<'_> {
+impl GroupItemReading for ContextSwitchRate<'_> {
     fn name(&self) -> &'static str {
         "Context switches"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Shuffle(Weight::Regular).into()
     }
 

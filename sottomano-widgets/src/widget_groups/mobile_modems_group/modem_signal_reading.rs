@@ -6,8 +6,9 @@ use crate::{
     clock::Clock,
     widget_groups::interface_address_sections::{AddressFamily, signal_level},
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         gauge::percent_fill,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
@@ -64,12 +65,12 @@ fn modem_switching(modem: &Mobile) -> bool {
     )
 }
 
-impl BarWidget for ModemSignalReading<'_> {
+impl GroupItemReading for ModemSignalReading<'_> {
     fn name(&self) -> &'static str {
         "Signal"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Broadcast(Weight::Regular).into()
     }
 
@@ -133,12 +134,12 @@ impl ModemConnectionSwitch<'_> {
     }
 }
 
-impl BarWidget for ModemConnectionSwitch<'_> {
+impl GroupItemReading for ModemConnectionSwitch<'_> {
     fn name(&self) -> &'static str {
         "Connection"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if modem_connected(self.modem) {
             Phosphor::ToggleRight(Weight::Regular).into()
         } else {
@@ -170,12 +171,12 @@ impl BarWidget for ModemConnectionSwitch<'_> {
     }
 }
 
-impl BarWidget for ModemDataReading<'_> {
+impl GroupItemReading for ModemDataReading<'_> {
     fn name(&self) -> &'static str {
         "Mobile data"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::ArrowsDownUp(Weight::Regular).into()
     }
 
@@ -206,12 +207,12 @@ impl AllMobileRadiosSwitch {
     }
 }
 
-impl BarWidget for AllMobileRadiosSwitch {
+impl GroupItemReading for AllMobileRadiosSwitch {
     fn name(&self) -> &'static str {
         "All mobile radios"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         if self.radio_on {
             Phosphor::CellSignalFull(Weight::Regular).into()
         } else {

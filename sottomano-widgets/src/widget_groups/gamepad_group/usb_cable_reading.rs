@@ -4,7 +4,8 @@ use sottomano_config::severity::Severity;
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -22,12 +23,12 @@ pub struct UsbCableReading {
     pub role: UsbCableRole,
 }
 
-impl BarWidget for UsbCableReading {
+impl GroupItemReading for UsbCableReading {
     fn name(&self) -> &'static str {
         "USB cable"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Usb(Weight::Regular).into()
     }
 

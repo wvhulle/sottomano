@@ -33,8 +33,8 @@ use crate::{
         AutoSwitchToggle, ScheduleStatus, SwitchDecision,
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         latest_snapshot::CommandOutcome,
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
@@ -345,7 +345,7 @@ impl DarkModeGroup {
                     .map(GroupItem::previewed_on_handle),
                 mode_known.then(|| {
                     GroupItem::reading(
-                        &self.auto_switch_toggle as &dyn BarWidget,
+                        &self.auto_switch_toggle as &dyn GroupItemReading,
                         DarkModeTarget::Schedule,
                     )
                     .on_press(

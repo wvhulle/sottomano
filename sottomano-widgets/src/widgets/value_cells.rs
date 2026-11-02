@@ -19,8 +19,8 @@ use iced::{
 use sottomano_config::{severity::Severity, theme::font::ResolvedFont};
 
 use crate::widgets::{
-    bar_widget::Glyph,
     configured_theme::AccentShades,
+    icon_glyph::IconGlyph,
     localized_durations::{
         LengthOfTime, duration_text, relative_moment_text, signed_duration_text,
     },
@@ -38,7 +38,7 @@ pub enum ValueCell {
     Blank,
     Text(String),
     Path(PathBuf),
-    Glyph(Glyph),
+    IconGlyph(IconGlyph),
     Time {
         at: DateTime<Utc>,
         format: LocalizedTimeFormat,
@@ -55,11 +55,11 @@ pub enum ValueCell {
     BrandedLink {
         label: String,
         url: String,
-        glyph: Glyph,
+        glyph: IconGlyph,
     },
     BrandedText {
         text: String,
-        glyph: Glyph,
+        glyph: IconGlyph,
     },
     Hint(String),
 }
@@ -250,7 +250,7 @@ impl<Message: 'static> ValueCellView<Message> {
     ) -> Element<'static, Message> {
         match value {
             ValueCell::Blank => Space::new().into(),
-            ValueCell::Glyph(icon) => self.glyph(icon, color),
+            ValueCell::IconGlyph(icon) => self.glyph(icon, color),
             ValueCell::Text(text) => self.copyable_text(text, CellTypeFace::Prose, color, row),
             ValueCell::Path(path) => self.path(&path, color, row),
             ValueCell::Time { at, format } => {
@@ -402,7 +402,7 @@ impl<Message: 'static> ValueCellView<Message> {
 
     fn glyph(
         &self,
-        icon: Glyph,
+        icon: IconGlyph,
         color: impl Fn(&Theme) -> Color + Copy + 'static,
     ) -> Element<'static, Message> {
         icon.view(self.prose_font.text_size_px, color)

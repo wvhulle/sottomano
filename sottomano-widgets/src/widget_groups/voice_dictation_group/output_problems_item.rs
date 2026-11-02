@@ -4,7 +4,8 @@ use sottomano_sources::voice_dictation_input::notulist_dbus_output_problems::Not
 use crate::{
     clock::Clock,
     widgets::{
-        bar_widget::{BarWidget, Glyph},
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
@@ -12,16 +13,16 @@ use crate::{
     },
 };
 
-impl BarWidget for NotulistOutputProblems {
+impl GroupItemReading for NotulistOutputProblems {
     fn name(&self) -> &'static str {
         "Typing output"
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 
-    fn fallback_icon() -> Glyph {
+    fn fallback_icon() -> IconGlyph {
         Phosphor::Keyboard(Weight::Regular).into()
     }
 

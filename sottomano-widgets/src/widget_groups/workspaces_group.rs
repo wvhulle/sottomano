@@ -20,9 +20,9 @@ use crate::{
     bar_slot_drag::{BarSlotContext, DragMessage, SlotDragEvent},
     hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
     widgets::{
-        bar_widget::Glyph,
         configured_theme::secondary_text_color,
         flat_button, glyph_button,
+        icon_glyph::IconGlyph,
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         text::bar_text,
@@ -244,7 +244,7 @@ fn empty_workspaces_toggle<'a>(
                 color: Some(secondary_text_color(theme)),
             })
             .into(),
-        EmptyWorkspaces::Shown => Glyph::from(Phosphor::CaretUp(Weight::Regular))
+        EmptyWorkspaces::Shown => IconGlyph::from(Phosphor::CaretUp(Weight::Regular))
             .view(font.icon_size_px, secondary_text_color),
     };
     let does = match folding.mode {

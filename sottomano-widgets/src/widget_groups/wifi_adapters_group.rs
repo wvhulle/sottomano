@@ -33,8 +33,8 @@ use crate::{
         interface_group_titles::AttachmentTitles,
     },
     widgets::{
-        bar_widget::BarWidget,
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{

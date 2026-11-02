@@ -24,8 +24,9 @@ use crate::{
         terminal_command::TerminalCommand,
     },
     widgets::{
-        bar_widget::{BarWidget, Glyph},
         group_item::GroupItem,
+        group_item_reading::GroupItemReading,
+        icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{
@@ -180,7 +181,7 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
     (!rows.is_empty()).then(|| definition_list(rows))
 }
 
-impl BarWidget for FailedUnits {
+impl GroupItemReading for FailedUnits {
     fn visible_in_bar(&self) -> bool {
         !self.is_empty()
     }
@@ -192,7 +193,7 @@ impl BarWidget for FailedUnits {
         }
     }
 
-    fn icon(&self) -> Glyph {
+    fn icon(&self) -> IconGlyph {
         unit_scope_icon(self.scope)
             .with_weight(Weight::Regular)
             .into()
