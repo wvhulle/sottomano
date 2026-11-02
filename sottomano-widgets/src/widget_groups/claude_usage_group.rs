@@ -27,12 +27,14 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -96,10 +98,6 @@ pub enum ClaudeUsageMessage {
     CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
     CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for ClaudeUsageGroup {
-    const TITLE: &'static str = "Claude usage";
 }
 
 impl ClaudeUsageGroup {
@@ -316,7 +314,8 @@ impl ClaudeUsageGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ClaudeUsageMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::ClaudeUsage,
             &self.expansion,
             ClaudeUsageMessage::Expansion,
             [
@@ -344,7 +343,6 @@ impl ClaudeUsageGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::Claude.into(),
-            handle: GroupHandle::ClaudeUsage,
         })
     }
 }

@@ -1,6 +1,8 @@
 use iced::{Subscription, Task};
 use sottomano_config::Config;
 
+use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+
 mod geolocation_fix;
 mod pollen_count_gauge;
 mod precipitation_type_forecast;
@@ -35,7 +37,7 @@ use crate::{
     widget_groups::{
         weather_group::rain_intensity::{RainForecast, RainSources},
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
     widgets::latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
@@ -86,10 +88,6 @@ pub enum WeatherMessage {
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for WeatherGroup {
-    const TITLE: &'static str = "Weather";
 }
 
 impl WeatherGroup {
@@ -268,7 +266,8 @@ impl WeatherGroup {
                 )
             })
         });
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Weather,
             &self.expansion,
             WeatherMessage::Expansion,
             [

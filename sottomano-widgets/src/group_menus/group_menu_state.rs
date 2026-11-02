@@ -8,12 +8,11 @@ use iced::Task;
 
 use crate::{
     group_menus::{
-        group_menu_inspection::GroupMenuInspection,
-        group_source_demand::GroupSourceDemand,
-        sqlite_group_menu_pins::{self, StoredGroupMenuPin},
+        group_menu_inspection::GroupMenuInspection, group_source_demand::GroupSourceDemand,
+        sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
     },
     hover_cards::InspectedRow,
-    widget_groups::widget_group_content::WidgetGroupTitle,
+    widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     widgets::phosphor::{Phosphor, Weight},
 };
 
@@ -92,29 +91,26 @@ impl GroupMenuTopic {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupMenuPin {
-    Group {
-        group_title: WidgetGroupTitle,
-    },
+    Group(WidgetGroupIdentity),
     Item {
-        group_title: WidgetGroupTitle,
+        group: WidgetGroupIdentity,
         item_name: &'static str,
     },
 }
 
 impl GroupMenuPin {
     fn stored_in(self, menu: GroupMenuTopic) -> StoredGroupMenuPin {
-        let group_menu = menu.storage_key().to_owned();
+        let menu_topic = menu.storage_key().to_owned();
         match self {
-            GroupMenuPin::Group { group_title } => StoredGroupMenuPin::Group {
-                group_menu,
-                group_title: group_title.to_string(),
+            GroupMenuPin::Group(group) => StoredGroupMenuPin::Group {
+                menu_topic,
+                group_family: group.family.stored_name().to_owned(),
+                group_instance: group.instance.stored_name().to_owned(),
             },
-            GroupMenuPin::Item {
-                group_title,
-                item_name,
-            } => StoredGroupMenuPin::Item {
-                group_menu,
-                group_title: group_title.to_string(),
+            GroupMenuPin::Item { group, item_name } => StoredGroupMenuPin::Item {
+                menu_topic,
+                group_family: group.family.stored_name().to_owned(),
+                group_instance: group.instance.stored_name().to_owned(),
                 item_name: item_name.to_owned(),
             },
         }
@@ -129,9 +125,9 @@ pub enum GroupMenuMessage {
         entry: GroupMenuPin,
     },
     PinSaved(bool),
-    InspectMember {
+    RevealMenuGroup {
         menu: GroupMenuTopic,
-        member: usize,
+        group_identity: WidgetGroupIdentity,
     },
     InspectRow {
         menu: GroupMenuTopic,
@@ -143,12 +139,18 @@ pub enum GroupMenuMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlertPromotedGroup {
     pub menu: GroupMenuTopic,
-    pub group_title: WidgetGroupTitle,
+    pub group: WidgetGroupIdentity,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OpenGroupMenu {
+    pub topic: GroupMenuTopic,
+    pub families: Vec<WidgetGroupFamily>,
+}
+
+#[derive(Debug, Clone)]
 struct RecentlyOpenMenu {
-    menu: GroupMenuTopic,
+    menu: OpenGroupMenu,
     last_open_at: Instant,
 }
 
@@ -172,13 +174,14 @@ impl GroupMenuState {
 
     pub fn track_source_demand(
         &mut self,
-        open_menu: Option<GroupMenuTopic>,
+        open_menu: Option<OpenGroupMenu>,
         promoted_groups: Vec<AlertPromotedGroup>,
         now: Instant,
     ) {
         self.promoted_groups = promoted_groups;
+        let open_topic = open_menu.as_ref().map(|menu| menu.topic);
         self.recently_open_menus.retain(|recent| {
-            Some(recent.menu) != open_menu
+            Some(recent.menu.topic) != open_topic
                 && now.duration_since(recent.last_open_at) < MENU_SOURCE_LINGER
         });
         if let Some(menu) = open_menu {
@@ -190,44 +193,34 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn source_demand(
-        &self,
-        menu: GroupMenuTopic,
-        group_titles: &[WidgetGroupTitle],
-    ) -> GroupSourceDemand<'_> {
-        let menu_key = menu.storage_key();
-        let stored_titles: Vec<String> = group_titles.iter().map(ToString::to_string).collect();
+    pub fn source_demand(&self, family: WidgetGroupFamily) -> GroupSourceDemand<'_> {
+        let stored_family = family.stored_name();
         let menu_open = self
             .recently_open_menus
             .iter()
-            .any(|recent| recent.menu == menu);
-        let on_panel = group_titles.iter().any(|group_title| {
-            self.is_pinned(
-                menu,
-                GroupMenuPin::Group {
-                    group_title: group_title.clone(),
-                },
-            ) || self.promoted_groups.contains(&AlertPromotedGroup {
-                menu,
-                group_title: group_title.clone(),
-            })
+            .any(|recent| recent.menu.families.contains(&family));
+        let group_pinned = self.pinned.iter().any(|pin| match pin {
+            StoredGroupMenuPin::Group { group_family, .. } => group_family == stored_family,
+            StoredGroupMenuPin::Item { .. } => false,
         });
+        let group_promoted = self
+            .promoted_groups
+            .iter()
+            .any(|promoted| promoted.group.family == family);
         let pinned_item_names = self.pinned.iter().filter_map(|pin| match pin {
             StoredGroupMenuPin::Item {
-                group_menu,
-                group_title,
+                group_family,
                 item_name,
-            } if group_menu == menu_key && stored_titles.contains(group_title) => {
-                Some(item_name.as_str())
-            }
+                ..
+            } if group_family == stored_family => Some(item_name.as_str()),
             StoredGroupMenuPin::Group { .. } | StoredGroupMenuPin::Item { .. } => None,
         });
-        GroupSourceDemand::in_menu(menu_open, on_panel, pinned_item_names)
+        GroupSourceDemand::in_menu(menu_open, group_pinned || group_promoted, pinned_item_names)
     }
 
     #[must_use]
-    pub fn open_member(&self, menu: GroupMenuTopic) -> Option<usize> {
-        self.inspection.open_member(menu)
+    pub fn open_group(&self, menu: GroupMenuTopic) -> Option<&WidgetGroupIdentity> {
+        self.inspection.open_group(menu)
     }
 
     #[must_use]
@@ -258,8 +251,11 @@ impl GroupMenuState {
                 }
                 Task::none()
             }
-            GroupMenuMessage::InspectMember { menu, member } => {
-                self.inspection = take(&mut self.inspection).inspecting_member(menu, member);
+            GroupMenuMessage::RevealMenuGroup {
+                menu,
+                group_identity,
+            } => {
+                self.inspection = take(&mut self.inspection).revealing_group(menu, group_identity);
                 Task::none()
             }
             GroupMenuMessage::InspectRow { menu, row } => {
@@ -280,17 +276,19 @@ mod tests {
 
     use super::{
         AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
-        GroupSourceDemand, MENU_SOURCE_LINGER, WidgetGroupTitle,
+        GroupSourceDemand, MENU_SOURCE_LINGER, OpenGroupMenu, WidgetGroupFamily,
+        WidgetGroupIdentity,
     };
-    use crate::clock::Clock;
+    use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupInstance};
 
-    const GPU_GROUP: GroupMenuPin = GroupMenuPin::Group {
-        group_title: WidgetGroupTitle::fixed("GPU"),
-    };
-    const GPU_LOAD_ITEM: GroupMenuPin = GroupMenuPin::Item {
-        group_title: WidgetGroupTitle::fixed("GPU"),
-        item_name: "GPU load",
-    };
+    const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
+
+    fn gpu_load_item() -> GroupMenuPin {
+        GroupMenuPin::Item {
+            group: GPU_GROUP,
+            item_name: "GPU load",
+        }
+    }
 
     fn toggle_in_hardware(entry: GroupMenuPin) -> GroupMenuMessage {
         GroupMenuMessage::TogglePin {
@@ -299,42 +297,55 @@ mod tests {
         }
     }
 
-    #[test]
-    fn toggling_twice_unpins_the_group() {
-        let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_GROUP));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Behaviour, GPU_GROUP));
-        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_GROUP));
-    }
-
-    #[test]
-    fn pinning_an_item_leaves_its_group_unpinned() {
-        let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_LOAD_ITEM));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_GROUP));
-        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
-        let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_LOAD_ITEM));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GPU_GROUP));
+    fn hardware_menu_open() -> OpenGroupMenu {
+        OpenGroupMenu {
+            topic: GroupMenuTopic::Hardware,
+            families: vec![WidgetGroupFamily::Gpu],
+        }
     }
 
     fn gpu_demand(group_menus: &GroupMenuState) -> GroupSourceDemand<'_> {
-        group_menus.source_demand(GroupMenuTopic::Hardware, &[WidgetGroupTitle::fixed("GPU")])
+        group_menus.source_demand(WidgetGroupFamily::Gpu)
     }
 
     fn collapsed_on_panel() -> GroupSourceDemand<'static> {
         GroupSourceDemand::on_panel()
     }
 
+    fn player_on_bus(player: &'static str, bus: &'static str) -> WidgetGroupIdentity {
+        WidgetGroupIdentity {
+            family: WidgetGroupFamily::Media,
+            instance: WidgetGroupInstance::Session {
+                durable: player.into(),
+                session: bus.into(),
+            },
+        }
+    }
+
+    #[test]
+    fn toggling_twice_unpins_the_group() {
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
+        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
+        assert!(!group_menus.is_pinned(GroupMenuTopic::Behaviour, GroupMenuPin::Group(GPU_GROUP)));
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
+        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
+    }
+
+    #[test]
+    fn pinning_an_item_leaves_its_group_unpinned() {
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
+        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, gpu_load_item()));
+        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(GPU_GROUP)));
+    }
+
     #[test]
     fn unpinning_an_expanded_group_drops_its_demand() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
         assert_eq!(gpu_demand(&group_menus), collapsed_on_panel());
-        let _ = group_menus.update(toggle_in_hardware(GPU_GROUP));
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(GPU_GROUP)));
         assert_ne!(
             gpu_demand(&group_menus).expanded_when(true),
             collapsed_on_panel().expanded_when(true)
@@ -348,7 +359,7 @@ mod tests {
             None,
             vec![AlertPromotedGroup {
                 menu: GroupMenuTopic::Hardware,
-                group_title: WidgetGroupTitle::fixed("GPU"),
+                group: GPU_GROUP,
             }],
             Clock::real().instant,
         );
@@ -358,74 +369,27 @@ mod tests {
     }
 
     #[test]
-    fn pinned_item_demand_is_limited_to_its_own_group_and_menu() {
+    fn pinned_item_demand_is_limited_to_its_own_family() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
-        let other_group = group_menus.source_demand(
-            GroupMenuTopic::Hardware,
-            &[WidgetGroupTitle::fixed("Compute")],
+        let _ = group_menus.update(toggle_in_hardware(gpu_load_item()));
+        assert_ne!(
+            gpu_demand(&group_menus),
+            group_menus.source_demand(WidgetGroupFamily::Compute)
         );
-        let other_menu =
-            group_menus.source_demand(GroupMenuTopic::Network, &[WidgetGroupTitle::fixed("GPU")]);
-        assert_ne!(gpu_demand(&group_menus), other_group);
-        assert_eq!(other_group, other_menu);
     }
 
     #[test]
-    fn a_pinned_numbered_sibling_demands_the_source_its_family_shares() {
-        let second_usb_port = GroupMenuPin::Group {
-            group_title: WidgetGroupTitle::numbered_from_second("USB Ethernet", 1),
-        };
+    fn a_pinned_instance_demands_the_source_its_family_shares() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(second_usb_port));
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp3s0"),
+        )));
         assert_eq!(
-            group_menus.source_demand(
-                GroupMenuTopic::Hardware,
-                &WidgetGroupTitle::numbered_siblings("USB Ethernet")
-            ),
+            group_menus.source_demand(WidgetGroupFamily::EthernetPorts),
             collapsed_on_panel()
         );
         assert_ne!(
-            group_menus.source_demand(
-                GroupMenuTopic::Hardware,
-                &WidgetGroupTitle::numbered_siblings("Ethernet")
-            ),
-            collapsed_on_panel()
-        );
-    }
-
-    #[test]
-    fn a_promoted_numbered_sibling_demands_the_source_its_family_shares() {
-        let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(
-            None,
-            vec![AlertPromotedGroup {
-                menu: GroupMenuTopic::Network,
-                group_title: WidgetGroupTitle::numbered_from_second("Wi-Fi", 2),
-            }],
-            Clock::real().instant,
-        );
-        assert_eq!(
-            group_menus.source_demand(
-                GroupMenuTopic::Network,
-                &WidgetGroupTitle::numbered_siblings("Wi-Fi")
-            ),
-            collapsed_on_panel()
-        );
-    }
-
-    #[test]
-    fn a_title_that_only_starts_with_another_is_a_separate_group() {
-        let unrelated_group = GroupMenuPin::Group {
-            group_title: WidgetGroupTitle::fixed("GPU 2 spare"),
-        };
-        let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(unrelated_group));
-        assert_ne!(
-            group_menus.source_demand(
-                GroupMenuTopic::Hardware,
-                &WidgetGroupTitle::numbered_siblings("GPU")
-            ),
+            group_menus.source_demand(WidgetGroupFamily::WifiAdapters),
             collapsed_on_panel()
         );
     }
@@ -434,56 +398,73 @@ mod tests {
     fn demand_outlasts_the_open_menu_for_the_linger_only() {
         let mut group_menus = GroupMenuState::default();
         let opened_at = Clock::real().instant;
-        group_menus.track_source_demand(Some(GroupMenuTopic::Hardware), Vec::new(), opened_at);
-        let while_open = gpu_demand(&group_menus);
-        assert_ne!(while_open, collapsed_on_panel());
-        let shortly_after = opened_at + Duration::from_secs(1);
-        group_menus.track_source_demand(None, Vec::new(), shortly_after);
-        assert_eq!(
+        group_menus.track_source_demand(Some(hardware_menu_open()), Vec::new(), opened_at);
+        assert_ne!(gpu_demand(&group_menus), collapsed_on_panel());
+        group_menus.track_source_demand(None, Vec::new(), opened_at + Duration::from_secs(1));
+        assert_ne!(
             gpu_demand(&group_menus),
-            group_menus_with_open_hardware()
-                .source_demand(GroupMenuTopic::Hardware, &[WidgetGroupTitle::fixed("GPU")])
+            GroupMenuState::default().source_demand(WidgetGroupFamily::Gpu)
         );
         group_menus.track_source_demand(None, Vec::new(), opened_at + MENU_SOURCE_LINGER);
         assert_eq!(
             gpu_demand(&group_menus),
-            GroupMenuState::default()
-                .source_demand(GroupMenuTopic::Hardware, &[WidgetGroupTitle::fixed("GPU")])
+            GroupMenuState::default().source_demand(WidgetGroupFamily::Gpu)
         );
     }
 
-    fn group_menus_with_open_hardware() -> GroupMenuState {
+    #[test]
+    fn a_pin_follows_its_source_not_its_position() {
+        let first_port = WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp3s0");
+        let second_port = WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, "enp4s0");
         let mut group_menus = GroupMenuState::default();
-        group_menus.track_source_demand(
-            Some(GroupMenuTopic::Hardware),
-            Vec::new(),
-            Clock::real().instant,
-        );
-        group_menus
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(second_port.clone())));
+        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(second_port)));
+        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, GroupMenuPin::Group(first_port)));
     }
 
     #[test]
-    fn pinning_a_numbered_group_leaves_its_first_sibling_unpinned() {
-        let first_port = GroupMenuPin::Group {
-            group_title: WidgetGroupTitle::numbered_from_second("USB Ethernet", 0),
-        };
-        let second_port = GroupMenuPin::Group {
-            group_title: WidgetGroupTitle::numbered_from_second("USB Ethernet", 1),
-        };
+    fn namesake_players_share_a_pin() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(toggle_in_hardware(second_port.clone()));
-        assert!(group_menus.is_pinned(GroupMenuTopic::Hardware, second_port));
-        assert!(!group_menus.is_pinned(GroupMenuTopic::Hardware, first_port));
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(player_on_bus(
+            "Firefox", ":1.40",
+        ))));
+        assert!(group_menus.is_pinned(
+            GroupMenuTopic::Hardware,
+            GroupMenuPin::Group(player_on_bus("Firefox", ":1.41"))
+        ));
+        assert!(!group_menus.is_pinned(
+            GroupMenuTopic::Hardware,
+            GroupMenuPin::Group(player_on_bus("Spotify", ":1.42"))
+        ));
     }
 
     #[test]
-    fn closing_forgets_the_open_member() {
+    fn closing_forgets_the_open_group() {
         let mut group_menus = GroupMenuState::default();
-        let _ = group_menus.update(GroupMenuMessage::InspectMember {
+        let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
             menu: GroupMenuTopic::Hardware,
-            member: 1,
+            group_identity: GPU_GROUP,
         });
+        assert_eq!(
+            group_menus.open_group(GroupMenuTopic::Hardware),
+            Some(&GPU_GROUP)
+        );
         let _ = group_menus.update(GroupMenuMessage::Closed);
-        assert_eq!(group_menus.open_member(GroupMenuTopic::Hardware), None);
+        assert_eq!(group_menus.open_group(GroupMenuTopic::Hardware), None);
+    }
+
+    #[test]
+    fn an_open_group_survives_pinning_an_earlier_group() {
+        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
+            menu: GroupMenuTopic::Hardware,
+            group_identity: GPU_GROUP,
+        });
+        let _ = group_menus.update(toggle_in_hardware(GroupMenuPin::Group(compute)));
+        assert_eq!(
+            group_menus.open_group(GroupMenuTopic::Hardware),
+            Some(&GPU_GROUP)
+        );
     }
 }

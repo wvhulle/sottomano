@@ -12,15 +12,17 @@ use crate::{
         ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_handle::IconHandle,
@@ -42,10 +44,6 @@ pub struct QuickLaunch {
 pub enum QuickLaunchMessage {
     Expansion(WidgetGroupExpansionMessage),
     Launch(String),
-}
-
-impl WidgetGroup for QuickLaunch {
-    const TITLE: &'static str = "Quick launch";
 }
 
 impl QuickLaunch {
@@ -98,7 +96,8 @@ impl QuickLaunch {
         output: &str,
     ) -> WidgetGroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::QuickLaunch,
             &self.expansion,
             QuickLaunchMessage::Expansion,
             app_ids
@@ -121,7 +120,6 @@ impl QuickLaunch {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rocket(Weight::Regular).into(),
-            handle: GroupHandle::QuickLaunch,
         })
     }
 }

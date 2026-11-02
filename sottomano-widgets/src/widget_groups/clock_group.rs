@@ -15,8 +15,11 @@ use crate::{
     clock::Clock,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::latest_snapshot::LatestSnapshot,
 };
@@ -50,10 +53,6 @@ pub enum ClockMessage {
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for ClockGroup {
-    const TITLE: &'static str = "Clock";
 }
 
 impl ClockGroup {
@@ -137,7 +136,8 @@ impl ClockGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ClockMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Clock,
             &self.expansion,
             ClockMessage::Expansion,
             [

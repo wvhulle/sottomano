@@ -6,7 +6,7 @@ use sottomano_sources::{
 use sottomano_widgets::{
     clock::Clock,
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
-    hover_cards::{GroupHandle, HoverTarget},
+    hover_cards::HoverTarget,
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::{AudioTarget, ControlKind},
@@ -21,7 +21,7 @@ use sottomano_widgets::{
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
-        widget_group_content::WidgetGroupTitle,
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
         window_group::WindowTarget,
     },
 };
@@ -42,7 +42,7 @@ pub enum GroupShown {
     InMenu(GroupMenuTopic),
     PinnedFrom {
         menu: GroupMenuTopic,
-        group_title: WidgetGroupTitle,
+        group: WidgetGroupIdentity,
     },
 }
 
@@ -71,9 +71,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
         ],
@@ -84,9 +82,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuModel)),
         ],
@@ -97,9 +93,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuClock)),
         ],
@@ -110,9 +104,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::X3dCachePreference)),
         ],
@@ -123,9 +115,7 @@ pub const DEMOS: &[Demo] = &[
         live: memory_board::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Memory"),
             Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
         ],
@@ -136,9 +126,7 @@ pub const DEMOS: &[Demo] = &[
         live: memory_board::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Memory"),
             Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Board)),
         ],
@@ -149,9 +137,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::HoverText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
         ],
@@ -162,9 +148,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Network,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::HoverText("VPN"),
             Step::Hover(HoverTarget::Vpn(VpnTarget::Tailscale)),
         ],
@@ -175,9 +159,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Network),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Network,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
             Step::HoverText("VPN"),
             Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
                 vpn::LAB_TUNNEL_NAME,
@@ -193,9 +175,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Temperature)),
         ],
@@ -206,9 +186,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Location)),
         ],
@@ -219,9 +197,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Wind)),
         ],
@@ -232,9 +208,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
         ],
@@ -245,9 +219,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Allergen(
                 Allergen::Grass,
@@ -260,9 +232,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Agenda,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::HoverText("Calendar"),
             Step::Hover(HoverTarget::Caldav(CaldavTarget::UpcomingEvents)),
             Step::Hover(HoverTarget::Caldav(CaldavTarget::OpenTasks)),
@@ -274,9 +244,7 @@ pub const DEMOS: &[Demo] = &[
         live: claude_usage::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Services,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::HoverText("Claude usage"),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
         ],
@@ -287,9 +255,7 @@ pub const DEMOS: &[Demo] = &[
         live: claude_usage::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Services,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::HoverText("Claude usage"),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusageBlock)),
         ],
@@ -300,9 +266,7 @@ pub const DEMOS: &[Demo] = &[
         live: claude_usage::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Services),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Services,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::HoverText("Claude usage"),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusagePeriods)),
         ],
@@ -313,9 +277,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Spotify"),
             Step::Hover(HoverTarget::Media(PlayerTarget {
                 bus: Cow::Borrowed(media::SPOTIFY_BUS),
@@ -329,9 +291,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Session,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::HoverText("Idle timeouts"),
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
         ],
@@ -360,9 +320,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Session,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::HoverText("Idle timeouts"),
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
         ],
@@ -373,9 +331,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Gamepads"),
             Step::Hover(HoverTarget::Gamepad(GamepadTarget::Controller {
                 slot: gamepad::DUALSENSE_SLOT,
@@ -402,9 +358,7 @@ pub const DEMOS: &[Demo] = &[
         live: audio::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Audio"),
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(
                 ControlKind::Source,
@@ -417,9 +371,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Voice dictation"),
             Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Runtime)),
             Step::Hover(HoverTarget::VoiceDictation(
@@ -439,9 +391,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Voice dictation"),
             Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Pipeline)),
         ],
@@ -452,9 +402,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Session,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
             Step::HoverText("Login session"),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Kernel)),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Compositor)),
@@ -466,9 +414,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Display),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Display,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
             Step::HoverText("Wallpaper"),
             Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
         ],
@@ -479,9 +425,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Display),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Display,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
             Step::HoverText("Wallpaper"),
             Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
             Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Article)),
@@ -561,9 +505,7 @@ pub const DEMOS: &[Demo] = &[
         live: audio::live,
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Media,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::HoverText("Spotify"),
             Step::HoverText("Audio"),
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(
@@ -577,12 +519,10 @@ pub const DEMOS: &[Demo] = &[
         live: group_menu_members::hardware_menu_live,
         shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Hardware,
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
+            Step::PressPin(GroupMenuPin::Group(WidgetGroupIdentity::sole(
+                WidgetGroupFamily::MemoryBoard,
             ))),
-            Step::PressPin(GroupMenuPin::Group {
-                group_title: WidgetGroupTitle::fixed("Memory"),
-            }),
             Step::RestFor(Duration::from_millis(1500)),
         ],
     },
@@ -591,8 +531,8 @@ pub const DEMOS: &[Demo] = &[
         group: shell_settings::sharing_a_unit,
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Appearance),
-        script: &[Step::Hover(HoverTarget::GroupHandle(
-            GroupHandle::GroupMenu(GroupMenuTopic::Appearance),
+        script: &[Step::Hover(HoverTarget::GroupMenu(
+            GroupMenuTopic::Appearance,
         ))],
     },
     Demo {
@@ -601,9 +541,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::InMenu(GroupMenuTopic::Behaviour),
         script: &[
-            Step::Hover(HoverTarget::GroupHandle(GroupHandle::GroupMenu(
-                GroupMenuTopic::Behaviour,
-            ))),
+            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
             Step::HoverText("Panels"),
         ],
     },
@@ -613,7 +551,7 @@ pub const DEMOS: &[Demo] = &[
         live: compute::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Hardware,
-            group_title: WidgetGroupTitle::fixed("Compute"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
         },
         script: &[
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
@@ -627,7 +565,7 @@ pub const DEMOS: &[Demo] = &[
         live: memory_board::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Hardware,
-            group_title: WidgetGroupTitle::fixed("Memory"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::MemoryBoard),
         },
         script: &[
             Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
@@ -641,7 +579,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Network,
-            group_title: WidgetGroupTitle::fixed("VPN"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Vpn),
         },
         script: &[
             Step::Hover(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
@@ -661,7 +599,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Display,
-            group_title: WidgetGroupTitle::fixed("Wallpaper"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Wallpaper),
         },
         script: &[
             Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
@@ -675,7 +613,7 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Session,
-            group_title: WidgetGroupTitle::fixed("Idle timeouts"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::IdleTimeouts),
         },
         script: &[
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
@@ -689,7 +627,7 @@ pub const DEMOS: &[Demo] = &[
         live: claude_usage::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Services,
-            group_title: WidgetGroupTitle::fixed("Claude usage"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::ClaudeUsage),
         },
         script: &[
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
@@ -703,7 +641,7 @@ pub const DEMOS: &[Demo] = &[
         live: audio::live,
         shown: GroupShown::PinnedFrom {
             menu: GroupMenuTopic::Media,
-            group_title: WidgetGroupTitle::fixed("Audio"),
+            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
         },
         script: &[
             Step::Hover(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),

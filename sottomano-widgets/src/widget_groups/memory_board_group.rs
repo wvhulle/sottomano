@@ -21,8 +21,11 @@ use crate::{
         HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -58,10 +61,6 @@ pub enum MemoryBoardMessage {
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for MemoryBoardGroup {
-    const TITLE: &'static str = "Memory";
 }
 
 impl MemoryBoardGroup {
@@ -120,7 +119,8 @@ impl MemoryBoardGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, MemoryBoardMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::MemoryBoard,
             &self.expansion,
             MemoryBoardMessage::Expansion,
             [

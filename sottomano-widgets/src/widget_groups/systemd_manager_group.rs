@@ -1,6 +1,6 @@
 use iced::{Subscription, Task};
 
-use crate::clock::Clock;
+use crate::{clock::Clock, widget_groups::widget_group_identity::WidgetGroupFamily};
 
 mod boot_timeline_reading;
 mod failed_unit_log;
@@ -30,14 +30,13 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
     },
     widgets::{
@@ -131,10 +130,6 @@ pub enum SystemdManagerMessage {
     InspectCoredump(TerminalCommand),
     CopyToClipboard(String),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for SystemdManagerGroup {
-    const TITLE: &'static str = "Systemd";
 }
 
 impl SystemdManagerGroup {
@@ -244,7 +239,8 @@ impl SystemdManagerGroup {
         clock: Clock,
     ) -> WidgetGroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::SystemdManager,
             &self.expansion,
             SystemdManagerMessage::Expansion,
             [
@@ -295,7 +291,6 @@ impl SystemdManagerGroup {
         .face(WidgetGroupFace::IconColoredBy {
             glyph: Phosphor::Speedometer(Weight::Regular).into(),
             reading: self,
-            handle: GroupHandle::Systemd,
         })
     }
 

@@ -31,9 +31,7 @@ use crate::{
         toggle_control::SwitchPresses,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         voice_dictation_group::{
             dictation_phase_item::{press_does, shows_pipeline},
@@ -42,9 +40,9 @@ use crate::{
             speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
         },
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -107,10 +105,6 @@ impl Default for VoiceDictationGroup {
     fn default() -> Self {
         Self::new()
     }
-}
-
-impl WidgetGroup for VoiceDictationGroup {
-    const TITLE: &'static str = "Voice dictation";
 }
 
 impl VoiceDictationGroup {
@@ -290,7 +284,8 @@ impl VoiceDictationGroup {
         let engine = self.loaded_engine();
         let runtime_glyph =
             engine.map_or_else(idle_runtime_glyph, |loaded| SpeechRuntime(loaded).glyph());
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::VoiceDictation,
             &self.expansion,
             VoiceDictationMessage::Expansion,
             [
@@ -336,14 +331,9 @@ impl VoiceDictationGroup {
 
     fn handle_face(&self) -> WidgetGroupFace<'_> {
         let glyph = Phosphor::UserSound(Weight::Regular).into();
-        let handle = GroupHandle::VoiceDictation;
         match self.dictation.display() {
-            Some(reading) => WidgetGroupFace::IconColoredBy {
-                glyph,
-                reading,
-                handle,
-            },
-            None => WidgetGroupFace::Icon { glyph, handle },
+            Some(reading) => WidgetGroupFace::IconColoredBy { glyph, reading },
+            None => WidgetGroupFace::Icon { glyph },
         }
     }
 }

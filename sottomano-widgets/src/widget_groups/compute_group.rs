@@ -41,8 +41,11 @@ use crate::{
         HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -101,10 +104,6 @@ pub enum ComputeMessage {
     CoreTemperaturesFetched(SnapshotDelivery<CpuCoreTemperatures>),
     CacheTrafficFetched(SnapshotDelivery<L3CacheTraffic>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for ComputeGroup {
-    const TITLE: &'static str = "Compute";
 }
 
 impl ComputeGroup {
@@ -234,7 +233,8 @@ impl ComputeGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Compute,
             &self.expansion,
             ComputeMessage::Expansion,
             [
@@ -351,8 +351,10 @@ mod tests {
     use super::{ComputeGroup, GroupSourceDemand, WidgetGroupExpansionMessage};
     use crate::{
         clock::Clock,
-        group_menus::group_menu_state::{AlertPromotedGroup, GroupMenuState, GroupMenuTopic},
-        widget_groups::widget_group_content::WidgetGroupTitle,
+        group_menus::group_menu_state::{
+            AlertPromotedGroup, GroupMenuState, GroupMenuTopic, OpenGroupMenu,
+        },
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     };
 
     const TEMPERATURE_AND_CACHE_TOGGLE: usize = 2;
@@ -364,10 +366,7 @@ mod tests {
     }
 
     fn demand_in(group_menus: &GroupMenuState) -> GroupSourceDemand<'_> {
-        group_menus.source_demand(
-            GroupMenuTopic::Hardware,
-            &[WidgetGroupTitle::fixed("Compute")],
-        )
+        group_menus.source_demand(WidgetGroupFamily::Compute)
     }
 
     #[test]
@@ -383,7 +382,10 @@ mod tests {
     fn open_menu_runs_every_source() {
         let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
-            Some(GroupMenuTopic::Hardware),
+            Some(OpenGroupMenu {
+                topic: GroupMenuTopic::Hardware,
+                families: vec![WidgetGroupFamily::Compute],
+            }),
             Vec::new(),
             Clock::real().instant,
         );
@@ -400,7 +402,7 @@ mod tests {
             None,
             vec![AlertPromotedGroup {
                 menu: GroupMenuTopic::Hardware,
-                group_title: WidgetGroupTitle::fixed("Compute"),
+                group: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
             }],
             Clock::real().instant,
         );

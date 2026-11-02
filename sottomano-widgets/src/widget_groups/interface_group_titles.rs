@@ -1,6 +1,6 @@
 use sottomano_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment;
 
-use crate::widget_groups::widget_group_content::WidgetGroupTitle;
+use crate::widget_groups::widget_group_identity::WidgetGroupTitle;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AttachmentTitles {
@@ -9,14 +9,6 @@ pub struct AttachmentTitles {
 }
 
 impl AttachmentTitles {
-    #[must_use]
-    pub fn sibling_titles(self) -> Vec<WidgetGroupTitle> {
-        [self.built_in, self.usb]
-            .into_iter()
-            .flat_map(WidgetGroupTitle::numbered_siblings)
-            .collect()
-    }
-
     fn base_title(self, attachment: InterfaceAttachment) -> &'static str {
         match attachment {
             InterfaceAttachment::BuiltIn => self.built_in,

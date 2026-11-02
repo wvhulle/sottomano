@@ -41,8 +41,9 @@ use crate::{
             window_usage::WindowUsage,
         },
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::ongoing_toast::OngoingToastActionButton,
 };
@@ -80,10 +81,6 @@ pub enum SessionFocusMessage {
     BreakStarted(SessionAction),
     WarningSnoozed,
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for SessionFocusGroup {
-    const TITLE: &'static str = "Focus session";
 }
 
 impl SessionFocusGroup {
@@ -293,7 +290,8 @@ impl SessionFocusGroup {
             self.context_switch_rate(config),
             SessionFocusTarget::ContextSwitches,
         );
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::SessionFocus,
             &self.expansion,
             SessionFocusMessage::Expansion,
             [session, breaks, focus_run, totals, switches],

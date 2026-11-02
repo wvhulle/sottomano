@@ -26,7 +26,8 @@ use crate::{
     },
     widget_groups::{
         idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
-        widget_group_content::{WidgetGroup, WidgetGroupContent},
+        widget_group_content::WidgetGroupContent,
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         configured_theme::text_color,
@@ -125,10 +126,6 @@ pub enum Action {
     Performed(Task<SessionMessage>),
 }
 
-impl WidgetGroup for SessionPowerGroup {
-    const TITLE: &'static str = "Session";
-}
-
 impl SessionPowerGroup {
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
@@ -196,18 +193,21 @@ impl SessionPowerGroup {
 
     #[must_use]
     pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, SessionMessage> {
-        Self::fixed_group((!self.permissions.allowed.is_empty()).then(|| {
-            GroupItem::composed(
-                ComposedGroupItemFace {
-                    name: Self::TITLE.into(),
-                    icon: GroupItemIcon::IconGlyph {
-                        glyph: Phosphor::Power(Weight::Regular).into(),
-                        state: ReadingDisplayState::Idle,
+        WidgetGroupContent::fixed(
+            WidgetGroupFamily::SessionPower,
+            (!self.permissions.allowed.is_empty()).then(|| {
+                GroupItem::composed(
+                    ComposedGroupItemFace {
+                        name: WidgetGroupFamily::SessionPower.title().into(),
+                        icon: GroupItemIcon::IconGlyph {
+                            glyph: Phosphor::Power(Weight::Regular).into(),
+                            state: ReadingDisplayState::Idle,
+                        },
                     },
-                },
-                GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
-                GroupItemValue::Nothing,
-            )
-        }))
+                    GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
+                    GroupItemValue::Nothing,
+                )
+            }),
+        )
     }
 }

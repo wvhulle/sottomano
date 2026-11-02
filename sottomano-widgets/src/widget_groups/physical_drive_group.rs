@@ -23,9 +23,11 @@ use crate::{
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupTitle,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::latest_snapshot::LatestSnapshot,
 };
@@ -54,7 +56,9 @@ struct PhysicalDiskReadings {
 }
 
 fn disk_group_title(disk: &KernelDevice) -> WidgetGroupTitle {
-    WidgetGroupTitle::Named(format!("{} {}", PhysicalDriveGroup::TITLE, disk.name).into())
+    WidgetGroupTitle::Named(
+        format!("{} {}", WidgetGroupFamily::PhysicalDrive.title(), disk.name).into(),
+    )
 }
 
 #[derive(Default)]
@@ -75,10 +79,6 @@ pub enum DriveMessage {
         disk: KernelDevice,
         expansion: WidgetGroupExpansionMessage,
     },
-}
-
-impl WidgetGroup for PhysicalDriveGroup {
-    const TITLE: &'static str = "Drive";
 }
 
 impl PhysicalDriveGroup {
@@ -270,7 +270,8 @@ impl PhysicalDriveGroup {
                     .group_item(DriveTarget::Read(disk.name.clone())),
             )
             .chain(transfer_items);
-        Self::expandable_group_titled(
+        WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, disk.name.clone()),
             disk_group_title(disk),
             &readings.expansion,
             move |expansion| DriveMessage::DiskExpansion {
@@ -283,7 +284,8 @@ impl PhysicalDriveGroup {
 
     #[must_use]
     pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, DriveMessage>> {
-        let discovery_group = Self::expandable_group(
+        let discovery_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::PhysicalDrive,
             &self.discovery_expansion,
             DriveMessage::DiscoveryExpansion,
             self.discovery.group_item(DriveTarget::MountDiscovery),
@@ -295,14 +297,6 @@ impl PhysicalDriveGroup {
                     .iter()
                     .map(|(disk, readings)| self.disk_group(disk, readings)),
             )
-            .collect()
-    }
-
-    #[must_use]
-    pub fn group_titles(&self) -> Vec<WidgetGroupTitle> {
-        [WidgetGroupTitle::fixed(Self::TITLE)]
-            .into_iter()
-            .chain(self.disks.keys().map(disk_group_title))
             .collect()
     }
 
@@ -341,7 +335,7 @@ impl PhysicalDriveGroup {
 mod tests {
     use sottomano_sources::disk_storage::block_filesystem_mounts::KernelDevice;
 
-    use super::{PhysicalDriveGroup, WidgetGroup, disk_group_title};
+    use super::{WidgetGroupFamily, disk_group_title};
 
     fn disk_named(name: &str) -> KernelDevice {
         KernelDevice {
@@ -354,7 +348,7 @@ mod tests {
         let first_disk_title = disk_group_title(&disk_named("nvme0n1")).to_string();
         assert_eq!(
             first_disk_title,
-            format!("{} nvme0n1", PhysicalDriveGroup::TITLE)
+            format!("{} nvme0n1", WidgetGroupFamily::PhysicalDrive.title())
         );
         assert_ne!(
             disk_group_title(&disk_named("nvme0n1")),

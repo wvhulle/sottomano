@@ -29,8 +29,11 @@ use crate::{
             hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
         },
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -143,10 +146,6 @@ pub enum GpuMessage {
     ClocksFetched(SnapshotDelivery<GpuClocks>),
     ProcessesFetched(SnapshotDelivery<GpuProcesses>),
     Expansion(PciBusId, WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for GpuGroup {
-    const TITLE: &'static str = "GPU";
 }
 
 impl GpuGroup {
@@ -326,12 +325,12 @@ impl GpuGroup {
                         .power_label()
                         .map(|label| GroupItem::reading(label, target(GpuReading::Power))),
                 ];
-                Self::expandable_group(
+                WidgetGroupContent::expandable(
+                    WidgetGroupFamily::Gpu,
                     &device.expansion,
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),
                 )
-                .sharing_title_row()
             })
     }
 

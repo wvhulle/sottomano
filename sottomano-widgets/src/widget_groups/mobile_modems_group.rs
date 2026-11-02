@@ -27,9 +27,9 @@ use crate::{
     widget_groups::{
         interface_address_sections::{AddressFamily, InterfaceAddressReading},
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupTitle,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
@@ -81,10 +81,6 @@ struct ModemSession {
 pub struct MobileModemsGroup {
     mobile_modems: LatestSnapshot<MobileModems, HidesFetchFailures>,
     sessions: BTreeMap<String, ModemSession>,
-}
-
-impl WidgetGroup for MobileModemsGroup {
-    const TITLE: &'static str = "Mobile modem";
 }
 
 impl MobileModemsGroup {
@@ -254,7 +250,8 @@ impl MobileModemsGroup {
         let radios_item = GroupItem::reading(radios_switch, MobileModemTarget::AllRadios)
             .on_press(radios_press_does, MobileModemsMessage::ToggleAllRadios);
         let expanded_modem_path = modem_path();
-        Some(Self::expandable_group_titled(
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),
             group_title,
             &session.expansion,
             move |expansion| MobileModemsMessage::Expansion {
@@ -281,7 +278,10 @@ impl MobileModemsGroup {
             .filter_map(|(position, modem)| {
                 self.modem_group(
                     modem,
-                    WidgetGroupTitle::numbered_from_second(Self::TITLE, position),
+                    WidgetGroupTitle::numbered_from_second(
+                        WidgetGroupFamily::MobileModems.title(),
+                        position,
+                    ),
                 )
             })
             .collect()

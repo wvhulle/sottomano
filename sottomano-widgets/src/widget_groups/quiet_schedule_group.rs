@@ -30,7 +30,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
@@ -42,9 +42,10 @@ use crate::{
             weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         },
         widget_group_content::{
-            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupFace,
+            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         idle::{MAX_POSITION, position, timeout_at},
@@ -167,10 +168,6 @@ impl Default for QuietScheduleGroup {
         quiet_schedule_group.adopt_schedule(defaults);
         quiet_schedule_group
     }
-}
-
-impl WidgetGroup for QuietScheduleGroup {
-    const TITLE: &'static str = "Quiet schedule";
 }
 
 impl QuietScheduleGroup {
@@ -516,7 +513,8 @@ impl QuietScheduleGroup {
                 QuietScheduleMessage::Slider.with(slider),
             )
         };
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::QuietSchedule,
             &self.expansion,
             QuietScheduleMessage::Expansion,
             [
@@ -560,7 +558,6 @@ impl QuietScheduleGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: self.face_icon().into(),
-            handle: GroupHandle::QuietSchedule,
         })
     }
 

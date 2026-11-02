@@ -175,25 +175,25 @@ impl<'a> HoverCardContent<'a> {
                     container(self.small_dim_text(group_title.to_string()))
                         .padding(self.edge_row_padding())
                         .into();
-                let unpin = match *panel_pin {
+                let unpin = match panel_pin {
                     PanelPinOrigin::Unpinned => None,
-                    PanelPinOrigin::GroupPinnedFrom(menu) => {
+                    PanelPinOrigin::GroupPinnedFrom { menu, group } => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
-                            menu,
-                            entry: GroupMenuPin::Group {
-                                group_title: (**group_title).clone(),
-                            },
+                            menu: *menu,
+                            entry: GroupMenuPin::Group((**group).clone()),
                         }))
                     }
-                    PanelPinOrigin::ItemPinnedFrom { menu, item_name } => {
-                        Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
-                            menu,
-                            entry: GroupMenuPin::Item {
-                                group_title: (**group_title).clone(),
-                                item_name,
-                            },
-                        }))
-                    }
+                    PanelPinOrigin::ItemPinnedFrom {
+                        menu,
+                        group,
+                        item_name,
+                    } => Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
+                        menu: *menu,
+                        entry: GroupMenuPin::Item {
+                            group: (**group).clone(),
+                            item_name,
+                        },
+                    })),
                 };
                 Some(
                     Column::with_children(once(title).chain(unpin))

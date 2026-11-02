@@ -57,7 +57,7 @@ use crate::{
         vpn_group::VpnTarget,
         wallpaper_group::WallpaperTarget,
         weather_group::WeatherTarget,
-        widget_group_content::WidgetGroupTitle,
+        widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
         wifi_adapters_group::WifiAdapterTarget,
         window_group::{WindowGroupMessage, WindowTarget},
     },
@@ -113,35 +113,8 @@ pub enum HoverTarget {
     Workspace(u64),
     WorkspaceOrder,
     WorkspaceFolding,
-    GroupHandle(GroupHandle),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GroupHandle {
-    Audio,
-    Caldav,
-    ClaudeUsage,
     GroupMenu(GroupMenuTopic),
-    ColorTemperature,
-    CopilotUsage,
-    DarkMode,
-    IdleTimeouts,
-    Reachability,
-    LlamaServer,
-    LoginSession,
-    Monitor,
-    NiriWindow,
-    OpenRouterCredit,
-    OverlaySettings,
-    PanelSettings,
-    Power,
-    QuickLaunch,
-    QuietSchedule,
-    SidebarSettings,
-    Systemd,
-    Tray,
-    VoiceDictation,
-    Vpn,
+    GroupFace(Box<WidgetGroupIdentity>),
 }
 
 impl PressHints {
@@ -223,13 +196,17 @@ pub enum HoverOrigin {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum PanelPinOrigin {
     #[default]
     Unpinned,
-    GroupPinnedFrom(GroupMenuTopic),
+    GroupPinnedFrom {
+        menu: GroupMenuTopic,
+        group: Box<WidgetGroupIdentity>,
+    },
     ItemPinnedFrom {
         menu: GroupMenuTopic,
+        group: Box<WidgetGroupIdentity>,
         item_name: &'static str,
     },
 }

@@ -1,6 +1,6 @@
 use iced::{Subscription, Task};
 
-use crate::widgets::phosphor::Weight;
+use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
 
 mod firmware_upgrade_list;
 
@@ -24,7 +24,7 @@ use crate::{
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
     widgets::{
@@ -56,10 +56,6 @@ pub enum PendingUpgradesMessage {
     Firmware(SnapshotDelivery<Vec<FirmwareUpgrade>>),
     OpenTerminal(TerminalCommand),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for PendingUpgradesGroup {
-    const TITLE: &'static str = "Pending upgrades";
 }
 
 impl PendingUpgradesGroup {
@@ -102,7 +98,8 @@ impl PendingUpgradesGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, PendingUpgradesMessage> {
         let has_categories = self.categories().iter().any(Option::is_some);
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::PendingUpgrades,
             &self.expansion,
             PendingUpgradesMessage::Expansion,
             [

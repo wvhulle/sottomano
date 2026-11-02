@@ -28,13 +28,16 @@ use crate::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
     hover_cards::{
-        GroupHandle, HoverTarget, PressHints,
+        HoverTarget, PressHints,
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         hoverable,
     },
-    widget_groups::widget_group_content::{
-        GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
-        WidgetGroupExpansionMessage, WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         activity_line::activity_line,
@@ -85,10 +88,6 @@ pub enum Action {
     None,
     MenuItemActivated,
     FocusAppWindow(AppWindowFocus<TrayMessage>),
-}
-
-impl WidgetGroup for TrayGroup {
-    const TITLE: &'static str = "Tray";
 }
 
 impl TrayGroup {
@@ -230,7 +229,8 @@ impl TrayGroup {
     }
 
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, TrayMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Tray,
             &self.expansion,
             TrayMessage::Expansion,
             self.visible(config).into_iter().map(|item| {
@@ -250,7 +250,6 @@ impl TrayGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
-            handle: GroupHandle::Tray,
         })
     }
 }

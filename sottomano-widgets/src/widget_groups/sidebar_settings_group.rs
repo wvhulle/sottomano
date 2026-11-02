@@ -11,16 +11,14 @@ use crate::{
         group_item::GroupItem,
         toggle_control::{IconToggle, SwitchPresses},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         sqlite_shell_settings_row,
         sqlite_shell_settings_row::ShellSetting,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
         workspaces_group::{EmptyWorkspaceFolding, RevealFoldTimer},
     },
     widgets::{
@@ -123,10 +121,6 @@ impl Default for SidebarSettingsGroup {
             }),
         }
     }
-}
-
-impl WidgetGroup for SidebarSettingsGroup {
-    const TITLE: &'static str = "Sidebar";
 }
 
 impl SidebarSettingsGroup {
@@ -235,7 +229,8 @@ impl SidebarSettingsGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, SidebarSettingsMessage> {
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::SidebarSettings,
             &self.expansion,
             SidebarSettingsMessage::Expansion,
             [GroupItem::toggle(
@@ -256,7 +251,6 @@ impl SidebarSettingsGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::SidebarSimple(Weight::Regular).into(),
-            handle: GroupHandle::SidebarSettings,
         })
     }
 }

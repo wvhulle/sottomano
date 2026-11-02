@@ -34,15 +34,13 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         dark_mode_group::auto_switch_toggle::{AutoSwitchToggle, ScheduleStatus, SwitchDecision},
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::CommandOutcome,
@@ -93,10 +91,6 @@ pub enum DarkModeMessage {
     OffsetSlider(ColorMode, ControlMessage),
     Expansion(WidgetGroupExpansionMessage),
     SwitchScheme(ColorMode),
-}
-
-impl WidgetGroup for DarkModeGroup {
-    const TITLE: &'static str = "Dark mode";
 }
 
 impl DarkModeGroup {
@@ -345,7 +339,8 @@ impl DarkModeGroup {
                 DarkModeMessage::OffsetSlider.with(edge),
             )
         };
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::DarkMode,
             &self.expansion,
             DarkModeMessage::Expansion,
             [
@@ -370,7 +365,6 @@ impl DarkModeGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::MoonStars(Weight::Regular).into(),
-            handle: GroupHandle::DarkMode,
         })
     }
 }

@@ -15,7 +15,9 @@ use crate::{
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::widget_group_content::{WidgetGroup, WidgetGroupContent},
+    widget_groups::{
+        widget_group_content::WidgetGroupContent, widget_group_identity::WidgetGroupFamily,
+    },
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::text_color,
@@ -65,10 +67,6 @@ fn preset_menu_row<'a>(
 #[derive(Default)]
 pub struct AppearancePresetsGroup;
 
-impl WidgetGroup for AppearancePresetsGroup {
-    const TITLE: &'static str = "Looks";
-}
-
 impl AppearancePresetsGroup {
     #[must_use]
     pub fn hover_card_for(&self, target: AppearancePresetsTarget) -> HoverCard {
@@ -98,16 +96,19 @@ impl AppearancePresetsGroup {
 
     #[must_use]
     pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, AppearancePresetsMessage> {
-        Self::fixed_group(Some(GroupItem::composed(
-            ComposedGroupItemFace {
-                name: Self::TITLE.into(),
-                icon: GroupItemIcon::IconGlyph {
-                    glyph: Phosphor::Palette(Weight::Regular).into(),
-                    state: ReadingDisplayState::Idle,
+        WidgetGroupContent::fixed(
+            WidgetGroupFamily::AppearancePresets,
+            Some(GroupItem::composed(
+                ComposedGroupItemFace {
+                    name: WidgetGroupFamily::AppearancePresets.title().into(),
+                    icon: GroupItemIcon::IconGlyph {
+                        glyph: Phosphor::Palette(Weight::Regular).into(),
+                        state: ReadingDisplayState::Idle,
+                    },
                 },
-            },
-            GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
-            GroupItemValue::Nothing,
-        )))
+                GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
+                GroupItemValue::Nothing,
+            )),
+        )
     }
 }

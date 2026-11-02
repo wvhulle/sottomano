@@ -2,6 +2,8 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
+use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+
 mod network_manager_vpn_hover_card;
 mod tailscale_mesh_hover_card;
 mod wireguard_tunnel_hover_card;
@@ -28,12 +30,11 @@ use crate::{
     group_items::group_item::GroupItem,
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+        WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -81,10 +82,6 @@ pub enum VpnMessage {
     SwitchWireguard(WireguardSwitch),
     SwitchTailscale(TailscaleSwitch),
     OpenTailscale,
-}
-
-impl WidgetGroup for VpnGroup {
-    const TITLE: &'static str = "VPN";
 }
 
 impl VpnGroup {
@@ -281,7 +278,8 @@ impl VpnGroup {
             .is_none()
             .then(|| self.previewed_tunnel_interface())
             .flatten();
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Vpn,
             &self.expansion,
             VpnMessage::Expansion,
             vpn_connections
@@ -337,7 +335,6 @@ impl VpnGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ShieldCheck(Weight::Regular).into(),
-            handle: GroupHandle::Vpn,
         })
     }
 }
