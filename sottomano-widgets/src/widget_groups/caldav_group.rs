@@ -28,7 +28,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -54,14 +57,14 @@ pub struct CaldavGroup {
     upcoming_events: LatestSnapshot<UpcomingEventList>,
     open_tasks: LatestSnapshot<OpenTaskList>,
     password: Option<PathBuf>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum CaldavMessage {
     UpcomingEvents(Box<SnapshotDelivery<UpcomingEventList>>),
     OpenTasks(Box<SnapshotDelivery<OpenTaskList>>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for CaldavGroup {
@@ -79,7 +82,7 @@ impl CaldavGroup {
             upcoming_events: LatestSnapshot::default(),
             open_tasks: LatestSnapshot::default(),
             password: secrets.caldav_password.clone(),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -162,7 +165,10 @@ impl CaldavGroup {
         }
     }
 
-    pub fn group_content(&self, config: &CaldavAccountConfig) -> GroupContent<'_, CaldavMessage> {
+    pub fn group_content(
+        &self,
+        config: &CaldavAccountConfig,
+    ) -> WidgetGroupContent<'_, CaldavMessage> {
         let upcoming_events_item = if self.account(config).is_some() {
             self.upcoming_events
                 .group_item_while_pending(CaldavTarget::UpcomingEvents)
@@ -180,7 +186,7 @@ impl CaldavGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: self.account_handle_glyph(),
             handle: GroupHandle::Caldav,
         })

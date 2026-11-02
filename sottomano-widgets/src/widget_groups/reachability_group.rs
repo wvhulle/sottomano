@@ -38,7 +38,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -64,7 +67,7 @@ pub struct ReachabilityGroup {
     tcp_retransmissions: LatestSnapshot<TcpRetransmissions>,
     connectivity: LatestSnapshot<UplinkConnectivity>,
     metered_volume: MeteredVolumeTally,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -74,7 +77,7 @@ pub enum ReachabilityMessage {
     TcpRetransmissions(SnapshotDelivery<TcpRetransmissions>),
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for ReachabilityGroup {
@@ -195,22 +198,22 @@ impl ReachabilityGroup {
         }
     }
 
-    fn handle_face(&self) -> HandleFace<'_> {
+    fn handle_face(&self) -> WidgetGroupFace<'_> {
         let handle = GroupHandle::Reachability;
         match self.connectivity.display() {
-            Some(reading) => HandleFace::IconColoredBy {
+            Some(reading) => WidgetGroupFace::IconColoredBy {
                 glyph: reading.icon(),
                 reading,
                 handle,
             },
-            None => HandleFace::Icon {
+            None => WidgetGroupFace::Icon {
                 glyph: Phosphor::CloudCheck(Weight::Regular).into(),
                 handle,
             },
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, ReachabilityMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ReachabilityMessage> {
         let throughput = self.throughput.get();
         Self::expandable_group(
             &self.expansion,

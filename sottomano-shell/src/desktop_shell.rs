@@ -50,16 +50,16 @@ use sottomano_widgets::{
     notification_toasts::NotificationLayer,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
-        group_menus::{GroupMenuKind, GroupMenuMessage},
+        group_menus::{GroupMenuMessage, GroupMenuTopic},
         idle_timeouts_group::IdleTimeoutsMessage,
         niri_window_group::niri_kdl_rules::NiriRulesFile,
-        session_menu::{self},
+        session_power_group::{self},
     },
     widgets::{
         cascade_row::{CascadeDirection, CascadeOrientation},
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{GroupMenuSurfaces, InspectionCard},
+        group_menu::{GroupMenuCascadeSurfaces, InspectionCard},
         notched_panel::PanelGrowth,
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -264,17 +264,17 @@ impl DesktopShell {
                 .idle_timeouts_group
                 .update(msg)
                 .map(Message::IdleTimeouts),
-            Message::GroupMenus(msg) => self
+            Message::GroupMenuState(msg) => self
                 .widget_groups
                 .group_menus
                 .update(msg)
-                .map(Message::GroupMenus),
+                .map(Message::GroupMenuState),
             Message::UnpinFromPanel { menu, entry } => Task::batch([
                 self.dismiss_tooltip(),
                 self.widget_groups
                     .group_menus
                     .update(GroupMenuMessage::TogglePin { menu, entry })
-                    .map(Message::GroupMenus),
+                    .map(Message::GroupMenuState),
             ]),
             Message::SoundThemeLoaded(theme) => {
                 self.notifications.adopt_sound_theme(theme);
@@ -404,12 +404,12 @@ impl DesktopShell {
     }
 
     pub(super) fn hover_content(&self, target: &HoverTarget) -> Option<HoverContent<'_, Message>> {
-        if let Some(GroupMenuSurfaces {
+        if let Some(GroupMenuCascadeSurfaces {
             primary,
             satellites,
         }) = self.group_menu_surfaces(target)
         {
-            return Some(HoverContent::Cascade {
+            return Some(HoverContent::GroupMenu {
                 primary,
                 satellites,
                 orientation: self.group_menu_orientation(),
@@ -438,24 +438,27 @@ impl DesktopShell {
         CascadeOrientation::toward_room(placement.anchor, placement.position, output_width)
     }
 
-    fn open_group_menu(&self) -> Option<GroupMenuKind> {
+    fn open_group_menu(&self) -> Option<GroupMenuTopic> {
         match self.tooltip.target() {
-            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind))) => Some(*kind),
+            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic))) => Some(*topic),
             _ => None,
         }
     }
 
-    fn group_menu_surfaces(&self, target: &HoverTarget) -> Option<GroupMenuSurfaces<'_, Message>> {
-        let HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind)) = target else {
+    fn group_menu_surfaces(
+        &self,
+        target: &HoverTarget,
+    ) -> Option<GroupMenuCascadeSurfaces<'_, Message>> {
+        let HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic)) = target else {
             return None;
         };
         let group_menu = self
             .bar_group_menus()
-            .find(|group_menu| group_menu.kind() == *kind)?;
+            .find(|group_menu| group_menu.topic() == *topic)?;
         let card_tooltip = self
             .widget_groups
             .group_menus
-            .inspected_row(*kind)
+            .inspected_row(*topic)
             .and_then(|row| {
                 self.tooltip_for(&row.target)
                     .map(|tooltip| tooltip.with_announcement(row.announcement.clone()))
@@ -491,7 +494,7 @@ impl DesktopShell {
                 .map(|panel| panel.map(Message::Tray)),
             HoverTarget::AppearancePresets(AppearancePresetsTarget::Menu) => Some(
                 self.widget_groups
-                    .appearance_presets_menu
+                    .appearance_presets_group
                     .menu_panel(
                         &self.config,
                         popup_corners,
@@ -499,9 +502,9 @@ impl DesktopShell {
                     )
                     .map(Message::AppearancePresets),
             ),
-            HoverTarget::Session(session_menu::SessionTarget::Menu) => Some(
+            HoverTarget::Session(session_power_group::SessionTarget::Menu) => Some(
                 self.widget_groups
-                    .session_menu
+                    .session_power_group
                     .menu_panel(
                         &self.config,
                         popup_corners,

@@ -35,7 +35,7 @@ pub enum ShowcaseMessage {
     LoginSession(LoginSessionMessage),
     WindowGroup(WindowGroupMessage),
     AppearancePresets(AppearancePresetsMessage),
-    GroupMenus(GroupMenuMessage),
+    GroupMenuState(GroupMenuMessage),
     Tooltip(TooltipMessage),
     TooltipHideElapsed,
     Notification(NotificationMessage),

@@ -5,26 +5,26 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    widget_groups::group_menus::GroupMenuKind,
+    widget_groups::group_menus::GroupMenuTopic,
     widgets::{
-        group_menu::GroupMenu,
+        group_menu::GroupMenuView,
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
-        widget_group::GroupContent,
+        widget_group::WidgetGroupContent,
     },
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 impl DesktopShell {
-    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenu<'_, Message>> {
+    pub(super) fn bar_group_menus(&self) -> impl Iterator<Item = GroupMenuView<'_, Message>> {
         [
-            self.hardware_menu(),
-            self.network_menu(),
-            self.agenda_menu(),
-            self.media_menu(),
-            self.display_menu(),
-            self.services_menu(),
+            self.hardware_group_menu(),
+            self.network_group_menu(),
+            self.agenda_group_menu(),
+            self.media_group_menu(),
+            self.display_group_menu(),
+            self.services_group_menu(),
             self.session_group_menu(),
         ]
         .into_iter()
@@ -33,14 +33,14 @@ impl DesktopShell {
 
     pub(super) fn group_menu<'a>(
         &'a self,
-        kind: GroupMenuKind,
-        members: impl IntoIterator<Item = GroupContent<'a, Message>>,
-    ) -> GroupMenu<'a, Message> {
-        GroupMenu::new(
-            kind,
+        topic: GroupMenuTopic,
+        groups: impl IntoIterator<Item = WidgetGroupContent<'a, Message>>,
+    ) -> GroupMenuView<'a, Message> {
+        GroupMenuView::new(
+            topic,
             &self.widget_groups.group_menus,
-            Message::GroupMenus,
-            members,
+            Message::GroupMenuState,
+            groups,
         )
     }
 

@@ -2,19 +2,19 @@ use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
     widget_groups::{
-        group_menus::GroupMenuKind, sidebar_settings_group::WorkspacesPlacement,
+        group_menus::GroupMenuTopic, sidebar_settings_group::WorkspacesPlacement,
         workspaces_group::inline_strip,
     },
-    widgets::{group_menu::GroupMenu, widget_group::GroupContent},
+    widgets::{group_menu::GroupMenuView, widget_group::WidgetGroupContent},
 };
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
 pub(super) struct BottomBarGroups<'a> {
-    pub start_menus: [GroupMenu<'a, Message>; 3],
-    pub start: [GroupContent<'a, Message>; 1],
-    pub end_menus: [GroupMenu<'a, Message>; 2],
-    pub end: [GroupContent<'a, Message>; 1],
+    pub start_menus: [GroupMenuView<'a, Message>; 3],
+    pub start: [WidgetGroupContent<'a, Message>; 1],
+    pub end_menus: [GroupMenuView<'a, Message>; 2],
+    pub end: [WidgetGroupContent<'a, Message>; 1],
 }
 
 impl DesktopShell {
@@ -26,8 +26,9 @@ impl DesktopShell {
             end_menus,
             end,
         } = self.bottom_bar_groups();
-        let view =
-            |group: GroupContent<'a, Message>| group.view(config, Position::Bottom, self.clock);
+        let view = |group: WidgetGroupContent<'a, Message>| {
+            group.view(config, Position::Bottom, self.clock)
+        };
         self.panel_bar(
             Position::Bottom,
             start_menus
@@ -46,13 +47,13 @@ impl DesktopShell {
     pub(super) fn bottom_bar_groups(&self) -> BottomBarGroups<'_> {
         let [appearance_menu, behaviour_menu] = self.settings_menus();
         BottomBarGroups {
-            start_menus: [appearance_menu, behaviour_menu, self.display_menu()],
+            start_menus: [appearance_menu, behaviour_menu, self.display_group_menu()],
             start: [self
                 .widget_groups
-                .appearance_presets_menu
+                .appearance_presets_group
                 .group_content()
                 .map(Message::AppearancePresets)],
-            end_menus: [self.services_menu(), self.session_group_menu()],
+            end_menus: [self.services_group_menu(), self.session_group_menu()],
             end: [self
                 .widget_groups
                 .tray_group
@@ -61,21 +62,22 @@ impl DesktopShell {
         }
     }
 
-    pub(super) fn settings_menus(&self) -> [GroupMenu<'_, Message>; 2] {
+    pub(super) fn settings_menus(&self) -> [GroupMenuView<'_, Message>; 2] {
         [
             self.group_menu(
-                GroupMenuKind::Appearance,
-                self.settings_groups().map(GroupContent::only_aligned_items),
+                GroupMenuTopic::Appearance,
+                self.settings_groups()
+                    .map(WidgetGroupContent::only_aligned_items),
             ),
             self.group_menu(
-                GroupMenuKind::Behaviour,
+                GroupMenuTopic::Behaviour,
                 self.settings_groups()
-                    .map(GroupContent::only_unaligned_items),
+                    .map(WidgetGroupContent::only_unaligned_items),
             ),
         ]
     }
 
-    fn settings_groups(&self) -> [GroupContent<'_, Message>; 4] {
+    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 4] {
         let config = &self.config;
         [
             self.widget_groups
@@ -97,10 +99,10 @@ impl DesktopShell {
         ]
     }
 
-    pub(super) fn display_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn display_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
-            GroupMenuKind::Display,
+            GroupMenuTopic::Display,
             [
                 self.widget_groups
                     .monitor_group
@@ -122,9 +124,9 @@ impl DesktopShell {
         )
     }
 
-    pub(super) fn session_group_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn session_group_menu(&self) -> GroupMenuView<'_, Message> {
         self.group_menu(
-            GroupMenuKind::Session,
+            GroupMenuTopic::Session,
             [
                 self.widget_groups
                     .idle_timeouts_group
@@ -138,10 +140,10 @@ impl DesktopShell {
         )
     }
 
-    pub(super) fn services_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn services_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
-            GroupMenuKind::Services,
+            GroupMenuTopic::Services,
             [
                 self.widget_groups
                     .llama_server_group

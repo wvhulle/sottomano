@@ -28,7 +28,9 @@ use crate::{
     widgets::{
         app_window_focus::AppWindowFocus,
         confirm_button::{ConfirmButton, Press},
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
@@ -36,7 +38,8 @@ use crate::{
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, GroupTitle, WidgetGroup,
+            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupTitle,
         },
     },
 };
@@ -111,7 +114,7 @@ struct PlayerSession {
     cover_art: Option<CoverArt>,
     seek_bar: SeekBar,
     quit_button: ConfirmButton,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 impl Default for PlayerSession {
@@ -120,7 +123,7 @@ impl Default for PlayerSession {
             cover_art: None,
             seek_bar: SeekBar::default(),
             quit_button: ConfirmButton::new(true),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 }
@@ -151,7 +154,7 @@ pub enum MediaMessage {
 
 #[derive(Debug, Clone)]
 pub enum PlayerMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     Command(Command),
     Seek(SeekMessage),
     Quit,
@@ -275,18 +278,18 @@ impl MediaGroup {
         titled
     }
 
-    fn group_title_of(&self, media: &Media) -> GroupTitle {
+    fn group_title_of(&self, media: &Media) -> WidgetGroupTitle {
         let earlier_namesakes = self
             .titled_players()
             .into_iter()
             .take_while(|other| other.bus != media.bus)
             .filter(|other| other.identity == media.identity)
             .count();
-        GroupTitle::numbered_from_second(media.identity.clone(), earlier_namesakes)
+        WidgetGroupTitle::numbered_from_second(media.identity.clone(), earlier_namesakes)
     }
 
     #[must_use]
-    pub fn player_group_titles(&self) -> Vec<GroupTitle> {
+    pub fn player_group_titles(&self) -> Vec<WidgetGroupTitle> {
         self.titled_players()
             .into_iter()
             .map(|media| self.group_title_of(media))
@@ -351,7 +354,7 @@ impl MediaGroup {
             return Action::Run(Task::none());
         };
         let task = match message {
-            PlayerMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+            PlayerMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
                 seek_by(session, &media, SeekMessage::Scroll(delta), clock.instant)
             }
             PlayerMessage::Expansion(expansion) => {
@@ -444,7 +447,7 @@ impl MediaGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> impl Iterator<Item = GroupContent<'a, MediaMessage>> {
+    ) -> impl Iterator<Item = WidgetGroupContent<'a, MediaMessage>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
             let group_title = self.group_title_of(media);
@@ -463,11 +466,11 @@ impl MediaGroup {
 fn player_group<'a>(
     config: &'a Config,
     clock: Clock,
-    group_title: GroupTitle,
+    group_title: WidgetGroupTitle,
     media: &'a Media,
     session: &'a PlayerSession,
     lyrics_snapshot: Option<&'a LatestSnapshot<TrackLyrics>>,
-) -> GroupContent<'a, MediaMessage> {
+) -> WidgetGroupContent<'a, MediaMessage> {
     let bus = media.bus.as_str();
     let seekable = SeekBar::seekable(media, clock.instant);
     let gauge_fraction = media
@@ -476,17 +479,17 @@ fn player_group<'a>(
         .filter(|_| !(seekable && session.expansion.is_expanded()));
     let seek = seekable.then(|| {
         GroupItem::composed(
-            ItemIdentity {
+            ComposedGroupItemFace {
                 name: "Position".into(),
-                icon: ItemIcon::IconGlyph {
+                icon: GroupItemIcon::IconGlyph {
                     glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
                     state: ReadingDisplayState::Idle,
                 },
             },
-            ItemHover::ByChildren {
+            GroupItemHoverArea::ByChildren {
                 row_target: PlayerTarget::of(bus, MediaTarget::Seek).into(),
             },
-            ItemValue::drawn(move |_| {
+            GroupItemValue::drawn(move |_| {
                 let bar = session
                     .seek_bar
                     .view(config, media, clock.instant)
@@ -511,14 +514,14 @@ fn player_group<'a>(
         )
     });
     let transport = GroupItem::composed(
-        ItemIdentity {
+        ComposedGroupItemFace {
             name: "Playback".into(),
-            icon: ItemIcon::Absent,
+            icon: GroupItemIcon::Absent,
         },
-        ItemHover::ByChildren {
+        GroupItemHoverArea::ByChildren {
             row_target: PlayerTarget::of(bus, MediaTarget::Transport).into(),
         },
-        ItemValue::drawn(move |reveal| {
+        GroupItemValue::drawn(move |reveal| {
             lifted_to_player(
                 bus,
                 TransportControls::new(
@@ -534,14 +537,14 @@ fn player_group<'a>(
     );
     let session_buttons = (!session_controls(config, media, session, 1.0).is_empty()).then(|| {
         GroupItem::composed(
-            ItemIdentity {
+            ComposedGroupItemFace {
                 name: "Session".into(),
-                icon: ItemIcon::Absent,
+                icon: GroupItemIcon::Absent,
             },
-            ItemHover::ByChildren {
+            GroupItemHoverArea::ByChildren {
                 row_target: PlayerTarget::of(bus, MediaTarget::SessionControls).into(),
             },
-            ItemValue::drawn(move |reveal| {
+            GroupItemValue::drawn(move |reveal| {
                 lifted_to_player(bus, session_controls(config, media, session, reveal).into())
             }),
         )
@@ -692,7 +695,7 @@ mod tests {
         let _ = group.update(
             player_message(
                 "org.mpris.MediaPlayer2.firefox",
-                PlayerMessage::Expansion(ExpansionMessage::Toggle),
+                PlayerMessage::Expansion(WidgetGroupExpansionMessage::Toggle),
             ),
             clock,
         );

@@ -10,7 +10,9 @@ use crate::{
     desktop_index::DesktopIndex,
     hover_tooltips::{GroupHandle, HoverTarget},
     widgets::{
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         tooltip_body::{
@@ -18,7 +20,10 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -28,12 +33,12 @@ const MAX_ITEMS: usize = 4;
 pub struct QuickLaunch {
     ranked: HashMap<String, Vec<String>>,
     desktop_entries: Option<Arc<DesktopEntries>>,
-    pub(super) expansion: GroupExpansion,
+    pub(super) expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum QuickLaunchMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     Launch(String),
 }
 
@@ -89,7 +94,7 @@ impl QuickLaunch {
         &'a self,
         index: &'a DesktopIndex,
         output: &str,
-    ) -> GroupContent<'a, QuickLaunchMessage> {
+    ) -> WidgetGroupContent<'a, QuickLaunchMessage> {
         let app_ids = self.ranked.get(output).map_or(&[][..], Vec::as_slice);
         Self::expandable_group(
             &self.expansion,
@@ -100,19 +105,19 @@ impl QuickLaunch {
                     let icon_path = index.app_icon(app_id)?;
                     Some(
                         GroupItem::composed(
-                            ItemIdentity {
+                            ComposedGroupItemFace {
                                 name: app_id.clone().into(),
-                                icon: ItemIcon::Image(IconHandle::at(icon_path)),
+                                icon: GroupItemIcon::Image(IconHandle::at(icon_path)),
                             },
-                            ItemHover::WholeItem(HoverTarget::QuickLaunch(app_id.clone())),
-                            ItemValue::Nothing,
+                            GroupItemHoverArea::WholeItem(HoverTarget::QuickLaunch(app_id.clone())),
+                            GroupItemValue::Nothing,
                         )
                         .on_press("launch", QuickLaunchMessage::Launch(app_id.clone())),
                     )
                 })
                 .take(MAX_ITEMS),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rocket(Weight::Regular).into(),
             handle: GroupHandle::QuickLaunch,
         })

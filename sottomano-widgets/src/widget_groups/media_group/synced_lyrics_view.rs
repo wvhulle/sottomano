@@ -11,7 +11,9 @@ use super::{MediaMessage, MediaTarget, PlayerTarget};
 use crate::{
     clock::Clock,
     widgets::{
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         karaoke_lyric_line::{
@@ -140,15 +142,16 @@ fn current_lyric_line<'a>(
     timed_line: &'a TimedLyricLine,
     sampled_at: Instant,
 ) -> GroupItem<'a, MediaMessage> {
-    let identity = ItemIdentity {
+    let identity = ComposedGroupItemFace {
         name: "Lyrics".into(),
-        icon: ItemIcon::IconGlyph {
+        icon: GroupItemIcon::IconGlyph {
             glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
             state: ReadingDisplayState::Idle,
         },
     };
-    let hover = ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into());
-    let value = ItemValue::drawn(move |reveal| {
+    let hover =
+        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into());
+    let value = GroupItemValue::drawn(move |reveal| {
         let tinted = move |state| ReadingStateTint {
             state,
             opacity: reveal,

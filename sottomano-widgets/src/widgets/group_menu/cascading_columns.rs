@@ -5,38 +5,40 @@ use sottomano_config::Config;
 
 use crate::{
     hover_tooltips::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
-    widget_groups::group_menus::{GroupMenus, PinnedEntry},
+    widget_groups::group_menus::{GroupMenuPin, GroupMenuState},
     widgets::{
         cascade_row::CascadeDirection,
         configured_theme::{secondary_text_color, text_color},
         glyph_button,
         group_item::{MenuItemAction, MenuParts},
         group_menu::{
-            GroupMenuSurfaces, InspectionCard, MenuMessenger,
+            GroupMenuCascadeSurfaces, GroupMenuMessenger, InspectionCard,
             menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, menu_row_height},
-            satellite_panels::SatellitePanels,
+            satellite_panels::CascadeSatellitePanels,
         },
         icon_glyph::IconGlyph,
         list_end_corners::ListEndCorners,
         phosphor::{Phosphor, Weight},
         uniform_width_column::uniform_width_column,
-        widget_group::{CascadeItem, GroupEvent, GroupTitle, GroupTitleClaim, ItemPin, TitleRow},
+        widget_group::{
+            GroupEvent, GroupItemPin, GroupMenuItemRow, GroupTitleClaim, TitleRow, WidgetGroupTitle,
+        },
     },
 };
 
-pub(super) struct CascadeEntry<'a, M> {
+pub(super) struct GroupMenuGroupRow<'a, M> {
     pub title_claim: GroupTitleClaim,
     pub face: MenuParts<'a, M>,
-    pub items: Vec<CascadeItem<'a, M>>,
+    pub items: Vec<GroupMenuItemRow<'a, M>>,
 }
 
 pub(super) fn merged_where_requested<'a, M>(
-    entries: impl IntoIterator<Item = CascadeEntry<'a, M>>,
-) -> Vec<CascadeEntry<'a, M>> {
+    entries: impl IntoIterator<Item = GroupMenuGroupRow<'a, M>>,
+) -> Vec<GroupMenuGroupRow<'a, M>> {
     entries.into_iter().fold(Vec::new(), |mut merged, entry| {
         match merged
             .iter_mut()
-            .find(|existing: &&mut CascadeEntry<'a, M>| {
+            .find(|existing: &&mut GroupMenuGroupRow<'a, M>| {
                 entry.title_claim.title_row == TitleRow::SharedWithSameTitle
                     && existing.title_claim == entry.title_claim
             }) {
@@ -49,7 +51,7 @@ pub(super) fn merged_where_requested<'a, M>(
 
 pub(super) fn duplicate_group_titles(
     title_claims: impl IntoIterator<Item = GroupTitleClaim>,
-) -> Vec<GroupTitle> {
+) -> Vec<WidgetGroupTitle> {
     let title_claims: Vec<GroupTitleClaim> = title_claims.into_iter().collect();
     title_claims
         .iter()
@@ -65,18 +67,18 @@ pub(super) fn duplicate_group_titles(
         .collect()
 }
 
-pub(super) struct CascadeLayout<'p, 'a, M> {
+pub(super) struct GroupMenuRowContext<'p, 'a, M> {
     pub config: &'a Config,
     pub direction: CascadeDirection,
-    pub menu: &'p MenuMessenger<'a, M>,
-    pub group_menus: &'p GroupMenus,
-    pub satellite_panels: &'p SatellitePanels,
+    pub menu: &'p GroupMenuMessenger<'a, M>,
+    pub group_menus: &'p GroupMenuState,
+    pub satellite_panels: &'p CascadeSatellitePanels,
 }
 
 struct OpenGroup<'a, M> {
     member: usize,
-    group_title: GroupTitle,
-    items: Vec<CascadeItem<'a, M>>,
+    group_title: WidgetGroupTitle,
+    items: Vec<GroupMenuItemRow<'a, M>>,
 }
 
 pub(super) fn cascading_columns<
@@ -84,16 +86,16 @@ pub(super) fn cascading_columns<
     M: Clone + 'a,
     Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
 >(
-    mut entries: Vec<CascadeEntry<'a, M>>,
-    layout: &CascadeLayout<'_, 'a, M>,
+    mut entries: Vec<GroupMenuGroupRow<'a, M>>,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
     card: &InspectionCard<'_, 'a>,
-) -> Option<GroupMenuSurfaces<'a, Outer>> {
+) -> Option<GroupMenuCascadeSurfaces<'a, Outer>> {
     if entries.is_empty() {
         return None;
     }
     let open_group = layout
         .group_menus
-        .open_member(layout.menu.kind)
+        .open_member(layout.menu.topic)
         .filter(|member| *member < entries.len())
         .map(|member| OpenGroup {
             member,
@@ -109,7 +111,7 @@ pub(super) fn cascading_columns<
         };
         group_row(layout, member, entry, look)
     });
-    Some(GroupMenuSurfaces {
+    Some(GroupMenuCascadeSurfaces {
         primary: Element::from(uniform_width_column(group_rows)).map(Outer::from),
         satellites: open_group
             .map(|open| open_group_satellites(layout, open, card))
@@ -122,7 +124,7 @@ fn open_group_satellites<
     M: Clone + 'a,
     Outer: From<GroupEvent<M>> + From<PopupMessage> + 'a,
 >(
-    layout: &CascadeLayout<'_, 'a, M>,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
     open: OpenGroup<'a, M>,
     card: &InspectionCard<'_, 'a>,
 ) -> Vec<Element<'a, Outer>> {
@@ -133,7 +135,7 @@ fn open_group_satellites<
     } = open;
     let inspected_target = layout
         .group_menus
-        .inspected_row(layout.menu.kind)
+        .inspected_row(layout.menu.topic)
         .map(|row| &row.target);
     let card_position = inspected_target.and_then(|target| {
         items
@@ -142,17 +144,17 @@ fn open_group_satellites<
     });
     let item_count = items.len();
     let item_corners = layout.satellite_panels.frame_corners;
-    let is_inspected = |item: &CascadeItem<'a, M>| {
+    let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
         inspected_target.is_some_and(|target| item.action.inspected_target() == target)
     };
     let item_list =
         item_menu(layout, &group_title, items, &is_inspected, item_corners).map(Outer::from);
-    let item_panel = layout.satellite_panels.beside_row(
+    let item_satellite = layout.satellite_panels.beside_row(
         layout.config,
         item_list,
         cascade_offset(layout.config, member),
     );
-    let card_panel = card_position.and_then(|position| {
+    let card_satellite = card_position.and_then(|position| {
         card.view(layout.config).map(|card_view| {
             let card_row_top =
                 layout
@@ -165,7 +167,7 @@ fn open_group_satellites<
             )
         })
     });
-    [item_panel].into_iter().chain(card_panel).collect()
+    [item_satellite].into_iter().chain(card_satellite).collect()
 }
 
 pub(super) fn cascade_offset(config: &Config, rows_above: usize) -> f32 {
@@ -173,14 +175,14 @@ pub(super) fn cascade_offset(config: &Config, rows_above: usize) -> f32 {
 }
 
 fn group_row<'a, M: Clone + 'a>(
-    layout: &CascadeLayout<'_, 'a, M>,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
     member: usize,
-    entry: CascadeEntry<'a, M>,
+    entry: GroupMenuGroupRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
     let group_title = entry.title_claim.group_title;
-    let pinned_entry = PinnedEntry::Group {
+    let pinned_entry = GroupMenuPin::Group {
         group_title: group_title.clone(),
     };
     let pin = marked_by_menu_pin(
@@ -227,10 +229,10 @@ fn group_row<'a, M: Clone + 'a>(
 }
 
 fn item_menu<'a, M: Clone + 'a>(
-    layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &GroupTitle,
-    items: Vec<CascadeItem<'a, M>>,
-    is_inspected: &dyn Fn(&CascadeItem<'a, M>) -> bool,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
+    group_title: &WidgetGroupTitle,
+    items: Vec<GroupMenuItemRow<'a, M>>,
+    is_inspected: &dyn Fn(&GroupMenuItemRow<'a, M>) -> bool,
     panel_corners: Radius,
 ) -> Element<'a, GroupEvent<M>> {
     let end_corners = ListEndCorners::new(items.len(), panel_corners);
@@ -245,9 +247,9 @@ fn item_menu<'a, M: Clone + 'a>(
 }
 
 fn item_row<'a, M: Clone + 'a>(
-    layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &GroupTitle,
-    item: CascadeItem<'a, M>,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
+    group_title: &WidgetGroupTitle,
+    item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let marked_target = item.action.inspected_target().clone();
@@ -258,18 +260,18 @@ fn item_row<'a, M: Clone + 'a>(
 }
 
 fn unmarked_item_row<'a, M: Clone + 'a>(
-    layout: &CascadeLayout<'_, 'a, M>,
-    group_title: &GroupTitle,
-    item: CascadeItem<'a, M>,
+    layout: &GroupMenuRowContext<'_, 'a, M>,
+    group_title: &WidgetGroupTitle,
+    item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let item_pin = match item.pin {
-        ItemPin::Unpinnable => None,
-        ItemPin::Pinnable(item_name) => Some(glyph_button(
+        GroupItemPin::Unpinnable => None,
+        GroupItemPin::Pinnable(item_name) => Some(glyph_button(
             Phosphor::PushPin(Weight::Regular),
             layout.config.theme.font.icon_size_px,
             secondary_text_color,
-            layout.menu.toggle_pin(PinnedEntry::Item {
+            layout.menu.toggle_pin(GroupMenuPin::Item {
                 group_title: group_title.clone(),
                 item_name,
             }),
@@ -305,30 +307,30 @@ mod tests {
     use iced::widget::Space;
 
     use super::{
-        CascadeEntry, GroupTitle, GroupTitleClaim, TitleRow, duplicate_group_titles,
+        GroupMenuGroupRow, GroupTitleClaim, TitleRow, WidgetGroupTitle, duplicate_group_titles,
         merged_where_requested,
     };
     use crate::widgets::group_item::MenuParts;
 
-    const ETHERNET_TITLE: GroupTitle = GroupTitle::fixed("Ethernet");
-    const DRIVE_TITLE: GroupTitle = GroupTitle::fixed("Drive");
+    const ETHERNET_TITLE: WidgetGroupTitle = WidgetGroupTitle::fixed("Ethernet");
+    const DRIVE_TITLE: WidgetGroupTitle = WidgetGroupTitle::fixed("Drive");
 
-    fn own_row(group_title: GroupTitle) -> GroupTitleClaim {
+    fn own_row(group_title: WidgetGroupTitle) -> GroupTitleClaim {
         GroupTitleClaim {
             group_title,
             title_row: TitleRow::OwnRow,
         }
     }
 
-    fn shared_row(group_title: GroupTitle) -> GroupTitleClaim {
+    fn shared_row(group_title: WidgetGroupTitle) -> GroupTitleClaim {
         GroupTitleClaim {
             group_title,
             title_row: TitleRow::SharedWithSameTitle,
         }
     }
 
-    fn entry_claiming(title_claim: GroupTitleClaim) -> CascadeEntry<'static, ()> {
-        CascadeEntry {
+    fn entry_claiming(title_claim: GroupTitleClaim) -> GroupMenuGroupRow<'static, ()> {
+        GroupMenuGroupRow {
             title_claim,
             face: MenuParts {
                 icon: Space::new().into(),

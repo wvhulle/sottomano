@@ -9,7 +9,7 @@ use crate::widgets::{
     shell_layer_appearance::LayerAppearance,
 };
 
-pub(super) struct SatellitePanels {
+pub(super) struct CascadeSatellitePanels {
     notch_side: NotchSide,
     growth: PanelGrowth,
     frame: LayerFrameStyle,
@@ -19,7 +19,7 @@ pub(super) struct SatellitePanels {
     notch_depth: f32,
 }
 
-impl SatellitePanels {
+impl CascadeSatellitePanels {
     pub(super) fn new(
         appearance: &LayerAppearance,
         config: &Config,

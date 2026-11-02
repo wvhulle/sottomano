@@ -23,7 +23,9 @@ use crate::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -45,7 +47,7 @@ pub struct MemoryBoardGroup {
     hardware: LatestSnapshot<HostHardware, HidesFetchFailures>,
     memory_processes: HoverFetchedSnapshot<MemoryProcesses>,
     module_temperatures: HoverFetchedSnapshot<MemoryModuleTemperatures>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +56,7 @@ pub enum MemoryBoardMessage {
     Memory(SnapshotDelivery<Memory>),
     MemoryProcessesFetched(SnapshotDelivery<MemoryProcesses>),
     ModuleTemperaturesFetched(SnapshotDelivery<MemoryModuleTemperatures>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for MemoryBoardGroup {
@@ -116,7 +118,7 @@ impl MemoryBoardGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, MemoryBoardMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, MemoryBoardMessage> {
         Self::expandable_group(
             &self.expansion,
             MemoryBoardMessage::Expansion,

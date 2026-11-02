@@ -114,7 +114,7 @@ impl DesktopShell {
             ),
             HoverTarget::AppearancePresets(target) => Some(
                 self.widget_groups
-                    .appearance_presets_menu
+                    .appearance_presets_group
                     .tooltip_for(*target),
             ),
             HoverTarget::SidebarSettings(target) => Some(
@@ -140,7 +140,7 @@ impl DesktopShell {
                 DeliveryTiming::LivePush,
             )),
             HoverTarget::Session(target) => {
-                Some(self.widget_groups.session_menu.tooltip_for(*target))
+                Some(self.widget_groups.session_power_group.tooltip_for(*target))
             }
             HoverTarget::Tray(address) => self.widget_groups.tray_group.tooltip_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {

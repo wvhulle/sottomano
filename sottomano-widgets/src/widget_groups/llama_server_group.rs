@@ -25,7 +25,10 @@ use crate::{
         toggle_control::SwitchPresses,
         tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::UnitSwitchFace,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -66,7 +69,7 @@ pub struct LlamaServerGroup {
     model_props: HoverFetchedSnapshot<LlamaModelProps>,
     gguf_card: HoverFetchedSnapshot<GgufModelCard>,
     base_model_card: HoverFetchedSnapshot<HuggingFaceModelCard>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 impl Default for LlamaServerGroup {
@@ -77,7 +80,7 @@ impl Default for LlamaServerGroup {
             model_props: HoverFetchedSnapshot::default(),
             gguf_card: HoverFetchedSnapshot::default(),
             base_model_card: HoverFetchedSnapshot::default(),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 }
@@ -89,7 +92,7 @@ pub enum LlamaServerMessage {
     ModelPropsFetched(SnapshotDelivery<LlamaModelProps>),
     GgufCardRead(SnapshotDelivery<GgufModelCard>),
     BaseModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for LlamaServerGroup {
@@ -221,7 +224,7 @@ impl LlamaServerGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, LlamaServerMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerMessage> {
         Self::expandable_group(
             &self.expansion,
             LlamaServerMessage::Expansion,
@@ -229,7 +232,7 @@ impl LlamaServerGroup {
                 .items(LlamaServerMessage::User)
                 .chain(self.system.items(LlamaServerMessage::System)),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Robot(Weight::Regular).into(),
             handle: GroupHandle::LlamaServer,
         })

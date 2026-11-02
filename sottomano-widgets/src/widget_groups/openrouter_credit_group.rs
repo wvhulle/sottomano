@@ -28,7 +28,10 @@ use crate::{
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -62,7 +65,7 @@ pub struct OpenRouterCreditGroup {
     model_rankings: LatestSnapshot<OpenRouterModelRankings>,
     management_key: Option<PathBuf>,
     analysis_key: Option<PathBuf>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -70,7 +73,7 @@ pub enum OpenRouterCreditMessage {
     SoftBudget(SnapshotDelivery<OpenRouterSpend>),
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for OpenRouterCreditGroup {
@@ -90,7 +93,7 @@ impl OpenRouterCreditGroup {
             model_rankings: LatestSnapshot::default(),
             management_key,
             analysis_key,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -226,7 +229,7 @@ impl OpenRouterCreditGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, OpenRouterCreditMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, OpenRouterCreditMessage> {
         Self::expandable_group(
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
@@ -254,7 +257,7 @@ impl OpenRouterCreditGroup {
                 ]
             })),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::OpenRouter.into(),
             handle: GroupHandle::OpenRouterCredit,
         })

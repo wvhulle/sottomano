@@ -1,6 +1,6 @@
 use iced::Rectangle;
 use iced_test::selector::{Candidate, Selector};
-use sottomano_widgets::{hover_tooltips::HoverTarget, widget_groups::group_menus::PinnedEntry};
+use sottomano_widgets::{hover_tooltips::HoverTarget, widget_groups::group_menus::GroupMenuPin};
 
 pub struct HoveredWidget(pub HoverTarget);
 
@@ -19,7 +19,7 @@ impl Selector for HoveredWidget {
     }
 }
 
-pub struct MenuPinWidget(pub PinnedEntry);
+pub struct MenuPinWidget(pub GroupMenuPin);
 
 impl Selector for MenuPinWidget {
     type Output = Rectangle;
@@ -28,7 +28,7 @@ impl Selector for MenuPinWidget {
         let Candidate::Custom { bounds, state, .. } = candidate else {
             return None;
         };
-        (state.downcast_ref::<PinnedEntry>() == Some(&self.0)).then_some(bounds)
+        (state.downcast_ref::<GroupMenuPin>() == Some(&self.0)).then_some(bounds)
     }
 
     fn description(&self) -> String {

@@ -41,7 +41,10 @@ use crate::{
         toggle_control::SwitchPresses,
         tooltip_body::tooltip_source_delivery::Tooltip,
         unit_switch::{UnitSwitch, UnitSwitchFace, UnitSwitchMessage},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -80,7 +83,7 @@ pub struct VoiceDictationGroup {
     output_problems: LatestSnapshot<NotulistOutputProblems, HidesFailuresAfterSuccess>,
     model_card: HoverFetchedSnapshot<HuggingFaceModelCard>,
     runtime: UnitSwitch,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -92,7 +95,7 @@ pub enum VoiceDictationMessage {
     ModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
     ToggleRecording,
     Runtime(UnitSwitchMessage),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl Default for VoiceDictationGroup {
@@ -119,7 +122,7 @@ impl VoiceDictationGroup {
             output_problems: LatestSnapshot::default(),
             model_card: HoverFetchedSnapshot::default(),
             runtime: UnitSwitch::new(dictation_unit, SPEECH_RUNTIME),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -277,7 +280,7 @@ impl VoiceDictationGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, VoiceDictationMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VoiceDictationMessage> {
         let dictation = self.dictation.get();
         let engine = self.loaded_engine();
         let runtime_glyph =
@@ -326,16 +329,16 @@ impl VoiceDictationGroup {
         .face(self.handle_face())
     }
 
-    fn handle_face(&self) -> HandleFace<'_> {
+    fn handle_face(&self) -> WidgetGroupFace<'_> {
         let glyph = Phosphor::UserSound(Weight::Regular).into();
         let handle = GroupHandle::VoiceDictation;
         match self.dictation.display() {
-            Some(reading) => HandleFace::IconColoredBy {
+            Some(reading) => WidgetGroupFace::IconColoredBy {
                 glyph,
                 reading,
                 handle,
             },
-            None => HandleFace::Icon { glyph, handle },
+            None => WidgetGroupFace::Icon { glyph, handle },
         }
     }
 }

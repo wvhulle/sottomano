@@ -34,7 +34,7 @@ pub mod power_group;
 pub mod quiet_schedule_group;
 pub mod reachability_group;
 pub mod session_focus_group;
-pub mod session_menu;
+pub mod session_power_group;
 pub mod sidebar_settings_group;
 mod sqlite_shell_settings_row;
 pub mod storage_space_group;

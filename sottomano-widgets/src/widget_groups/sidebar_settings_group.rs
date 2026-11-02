@@ -19,7 +19,10 @@ use crate::{
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -88,7 +91,7 @@ impl From<SidebarSettingsTarget> for HoverTarget {
 
 #[derive(Debug, Clone)]
 pub enum SidebarSettingsMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     ToggleWorkspacesPlacement,
     ToggleEmptyWorkspaces,
     FoldSteppingReveal,
@@ -97,7 +100,7 @@ pub enum SidebarSettingsMessage {
 }
 
 pub struct SidebarSettingsGroup {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     workspaces_placement: WorkspacesPlacement,
     empty_workspace_folding: EmptyWorkspaceFolding,
     reveal_fold_timer: Option<task::Handle>,
@@ -107,7 +110,7 @@ pub struct SidebarSettingsGroup {
 impl Default for SidebarSettingsGroup {
     fn default() -> Self {
         Self {
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             workspaces_placement: WorkspacesPlacement::Sidebar,
             empty_workspace_folding: EmptyWorkspaceFolding::default(),
             reveal_fold_timer: None,
@@ -224,7 +227,7 @@ impl SidebarSettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, SidebarSettingsMessage> {
+    ) -> WidgetGroupContent<'a, SidebarSettingsMessage> {
         let sidebar_shown = self.workspaces_placement == WorkspacesPlacement::Sidebar;
         Self::expandable_group(
             &self.expansion,
@@ -245,7 +248,7 @@ impl SidebarSettingsGroup {
                     .flatten(),
             ),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::SidebarSimple(Weight::Regular).into(),
             handle: GroupHandle::SidebarSettings,
         })

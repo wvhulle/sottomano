@@ -22,7 +22,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -43,13 +45,13 @@ impl From<WallpaperTarget> for HoverTarget {
 pub struct WallpaperGroup {
     lookup: LatestSnapshot<Lookup>,
     unsplash_key: Option<PathBuf>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum WallpaperMessage {
     Lookup(Box<SnapshotDelivery<Lookup>>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for WallpaperGroup {
@@ -66,7 +68,7 @@ impl WallpaperGroup {
         Self {
             lookup: LatestSnapshot::default(),
             unsplash_key: secrets.unsplash_access_key.clone(),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -109,7 +111,7 @@ impl WallpaperGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, WallpaperMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
         Self::expandable_group(
             &self.expansion,

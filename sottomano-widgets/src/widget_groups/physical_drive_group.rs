@@ -27,7 +27,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -51,14 +53,14 @@ struct PhysicalDiskReadings {
     space: LatestSnapshot<DiskSpaceOccupancy>,
     activity: LatestSnapshot<DiskActivity>,
     drive_health: LatestSnapshot<DriveHealth>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
 pub struct PhysicalDriveGroup {
     discovery: LatestSnapshot<BlockFilesystemDiscovery>,
     disks: BTreeMap<KernelDevice, PhysicalDiskReadings>,
-    discovery_expansion: GroupExpansion,
+    discovery_expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -67,10 +69,10 @@ pub enum DriveMessage {
     DiskSpace(KernelDevice, Box<SnapshotDelivery<DiskSpaceOccupancy>>),
     DiskActivity(KernelDevice, SnapshotDelivery<DiskActivity>),
     DriveHealth(KernelDevice, SnapshotDelivery<DriveHealth>),
-    DiscoveryExpansion(ExpansionMessage),
+    DiscoveryExpansion(WidgetGroupExpansionMessage),
     DiskExpansion {
         disk: KernelDevice,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
@@ -232,7 +234,7 @@ impl PhysicalDriveGroup {
         &'a self,
         disk: &'a KernelDevice,
         readings: &'a PhysicalDiskReadings,
-    ) -> GroupContent<'a, DriveMessage> {
+    ) -> WidgetGroupContent<'a, DriveMessage> {
         let space_target = DriveTarget::Space(disk.name.clone());
         let space_item = match readings.space.get() {
             Some(occupancy) => Some(GroupItem::reading(
@@ -278,7 +280,7 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<GroupContent<'_, DriveMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, DriveMessage>> {
         let discovery_group = Self::expandable_group(
             &self.discovery_expansion,
             DriveMessage::DiscoveryExpansion,
@@ -291,7 +293,7 @@ impl PhysicalDriveGroup {
                     .iter()
                     .map(|(disk, readings)| self.disk_group(disk, readings)),
             )
-            .map(GroupContent::sharing_title_row)
+            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 

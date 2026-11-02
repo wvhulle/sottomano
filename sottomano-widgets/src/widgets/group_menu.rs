@@ -14,11 +14,11 @@ use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
 use self::{
     cascading_columns::{
-        CascadeEntry, CascadeLayout, cascading_columns, duplicate_group_titles,
+        GroupMenuGroupRow, GroupMenuRowContext, cascading_columns, duplicate_group_titles,
         merged_where_requested,
     },
     quantity_table::{QuantityTableColumn, quantity_table},
-    satellite_panels::SatellitePanels,
+    satellite_panels::CascadeSatellitePanels,
 };
 use crate::{
     clock::Clock,
@@ -27,7 +27,7 @@ use crate::{
         announcing_hoverable, tooltip_content::TooltipContent,
     },
     widget_groups::group_menus::{
-        GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry, PromotedGroup,
+        AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
     },
     widgets::{
         cascade_row::CascadeOrientation,
@@ -37,21 +37,22 @@ use crate::{
         shell_layer_appearance::LayerAppearance,
         tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
-            EdgeIndicator, GroupContent, GroupEvent, GroupTitle, GroupToastRequests, MenuMember,
+            EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, WidgetGroupContent,
+            WidgetGroupTitle,
         },
         window_icon::WindowAssets,
     },
 };
 
-pub struct GroupMenu<'a, M> {
+pub struct GroupMenuView<'a, M> {
     title: &'static str,
     glyph: IconGlyph,
-    group_menus: &'a GroupMenus,
-    messenger: MenuMessenger<'a, M>,
-    members: Vec<GroupContent<'a, M>>,
+    group_menus: &'a GroupMenuState,
+    messenger: GroupMenuMessenger<'a, M>,
+    groups: Vec<WidgetGroupContent<'a, M>>,
 }
 
-pub struct GroupMenuSurfaces<'a, Message> {
+pub struct GroupMenuCascadeSurfaces<'a, Message> {
     pub primary: Element<'a, Message>,
     pub satellites: Vec<Element<'a, Message>>,
 }
@@ -69,33 +70,33 @@ impl InspectionCard<'_, '_> {
     }
 }
 
-pub(super) struct MenuMessenger<'a, M> {
-    kind: GroupMenuKind,
+pub(super) struct GroupMenuMessenger<'a, M> {
+    topic: GroupMenuTopic,
     on_message: Rc<dyn Fn(GroupMenuMessage) -> M + 'a>,
 }
 
-impl<M> MenuMessenger<'_, M> {
+impl<M> GroupMenuMessenger<'_, M> {
     fn sent(&self, message: GroupMenuMessage) -> GroupEvent<M> {
         GroupEvent::Group((self.on_message)(message))
     }
 
-    pub(super) fn toggle_pin(&self, entry: PinnedEntry) -> GroupEvent<M> {
+    pub(super) fn toggle_pin(&self, entry: GroupMenuPin) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::TogglePin {
-            menu: self.kind,
+            menu: self.topic,
             entry,
         })
     }
 
     pub(super) fn inspect_member(&self, member: usize) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::InspectMember {
-            menu: self.kind,
+            menu: self.topic,
             member,
         })
     }
 
     pub(super) fn inspect_row(&self, row: InspectedRow) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::InspectRow {
-            menu: self.kind,
+            menu: self.topic,
             row,
         })
     }
@@ -103,23 +104,23 @@ impl<M> MenuMessenger<'_, M> {
 
 struct MenuSections<'a, M> {
     table_columns: Vec<QuantityTableColumn<'a, M>>,
-    cascade_entries: Vec<CascadeEntry<'a, M>>,
+    group_rows: Vec<GroupMenuGroupRow<'a, M>>,
 }
 
 impl<'a, M> MenuSections<'a, M> {
     fn empty() -> Self {
         Self {
             table_columns: Vec::new(),
-            cascade_entries: Vec::new(),
+            group_rows: Vec::new(),
         }
     }
 
-    fn with_member(mut self, member: MenuMember<'a, M>) -> Self {
-        let MenuMember {
+    fn with_member(mut self, member: GroupMenuRowParts<'a, M>) -> Self {
+        let GroupMenuRowParts {
             title_claim,
             face,
             aligned,
-            cascade_items,
+            item_rows,
         } = member;
         if !aligned.is_empty() {
             self.table_columns.push(QuantityTableColumn {
@@ -127,44 +128,44 @@ impl<'a, M> MenuSections<'a, M> {
                 aligned,
             });
         }
-        if !cascade_items.is_empty() {
-            self.cascade_entries.push(CascadeEntry {
+        if !item_rows.is_empty() {
+            self.group_rows.push(GroupMenuGroupRow {
                 title_claim,
                 face,
-                items: cascade_items,
+                items: item_rows,
             });
         }
         self
     }
 }
 
-impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
+impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     pub fn new(
-        kind: GroupMenuKind,
-        group_menus: &'a GroupMenus,
+        topic: GroupMenuTopic,
+        group_menus: &'a GroupMenuState,
         on_message: impl Fn(GroupMenuMessage) -> M + 'a,
-        members: impl IntoIterator<Item = GroupContent<'a, M>>,
+        groups: impl IntoIterator<Item = WidgetGroupContent<'a, M>>,
     ) -> Self {
         Self {
-            title: kind.title(),
-            glyph: kind.glyph().into(),
+            title: topic.title(),
+            glyph: topic.glyph().into(),
             group_menus,
-            messenger: MenuMessenger {
-                kind,
+            messenger: GroupMenuMessenger {
+                topic,
                 on_message: Rc::new(on_message),
             },
-            members: members.into_iter().collect(),
+            groups: groups.into_iter().collect(),
         }
     }
 
     #[must_use]
-    pub fn kind(&self) -> GroupMenuKind {
-        self.messenger.kind
+    pub fn topic(&self) -> GroupMenuTopic {
+        self.messenger.topic
     }
 
     #[must_use]
     pub fn toast_requests(&self, locale: Locale, clock: Clock) -> GroupToastRequests<M> {
-        self.members
+        self.groups
             .iter()
             .map(|member| member.toast_requests(locale, clock))
             .collect()
@@ -174,12 +175,12 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         &self,
         promotion_severity: Severity,
         clock: Clock,
-    ) -> impl Iterator<Item = PromotedGroup> {
-        let menu = self.messenger.kind;
-        self.members
+    ) -> impl Iterator<Item = AlertPromotedGroup> {
+        let menu = self.messenger.topic;
+        self.groups
             .iter()
             .filter(move |member| member.highest_alert_severity(clock) >= promotion_severity)
-            .map(move |member| PromotedGroup {
+            .map(move |member| AlertPromotedGroup {
                 menu,
                 group_title: member.group_title(),
             })
@@ -192,16 +193,16 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         clock: Clock,
     ) -> Element<'a, Outer> {
         let highest_alert_severity = self
-            .members
+            .groups
             .iter()
             .map(|member| member.highest_alert_severity(clock))
             .max()
             .unwrap_or_default();
         let handle = announcing_hoverable(
             self.glyph.view(config.theme.font.icon_size_px, text_color),
-            HoverTarget::GroupHandle(GroupHandle::GroupMenu(self.messenger.kind)),
+            HoverTarget::GroupHandle(GroupHandle::GroupMenu(self.messenger.topic)),
             HoverAnnouncement::from_group_handle(
-                GroupTitle::fixed(self.title),
+                WidgetGroupTitle::fixed(self.title),
                 PressHints::default(),
             ),
             GroupEvent::Tooltip,
@@ -225,19 +226,19 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
     ) -> impl Iterator<Item = Option<Element<'a, Outer>>> + 'a {
         let handle_slot = self.handle_view(config, bar_position, clock);
         let promotion_severity = config.panel_bar.group_menu_promotion_severity;
-        let kind = self.messenger.kind;
+        let topic = self.messenger.topic;
         let group_menus = self.group_menus;
-        once(Some(handle_slot)).chain(self.members.into_iter().flat_map(move |member| {
-            let group_entry = PinnedEntry::Group {
+        once(Some(handle_slot)).chain(self.groups.into_iter().flat_map(move |member| {
+            let group_entry = GroupMenuPin::Group {
                 group_title: member.group_title(),
             };
-            if group_menus.is_pinned(kind, group_entry) {
-                return vec![member.pinned_from(kind).view(config, bar_position, clock)];
+            if group_menus.is_pinned(topic, group_entry) {
+                return vec![member.pinned_from(topic).view(config, bar_position, clock)];
             }
             if member.highest_alert_severity(clock) >= promotion_severity {
                 return vec![member.view(config, bar_position, clock)];
             }
-            member.pinned_item_views(group_menus, kind, config, bar_position, clock)
+            member.pinned_item_views(group_menus, topic, config, bar_position, clock)
         }))
     }
 
@@ -248,19 +249,19 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         appearance: &LayerAppearance,
         card: &InspectionCard<'_, 'a>,
         orientation: CascadeOrientation,
-    ) -> Option<GroupMenuSurfaces<'a, Outer>> {
-        let GroupMenu {
+    ) -> Option<GroupMenuCascadeSurfaces<'a, Outer>> {
+        let GroupMenuView {
             group_menus,
             messenger,
-            members,
+            groups,
             ..
         } = self;
         let duplicate_titles =
-            duplicate_group_titles(members.iter().filter_map(GroupContent::title_claim));
+            duplicate_group_titles(groups.iter().filter_map(WidgetGroupContent::title_claim));
         if !duplicate_titles.is_empty() {
             tracing::error!(
                 "{} menu has groups sharing a title without requesting it: {duplicate_titles:?}",
-                messenger.kind.title()
+                messenger.topic.title()
             );
             debug_assert!(
                 duplicate_titles.is_empty(),
@@ -269,27 +270,27 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         }
         let MenuSections {
             table_columns,
-            cascade_entries,
-        } = members
+            group_rows,
+        } = groups
             .into_iter()
             .filter(|member| {
-                let group_entry = PinnedEntry::Group {
+                let group_entry = GroupMenuPin::Group {
                     group_title: member.group_title(),
                 };
-                !group_menus.is_pinned(messenger.kind, group_entry)
+                !group_menus.is_pinned(messenger.topic, group_entry)
             })
             .filter_map(|member| {
-                member.menu_member(config, card.clock, group_menus, messenger.kind)
+                member.menu_member(config, card.clock, group_menus, messenger.topic)
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| {
             Element::from(container(table).padding(config.layout.overlay.content_inset))
                 .map(Outer::from)
         });
-        let satellite_panels = SatellitePanels::new(appearance, config, orientation);
+        let satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);
         let cascade = cascading_columns(
-            merged_where_requested(cascade_entries),
-            &CascadeLayout {
+            merged_where_requested(group_rows),
+            &GroupMenuRowContext {
                 config,
                 direction: orientation.direction,
                 menu: &messenger,
@@ -300,12 +301,12 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
         );
         match (table, cascade) {
             (None, None) => None,
-            (Some(table), None) => Some(GroupMenuSurfaces {
+            (Some(table), None) => Some(GroupMenuCascadeSurfaces {
                 primary: table,
                 satellites: Vec::new(),
             }),
             (None, Some(cascade)) => Some(cascade),
-            (Some(table), Some(cascade)) => Some(GroupMenuSurfaces {
+            (Some(table), Some(cascade)) => Some(GroupMenuCascadeSurfaces {
                 primary: Column::with_children([table, cascade.primary]).into(),
                 satellites: cascade.satellites,
             }),

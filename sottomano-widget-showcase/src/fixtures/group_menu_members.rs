@@ -6,7 +6,7 @@ use crate::{
     showcased_group::ShowcasedGroup,
 };
 
-pub fn media_menu(clock: Clock) -> ShowcasedGroup {
+pub fn media_group_menu(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::MenuMembers(vec![
         media::group(clock),
         audio::group(clock),
@@ -15,7 +15,7 @@ pub fn media_menu(clock: Clock) -> ShowcasedGroup {
     ])
 }
 
-pub fn hardware_menu(clock: Clock) -> ShowcasedGroup {
+pub fn hardware_group_menu(clock: Clock) -> ShowcasedGroup {
     ShowcasedGroup::MenuMembers(vec![compute::group(clock), memory_board::group(clock)])
 }
 

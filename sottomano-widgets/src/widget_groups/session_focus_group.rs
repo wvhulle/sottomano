@@ -42,7 +42,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         ongoing_toast::OngoingToastActionButton,
         tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -69,7 +71,7 @@ pub struct WarningSnooze {
 pub struct SessionFocusGroup {
     tracker: FocusTracker,
     snooze: Option<WarningSnooze>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     daily_totals: DailyTotalsGauge,
 }
 
@@ -78,7 +80,7 @@ pub enum SessionFocusMessage {
     Tracker(TrackerMessage),
     BreakStarted(SessionAction),
     WarningSnoozed,
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for SessionFocusGroup {
@@ -93,7 +95,7 @@ impl SessionFocusGroup {
         Self {
             tracker,
             snooze: None,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             daily_totals,
         }
     }
@@ -265,7 +267,7 @@ impl SessionFocusGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, SessionFocusMessage> {
+    ) -> WidgetGroupContent<'a, SessionFocusMessage> {
         let session = GroupItem::reading(self.session_face(config), SessionFocusTarget::Session)
             .ongoing_toast_action_buttons([
                 OngoingToastActionButton {

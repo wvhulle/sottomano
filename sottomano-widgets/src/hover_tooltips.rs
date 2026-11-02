@@ -27,7 +27,7 @@ use crate::{
         ethernet_ports_group::EthernetPortTarget,
         gamepad_group::GamepadTarget,
         gpu_group::GpuTarget,
-        group_menus::{GroupMenuKind, PinnedEntry},
+        group_menus::{GroupMenuPin, GroupMenuTopic},
         journal_events_group::JournalTarget,
         llama_server_group::LlamaServerTarget,
         login_session_group::LoginSessionTarget,
@@ -46,7 +46,7 @@ use crate::{
         quiet_schedule_group::QuietScheduleTarget,
         reachability_group::ReachabilityTarget,
         session_focus_group::SessionFocusTarget,
-        session_menu::SessionTarget,
+        session_power_group::SessionTarget,
         sidebar_settings_group::SidebarSettingsTarget,
         storage_space_group::StorageTarget,
         systemd_manager_group::SystemdTarget,
@@ -59,7 +59,7 @@ use crate::{
     },
     widgets::{
         phosphor::{Phosphor, Weight},
-        widget_group::GroupTitle,
+        widget_group::WidgetGroupTitle,
     },
 };
 
@@ -120,7 +120,7 @@ pub enum GroupHandle {
     Audio,
     Caldav,
     ClaudeUsage,
-    GroupMenu(GroupMenuKind),
+    GroupMenu(GroupMenuTopic),
     ColorTemperature,
     CopilotUsage,
     DarkMode,
@@ -217,18 +217,18 @@ pub enum HoverOrigin {
     #[default]
     Reading,
     GroupHandle {
-        group_title: Box<GroupTitle>,
-        panel_pin: PanelPin,
+        group_title: Box<WidgetGroupTitle>,
+        panel_pin: PanelPinOrigin,
     },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum PanelPin {
+pub enum PanelPinOrigin {
     #[default]
     Unpinned,
-    GroupPinnedFrom(GroupMenuKind),
+    GroupPinnedFrom(GroupMenuTopic),
     ItemPinnedFrom {
-        menu: GroupMenuKind,
+        menu: GroupMenuTopic,
         item_name: &'static str,
     },
 }
@@ -249,18 +249,18 @@ impl HoverAnnouncement {
     }
 
     #[must_use]
-    pub fn from_group_handle(group_title: GroupTitle, press_hints: PressHints) -> Self {
+    pub fn from_group_handle(group_title: WidgetGroupTitle, press_hints: PressHints) -> Self {
         HoverAnnouncement {
             press_hints,
             origin: HoverOrigin::GroupHandle {
                 group_title: Box::new(group_title),
-                panel_pin: PanelPin::Unpinned,
+                panel_pin: PanelPinOrigin::Unpinned,
             },
         }
     }
 
     #[must_use]
-    pub fn pinned_by(self, panel_pin: PanelPin) -> Self {
+    pub fn pinned_by(self, panel_pin: PanelPinOrigin) -> Self {
         match self.origin {
             HoverOrigin::GroupHandle { group_title, .. } => HoverAnnouncement {
                 origin: HoverOrigin::GroupHandle {
@@ -320,8 +320,8 @@ pub enum PopupMessage {
     RefreshHoveredReading,
     WindowGroup(WindowGroupMessage),
     ToggleGroupMenuPin {
-        menu: GroupMenuKind,
-        entry: PinnedEntry,
+        menu: GroupMenuTopic,
+        entry: GroupMenuPin,
     },
 }
 

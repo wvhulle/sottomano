@@ -24,7 +24,9 @@ use crate::{
     hover_tooltips::{GroupHandle, HoverTarget},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
@@ -39,7 +41,8 @@ use crate::{
         weather_icons::WeatherIcon,
         weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
         widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupFace,
         },
     },
 };
@@ -82,7 +85,7 @@ pub enum QuietScheduleMessage {
     ToggleQuietNow,
     ToggleFollowsSchedule,
     Slider(QuietSlider, ControlMessage),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,7 +120,7 @@ pub struct QuietScheduleGroup {
     manual: Option<ManualOverride>,
     phase: Phase,
     armed_edge: Option<ArmedEdge>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 impl Default for QuietScheduleGroup {
@@ -150,7 +153,7 @@ impl Default for QuietScheduleGroup {
             manual: None,
             phase: Phase::Inactive,
             armed_edge: None,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         };
         quiet_schedule_group.adopt_schedule(defaults);
         quiet_schedule_group
@@ -496,7 +499,7 @@ impl QuietScheduleGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, QuietScheduleMessage> {
+    ) -> WidgetGroupContent<'a, QuietScheduleMessage> {
         let slider = |slider| {
             GroupItem::slider(
                 self.slider(slider),
@@ -517,14 +520,14 @@ impl QuietScheduleGroup {
                 slider(QuietSlider::End),
                 slider(QuietSlider::ScreenOff),
                 GroupItem::composed(
-                    ItemIdentity {
+                    ComposedGroupItemFace {
                         name: "Working days".into(),
-                        icon: ItemIcon::Absent,
+                        icon: GroupItemIcon::Absent,
                     },
-                    ItemHover::ByChildren {
+                    GroupItemHoverArea::ByChildren {
                         row_target: QuietScheduleTarget::WorkingDays.into(),
                     },
-                    ItemValue::drawn(move |reveal| {
+                    GroupItemValue::drawn(move |reveal| {
                         WeekdayPicker::new(
                             config,
                             self.working_days(),
@@ -546,7 +549,7 @@ impl QuietScheduleGroup {
                 ),
             ],
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: self.face_icon().into(),
             handle: GroupHandle::QuietSchedule,
         })

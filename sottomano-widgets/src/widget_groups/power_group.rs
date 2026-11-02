@@ -35,7 +35,10 @@ use crate::{
         ongoing_toast::OngoingToastActionButton,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -61,7 +64,7 @@ pub struct PowerGroup {
     power_profile: PowerProfileControl,
     charger: HoverFetchedSnapshot<ChargerSupply>,
     cpu_tuning: HoverFetchedSnapshot<CpuTuning>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +74,7 @@ pub enum PowerMessage {
     CpuTuningFetched(SnapshotDelivery<CpuTuning>),
     ChargeCurveLoaded(CurveLoaded),
     PowerProfile(PowerProfileMessage),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for PowerGroup {
@@ -220,7 +223,7 @@ impl PowerGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, PowerMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, PowerMessage> {
         let switch_to_saving_profiles =
             self.power_profile
                 .profiles_saving_more_power()
@@ -253,7 +256,7 @@ impl PowerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Lightning(Weight::Regular).into(),
             handle: GroupHandle::Power,
         })

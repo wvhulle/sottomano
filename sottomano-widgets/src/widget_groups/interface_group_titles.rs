@@ -1,6 +1,6 @@
 use sottomano_sources::network_connectivity::interface_bus_attachment::InterfaceAttachment;
 
-use crate::widgets::widget_group::GroupTitle;
+use crate::widgets::widget_group::WidgetGroupTitle;
 
 #[derive(Debug, Clone, Copy)]
 pub struct AttachmentTitles {
@@ -10,10 +10,10 @@ pub struct AttachmentTitles {
 
 impl AttachmentTitles {
     #[must_use]
-    pub fn sibling_titles(self) -> Vec<GroupTitle> {
+    pub fn sibling_titles(self) -> Vec<WidgetGroupTitle> {
         [self.built_in, self.usb]
             .into_iter()
-            .flat_map(GroupTitle::numbered_siblings)
+            .flat_map(WidgetGroupTitle::numbered_siblings)
             .collect()
     }
 
@@ -27,7 +27,7 @@ impl AttachmentTitles {
     pub fn group_titles(
         self,
         attachments: impl IntoIterator<Item = InterfaceAttachment>,
-    ) -> Vec<GroupTitle> {
+    ) -> Vec<WidgetGroupTitle> {
         let attachments: Vec<InterfaceAttachment> = attachments.into_iter().collect();
         attachments
             .iter()
@@ -37,7 +37,7 @@ impl AttachmentTitles {
                     .iter()
                     .filter(|earlier_attachment| *earlier_attachment == attachment)
                     .count();
-                GroupTitle::numbered_from_second(
+                WidgetGroupTitle::numbered_from_second(
                     self.base_title(*attachment),
                     earlier_with_attachment,
                 )

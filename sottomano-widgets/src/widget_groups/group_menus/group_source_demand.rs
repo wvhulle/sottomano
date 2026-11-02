@@ -3,7 +3,7 @@ use iced::Subscription;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum GroupSurface {
     Hidden,
-    HandleFace,
+    WidgetGroupFace,
     AllRows,
 }
 
@@ -17,7 +17,7 @@ impl<'a> GroupSourceDemand<'a> {
     #[must_use]
     pub const fn on_bar() -> Self {
         Self {
-            surface: GroupSurface::HandleFace,
+            surface: GroupSurface::WidgetGroupFace,
             pinned_item_names: Vec::new(),
         }
     }
@@ -30,7 +30,7 @@ impl<'a> GroupSourceDemand<'a> {
         let surface = if menu_open {
             GroupSurface::AllRows
         } else if on_bar {
-            GroupSurface::HandleFace
+            GroupSurface::WidgetGroupFace
         } else {
             GroupSurface::Hidden
         };
@@ -42,7 +42,7 @@ impl<'a> GroupSourceDemand<'a> {
 
     #[must_use]
     pub fn expanded_when(mut self, expanded: bool) -> Self {
-        if expanded && self.surface == GroupSurface::HandleFace {
+        if expanded && self.surface == GroupSurface::WidgetGroupFace {
             self.surface = GroupSurface::AllRows;
         }
         self

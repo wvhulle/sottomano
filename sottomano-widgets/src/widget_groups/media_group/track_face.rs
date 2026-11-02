@@ -11,7 +11,9 @@ use super::{
 };
 use crate::widgets::{
     gauge::Gauge,
-    group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+    group_item::{
+        ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+    },
     icon_glyph::IconGlyph,
     icon_handle::IconHandle,
     phosphor::{Phosphor, Weight},
@@ -35,19 +37,19 @@ pub(super) fn track_item<'a>(
 ) -> GroupItem<'a, MediaMessage> {
     let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
     let icon = cover_art.map_or_else(
-        || ItemIcon::IconGlyph {
+        || GroupItemIcon::IconGlyph {
             glyph: Phosphor::VinylRecord(Weight::Regular).into(),
             state: playback_state(media),
         },
-        |art| ItemIcon::Image(art.clone()),
+        |art| GroupItemIcon::Image(art.clone()),
     );
     let track = GroupItem::composed(
-        ItemIdentity {
+        ComposedGroupItemFace {
             name: "Track".into(),
             icon,
         },
-        ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Track).into()),
-        ItemValue::drawn(move |reveal| {
+        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Track).into()),
+        GroupItemValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
                     ReadingStateTint {
@@ -79,8 +81,8 @@ pub(super) fn player_item<'a>(
     let state = playback_state(media);
     let glyph = SimpleIcon::titled(&media.identity)
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);
-    let value = gauge_fraction.map_or(ItemValue::Nothing, |fraction| {
-        ItemValue::drawn(move |reveal| {
+    let value = gauge_fraction.map_or(GroupItemValue::Nothing, |fraction| {
+        GroupItemValue::drawn(move |reveal| {
             let tint = ReadingStateTint {
                 state,
                 opacity: reveal,
@@ -89,11 +91,11 @@ pub(super) fn player_item<'a>(
         })
     });
     GroupItem::composed(
-        ItemIdentity {
+        ComposedGroupItemFace {
             name: "Player".into(),
-            icon: ItemIcon::IconGlyph { glyph, state },
+            icon: GroupItemIcon::IconGlyph { glyph, state },
         },
-        ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Player).into()),
+        GroupItemHoverArea::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Player).into()),
         value,
     )
 }

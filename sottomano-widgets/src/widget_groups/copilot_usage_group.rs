@@ -27,7 +27,10 @@ use crate::{
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -60,7 +63,7 @@ pub struct CopilotUsageGroup {
     free: LatestSnapshot<CopilotFree>,
     cli: LatestSnapshot<CopilotCcusage>,
     gh_auth_token: Option<PathBuf>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +71,7 @@ pub enum CopilotUsageMessage {
     Metered(SnapshotDelivery<CopilotMetered>),
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for CopilotUsageGroup {
@@ -87,7 +90,7 @@ impl CopilotUsageGroup {
             free: LatestSnapshot::default(),
             cli: LatestSnapshot::default(),
             gh_auth_token,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -182,7 +185,7 @@ impl CopilotUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, CopilotUsageMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, CopilotUsageMessage> {
         Self::expandable_group(
             &self.expansion,
             CopilotUsageMessage::Expansion,
@@ -205,7 +208,7 @@ impl CopilotUsageGroup {
                 ]
             })),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::GitHubCopilot.into(),
             handle: GroupHandle::CopilotUsage,
         })

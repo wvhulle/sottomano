@@ -35,7 +35,10 @@ use crate::{
         simple_icons::SimpleIcon,
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         value_cells::{LabeledValue, ValueCell},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -80,7 +83,7 @@ pub struct ClaudeUsageGroup {
     ccusage_models: LatestSnapshot<ClaudeCcusageModels, HidesFetchFailures>,
     oauth_credentials: Option<PathBuf>,
     organization: HoverFetchedSnapshot<ClaudeOrganization>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -91,7 +94,7 @@ pub enum ClaudeUsageMessage {
     CcusagePeriods(SnapshotDelivery<ClaudeCcusagePeriods>),
     CcusageBlock(SnapshotDelivery<ClaudeCcusageBlock>),
     CcusageModels(SnapshotDelivery<ClaudeCcusageModels>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for ClaudeUsageGroup {
@@ -113,7 +116,7 @@ impl ClaudeUsageGroup {
             ccusage_models: LatestSnapshot::default(),
             oauth_credentials,
             organization: HoverFetchedSnapshot::default(),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -311,7 +314,7 @@ impl ClaudeUsageGroup {
         )
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, ClaudeUsageMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ClaudeUsageMessage> {
         Self::expandable_group(
             &self.expansion,
             ClaudeUsageMessage::Expansion,
@@ -338,7 +341,7 @@ impl ClaudeUsageGroup {
                 )
             })),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::Claude.into(),
             handle: GroupHandle::ClaudeUsage,
         })

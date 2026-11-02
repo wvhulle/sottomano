@@ -16,7 +16,7 @@ use sottomano_widgets::{
         media_group::{self, MediaMessage},
         overlay_settings_group::{self, OverlaySettingsMessage},
         panel_settings_group::{self, PanelSettingsMessage},
-        session_menu::{self, SessionMessage},
+        session_power_group::{self, SessionMessage},
         tray_group::{self, TrayMessage},
         window_group::{self, WindowGroupMessage, window_list},
     },
@@ -132,9 +132,9 @@ impl DesktopShell {
     }
 
     pub(super) fn update_session(&mut self, msg: SessionMessage) -> Task<Message> {
-        match self.widget_groups.session_menu.update(msg) {
-            session_menu::Action::Run(task) => task.map(Message::Session),
-            session_menu::Action::Performed(task) => {
+        match self.widget_groups.session_power_group.update(msg) {
+            session_power_group::Action::Run(task) => task.map(Message::Session),
+            session_power_group::Action::Performed(task) => {
                 Task::batch([self.dismiss_tooltip(), task.map(Message::Session)])
             }
         }
