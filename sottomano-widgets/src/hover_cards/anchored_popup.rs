@@ -97,7 +97,7 @@ pub fn anchored_popup<'a, Message: 'a>(
         panel_thickness: config.desktop_panels.height,
         popup_gap: config.theme.spacing.group_gap,
         leading_icon_center: config.theme.spacing.surface_inset
-            + config.desktop_panels.height / 2.0,
+            + config.theme.font.icon_size_px / 2.0,
         position,
         morph,
         frame: overlay_frame,

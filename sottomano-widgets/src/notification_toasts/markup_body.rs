@@ -4,14 +4,17 @@ use iced::{
     border,
     font::{Style as FontStyle, Weight},
     widget::{
-        Column, Space, container, rich_text, span, table,
+        Column, container, rich_text, span,
         text::{Span, Wrapping},
     },
 };
 use quick_xml::{Reader, escape::resolve_xml_entity, events::Event, name::LocalName};
 use sottomano_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::{FontFaces, LINE_HEIGHT};
+use crate::widgets::{
+    content_sized_table::content_sized_grid,
+    text::{FontFaces, LINE_HEIGHT},
+};
 
 pub struct MarkupBody<'a> {
     markup: &'a str,
@@ -107,37 +110,37 @@ impl<'a> MarkupBody<'a> {
 
     fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
         let upright_face = FontFaces::from(self.font).regular;
-        let key_column = table::column(Space::new(), move |row: Row<'static>| {
-            let italic_key: Vec<_> = row
-                .key
-                .into_iter()
-                .map(|styled| {
-                    let face = styled.font.unwrap_or(upright_face);
-                    styled.font(Font {
-                        style: FontStyle::Italic,
-                        ..face
+        content_sized_grid(
+            vec![Horizontal::Right, Horizontal::Left],
+            rows.into_iter().map(|row| {
+                let italic_key: Vec<_> = row
+                    .key
+                    .into_iter()
+                    .map(|styled| {
+                        let face = styled.font.unwrap_or(upright_face);
+                        styled.font(Font {
+                            style: FontStyle::Italic,
+                            ..face
+                        })
                     })
-                })
-                .collect();
-            rich_text(italic_key)
-                .line_height(LINE_HEIGHT)
-                .wrapping(Wrapping::None)
-        })
-        .align_x(Horizontal::Right)
-        .align_y(Vertical::Top);
-        let value_column = table::column(Space::new(), |row: Row<'static>| {
-            rich_text(row.value)
-                .line_height(LINE_HEIGHT)
-                .wrapping(Wrapping::WordOrGlyph)
-                .width(Length::Fill)
-        })
-        .width(Length::Fill)
-        .align_y(Vertical::Top);
-        table::table([key_column, value_column], rows)
-            .separator(0.0)
-            .padding_x(self.column_gap / 2.0)
-            .padding_y(self.block_spacing / 2.0)
-            .into()
+                    .collect();
+                vec![
+                    rich_text(italic_key)
+                        .line_height(LINE_HEIGHT)
+                        .wrapping(Wrapping::None)
+                        .into(),
+                    rich_text(row.value)
+                        .line_height(LINE_HEIGHT)
+                        .wrapping(Wrapping::WordOrGlyph)
+                        .width(Length::Fill)
+                        .into(),
+                ]
+            }),
+        )
+        .column_gap(self.column_gap)
+        .row_gap(self.block_spacing)
+        .cells_aligned_y(Vertical::Top)
+        .into()
     }
 }
 

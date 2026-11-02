@@ -273,7 +273,7 @@ impl<'s> WorkspaceSlot<'s> {
         let PanelSlotContext { config, edge, .. } = self.slot_context;
         let panel_slot = PanelSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
-            .spaced_by(config.theme.spacing.item_gap)
+            .padded_along_panel(config.theme.spacing.item_gap)
             .view(edge);
         self.hit_area(
             container(panel_slot)

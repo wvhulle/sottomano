@@ -21,7 +21,7 @@ pub struct PanelSlot<'a, Message> {
     content: Element<'a, Message>,
     indicator: Element<'a, Message>,
     ticks: Option<Element<'a, Message>>,
-    gap_to_neighbours: f32,
+    along_panel_padding: f32,
 }
 
 impl<'a, Message: 'a> PanelSlot<'a, Message> {
@@ -31,7 +31,7 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
             content,
             indicator,
             ticks: None,
-            gap_to_neighbours: 0.0,
+            along_panel_padding: 0.0,
         }
     }
 
@@ -42,8 +42,8 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
     }
 
     #[must_use]
-    pub fn spaced_by(mut self, gap_to_neighbours: f32) -> Self {
-        self.gap_to_neighbours = gap_to_neighbours;
+    pub fn padded_along_panel(mut self, along_panel_padding: f32) -> Self {
+        self.along_panel_padding = along_panel_padding;
         self
     }
 
@@ -54,13 +54,12 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
             content,
             indicator,
             ticks,
-            gap_to_neighbours,
+            along_panel_padding,
         } = self;
-        let half_gap = gap_to_neighbours / 2.0;
         let share_of_gap = if position.is_vertical() {
-            Padding::ZERO.vertical(half_gap)
+            Padding::ZERO.vertical(along_panel_padding)
         } else {
-            Padding::ZERO.horizontal(half_gap)
+            Padding::ZERO.horizontal(along_panel_padding)
         };
         match position {
             Position::Bottom => stacked([

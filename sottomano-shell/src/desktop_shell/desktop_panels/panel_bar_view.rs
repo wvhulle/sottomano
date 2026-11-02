@@ -143,13 +143,10 @@ impl DesktopShell {
                 return group;
             }
             panel_frame(
-                container(group)
+                container(container(group).padding([0.0, config.theme.spacing.item_gap]))
                     .height(Length::Fixed(config.desktop_panels.height))
                     .align_y(Vertical::Center)
-                    .padding([
-                        0.0,
-                        panels.frame_corner_inset() + config.theme.spacing.item_gap,
-                    ]),
+                    .padding([0.0, panels.frame_corner_inset()]),
                 frame_style,
             )
             .outlined_sides(outlined_sides)
