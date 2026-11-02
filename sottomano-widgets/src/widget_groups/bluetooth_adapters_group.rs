@@ -34,6 +34,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::widget_group_content::{
         WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupTitle,
     },
     widgets::{
         input_report_sections::MeasuredReportTiming,
@@ -76,6 +77,15 @@ pub enum BluetoothMessage {
 #[derive(Default)]
 struct AdapterSession {
     expansion: WidgetGroupExpansion,
+}
+
+fn adapter_group_title(naming: AdapterNaming) -> WidgetGroupTitle {
+    match naming {
+        AdapterNaming::SoleAdapter => WidgetGroupTitle::fixed(BluetoothAdaptersGroup::TITLE),
+        AdapterNaming::OneOfSeveral { label } => {
+            WidgetGroupTitle::Named(format!("{} {label}", BluetoothAdaptersGroup::TITLE).into())
+        }
+    }
 }
 
 #[derive(Default)]
@@ -308,7 +318,8 @@ impl BluetoothAdaptersGroup {
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
-        Some(Self::expandable_group(
+        Some(Self::expandable_group_titled(
+            adapter_group_title(self.adapter_naming(adapter)),
             &session.expansion,
             move |expansion| BluetoothMessage::Expansion {
                 controller_name: controller_name.clone(),
@@ -330,7 +341,33 @@ impl BluetoothAdaptersGroup {
             .unwrap_or_default()
             .iter()
             .filter_map(|adapter| self.adapter_group(adapter, report_timing_for, clock))
-            .map(WidgetGroupContent::sharing_title_row)
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{AdapterNaming, BluetoothAdaptersGroup, WidgetGroup, adapter_group_title};
+
+    fn one_of_several(label: &str) -> AdapterNaming {
+        AdapterNaming::OneOfSeveral {
+            label: label.to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_sole_adapter_keeps_the_plain_title() {
+        assert_eq!(
+            adapter_group_title(AdapterNaming::SoleAdapter).to_string(),
+            BluetoothAdaptersGroup::TITLE
+        );
+    }
+
+    #[test]
+    fn each_of_several_adapters_gets_its_own_row_title() {
+        assert_ne!(
+            adapter_group_title(one_of_several("hci0")),
+            adapter_group_title(one_of_several("hci1"))
+        );
     }
 }

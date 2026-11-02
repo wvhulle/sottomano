@@ -29,6 +29,7 @@ use crate::{
     },
     widget_groups::widget_group_content::{
         WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupTitle,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -127,6 +128,10 @@ impl GroupItemReading for MountPointLabel<'_> {
             .chain(sharing_entry),
         )
     }
+}
+
+fn mount_group_title(primary_mount_point: &Path) -> WidgetGroupTitle {
+    WidgetGroupTitle::Named(primary_mount_point.display().to_string().into())
 }
 
 struct MountedFilesystem {
@@ -268,7 +273,8 @@ impl StorageSpaceGroup {
                 })
         });
         let owned_mount_point = primary_mount_point.to_path_buf();
-        Self::expandable_group(
+        Self::expandable_group_titled(
+            mount_group_title(primary_mount_point),
             &filesystem.expansion,
             move |expansion| StorageMessage::MountExpansion {
                 mount_point: owned_mount_point.clone(),
@@ -292,7 +298,6 @@ impl StorageSpaceGroup {
         [discovery_group]
             .into_iter()
             .chain(self.filesystems.values().map(Self::mount_group))
-            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 
@@ -324,5 +329,21 @@ impl StorageSpaceGroup {
                 )
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::mount_group_title;
+
+    #[test]
+    fn each_filesystem_gets_its_own_row_titled_by_its_mount_point() {
+        assert_eq!(mount_group_title(Path::new("/home")).to_string(), "/home");
+        assert_ne!(
+            mount_group_title(Path::new("/")),
+            mount_group_title(Path::new("/home"))
+        );
     }
 }

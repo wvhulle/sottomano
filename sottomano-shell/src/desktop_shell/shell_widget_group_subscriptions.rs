@@ -21,7 +21,6 @@ use sottomano_widgets::{
         mobile_modems_group::MobileModemsGroup,
         monitor_group::MonitorGroup,
         pending_upgrades_group::PendingUpgradesGroup,
-        physical_drive_group::PhysicalDriveGroup,
         power_group::PowerGroup,
         quiet_schedule_group::QuietScheduleGroup,
         reachability_group::ReachabilityGroup,
@@ -81,7 +80,7 @@ impl ShellWidgetGroups {
                     &config.widget_groups.physical_drive.temperature_sensors,
                     self.group_menus.source_demand(
                         GroupMenuTopic::Hardware,
-                        &[WidgetGroupTitle::fixed(PhysicalDriveGroup::TITLE)],
+                        &self.physical_drive_group.group_titles(),
                     ),
                 )
                 .map(Message::Drive),
