@@ -11,10 +11,12 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     group_menus::{
+        accordion_layout::accordion_sections::accordion_sections,
         cascading_layout::{
             cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
             cascading_columns::cascading_columns,
         },
+        group_menu_presentation::GroupMenuLayout,
         group_menu_state::{
             AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
             OpenGroupMenu,
@@ -94,6 +96,17 @@ impl<M> GroupMenuMessenger<M> {
             menu: self.topic,
             group_identity,
         })
+    }
+
+    pub(crate) fn scroll_message(&self) -> impl Fn(f32) -> GroupEvent<M> + use<M> {
+        let on_message = self.on_message;
+        let menu = self.topic;
+        move |scrolled_px| {
+            GroupEvent::Group(on_message(GroupMenuMessage::MenuScrolled {
+                menu,
+                scrolled_px,
+            }))
+        }
     }
 
     pub(crate) fn toggle_row_card(&self, target: HoverTarget) -> GroupEvent<M> {
@@ -302,18 +315,19 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 .map(Outer::from)
         });
         let cascade_satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);
-        let cascade = cascading_columns(
-            one_row_per_identity(group_rows),
-            &GroupMenuRowContext {
-                config,
-                direction: orientation.direction,
-                presentation: group_menus.presentation(),
-                menu: &messenger,
-                group_menus,
-                cascade_satellite_panels: &cascade_satellite_panels,
-            },
-            card,
-        );
+        let row_context = GroupMenuRowContext {
+            config,
+            direction: orientation.direction,
+            presentation: group_menus.presentation(),
+            menu: &messenger,
+            group_menus,
+            cascade_satellite_panels: &cascade_satellite_panels,
+        };
+        let group_rows = one_row_per_identity(group_rows);
+        let cascade = match row_context.presentation.layout {
+            GroupMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
+            GroupMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
+        };
         match (table, cascade) {
             (None, None) => None,
             (Some(table), None) => Some(GroupMenuCascadeSurfaces {

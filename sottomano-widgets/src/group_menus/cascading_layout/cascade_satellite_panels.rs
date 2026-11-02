@@ -16,7 +16,7 @@ use crate::{
 
 pub(crate) struct CascadeSatellitePanels {
     notch_side: NotchSide,
-    growth: PanelGrowth,
+    pub growth: PanelGrowth,
     frame: LayerFrameStyle,
     blurred: bool,
     morph: Duration,

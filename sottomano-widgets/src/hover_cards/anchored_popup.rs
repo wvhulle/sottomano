@@ -235,7 +235,7 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
             Size::ZERO,
             Size::new(
                 primary.width + room_beside.max(0.0),
-                room_along_growth.max(primary.height),
+                room_along_growth.max(0.0),
             ),
         )
     }
