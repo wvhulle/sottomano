@@ -404,7 +404,6 @@ impl ShowcasedGroup {
             ShowcasedGroup::Wallpaper(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
             }
-            ShowcasedGroup::AppearancePresets(_) => Vec::new(),
             ShowcasedGroup::Audio(group) => {
                 vec![group.group_content(config).map(ShowcaseMessage::Audio)]
             }
@@ -433,7 +432,8 @@ impl ShowcasedGroup {
                 .flat_map(|member| member.group_contents(config, clock))
                 .collect(),
             ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config),
-            ShowcasedGroup::BottomPanel(_)
+            ShowcasedGroup::AppearancePresets(_)
+            | ShowcasedGroup::BottomPanel(_)
             | ShowcasedGroup::WorkspaceSidebar(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
