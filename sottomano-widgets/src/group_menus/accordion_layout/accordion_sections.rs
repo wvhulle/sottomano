@@ -1,6 +1,6 @@
 use std::{iter::once, mem::take};
 
-use iced::{Element, widget::Column};
+use iced::Element;
 
 use crate::{
     group_menus::{
@@ -147,7 +147,7 @@ pub(crate) fn accordion_sections<
                 PanelGrowth::Downward => once(header).chain(item_views).collect(),
                 PanelGrowth::Upward => item_views.chain(once(header)).collect(),
             };
-            Column::with_children(rows).into()
+            uniform_width_column(rows).into()
         })
         .collect();
     let scroll_message = layout.menu.scroll_message();
