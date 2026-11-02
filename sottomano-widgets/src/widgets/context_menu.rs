@@ -25,7 +25,7 @@ pub enum Trailing {
     Submenu { open: bool },
 }
 
-pub struct MenuRow<'a, M> {
+pub struct ContextMenuRow<'a, M> {
     pub leading: Option<Element<'a, M>>,
     pub label: Option<String>,
     pub trailing: Trailing,
@@ -34,8 +34,8 @@ pub struct MenuRow<'a, M> {
     pub on_press: Option<M>,
 }
 
-pub enum MenuLine<'a, M> {
-    Row(MenuRow<'a, M>),
+pub enum ContextMenuLine<'a, M> {
+    Row(ContextMenuRow<'a, M>),
     Divider,
 }
 
@@ -44,7 +44,7 @@ const CONTEXT_MENU_WIDTH_PX: f32 = 250.0;
 pub fn context_menu<'a, M: Clone + 'a>(
     config: &Config,
     popup_corners: Radius,
-    lines: impl IntoIterator<Item = MenuLine<'a, M>>,
+    lines: impl IntoIterator<Item = ContextMenuLine<'a, M>>,
 ) -> Element<'a, M> {
     let kept_lines = without_redundant_dividers(lines.into_iter().collect());
     let end_corners = ListEndCorners::new(kept_lines.len(), popup_corners);
@@ -53,8 +53,8 @@ pub fn context_menu<'a, M: Clone + 'a>(
             .into_iter()
             .enumerate()
             .map(|(position, line)| match line {
-                MenuLine::Row(row) => entry(config, row, end_corners.radius_at(position)),
-                MenuLine::Divider => divider(),
+                ContextMenuLine::Row(row) => entry(config, row, end_corners.radius_at(position)),
+                ContextMenuLine::Divider => divider(),
             }),
     )
     .spacing(config.layout.overlay.row_spacing)
@@ -64,7 +64,7 @@ pub fn context_menu<'a, M: Clone + 'a>(
 
 fn entry<'a, M: Clone + 'a>(
     config: &Config,
-    row: MenuRow<'a, M>,
+    row: ContextMenuRow<'a, M>,
     highlight_radius: Radius,
 ) -> Element<'a, M> {
     let icon_size = config.theme.font.icon_size_px;
@@ -154,12 +154,14 @@ fn divider<'a, Message: 'a>() -> Element<'a, Message> {
     activity_line(background_weak_color, 1.0, DIVIDER_THICKNESS)
 }
 
-fn without_redundant_dividers<M>(lines: Vec<MenuLine<'_, M>>) -> Vec<MenuLine<'_, M>> {
+fn without_redundant_dividers<M>(
+    lines: Vec<ContextMenuLine<'_, M>>,
+) -> Vec<ContextMenuLine<'_, M>> {
     let mut kept = lines.into_iter().fold(Vec::new(), |mut kept, line| {
-        let leading_divider = matches!(line, MenuLine::Divider)
+        let leading_divider = matches!(line, ContextMenuLine::Divider)
             && kept
                 .last()
-                .is_none_or(|last| matches!(last, MenuLine::Divider));
+                .is_none_or(|last| matches!(last, ContextMenuLine::Divider));
         if !leading_divider {
             kept.push(line);
         }
@@ -167,7 +169,7 @@ fn without_redundant_dividers<M>(lines: Vec<MenuLine<'_, M>>) -> Vec<MenuLine<'_
     });
     if kept
         .last()
-        .is_some_and(|last| matches!(last, MenuLine::Divider))
+        .is_some_and(|last| matches!(last, ContextMenuLine::Divider))
     {
         kept.pop();
     }

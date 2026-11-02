@@ -38,7 +38,10 @@ use crate::{
             Section,
             tooltip_source_delivery::{SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, GroupTitle, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupTitle,
+        },
     },
 };
 
@@ -89,13 +92,13 @@ pub enum EthernetPortsMessage {
     TogglePort(String),
     Expansion {
         port_name: String,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
 #[derive(Default)]
 struct PortSession {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
@@ -315,8 +318,8 @@ impl EthernetPortsGroup {
     fn port_group<'a>(
         &'a self,
         port_state: &'a PortState,
-        group_title: GroupTitle,
-    ) -> Option<GroupContent<'a, EthernetPortsMessage>> {
+        group_title: WidgetGroupTitle,
+    ) -> Option<WidgetGroupContent<'a, EthernetPortsMessage>> {
         let session = self.sessions.get(&port_state.name)?;
         let link_item = GroupItem::reading(
             PortLinkReading {
@@ -375,7 +378,7 @@ impl EthernetPortsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<GroupContent<'_, EthernetPortsMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, EthernetPortsMessage>> {
         let port_states = self
             .ethernet
             .get()

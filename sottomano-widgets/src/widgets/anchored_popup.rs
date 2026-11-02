@@ -33,7 +33,7 @@ struct PopupFrame {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PopupFraming {
     WholeContent,
-    Cascade(CascadeOrientation),
+    LeadingSurface(CascadeOrientation),
 }
 
 impl PopupFraming {
@@ -41,7 +41,7 @@ impl PopupFraming {
         let whole = Rectangle::new(Point::ORIGIN, node.size());
         match self {
             PopupFraming::WholeContent => whole,
-            PopupFraming::Cascade(_) => node.children().first().map_or(whole, Node::bounds),
+            PopupFraming::LeadingSurface(_) => node.children().first().map_or(whole, Node::bounds),
         }
     }
 }
@@ -245,7 +245,7 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
 
     fn frames_one_child(&self) -> bool {
         self.renderings.iter().any(|rendering| {
-            rendering.incoming && matches!(rendering.framing, PopupFraming::Cascade(_))
+            rendering.incoming && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
         })
     }
 
@@ -346,7 +346,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .zip(&natural_nodes)
             .map(|(rendering, natural)| match rendering.framing {
                 PopupFraming::WholeContent => rendering_limits,
-                PopupFraming::Cascade(orientation) => self.cascade_limits(
+                PopupFraming::LeadingSurface(orientation) => self.cascade_limits(
                     orientation,
                     rendering.framing.framed_bounds(natural).size(),
                     surface,
@@ -361,7 +361,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             .map(
                 |((rendering, child), (natural, fitted))| match rendering.framing {
                     PopupFraming::WholeContent => natural,
-                    PopupFraming::Cascade(_) => rendering
+                    PopupFraming::LeadingSurface(_) => rendering
                         .element
                         .as_widget_mut()
                         .layout(child, renderer, &fitted),

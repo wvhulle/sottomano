@@ -10,11 +10,11 @@ use crate::widgets::{
     aligned_quantity::AlignedQuantity,
     content_sized_table::{SpannableRow, content_sized_spanning_grid},
     text::{column_heading, row_key_label},
-    widget_group::{GroupEvent, GroupTitle},
+    widget_group::{GroupEvent, WidgetGroupTitle},
 };
 
 pub(super) struct QuantityTableColumn<'a, M> {
-    pub group_title: GroupTitle,
+    pub group_title: WidgetGroupTitle,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
 }
 

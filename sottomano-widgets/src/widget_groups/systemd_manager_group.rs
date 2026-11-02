@@ -37,7 +37,10 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -107,7 +110,7 @@ pub struct SystemdManagerGroup {
     slow_system_jobs: LatestSnapshot<SlowJobs>,
     slow_user_jobs: LatestSnapshot<SlowJobs>,
     last_shutdown: LatestSnapshot<LastShutdown>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -122,7 +125,7 @@ pub enum SystemdManagerMessage {
     RestartFailedUnit(FailedUnitRestart),
     InspectCoredump(TerminalCommand),
     CopyToClipboard(String),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for SystemdManagerGroup {
@@ -234,7 +237,7 @@ impl SystemdManagerGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> GroupContent<'a, SystemdManagerMessage> {
+    ) -> WidgetGroupContent<'a, SystemdManagerMessage> {
         let boot = self.boot.get();
         Self::expandable_group(
             &self.expansion,
@@ -284,7 +287,7 @@ impl SystemdManagerGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::IconColoredBy {
+        .face(WidgetGroupFace::IconColoredBy {
             glyph: Phosphor::Speedometer(Weight::Regular).into(),
             reading: self,
             handle: GroupHandle::Systemd,

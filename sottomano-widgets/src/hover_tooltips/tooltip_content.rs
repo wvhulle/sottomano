@@ -16,10 +16,11 @@ use sottomano_config::Config;
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        HoverOrigin, MouseGesture, PanelPin, PopupMessage, PressHints, core_grid::CoreCellGrid,
+        HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
+        core_grid::CoreCellGrid,
     },
     widget_groups::{
-        group_menus::PinnedEntry, window_group::process_tree::ProcessTree,
+        group_menus::GroupMenuPin, window_group::process_tree::ProcessTree,
         workspaces_group::workspace_preview::WorkspaceSchematic,
     },
     widgets::{
@@ -174,19 +175,19 @@ impl<'a> TooltipContent<'a> {
                         .padding(self.edge_row_padding())
                         .into();
                 let unpin = match *panel_pin {
-                    PanelPin::Unpinned => None,
-                    PanelPin::GroupPinnedFrom(menu) => {
+                    PanelPinOrigin::Unpinned => None,
+                    PanelPinOrigin::GroupPinnedFrom(menu) => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             menu,
-                            entry: PinnedEntry::Group {
+                            entry: GroupMenuPin::Group {
                                 group_title: (**group_title).clone(),
                             },
                         }))
                     }
-                    PanelPin::ItemPinnedFrom { menu, item_name } => {
+                    PanelPinOrigin::ItemPinnedFrom { menu, item_name } => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             menu,
-                            entry: PinnedEntry::Item {
+                            entry: GroupMenuPin::Item {
                                 group_title: (**group_title).clone(),
                                 item_name,
                             },

@@ -12,7 +12,10 @@ use crate::{
         shell_layer_appearance::{LayerAppearance, ShellLayer},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -51,14 +54,14 @@ impl From<OverlaySettingsTarget> for HoverTarget {
 
 #[derive(Debug, Clone)]
 pub enum OverlaySettingsMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     ToggleToastSpatialLayout,
     Appearance(AppearanceMessage),
     SpatialLayoutLoaded(bool),
 }
 
 pub struct OverlaySettingsGroup {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     toast_spatial_layout: bool,
     appearance: LayerAppearanceControls,
 }
@@ -66,7 +69,7 @@ pub struct OverlaySettingsGroup {
 impl Default for OverlaySettingsGroup {
     fn default() -> Self {
         Self {
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             toast_spatial_layout: true,
             appearance: LayerAppearanceControls::new(ShellLayer::Overlays, |target| {
                 OverlaySettingsTarget::Appearance(target).into()
@@ -153,7 +156,7 @@ impl OverlaySettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, OverlaySettingsMessage> {
+    ) -> WidgetGroupContent<'a, OverlaySettingsMessage> {
         Self::expandable_group(
             &self.expansion,
             OverlaySettingsMessage::Expansion,
@@ -168,7 +171,7 @@ impl OverlaySettingsGroup {
                     .items(config, OverlaySettingsMessage::Appearance),
             ),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Stack(Weight::Regular).into(),
             handle: GroupHandle::OverlaySettings,
         })

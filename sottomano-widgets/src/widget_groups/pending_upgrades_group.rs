@@ -25,7 +25,9 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -44,14 +46,14 @@ impl From<PendingUpgradesTarget> for HoverTarget {
 #[derive(Default)]
 pub struct PendingUpgradesGroup {
     firmware: LatestSnapshot<Vec<FirmwareUpgrade>>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum PendingUpgradesMessage {
     Firmware(SnapshotDelivery<Vec<FirmwareUpgrade>>),
     OpenTerminal(TerminalCommand),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for PendingUpgradesGroup {
@@ -96,7 +98,7 @@ impl PendingUpgradesGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, PendingUpgradesMessage> {
+    ) -> WidgetGroupContent<'a, PendingUpgradesMessage> {
         let has_categories = self.categories().iter().any(Option::is_some);
         Self::expandable_group(
             &self.expansion,

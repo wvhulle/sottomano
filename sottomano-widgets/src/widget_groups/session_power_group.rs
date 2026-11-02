@@ -15,8 +15,10 @@ use crate::{
     widget_groups::idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
     widgets::{
         configured_theme::text_color,
-        context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         icon_glyph::IconGlyph,
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
@@ -25,7 +27,7 @@ use crate::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{GroupContent, WidgetGroup},
+        widget_group::{WidgetGroup, WidgetGroupContent},
     },
 };
 
@@ -39,7 +41,7 @@ struct SessionMenuEntry {
 }
 
 impl SessionMenuEntry {
-    fn menu_row<'a>(self, config: &Config) -> MenuLine<'a, SessionMessage> {
+    fn menu_row<'a>(self, config: &Config) -> ContextMenuLine<'a, SessionMessage> {
         let note = match self.idle {
             ScheduledAfterIdle::After(after) => Trailing::Note(format!(
                 "after {} idle",
@@ -51,7 +53,7 @@ impl SessionMenuEntry {
             }
             ScheduledAfterIdle::Never => Trailing::Nothing,
         };
-        MenuLine::Row(MenuRow {
+        ContextMenuLine::Row(ContextMenuRow {
             leading: Some(
                 IconGlyph::from(session_action_icon(self.action))
                     .view(config.theme.font.icon_size_px, text_color),
@@ -102,7 +104,7 @@ impl From<SessionTarget> for HoverTarget {
 }
 
 #[derive(Default)]
-pub struct SessionMenu {
+pub struct SessionPowerGroup {
     permissions: Permissions,
 }
 
@@ -117,11 +119,11 @@ pub enum Action {
     Performed(Task<SessionMessage>),
 }
 
-impl WidgetGroup for SessionMenu {
+impl WidgetGroup for SessionPowerGroup {
     const TITLE: &'static str = "Session";
 }
 
-impl SessionMenu {
+impl SessionPowerGroup {
     pub fn load() -> Task<SessionMessage> {
         Task::perform(
             blocking("logind permissions", logind_action_permissions::read),
@@ -176,7 +178,7 @@ impl SessionMenu {
                 *previous_family = Some(family);
                 Some(
                     divider
-                        .then_some(MenuLine::Divider)
+                        .then_some(ContextMenuLine::Divider)
                         .into_iter()
                         .chain(once(entry.menu_row(config))),
                 )
@@ -187,18 +189,18 @@ impl SessionMenu {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> GroupContent<'a, SessionMessage> {
+    pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, SessionMessage> {
         Self::fixed_group((!self.permissions.allowed.is_empty()).then(|| {
             GroupItem::composed(
-                ItemIdentity {
+                ComposedGroupItemFace {
                     name: Self::TITLE.into(),
-                    icon: ItemIcon::IconGlyph {
+                    icon: GroupItemIcon::IconGlyph {
                         glyph: Phosphor::Power(Weight::Regular).into(),
                         state: ReadingDisplayState::Idle,
                     },
                 },
-                ItemHover::WholeItem(SessionTarget::Menu.into()),
-                ItemValue::Nothing,
+                GroupItemHoverArea::WholeItem(SessionTarget::Menu.into()),
+                GroupItemValue::Nothing,
             )
         }))
     }

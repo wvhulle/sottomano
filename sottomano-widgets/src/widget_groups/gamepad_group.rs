@@ -60,7 +60,9 @@ use crate::{
             Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -118,7 +120,7 @@ pub enum GamepadMessage {
     },
     Expansion {
         slot: usize,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
@@ -178,7 +180,7 @@ impl WifiBandUse {
 
 #[derive(Default)]
 struct ControllerSession {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
@@ -658,7 +660,7 @@ impl GamepadGroup {
         link: &'a PhysicalGamepadLink,
         bindings: &'a GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'a>,
-    ) -> Option<GroupContent<'a, GamepadMessage>> {
+    ) -> Option<WidgetGroupContent<'a, GamepadMessage>> {
         let slot = gamepad.slot;
         let session = self.sessions.get(&slot)?;
         let battery_reading = ControllerBatteryReading {
@@ -714,13 +716,13 @@ impl GamepadGroup {
         &'a self,
         bindings: &'a GamepadBindingsConfig,
         window_claim: GamepadWindowClaim<'a>,
-    ) -> Vec<GroupContent<'a, GamepadMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, GamepadMessage>> {
         self.controllers_in_player_order()
             .into_iter()
             .filter_map(|(gamepad, link)| {
                 self.controller_group(gamepad, link, bindings, window_claim)
             })
-            .map(GroupContent::sharing_title_row)
+            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 }

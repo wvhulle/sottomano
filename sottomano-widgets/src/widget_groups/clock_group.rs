@@ -18,7 +18,9 @@ use crate::{
     widgets::{
         latest_snapshot::LatestSnapshot,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -42,7 +44,7 @@ pub struct ClockGroup {
     time: LatestSnapshot<LocalTime>,
     date: LatestSnapshot<LocalDate>,
     zone_times: Vec<(Tz, LatestSnapshot<ZoneTime>)>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -50,7 +52,7 @@ pub enum ClockMessage {
     Time(SnapshotDelivery<LocalTime>),
     Date(SnapshotDelivery<LocalDate>),
     Zone(Tz, SnapshotDelivery<ZoneTime>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for ClockGroup {
@@ -137,7 +139,7 @@ impl ClockGroup {
         }
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, ClockMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ClockMessage> {
         Self::expandable_group(
             &self.expansion,
             ClockMessage::Expansion,

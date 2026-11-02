@@ -37,7 +37,10 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -68,7 +71,7 @@ pub struct LoginSessionGroup {
     graphical: HoverFetchedSnapshot<GraphicalSession>,
     graphical_target: HoverFetchedSnapshot<GraphicalSessionTarget>,
     power: HoverFetchedSnapshot<PowerPolicy>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -80,7 +83,7 @@ pub enum LoginSessionMessage {
     GraphicalFetched(SnapshotDelivery<GraphicalSession>),
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
     PowerFetched(Box<SnapshotDelivery<PowerPolicy>>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for LoginSessionGroup {
@@ -193,7 +196,7 @@ impl LoginSessionGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, LoginSessionMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, LoginSessionMessage> {
         let items = self.identity.get().into_iter().flat_map(|identity| {
             [
                 GroupItem::reading(
@@ -220,7 +223,7 @@ impl LoginSessionGroup {
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::StackSimple(Weight::Regular).into(),
             handle: GroupHandle::LoginSession,
         })

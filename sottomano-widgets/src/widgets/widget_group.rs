@@ -17,10 +17,10 @@ use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     hover_tooltips::{
-        GroupHandle, HoverAnnouncement, HoverTarget, PanelPin, PressHints, TooltipMessage,
+        GroupHandle, HoverAnnouncement, HoverTarget, PanelPinOrigin, PressHints, TooltipMessage,
         announcing_hoverable,
     },
-    widget_groups::group_menus::{GroupMenuKind, GroupMenus},
+    widget_groups::group_menus::{GroupMenuState, GroupMenuTopic},
     widgets::{
         activity_line::activity_line,
         aligned_quantity::{AlignedQuantity, ItemAlignment},
@@ -29,7 +29,8 @@ use crate::{
         expand_animation::expand_animation,
         flat_button,
         group_item::{
-            GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue, MenuItemAction, MenuParts,
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+            MenuItemAction, MenuParts,
         },
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
@@ -42,7 +43,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GroupTitle {
+pub enum WidgetGroupTitle {
     Named(Cow<'static, str>),
     Numbered {
         base_title: Cow<'static, str>,
@@ -52,10 +53,10 @@ pub enum GroupTitle {
 
 const MOST_SIBLINGS_PER_TITLE: usize = 8;
 
-impl GroupTitle {
+impl WidgetGroupTitle {
     #[must_use]
     pub const fn fixed(title: &'static str) -> Self {
-        GroupTitle::Named(Cow::Borrowed(title))
+        WidgetGroupTitle::Named(Cow::Borrowed(title))
     }
 
     #[must_use]
@@ -70,20 +71,20 @@ impl GroupTitle {
     pub fn numbered_from_second(base_title: impl Into<Cow<'static, str>>, position: usize) -> Self {
         let base_title = base_title.into();
         match u8::try_from(position + 1) {
-            Ok(ordinal) if ordinal > 1 => GroupTitle::Numbered {
+            Ok(ordinal) if ordinal > 1 => WidgetGroupTitle::Numbered {
                 base_title,
                 ordinal,
             },
-            Ok(_) | Err(_) => GroupTitle::Named(base_title),
+            Ok(_) | Err(_) => WidgetGroupTitle::Named(base_title),
         }
     }
 }
 
-impl Display for GroupTitle {
+impl Display for WidgetGroupTitle {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
         match self {
-            GroupTitle::Named(title) => formatter.write_str(title),
-            GroupTitle::Numbered {
+            WidgetGroupTitle::Named(title) => formatter.write_str(title),
+            WidgetGroupTitle::Numbered {
                 base_title,
                 ordinal,
             } => write!(formatter, "{base_title} {ordinal}"),
@@ -99,12 +100,12 @@ pub enum TitleRow {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GroupTitleClaim {
-    pub group_title: GroupTitle,
+    pub group_title: WidgetGroupTitle,
     pub title_row: TitleRow,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum ExpansionMessage {
+pub enum WidgetGroupExpansionMessage {
     Toggle,
     Expand,
     CursorEntered,
@@ -114,27 +115,27 @@ pub enum ExpansionMessage {
 }
 
 #[derive(Default)]
-pub struct GroupExpansion {
+pub struct WidgetGroupExpansion {
     expanded: bool,
     cursor_hovering: bool,
 }
 
-impl GroupExpansion {
-    pub fn update(&mut self, msg: ExpansionMessage) -> bool {
+impl WidgetGroupExpansion {
+    pub fn update(&mut self, msg: WidgetGroupExpansionMessage) -> bool {
         let was_expanded = self.is_expanded();
         match msg {
-            ExpansionMessage::Toggle => self.expanded = !self.expanded,
-            ExpansionMessage::Expand => self.expanded = true,
-            ExpansionMessage::CursorEntered => self.cursor_hovering = true,
-            ExpansionMessage::CursorExited => self.cursor_hovering = false,
-            ExpansionMessage::Collapse => self.expanded = false,
-            ExpansionMessage::HandleScrolled(_) => {}
+            WidgetGroupExpansionMessage::Toggle => self.expanded = !self.expanded,
+            WidgetGroupExpansionMessage::Expand => self.expanded = true,
+            WidgetGroupExpansionMessage::CursorEntered => self.cursor_hovering = true,
+            WidgetGroupExpansionMessage::CursorExited => self.cursor_hovering = false,
+            WidgetGroupExpansionMessage::Collapse => self.expanded = false,
+            WidgetGroupExpansionMessage::HandleScrolled(_) => {}
         }
         was_expanded && !self.is_expanded()
     }
 
     pub fn collapse(&mut self) -> bool {
-        self.update(ExpansionMessage::Collapse)
+        self.update(WidgetGroupExpansionMessage::Collapse)
     }
 
     #[must_use]
@@ -158,7 +159,7 @@ impl<M> GroupEvent<M> {
     }
 }
 
-pub enum HandleFace<'a> {
+pub enum WidgetGroupFace<'a> {
     Icon {
         glyph: IconGlyph,
         handle: GroupHandle,
@@ -171,45 +172,46 @@ pub enum HandleFace<'a> {
     FirstItem,
 }
 
-impl<'a> HandleFace<'a> {
+impl<'a> WidgetGroupFace<'a> {
     fn hover_target(&self) -> Option<HoverTarget> {
         match self {
-            HandleFace::Icon { handle, .. } | HandleFace::IconColoredBy { handle, .. } => {
+            WidgetGroupFace::Icon { handle, .. }
+            | WidgetGroupFace::IconColoredBy { handle, .. } => {
                 Some(HoverTarget::GroupHandle(*handle))
             }
-            HandleFace::FirstItem => None,
+            WidgetGroupFace::FirstItem => None,
         }
     }
 
     fn into_face_item<M: Clone + 'a>(
         self,
-        group_title: &GroupTitle,
+        group_title: &WidgetGroupTitle,
         items: &mut Vec<GroupItem<'a, M>>,
         handle_announcement: HoverAnnouncement,
         clock: Clock,
     ) -> GroupItem<'a, M> {
         let glyph_face = |glyph, state, handle| {
             GroupItem::composed(
-                ItemIdentity {
+                ComposedGroupItemFace {
                     name: group_title.to_string().into(),
-                    icon: ItemIcon::IconGlyph { glyph, state },
+                    icon: GroupItemIcon::IconGlyph { glyph, state },
                 },
-                ItemHover::ByChildren {
+                GroupItemHoverArea::ByChildren {
                     row_target: HoverTarget::GroupHandle(handle),
                 },
-                ItemValue::Nothing,
+                GroupItemValue::Nothing,
             )
         };
         match self {
-            HandleFace::Icon { glyph, handle } => {
+            WidgetGroupFace::Icon { glyph, handle } => {
                 glyph_face(glyph, ReadingDisplayState::Idle, handle)
             }
-            HandleFace::IconColoredBy {
+            WidgetGroupFace::IconColoredBy {
                 glyph,
                 reading,
                 handle,
             } => glyph_face(glyph, reading.state(clock), handle),
-            HandleFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
+            WidgetGroupFace::FirstItem => items.remove(0).acting_as_handle(handle_announcement),
         }
     }
 
@@ -221,19 +223,19 @@ impl<'a> HandleFace<'a> {
     ) -> MenuParts<'a, M> {
         let preview = || collapsing_previewed_value(config, items, 0.0, clock);
         match self {
-            HandleFace::Icon { glyph, .. } => MenuParts {
+            WidgetGroupFace::Icon { glyph, .. } => MenuParts {
                 icon: icon_face_glyph(config, glyph, FaceGlyphTint::Text),
                 value: preview(),
             },
-            HandleFace::IconColoredBy { glyph, reading, .. } => MenuParts {
+            WidgetGroupFace::IconColoredBy { glyph, reading, .. } => MenuParts {
                 icon: icon_face_glyph(
                     config,
                     glyph,
-                    FaceGlyphTint::ReadingState(reading.state(clock)),
+                    FaceGlyphTint::ReadingTint(reading.state(clock)),
                 ),
                 value: preview(),
             },
-            HandleFace::FirstItem => items[0].menu_parts(config, clock),
+            WidgetGroupFace::FirstItem => items[0].menu_parts(config, clock),
         }
     }
 }
@@ -241,7 +243,7 @@ impl<'a> HandleFace<'a> {
 #[derive(Clone, Copy)]
 enum FaceGlyphTint {
     Text,
-    ReadingState(ReadingDisplayState),
+    ReadingTint(ReadingDisplayState),
 }
 
 fn icon_face_glyph<'a, Message: 'a>(
@@ -252,9 +254,7 @@ fn icon_face_glyph<'a, Message: 'a>(
     let icon_size = config.theme.font.icon_size_px;
     match tint {
         FaceGlyphTint::Text => glyph.view(icon_size, text_color),
-        FaceGlyphTint::ReadingState(state) => {
-            glyph.view(icon_size, move |theme| state.color(theme))
-        }
+        FaceGlyphTint::ReadingTint(state) => glyph.view(icon_size, move |theme| state.color(theme)),
     }
 }
 
@@ -288,57 +288,59 @@ impl<M> FromIterator<GroupToastRequests<M>> for GroupToastRequests<M> {
     }
 }
 
-enum Handle<'a, M> {
+enum WidgetGroupShape<'a, M> {
     Expandable {
-        expansion: &'a GroupExpansion,
-        on_expansion: Rc<dyn Fn(ExpansionMessage) -> M + 'a>,
-        face: HandleFace<'a>,
+        expansion: &'a WidgetGroupExpansion,
+        on_expansion: Rc<dyn Fn(WidgetGroupExpansionMessage) -> M + 'a>,
+        face: WidgetGroupFace<'a>,
         scroll_does: Option<&'static str>,
     },
     Fixed,
 }
 
-impl<'a, M: 'a> Handle<'a, M> {
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> Handle<'a, Outer> {
+impl<'a, M: 'a> WidgetGroupShape<'a, M> {
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> WidgetGroupShape<'a, Outer> {
         match self {
-            Handle::Expandable {
+            WidgetGroupShape::Expandable {
                 expansion,
                 on_expansion,
                 face,
                 scroll_does,
-            } => Handle::Expandable {
+            } => WidgetGroupShape::Expandable {
                 expansion,
                 on_expansion: Rc::new(move |message| lift(on_expansion(message))),
                 face,
                 scroll_does,
             },
-            Handle::Fixed => Handle::Fixed,
+            WidgetGroupShape::Fixed => WidgetGroupShape::Fixed,
         }
     }
 
     fn expand_message(&self) -> Option<M> {
         match self {
-            Handle::Expandable { on_expansion, .. } => Some(on_expansion(ExpansionMessage::Expand)),
-            Handle::Fixed => None,
+            WidgetGroupShape::Expandable { on_expansion, .. } => {
+                Some(on_expansion(WidgetGroupExpansionMessage::Expand))
+            }
+            WidgetGroupShape::Fixed => None,
         }
     }
 }
 
-pub(super) struct MenuMember<'a, M> {
+pub(super) struct GroupMenuRowParts<'a, M> {
     pub title_claim: GroupTitleClaim,
     pub face: MenuParts<'a, M>,
     pub aligned: BTreeMap<AlignedQuantity, Element<'a, GroupEvent<M>>>,
-    pub cascade_items: Vec<CascadeItem<'a, M>>,
+    pub item_rows: Vec<GroupMenuItemRow<'a, M>>,
 }
 
-pub(super) enum ItemPin {
+pub(super) enum GroupItemPin {
     Unpinnable,
     Pinnable(&'static str),
 }
 
-pub(super) struct CascadeItem<'a, M> {
+pub(super) struct GroupMenuItemRow<'a, M> {
     pub name: Cow<'static, str>,
-    pub pin: ItemPin,
+    pub pin: GroupItemPin,
     pub action: MenuItemAction<M>,
     pub parts: MenuParts<'a, M>,
 }
@@ -347,12 +349,12 @@ pub trait WidgetGroup {
     const TITLE: &'static str;
 
     fn expandable_group<'a, M: Clone + 'a>(
-        expansion: &'a GroupExpansion,
-        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
+        expansion: &'a WidgetGroupExpansion,
+        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
-    ) -> GroupContent<'a, M> {
+    ) -> WidgetGroupContent<'a, M> {
         Self::expandable_group_titled(
-            GroupTitle::fixed(Self::TITLE),
+            WidgetGroupTitle::fixed(Self::TITLE),
             expansion,
             on_expansion,
             items,
@@ -360,55 +362,55 @@ pub trait WidgetGroup {
     }
 
     fn expandable_group_titled<'a, M: Clone + 'a>(
-        group_title: GroupTitle,
-        expansion: &'a GroupExpansion,
-        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
+        group_title: WidgetGroupTitle,
+        expansion: &'a WidgetGroupExpansion,
+        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
-    ) -> GroupContent<'a, M> {
-        GroupContent::new(group_title, expansion, on_expansion, items)
+    ) -> WidgetGroupContent<'a, M> {
+        WidgetGroupContent::new(group_title, expansion, on_expansion, items)
     }
 
-    fn fixed_group<'a, M: Clone + 'a>(item: Option<GroupItem<'a, M>>) -> GroupContent<'a, M> {
-        GroupContent::single(GroupTitle::fixed(Self::TITLE), item)
+    fn fixed_group<'a, M: Clone + 'a>(item: Option<GroupItem<'a, M>>) -> WidgetGroupContent<'a, M> {
+        WidgetGroupContent::single(WidgetGroupTitle::fixed(Self::TITLE), item)
     }
 }
 
-pub struct GroupContent<'a, M> {
-    group_title: GroupTitle,
+pub struct WidgetGroupContent<'a, M> {
+    group_title: WidgetGroupTitle,
     title_row: TitleRow,
-    handle: Handle<'a, M>,
+    handle: WidgetGroupShape<'a, M>,
     items: Vec<GroupItem<'a, M>>,
-    panel_pin: PanelPin,
+    panel_pin: PanelPinOrigin,
 }
 
-impl<'a, M: Clone + 'a> GroupContent<'a, M> {
+impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     fn new(
-        group_title: GroupTitle,
-        expansion: &'a GroupExpansion,
-        on_expansion: impl Fn(ExpansionMessage) -> M + 'a,
+        group_title: WidgetGroupTitle,
+        expansion: &'a WidgetGroupExpansion,
+        on_expansion: impl Fn(WidgetGroupExpansionMessage) -> M + 'a,
         items: impl IntoIterator<Item = GroupItem<'a, M>>,
     ) -> Self {
         Self {
             group_title,
             title_row: TitleRow::OwnRow,
-            handle: Handle::Expandable {
+            handle: WidgetGroupShape::Expandable {
                 expansion,
                 on_expansion: Rc::new(on_expansion),
-                face: HandleFace::FirstItem,
+                face: WidgetGroupFace::FirstItem,
                 scroll_does: None,
             },
             items: items.into_iter().collect(),
-            panel_pin: PanelPin::Unpinned,
+            panel_pin: PanelPinOrigin::Unpinned,
         }
     }
 
-    fn single(group_title: GroupTitle, item: Option<GroupItem<'a, M>>) -> Self {
+    fn single(group_title: WidgetGroupTitle, item: Option<GroupItem<'a, M>>) -> Self {
         Self {
             group_title,
             title_row: TitleRow::OwnRow,
-            handle: Handle::Fixed,
+            handle: WidgetGroupShape::Fixed,
             items: item.into_iter().collect(),
-            panel_pin: PanelPin::Unpinned,
+            panel_pin: PanelPinOrigin::Unpinned,
         }
     }
 
@@ -428,16 +430,16 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
     }
 
     #[must_use]
-    pub fn pinned_from(self, menu: GroupMenuKind) -> Self {
+    pub fn pinned_from(self, menu: GroupMenuTopic) -> Self {
         Self {
-            panel_pin: PanelPin::GroupPinnedFrom(menu),
+            panel_pin: PanelPinOrigin::GroupPinnedFrom(menu),
             ..self
         }
     }
 
     #[must_use]
-    pub fn face(mut self, face: HandleFace<'a>) -> Self {
-        if let Handle::Expandable { face: current, .. } = &mut self.handle {
+    pub fn face(mut self, face: WidgetGroupFace<'a>) -> Self {
+        if let WidgetGroupShape::Expandable { face: current, .. } = &mut self.handle {
             *current = face;
         }
         self
@@ -445,7 +447,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
 
     #[must_use]
     pub fn forwards_scroll(mut self, scroll_does: Option<&'static str>) -> Self {
-        if let Handle::Expandable {
+        if let WidgetGroupShape::Expandable {
             scroll_does: current,
             ..
         } = &mut self.handle
@@ -470,8 +472,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         self
     }
 
-    pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> GroupContent<'a, Outer> {
-        GroupContent {
+    pub fn map<Outer: Clone + 'a>(self, lift: fn(M) -> Outer) -> WidgetGroupContent<'a, Outer> {
+        WidgetGroupContent {
             group_title: self.group_title,
             title_row: self.title_row,
             handle: self.handle.map(lift),
@@ -522,19 +524,19 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .unwrap_or_default()
     }
 
-    pub(crate) fn group_title(&self) -> GroupTitle {
+    pub(crate) fn group_title(&self) -> WidgetGroupTitle {
         self.group_title.clone()
     }
 
     pub(super) fn pinned_item_views<Outer: From<GroupEvent<M>> + 'a>(
         self,
-        group_menus: &GroupMenus,
-        menu: GroupMenuKind,
+        group_menus: &GroupMenuState,
+        menu: GroupMenuTopic,
         config: &'a Config,
         bar_position: Position,
         clock: Clock,
     ) -> Vec<Option<Element<'a, Outer>>> {
-        let GroupContent {
+        let WidgetGroupContent {
             group_title, items, ..
         } = self;
         items
@@ -545,7 +547,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                     group_title.clone(),
                     PressHints::default(),
                 )
-                .pinned_by(PanelPin::ItemPinnedFrom { menu, item_name });
+                .pinned_by(PanelPinOrigin::ItemPinnedFrom { menu, item_name });
                 let item = item.acting_as_handle(pinned_announcement);
                 Some(fixed_view(
                     slice::from_ref(&item),
@@ -563,13 +565,13 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
         self,
         config: &'a Config,
         clock: Clock,
-        group_menus: &GroupMenus,
-        menu: GroupMenuKind,
-    ) -> Option<MenuMember<'a, M>> {
+        group_menus: &GroupMenuState,
+        menu: GroupMenuTopic,
+    ) -> Option<GroupMenuRowParts<'a, M>> {
         if self.items.is_empty() {
             return None;
         }
-        let GroupContent {
+        let WidgetGroupContent {
             group_title,
             title_row,
             handle,
@@ -577,8 +579,8 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             ..
         } = self;
         let face = match handle {
-            Handle::Expandable { face, .. } => face,
-            Handle::Fixed => HandleFace::FirstItem,
+            WidgetGroupShape::Expandable { face, .. } => face,
+            WidgetGroupShape::Fixed => WidgetGroupFace::FirstItem,
         }
         .into_menu_parts(config, &items, clock);
         let aligned = items.iter().fold(BTreeMap::new(), |mut aligned, item| {
@@ -587,7 +589,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             }
             aligned
         });
-        let cascade_items: Vec<_> = items
+        let item_rows: Vec<_> = items
             .iter()
             .filter(|item| {
                 item.alignment() == ItemAlignment::Unaligned
@@ -595,26 +597,26 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                         .pinned_item_name(&group_title, group_menus, menu)
                         .is_none()
             })
-            .map(|item| CascadeItem {
+            .map(|item| GroupMenuItemRow {
                 name: item.menu_name(),
                 pin: item
                     .pinnable_name()
-                    .map_or(ItemPin::Unpinnable, ItemPin::Pinnable),
+                    .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
                 action: item.menu_action(),
                 parts: item.menu_parts(config, clock),
             })
             .collect();
-        if aligned.is_empty() && cascade_items.is_empty() {
+        if aligned.is_empty() && item_rows.is_empty() {
             return None;
         }
-        Some(MenuMember {
+        Some(GroupMenuRowParts {
             title_claim: GroupTitleClaim {
                 group_title,
                 title_row,
             },
             face,
             aligned,
-            cascade_items,
+            item_rows,
         })
     }
 
@@ -628,14 +630,14 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             return None;
         }
         let highest_alert_severity = self.highest_alert_severity(clock);
-        let GroupContent {
+        let WidgetGroupContent {
             group_title,
             handle,
             mut items,
             panel_pin,
             ..
         } = self;
-        let Handle::Expandable {
+        let WidgetGroupShape::Expandable {
             expansion,
             on_expansion,
             face,
@@ -665,9 +667,9 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
             .or(face_target);
         let draw_face = move || face.view(config, 1.0, clock);
         let expansion_event = move |message| GroupEvent::Group(on_expansion(message));
-        let toggle = expansion_event(ExpansionMessage::Toggle);
-        let on_enter = expansion_event(ExpansionMessage::CursorEntered);
-        let on_exit = expansion_event(ExpansionMessage::CursorExited);
+        let toggle = expansion_event(WidgetGroupExpansionMessage::Toggle);
+        let on_enter = expansion_event(WidgetGroupExpansionMessage::CursorEntered);
+        let on_exit = expansion_event(WidgetGroupExpansionMessage::CursorExited);
         let edge_indicator = EdgeIndicator {
             highest_alert_severity,
             cursor_hovering: expansion.cursor_hovering,
@@ -699,7 +701,7 @@ impl<'a, M: Clone + 'a> GroupContent<'a, M> {
                 let expansion_event = expansion_event.clone();
                 mouse_area(handle)
                     .on_scroll(move |delta| {
-                        expansion_event(ExpansionMessage::HandleScrolled(delta))
+                        expansion_event(WidgetGroupExpansionMessage::HandleScrolled(delta))
                     })
                     .into()
             } else {

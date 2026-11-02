@@ -29,7 +29,10 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, GroupTitle, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupTitle,
+        },
     },
 };
 
@@ -64,13 +67,13 @@ pub enum MobileModemsMessage {
     ToggleAllRadios,
     Expansion {
         modem_path: String,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
 #[derive(Default)]
 struct ModemSession {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
@@ -197,8 +200,8 @@ impl MobileModemsGroup {
     fn modem_group<'a>(
         &'a self,
         modem: &'a Mobile,
-        group_title: GroupTitle,
-    ) -> Option<GroupContent<'a, MobileModemsMessage>> {
+        group_title: WidgetGroupTitle,
+    ) -> Option<WidgetGroupContent<'a, MobileModemsMessage>> {
         let session = self.sessions.get(&modem.modem_path)?;
         let modem_path = || modem.modem_path.clone();
         let signal_item = GroupItem::reading(
@@ -267,7 +270,7 @@ impl MobileModemsGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<GroupContent<'_, MobileModemsMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, MobileModemsMessage>> {
         self.mobile_modems
             .get()
             .map(|mobile_modems| mobile_modems.modems.as_slice())
@@ -277,7 +280,7 @@ impl MobileModemsGroup {
             .filter_map(|(position, modem)| {
                 self.modem_group(
                     modem,
-                    GroupTitle::numbered_from_second(Self::TITLE, position),
+                    WidgetGroupTitle::numbered_from_second(Self::TITLE, position),
                 )
             })
             .collect()

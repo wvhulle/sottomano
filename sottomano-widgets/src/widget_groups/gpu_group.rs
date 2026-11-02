@@ -31,7 +31,9 @@ use crate::{
             ReadingSections, Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -76,7 +78,7 @@ struct GpuDevice {
     model: GpuModel,
     access: GpuDeviceAccess,
     runtime_power: Option<GpuRuntimePower>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 impl GpuDevice {
@@ -139,7 +141,7 @@ pub enum GpuMessage {
     Snapshot(PciBusId, SnapshotDelivery<GpuSnapshot>),
     ClocksFetched(SnapshotDelivery<GpuClocks>),
     ProcessesFetched(SnapshotDelivery<GpuProcesses>),
-    Expansion(PciBusId, ExpansionMessage),
+    Expansion(PciBusId, WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for GpuGroup {
@@ -251,7 +253,7 @@ impl GpuGroup {
                             model: gpu.model.clone(),
                             access,
                             runtime_power: None,
-                            expansion: GroupExpansion::default(),
+                            expansion: WidgetGroupExpansion::default(),
                         };
                         (gpu.bus.clone(), device)
                     })
@@ -291,7 +293,7 @@ impl GpuGroup {
         Task::none()
     }
 
-    pub fn group_contents(&self) -> impl Iterator<Item = GroupContent<'_, GpuMessage>> {
+    pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuMessage>> {
         self.devices
             .iter()
             .filter(|(_, device)| device.is_awake())

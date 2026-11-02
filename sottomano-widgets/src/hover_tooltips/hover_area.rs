@@ -12,7 +12,7 @@ use iced::{
 
 use crate::{
     hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, TooltipMessage},
-    widget_groups::group_menus::PinnedEntry,
+    widget_groups::group_menus::GroupMenuPin,
 };
 
 pub fn hoverable<'a, M: 'a>(
@@ -244,7 +244,7 @@ pub fn marked_by_hover_target<'a, M: 'a>(
 #[must_use]
 pub fn marked_by_menu_pin<'a, M: 'a>(
     content: Element<'a, M>,
-    entry: PinnedEntry,
+    entry: GroupMenuPin,
 ) -> Element<'a, M> {
     Element::new(LocatableMark {
         content,

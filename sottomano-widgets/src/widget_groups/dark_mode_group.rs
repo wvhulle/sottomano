@@ -41,7 +41,10 @@ use crate::{
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::tooltip_source_delivery::Tooltip,
         weather_icons::WeatherIcon,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -69,7 +72,7 @@ pub struct DarkModeGroup {
     sunrise_offset_slider: SliderControl,
     sunset_offset_slider: SliderControl,
     armed_switch: Option<ArmedSwitch>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 struct ArmedSwitch {
@@ -85,7 +88,7 @@ pub enum DarkModeMessage {
     ModeToggle(ToggleMessage<DarkMode>),
     ToggleAutoSwitch,
     OffsetSlider(ColorMode, ControlMessage),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     SwitchScheme(ColorMode),
 }
 
@@ -110,7 +113,7 @@ impl DarkModeGroup {
                 WeatherIcon::Sunset,
             ),
             armed_switch: None,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 }
@@ -327,7 +330,10 @@ impl DarkModeGroup {
             .readout_tooltip(format!("{} offset", edge.sun_event_label()))
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, DarkModeMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, DarkModeMessage> {
         let mode_known = self.mode_toggle.reading().is_some();
         let offset_slider = |edge| {
             GroupItem::slider(
@@ -359,7 +365,7 @@ impl DarkModeGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::MoonStars(Weight::Regular).into(),
             handle: GroupHandle::DarkMode,
         })

@@ -40,7 +40,9 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -79,7 +81,7 @@ pub struct ComputeGroup {
     cpu_busy_processes: HoverFetchedSnapshot<CpuBusyProcesses>,
     core_temperatures: HoverFetchedSnapshot<CpuCoreTemperatures>,
     cache_traffic: HoverFetchedSnapshot<L3CacheTraffic>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -94,7 +96,7 @@ pub enum ComputeMessage {
     CpuBusyProcessesFetched(SnapshotDelivery<CpuBusyProcesses>),
     CoreTemperaturesFetched(SnapshotDelivery<CpuCoreTemperatures>),
     CacheTrafficFetched(SnapshotDelivery<L3CacheTraffic>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for ComputeGroup {
@@ -227,7 +229,7 @@ impl ComputeGroup {
         Task::none()
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, ComputeMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, ComputeMessage> {
         Self::expandable_group(
             &self.expansion,
             ComputeMessage::Expansion,
@@ -337,11 +339,11 @@ mod tests {
     use iced::advanced::subscription::into_recipes;
     use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
 
-    use super::{ComputeGroup, ExpansionMessage, GroupSourceDemand};
+    use super::{ComputeGroup, GroupSourceDemand, WidgetGroupExpansionMessage};
     use crate::{
         clock::Clock,
-        widget_groups::group_menus::{GroupMenuKind, GroupMenus, PromotedGroup},
-        widgets::widget_group::GroupTitle,
+        widget_groups::group_menus::{AlertPromotedGroup, GroupMenuState, GroupMenuTopic},
+        widgets::widget_group::WidgetGroupTitle,
     };
 
     const TEMPERATURE_AND_CACHE_TOGGLE: usize = 2;
@@ -352,13 +354,16 @@ mod tests {
         into_recipes(group.subscription(&SensorConfig::default(), demand)).len()
     }
 
-    fn demand_in(group_menus: &GroupMenus) -> GroupSourceDemand<'_> {
-        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("Compute")])
+    fn demand_in(group_menus: &GroupMenuState) -> GroupSourceDemand<'_> {
+        group_menus.source_demand(
+            GroupMenuTopic::Hardware,
+            &[WidgetGroupTitle::fixed("Compute")],
+        )
     }
 
     #[test]
     fn hidden_group_keeps_only_its_alert_and_control_sources() {
-        let group_menus = GroupMenus::default();
+        let group_menus = GroupMenuState::default();
         assert_eq!(
             running_sources(&ComputeGroup::default(), demand_in(&group_menus)),
             TEMPERATURE_AND_CACHE_TOGGLE
@@ -367,9 +372,9 @@ mod tests {
 
     #[test]
     fn open_menu_runs_every_source() {
-        let mut group_menus = GroupMenus::default();
+        let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
-            Some(GroupMenuKind::Hardware),
+            Some(GroupMenuTopic::Hardware),
             Vec::new(),
             Clock::real().instant,
         );
@@ -381,12 +386,12 @@ mod tests {
 
     #[test]
     fn collapsed_group_on_the_bar_keeps_its_load_gauge_updating() {
-        let mut group_menus = GroupMenus::default();
+        let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
             None,
-            vec![PromotedGroup {
-                menu: GroupMenuKind::Hardware,
-                group_title: GroupTitle::fixed("Compute"),
+            vec![AlertPromotedGroup {
+                menu: GroupMenuTopic::Hardware,
+                group_title: WidgetGroupTitle::fixed("Compute"),
             }],
             Clock::real().instant,
         );
@@ -400,7 +405,7 @@ mod tests {
     fn expanding_on_the_bar_runs_every_source_and_collapsing_stops_the_rows() {
         let mut group = ComputeGroup::default();
         let _ = group.update(
-            super::ComputeMessage::Expansion(ExpansionMessage::Toggle),
+            super::ComputeMessage::Expansion(WidgetGroupExpansionMessage::Toggle),
             Clock::real(),
         );
         assert_eq!(

@@ -14,7 +14,7 @@ use sottomano_widgets::{
         dark_mode_group::DarkModeGroup,
         ethernet_ports_group::PORT_TITLES,
         gamepad_group::{GamepadGroup, GamepadWindowClaim},
-        group_menus::{GroupMenuKind, group_source_demand::GroupSourceDemand},
+        group_menus::{GroupMenuTopic, group_source_demand::GroupSourceDemand},
         journal_events_group::JournalEventsGroup,
         login_session_group::LoginSessionGroup,
         memory_board_group::MemoryBoardGroup,
@@ -33,7 +33,7 @@ use sottomano_widgets::{
         wifi_adapters_group::ADAPTER_TITLES,
         window_group::WindowGroup,
     },
-    widgets::widget_group::{GroupTitle, WidgetGroup},
+    widgets::widget_group::{WidgetGroup, WidgetGroupTitle},
 };
 
 use crate::{desktop_shell::shell_widget_groups::ShellWidgetGroups, shell_message::Message};
@@ -51,8 +51,8 @@ impl ShellWidgetGroups {
                 .subscription(
                     buses,
                     self.group_menus.source_demand(
-                        GroupMenuKind::Agenda,
-                        &[GroupTitle::fixed(WeatherGroup::TITLE)],
+                        GroupMenuTopic::Agenda,
+                        &[WidgetGroupTitle::fixed(WeatherGroup::TITLE)],
                     ),
                 )
                 .map(Message::Weather),
@@ -66,8 +66,8 @@ impl ShellWidgetGroups {
                 .subscription(
                     &config.widget_groups.temperature_sensors.cpu,
                     self.group_menus.source_demand(
-                        GroupMenuKind::Hardware,
-                        &[GroupTitle::fixed(ComputeGroup::TITLE)],
+                        GroupMenuTopic::Hardware,
+                        &[WidgetGroupTitle::fixed(ComputeGroup::TITLE)],
                     ),
                 )
                 .map(Message::Compute),
@@ -80,8 +80,8 @@ impl ShellWidgetGroups {
                 .subscription(
                     &config.widget_groups.temperature_sensors.drive,
                     self.group_menus.source_demand(
-                        GroupMenuKind::Hardware,
-                        &[GroupTitle::fixed(PhysicalDriveGroup::TITLE)],
+                        GroupMenuTopic::Hardware,
+                        &[WidgetGroupTitle::fixed(PhysicalDriveGroup::TITLE)],
                     ),
                 )
                 .map(Message::Drive),
@@ -125,8 +125,8 @@ impl ShellWidgetGroups {
                     &config.widget_groups.reachability,
                     buses,
                     self.group_menus.source_demand(
-                        GroupMenuKind::Network,
-                        &[GroupTitle::fixed(ReachabilityGroup::TITLE)],
+                        GroupMenuTopic::Network,
+                        &[WidgetGroupTitle::fixed(ReachabilityGroup::TITLE)],
                     ),
                 )
                 .map(Message::Reachability),
@@ -134,8 +134,8 @@ impl ShellWidgetGroups {
                 .subscription(
                     buses,
                     &self.group_menus.source_demand(
-                        GroupMenuKind::Network,
-                        &[GroupTitle::fixed(VpnGroup::TITLE)],
+                        GroupMenuTopic::Network,
+                        &[WidgetGroupTitle::fixed(VpnGroup::TITLE)],
                     ),
                 )
                 .map(Message::Vpn),
@@ -143,14 +143,14 @@ impl ShellWidgetGroups {
                 .subscription(
                     buses,
                     self.group_menus
-                        .source_demand(GroupMenuKind::Network, &ADAPTER_TITLES.sibling_titles()),
+                        .source_demand(GroupMenuTopic::Network, &ADAPTER_TITLES.sibling_titles()),
                 )
                 .map(Message::WifiAdapters),
             MobileModemsGroup::subscription(
                 buses,
                 &self.group_menus.source_demand(
-                    GroupMenuKind::Network,
-                    &GroupTitle::numbered_siblings(MobileModemsGroup::TITLE),
+                    GroupMenuTopic::Network,
+                    &WidgetGroupTitle::numbered_siblings(MobileModemsGroup::TITLE),
                 ),
             )
             .map(Message::MobileModems),
@@ -158,7 +158,7 @@ impl ShellWidgetGroups {
                 .subscription(
                     buses,
                     self.group_menus
-                        .source_demand(GroupMenuKind::Network, &PORT_TITLES.sibling_titles()),
+                        .source_demand(GroupMenuTopic::Network, &PORT_TITLES.sibling_titles()),
                 )
                 .map(Message::EthernetPorts),
             BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
@@ -166,8 +166,8 @@ impl ShellWidgetGroups {
                 .network_subscription(
                     buses,
                     self.group_menus.source_demand(
-                        GroupMenuKind::Media,
-                        &[GroupTitle::fixed(GamepadGroup::TITLE)],
+                        GroupMenuTopic::Media,
+                        &[WidgetGroupTitle::fixed(GamepadGroup::TITLE)],
                     ),
                 )
                 .map(Message::Gamepad),
@@ -177,7 +177,7 @@ impl ShellWidgetGroups {
                     buses,
                     &config.widget_groups.media_lyrics,
                     &self.group_menus.source_demand(
-                        GroupMenuKind::Media,
+                        GroupMenuTopic::Media,
                         &self.media_group.player_group_titles(),
                     ),
                 )

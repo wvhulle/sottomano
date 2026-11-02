@@ -36,7 +36,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -73,7 +75,7 @@ pub struct WeatherGroup {
     precipitation_model: LatestSnapshot<PrecipitationModel, HidesFailuresAfterSuccess>,
     pollen: LatestSnapshot<Pollen>,
     location: LatestSnapshot<Location, HidesFailuresAfterSuccess>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -84,7 +86,7 @@ pub enum WeatherMessage {
     PrecipitationModel(SnapshotDelivery<PrecipitationModel>),
     Pollen(SnapshotDelivery<Pollen>),
     Location(SnapshotDelivery<Location>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for WeatherGroup {
@@ -252,7 +254,10 @@ impl WeatherGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, WeatherMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, WeatherMessage> {
         let airborne_items = self.pollen.get().into_iter().flat_map(|pollen| {
             pollen.airborne().map(|concentration| {
                 GroupItem::reading(

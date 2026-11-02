@@ -29,14 +29,14 @@ use sottomano_widgets::{
     toast_messages::NotificationMessage,
     widget_groups::{
         appearance_presets_group::AppearancePresetsMessage,
-        group_menus::{GroupMenuKind, GroupMenuMessage, GroupMenus, PinnedEntry},
+        group_menus::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
     },
     widgets::{
         appearance_presets::ShellAppearance,
         cascade_row::CascadeOrientation,
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        group_menu::{GroupMenu, GroupMenuSurfaces, InspectionCard},
+        group_menu::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         text::FontFaces,
         tooltip_body::tooltip_source_delivery::Tooltip,
@@ -122,7 +122,7 @@ pub struct ShowcaseState {
     controller_artwork: ControllerArtwork,
     theme: Theme,
     group: ShowcasedGroup,
-    group_menus: GroupMenus,
+    group_menus: GroupMenuState,
     tooltip: TooltipHost,
     notifications: NotificationLayer<ShowcaseMessage>,
     clock: Clock,
@@ -152,11 +152,11 @@ impl ShowcaseState {
                 Box::new(toast.clone()),
             )))
         }));
-        let mut group_menus = GroupMenus::default();
+        let mut group_menus = GroupMenuState::default();
         if let GroupShown::PinnedFrom { menu, group_title } = &demo.shown {
             let _unsaved_pin = group_menus.update(GroupMenuMessage::TogglePin {
                 menu: *menu,
-                entry: PinnedEntry::Group {
+                entry: GroupMenuPin::Group {
                     group_title: group_title.clone(),
                 },
             });
@@ -207,7 +207,7 @@ impl ShowcaseState {
                 let _hide_due = self.tooltip.update(message, self.clock.instant);
                 Task::none()
             }
-            ShowcaseMessage::GroupMenus(message) => {
+            ShowcaseMessage::GroupMenuState(message) => {
                 if let GroupMenuMessage::InspectRow { row, .. } = &message {
                     self.schedule_hover_replies(&row.target);
                 }
@@ -251,11 +251,11 @@ impl ShowcaseState {
             .collect();
     }
 
-    fn group_menu(&self, kind: GroupMenuKind) -> GroupMenu<'_, ShowcaseMessage> {
-        GroupMenu::new(
+    fn group_menu(&self, kind: GroupMenuTopic) -> GroupMenuView<'_, ShowcaseMessage> {
+        GroupMenuView::new(
             kind,
             &self.group_menus,
-            ShowcaseMessage::GroupMenus,
+            ShowcaseMessage::GroupMenuState,
             self.group.group_contents(&self.config, self.clock),
         )
     }
@@ -271,7 +271,7 @@ impl ShowcaseState {
         }
     }
 
-    fn menu_cascade(&self, kind: GroupMenuKind) -> HoverContent<'_, ShowcaseMessage> {
+    fn menu_cascade(&self, kind: GroupMenuTopic) -> HoverContent<'_, ShowcaseMessage> {
         let card_tooltip = self
             .group_menus
             .inspected_row(kind)
@@ -298,10 +298,10 @@ impl ShowcaseState {
             orientation,
         );
         match surfaces {
-            Some(GroupMenuSurfaces {
+            Some(GroupMenuCascadeSurfaces {
                 primary,
                 satellites,
-            }) => HoverContent::Cascade {
+            }) => HoverContent::GroupMenu {
                 primary,
                 satellites,
                 orientation,

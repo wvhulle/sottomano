@@ -35,7 +35,9 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         reading_display_state::ReadingDisplayState,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -67,13 +69,13 @@ pub enum BluetoothMessage {
     Disconnect(OwnedObjectPath),
     Expansion {
         controller_name: String,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
 #[derive(Default)]
 struct AdapterSession {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
@@ -265,7 +267,7 @@ impl BluetoothAdaptersGroup {
         adapter: &'a BluetoothAdapter,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Option<GroupContent<'a, BluetoothMessage>> {
+    ) -> Option<WidgetGroupContent<'a, BluetoothMessage>> {
         let session = self.sessions.get(&adapter.controller_name)?;
         let summary_item = GroupItem::reading(
             self.adapter_reading(adapter),
@@ -321,14 +323,14 @@ impl BluetoothAdaptersGroup {
         &self,
         report_timing_for: &impl Fn(&str) -> Option<ReportTiming>,
         clock: Clock,
-    ) -> Vec<GroupContent<'_, BluetoothMessage>> {
+    ) -> Vec<WidgetGroupContent<'_, BluetoothMessage>> {
         self.bluetooth
             .get()
             .map(|bluetooth| bluetooth.adapters.as_slice())
             .unwrap_or_default()
             .iter()
             .filter_map(|adapter| self.adapter_group(adapter, report_timing_for, clock))
-            .map(GroupContent::sharing_title_row)
+            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 }

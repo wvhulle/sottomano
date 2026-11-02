@@ -26,7 +26,10 @@ use crate::{
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         unit_switch::{UnitSwitch, UnitSwitchMessage},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -53,12 +56,12 @@ pub struct ColorTemperatureGroup {
     dim: SliderControl,
     warmth: SliderControl,
     auto: UnitSwitch,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum ColorTemperatureMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     ColorTemperature(SnapshotDelivery<ColorTemperature>),
     Dim(ControlMessage),
     Warmth(ControlMessage),
@@ -99,7 +102,7 @@ impl ColorTemperatureGroup {
                 },
                 SUN_FOLLOW,
             ),
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 
@@ -144,11 +147,12 @@ impl ColorTemperatureGroup {
         clock: Clock,
     ) -> Task<ColorTemperatureMessage> {
         match msg {
-            ColorTemperatureMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => self
-                .update(
-                    ColorTemperatureMessage::Warmth(ControlMessage::Scroll(delta)),
-                    clock,
-                ),
+            ColorTemperatureMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(
+                delta,
+            )) => self.update(
+                ColorTemperatureMessage::Warmth(ControlMessage::Scroll(delta)),
+                clock,
+            ),
             ColorTemperatureMessage::Expansion(m) => {
                 if self.expansion.update(m) {
                     self.close_controls();
@@ -225,7 +229,7 @@ impl ColorTemperatureGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, ColorTemperatureMessage> {
+    ) -> WidgetGroupContent<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
         Self::expandable_group(
             &self.expansion,
@@ -246,7 +250,7 @@ impl ColorTemperatureGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
             handle: GroupHandle::ColorTemperature,
         })

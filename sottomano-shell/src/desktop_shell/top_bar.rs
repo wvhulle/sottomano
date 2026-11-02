@@ -1,8 +1,8 @@
 use iced::Element;
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    widget_groups::{group_menus::GroupMenuKind, notification_group::NotificationStatus},
-    widgets::{group_menu::GroupMenu, widget_group::GroupContent},
+    widget_groups::{group_menus::GroupMenuTopic, notification_group::NotificationStatus},
+    widgets::{group_menu::GroupMenuView, widget_group::WidgetGroupContent},
 };
 
 use crate::{
@@ -11,12 +11,12 @@ use crate::{
 };
 
 pub(super) struct TopBarGroups<'a> {
-    pub start_menus: [GroupMenu<'a, Message>; 2],
-    pub center: [GroupContent<'a, Message>; 1],
-    pub agenda_menu: GroupMenu<'a, Message>,
-    pub notifications: GroupContent<'a, Message>,
-    pub media_menu: GroupMenu<'a, Message>,
-    pub end: [GroupContent<'a, Message>; 1],
+    pub start_menus: [GroupMenuView<'a, Message>; 2],
+    pub center: [WidgetGroupContent<'a, Message>; 1],
+    pub agenda_group_menu: GroupMenuView<'a, Message>,
+    pub notifications: WidgetGroupContent<'a, Message>,
+    pub media_group_menu: GroupMenuView<'a, Message>,
+    pub end: [WidgetGroupContent<'a, Message>; 1],
 }
 
 impl DesktopShell {
@@ -25,12 +25,13 @@ impl DesktopShell {
         let TopBarGroups {
             start_menus,
             center,
-            agenda_menu,
+            agenda_group_menu,
             notifications,
-            media_menu,
+            media_group_menu,
             end,
         } = self.top_bar_groups();
-        let view = |group: GroupContent<'a, Message>| group.view(config, Position::Top, self.clock);
+        let view =
+            |group: WidgetGroupContent<'a, Message>| group.view(config, Position::Top, self.clock);
         self.panel_bar(
             Position::Top,
             start_menus
@@ -39,9 +40,9 @@ impl DesktopShell {
             center
                 .map(view)
                 .into_iter()
-                .chain(agenda_menu.bar_views(config, Position::Top, self.clock))
+                .chain(agenda_group_menu.bar_views(config, Position::Top, self.clock))
                 .chain([view(notifications)]),
-            media_menu
+            media_group_menu
                 .bar_views(config, Position::Top, self.clock)
                 .chain(end.map(view)),
         )
@@ -57,29 +58,29 @@ impl DesktopShell {
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {
         TopBarGroups {
-            start_menus: [self.hardware_menu(), self.network_menu()],
+            start_menus: [self.hardware_group_menu(), self.network_group_menu()],
             center: [self
                 .widget_groups
                 .clock_group
                 .group_content()
                 .map(Message::Clock)],
-            agenda_menu: self.agenda_menu(),
+            agenda_group_menu: self.agenda_group_menu(),
             notifications: self
                 .widget_groups
                 .notification_group
                 .group_content(self.notification_status())
                 .map(Message::NotificationGroup),
-            media_menu: self.media_menu(),
+            media_group_menu: self.media_group_menu(),
             end: [self
                 .widget_groups
-                .session_menu
+                .session_power_group
                 .group_content()
                 .map(Message::Session)],
         }
     }
 
-    pub(super) fn network_menu(&self) -> GroupMenu<'_, Message> {
-        let members = self
+    pub(super) fn network_group_menu(&self) -> GroupMenuView<'_, Message> {
+        let groups = self
             .widget_groups
             .wifi_adapters_group
             .group_contents()
@@ -123,12 +124,12 @@ impl DesktopShell {
                     .group_content()
                     .map(Message::Vpn),
             ]);
-        self.group_menu(GroupMenuKind::Network, members)
+        self.group_menu(GroupMenuTopic::Network, groups)
     }
 
-    pub(super) fn hardware_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn hardware_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
-        let members = [
+        let groups = [
             self.widget_groups
                 .power_group
                 .group_content(config)
@@ -163,13 +164,13 @@ impl DesktopShell {
                 .into_iter()
                 .map(|group| group.map(Message::Drive)),
         );
-        self.group_menu(GroupMenuKind::Hardware, members)
+        self.group_menu(GroupMenuTopic::Hardware, groups)
     }
 
-    pub(super) fn agenda_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn agenda_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
-            GroupMenuKind::Agenda,
+            GroupMenuTopic::Agenda,
             [
                 self.widget_groups
                     .caldav_group
@@ -191,7 +192,7 @@ impl DesktopShell {
         )
     }
 
-    pub(super) fn media_menu(&self) -> GroupMenu<'_, Message> {
+    pub(super) fn media_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         let media_groups = self
             .widget_groups
@@ -207,7 +208,7 @@ impl DesktopShell {
             )
             .into_iter()
             .map(|group| group.map(Message::Gamepad));
-        let members = media_groups
+        let groups = media_groups
             .chain([
                 self.widget_groups
                     .audio_group
@@ -219,6 +220,6 @@ impl DesktopShell {
                     .map(Message::VoiceDictation),
             ])
             .chain(gamepad_groups);
-        self.group_menu(GroupMenuKind::Media, members)
+        self.group_menu(GroupMenuTopic::Media, groups)
     }
 }

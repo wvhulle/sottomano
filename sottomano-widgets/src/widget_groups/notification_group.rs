@@ -20,13 +20,15 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotificationGroupMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     ToggleSound,
     ToggleDoNotDisturb,
     SoundLoaded(bool),
@@ -50,14 +52,14 @@ pub enum Action {
 }
 
 pub struct NotificationGroup {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     alert_sound: bool,
 }
 
 impl Default for NotificationGroup {
     fn default() -> Self {
         Self {
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             alert_sound: true,
         }
     }
@@ -145,7 +147,7 @@ impl NotificationGroup {
     pub fn group_content(
         &self,
         status: NotificationStatus,
-    ) -> GroupContent<'_, NotificationGroupMessage> {
+    ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
         Self::expandable_group(
             &self.expansion,

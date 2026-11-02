@@ -12,7 +12,7 @@ use crate::{
     hover_tooltips::{
         HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable,
     },
-    widget_groups::group_menus::{GroupMenuKind, GroupMenus, PinnedEntry},
+    widget_groups::group_menus::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
@@ -29,7 +29,7 @@ use crate::{
         slider_control::{ControlMessage, SliderControl},
         source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
-        widget_group::{GroupEvent, GroupTitle},
+        widget_group::{GroupEvent, WidgetGroupTitle},
     },
 };
 
@@ -67,12 +67,12 @@ impl<M> MenuItemAction<M> {
     }
 }
 
-pub struct ItemIdentity {
+pub struct ComposedGroupItemFace {
     pub name: Cow<'static, str>,
-    pub icon: ItemIcon,
+    pub icon: GroupItemIcon,
 }
 
-pub enum ItemIcon {
+pub enum GroupItemIcon {
     IconGlyph {
         glyph: IconGlyph,
         state: ReadingDisplayState,
@@ -81,47 +81,47 @@ pub enum ItemIcon {
     Absent,
 }
 
-impl ItemIcon {
+impl GroupItemIcon {
     fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
         let side = config.theme.font.icon_size_px;
         match self {
-            ItemIcon::IconGlyph { glyph, state } => {
+            GroupItemIcon::IconGlyph { glyph, state } => {
                 let tint = ReadingStateTint {
                     state: *state,
                     opacity,
                 };
                 Some(glyph.view(side, move |theme| tint.color(theme)))
             }
-            ItemIcon::Image(handle) => Some(handle.view(side, opacity)),
-            ItemIcon::Absent => None,
+            GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
+            GroupItemIcon::Absent => None,
         }
     }
 }
 
-pub enum ItemHover {
+pub enum GroupItemHoverArea {
     WholeItem(HoverTarget),
     ByChildren { row_target: HoverTarget },
 }
 
-pub enum ItemValue<'a, M> {
+pub enum GroupItemValue<'a, M> {
     Nothing,
     Drawn(DrawItem<'a, M>),
 }
 
-impl<'a, M: 'a> ItemValue<'a, M> {
+impl<'a, M: 'a> GroupItemValue<'a, M> {
     pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
-        ItemValue::Drawn(Box::new(draw))
+        GroupItemValue::Drawn(Box::new(draw))
     }
 
     fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent<M>>> {
         match self {
-            ItemValue::Nothing => None,
-            ItemValue::Drawn(draw) => Some(draw(reveal)),
+            GroupItemValue::Nothing => None,
+            GroupItemValue::Drawn(draw) => Some(draw(reveal)),
         }
     }
 }
 
-enum ItemKind<'a, M> {
+enum GroupItemContent<'a, M> {
     Reading {
         widget: Box<dyn GroupItemReading + 'a>,
         target: HoverTarget,
@@ -132,33 +132,35 @@ enum ItemKind<'a, M> {
         draw: DrawControl<'a, M>,
     },
     Composed {
-        identity: ItemIdentity,
-        hover: ItemHover,
-        value: ItemValue<'a, M>,
+        identity: ComposedGroupItemFace,
+        hover: GroupItemHoverArea,
+        value: GroupItemValue<'a, M>,
     },
 }
 
-impl<'a, M: 'a> ItemKind<'a, M> {
+impl<'a, M: 'a> GroupItemContent<'a, M> {
     fn announcing_widget(&self) -> Option<&dyn GroupItemReading> {
         match self {
-            ItemKind::Reading { widget, .. } => Some(widget.as_ref()),
-            ItemKind::Slider { widget, .. } => Some(*widget),
-            ItemKind::Composed { .. } => None,
+            GroupItemContent::Reading { widget, .. } => Some(widget.as_ref()),
+            GroupItemContent::Slider { widget, .. } => Some(*widget),
+            GroupItemContent::Composed { .. } => None,
         }
     }
 
     fn hover_target(&self) -> &HoverTarget {
         match self {
-            ItemKind::Reading { target, .. }
-            | ItemKind::Slider { target, .. }
-            | ItemKind::Composed {
-                hover: ItemHover::WholeItem(target) | ItemHover::ByChildren { row_target: target },
+            GroupItemContent::Reading { target, .. }
+            | GroupItemContent::Slider { target, .. }
+            | GroupItemContent::Composed {
+                hover:
+                    GroupItemHoverArea::WholeItem(target)
+                    | GroupItemHoverArea::ByChildren { row_target: target },
                 ..
             } => target,
         }
     }
 
-    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> ItemKind<'a, Outer> {
+    fn map<Outer: 'a>(self, lift: fn(M) -> Outer) -> GroupItemContent<'a, Outer> {
         let lift_draw = |draw: DrawItem<'a, M>| -> DrawItem<'a, Outer> {
             Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
         };
@@ -168,26 +170,28 @@ impl<'a, M: 'a> ItemKind<'a, M> {
             })
         };
         match self {
-            ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
-            ItemKind::Slider {
+            GroupItemContent::Reading { widget, target } => {
+                GroupItemContent::Reading { widget, target }
+            }
+            GroupItemContent::Slider {
                 widget,
                 target,
                 draw,
-            } => ItemKind::Slider {
+            } => GroupItemContent::Slider {
                 widget,
                 target,
                 draw: lift_control(draw),
             },
-            ItemKind::Composed {
+            GroupItemContent::Composed {
                 identity,
                 hover,
                 value,
-            } => ItemKind::Composed {
+            } => GroupItemContent::Composed {
                 identity,
                 hover,
                 value: match value {
-                    ItemValue::Nothing => ItemValue::Nothing,
-                    ItemValue::Drawn(draw) => ItemValue::Drawn(lift_draw(draw)),
+                    GroupItemValue::Nothing => GroupItemValue::Nothing,
+                    GroupItemValue::Drawn(draw) => GroupItemValue::Drawn(lift_draw(draw)),
                 },
             },
         }
@@ -215,7 +219,7 @@ pub(super) struct HandlePreview<'p> {
 }
 
 pub struct GroupItem<'a, M> {
-    kind: ItemKind<'a, M>,
+    kind: GroupItemContent<'a, M>,
     on_press: Option<Press<M>>,
     on_right_press: Option<Press<M>>,
     handle_announcement: HoverAnnouncement,
@@ -226,7 +230,7 @@ pub struct GroupItem<'a, M> {
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
-    fn of_kind(kind: ItemKind<'a, M>) -> Self {
+    fn of_kind(kind: GroupItemContent<'a, M>) -> Self {
         Self {
             kind,
             on_press: None,
@@ -240,7 +244,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub fn reading(widget: impl GroupItemReading + 'a, target: impl Into<HoverTarget>) -> Self {
-        Self::of_kind(ItemKind::Reading {
+        Self::of_kind(GroupItemContent::Reading {
             widget: Box::new(widget),
             target: target.into(),
         })
@@ -252,7 +256,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
-        Self::of_kind(ItemKind::Slider {
+        Self::of_kind(GroupItemContent::Slider {
             widget: slider,
             target: slider.target().clone(),
             draw: Box::new(move |reveal, clock, placement| {
@@ -272,8 +276,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub fn composed(identity: ItemIdentity, hover: ItemHover, value: ItemValue<'a, M>) -> Self {
-        Self::of_kind(ItemKind::Composed {
+    pub fn composed(
+        identity: ComposedGroupItemFace,
+        hover: GroupItemHoverArea,
+        value: GroupItemValue<'a, M>,
+    ) -> Self {
+        Self::of_kind(GroupItemContent::Composed {
             identity,
             hover,
             value,
@@ -514,16 +522,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         let tint_of = |widget: &dyn GroupItemReading| ReadingStateTint::opaque(widget.state(clock));
         let empty = || -> Element<'a, GroupEvent<M>> { Space::new().into() };
         match &self.kind {
-            ItemKind::Reading { widget, .. } => MenuParts {
+            GroupItemContent::Reading { widget, .. } => MenuParts {
                 icon: reading_icon(config, widget.as_ref(), tint_of(widget.as_ref()), clock),
                 value: reading_value(config, widget.as_ref(), tint_of(widget.as_ref()), clock)
                     .unwrap_or_else(empty),
             },
-            ItemKind::Slider { widget, draw, .. } => MenuParts {
+            GroupItemContent::Slider { widget, draw, .. } => MenuParts {
                 icon: reading_icon(config, *widget, tint_of(*widget), clock),
                 value: draw(1.0, clock, ItemPlacement::Menu),
             },
-            ItemKind::Composed {
+            GroupItemContent::Composed {
                 identity, value, ..
             } => MenuParts {
                 icon: identity.icon.view(config, 1.0).unwrap_or_else(empty),
@@ -534,21 +542,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(super) fn pinnable_name(&self) -> Option<&'static str> {
         match &self.kind {
-            ItemKind::Reading { widget, .. } => Some(widget.name()),
-            ItemKind::Slider { .. } | ItemKind::Composed { .. } => None,
+            GroupItemContent::Reading { widget, .. } => Some(widget.name()),
+            GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
         }
     }
 
     pub(super) fn pinned_item_name(
         &self,
-        group_title: &GroupTitle,
-        group_menus: &GroupMenus,
-        menu: GroupMenuKind,
+        group_title: &WidgetGroupTitle,
+        group_menus: &GroupMenuState,
+        menu: GroupMenuTopic,
     ) -> Option<&'static str> {
         self.pinnable_name().filter(|item_name| {
             group_menus.is_pinned(
                 menu,
-                PinnedEntry::Item {
+                GroupMenuPin::Item {
                     group_title: group_title.clone(),
                     item_name,
                 },
@@ -558,9 +566,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(super) fn menu_name(&self) -> Cow<'static, str> {
         match &self.kind {
-            ItemKind::Reading { widget, .. } => widget.name().into(),
-            ItemKind::Slider { widget, .. } => widget.name().into(),
-            ItemKind::Composed { identity, .. } => identity.name.clone(),
+            GroupItemContent::Reading { widget, .. } => widget.name().into(),
+            GroupItemContent::Slider { widget, .. } => widget.name().into(),
+            GroupItemContent::Composed { identity, .. } => identity.name.clone(),
         }
     }
 
@@ -585,12 +593,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             ItemPlacement::Table | ItemPlacement::Menu => element,
         };
         let mut element = match &self.kind {
-            ItemKind::Reading { widget, target } => explained(
+            GroupItemContent::Reading { widget, target } => explained(
                 source_reading(config, widget.as_ref(), reveal, clock),
                 target,
             ),
-            ItemKind::Slider { draw, .. } => draw(reveal, clock, placement),
-            ItemKind::Composed {
+            GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement),
+            GroupItemContent::Composed {
                 identity,
                 hover,
                 value,
@@ -606,8 +614,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 .align_y(Alignment::Center)
                 .into();
                 match hover {
-                    ItemHover::WholeItem(target) => explained(composed_row, target),
-                    ItemHover::ByChildren { .. } => composed_row,
+                    GroupItemHoverArea::WholeItem(target) => explained(composed_row, target),
+                    GroupItemHoverArea::ByChildren { .. } => composed_row,
                 }
             }
         };
@@ -635,7 +643,7 @@ fn table_icon_gap(config: &Config) -> f32 {
 mod tests {
     use super::*;
     use crate::{
-        widget_groups::session_menu::SessionTarget,
+        widget_groups::session_power_group::SessionTarget,
         widgets::{
             phosphor::{Phosphor, Weight},
             tooltip_body::TooltipBody,
@@ -658,19 +666,19 @@ mod tests {
         }
     }
 
-    fn composed_with(hover: ItemHover) -> GroupItem<'static, ()> {
+    fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
         GroupItem::composed(
-            ItemIdentity {
+            ComposedGroupItemFace {
                 name: "Composed row".into(),
-                icon: ItemIcon::Absent,
+                icon: GroupItemIcon::Absent,
             },
             hover,
-            ItemValue::Nothing,
+            GroupItemValue::Nothing,
         )
     }
 
-    fn whole_item_hover() -> ItemHover {
-        ItemHover::WholeItem(SessionTarget::Menu.into())
+    fn whole_item_hover() -> GroupItemHoverArea {
+        GroupItemHoverArea::WholeItem(SessionTarget::Menu.into())
     }
 
     #[test]
@@ -683,7 +691,7 @@ mod tests {
 
     #[test]
     fn row_action_follows_the_hover_owner() {
-        let children_hover = ItemHover::ByChildren {
+        let children_hover = GroupItemHoverArea::ByChildren {
             row_target: SessionTarget::Menu.into(),
         };
         assert!(matches!(

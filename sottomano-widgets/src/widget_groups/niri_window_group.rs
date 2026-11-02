@@ -25,7 +25,10 @@ use crate::{
             tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
         },
         value_cells::{LabeledValue, ValueCell},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -57,7 +60,7 @@ impl From<NiriWindowTarget> for HoverTarget {
 
 #[derive(Debug, Clone)]
 pub enum NiriWindowMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     CornerRadius(ControlMessage),
     Gaps(ControlMessage),
     ToggleXray,
@@ -67,7 +70,7 @@ pub enum NiriWindowMessage {
 }
 
 pub struct NiriWindowGroup {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     rules_file: NiriRulesFile,
     xray: bool,
     corner_radius: SliderControl,
@@ -84,7 +87,7 @@ impl NiriWindowGroup {
     pub fn new(rules_file: NiriRulesFile) -> Self {
         let defaults = NiriStyling::default();
         let mut niri_window_group = Self {
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             rules_file,
             xray: defaults.xray,
             corner_radius: SliderControl::new(
@@ -253,7 +256,10 @@ impl NiriWindowGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, NiriWindowMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, NiriWindowMessage> {
         Self::expandable_group(
             &self.expansion,
             NiriWindowMessage::Expansion,
@@ -273,7 +279,7 @@ impl NiriWindowGroup {
                 ),
             ],
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::niri.into(),
             handle: GroupHandle::NiriWindow,
         })

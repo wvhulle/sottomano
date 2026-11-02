@@ -33,7 +33,10 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         tooltip_body::{Section, tooltip_source_delivery::Tooltip},
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -62,7 +65,7 @@ pub struct VpnGroup {
     wireguard: LatestSnapshot<Wireguard>,
     tailscale: LatestSnapshot<Tailscale>,
     tunnel_address: HoverFetchedSnapshot<TunnelAddress>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +74,7 @@ pub enum VpnMessage {
     Wireguard(SnapshotDelivery<Wireguard>),
     TunnelAddressFetched(SnapshotDelivery<TunnelAddress>),
     Tailscale(SnapshotDelivery<Tailscale>),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     SwitchVpn(VpnSwitch),
     SwitchWireguard(WireguardSwitch),
     SwitchTailscale(TailscaleSwitch),
@@ -262,7 +265,7 @@ impl VpnGroup {
         )
     }
 
-    pub fn group_content(&self) -> GroupContent<'_, VpnMessage> {
+    pub fn group_content(&self) -> WidgetGroupContent<'_, VpnMessage> {
         let vpn_connections = self
             .network_manager_vpns
             .get()
@@ -330,7 +333,7 @@ impl VpnGroup {
                         .map(|tunnel| Self::tunnel_item(tunnel, false)),
                 ),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ShieldCheck(Weight::Regular).into(),
             handle: GroupHandle::Vpn,
         })

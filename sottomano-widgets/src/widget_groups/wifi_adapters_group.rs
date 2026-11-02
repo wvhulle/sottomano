@@ -41,7 +41,10 @@ use crate::{
             Section,
             tooltip_source_delivery::{SourcedSections, Tooltip},
         },
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, GroupTitle, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupTitle,
+        },
     },
 };
 
@@ -83,13 +86,13 @@ pub enum WifiAdaptersMessage {
     ToggleAllRadios,
     Expansion {
         adapter_device: String,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
 #[derive(Default)]
 struct AdapterSession {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
@@ -308,8 +311,8 @@ impl WifiAdaptersGroup {
         &'a self,
         adapter: &'a WifiAdapter,
         radio_enabled: bool,
-        group_title: GroupTitle,
-    ) -> Option<GroupContent<'a, WifiAdaptersMessage>> {
+        group_title: WidgetGroupTitle,
+    ) -> Option<WidgetGroupContent<'a, WifiAdaptersMessage>> {
         let session = self.sessions.get(&adapter.device)?;
         let signal_item = GroupItem::reading(
             AdapterSignalReading {
@@ -376,7 +379,7 @@ impl WifiAdaptersGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<GroupContent<'_, WifiAdaptersMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, WifiAdaptersMessage>> {
         let Some(wifi) = self.wifi.get() else {
             return Vec::new();
         };

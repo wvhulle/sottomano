@@ -23,7 +23,10 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -81,7 +84,7 @@ pub struct AudioGroup {
     commands: Option<Commands>,
     sink_control: SliderControl,
     source_control: SliderControl,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 impl Default for AudioGroup {
@@ -89,7 +92,7 @@ impl Default for AudioGroup {
         Self {
             state: LatestSnapshot::default(),
             commands: None,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             sink_control: SliderControl::new(
                 "Speaker volume",
                 RANGE,
@@ -142,7 +145,7 @@ pub enum AudioMessage {
     Disconnected,
     ConnectFailed(AudioConnectError),
     Control(ControlKind, ControlMessage),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl AudioGroup {
@@ -188,7 +191,7 @@ impl AudioGroup {
                 Task::none()
             }
             AudioMessage::Control(kind, m) => self.update_control(kind, m),
-            AudioMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+            AudioMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
                 self.update_control(ControlKind::Sink, ControlMessage::Scroll(delta))
             }
             AudioMessage::Expansion(m) => {
@@ -295,7 +298,7 @@ impl AudioGroup {
         ))
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, AudioMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
         Self::expandable_group(
@@ -324,7 +327,7 @@ impl AudioGroup {
             .into_iter()
             .flatten(),
         )
-        .face(HandleFace::IconColoredBy {
+        .face(WidgetGroupFace::IconColoredBy {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
             reading: &self.sink_control,
             handle: GroupHandle::Audio,

@@ -32,7 +32,10 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -56,12 +59,12 @@ pub struct MonitorGroup {
     backlights: LatestSnapshot<Vec<Backlight>, HidesFetchFailures>,
     sliders: BTreeMap<String, SliderControl>,
     clight: ToggleControl<AutoBrightness>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum MonitorMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     Backlights(SnapshotDelivery<Vec<Backlight>>),
     BacklightsReread(Vec<Backlight>),
     Backlight(String, ControlMessage),
@@ -103,7 +106,7 @@ impl MonitorGroup {
 
     pub fn update(&mut self, msg: MonitorMessage, clock: Clock) -> Task<MonitorMessage> {
         match msg {
-            MonitorMessage::Expansion(ExpansionMessage::HandleScrolled(delta)) => {
+            MonitorMessage::Expansion(WidgetGroupExpansionMessage::HandleScrolled(delta)) => {
                 self.scroll_all_backlights(delta)
             }
             MonitorMessage::Expansion(m) => {
@@ -222,7 +225,10 @@ impl MonitorGroup {
         }
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, MonitorMessage> {
+    pub fn group_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, MonitorMessage> {
         let backlight_items = self.sliders.iter().map(|(serial, slider)| {
             let serial = serial.clone();
             GroupItem::slider(slider, config, move |m| {
@@ -239,7 +245,7 @@ impl MonitorGroup {
                     .map(GroupItem::previewed_on_handle),
             ),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Lightbulb(Weight::Regular).into(),
             handle: GroupHandle::Monitor,
         })

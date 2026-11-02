@@ -6,8 +6,10 @@ use crate::{
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         configured_theme::text_color,
-        context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        context_menu::{ContextMenuLine, ContextMenuRow, Trailing, context_menu},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
@@ -15,7 +17,7 @@ use crate::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{GroupContent, WidgetGroup},
+        widget_group::{WidgetGroup, WidgetGroupContent},
     },
 };
 
@@ -39,8 +41,8 @@ fn preset_menu_row<'a>(
     preset: AppearancePreset,
     current: &ShellAppearance,
     config: &Config,
-) -> MenuLine<'a, AppearancePresetsMessage> {
-    MenuLine::Row(MenuRow {
+) -> ContextMenuLine<'a, AppearancePresetsMessage> {
+    ContextMenuLine::Row(ContextMenuRow {
         leading: Some(
             IconGlyph::from(preset.icon()).view(config.theme.font.icon_size_px, text_color),
         ),
@@ -57,13 +59,13 @@ fn preset_menu_row<'a>(
 }
 
 #[derive(Default)]
-pub struct AppearancePresetsMenu;
+pub struct AppearancePresetsGroup;
 
-impl WidgetGroup for AppearancePresetsMenu {
+impl WidgetGroup for AppearancePresetsGroup {
     const TITLE: &'static str = "Looks";
 }
 
-impl AppearancePresetsMenu {
+impl AppearancePresetsGroup {
     #[must_use]
     pub fn tooltip_for(&self, target: AppearancePresetsTarget) -> Tooltip {
         match target {
@@ -91,17 +93,17 @@ impl AppearancePresetsMenu {
     }
 
     #[must_use]
-    pub fn group_content<'a>(&self) -> GroupContent<'a, AppearancePresetsMessage> {
+    pub fn group_content<'a>(&self) -> WidgetGroupContent<'a, AppearancePresetsMessage> {
         Self::fixed_group(Some(GroupItem::composed(
-            ItemIdentity {
+            ComposedGroupItemFace {
                 name: Self::TITLE.into(),
-                icon: ItemIcon::IconGlyph {
+                icon: GroupItemIcon::IconGlyph {
                     glyph: Phosphor::Palette(Weight::Regular).into(),
                     state: ReadingDisplayState::Idle,
                 },
             },
-            ItemHover::WholeItem(AppearancePresetsTarget::Menu.into()),
-            ItemValue::Nothing,
+            GroupItemHoverArea::WholeItem(AppearancePresetsTarget::Menu.into()),
+            GroupItemValue::Nothing,
         )))
     }
 }

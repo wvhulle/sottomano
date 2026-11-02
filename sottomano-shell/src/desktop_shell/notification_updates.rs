@@ -5,7 +5,7 @@ use sottomano_widgets::{
     notification_toasts::ToastContext,
     toast_messages::NotificationMessage,
     widget_groups::{
-        group_menus::PromotedGroup,
+        group_menus::AlertPromotedGroup,
         notification_group::{self, NotificationGroupMessage},
         quiet_schedule_group::{QuietChange, QuietScheduleMessage, QuietUpdate},
     },
@@ -19,7 +19,7 @@ use crate::{
 
 pub(super) struct GroupAlertScan {
     pub toast_requests: GroupToastRequests<Message>,
-    pub promoted_groups: Vec<PromotedGroup>,
+    pub promoted_groups: Vec<AlertPromotedGroup>,
 }
 
 impl DesktopShell {

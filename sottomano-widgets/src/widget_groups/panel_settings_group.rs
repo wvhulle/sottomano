@@ -14,7 +14,10 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -107,7 +110,7 @@ impl From<PanelSettingsTarget> for HoverTarget {
 
 #[derive(Debug, Clone)]
 pub enum PanelSettingsMessage {
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     ToggleDisconnectedGroups,
     ToggleAutoCollapseGroups,
     FloatOffset(ControlMessage),
@@ -116,7 +119,7 @@ pub enum PanelSettingsMessage {
 }
 
 pub struct PanelSettingsGroup {
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
     disconnected_groups: bool,
     auto_collapse_groups: bool,
     float_offset: SliderControl,
@@ -127,7 +130,7 @@ impl Default for PanelSettingsGroup {
     fn default() -> Self {
         let defaults = PanelLayout::default();
         let mut panel_settings_group = Self {
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
             disconnected_groups: defaults.disconnected_groups,
             auto_collapse_groups: defaults.auto_collapse_groups,
             float_offset: SliderControl::new(
@@ -275,7 +278,7 @@ impl PanelSettingsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, PanelSettingsMessage> {
+    ) -> WidgetGroupContent<'a, PanelSettingsMessage> {
         Self::expandable_group(
             &self.expansion,
             PanelSettingsMessage::Expansion,
@@ -302,7 +305,7 @@ impl PanelSettingsGroup {
                     .items(config, PanelSettingsMessage::Appearance),
             ),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rows(Weight::Regular).into(),
             handle: GroupHandle::PanelSettings,
         })

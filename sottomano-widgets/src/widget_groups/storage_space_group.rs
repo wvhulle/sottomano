@@ -30,7 +30,9 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -127,24 +129,24 @@ impl GroupItemReading for MountPointLabel<'_> {
 struct MountedFilesystem {
     mount: FilesystemMount,
     usage: LatestSnapshot<FilesystemUsage>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Default)]
 pub struct StorageSpaceGroup {
     discovery: LatestSnapshot<BlockFilesystemDiscovery>,
     filesystems: BTreeMap<PathBuf, MountedFilesystem>,
-    discovery_expansion: GroupExpansion,
+    discovery_expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum StorageMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     Usage(PathBuf, Box<SnapshotDelivery<FilesystemUsage>>),
-    DiscoveryExpansion(ExpansionMessage),
+    DiscoveryExpansion(WidgetGroupExpansionMessage),
     MountExpansion {
         mount_point: PathBuf,
-        expansion: ExpansionMessage,
+        expansion: WidgetGroupExpansionMessage,
     },
 }
 
@@ -241,7 +243,7 @@ impl StorageSpaceGroup {
         Task::none()
     }
 
-    fn mount_group(filesystem: &MountedFilesystem) -> GroupContent<'_, StorageMessage> {
+    fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageMessage> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
         let mount_point_items = filesystem.usage.get().into_iter().flat_map(move |usage| {
             filesystem
@@ -278,7 +280,7 @@ impl StorageSpaceGroup {
     }
 
     #[must_use]
-    pub fn group_contents(&self) -> Vec<GroupContent<'_, StorageMessage>> {
+    pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageMessage>> {
         let discovery_group = Self::expandable_group(
             &self.discovery_expansion,
             StorageMessage::DiscoveryExpansion,
@@ -287,7 +289,7 @@ impl StorageSpaceGroup {
         [discovery_group]
             .into_iter()
             .chain(self.filesystems.values().map(Self::mount_group))
-            .map(GroupContent::sharing_title_row)
+            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 

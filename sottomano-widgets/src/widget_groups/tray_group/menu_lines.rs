@@ -5,7 +5,7 @@ use sottomano_sources::desktop_windows_apps::status_notifier_tray::{MenuKind, Me
 
 use crate::widgets::{
     configured_theme::text_color,
-    context_menu::{MenuLine, MenuRow, Trailing},
+    context_menu::{ContextMenuLine, ContextMenuRow, Trailing},
     icon_glyph::IconGlyph,
     icon_handle::PixmapHandles,
     phosphor::{Phosphor, Weight},
@@ -21,14 +21,14 @@ pub struct TrayMenuLines<'c, M> {
 
 impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
     #[must_use]
-    pub fn lines<'a>(&self, nodes: &[MenuNode]) -> Vec<MenuLine<'a, M>>
+    pub fn lines<'a>(&self, nodes: &[MenuNode]) -> Vec<ContextMenuLine<'a, M>>
     where
         M: 'a,
     {
         self.nested(0, nodes)
     }
 
-    fn nested<'a>(&self, depth: usize, nodes: &[MenuNode]) -> Vec<MenuLine<'a, M>>
+    fn nested<'a>(&self, depth: usize, nodes: &[MenuNode]) -> Vec<ContextMenuLine<'a, M>>
     where
         M: 'a,
     {
@@ -38,12 +38,12 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
             .collect()
     }
 
-    fn node_lines<'a>(&self, depth: usize, node: &MenuNode) -> Vec<MenuLine<'a, M>>
+    fn node_lines<'a>(&self, depth: usize, node: &MenuNode) -> Vec<ContextMenuLine<'a, M>>
     where
         M: 'a,
     {
         match node.kind {
-            MenuKind::Separator => vec![MenuLine::Divider],
+            MenuKind::Separator => vec![ContextMenuLine::Divider],
             MenuKind::Submenu => {
                 let open = self.open.contains(&node.id);
                 let head = self.row(
@@ -72,7 +72,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
         node: &MenuNode,
         trailing: Trailing,
         on_press: M,
-    ) -> MenuLine<'a, M>
+    ) -> ContextMenuLine<'a, M>
     where
         M: 'a,
     {
@@ -86,7 +86,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
                     IconGlyph::from(Phosphor::Check(Weight::Regular)).view(icon_size, text_color)
                 })
             });
-        MenuLine::Row(MenuRow {
+        ContextMenuLine::Row(ContextMenuRow {
             leading,
             label: node.label.clone(),
             trailing,

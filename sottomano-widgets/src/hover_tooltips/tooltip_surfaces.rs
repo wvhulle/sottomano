@@ -285,7 +285,7 @@ impl TooltipHost {
         let current = self.transition.current()?;
         let departed_content = match content.with_announcement(current.announcement.clone()) {
             HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
-            HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => {
+            HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => {
                 DepartedContent::Interactive
             }
         };
@@ -321,13 +321,13 @@ impl TooltipHost {
                     )
                 }
             }
-            HoverContent::Cascade {
+            HoverContent::GroupMenu {
                 primary,
                 satellites,
                 orientation,
             } => Rendered {
                 element: cascade_row(primary, satellites, orientation),
-                framing: PopupFraming::Cascade(orientation),
+                framing: PopupFraming::LeadingSurface(orientation),
             },
         };
         if !self.hosts(surface) {
@@ -391,7 +391,7 @@ pub enum HoverContent<'a, Message> {
         described: Tooltip,
         panel: Element<'a, Message>,
     },
-    Cascade {
+    GroupMenu {
         primary: Element<'a, Message>,
         satellites: Vec<Element<'a, Message>>,
         orientation: CascadeOrientation,
@@ -423,7 +423,7 @@ impl<Message> HoverContent<'_, Message> {
                 described: described.with_announcement(announcement),
                 panel,
             },
-            cascade @ HoverContent::Cascade { .. } => cascade,
+            cascade @ HoverContent::GroupMenu { .. } => cascade,
         }
     }
 
@@ -431,7 +431,7 @@ impl<Message> HoverContent<'_, Message> {
     pub fn shows_anything(&self, announcement: &HoverAnnouncement) -> bool {
         match self {
             HoverContent::Described(tooltip) => !tooltip.is_empty() || !announcement.is_empty(),
-            HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => true,
+            HoverContent::Interactive { .. } | HoverContent::GroupMenu { .. } => true,
         }
     }
 }

@@ -25,7 +25,10 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::ControlMessage,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, HandleFace, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupFace,
+        },
     },
 };
 
@@ -36,13 +39,13 @@ pub struct IdleTimeoutsGroup {
     power_down: IdleTimer,
     quiet_screen_off: Option<Duration>,
     idle_watcher: Option<task::Handle>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum IdleTimeoutsMessage {
     Loaded(Timeouts),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     Timer(IdleAction, ControlMessage),
     ScreenPowerChangedByIdleAction(ScreenEdge),
 }
@@ -72,7 +75,7 @@ impl Default for IdleTimeoutsGroup {
             ),
             quiet_screen_off: None,
             idle_watcher: None,
-            expansion: GroupExpansion::default(),
+            expansion: WidgetGroupExpansion::default(),
         }
     }
 }
@@ -227,7 +230,7 @@ impl IdleTimeoutsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, IdleTimeoutsMessage> {
+    ) -> WidgetGroupContent<'a, IdleTimeoutsMessage> {
         Self::expandable_group(
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
@@ -238,7 +241,7 @@ impl IdleTimeoutsGroup {
                 .previewed_on_handle_if(kind == IdleAction::Lock)
             }),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Timer(Weight::Regular).into(),
             handle: GroupHandle::IdleTimeouts,
         })

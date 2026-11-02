@@ -27,7 +27,9 @@ use crate::{
         app_window_focus::AppWindowFocus,
         configured_theme::primary_color,
         context_menu::context_menu,
-        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+        group_item::{
+            ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
@@ -35,7 +37,8 @@ use crate::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         widget_group::{
-            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
+            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
+            WidgetGroupExpansionMessage, WidgetGroupFace,
         },
     },
 };
@@ -52,13 +55,13 @@ pub struct TrayGroup {
     pixmap_handles: PixmapHandles,
     commands: Option<mpsc::Sender<TrayCommand>>,
     open_submenus: HashSet<i32>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
 pub enum TrayMessage {
     Update(TrayUpdate),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
     Activate(String),
     Secondary(String),
     FocusWindow {
@@ -221,26 +224,26 @@ impl TrayGroup {
             .collect()
     }
 
-    pub fn group_content<'a>(&'a self, config: &'a Config) -> GroupContent<'a, TrayMessage> {
+    pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, TrayMessage> {
         Self::expandable_group(
             &self.expansion,
             TrayMessage::Expansion,
             self.visible(config).into_iter().map(|item| {
                 GroupItem::composed(
-                    ItemIdentity {
+                    ComposedGroupItemFace {
                         name: item.name().to_owned().into(),
-                        icon: ItemIcon::Absent,
+                        icon: GroupItemIcon::Absent,
                     },
-                    ItemHover::ByChildren {
+                    GroupItemHoverArea::ByChildren {
                         row_target: HoverTarget::Tray(item.address.clone()),
                     },
-                    ItemValue::drawn(move |reveal| {
+                    GroupItemValue::drawn(move |reveal| {
                         item_view(config, &self.pixmap_handles, item, reveal)
                     }),
                 )
             }),
         )
-        .face(HandleFace::Icon {
+        .face(WidgetGroupFace::Icon {
             glyph: Phosphor::DotsThreeVertical(Weight::Regular).into(),
             handle: GroupHandle::Tray,
         })

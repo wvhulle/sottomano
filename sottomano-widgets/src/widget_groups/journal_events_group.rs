@@ -32,7 +32,9 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
     },
 };
 
@@ -65,7 +67,7 @@ pub struct JournalEventsGroup {
     service_errors: LatestSnapshot<ServiceErrors>,
     coredumps: LatestSnapshot<Vec<CoredumpEntry>>,
     oom_kills: LatestSnapshot<Vec<OomKillEntry>>,
-    expansion: GroupExpansion,
+    expansion: WidgetGroupExpansion,
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +77,7 @@ pub enum JournalEventsMessage {
     Coredumps(SnapshotDelivery<Vec<CoredumpEntry>>),
     OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
-    Expansion(ExpansionMessage),
+    Expansion(WidgetGroupExpansionMessage),
 }
 
 impl WidgetGroup for JournalEventsGroup {
@@ -141,7 +143,7 @@ impl JournalEventsGroup {
     pub fn group_content<'a>(
         &'a self,
         config: &'a Config,
-    ) -> GroupContent<'a, JournalEventsMessage> {
+    ) -> WidgetGroupContent<'a, JournalEventsMessage> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
         Self::expandable_group(
             &self.expansion,

@@ -20,7 +20,7 @@ use sottomano_widgets::{
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
     widget_groups::{
-        appearance_presets_group::{AppearancePresetsMenu, AppearancePresetsTarget},
+        appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
         claude_usage_group::ClaudeUsageGroup,
@@ -51,7 +51,7 @@ use sottomano_widgets::{
         pointer_drag::DragView,
         shell_layer_appearance::ShellLayer,
         tooltip_body::tooltip_source_delivery::Tooltip,
-        widget_group::GroupContent,
+        widget_group::WidgetGroupContent,
         window_icon::WindowAssets,
     },
 };
@@ -96,7 +96,7 @@ pub enum ShowcasedGroup {
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdleTimeoutsGroup>),
-    AppearancePresets(AppearancePresetsMenu),
+    AppearancePresets(AppearancePresetsGroup),
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
     Gamepad(Box<ShowcasedGamepad>),
@@ -126,7 +126,10 @@ pub enum ShownSettingItems {
 }
 
 impl ShowcasedShellSettings {
-    fn group_contents<'a>(&'a self, config: &'a Config) -> Vec<GroupContent<'a, ShowcaseMessage>> {
+    fn group_contents<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
         let inert_settings = [
             self.panels
                 .group_content(config)
@@ -142,11 +145,11 @@ impl ShowcasedShellSettings {
                 .map(|_| ShowcaseMessage::OutsideShowcase),
         ];
         match self.shown_items {
-            ShownSettingItems::SharingAUnit => {
-                inert_settings.map(GroupContent::only_aligned_items).into()
-            }
+            ShownSettingItems::SharingAUnit => inert_settings
+                .map(WidgetGroupContent::only_aligned_items)
+                .into(),
             ShownSettingItems::Remaining => inert_settings
-                .map(GroupContent::only_unaligned_items)
+                .map(WidgetGroupContent::only_unaligned_items)
                 .into(),
         }
     }
@@ -281,7 +284,7 @@ impl ShowcasedNiriSession {
         .collect()
     }
 
-    fn bottom_bar_groups<'a>(
+    fn workspaces_and_windows<'a>(
         &'a self,
         config: &'a Config,
         clock: Clock,
@@ -354,7 +357,7 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Caldav(_)
             | ShowcasedGroup::Vpn(_)
             | ShowcasedGroup::Toasts(_) => Position::Top,
-            ShowcasedGroup::MenuMembers(members) => members
+            ShowcasedGroup::MenuMembers(groups) => groups
                 .first()
                 .map_or(Position::Top, ShowcasedGroup::position),
         }
@@ -364,7 +367,7 @@ impl ShowcasedGroup {
         &'a self,
         config: &'a Config,
         clock: Clock,
-    ) -> Vec<GroupContent<'a, ShowcaseMessage>> {
+    ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Compute)]
@@ -419,7 +422,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::LoginSession(group) => {
                 vec![group.group_content().map(ShowcaseMessage::LoginSession)]
             }
-            ShowcasedGroup::MenuMembers(members) => members
+            ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
                 .flat_map(|member| member.group_contents(config, clock))
                 .collect(),
@@ -437,7 +440,7 @@ impl ShowcasedGroup {
     ) -> Vec<Element<'a, ShowcaseMessage>> {
         let position = self.position();
         match self {
-            ShowcasedGroup::BottomBar(session) => session.bottom_bar_groups(config, clock),
+            ShowcasedGroup::BottomBar(session) => session.workspaces_and_windows(config, clock),
             ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),
             _ => self
                 .group_contents(config, clock)
@@ -519,8 +522,8 @@ impl ShowcasedGroup {
                     let _ = session.window_group.update(message, clock);
                 }
             }
-            ShowcasedGroup::MenuMembers(members) => {
-                for member in members {
+            ShowcasedGroup::MenuMembers(groups) => {
+                for member in groups {
                     member.update(message.clone(), clock);
                 }
             }
@@ -606,7 +609,7 @@ impl ShowcasedGroup {
                     .map(ShowcaseMessage::WindowGroup)
                     .collect()
             }
-            ShowcasedGroup::MenuMembers(members) => members
+            ShowcasedGroup::MenuMembers(groups) => groups
                 .iter_mut()
                 .flat_map(|member| member.hover(target, config, clock))
                 .collect(),
@@ -721,7 +724,7 @@ impl ShowcasedGroup {
                 };
                 Some(menu.tooltip_for(*target))
             }
-            ShowcasedGroup::MenuMembers(members) => members
+            ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
                 .find_map(|member| member.tooltip_for(target, config, clock)),
             ShowcasedGroup::ShellSettings(settings) => settings.tooltip_for(target, clock),
