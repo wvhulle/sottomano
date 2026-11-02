@@ -437,5 +437,6 @@ impl ShellWidgetGroups {
         self.systemd_manager_group.collapse();
         self.journal_events_group.collapse();
         self.pending_upgrades_group.collapse();
+        self.group_menus.collapse_settings();
     }
 }

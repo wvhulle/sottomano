@@ -109,6 +109,7 @@ impl ShellWidgetGroups {
             | HoverTarget::QuickLaunch(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupMenuSettings(_)
             | HoverTarget::Notification(_)
             | HoverTarget::QuietSchedule(_)
             | HoverTarget::Session(_)

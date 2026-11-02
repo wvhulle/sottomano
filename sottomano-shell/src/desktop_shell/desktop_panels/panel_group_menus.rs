@@ -230,7 +230,7 @@ impl DesktopShell {
         self.group_menu(GroupMenuTopic::Media, groups)
     }
 
-    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 4] {
+    fn settings_groups(&self) -> [WidgetGroupContent<'_, Message>; 5] {
         let config = &self.config;
         [
             self.widget_groups
@@ -249,6 +249,10 @@ impl DesktopShell {
                 .niri_window_group
                 .group_content(config)
                 .map(Message::NiriWindow),
+            self.widget_groups
+                .group_menus
+                .settings_content()
+                .map(Message::GroupMenuState),
         ]
     }
 

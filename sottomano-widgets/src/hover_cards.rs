@@ -16,7 +16,10 @@ pub use crate::hover_cards::{
     hover_card_surfaces::HoverCardHost,
 };
 use crate::{
-    group_menus::group_menu_state::{GroupMenuPin, GroupMenuTopic},
+    group_menus::{
+        group_menu_settings::GroupMenuSettingsTarget,
+        group_menu_state::{GroupMenuPin, GroupMenuTopic},
+    },
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::AudioTarget,
@@ -115,6 +118,7 @@ pub enum HoverTarget {
     WorkspaceFolding,
     GroupMenu(GroupMenuTopic),
     GroupFace(Box<WidgetGroupIdentity>),
+    GroupMenuSettings(GroupMenuSettingsTarget),
 }
 
 impl PressHints {

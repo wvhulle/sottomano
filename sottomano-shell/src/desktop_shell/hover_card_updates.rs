@@ -138,6 +138,11 @@ impl DesktopShell {
                 ))
             }
             HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::hover_card_for(app_id)),
+            HoverTarget::GroupMenuSettings(target) => Some(
+                self.widget_groups
+                    .group_menus
+                    .settings_hover_card(*target, self.clock),
+            ),
             HoverTarget::GroupMenu(_) | HoverTarget::GroupFace(_) => Some(HoverCard::sourced(
                 HoverCardBody::sections([]),
                 DeliveryTiming::LivePush,
@@ -343,6 +348,7 @@ impl DesktopShell {
             | HoverTarget::QuickLaunch(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::GroupFace(_)
+            | HoverTarget::GroupMenuSettings(_)
             | HoverTarget::Session(_)
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
