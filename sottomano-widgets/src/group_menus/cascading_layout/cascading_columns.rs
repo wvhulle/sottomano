@@ -10,7 +10,7 @@ use crate::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
-            menu_row::{MenuRowLook, menu_row_height},
+            menu_row::{MenuRowEmphasis, MenuRowLook, menu_row_height},
         },
     },
     hover_cards::PopupMessage,
@@ -54,7 +54,7 @@ pub(crate) fn cascading_columns<'a, M: Clone + From<GroupEvent<M>> + From<PopupM
         ListEndCorners::new(entries.len(), layout.cascade_satellite_panels.frame_corners);
     let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
         let look = MenuRowLook {
-            highlighted: open_position == Some(position),
+            emphasis: MenuRowEmphasis::selected_when(open_position == Some(position)),
             corners: group_corners.radius_at(position),
         };
         group_row(layout, entry, look)

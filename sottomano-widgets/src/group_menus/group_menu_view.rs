@@ -354,3 +354,198 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use iced::{Settings, Size};
+    use iced_controller_diagram::ControllerArtwork;
+    use iced_test::Simulator;
+    use sottomano_config::Config;
+
+    use super::{GroupEvent, GroupMenuView, InspectionCard};
+    use crate::{
+        clock::Clock,
+        desktop_index::DesktopIndex,
+        group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
+        group_menus::{
+            cascading_layout::{
+                cascade_row::{CascadeDirection, CascadeOrientation},
+                notched_panel::PanelGrowth,
+            },
+            group_menu_presentation::{
+                GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
+                OpenGroupLimit,
+            },
+            group_menu_state::{GroupMenuMessage, GroupMenuState, GroupMenuTopic},
+        },
+        hover_cards::{
+            HoverTarget, PopupMessage,
+            hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
+        },
+        widget_groups::{
+            widget_group_content::{WidgetGroupContent, WidgetGroupExpansion},
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
+        },
+        widgets::{
+            favicon::Favicons,
+            icon_glyph::IconGlyph,
+            phosphor::{Phosphor, Weight},
+            shell_layer_appearance::ShellLayer,
+            window_icon::WindowAssets,
+        },
+    };
+
+    #[derive(Debug, Clone)]
+    struct SmokeMessage;
+
+    impl From<GroupEvent<SmokeMessage>> for SmokeMessage {
+        fn from(_: GroupEvent<SmokeMessage>) -> Self {
+            SmokeMessage
+        }
+    }
+
+    impl From<PopupMessage> for SmokeMessage {
+        fn from(_: PopupMessage) -> Self {
+            SmokeMessage
+        }
+    }
+
+    struct SmokeReading;
+
+    impl GroupItemReading for SmokeReading {
+        fn name(&self) -> &'static str {
+            "Smoke item"
+        }
+
+        fn icon(&self) -> IconGlyph {
+            Phosphor::Question(Weight::Regular).into()
+        }
+
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
+        }
+    }
+
+    fn every_presentation() -> Vec<GroupMenuPresentation> {
+        let layouts = [GroupMenuLayout::Cascading, GroupMenuLayout::Accordion];
+        let triggers = [GroupRevealTrigger::Hover, GroupRevealTrigger::Press];
+        let limits = [OpenGroupLimit::One, OpenGroupLimit::Several];
+        let placements = [
+            HoverCardPlacement::BesideRow,
+            HoverCardPlacement::InlineWithRow,
+        ];
+        layouts
+            .into_iter()
+            .flat_map(|layout| {
+                triggers
+                    .into_iter()
+                    .flat_map(move |cascading_reveal_trigger| {
+                        limits.into_iter().flat_map(move |accordion_open_limit| {
+                            placements.into_iter().map(move |hover_card_placement| {
+                                GroupMenuPresentation {
+                                    layout,
+                                    cascading_reveal_trigger,
+                                    accordion_open_limit,
+                                    hover_card_placement,
+                                }
+                            })
+                        })
+                    })
+            })
+            .collect()
+    }
+
+    fn opened_menu_state(presentation: GroupMenuPresentation) -> GroupMenuState {
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(presentation));
+        let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
+            menu: GroupMenuTopic::Hardware,
+            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu),
+        });
+        group_menus
+    }
+
+    fn row_tops(
+        config: &Config,
+        group_menus: &GroupMenuState,
+        orientation: CascadeOrientation,
+        clock: Clock,
+    ) -> (f32, Option<f32>) {
+        let expansion = WidgetGroupExpansion::default();
+        let group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            &expansion,
+            |_| SmokeMessage,
+            [GroupItem::reading(SmokeReading, HoverTarget::Workspace(7))],
+        );
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        let hover_card = HoverCard::empty();
+        let surfaces = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            group_menus,
+            |_| SmokeMessage,
+            [group],
+        )
+        .surfaces(
+            config,
+            &ShellLayer::Overlays.default_appearance(),
+            &InspectionCard {
+                hover_card: &hover_card,
+                assets: WindowAssets {
+                    entries: &entries,
+                    favicons: &favicons,
+                    controller_artwork: &controller_artwork,
+                },
+                clock,
+            },
+            orientation,
+        )
+        .expect("an opened menu has a surface");
+        let mut primary = Simulator::with_size(
+            Settings::default(),
+            Size::new(1200.0, 800.0),
+            surfaces.primary,
+        );
+        let header_top = primary
+            .find(WidgetGroupFamily::Gpu.title())
+            .expect("the group row is on screen")
+            .visible_bounds()
+            .expect("the group row is visible")
+            .y;
+        let item_top = primary
+            .find("Smoke item")
+            .ok()
+            .and_then(|found| found.visible_bounds())
+            .map(|bounds| bounds.y);
+        (header_top, item_top)
+    }
+
+    #[test]
+    fn every_presentation_lays_out_in_every_direction() {
+        let config = Config::default();
+        let clock = Clock::real();
+        for presentation in every_presentation() {
+            let group_menus = opened_menu_state(presentation);
+            for direction in [CascadeDirection::Rightward, CascadeDirection::Leftward] {
+                for growth in [PanelGrowth::Downward, PanelGrowth::Upward] {
+                    let orientation = CascadeOrientation { direction, growth };
+                    let (header_top, item_top) =
+                        row_tops(&config, &group_menus, orientation, clock);
+                    match (presentation.layout, growth) {
+                        (GroupMenuLayout::Cascading, _) => assert_eq!(item_top, None),
+                        (GroupMenuLayout::Accordion, PanelGrowth::Downward) => {
+                            assert!(item_top.is_some_and(|item| item > header_top));
+                        }
+                        (GroupMenuLayout::Accordion, PanelGrowth::Upward) => {
+                            assert!(item_top.is_some_and(|item| item < header_top));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

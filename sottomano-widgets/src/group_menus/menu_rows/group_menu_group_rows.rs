@@ -1,4 +1,8 @@
-use iced::{Element, border::Radius, widget::mouse_area};
+use iced::{
+    Element,
+    border::Radius,
+    widget::{Space, mouse_area},
+};
 use sottomano_config::Config;
 
 use crate::{
@@ -11,7 +15,9 @@ use crate::{
         group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation, HoverCardPlacement},
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
-        menu_rows::menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, pressable_menu_row},
+        menu_rows::menu_row::{
+            MenuRowContent, MenuRowEmphasis, MenuRowLook, hovered_menu_row, pressable_menu_row,
+        },
     },
     hover_cards::{marked_by_hover_target, marked_by_menu_pin},
     widget_groups::{
@@ -85,10 +91,9 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         ),
         pinned_entry,
     );
-    let caret_color = if look.highlighted {
-        text_color
-    } else {
-        secondary_text_color
+    let caret_color = match look.emphasis {
+        MenuRowEmphasis::Plain => secondary_text_color,
+        MenuRowEmphasis::OpenGroup | MenuRowEmphasis::Selected => text_color,
     };
     let content = match (layout.presentation.layout, layout.direction) {
         (GroupMenuLayout::Accordion, _) => MenuRowContent {
@@ -98,7 +103,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
             trailing: vec![
                 pin,
                 IconGlyph::from(accordion_caret(
-                    look.highlighted,
+                    look.emphasis == MenuRowEmphasis::OpenGroup,
                     layout.cascade_satellite_panels.growth,
                 ))
                 .view(icon_size, caret_color),
@@ -157,7 +162,7 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         .flat_map(|(position, item)| {
             let inspected = is_inspected(&item);
             let look = MenuRowLook {
-                highlighted: inspected,
+                emphasis: MenuRowEmphasis::selected_when(inspected),
                 corners: end_corners.radius_at(position),
             };
             let row = item_row(layout, group, item, look).map(M::from);
@@ -211,8 +216,18 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
             layout.menu.toggle_row_card(item.inspected_target.clone()),
         )
     });
+    let leading = match layout.presentation.layout {
+        GroupMenuLayout::Cascading => Vec::new(),
+        GroupMenuLayout::Accordion => {
+            vec![
+                Space::new()
+                    .width(layout.config.theme.font.icon_size_px)
+                    .into(),
+            ]
+        }
+    };
     let content = MenuRowContent {
-        leading: Vec::new(),
+        leading,
         parts: item.parts,
         name: item.name,
         trailing: item_pin.into_iter().chain(card_disclosure).collect(),
