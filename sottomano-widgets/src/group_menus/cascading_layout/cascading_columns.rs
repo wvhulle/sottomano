@@ -6,6 +6,7 @@ use sottomano_config::Config;
 use crate::{
     group_menus::{
         accordion_layout::menu_rows_viewport::menu_rows_viewport,
+        group_menu_presentation::HoverCardPlacement,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
@@ -100,28 +101,42 @@ fn open_group_satellites<
     let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
         inspected_target.is_some_and(|target| item.inspected_target == *target)
     };
-    let item_list =
-        item_menu(layout, &group_identity, items, &is_inspected, item_corners).map(Outer::from);
+    let inline_cards =
+        layout.presentation.hover_card_placement == HoverCardPlacement::InlineWithRow;
+    let inline_card = inline_cards
+        .then(|| card_position.and_then(|_| card.view(layout.config)))
+        .flatten()
+        .map(|card_view| card_view.map(Outer::from));
+    let item_list = item_menu(
+        layout,
+        &group_identity,
+        items,
+        &is_inspected,
+        item_corners,
+        inline_card,
+    );
     let item_satellite = layout.cascade_satellite_panels.beside_row(
         layout.config,
         item_list,
         cascade_offset(layout.config, open_position) - scrolled_px,
     );
-    let card_satellite = card_position.and_then(|position| {
-        card.view(layout.config).map(|card_view| {
-            let card_row_top = layout.cascade_satellite_panels.item_row_top(
-                layout.config,
-                open_position,
-                position,
-                item_count,
-            ) - scrolled_px;
-            layout.cascade_satellite_panels.beside_row(
-                layout.config,
-                card_view.map(Outer::from),
-                card_row_top,
-            )
-        })
-    });
+    let card_satellite = card_position
+        .filter(|_| !inline_cards)
+        .and_then(|position| {
+            card.view(layout.config).map(|card_view| {
+                let card_row_top = layout.cascade_satellite_panels.item_row_top(
+                    layout.config,
+                    open_position,
+                    position,
+                    item_count,
+                ) - scrolled_px;
+                layout.cascade_satellite_panels.beside_row(
+                    layout.config,
+                    card_view.map(Outer::from),
+                    card_row_top,
+                )
+            })
+        });
     [item_satellite].into_iter().chain(card_satellite).collect()
 }
 

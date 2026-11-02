@@ -206,7 +206,9 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::GroupMenuState(message) => {
-                if let GroupMenuMessage::InspectRow { target, .. } = &message {
+                if let GroupMenuMessage::InspectRow { target, .. }
+                | GroupMenuMessage::ToggleRowCard { target, .. } = &message
+                {
                     self.schedule_hover_replies(target);
                 }
                 let _menu_task = self.group_menus.update(message);

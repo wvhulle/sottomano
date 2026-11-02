@@ -141,22 +141,34 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     }
 }
 
-pub(crate) fn item_menu<'a, M: Clone + 'a>(
+pub(crate) fn item_menu<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     group: &WidgetGroupIdentity,
     items: Vec<GroupMenuItemRow<'a, M>>,
     is_inspected: &dyn Fn(&GroupMenuItemRow<'a, M>) -> bool,
     panel_corners: Radius,
-) -> Element<'a, GroupEvent<M>> {
+    mut inline_card: Option<Element<'a, Outer>>,
+) -> Element<'a, Outer> {
+    let growth = layout.cascade_satellite_panels.growth;
     let end_corners = ListEndCorners::new(items.len(), panel_corners);
-    uniform_width_column(items.into_iter().enumerate().map(|(position, item)| {
-        let look = MenuRowLook {
-            highlighted: is_inspected(&item),
-            corners: end_corners.radius_at(position),
-        };
-        item_row(layout, group, item, look)
-    }))
-    .into()
+    let rows: Vec<Element<'a, Outer>> = items
+        .into_iter()
+        .enumerate()
+        .flat_map(|(position, item)| {
+            let inspected = is_inspected(&item);
+            let look = MenuRowLook {
+                highlighted: inspected,
+                corners: end_corners.radius_at(position),
+            };
+            let row = item_row(layout, group, item, look).map(Outer::from);
+            match (inspected.then(|| inline_card.take()).flatten(), growth) {
+                (Some(card_view), PanelGrowth::Downward) => vec![row, card_view],
+                (Some(card_view), PanelGrowth::Upward) => vec![card_view, row],
+                (None, _) => vec![row],
+            }
+        })
+        .collect();
+    uniform_width_column(rows).into()
 }
 
 pub(crate) fn item_row<'a, M: Clone + 'a>(
@@ -187,11 +199,23 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
             }),
         )),
     };
+    let inline_cards =
+        layout.presentation.hover_card_placement == HoverCardPlacement::InlineWithRow;
+    let card_disclosure = (inline_cards
+        && matches!(item.gestures.left, GroupItemGesture::Performs { .. }))
+    .then(|| {
+        glyph_button(
+            Phosphor::Info(Weight::Regular),
+            layout.config.theme.font.icon_size_px,
+            secondary_text_color,
+            layout.menu.toggle_row_card(item.inspected_target.clone()),
+        )
+    });
     let content = MenuRowContent {
         leading: Vec::new(),
         parts: item.parts,
         name: item.name,
-        trailing: item_pin.into_iter().collect(),
+        trailing: item_pin.into_iter().chain(card_disclosure).collect(),
     };
     let row = match (layout.presentation.hover_card_placement, item.gestures.left) {
         (HoverCardPlacement::BesideRow, GroupItemGesture::Performs { message, .. }) => {
