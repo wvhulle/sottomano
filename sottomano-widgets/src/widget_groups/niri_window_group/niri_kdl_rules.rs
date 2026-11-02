@@ -1,5 +1,5 @@
 use std::{
-    fmt, io,
+    fmt, io, mem,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -435,15 +435,61 @@ enum Written {
     Known(String),
 }
 
-pub struct AdoptedRules<Rewrite> {
+#[derive(Clone)]
+enum WriteSlot {
+    Idle,
+    Writing { rules: String },
+    WritingThenNext { rules: String, next_rules: String },
+}
+
+#[derive(Debug)]
+pub struct RulesWrite {
+    path: PathBuf,
+    rules: String,
+}
+
+impl RulesWrite {
+    pub async fn run(self) -> Result<(), io::ErrorKind> {
+        replace(&self.path, &self.rules)
+            .await
+            .map_err(|write_error| write_error.kind())
+    }
+}
+
+#[derive(Debug)]
+pub enum SaveStep {
+    NothingInFlight,
+    WriteInFlight,
+    StartWrite(RulesWrite),
+}
+
+#[derive(Debug)]
+pub enum RulesSaveError {
+    NotYetRead,
+    Unreadable(io::ErrorKind),
+    Rendering(club_kdl::Error),
+}
+
+impl fmt::Display for RulesSaveError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotYetRead => write!(formatter, "the stored rules are not read yet"),
+            Self::Unreadable(kind) => write!(formatter, "the stored rules are unreadable: {kind}"),
+            Self::Rendering(render_error) => write!(formatter, "rendering failed: {render_error}"),
+        }
+    }
+}
+
+pub struct AdoptedRules {
     pub styling: NiriStyling,
-    pub rewrite: Rewrite,
+    pub saved: Result<SaveStep, RulesSaveError>,
 }
 
 #[derive(Clone)]
 pub struct NiriRulesFile {
     path: PathBuf,
     written: Written,
+    write_slot: WriteSlot,
     switch_heat: SwitchHeat,
 }
 
@@ -453,20 +499,26 @@ impl NiriRulesFile {
         Self {
             path: config_home.join("sottomano").join("niri.kdl"),
             written: Written::Unread,
+            write_slot: WriteSlot::Idle,
             switch_heat: SwitchHeat::default(),
         }
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn reheat(
         &mut self,
         styling: NiriStyling,
         switch_heat: SwitchHeat,
-    ) -> Option<impl Future<Output = bool> + Send + use<>> {
+    ) -> Result<SaveStep, RulesSaveError> {
         if switch_heat == self.switch_heat {
-            return None;
+            return Ok(self.current_step());
         }
         self.switch_heat = switch_heat;
-        Some(self.write(styling).persisted())
+        self.save(styling)
     }
 
     #[must_use]
@@ -478,13 +530,6 @@ impl NiriRulesFile {
             }),
             Written::Unread | Written::Absent | Written::Known(_) => None,
         }
-    }
-
-    pub fn write_styling(
-        &mut self,
-        styling: NiriStyling,
-    ) -> impl Future<Output = bool> + Send + use<> {
-        self.write(styling).persisted()
     }
 
     pub fn read(&self) -> impl Future<Output = StoredRules> + Send + use<> {
@@ -501,11 +546,7 @@ impl NiriRulesFile {
         }
     }
 
-    pub fn adopt(
-        &mut self,
-        stored: StoredRules,
-        current_styling: NiriStyling,
-    ) -> AdoptedRules<impl Future<Output = bool> + Send + use<>> {
+    pub fn adopt(&mut self, stored: StoredRules, current_styling: NiriStyling) -> AdoptedRules {
         let mut styling = current_styling;
         self.written = match stored {
             StoredRules::Unreadable(kind) => Written::Unreadable(kind),
@@ -520,49 +561,76 @@ impl NiriRulesFile {
         };
         AdoptedRules {
             styling,
-            rewrite: self.write(styling).persisted(),
+            saved: self.save(styling),
         }
     }
 
-    fn write(&mut self, styling: NiriStyling) -> RulesWrite {
-        if matches!(self.written, Written::Unread | Written::Unreadable(_)) {
-            return RulesWrite::Withheld;
+    pub fn save(&mut self, styling: NiriStyling) -> Result<SaveStep, RulesSaveError> {
+        match self.written {
+            Written::Unread => return Err(RulesSaveError::NotYetRead),
+            Written::Unreadable(kind) => return Err(RulesSaveError::Unreadable(kind)),
+            Written::Absent | Written::Known(_) => {}
         }
-        let rules = match SottomanoRules::styled(styling, &self.switch_heat).to_kdl_v1() {
-            Ok(rules) => rules,
-            Err(e) => {
-                tracing::warn!("niri rules: rendering failed: {e}");
-                return RulesWrite::Withheld;
+        let rules = SottomanoRules::styled(styling, &self.switch_heat)
+            .to_kdl_v1()
+            .map_err(RulesSaveError::Rendering)?;
+        if self.newest_rules() == Some(rules.as_str()) {
+            return Ok(self.current_step());
+        }
+        Ok(match mem::replace(&mut self.write_slot, WriteSlot::Idle) {
+            WriteSlot::Idle => self.start_write(rules),
+            WriteSlot::Writing { rules: in_flight }
+            | WriteSlot::WritingThenNext {
+                rules: in_flight, ..
+            } => {
+                self.write_slot = WriteSlot::WritingThenNext {
+                    rules: in_flight,
+                    next_rules: rules,
+                };
+                SaveStep::WriteInFlight
             }
-        };
-        if matches!(&self.written, Written::Known(last) if *last == rules) {
-            return RulesWrite::AlreadyOnDisk;
+        })
+    }
+
+    pub fn finish_write(&mut self, written: Result<(), io::ErrorKind>) -> SaveStep {
+        let (finished_rules, waiting_rules) =
+            match mem::replace(&mut self.write_slot, WriteSlot::Idle) {
+                WriteSlot::Idle => return SaveStep::NothingInFlight,
+                WriteSlot::Writing { rules } => (rules, None),
+                WriteSlot::WritingThenNext { rules, next_rules } => (rules, Some(next_rules)),
+            };
+        if written.is_ok() {
+            self.written = Written::Known(finished_rules);
         }
-        self.written = Written::Known(rules.clone());
-        RulesWrite::Replace {
+        waiting_rules.map_or(SaveStep::NothingInFlight, |rules| self.start_write(rules))
+    }
+
+    fn start_write(&mut self, rules: String) -> SaveStep {
+        self.write_slot = WriteSlot::Writing {
+            rules: rules.clone(),
+        };
+        SaveStep::StartWrite(RulesWrite {
             path: self.path.clone(),
             rules,
+        })
+    }
+
+    fn current_step(&self) -> SaveStep {
+        match self.write_slot {
+            WriteSlot::Idle => SaveStep::NothingInFlight,
+            WriteSlot::Writing { .. } | WriteSlot::WritingThenNext { .. } => {
+                SaveStep::WriteInFlight
+            }
         }
     }
-}
 
-enum RulesWrite {
-    Withheld,
-    AlreadyOnDisk,
-    Replace { path: PathBuf, rules: String },
-}
-
-impl RulesWrite {
-    async fn persisted(self) -> bool {
-        match self {
-            Self::Withheld => false,
-            Self::AlreadyOnDisk => true,
-            Self::Replace { path, rules } => replace(&path, &rules)
-                .await
-                .inspect_err(|e| {
-                    tracing::warn!("niri rules: writing {} failed: {e}", path.display());
-                })
-                .is_ok(),
+    fn newest_rules(&self) -> Option<&str> {
+        match (&self.write_slot, &self.written) {
+            (WriteSlot::WritingThenNext { next_rules, .. }, _) => Some(next_rules),
+            (WriteSlot::Writing { rules }, _) | (WriteSlot::Idle, Written::Known(rules)) => {
+                Some(rules)
+            }
+            (WriteSlot::Idle, Written::Unread | Written::Unreadable(_) | Written::Absent) => None,
         }
     }
 }
@@ -578,11 +646,12 @@ async fn replace(path: &Path, contents: &str) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{env, fs, io, path::Path, process};
 
     use super::{
         BackgroundEffect, HeatedWindow, NamespaceMatch, NiriLayout, NiriRulesFile, NiriStyling,
-        SottomanoRules, StoredRules, StyledSurface, SwitchHeat,
+        RulesSaveError, RulesWrite, SaveStep, SottomanoRules, StoredRules, StyledSurface,
+        SwitchHeat,
     };
 
     fn heated_terminal_titled(title: &str) -> SwitchHeat {
@@ -597,6 +666,13 @@ mod tests {
 
     fn heated_terminal() -> SwitchHeat {
         heated_terminal_titled("nvim (main) \"notes\".md")
+    }
+
+    fn rules_file_after_first_write() -> NiriRulesFile {
+        let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
+        let _ = rules.adopt(StoredRules::Absent, NiriStyling::default());
+        rules.finish_write(Ok(()));
+        rules
     }
 
     fn styled() -> NiriStyling {
@@ -666,9 +742,105 @@ mod tests {
 
     #[test]
     fn an_unchanged_heat_is_not_rewritten() {
+        let mut rules = rules_file_after_first_write();
+        assert!(matches!(
+            rules.reheat(styled(), heated_terminal()),
+            Ok(SaveStep::StartWrite(_))
+        ));
+        rules.finish_write(Ok(()));
+        assert!(matches!(
+            rules.reheat(styled(), heated_terminal()),
+            Ok(SaveStep::NothingInFlight)
+        ));
+    }
+
+    #[test]
+    fn saving_before_the_file_is_read_is_refused() {
         let mut rules = NiriRulesFile::in_config_home(Path::new("/nonexistent"));
-        assert!(rules.reheat(styled(), heated_terminal()).is_some());
-        assert!(rules.reheat(styled(), heated_terminal()).is_none());
+        assert!(matches!(
+            rules.save(styled()),
+            Err(RulesSaveError::NotYetRead)
+        ));
+    }
+
+    #[test]
+    fn only_the_newest_rules_follow_a_write_in_flight() {
+        let mut rules = rules_file_after_first_write();
+        let first_look = styled();
+        let second_look = NiriStyling {
+            xray: false,
+            ..first_look
+        };
+        let third_look = NiriStyling {
+            layout: NiriLayout {
+                gaps_px: 9.0,
+                ..first_look.layout
+            },
+            ..first_look
+        };
+        assert!(matches!(
+            rules.save(first_look),
+            Ok(SaveStep::StartWrite(_))
+        ));
+        assert!(matches!(
+            rules.save(second_look),
+            Ok(SaveStep::WriteInFlight)
+        ));
+        assert!(matches!(
+            rules.save(third_look),
+            Ok(SaveStep::WriteInFlight)
+        ));
+        let SaveStep::StartWrite(RulesWrite {
+            rules: next_rules, ..
+        }) = rules.finish_write(Ok(()))
+        else {
+            panic!("the waiting rules should start writing");
+        };
+        let read_back = NiriStyling::from(next_rules.parse::<SottomanoRules>().unwrap());
+        assert_eq!(read_back, third_look);
+        assert!(matches!(
+            rules.finish_write(Ok(())),
+            SaveStep::NothingInFlight
+        ));
+    }
+
+    #[test]
+    fn rules_matching_the_write_in_flight_start_nothing() {
+        let mut rules = rules_file_after_first_write();
+        assert!(matches!(rules.save(styled()), Ok(SaveStep::StartWrite(_))));
+        assert!(matches!(rules.save(styled()), Ok(SaveStep::WriteInFlight)));
+        assert!(matches!(
+            rules.finish_write(Ok(())),
+            SaveStep::NothingInFlight
+        ));
+    }
+
+    #[test]
+    fn a_failed_write_is_retried_by_an_identical_save() {
+        let mut rules = rules_file_after_first_write();
+        assert!(matches!(rules.save(styled()), Ok(SaveStep::StartWrite(_))));
+        assert!(matches!(
+            rules.finish_write(Err(io::ErrorKind::PermissionDenied)),
+            SaveStep::NothingInFlight
+        ));
+        assert!(matches!(rules.save(styled()), Ok(SaveStep::StartWrite(_))));
+    }
+
+    #[tokio::test]
+    async fn a_rules_write_replaces_the_file_without_a_staged_leftover() {
+        let config_home = env::temp_dir().join(format!("sottomano-niri-rules-{}", process::id()));
+        let mut rules = NiriRulesFile::in_config_home(&config_home);
+        let adopted = rules.adopt(StoredRules::Absent, styled());
+        let Ok(SaveStep::StartWrite(rules_write)) = adopted.saved else {
+            panic!("an absent file should start a write");
+        };
+        rules_write.run().await.unwrap();
+        let rules_directory = config_home.join("sottomano");
+        let written_text = fs::read_to_string(rules_directory.join("niri.kdl")).unwrap();
+        let read_back = NiriStyling::from(written_text.parse::<SottomanoRules>().unwrap());
+        assert_eq!(read_back, styled());
+        assert!(!rules_directory.join("niri.kdl.staged").exists());
+        fs::remove_dir_all(&config_home).unwrap();
     }
 
     #[test]
