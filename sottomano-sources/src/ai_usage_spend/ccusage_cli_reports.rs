@@ -3,7 +3,7 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     path::PathBuf,
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use chrono::{DateTime, Local, NaiveDate, Utc};
@@ -18,6 +18,7 @@ use crate::{
         usage_quota::Quota,
         working_time_forecast::{CalendarSpan, SpendBudget},
     },
+    stream_operators::StreamOperators,
     system_protocol_clients::{
         inotify_directory_changes::{WatchTarget, changes},
         shell_command_output::{self, exists},
@@ -25,6 +26,7 @@ use crate::{
 };
 
 const PROGRAM: &str = "ccusage";
+const TRANSCRIPT_REREAD_MINIMUM_GAP: Duration = Duration::from_secs(60);
 
 pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
     changes(
@@ -34,6 +36,7 @@ pub fn transcript_changes(agent: Agent) -> impl Stream<Item = ()> + Send {
             .map(WatchTarget::OneLevelTree)
             .collect(),
     )
+    .at_most_once_per(TRANSCRIPT_REREAD_MINIMUM_GAP)
 }
 
 #[must_use]
@@ -279,14 +282,14 @@ pub async fn active_blocks(agent: Agent) -> Result<Vec<BillingBlock>, Error> {
     let mut args = agent.report_args("blocks");
     args.extend(["--active", "--json"]);
     let report: BlocksReport =
-        serde_json::from_str(&shell_command_output::output(PROGRAM, &args).await?)?;
+        serde_json::from_str(&shell_command_output::background_output(PROGRAM, &args).await?)?;
     Ok(report.blocks.into_iter().map(BillingBlock::from).collect())
 }
 
 async fn report(agent: Agent, period: &'static str, since: &str) -> Result<String, Error> {
     let mut args = agent.report_args(period);
     args.extend(["--since", since, "--json"]);
-    Ok(shell_command_output::output(PROGRAM, &args).await?)
+    Ok(shell_command_output::background_output(PROGRAM, &args).await?)
 }
 
 #[cfg(test)]
