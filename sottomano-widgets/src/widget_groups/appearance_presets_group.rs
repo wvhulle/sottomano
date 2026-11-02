@@ -2,20 +2,20 @@ use iced::{Element, border::Radius};
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_tooltips::HoverTarget,
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         bar_widget::Glyph,
         configured_theme::text_color,
         context_menu::{MenuLine, MenuRow, Trailing, context_menu},
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         phosphor::{Phosphor, Weight},
         tooltip_body::{
             TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_group::{GroupContent, GroupEvent, WidgetGroup},
-        widget_state::{StateTint, WidgetState},
+        widget_group::{GroupContent, WidgetGroup},
+        widget_state::WidgetState,
     },
 };
 
@@ -89,24 +89,17 @@ impl AppearancePresetsMenu {
     }
 
     #[must_use]
-    pub fn group_content<'a>(
-        &self,
-        config: &'a Config,
-    ) -> GroupContent<'a, AppearancePresetsMessage> {
-        let glyph = Glyph::from(Phosphor::Palette(Weight::Regular));
-        Self::fixed_group(Some(GroupItem::element(move |reveal| {
-            hoverable(
-                glyph.view(config.theme.font.icon_size_px, {
-                    let tint = StateTint {
-                        state: WidgetState::Idle,
-                        opacity: reveal,
-                    };
-                    move |theme| tint.color(theme)
-                }),
-                AppearancePresetsTarget::Menu.into(),
-                PressHints::default(),
-                GroupEvent::Tooltip,
-            )
-        })))
+    pub fn group_content<'a>(&self) -> GroupContent<'a, AppearancePresetsMessage> {
+        Self::fixed_group(Some(GroupItem::composed(
+            ItemIdentity {
+                name: Self::TITLE.into(),
+                icon: ItemIcon::Glyph {
+                    glyph: Phosphor::Palette(Weight::Regular).into(),
+                    state: WidgetState::Idle,
+                },
+            },
+            ItemHover::WholeItem(AppearancePresetsTarget::Menu.into()),
+            ItemValue::Nothing,
+        )))
     }
 }

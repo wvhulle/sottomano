@@ -43,7 +43,7 @@ impl DesktopShell {
                 }
                 let Some(host) = self.surfaces.get(&surface).filter(|_| {
                     self.hover_content(&target)
-                        .is_some_and(|content| content.shows_anything(announcement))
+                        .is_some_and(|content| content.shows_anything(&announcement))
                 }) else {
                     return Task::none();
                 };
@@ -53,7 +53,7 @@ impl DesktopShell {
                 };
                 if let Some(intent_elapsed) =
                     self.tooltip
-                        .defer_switch(&parent, &target, anchor, announcement)
+                        .defer_switch(&parent, &target, anchor, announcement.clone())
                 {
                     return intent_elapsed.map(Message::Tooltip);
                 }

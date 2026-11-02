@@ -164,7 +164,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
-        match self.tooltip.announcement.origin {
+        match &self.tooltip.announcement.origin {
             HoverOrigin::GroupHandle {
                 group_title,
                 panel_pin,
@@ -173,19 +173,21 @@ impl<'a> TooltipContent<'a> {
                     container(self.small_dim_text(group_title.to_string()))
                         .padding(self.edge_row_padding())
                         .into();
-                let unpin = match panel_pin {
+                let unpin = match *panel_pin {
                     PanelPin::Unpinned => None,
                     PanelPin::GroupPinnedFrom(menu) => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             menu,
-                            entry: PinnedEntry::Group { group_title },
+                            entry: PinnedEntry::Group {
+                                group_title: (**group_title).clone(),
+                            },
                         }))
                     }
                     PanelPin::ItemPinnedFrom { menu, item_name } => {
                         Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                             menu,
                             entry: PinnedEntry::Item {
-                                group_title,
+                                group_title: (**group_title).clone(),
                                 item_name,
                             },
                         }))

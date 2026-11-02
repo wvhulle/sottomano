@@ -150,7 +150,7 @@ impl WindowGroup {
         let config = slot_context.config;
         let quick_launch = self
             .quick_launch
-            .group_content(icons.entries, output, config)
+            .group_content(icons.entries, output)
             .map(WindowGroupMessage::QuickLaunch)
             .view(config, slot_context.edge, slot_context.clock);
         let window_list = self

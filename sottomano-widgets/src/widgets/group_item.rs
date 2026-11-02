@@ -1,9 +1,9 @@
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
 use chrono::Locale;
 use iced::{
-    Element,
-    widget::{Space, button, mouse_area},
+    Alignment, Element,
+    widget::{Row, Space, button, mouse_area},
 };
 use sottomano_config::{Config, severity::Severity};
 
@@ -16,18 +16,19 @@ use crate::{
     widgets::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         announced_level::LevelReading,
-        bar_widget::BarWidget,
+        bar_widget::{BarWidget, Glyph},
         configured_theme::text_color,
         flat_button,
+        icon_handle::IconHandle,
         ongoing_toast::{
             OngoingToast, OngoingToastActionButton, quota_pace_alert_severity,
             widget_state_alert_severity,
         },
         slider_control::{ControlMessage, SliderControl},
-        source_reading::{reading_icon, reading_value, source_reading},
+        source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
         widget_group::{GroupEvent, GroupTitle},
-        widget_state::StateTint,
+        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -49,9 +50,7 @@ pub(super) struct MenuParts<'a, M> {
 }
 
 pub(super) enum MenuItemAction<M> {
-    Inert,
     Inspect(InspectedRow),
-    Press(M),
     PressAndInspect {
         press: M,
         inspected_row: InspectedRow,
@@ -59,11 +58,61 @@ pub(super) enum MenuItemAction<M> {
 }
 
 impl<M> MenuItemAction<M> {
-    pub(super) fn inspected_target(&self) -> Option<&HoverTarget> {
+    pub(super) fn inspected_target(&self) -> &HoverTarget {
         match self {
             MenuItemAction::Inspect(inspected_row)
-            | MenuItemAction::PressAndInspect { inspected_row, .. } => Some(&inspected_row.target),
-            MenuItemAction::Inert | MenuItemAction::Press(_) => None,
+            | MenuItemAction::PressAndInspect { inspected_row, .. } => &inspected_row.target,
+        }
+    }
+}
+
+pub struct ItemIdentity {
+    pub name: Cow<'static, str>,
+    pub icon: ItemIcon,
+}
+
+pub enum ItemIcon {
+    Glyph { glyph: Glyph, state: WidgetState },
+    Image(IconHandle),
+    Absent,
+}
+
+impl ItemIcon {
+    fn view<'a, Message: 'a>(&self, config: &Config, opacity: f32) -> Option<Element<'a, Message>> {
+        let side = config.theme.font.icon_size_px;
+        match self {
+            ItemIcon::Glyph { glyph, state } => {
+                let tint = StateTint {
+                    state: *state,
+                    opacity,
+                };
+                Some(glyph.view(side, move |theme| tint.color(theme)))
+            }
+            ItemIcon::Image(handle) => Some(handle.view(side, opacity)),
+            ItemIcon::Absent => None,
+        }
+    }
+}
+
+pub enum ItemHover {
+    WholeItem(HoverTarget),
+    ByChildren { row_target: HoverTarget },
+}
+
+pub enum ItemValue<'a, M> {
+    Nothing,
+    Drawn(DrawItem<'a, M>),
+}
+
+impl<'a, M: 'a> ItemValue<'a, M> {
+    pub fn drawn(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
+        ItemValue::Drawn(Box::new(draw))
+    }
+
+    fn view(&self, reveal: f32) -> Option<Element<'a, GroupEvent<M>>> {
+        match self {
+            ItemValue::Nothing => None,
+            ItemValue::Drawn(draw) => Some(draw(reveal)),
         }
     }
 }
@@ -73,17 +122,15 @@ enum ItemKind<'a, M> {
         widget: Box<dyn BarWidget + 'a>,
         target: HoverTarget,
     },
-    Control {
+    Slider {
         widget: &'a dyn BarWidget,
         target: HoverTarget,
         draw: DrawControl<'a, M>,
     },
-    Element {
-        draw: DrawItem<'a, M>,
-    },
-    HoverableElement {
-        target: HoverTarget,
-        draw: DrawItem<'a, M>,
+    Composed {
+        identity: ItemIdentity,
+        hover: ItemHover,
+        value: ItemValue<'a, M>,
     },
 }
 
@@ -91,17 +138,19 @@ impl<'a, M: 'a> ItemKind<'a, M> {
     fn announcing_widget(&self) -> Option<&dyn BarWidget> {
         match self {
             ItemKind::Reading { widget, .. } => Some(widget.as_ref()),
-            ItemKind::Control { widget, .. } => Some(*widget),
-            ItemKind::Element { .. } | ItemKind::HoverableElement { .. } => None,
+            ItemKind::Slider { widget, .. } => Some(*widget),
+            ItemKind::Composed { .. } => None,
         }
     }
 
-    fn hover_target(&self) -> Option<&HoverTarget> {
+    fn hover_target(&self) -> &HoverTarget {
         match self {
             ItemKind::Reading { target, .. }
-            | ItemKind::Control { target, .. }
-            | ItemKind::HoverableElement { target, .. } => Some(target),
-            ItemKind::Element { .. } => None,
+            | ItemKind::Slider { target, .. }
+            | ItemKind::Composed {
+                hover: ItemHover::WholeItem(target) | ItemHover::ByChildren { row_target: target },
+                ..
+            } => target,
         }
     }
 
@@ -116,21 +165,26 @@ impl<'a, M: 'a> ItemKind<'a, M> {
         };
         match self {
             ItemKind::Reading { widget, target } => ItemKind::Reading { widget, target },
-            ItemKind::Control {
+            ItemKind::Slider {
                 widget,
                 target,
                 draw,
-            } => ItemKind::Control {
+            } => ItemKind::Slider {
                 widget,
                 target,
                 draw: lift_control(draw),
             },
-            ItemKind::Element { draw } => ItemKind::Element {
-                draw: lift_draw(draw),
-            },
-            ItemKind::HoverableElement { target, draw } => ItemKind::HoverableElement {
-                target,
-                draw: lift_draw(draw),
+            ItemKind::Composed {
+                identity,
+                hover,
+                value,
+            } => ItemKind::Composed {
+                identity,
+                hover,
+                value: match value {
+                    ItemValue::Nothing => ItemValue::Nothing,
+                    ItemValue::Drawn(draw) => ItemValue::Drawn(lift_draw(draw)),
+                },
             },
         }
     }
@@ -194,7 +248,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         on_control: impl Fn(ControlMessage) -> M + 'a,
     ) -> Self {
         let on_control = Rc::new(on_control);
-        Self::of_kind(ItemKind::Control {
+        Self::of_kind(ItemKind::Slider {
             widget: slider,
             target: slider.target().clone(),
             draw: Box::new(move |reveal, clock, placement| {
@@ -214,19 +268,11 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         })
     }
 
-    pub fn element(draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a) -> Self {
-        Self::of_kind(ItemKind::Element {
-            draw: Box::new(draw),
-        })
-    }
-
-    pub fn hoverable_element(
-        target: impl Into<HoverTarget>,
-        draw: impl Fn(f32) -> Element<'a, GroupEvent<M>> + 'a,
-    ) -> Self {
-        Self::of_kind(ItemKind::HoverableElement {
-            target: target.into(),
-            draw: Box::new(draw),
+    pub fn composed(identity: ItemIdentity, hover: ItemHover, value: ItemValue<'a, M>) -> Self {
+        Self::of_kind(ItemKind::Composed {
+            identity,
+            hover,
+            value,
         })
     }
 
@@ -339,7 +385,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                     .or(handle_hints.right),
                 ..handle_hints
             },
-            ..self.handle_announcement
+            origin: self.handle_announcement.origin.clone(),
         }
     }
 
@@ -349,7 +395,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
         Some(HandlePreview {
             widget: self.kind.announcing_widget()?,
-            target: self.kind.hover_target()?,
+            target: self.kind.hover_target(),
         })
     }
 
@@ -360,9 +406,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         clock: Clock,
     ) -> Option<LevelReading<M>> {
         let widget = self.kind.announcing_widget()?;
-        let target = self.kind.hover_target()?;
         widget.announced_level(locale).map(|level| LevelReading {
-            hover_target: target.clone(),
+            hover_target: self.kind.hover_target().clone(),
             glyph: widget.icon_at(clock),
             level,
             on_body_clicked,
@@ -379,9 +424,8 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let quota_toast = self.kind.announcing_widget().and_then(|widget| {
-            let target = self.kind.hover_target()?;
             OngoingToast::from_quota_pace(
-                target.clone(),
+                self.kind.hover_target().clone(),
                 widget,
                 on_body_clicked.clone(),
                 locale,
@@ -389,8 +433,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             )
         });
         let ongoing_toast = self.kind.announcing_widget().and_then(|widget| {
-            let target = self.kind.hover_target()?;
-            OngoingToast::from_widget_state(target.clone(), widget, on_body_clicked, locale, clock)
+            OngoingToast::from_widget_state(
+                self.kind.hover_target().clone(),
+                widget,
+                on_body_clicked,
+                locale,
+                clock,
+            )
         });
         ongoing_toast
             .map(|alert| {
@@ -405,10 +454,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub(super) fn ongoing_alert_severity(&self, clock: Clock) -> Option<Severity> {
-        let alerting_widget = self
-            .kind
-            .announcing_widget()
-            .filter(|_| self.kind.hover_target().is_some());
+        let alerting_widget = self.kind.announcing_widget();
         alerting_widget
             .and_then(|widget| widget_state_alert_severity(widget, clock))
             .into_iter()
@@ -444,19 +490,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        let inspected_row = match &self.kind {
-            ItemKind::Reading { target, .. }
-            | ItemKind::Control { target, .. }
-            | ItemKind::HoverableElement { target, .. } => InspectedRow {
-                target: target.clone(),
-                announcement: self.announcement(),
-            },
-            ItemKind::Element { .. } => {
-                return match &self.on_press {
-                    Some(press) => MenuItemAction::Press(press.message.clone()),
-                    None => MenuItemAction::Inert,
-                };
-            }
+        let inspected_row = InspectedRow {
+            target: self.kind.hover_target().clone(),
+            announcement: self.announcement(),
         };
         match &self.on_press {
             Some(press) => MenuItemAction::PressAndInspect {
@@ -479,13 +515,15 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 value: reading_value(config, widget.as_ref(), tint_of(widget.as_ref()), clock)
                     .unwrap_or_else(empty),
             },
-            ItemKind::Control { widget, draw, .. } => MenuParts {
+            ItemKind::Slider { widget, draw, .. } => MenuParts {
                 icon: reading_icon(config, *widget, tint_of(*widget), clock),
                 value: draw(1.0, clock, ItemPlacement::Menu),
             },
-            ItemKind::Element { draw } | ItemKind::HoverableElement { draw, .. } => MenuParts {
-                icon: empty(),
-                value: draw(1.0),
+            ItemKind::Composed {
+                identity, value, ..
+            } => MenuParts {
+                icon: identity.icon.view(config, 1.0).unwrap_or_else(empty),
+                value: value.view(1.0).unwrap_or_else(empty),
             },
         }
     }
@@ -493,15 +531,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub(super) fn pinnable_name(&self) -> Option<&'static str> {
         match &self.kind {
             ItemKind::Reading { widget, .. } => Some(widget.name()),
-            ItemKind::Control { .. }
-            | ItemKind::Element { .. }
-            | ItemKind::HoverableElement { .. } => None,
+            ItemKind::Slider { .. } | ItemKind::Composed { .. } => None,
         }
     }
 
     pub(super) fn pinned_item_name(
         &self,
-        group_title: GroupTitle,
+        group_title: &GroupTitle,
         group_menus: &GroupMenus,
         menu: GroupMenuKind,
     ) -> Option<&'static str> {
@@ -509,15 +545,19 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             group_menus.is_pinned(
                 menu,
                 PinnedEntry::Item {
-                    group_title,
+                    group_title: group_title.clone(),
                     item_name,
                 },
             )
         })
     }
 
-    pub(super) fn menu_name(&self) -> Option<&'static str> {
-        self.kind.announcing_widget().map(BarWidget::name)
+    pub(super) fn menu_name(&self) -> Cow<'static, str> {
+        match &self.kind {
+            ItemKind::Reading { widget, .. } => widget.name().into(),
+            ItemKind::Slider { widget, .. } => widget.name().into(),
+            ItemKind::Composed { identity, .. } => identity.name.clone(),
+        }
     }
 
     pub(super) fn placed_view(
@@ -545,9 +585,27 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 source_reading(config, widget.as_ref(), reveal, clock),
                 target,
             ),
-            ItemKind::HoverableElement { target, draw } => explained(draw(reveal), target),
-            ItemKind::Control { draw, .. } => draw(reveal, clock, placement),
-            ItemKind::Element { draw } => draw(reveal),
+            ItemKind::Slider { draw, .. } => draw(reveal, clock, placement),
+            ItemKind::Composed {
+                identity,
+                hover,
+                value,
+            } => {
+                let composed_row = Row::with_children(
+                    identity
+                        .icon
+                        .view(config, reveal)
+                        .into_iter()
+                        .chain(value.view(reveal)),
+                )
+                .spacing(icon_value_gap(config))
+                .align_y(Alignment::Center)
+                .into();
+                match hover {
+                    ItemHover::WholeItem(target) => explained(composed_row, target),
+                    ItemHover::ByChildren { .. } => composed_row,
+                }
+            }
         };
         if let Some(press) = self.on_press.clone() {
             element = button(element)
@@ -567,4 +625,83 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
 fn table_icon_gap(config: &Config) -> f32 {
     TABLE_ICON_GAP_EMS * config.theme.font.text_size_px
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        widget_groups::session_menu::SessionTarget,
+        widgets::{
+            phosphor::{Phosphor, Weight},
+            tooltip_body::TooltipBody,
+        },
+    };
+
+    struct NamedReading;
+
+    impl BarWidget for NamedReading {
+        fn name(&self) -> &'static str {
+            "Named reading"
+        }
+
+        fn icon(&self) -> Glyph {
+            Phosphor::Question(Weight::Regular).into()
+        }
+
+        fn tooltip(&self, _clock: Clock) -> TooltipBody {
+            TooltipBody::sections([])
+        }
+    }
+
+    fn composed_with(hover: ItemHover) -> GroupItem<'static, ()> {
+        GroupItem::composed(
+            ItemIdentity {
+                name: "Composed row".into(),
+                icon: ItemIcon::Absent,
+            },
+            hover,
+            ItemValue::Nothing,
+        )
+    }
+
+    fn whole_item_hover() -> ItemHover {
+        ItemHover::WholeItem(SessionTarget::Menu.into())
+    }
+
+    #[test]
+    fn composed_item_reports_its_identity_name() {
+        assert_eq!(
+            composed_with(whole_item_hover()).menu_name(),
+            "Composed row"
+        );
+    }
+
+    #[test]
+    fn row_action_follows_the_hover_owner() {
+        let children_hover = ItemHover::ByChildren {
+            row_target: SessionTarget::Menu.into(),
+        };
+        assert!(matches!(
+            composed_with(children_hover).menu_action(),
+            MenuItemAction::Inspect(_)
+        ));
+        assert!(matches!(
+            composed_with(whole_item_hover()).menu_action(),
+            MenuItemAction::Inspect(_)
+        ));
+        assert!(matches!(
+            composed_with(whole_item_hover())
+                .on_press("press", ())
+                .menu_action(),
+            MenuItemAction::PressAndInspect { .. }
+        ));
+    }
+
+    #[test]
+    fn only_readings_are_pinnable() {
+        let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        assert_eq!(reading.pinnable_name(), Some("Named reading"));
+        assert_eq!(composed_with(whole_item_hover()).pinnable_name(), None);
+    }
 }

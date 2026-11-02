@@ -283,7 +283,7 @@ impl TooltipHost {
     #[must_use]
     pub fn departure<Message>(&self, content: HoverContent<'_, Message>) -> Option<Departed> {
         let current = self.transition.current()?;
-        let departed_content = match content.with_announcement(current.announcement) {
+        let departed_content = match content.with_announcement(current.announcement.clone()) {
             HoverContent::Described(tooltip) => DepartedContent::Described(tooltip),
             HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => {
                 DepartedContent::Interactive
@@ -362,7 +362,7 @@ impl TooltipHost {
         }
         if let Some(current) = self.transition.current() {
             let Rendered { element, framing } =
-                render(content_of(&current.target).with_announcement(current.announcement));
+                render(content_of(&current.target).with_announcement(current.announcement.clone()));
             renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
         }
         Some(
@@ -428,7 +428,7 @@ impl<Message> HoverContent<'_, Message> {
     }
 
     #[must_use]
-    pub fn shows_anything(&self, announcement: HoverAnnouncement) -> bool {
+    pub fn shows_anything(&self, announcement: &HoverAnnouncement) -> bool {
         match self {
             HoverContent::Described(tooltip) => !tooltip.is_empty() || !announcement.is_empty(),
             HoverContent::Interactive { .. } | HoverContent::Cascade { .. } => true,

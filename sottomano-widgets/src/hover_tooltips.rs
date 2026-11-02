@@ -212,12 +212,12 @@ impl PressHints {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum HoverOrigin {
     #[default]
     Reading,
     GroupHandle {
-        group_title: GroupTitle,
+        group_title: Box<GroupTitle>,
         panel_pin: PanelPin,
     },
 }
@@ -233,7 +233,7 @@ pub enum PanelPin {
     },
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HoverAnnouncement {
     pub press_hints: PressHints,
     pub origin: HoverOrigin,
@@ -253,7 +253,7 @@ impl HoverAnnouncement {
         HoverAnnouncement {
             press_hints,
             origin: HoverOrigin::GroupHandle {
-                group_title,
+                group_title: Box::new(group_title),
                 panel_pin: PanelPin::Unpinned,
             },
         }
@@ -274,7 +274,7 @@ impl HoverAnnouncement {
     }
 
     #[must_use]
-    pub fn is_empty(self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.press_hints.is_empty() && self.origin == HoverOrigin::Reading
     }
 }

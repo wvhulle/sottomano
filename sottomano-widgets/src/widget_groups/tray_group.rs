@@ -28,7 +28,7 @@ use crate::{
         bar_widget::Glyph,
         configured_theme::primary_color,
         context_menu::context_menu,
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
@@ -226,9 +226,18 @@ impl TrayGroup {
             &self.expansion,
             TrayMessage::Expansion,
             self.visible(config).into_iter().map(|item| {
-                GroupItem::element(move |reveal| {
-                    item_view(config, &self.pixmap_handles, item, reveal)
-                })
+                GroupItem::composed(
+                    ItemIdentity {
+                        name: item.name().to_owned().into(),
+                        icon: ItemIcon::Absent,
+                    },
+                    ItemHover::ByChildren {
+                        row_target: HoverTarget::Tray(item.address.clone()),
+                    },
+                    ItemValue::drawn(move |reveal| {
+                        item_view(config, &self.pixmap_handles, item, reveal)
+                    }),
+                )
             }),
         )
         .face(HandleFace::Icon {

@@ -458,7 +458,7 @@ impl DesktopShell {
             .inspected_row(*kind)
             .and_then(|row| {
                 self.tooltip_for(&row.target)
-                    .map(|tooltip| tooltip.with_announcement(row.announcement))
+                    .map(|tooltip| tooltip.with_announcement(row.announcement.clone()))
             })
             .unwrap_or_else(Tooltip::empty);
         group_menu.surfaces(

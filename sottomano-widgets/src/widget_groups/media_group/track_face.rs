@@ -1,10 +1,7 @@
-use iced::{
-    Alignment, Element,
-    widget::{Row, rich_text, span, text::Span},
-};
+use iced::widget::{rich_text, span, text::Span};
 use sottomano_config::Config;
 use sottomano_sources::{
-    media_playback_audio::mpris_players::{Command, Media},
+    media_playback_audio::mpris_players::{Command, Media, Status},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 use uom::si::f64::Ratio;
@@ -12,30 +9,45 @@ use uom::si::f64::Ratio;
 use super::{
     MediaMessage, MediaTarget, PlayerMessage, PlayerTarget, RAISE_PLAYER_HINT, player_message,
 };
-use crate::{
-    hover_tooltips::{PressHints, hoverable},
-    widgets::{
-        bar_widget::Glyph,
-        gauge::Gauge,
-        group_item::GroupItem,
-        icon_handle::IconHandle,
-        phosphor::{Phosphor, Weight},
-        simple_icons::SimpleIcon,
-        source_reading::icon_value_gap,
-        text::{FontFaces, LINE_HEIGHT},
-        widget_group::GroupEvent,
-        widget_state::{StateTint, WidgetState},
-    },
+use crate::widgets::{
+    bar_widget::Glyph,
+    gauge::Gauge,
+    group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
+    icon_handle::IconHandle,
+    phosphor::{Phosphor, Weight},
+    simple_icons::SimpleIcon,
+    text::{FontFaces, LINE_HEIGHT},
+    widget_state::{StateTint, WidgetState},
 };
 
-pub(super) fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem<'a, MediaMessage> {
+fn playback_state(media: &Media) -> WidgetState {
+    if media.status == Status::Playing {
+        WidgetState::Idle
+    } else {
+        WidgetState::Off
+    }
+}
+
+pub(super) fn track_item<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    cover_art: Option<&IconHandle>,
+) -> GroupItem<'a, MediaMessage> {
     let raisable = media.owner != OwnerProcess::Unidentified || media.capabilities.raise;
-    let press_hints = PressHints {
-        left: raisable.then_some(RAISE_PLAYER_HINT),
-        ..PressHints::default()
-    };
-    let label = GroupItem::element(move |reveal| {
-        hoverable(
+    let icon = cover_art.map_or_else(
+        || ItemIcon::Glyph {
+            glyph: Phosphor::VinylRecord(Weight::Regular).into(),
+            state: playback_state(media),
+        },
+        |art| ItemIcon::Image(art.clone()),
+    );
+    let track = GroupItem::composed(
+        ItemIdentity {
+            name: "Track".into(),
+            icon,
+        },
+        ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Track).into()),
+        ItemValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
                     StateTint {
@@ -46,61 +58,43 @@ pub(super) fn track_label<'a>(config: &'a Config, media: &'a Media) -> GroupItem
                 )
                 .size(config.theme.font.text_size_px)
                 .line_height(LINE_HEIGHT)
-                .into(),
-            PlayerTarget::of(&media.bus, MediaTarget::Track).into(),
-            press_hints,
-            GroupEvent::Tooltip,
-        )
-    });
+                .into()
+        }),
+    );
     if raisable {
-        label.on_press(
+        track.on_press(
             RAISE_PLAYER_HINT,
             player_message(&media.bus, PlayerMessage::Command(Command::Raise)),
         )
     } else {
-        label
+        track
     }
 }
 
-pub(super) fn player_face<'a, Message: 'a>(
-    config: &Config,
-    media: &Media,
-    opacity: f32,
+pub(super) fn player_item<'a>(
+    config: &'a Config,
+    media: &'a Media,
     gauge_fraction: Option<Ratio>,
-) -> Element<'a, Message> {
-    let side = config.theme.font.icon_size_px;
-    let tint = StateTint {
-        state: WidgetState::Idle,
-        opacity,
-    };
-    let player_glyph = SimpleIcon::titled(&media.identity)
+) -> GroupItem<'a, MediaMessage> {
+    let state = playback_state(media);
+    let glyph = SimpleIcon::titled(&media.identity)
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), Glyph::from);
-    let player_icon = player_glyph.view(side, move |theme| tint.color(theme));
-    let Some(fraction) = gauge_fraction else {
-        return player_icon;
-    };
-    Row::with_children([player_icon, Gauge::new(fraction, tint, side).into()])
-        .spacing(icon_value_gap(config))
-        .align_y(Alignment::Center)
-        .into()
-}
-
-pub(super) fn track_cover<'a, Message: 'a>(
-    config: &Config,
-    cover_art: Option<&IconHandle>,
-    opacity: f32,
-) -> Element<'a, Message> {
-    let side = config.theme.font.icon_size_px;
-    let tint = StateTint {
-        state: WidgetState::Idle,
-        opacity,
-    };
-    cover_art.map_or_else(
-        || {
-            Glyph::from(Phosphor::VinylRecord(Weight::Regular))
-                .view(side, move |theme| tint.color(theme))
+    let value = gauge_fraction.map_or(ItemValue::Nothing, |fraction| {
+        ItemValue::drawn(move |reveal| {
+            let tint = StateTint {
+                state,
+                opacity: reveal,
+            };
+            Gauge::new(fraction, tint, config.theme.font.icon_size_px).into()
+        })
+    });
+    GroupItem::composed(
+        ItemIdentity {
+            name: "Player".into(),
+            icon: ItemIcon::Glyph { glyph, state },
         },
-        |art| art.view(side, opacity),
+        ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Player).into()),
+        value,
     )
 }
 

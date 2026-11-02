@@ -28,12 +28,16 @@ use crate::{
     widgets::{
         app_window_focus::AppWindowFocus,
         confirm_button::{ConfirmButton, Press},
-        group_item::GroupItem,
+        group_item::{GroupItem, ItemHover, ItemIcon, ItemIdentity, ItemValue},
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        phosphor::{Phosphor, Weight},
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
-        widget_group::{ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, WidgetGroup},
+        widget_group::{
+            ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, GroupTitle, WidgetGroup,
+        },
+        widget_state::WidgetState,
     },
 };
 
@@ -48,7 +52,7 @@ use self::{
     seek_bar::{SeekBar, SeekMessage},
     session_controls::{SessionControls, SessionMessages},
     synced_lyrics_view::{lyrics_item, lyrics_section},
-    track_face::{player_face, track_cover, track_label},
+    track_face::{player_item, track_item},
     track_tooltip::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
@@ -68,8 +72,10 @@ pub enum MediaTarget {
     PlayPause,
     Next,
     Loop,
+    Transport,
     Stop,
     Quit,
+    SessionControls,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -269,6 +275,24 @@ impl MediaGroup {
         titled
     }
 
+    fn group_title_of(&self, media: &Media) -> GroupTitle {
+        let earlier_namesakes = self
+            .titled_players()
+            .into_iter()
+            .take_while(|other| other.bus != media.bus)
+            .filter(|other| other.identity == media.identity)
+            .count();
+        GroupTitle::numbered_from_second(media.identity.clone(), earlier_namesakes)
+    }
+
+    #[must_use]
+    pub fn player_group_titles(&self) -> Vec<GroupTitle> {
+        self.titled_players()
+            .into_iter()
+            .map(|media| self.group_title_of(media))
+            .collect()
+    }
+
     pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
         match msg {
             MediaMessage::LyricsReading { query, delivery } => {
@@ -397,8 +421,10 @@ impl MediaGroup {
             | MediaTarget::PlayPause
             | MediaTarget::Next
             | MediaTarget::Loop
+            | MediaTarget::Transport
             | MediaTarget::Stop
-            | MediaTarget::Quit => self.players.tooltip_with(TooltipBody::sections([])),
+            | MediaTarget::Quit
+            | MediaTarget::SessionControls => self.players.tooltip_with(TooltipBody::sections([])),
         }
     }
 
@@ -421,10 +447,15 @@ impl MediaGroup {
     ) -> impl Iterator<Item = GroupContent<'a, MediaMessage>> {
         self.titled_players().into_iter().filter_map(move |media| {
             let session = self.sessions.get(&media.bus)?;
-            Some(
-                player_group(config, clock, media, session, self.lyrics_of(media))
-                    .sharing_title_row(),
-            )
+            let group_title = self.group_title_of(media);
+            Some(player_group(
+                config,
+                clock,
+                group_title,
+                media,
+                session,
+                self.lyrics_of(media),
+            ))
         })
     }
 }
@@ -432,82 +463,100 @@ impl MediaGroup {
 fn player_group<'a>(
     config: &'a Config,
     clock: Clock,
+    group_title: GroupTitle,
     media: &'a Media,
     session: &'a PlayerSession,
     lyrics_snapshot: Option<&'a LatestSnapshot<TrackLyrics>>,
 ) -> GroupContent<'a, MediaMessage> {
     let bus = media.bus.as_str();
-    let opacity = if media.status == Status::Playing {
-        1.0
-    } else {
-        0.4
-    };
     let seekable = SeekBar::seekable(media, clock.instant);
     let gauge_fraction = media
         .progress
         .fraction(media.status, clock.instant)
         .filter(|_| !(seekable && session.expansion.is_expanded()));
-    let face =
-        GroupItem::hoverable_element(PlayerTarget::of(bus, MediaTarget::Player), move |_| {
-            player_face(config, media, opacity, gauge_fraction)
-        });
-    let cover =
-        GroupItem::hoverable_element(PlayerTarget::of(bus, MediaTarget::Track), move |_| {
-            track_cover(
-                config,
-                session.cover_art.as_ref().map(|art| &art.handle),
-                opacity,
-            )
-        });
     let seek = seekable.then(|| {
-        GroupItem::element(move |_| {
-            let bar = session
-                .seek_bar
-                .view(config, media, clock.instant)
-                .map_or_else(
-                    || Row::new().into(),
-                    |bar| bar.map(|seek| GroupEvent::Group(PlayerMessage::Seek(seek))),
-                );
-            lifted_to_player(
-                bus,
-                hoverable(
-                    bar,
-                    PlayerTarget::of(bus, MediaTarget::Seek).into(),
-                    PressHints {
-                        left: Some("jump to this point"),
-                        scroll: Some("seek"),
-                        ..PressHints::default()
-                    },
-                    GroupEvent::Tooltip,
-                ),
-            )
-        })
-    });
-    let transport = GroupItem::element(move |reveal| {
-        lifted_to_player(
-            bus,
-            TransportControls::new(
-                config,
-                media,
-                reveal,
-                |command| GroupEvent::Group(PlayerMessage::Command(command)),
-                GroupEvent::Tooltip,
-            )
-            .into(),
+        GroupItem::composed(
+            ItemIdentity {
+                name: "Position".into(),
+                icon: ItemIcon::Glyph {
+                    glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
+                    state: WidgetState::Idle,
+                },
+            },
+            ItemHover::ByChildren {
+                row_target: PlayerTarget::of(bus, MediaTarget::Seek).into(),
+            },
+            ItemValue::drawn(move |_| {
+                let bar = session
+                    .seek_bar
+                    .view(config, media, clock.instant)
+                    .map_or_else(
+                        || Row::new().into(),
+                        |bar| bar.map(|seek| GroupEvent::Group(PlayerMessage::Seek(seek))),
+                    );
+                lifted_to_player(
+                    bus,
+                    hoverable(
+                        bar,
+                        PlayerTarget::of(bus, MediaTarget::Seek).into(),
+                        PressHints {
+                            left: Some("jump to this point"),
+                            scroll: Some("seek"),
+                            ..PressHints::default()
+                        },
+                        GroupEvent::Tooltip,
+                    ),
+                )
+            }),
         )
     });
+    let transport = GroupItem::composed(
+        ItemIdentity {
+            name: "Playback".into(),
+            icon: ItemIcon::Absent,
+        },
+        ItemHover::ByChildren {
+            row_target: PlayerTarget::of(bus, MediaTarget::Transport).into(),
+        },
+        ItemValue::drawn(move |reveal| {
+            lifted_to_player(
+                bus,
+                TransportControls::new(
+                    config,
+                    media,
+                    reveal,
+                    |command| GroupEvent::Group(PlayerMessage::Command(command)),
+                    GroupEvent::Tooltip,
+                )
+                .into(),
+            )
+        }),
+    );
     let session_buttons = (!session_controls(config, media, session, 1.0).is_empty()).then(|| {
-        GroupItem::element(move |reveal| {
-            lifted_to_player(bus, session_controls(config, media, session, reveal).into())
-        })
+        GroupItem::composed(
+            ItemIdentity {
+                name: "Session".into(),
+                icon: ItemIcon::Absent,
+            },
+            ItemHover::ByChildren {
+                row_target: PlayerTarget::of(bus, MediaTarget::SessionControls).into(),
+            },
+            ItemValue::drawn(move |reveal| {
+                lifted_to_player(bus, session_controls(config, media, session, reveal).into())
+            }),
+        )
     });
-    MediaGroup::expandable_group(
+    MediaGroup::expandable_group_titled(
+        group_title,
         &session.expansion,
         move |expansion| player_message(bus, PlayerMessage::Expansion(expansion)),
         [
-            Some(face),
-            Some(cover),
-            Some(track_label(config, media)),
+            Some(player_item(config, media, gauge_fraction)),
+            Some(track_item(
+                config,
+                media,
+                session.cover_art.as_ref().map(|art| &art.handle),
+            )),
             lyrics_snapshot.and_then(|lyrics_snapshot| {
                 lyrics_item(config, media, lyrics_snapshot, clock.instant)
             }),
@@ -656,6 +705,31 @@ mod tests {
         .collect();
         assert_eq!(expanded, [true, false]);
         assert_eq!(group.titled_players().len(), 2);
+    }
+
+    #[test]
+    fn each_player_titles_its_own_group() {
+        let clock = Clock::real();
+        let mut group = MediaGroup::default();
+        let named_player = |bus: &str, identity: &str| Media {
+            identity: identity.to_owned(),
+            ..titled_player(bus, Status::Playing)
+        };
+        reported(
+            &mut group,
+            vec![
+                named_player("org.mpris.MediaPlayer2.spotify", "Spotify"),
+                named_player("org.mpris.MediaPlayer2.firefox.instance1", "Firefox"),
+                named_player("org.mpris.MediaPlayer2.firefox.instance2", "Firefox"),
+            ],
+            clock,
+        );
+        let titles: Vec<String> = group
+            .player_group_titles()
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(titles, ["Firefox", "Firefox 2", "Spotify"]);
     }
 
     #[test]

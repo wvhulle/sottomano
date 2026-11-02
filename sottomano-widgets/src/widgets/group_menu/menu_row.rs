@@ -31,18 +31,7 @@ pub(super) fn menu_row_height(config: &Config) -> f32 {
     config.layout.panel.height + config.layout.overlay.row_spacing
 }
 
-pub(super) fn inert_menu_row<'a, M: 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, M>,
-) -> Element<'a, GroupEvent<M>> {
-    container(menu_line(config, content))
-        .width(Length::Fill)
-        .height(menu_row_height(config))
-        .padding(menu_row_padding(config))
-        .into()
-}
-
-pub(super) fn pressable_menu_row<'a, M: Clone + 'a>(
+fn pressable_menu_row<'a, M: Clone + 'a>(
     config: &'a Config,
     content: MenuRowContent<'a, M>,
     look: MenuRowLook,

@@ -56,7 +56,6 @@ impl DesktopShell {
     }
 
     pub(super) fn top_bar_groups(&self) -> TopBarGroups<'_> {
-        let config = &self.config;
         TopBarGroups {
             start_menus: [self.hardware_menu(), self.network_menu()],
             center: [self
@@ -74,7 +73,7 @@ impl DesktopShell {
             end: [self
                 .widget_groups
                 .session_menu
-                .group_content(config)
+                .group_content()
                 .map(Message::Session)],
         }
     }

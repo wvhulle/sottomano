@@ -83,7 +83,7 @@ impl GroupMenuKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PinnedEntry {
     Group {
         group_title: GroupTitle,
@@ -133,7 +133,7 @@ pub enum GroupMenuMessage {
     Closed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PromotedGroup {
     pub menu: GroupMenuKind,
     pub group_title: GroupTitle,
@@ -198,11 +198,11 @@ impl GroupMenus {
             self.is_pinned(
                 menu,
                 PinnedEntry::Group {
-                    group_title: *group_title,
+                    group_title: group_title.clone(),
                 },
             ) || self.promoted_groups.contains(&PromotedGroup {
                 menu,
-                group_title: *group_title,
+                group_title: group_title.clone(),
             })
         });
         let pinned_item_names = self.pinned.iter().filter_map(|pin| match pin {
@@ -278,10 +278,10 @@ mod tests {
     use crate::clock::Clock;
 
     const GPU_GROUP: PinnedEntry = PinnedEntry::Group {
-        group_title: GroupTitle::Fixed("GPU"),
+        group_title: GroupTitle::fixed("GPU"),
     };
     const GPU_LOAD_ITEM: PinnedEntry = PinnedEntry::Item {
-        group_title: GroupTitle::Fixed("GPU"),
+        group_title: GroupTitle::fixed("GPU"),
         item_name: "GPU load",
     };
 
@@ -315,7 +315,7 @@ mod tests {
     }
 
     fn gpu_demand(group_menus: &GroupMenus) -> GroupSourceDemand<'_> {
-        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("GPU")])
+        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("GPU")])
     }
 
     fn collapsed_on_bar() -> GroupSourceDemand<'static> {
@@ -341,7 +341,7 @@ mod tests {
             None,
             vec![PromotedGroup {
                 menu: GroupMenuKind::Hardware,
-                group_title: GroupTitle::Fixed("GPU"),
+                group_title: GroupTitle::fixed("GPU"),
             }],
             Clock::real().instant,
         );
@@ -355,9 +355,9 @@ mod tests {
         let mut group_menus = GroupMenus::default();
         let _ = group_menus.update(toggle_in_hardware(GPU_LOAD_ITEM));
         let other_group =
-            group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("Compute")]);
+            group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("Compute")]);
         let other_menu =
-            group_menus.source_demand(GroupMenuKind::Network, &[GroupTitle::Fixed("GPU")]);
+            group_menus.source_demand(GroupMenuKind::Network, &[GroupTitle::fixed("GPU")]);
         assert_ne!(gpu_demand(&group_menus), other_group);
         assert_eq!(other_group, other_menu);
     }
@@ -408,7 +408,7 @@ mod tests {
     #[test]
     fn a_title_that_only_starts_with_another_is_a_separate_group() {
         let unrelated_group = PinnedEntry::Group {
-            group_title: GroupTitle::Fixed("GPU 2 spare"),
+            group_title: GroupTitle::fixed("GPU 2 spare"),
         };
         let mut group_menus = GroupMenus::default();
         let _ = group_menus.update(toggle_in_hardware(unrelated_group));
@@ -433,13 +433,13 @@ mod tests {
         assert_eq!(
             gpu_demand(&group_menus),
             group_menus_with_open_hardware()
-                .source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("GPU")])
+                .source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("GPU")])
         );
         group_menus.track_source_demand(None, Vec::new(), opened_at + MENU_SOURCE_LINGER);
         assert_eq!(
             gpu_demand(&group_menus),
             GroupMenus::default()
-                .source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("GPU")])
+                .source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("GPU")])
         );
     }
 
@@ -462,7 +462,7 @@ mod tests {
             group_title: GroupTitle::numbered_from_second("USB Ethernet", 1),
         };
         let mut group_menus = GroupMenus::default();
-        let _ = group_menus.update(toggle_in_hardware(second_port));
+        let _ = group_menus.update(toggle_in_hardware(second_port.clone()));
         assert!(group_menus.is_pinned(GroupMenuKind::Hardware, second_port));
         assert!(!group_menus.is_pinned(GroupMenuKind::Hardware, first_port));
     }

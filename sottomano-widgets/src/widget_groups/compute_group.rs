@@ -353,7 +353,7 @@ mod tests {
     }
 
     fn demand_in(group_menus: &GroupMenus) -> GroupSourceDemand<'_> {
-        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::Fixed("Compute")])
+        group_menus.source_demand(GroupMenuKind::Hardware, &[GroupTitle::fixed("Compute")])
     }
 
     #[test]
@@ -386,7 +386,7 @@ mod tests {
             None,
             vec![PromotedGroup {
                 menu: GroupMenuKind::Hardware,
-                group_title: GroupTitle::Fixed("Compute"),
+                group_title: GroupTitle::fixed("Compute"),
             }],
             Clock::real().instant,
         );

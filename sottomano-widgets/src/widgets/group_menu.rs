@@ -123,7 +123,7 @@ impl<'a, M> MenuSections<'a, M> {
         } = member;
         if !aligned.is_empty() {
             self.table_columns.push(QuantityTableColumn {
-                group_title: title_claim.group_title,
+                group_title: title_claim.group_title.clone(),
                 aligned,
             });
         }
@@ -201,7 +201,7 @@ impl<'a, M: Clone + 'a> GroupMenu<'a, M> {
             self.glyph.view(config.theme.font.icon_size_px, text_color),
             HoverTarget::GroupHandle(GroupHandle::GroupMenu(self.messenger.kind)),
             HoverAnnouncement::from_group_handle(
-                GroupTitle::Fixed(self.title),
+                GroupTitle::fixed(self.title),
                 PressHints::default(),
             ),
             GroupEvent::Tooltip,
