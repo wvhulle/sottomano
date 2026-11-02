@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::identity, hash::Hash, mem};
 
 use iced::{
-    Animation, Color, Element, Event, Length, Rectangle, Size, Theme, Vector,
+    Alignment, Animation, Color, Element, Event, Length, Rectangle, Size, Theme, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -9,7 +9,7 @@ use iced::{
         widget::{Operation, Tree, tree},
     },
     animation::Easing,
-    border::{self, Border, Radius},
+    border::{Border, Radius},
     mouse::Cursor,
     time::{Duration, Instant},
     window,
@@ -20,6 +20,7 @@ use crate::widgets::{
     configured_theme::ThemedColor,
     list_end_corners::ListEndCorners,
     pointer_drag::{DragEvent, DragView, PanelSlotList},
+    shared_metrics::{ACCENT_STROKE_PX, pill_corners},
 };
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
@@ -36,7 +37,7 @@ pub fn slot_pager<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
         edge,
         spacing: 0.0,
         motion: config.desktop_panels.slot_drag.focus_indicator_duration,
-        indicator_thickness: config.widget_group_layout.edge_indicator_thickness,
+        indicator_thickness: ACCENT_STROKE_PX,
         highlight: None,
         frame_corners: Radius::default(),
         left_list_message: None,
@@ -267,9 +268,9 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
                 .iter_mut()
                 .zip(trees)
                 .map(|(slot, tree)| {
-                    let node = slot.as_widget_mut().layout(tree, renderer, &along_panel);
-                    let centred = (height - node.size().height).max(0.0) / 2.0;
-                    node.move_to((0.0, centred))
+                    let mut node = slot.as_widget_mut().layout(tree, renderer, &along_panel);
+                    node.align_mut(Alignment::Start, Alignment::Center, Size::new(0.0, height));
+                    node
                 })
                 .collect()
         }
@@ -532,7 +533,7 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
                     edge_band(self.edge, slots_bounds, slot, self.indicator_thickness),
                     self.highlighted_corners(),
                 ),
-                border: border::rounded(self.indicator_thickness / 2.0),
+                border: pill_corners(self.indicator_thickness),
                 snap: false,
                 ..renderer::Quad::default()
             },

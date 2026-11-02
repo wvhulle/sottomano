@@ -51,7 +51,7 @@ pub(crate) struct MenuRowLook {
 }
 
 pub(crate) fn menu_row_height(config: &Config) -> f32 {
-    config.desktop_panels.height + config.overlay_surfaces.row_gap
+    config.desktop_panels.height + config.theme.spacing.item_gap
 }
 
 pub(crate) fn pressable_menu_row<'a, M: Clone + 'a>(
@@ -101,7 +101,7 @@ fn menu_line<'a, M: 'a>(
         )
         .push(parts.value)
         .extend(trailing)
-        .spacing(config.overlay_surfaces.column_gap)
+        .spacing(config.theme.spacing.group_gap)
         .height(Length::Fill)
         .align_y(Alignment::Center)
 }
@@ -114,7 +114,7 @@ fn leading_icon_slot<'a, M: 'a>(
 }
 
 fn menu_row_padding(config: &Config) -> Padding {
-    Padding::ZERO.horizontal(config.overlay_surfaces.content_inset)
+    Padding::ZERO.horizontal(config.theme.spacing.surface_inset)
 }
 
 fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {

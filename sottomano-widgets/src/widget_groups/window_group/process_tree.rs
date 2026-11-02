@@ -32,11 +32,7 @@ use crate::{
     },
 };
 
-const INDENT_PX: f32 = 12.0;
 const NAME_WIDTH_PX: f32 = 220.0;
-const COLUMN_GAP_PX: f32 = 12.0;
-const ROW_GAP_PX: f32 = 3.0;
-const CARET_GAP_PX: f32 = 2.0;
 const MAX_CHILDREN: usize = 19;
 const UNFOLDED_DEPTH_BY_DEFAULT: usize = 3;
 const WARNING_CPU_PERCENT: f64 = 2.0;
@@ -168,6 +164,7 @@ impl<'a> ProcessTree<'a> {
         let transition = self.transition;
         let copy_flash = self.copy_flash();
         let locale = self.config.calendar.locale;
+        let item_gap = self.config.theme.spacing.item_gap;
 
         content_sized_table(
             [
@@ -209,8 +206,8 @@ impl<'a> ProcessTree<'a> {
                             panel_text(&font, format!("+{hidden} more")).style(text::secondary),
                         ),
                     };
-                    let row = row.spacing(CARET_GAP_PX).align_y(Alignment::Center);
-                    let indent = INDENT_PX * branch.depth as f32;
+                    let row = row.spacing(item_gap).align_y(Alignment::Center);
+                    let indent = (caret_size + item_gap) * branch.depth as f32;
                     Element::from(container(row).padding(Padding::ZERO.left(indent)))
                 })
                 .align_y(Vertical::Top),
@@ -224,8 +221,8 @@ impl<'a> ProcessTree<'a> {
             ],
             branches,
         )
-        .padding_x(COLUMN_GAP_PX / 2.0)
-        .padding_y(ROW_GAP_PX / 2.0)
+        .column_gap(self.config.theme.spacing.group_gap)
+        .row_gap(item_gap)
         .into()
     }
 

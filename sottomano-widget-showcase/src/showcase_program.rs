@@ -413,7 +413,7 @@ impl ShowcaseState {
             Position::Left => self.appearance.sidebar,
             Position::Top | Position::Bottom => self.appearance.panels,
         };
-        let frame_style = LayerFrameStyle::new(&layer, &self.config);
+        let frame_style = LayerFrameStyle::new(&layer);
         let outlined_sides =
             OutlinedSides::inward_of(position).all_when_floating(SHOWCASE_FLOAT_OFFSET_PX);
         let framed = self.strip_groups().into_iter().map(|group| {
@@ -422,7 +422,10 @@ impl ShowcaseState {
                 Position::Top | Position::Bottom => container(group)
                     .height(Length::Fixed(panel.height))
                     .align_y(Vertical::Center)
-                    .padding([0.0, layer.frame_corner_inset() + panel.group_edge_padding]),
+                    .padding([
+                        0.0,
+                        layer.frame_corner_inset() + self.config.theme.spacing.item_gap,
+                    ]),
             };
             panel_frame(content, frame_style)
                 .outlined_sides(outlined_sides)
@@ -430,10 +433,10 @@ impl ShowcaseState {
         });
         match position {
             Position::Left => Column::with_children(framed)
-                .spacing(panel.framed_group_gap)
+                .spacing(self.config.theme.spacing.item_gap)
                 .into(),
             Position::Top | Position::Bottom => Row::with_children(framed)
-                .spacing(panel.framed_group_gap)
+                .spacing(self.config.theme.spacing.item_gap)
                 .into(),
         }
     }
@@ -516,7 +519,7 @@ impl Program for ShowcaseProgram {
         state: &'a ShowcaseState,
         _window: window::Id,
     ) -> Element<'a, ShowcaseMessage> {
-        let gap = state.config.desktop_panels.group_edge_padding;
+        let gap = state.config.theme.spacing.item_gap;
         let panel_side = match state.group.position() {
             Position::Top => Vertical::Top,
             Position::Left => Vertical::Center,

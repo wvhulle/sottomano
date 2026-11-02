@@ -10,7 +10,7 @@ use iced::{
     widget::{Column, Row, button, container, mouse_area, progress_bar, space, text_input},
 };
 use reqwest::Url;
-use sottomano_config::{Config, notification_toasts::ToastCardConfig, severity::Severity};
+use sottomano_config::{Config, severity::Severity};
 use sottomano_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
@@ -28,6 +28,7 @@ use crate::{
         icon_glyph::IconGlyph,
         icon_handle::IconHandle,
         localized_durations::relative_moment_text,
+        shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,
         text::{FontFaces, panel_text},
     },
@@ -78,11 +79,10 @@ fn action_family(palette: &Extended, tint: ActionTint) -> FamilyShades {
     }
 }
 
-const BODY_ROW_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 8.0;
-const BUTTON_PADDING: [f32; 2] = [6.0, 14.0];
-const BORDER_WIDTH_PX: f32 = 1.5;
-const PROGRESS_GIRTH_PX: f32 = 6.0;
+pub(crate) const TOAST_CARD_WIDTH_PX: f32 = 440.0;
+const TOAST_ICON_SIZE_PX: f32 = 44.0;
+const TOAST_APP_BADGE_SIZE_PX: f32 = 20.0;
+const TOAST_PREVIEW_MAX_HEIGHT_PX: f32 = 180.0;
 
 #[derive(Debug, Clone)]
 pub enum CardIcon {
@@ -226,21 +226,16 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
         let style = card.style();
         let text = style.text_color.unwrap_or_default();
         let mut body_row = Row::new()
-            .spacing(BODY_ROW_SPACING)
+            .spacing(card.config.theme.spacing.group_gap)
             .align_y(Alignment::Center);
-        if let Some(icon) = icon_slot(
-            &card.notif.icons,
-            &card.config.notification_toasts.card,
-            card.reveal,
-            text,
-        ) {
+        if let Some(icon) = icon_slot(&card.notif.icons, card.reveal, text) {
             body_row = body_row.push(icon);
         }
         body_row = body_row.push(card.column(text));
 
         let framed_card = container(body_row)
-            .width(Length::Fixed(card.config.notification_toasts.card.width))
-            .padding(card.config.overlay_surfaces.content_inset)
+            .width(Length::Fixed(TOAST_CARD_WIDTH_PX))
+            .padding(card.config.theme.spacing.surface_inset)
             .style(move |_| style);
 
         mouse_area(framed_card)
@@ -266,13 +261,13 @@ impl<Routed> ToastCard<'_, Routed> {
         } else {
             self.overlay_appearance.opacity
         };
-        let shadow = LayerFrameStyle::new(&self.overlay_appearance, self.config).drop_shadow();
+        let shadow = LayerFrameStyle::new(&self.overlay_appearance).drop_shadow();
         container::Style::default()
             .background(urgency.color.scale_alpha(opacity * self.reveal))
             .border(
                 border::rounded(self.overlay_appearance.corner_radius_px)
                     .color(urgency.color.scale_alpha(self.reveal))
-                    .width(BORDER_WIDTH_PX),
+                    .width(OUTLINE_WIDTH_PX),
             )
             .color(urgency.text.scale_alpha(self.reveal))
             .shadow(Shadow {
@@ -287,7 +282,8 @@ impl<Routed> ToastCard<'_, Routed> {
         let font = &self.config.theme.font;
         MarkupBody::new(body, font)
             .size(font.small_text_size_px)
-            .block_spacing(self.config.overlay_surfaces.row_gap)
+            .block_spacing(self.config.theme.spacing.item_gap)
+            .column_gap(self.config.theme.spacing.group_gap)
             .corner_radius(self.overlay_appearance.corner_radius_px)
             .into()
     }
@@ -325,7 +321,7 @@ impl<Routed> ToastCard<'_, Routed> {
         };
 
         let mut title = Row::new()
-            .spacing(ROW_SPACING)
+            .spacing(self.config.theme.spacing.group_gap)
             .align_y(Alignment::Center)
             .push(
                 panel_text(font, data.summary.clone())
@@ -346,11 +342,11 @@ impl<Routed> ToastCard<'_, Routed> {
         }
 
         let mut column = Column::new()
-            .spacing(self.config.overlay_surfaces.row_gap)
+            .spacing(self.config.theme.spacing.item_gap)
             .push(title);
         if let Some(body) = body_text {
             let body = Row::new()
-                .spacing(ROW_SPACING)
+                .spacing(self.config.theme.spacing.group_gap)
                 .align_y(Alignment::End)
                 .push(self.body(body));
             column = column.push(match reltime_span(!has_actions) {
@@ -361,10 +357,7 @@ impl<Routed> ToastCard<'_, Routed> {
         if let Some(CardImage::Preview { icon, .. }) = &self.notif.icons.image {
             column = column.push(preview_widget(
                 icon,
-                self.config
-                    .notification_toasts
-                    .card
-                    .image_preview_max_height,
+                TOAST_PREVIEW_MAX_HEIGHT_PX,
                 self.reveal,
                 text,
             ));
@@ -431,7 +424,7 @@ impl<Routed> ToastCard<'_, Routed> {
             .into_iter()
             .flatten();
         Row::with_children(app_buttons.chain(file_buttons))
-            .spacing(6.0)
+            .spacing(self.config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
     }
 
@@ -444,21 +437,24 @@ impl<Routed> ToastCard<'_, Routed> {
         let field = text_input(placeholder, &self.notif.reply_draft)
             .font(FontFaces::from(font).regular)
             .size(font.text_size_px)
-            .padding(BUTTON_PADDING)
+            .padding([
+                self.config.theme.spacing.item_gap,
+                self.config.theme.spacing.group_gap,
+            ])
             .on_input(move |draft| reply(ReplyMessage::Edited(draft)))
             .on_submit(reply(ReplyMessage::Submitted))
             .style(move |_, _| text_input::Style {
                 background: family.weak.color.into(),
                 border: border::rounded(radius)
                     .color(family.strong.color)
-                    .width(1.0),
+                    .width(OUTLINE_WIDTH_PX),
                 icon: family.weak.text,
                 placeholder: family.strong.color,
                 value: family.weak.text,
                 selection: family.strong.color,
             });
         let row = Row::new()
-            .spacing(6.0)
+            .spacing(self.config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
             .push(field)
             .push(self.action_button(
@@ -481,7 +477,10 @@ impl<Routed> ToastCard<'_, Routed> {
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.corner_radius_px;
         button(panel_text(font, label))
-            .padding(BUTTON_PADDING)
+            .padding([
+                self.config.theme.spacing.item_gap,
+                self.config.theme.spacing.group_gap,
+            ])
             .style(move |_, status| {
                 let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
                 let shade = if hovered { tint.base } else { tint.weak };
@@ -502,7 +501,6 @@ impl<Routed> ToastCard<'_, Routed> {
 
 fn icon_slot<'a>(
     icons: &CardIcons,
-    card_size: &ToastCardConfig,
     reveal: f32,
     text: Color,
 ) -> Option<Element<'a, NotificationMessage>> {
@@ -510,16 +508,15 @@ fn icon_slot<'a>(
         return icons
             .badge
             .as_ref()
-            .map(|badge| icon_widget(badge, card_size.icon_size, reveal, text));
+            .map(|badge| icon_widget(badge, TOAST_ICON_SIZE_PX, reveal, text));
     };
-    let main_size = card_size.icon_size;
-    let main = icon_widget(image, main_size, reveal, text);
+    let main = icon_widget(image, TOAST_ICON_SIZE_PX, reveal, text);
     let Some(badge) = &icons.badge else {
         return Some(main);
     };
-    let overlay = container(icon_widget(badge, card_size.app_badge_size, reveal, text))
-        .width(main_size)
-        .height(main_size);
+    let overlay = container(icon_widget(badge, TOAST_APP_BADGE_SIZE_PX, reveal, text))
+        .width(TOAST_ICON_SIZE_PX)
+        .height(TOAST_ICON_SIZE_PX);
     Some(iced::widget::stack![main, overlay].clip(true).into())
 }
 
@@ -543,11 +540,11 @@ fn progress_widget<'a>(
     track: Color,
 ) -> Element<'a, NotificationMessage> {
     progress_bar(0.0..=1.0, progress.get::<ratio>() as f32)
-        .girth(PROGRESS_GIRTH_PX)
+        .girth(ACCENT_STROKE_PX)
         .style(move |_| progress_bar::Style {
             background: track.into(),
             bar: text.into(),
-            border: border::rounded(PROGRESS_GIRTH_PX / 2.0),
+            border: pill_corners(ACCENT_STROKE_PX),
         })
         .into()
 }

@@ -14,10 +14,12 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use sottomano_config::{Config, notification_toasts::ToastPlacementConfig};
+use sottomano_config::Config;
 
 use super::{
     toast_anchor_geometry,
+    toast_anchor_geometry::ToastAnchorSpacing,
+    toast_card::TOAST_CARD_WIDTH_PX,
     toast_placement::{AnchoredToast, ToastAnchor},
 };
 use crate::{
@@ -49,9 +51,8 @@ impl<'a> WindowAnchoredToasts<'a> {
                 ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
-                card_width_px: card.width,
                 motion: card.motion,
-                placement: config.notification_toasts.placement.clone(),
+                anchor_spacing: ToastAnchorSpacing::from_config(config),
                 revealing: false,
             },
             |mut toasts, toast| {
@@ -77,9 +78,8 @@ pub struct WindowAnchoredToasts<'a> {
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
-    card_width_px: f32,
     motion: Duration,
-    placement: ToastPlacementConfig,
+    anchor_spacing: ToastAnchorSpacing,
     revealing: bool,
 }
 
@@ -260,7 +260,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let surface = limits.max();
-        let card_limits = Limits::new(Size::ZERO, Size::new(self.card_width_px, f32::INFINITY));
+        let card_limits = Limits::new(Size::ZERO, Size::new(TOAST_CARD_WIDTH_PX, f32::INFINITY));
         let nodes: Vec<Node> = self
             .cards
             .iter_mut()
@@ -270,7 +270,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
         let free_area = Rectangle::with_size(surface).shrink(self.panel_clearance);
         let targets =
-            toast_anchor_geometry::origins(&self.anchors, &sizes, free_area, &self.placement);
+            toast_anchor_geometry::origins(&self.anchors, &sizes, free_area, &self.anchor_spacing);
         let positions =
             tree.state
                 .downcast_mut::<FieldState>()

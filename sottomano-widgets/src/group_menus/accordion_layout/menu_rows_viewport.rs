@@ -11,9 +11,7 @@ use iced::{
     mouse::Cursor,
 };
 
-use crate::widgets::reveal::clip_cursor;
-
-const LINE_STEP_PX: f32 = 40.0;
+use crate::widgets::{reveal::clip_cursor, shared_metrics::SCROLL_LINE_STEP_PX};
 
 #[must_use]
 fn clamped_scroll(scrolled_px: f32, content_height: f32, visible_height: f32) -> f32 {
@@ -122,7 +120,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for MenuRowsViewport<
             && cursor.position_over(bounds).is_some()
         {
             let travel = match *delta {
-                mouse::ScrollDelta::Lines { y, .. } => y * LINE_STEP_PX,
+                mouse::ScrollDelta::Lines { y, .. } => y * SCROLL_LINE_STEP_PX,
                 mouse::ScrollDelta::Pixels { y, .. } => y,
             };
             let content_height = child_layout.bounds().height;

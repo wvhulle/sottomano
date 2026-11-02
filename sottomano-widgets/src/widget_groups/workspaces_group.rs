@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use iced::{
     Element,
-    widget::{button, container, text},
+    widget::{button, text},
 };
 use sottomano_config::Config;
 use sottomano_sources::desktop_windows_apps::{
@@ -20,6 +20,7 @@ use self::workspace_slot::WorkspaceSlot;
 use crate::{
     desktop_panels::{
         panel_frame::panel_frame,
+        panel_slot::dragged_slot_content,
         panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     },
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
@@ -283,9 +284,10 @@ pub fn drag_ghost<'a>(
         .find(|workspace| workspace.id == workspace_id)?;
     Some(
         panel_frame(
-            container(WorkspaceSlot::ghost(workspace, niri, slot_context).label())
-                .padding([0.0, config.desktop_panels.group_edge_padding])
-                .center_y(config.desktop_panels.height),
+            dragged_slot_content(
+                WorkspaceSlot::ghost(workspace, niri, slot_context).label(),
+                config,
+            ),
             drag.ghost_frame,
         )
         .into(),

@@ -8,7 +8,6 @@ use sottomano_config::Config;
 use crate::{
     group_items::{
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        source_reading::icon_value_gap,
         toggle_control::SwitchPresses,
     },
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
@@ -95,7 +94,7 @@ impl<'a, Message: 'a + Clone> From<WeekdayPicker<'_, Message>> for Element<'a, M
                 .iter(Weekday::Mon)
                 .map(|day| picker.day(day)),
         )
-        .spacing(icon_value_gap(picker.config))
+        .spacing(picker.config.theme.spacing.item_gap)
         .align_y(Alignment::Center)
         .into()
     }

@@ -14,6 +14,8 @@ use iced::{
 
 use crate::desktop_panels::panel_frame::LayerFrameStyle;
 
+const DRAG_START_DISTANCE_PX: f32 = 6.0;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DraggedPanelSlot {
     Workspace(u64),
@@ -153,14 +155,11 @@ impl<Click> From<PointerDrag<Click>> for DragTransition<Click> {
 pub fn advance<Click: Copy>(
     drag: PointerDrag<Click>,
     event: DragEvent<Click>,
-    start_distance: f32,
     now: Instant,
 ) -> DragTransition<Click> {
     match event {
         DragEvent::Pressed(press) => PointerDrag::Pressed(press).into(),
-        DragEvent::PointerMoved { surface, position } => {
-            pointer_moved(drag, surface, position, start_distance)
-        }
+        DragEvent::PointerMoved { surface, position } => pointer_moved(drag, surface, position),
         DragEvent::Released => DragTransition {
             drag: PointerDrag::Idle,
             outcome: match drag {
@@ -183,7 +182,6 @@ fn pointer_moved<Click: Copy>(
     drag: PointerDrag<Click>,
     surface: window::Id,
     position: Point,
-    start_distance: f32,
 ) -> DragTransition<Click> {
     match drag {
         PointerDrag::Pressed(press) => PointerDrag::Held {
@@ -191,7 +189,9 @@ fn pointer_moved<Click: Copy>(
             origin: position,
         }
         .into(),
-        PointerDrag::Held { press, origin } if origin.distance(position) > start_distance => {
+        PointerDrag::Held { press, origin }
+            if origin.distance(position) > DRAG_START_DISTANCE_PX =>
+        {
             DragTransition {
                 drag: PointerDrag::Dragging(ActiveDrag {
                     item: press.item,
@@ -338,8 +338,6 @@ mod tests {
     use super::*;
     use crate::clock::Clock;
 
-    const START_DISTANCE: f32 = 4.0;
-
     fn first_window() -> DraggedPanelSlot {
         DraggedPanelSlot::Window {
             window: 10,
@@ -360,28 +358,21 @@ mod tests {
             position: 0,
             click: (),
         };
-        let pressed = advance(
-            PointerDrag::Idle,
-            DragEvent::Pressed(press),
-            START_DISTANCE,
-            now,
-        );
+        let pressed = advance(PointerDrag::Idle, DragEvent::Pressed(press), now);
         let held = advance(
             pressed.drag,
             DragEvent::PointerMoved {
                 surface,
                 position: Point::ORIGIN,
             },
-            START_DISTANCE,
             now,
         );
         let started = advance(
             held.drag,
             DragEvent::PointerMoved {
                 surface,
-                position: Point::new(START_DISTANCE * 2.0, 0.0),
+                position: Point::new(DRAG_START_DISTANCE_PX * 2.0, 0.0),
             },
-            START_DISTANCE,
             now,
         );
         assert!(matches!(started.outcome, DragOutcome::Started));
@@ -405,10 +396,9 @@ mod tests {
                 item: third_window(),
                 position: 2,
             },
-            START_DISTANCE,
             now,
         );
-        let released = advance(entered.drag, DragEvent::Released, START_DISTANCE, now);
+        let released = advance(entered.drag, DragEvent::Released, now);
         assert_eq!(dropped_drag(released.outcome).reordered_to(), Some(2));
     }
 
@@ -422,7 +412,6 @@ mod tests {
                 item: DraggedPanelSlot::Workspace(2),
                 position: 1,
             },
-            START_DISTANCE,
             now,
         );
         assert!(matches!(
@@ -432,7 +421,7 @@ mod tests {
                 ..
             })
         ));
-        let released = advance(entered.drag, DragEvent::Released, START_DISTANCE, now);
+        let released = advance(entered.drag, DragEvent::Released, now);
         assert_eq!(dropped_drag(released.outcome).reordered_to(), None);
     }
 
@@ -446,16 +435,14 @@ mod tests {
                 item: third_window(),
                 position: 2,
             },
-            START_DISTANCE,
             now,
         );
         let left = advance(
             entered.drag,
             DragEvent::LeftList(PanelSlotList::Windows),
-            START_DISTANCE,
             now,
         );
-        let released = advance(left.drag, DragEvent::Released, START_DISTANCE, now);
+        let released = advance(left.drag, DragEvent::Released, now);
         let dropped = dropped_drag(released.outcome);
         assert_eq!(dropped.target, DragTarget::Outside);
         assert_eq!(dropped.reordered_to(), None);
@@ -469,13 +456,8 @@ mod tests {
             position: 0,
             click: (),
         };
-        let pressed = advance(
-            PointerDrag::Idle,
-            DragEvent::Pressed(press),
-            START_DISTANCE,
-            now,
-        );
-        let released = advance(pressed.drag, DragEvent::Released, START_DISTANCE, now);
+        let pressed = advance(PointerDrag::Idle, DragEvent::Pressed(press), now);
+        let released = advance(pressed.drag, DragEvent::Released, now);
         assert!(matches!(released.outcome, DragOutcome::Clicked(())));
     }
 }

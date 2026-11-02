@@ -12,9 +12,7 @@ use iced::{
     window,
 };
 
-use crate::widgets::reveal::clip_cursor;
-
-const LINE_STEP_PX: f32 = 60.0;
+use crate::widgets::{reveal::clip_cursor, shared_metrics::SCROLL_LINE_STEP_PX};
 
 const CLIPPED_OPACITY: f32 = 0.4;
 
@@ -198,7 +196,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
                 }
                 let travel = match *delta {
                     mouse::ScrollDelta::Lines { x, y } => {
-                        (if x == 0.0 { y } else { x }) * LINE_STEP_PX
+                        (if x == 0.0 { y } else { x }) * SCROLL_LINE_STEP_PX
                     }
                     mouse::ScrollDelta::Pixels { x, y } => {
                         if x == 0.0 {

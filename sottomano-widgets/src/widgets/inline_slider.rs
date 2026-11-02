@@ -18,9 +18,11 @@ use crate::{
     widgets::{
         configured_theme::{background_color, background_strong_color, primary_color, text_color},
         rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
+        shared_metrics::ACCENT_STROKE_PX,
     },
 };
 
+const SLIDER_WIDTH_PX: f32 = 60.0;
 const RESTING_KNOB_PER_GLYPH: f32 = 0.17;
 const ENGAGED_KNOB_GROWTH: f32 = 1.25;
 
@@ -37,23 +39,17 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
     on_scroll: impl Fn(ScrollDelta) -> Message + 'a,
 ) -> Element<'a, Message> {
     let accents = InteractionAccents { level };
-    let geometry = FaceGeometry::from_sizes(
-        config.theme.font.icon_size_px,
-        config.group_items.slider_stroke_width,
-    );
+    let geometry = FaceGeometry::from_sizes(config.theme.font.icon_size_px, ACCENT_STROKE_PX);
     let face = SliderFace {
         range: range.clone(),
         value,
         lagging_value,
         accents,
         geometry,
-        face_size: Size::new(
-            config.group_items.slider_width,
-            Slider::<f32, Message>::DEFAULT_HEIGHT,
-        ),
+        face_size: Size::new(SLIDER_WIDTH_PX, Slider::<f32, Message>::DEFAULT_HEIGHT),
     };
     mouse_area(stack![
-        interaction_slider(config, geometry, range, value, step, on_change, on_release),
+        interaction_slider(geometry, range, value, step, on_change, on_release),
         Element::new(face)
     ])
     .on_scroll(on_scroll)
@@ -61,7 +57,6 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
 }
 
 fn interaction_slider<'a, Message: Clone + 'a>(
-    config: &Config,
     geometry: FaceGeometry,
     range: RangeInclusive<f32>,
     value: f32,
@@ -72,7 +67,7 @@ fn interaction_slider<'a, Message: Clone + 'a>(
     slider(range, value, on_change)
         .step(step)
         .on_release(on_release)
-        .width(config.group_items.slider_width)
+        .width(SLIDER_WIDTH_PX)
         .style(move |_theme, _status| slider::Style {
             rail: slider::Rail {
                 backgrounds: (Color::TRANSPARENT.into(), Color::TRANSPARENT.into()),

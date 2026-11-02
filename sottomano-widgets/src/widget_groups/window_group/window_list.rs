@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use iced::{
-    Alignment, Element, Subscription, Task, border,
+    Alignment, Element, Subscription, Task,
     widget::{Row, container, progress_bar, right, stack, text},
 };
 use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
@@ -24,7 +24,7 @@ use crate::{
     clock::Clock,
     desktop_panels::{
         panel_frame::panel_frame,
-        panel_slot::PanelSlot,
+        panel_slot::{PanelSlot, dragged_slot_content},
         panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
     },
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
@@ -50,6 +50,7 @@ use crate::{
         pointer_drag::{
             DraggedPanelSlot, PanelSlotList, draggable_slot::draggable_slot, slot_pager::slot_pager,
         },
+        shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::FontFaces,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
@@ -319,7 +320,7 @@ impl WindowList {
             slot_context,
         };
         if drag.has_left_its_list() {
-            let inset = config.overlay_surfaces.content_inset;
+            let inset = config.theme.spacing.surface_inset;
             let circle = drag
                 .ghost_frame
                 .with_corner_radius(config.theme.font.icon_size_px / 2.0 + inset);
@@ -333,9 +334,7 @@ impl WindowList {
         }
         Some(
             panel_frame(
-                container(window_slot.button_content(icons))
-                    .padding([0.0, config.desktop_panels.group_edge_padding])
-                    .center_y(config.desktop_panels.height),
+                dragged_slot_content(window_slot.button_content(icons), config),
                 drag.ghost_frame,
             )
             .into(),
@@ -496,15 +495,15 @@ impl WindowSlot<'_> {
             .push(picking)
             .extend(usage)
             .extend(inspecting)
-            .spacing(config.group_items.item_gap)
+            .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center);
         let panel_slot = PanelSlot::new(content.into(), self.indicator_line())
-            .spaced_by(config.desktop_panels.joined_group_gap);
+            .spaced_by(config.theme.spacing.group_gap);
         match self.progress_ticks() {
             Some(ticks) => panel_slot.ticks(ticks),
             None => panel_slot,
         }
-        .view(config, self.slot_context.edge)
+        .view(self.slot_context.edge)
     }
 
     fn secondary_glyph<'a>(&self, icon: fn(Weight) -> Phosphor) -> Element<'a, WindowListMessage> {
@@ -529,7 +528,7 @@ impl WindowSlot<'_> {
             .extend(self.badged_icon(icons))
             .extend(title.map(Element::from))
             .extend(self.audio_glyph())
-            .spacing(config.group_items.item_gap)
+            .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
             .into()
     }
@@ -561,20 +560,13 @@ impl WindowSlot<'_> {
         } else {
             0.0
         };
-        activity_line(
-            danger_color,
-            severity * self.opacity,
-            self.slot_context
-                .config
-                .widget_group_layout
-                .edge_indicator_thickness,
-        )
+        activity_line(danger_color, severity * self.opacity, ACCENT_STROKE_PX)
     }
 
     fn progress_ticks<'a>(&self) -> Option<Element<'a, WindowListMessage>> {
         let config = self.slot_context.config;
         let fraction = self.extras.progress(config)?;
-        let thickness = config.widget_group_layout.edge_indicator_thickness;
+        let thickness = ACCENT_STROKE_PX;
         let opacity = self.opacity;
         Some(
             progress_bar(0.0..=1.0, fraction)
@@ -582,7 +574,7 @@ impl WindowSlot<'_> {
                 .style(move |theme| progress_bar::Style {
                     background: background_strong_color(theme).scale_alpha(opacity).into(),
                     bar: warning_color(theme).scale_alpha(opacity).into(),
-                    border: border::rounded(thickness),
+                    border: pill_corners(thickness),
                 })
                 .into(),
         )
@@ -606,11 +598,11 @@ impl WindowSlot<'_> {
                     color: Some(background_color(theme).scale_alpha(opacity)),
                 }),
         )
-        .padding([0.0, config.group_items.item_gap])
+        .padding([0.0, config.theme.spacing.item_gap])
         .style(move |theme| {
             container::Style::default()
                 .background(danger_color(theme).scale_alpha(opacity))
-                .border(border::rounded(size))
+                .border(pill_corners(size))
         });
         Some(right(badge).into())
     }
@@ -666,7 +658,7 @@ mod tests {
             window: SIMULATED_WINDOW_IDS[0],
             workspace: SIMULATED_WORKSPACE_IDS[0],
         };
-        let drag_view = dragging_from_start(dragged_window, &config);
+        let drag_view = dragging_from_start(dragged_window);
         let desktop_entries = DesktopIndex::default();
         let favicons = Favicons::default();
         let controller_artwork = ControllerArtwork::decoded();

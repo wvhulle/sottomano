@@ -36,11 +36,11 @@ impl CascadeSatellitePanels {
                 CascadeDirection::Rightward => NotchSide::Left,
                 CascadeDirection::Leftward => NotchSide::Right,
             },
-            frame: LayerFrameStyle::new(appearance, config),
+            frame: LayerFrameStyle::new(appearance),
             blurred: appearance.blurred,
             morph: config.overlay_surfaces.surface_morph_duration,
             frame_corners: Radius::from(appearance.corner_radius_px),
-            notch_depth: config.overlay_surfaces.satellite_gap,
+            notch_depth: config.theme.spacing.group_gap,
         }
     }
 

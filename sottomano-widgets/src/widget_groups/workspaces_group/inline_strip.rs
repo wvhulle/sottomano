@@ -56,7 +56,7 @@ pub fn inline_view<'a>(
                 config,
             ))
             .extend(order_restore(configured, workspaces, output, config))
-            .spacing(config.group_items.item_gap)
+            .spacing(config.theme.spacing.item_gap)
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .into(),
@@ -87,10 +87,8 @@ mod tests {
     fn dragging_a_workspace_across_the_strip_enters_each_slot_then_leaves() {
         let config = Config::default();
         let niri_snapshot = three_workspaces_three_windows();
-        let drag_view = dragging_from_start(
-            DraggedPanelSlot::Workspace(SIMULATED_WORKSPACE_IDS[0]),
-            &config,
-        );
+        let drag_view =
+            dragging_from_start(DraggedPanelSlot::Workspace(SIMULATED_WORKSPACE_IDS[0]));
         let slot_context = PanelSlotContext {
             config: &config,
             edge: Position::Bottom,

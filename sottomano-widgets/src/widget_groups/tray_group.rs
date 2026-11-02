@@ -48,6 +48,7 @@ use crate::{
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        shared_metrics::ACCENT_STROKE_PX,
     },
 };
 
@@ -292,13 +293,8 @@ fn item_view<'a>(
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
-            activity_line(
-                primary_color,
-                reveal,
-                config.widget_group_layout.edge_indicator_thickness,
-            ),
+            activity_line(primary_color, reveal, ACCENT_STROKE_PX),
         ])
-        .spacing(1.0)
         .align_x(Alignment::Center)
         .into()
     } else {

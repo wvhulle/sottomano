@@ -170,7 +170,7 @@ impl WindowGroup {
             Row::new()
                 .extend(quick_launch)
                 .extend(window_list)
-                .spacing(config.desktop_panels.joined_group_gap)
+                .spacing(config.theme.spacing.group_gap)
                 .align_y(Alignment::Center)
                 .into(),
         )

@@ -57,7 +57,7 @@ fn composed_reading<'a, Message: 'a>(
 
     let reading = match value(config, widget, tint, clock) {
         Some(value) => row![icon, value]
-            .spacing(icon_value_gap(config))
+            .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
             .into(),
         None => icon,
@@ -94,10 +94,6 @@ pub fn reading_icon<'a, Message: 'a>(
 }
 
 #[must_use]
-pub fn icon_value_gap(config: &Config) -> f32 {
-    config.group_items.item_gap / 2.0
-}
-
 pub fn reading_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn GroupItemReading,
@@ -185,7 +181,6 @@ fn superscripted<'a, Message: 'a>(
         .font(FontFaces::from(&config.theme.font).regular)
         .style(tint.text_style());
     Row::with_children([marked, superscript.into()])
-        .spacing(1.0)
         .align_y(Alignment::Start)
         .into()
 }

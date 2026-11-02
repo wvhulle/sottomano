@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Theme, border,
+    Color, Element, Theme,
     widget::{progress_bar, stack},
 };
 use uom::{
@@ -12,10 +12,11 @@ use uom::{
 
 use crate::{
     group_items::reading_display_state::ReadingStateTint,
-    widgets::configured_theme::{background_strong_color, secondary_text_color},
+    widgets::{
+        configured_theme::{background_strong_color, secondary_text_color},
+        shared_metrics::{ACCENT_STROKE_PX, pill_corners},
+    },
 };
-
-const GIRTH: f32 = 3.0;
 
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
@@ -61,11 +62,11 @@ impl Gauge {
         progress_bar(0.0..=1.0, reach)
             .vertical()
             .length(self.height)
-            .girth(GIRTH)
+            .girth(ACCENT_STROKE_PX)
             .style(move |theme: &Theme| progress_bar::Style {
                 background: track_color(theme).into(),
                 bar: bar_color(theme).into(),
-                border: border::rounded(1),
+                border: pill_corners(ACCENT_STROKE_PX),
             })
             .into()
     }

@@ -2,38 +2,19 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::spacing::Spacing;
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(
-    default,
-    deny_unknown_fields,
-    bound(deserialize = "L: Deserialize<'de> + From<f32>")
-)]
-pub struct HoverCardsConfig<L = f32> {
-    pub value_column_width: L,
+#[serde(default, deny_unknown_fields)]
+pub struct HoverCardsConfig {
     #[serde(with = "humantime_serde")]
     pub copy_flash_duration: Duration,
     pub loading: HoverCardLoading,
 }
 
-impl<L: From<f32>> Default for HoverCardsConfig<L> {
+impl Default for HoverCardsConfig {
     fn default() -> Self {
         Self {
-            value_column_width: L::from(620.0),
             copy_flash_duration: Duration::from_millis(700),
             loading: HoverCardLoading::default(),
-        }
-    }
-}
-
-impl HoverCardsConfig<Spacing> {
-    #[must_use]
-    pub fn resolve(self, em_px: f32) -> HoverCardsConfig {
-        HoverCardsConfig {
-            value_column_width: self.value_column_width.resolve(em_px),
-            copy_flash_duration: self.copy_flash_duration,
-            loading: self.loading,
         }
     }
 }

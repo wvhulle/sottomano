@@ -15,7 +15,7 @@ use crate::{
         group_item_reading::{GroupItemReading, state_weighted_icon},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
-        source_reading::{icon_value_gap, reading_icon, reading_value, source_reading},
+        source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
     },
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
@@ -604,7 +604,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                         .into_iter()
                         .chain(value.view(reveal)),
                 )
-                .spacing(icon_value_gap(config))
+                .spacing(config.theme.spacing.item_gap)
                 .align_y(Alignment::Center)
                 .into();
                 match hover {

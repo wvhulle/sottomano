@@ -36,16 +36,15 @@ impl DesktopShell {
                     .flat_map(|entry| self.panel_entry_views(*entry, position, output)),
             )
         };
-        let panels = &self.config.desktop_panels;
         let panel_zone_rows = row![
             zone_row(PanelZone::Start),
             container(zone_row(PanelZone::Center)).center_x(Length::Fill),
             zone_row(PanelZone::End),
         ]
-        .spacing(panels.joined_group_gap)
+        .spacing(self.config.theme.spacing.group_gap)
         .height(Length::Fill)
         .align_y(Alignment::Center)
-        .padding([0.0, panels.group_edge_padding]);
+        .padding([0.0, self.config.theme.spacing.item_gap]);
         self.panel_band(position, panel_zone_rows)
     }
 
@@ -115,7 +114,7 @@ impl DesktopShell {
             ..OutlinedSides::inward_of(position)
         }
         .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
-        let strip = panel_frame(band, LayerFrameStyle::new(&panels, &self.config))
+        let strip = panel_frame(band, LayerFrameStyle::new(&panels))
             .outlined_sides(outlined_sides)
             .blurred(panels.blurred);
         let roles = RegionRoles {
@@ -136,7 +135,7 @@ impl DesktopShell {
             .widget_groups
             .panel_settings_group
             .groups_disconnected();
-        let frame_style = LayerFrameStyle::new(&panels, config);
+        let frame_style = LayerFrameStyle::new(&panels);
         let outlined_sides = OutlinedSides::inward_of(position)
             .all_when_floating(self.widget_groups.panel_settings_group.float_offset_px());
         let framed = groups.into_iter().map(|group| {
@@ -149,7 +148,7 @@ impl DesktopShell {
                     .align_y(Vertical::Center)
                     .padding([
                         0.0,
-                        panels.frame_corner_inset() + config.desktop_panels.group_edge_padding,
+                        panels.frame_corner_inset() + config.theme.spacing.item_gap,
                     ]),
                 frame_style,
             )
@@ -158,9 +157,9 @@ impl DesktopShell {
             .into()
         });
         let spacing = if groups_disconnected {
-            config.desktop_panels.framed_group_gap
+            config.theme.spacing.item_gap
         } else {
-            config.desktop_panels.joined_group_gap
+            config.theme.spacing.group_gap
         };
         Row::with_children(framed)
             .spacing(spacing)

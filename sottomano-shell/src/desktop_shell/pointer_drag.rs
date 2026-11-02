@@ -48,10 +48,7 @@ impl DesktopShell {
         } else {
             self.widget_groups.panel_settings_group.panel_appearance()
         };
-        DragView::new(
-            &self.pointer_drag,
-            LayerFrameStyle::new(&ghost_layer, &self.config),
-        )
+        DragView::new(&self.pointer_drag, LayerFrameStyle::new(&ghost_layer))
     }
 
     #[must_use]
@@ -85,7 +82,6 @@ impl DesktopShell {
                 let DragTransition { drag, outcome } = pointer_drag::advance(
                     mem::replace(&mut self.pointer_drag, PointerDrag::Idle),
                     event,
-                    self.config.desktop_panels.slot_drag.start_distance,
                     self.clock.instant,
                 );
                 self.pointer_drag = drag;

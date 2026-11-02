@@ -47,6 +47,9 @@ impl DesktopShell {
 
     pub(super) fn adopt_panel_geometry(&mut self, previous: &Config) -> Task<Message> {
         let unchanged = self.config.desktop_panels == previous.desktop_panels
+            && self.config.theme.spacing == previous.theme.spacing
+            && (self.config.theme.font.text_size_px - previous.theme.font.text_size_px).abs()
+                < f32::EPSILON
             && self.config.widget_group_layout == previous.widget_group_layout
             && self.config.group_items == previous.group_items
             && self.config.group_menus == previous.group_menus;

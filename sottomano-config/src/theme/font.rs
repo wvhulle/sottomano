@@ -5,14 +5,15 @@ use ttf_parser::FaceParsingError;
 
 use crate::spacing::Spacing;
 
+const SMALL_TEXT_SCALE: f32 = 6.0 / 7.0;
+const ICON_SCALE: f32 = 31.0 / 28.0;
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct FontChoice {
     pub name: Option<String>,
     pub monospace_name: Option<String>,
     pub text_size: Spacing,
-    pub small_text_size: Spacing,
-    pub icon_size: Spacing,
 }
 
 impl Default for FontChoice {
@@ -21,8 +22,6 @@ impl Default for FontChoice {
             name: None,
             monospace_name: None,
             text_size: Spacing::Px(14.0),
-            small_text_size: Spacing::Px(12.0),
-            icon_size: Spacing::Px(15.5),
         }
     }
 }
@@ -116,8 +115,8 @@ pub(crate) fn resolve(config: &FontChoice, role: FontRole) -> Result<ResolvedFon
         role,
         family: configured.map_or(matched.family, str::to_owned),
         text_size_px,
-        small_text_size_px: config.small_text_size.resolve(text_size_px),
-        icon_size_px: config.icon_size.resolve(text_size_px),
+        small_text_size_px: SMALL_TEXT_SCALE * text_size_px,
+        icon_size_px: ICON_SCALE * text_size_px,
         data: Arc::from(bytes),
     })
 }
