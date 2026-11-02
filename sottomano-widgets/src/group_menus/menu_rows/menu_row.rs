@@ -33,7 +33,7 @@ pub(crate) fn menu_row_height(config: &Config) -> f32 {
     config.desktop_panels.height + config.overlay_surfaces.row_gap
 }
 
-fn pressable_menu_row<'a, M: Clone + 'a>(
+pub(crate) fn pressable_menu_row<'a, M: Clone + 'a>(
     config: &'a Config,
     content: MenuRowContent<'a, M>,
     look: MenuRowLook,

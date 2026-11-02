@@ -12,17 +12,17 @@ use crate::{
     desktop_panels::panel_slot::PanelSlot,
     group_menus::{
         cascading_layout::{
-            cascade_row::CascadeOrientation,
-            cascade_satellite_panels::CascadeSatellitePanels,
-            cascading_columns::{
-                GroupMenuGroupRow, GroupMenuRowContext, cascading_columns, one_row_per_identity,
-            },
+            cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
+            cascading_columns::cascading_columns,
         },
         group_menu_state::{
             AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
             OpenGroupMenu,
         },
-        menu_rows::quantity_table::{QuantityTableColumn, quantity_table},
+        menu_rows::{
+            group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, one_row_per_identity},
+            quantity_table::{QuantityTableColumn, quantity_table},
+        },
     },
     hover_cards::{
         HoverAnnouncement, HoverTarget, PopupMessage, PressHints, announcing_hoverable,
@@ -86,6 +86,20 @@ impl<M> GroupMenuMessenger<M> {
         self.sent(GroupMenuMessage::RevealMenuGroup {
             menu: self.topic,
             group_identity,
+        })
+    }
+
+    pub(crate) fn toggle_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::ToggleMenuGroup {
+            menu: self.topic,
+            group_identity,
+        })
+    }
+
+    pub(crate) fn toggle_row_card(&self, target: HoverTarget) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::ToggleRowCard {
+            menu: self.topic,
+            target,
         })
     }
 
@@ -293,6 +307,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             &GroupMenuRowContext {
                 config,
                 direction: orientation.direction,
+                presentation: group_menus.presentation(),
                 menu: &messenger,
                 group_menus,
                 cascade_satellite_panels: &cascade_satellite_panels,
