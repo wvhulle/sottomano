@@ -1,4 +1,4 @@
-use std::{iter::once, rc::Rc};
+use std::iter::once;
 
 use chrono::Locale;
 use iced::{
@@ -42,10 +42,8 @@ use crate::{
 };
 
 pub struct GroupMenuView<'a, M> {
-    title: &'static str,
-    glyph: IconGlyph,
     group_menus: &'a GroupMenuState,
-    messenger: GroupMenuMessenger<'a, M>,
+    messenger: GroupMenuMessenger<M>,
     groups: Vec<WidgetGroupContent<'a, M>>,
 }
 
@@ -67,12 +65,12 @@ impl InspectionCard<'_, '_> {
     }
 }
 
-pub(crate) struct GroupMenuMessenger<'a, M> {
+pub(crate) struct GroupMenuMessenger<M> {
     pub(crate) topic: GroupMenuTopic,
-    on_message: Rc<dyn Fn(GroupMenuMessage) -> M + 'a>,
+    on_message: fn(GroupMenuMessage) -> M,
 }
 
-impl<M> GroupMenuMessenger<'_, M> {
+impl<M> GroupMenuMessenger<M> {
     fn sent(&self, message: GroupMenuMessage) -> GroupEvent<M> {
         GroupEvent::Group((self.on_message)(message))
     }
@@ -142,17 +140,12 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     pub fn new(
         topic: GroupMenuTopic,
         group_menus: &'a GroupMenuState,
-        on_message: impl Fn(GroupMenuMessage) -> M + 'a,
+        on_message: fn(GroupMenuMessage) -> M,
         groups: impl IntoIterator<Item = WidgetGroupContent<'a, M>>,
     ) -> Self {
         Self {
-            title: topic.title(),
-            glyph: topic.glyph().into(),
             group_menus,
-            messenger: GroupMenuMessenger {
-                topic,
-                on_message: Rc::new(on_message),
-            },
+            messenger: GroupMenuMessenger { topic, on_message },
             groups: groups.into_iter().collect(),
         }
     }
@@ -217,10 +210,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .max()
             .unwrap_or_default();
         let handle = announcing_hoverable(
-            self.glyph.view(config.theme.font.icon_size_px, text_color),
+            IconGlyph::from(self.messenger.topic.glyph())
+                .view(config.theme.font.icon_size_px, text_color),
             HoverTarget::GroupMenu(self.messenger.topic),
             HoverAnnouncement::from_group_handle(
-                WidgetGroupTitle::fixed(self.title),
+                WidgetGroupTitle::fixed(self.messenger.topic.title()),
                 PressHints::default(),
             ),
             GroupEvent::HoverCard,
