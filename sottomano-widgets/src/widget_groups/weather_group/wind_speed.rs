@@ -13,11 +13,9 @@ use crate::{
     },
 };
 
-pub(super) const WIND_ITEM_NAME: &str = "Wind";
-
 impl GroupItemReading for Wind {
     fn name(&self) -> &'static str {
-        WIND_ITEM_NAME
+        "Wind"
     }
 
     fn icon(&self) -> IconGlyph {

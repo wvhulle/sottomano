@@ -92,26 +92,17 @@ impl VpnGroup {
     pub fn subscription(
         &self,
         buses: &DesktopBuses,
-        demand: &GroupSourceDemand<'_>,
+        demand: &GroupSourceDemand,
     ) -> Subscription<VpnMessage> {
         Subscription::batch([
             demand.while_face_shown(
-                &[
-                    network_manager_vpn_hover_card::NETWORK_MANAGER_VPNS_ITEM_NAME,
-                    network_manager_vpn_hover_card::VPN_CONNECTION_ITEM_NAME,
-                ],
                 snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                     .map(VpnMessage::NetworkManagerVpns),
             ),
             demand.while_face_shown(
-                &[
-                    wireguard_tunnel_hover_card::WIREGUARD_ITEM_NAME,
-                    wireguard_tunnel_hover_card::WIREGUARD_TUNNEL_ITEM_NAME,
-                ],
                 snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
             ),
             demand.while_face_shown(
-                &[tailscale_mesh_hover_card::TAILSCALE_ITEM_NAME],
                 snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
             ),
         ])

@@ -15,10 +15,6 @@ use crate::{
     },
 };
 
-pub(super) const ALLERGEN_ITEM_NAME: &str = "Allergen";
-
-pub(super) const POLLEN_ITEM_NAME: &str = "Pollen";
-
 struct ConcentrationThresholds {
     moderate: f64,
     high: f64,
@@ -64,7 +60,7 @@ impl ConcentrationThresholds {
 
 impl GroupItemReading for AllergenConcentration {
     fn name(&self) -> &'static str {
-        ALLERGEN_ITEM_NAME
+        "Allergen"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -123,7 +119,7 @@ fn pollen_threshold(grains_per_cubic_metre: f64) -> Quantity {
 
 impl GroupItemReading for Pollen {
     fn name(&self) -> &'static str {
-        POLLEN_ITEM_NAME
+        "Pollen"
     }
 
     fn icon(&self) -> IconGlyph {

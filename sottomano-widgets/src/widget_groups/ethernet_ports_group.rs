@@ -120,7 +120,7 @@ impl EthernetPortsGroup {
     pub fn subscription(
         &self,
         buses: &DesktopBuses,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<EthernetPortsMessage> {
         let any_port_expanded = self
             .sessions
@@ -133,7 +133,6 @@ impl EthernetPortsGroup {
                     .map(EthernetPortsMessage::Snapshot),
             ),
             demand.while_rows_shown(
-                &[],
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(EthernetPortsMessage::GatewayLatencies),
             ),

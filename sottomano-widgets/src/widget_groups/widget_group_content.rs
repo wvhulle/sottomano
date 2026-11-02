@@ -267,7 +267,7 @@ pub(crate) struct GroupMenuRowParts<'a, M> {
 
 pub(crate) enum GroupItemPin {
     Unpinnable,
-    Pinnable(&'static str),
+    Pinnable(String),
 }
 
 pub(crate) struct GroupMenuItemRow<'a, M> {
@@ -481,7 +481,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         items
             .into_iter()
             .filter_map(|item| {
-                let item_name = item.pinned_item_name(&group_identity, group_menus, menu)?;
+                let item_key = item.pinned_item_key(&group_identity, group_menus, menu)?;
                 let pinned_announcement = HoverAnnouncement::from_group_handle(
                     group_title.clone(),
                     PressHints::default(),
@@ -489,7 +489,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 .pinned_by(PanelPinOrigin::ItemPinnedFrom {
                     menu,
                     group: Box::new(group_identity.clone()),
-                    item_name,
+                    item_key,
                 });
                 let item = item.acting_as_handle(pinned_announcement);
                 Some(fixed_view(
@@ -537,13 +537,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .filter(|item| {
                 item.alignment() == ItemAlignment::Unaligned
                     && item
-                        .pinned_item_name(&group_identity, group_menus, menu)
+                        .pinned_item_key(&group_identity, group_menus, menu)
                         .is_none()
             })
             .map(|item| GroupMenuItemRow {
                 name: item.menu_name(),
                 pin: item
-                    .pinnable_name()
+                    .pinnable_key()
                     .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
                 action: item.menu_action(),
                 parts: item.menu_parts(config, clock),

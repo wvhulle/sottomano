@@ -213,7 +213,7 @@ impl MediaGroup {
         &self,
         buses: &DesktopBuses,
         lyrics_config: &MediaLyricsConfig,
-        demand: &GroupSourceDemand<'_>,
+        demand: &GroupSourceDemand,
     ) -> Subscription<MediaMessage> {
         let readings =
             snapshot_subscription::<Vec<Media>>(buses.clone()).map(MediaMessage::Reading);

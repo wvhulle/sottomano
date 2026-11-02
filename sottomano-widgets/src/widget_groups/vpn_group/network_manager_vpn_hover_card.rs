@@ -16,13 +16,9 @@ use crate::{
     },
 };
 
-pub(super) const VPN_CONNECTION_ITEM_NAME: &str = "VPN connection";
-
-pub(super) const NETWORK_MANAGER_VPNS_ITEM_NAME: &str = "NetworkManager VPNs";
-
 impl GroupItemReading for NetworkManagerVpns {
     fn name(&self) -> &'static str {
-        NETWORK_MANAGER_VPNS_ITEM_NAME
+        "NetworkManager VPNs"
     }
 
     fn icon(&self) -> IconGlyph {
@@ -36,7 +32,7 @@ impl GroupItemReading for NetworkManagerVpns {
 
 impl GroupItemReading for VpnConnection {
     fn name(&self) -> &'static str {
-        VPN_CONNECTION_ITEM_NAME
+        "VPN connection"
     }
 
     fn icon(&self) -> IconGlyph {

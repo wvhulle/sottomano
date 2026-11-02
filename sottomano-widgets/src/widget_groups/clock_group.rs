@@ -77,12 +77,11 @@ impl ClockGroup {
     pub fn subscription(
         &self,
         config: &Config,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<ClockMessage> {
         let demand = demand.expanded_when(self.expansion.is_expanded());
         let zones = config.calendar.other_time_zones.iter().map(|zone| {
             demand.while_rows_shown(
-                &[],
                 snapshot_subscription::<ZoneTime>(*zone)
                     .with(*zone)
                     .map(|(zone, reading)| ClockMessage::Zone(zone, reading)),

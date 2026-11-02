@@ -540,25 +540,25 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    pub(crate) fn pinnable_name(&self) -> Option<&'static str> {
+    pub(crate) fn pinnable_key(&self) -> Option<String> {
         match &self.kind {
-            GroupItemContent::Reading { widget, .. } => Some(widget.name()),
+            GroupItemContent::Reading { target, .. } => Some(target.stable_item_key()),
             GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
         }
     }
 
-    pub(crate) fn pinned_item_name(
+    pub(crate) fn pinned_item_key(
         &self,
         group: &WidgetGroupIdentity,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
-    ) -> Option<&'static str> {
-        self.pinnable_name().filter(|item_name| {
+    ) -> Option<String> {
+        self.pinnable_key().filter(|item_key| {
             group_menus.is_pinned(
                 menu,
                 GroupMenuPin::Item {
                     group: group.clone(),
-                    item_name,
+                    item_key: item_key.clone(),
                 },
             )
         })
@@ -664,6 +664,29 @@ mod tests {
         }
     }
 
+    struct FailedReading;
+
+    impl GroupItemReading for FailedReading {
+        fn name(&self) -> &'static str {
+            "Failed reading"
+        }
+
+        fn icon(&self) -> IconGlyph {
+            Phosphor::Question(Weight::Regular).into()
+        }
+
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
+        }
+    }
+
+    #[test]
+    fn a_failed_reading_keeps_the_pin_of_its_target() {
+        let healthy: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
+        let failed: GroupItem<'static, ()> = GroupItem::reading(FailedReading, SessionTarget::Menu);
+        assert_eq!(healthy.pinnable_key(), failed.pinnable_key());
+    }
+
     fn composed_with(hover: GroupItemHoverArea) -> GroupItem<'static, ()> {
         GroupItem::composed(
             ComposedGroupItemFace {
@@ -711,7 +734,7 @@ mod tests {
     #[test]
     fn only_readings_are_pinnable() {
         let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
-        assert_eq!(reading.pinnable_name(), Some("Named reading"));
-        assert_eq!(composed_with(whole_item_hover()).pinnable_name(), None);
+        assert!(reading.pinnable_key().is_some());
+        assert_eq!(composed_with(whole_item_hover()).pinnable_key(), None);
     }
 }

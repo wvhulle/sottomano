@@ -98,7 +98,7 @@ impl WeatherGroup {
     pub fn subscription(
         &self,
         buses: Option<&DesktopBuses>,
-        demand: GroupSourceDemand<'_>,
+        demand: GroupSourceDemand,
     ) -> Subscription<WeatherMessage> {
         let demand = demand.expanded_when(self.expansion.is_expanded());
         let location = snapshot_subscription::<Location>(()).map(WeatherMessage::Location);
@@ -116,14 +116,9 @@ impl WeatherGroup {
             snapshot_subscription::<PrecipitationModel>(online_here())
                 .map(WeatherMessage::PrecipitationModel),
             demand.while_rows_shown(
-                &[wind_speed::WIND_ITEM_NAME],
                 snapshot_subscription::<Wind>(online_here()).map(WeatherMessage::Wind),
             ),
             demand.while_rows_shown(
-                &[
-                    pollen_count_gauge::POLLEN_ITEM_NAME,
-                    pollen_count_gauge::ALLERGEN_ITEM_NAME,
-                ],
                 snapshot_subscription::<Pollen>(online_here()).map(WeatherMessage::Pollen),
             ),
         ])

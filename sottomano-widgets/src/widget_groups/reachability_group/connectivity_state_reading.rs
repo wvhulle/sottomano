@@ -16,8 +16,6 @@ use crate::{
     },
 };
 
-pub(super) const CONNECTIVITY_ITEM_NAME: &str = "Connectivity";
-
 fn severity(connectivity: Connectivity) -> Severity {
     match connectivity {
         Connectivity::Full => Severity::Normal,
@@ -28,7 +26,7 @@ fn severity(connectivity: Connectivity) -> Severity {
 
 impl GroupItemReading for UplinkConnectivity {
     fn name(&self) -> &'static str {
-        CONNECTIVITY_ITEM_NAME
+        "Connectivity"
     }
 
     fn icon(&self) -> IconGlyph {

@@ -251,13 +251,13 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
 ) -> Element<'a, GroupEvent<M>> {
     let item_pin = match item.pin {
         GroupItemPin::Unpinnable => None,
-        GroupItemPin::Pinnable(item_name) => Some(glyph_button(
+        GroupItemPin::Pinnable(item_key) => Some(glyph_button(
             Phosphor::PushPin(Weight::Regular),
             layout.config.theme.font.icon_size_px,
             secondary_text_color,
             layout.menu.toggle_pin(GroupMenuPin::Item {
                 group: group.clone(),
-                item_name,
+                item_key,
             }),
         )),
     };

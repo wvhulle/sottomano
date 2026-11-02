@@ -17,8 +17,6 @@ use crate::{
     },
 };
 
-pub(super) const CPU_POWER_DRAW_ITEM_NAME: &str = "CPU power draw";
-
 fn watt_text(power: Power) -> String {
     format!("{:.1}", power.into_format_args(watt, Abbreviation))
 }
@@ -38,7 +36,7 @@ impl GroupItemReading for CpuPower {
     }
 
     fn name(&self) -> &'static str {
-        CPU_POWER_DRAW_ITEM_NAME
+        "CPU power draw"
     }
 
     fn icon(&self) -> IconGlyph {

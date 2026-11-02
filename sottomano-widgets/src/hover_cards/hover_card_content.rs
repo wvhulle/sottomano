@@ -186,12 +186,12 @@ impl<'a> HoverCardContent<'a> {
                     PanelPinOrigin::ItemPinnedFrom {
                         menu,
                         group,
-                        item_name,
+                        item_key,
                     } => Some(self.unpin_action_row(PopupMessage::ToggleGroupMenuPin {
                         menu: *menu,
                         entry: GroupMenuPin::Item {
                             group: (**group).clone(),
-                            item_name,
+                            item_key: item_key.clone(),
                         },
                     })),
                 };
