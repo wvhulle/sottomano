@@ -86,7 +86,7 @@ impl ShellWidgetGroups {
                 )
                 .map(Message::Drive),
             self.clock_group
-                .subscription(config, GroupSourceDemand::on_bar())
+                .subscription(config, GroupSourceDemand::on_panel())
                 .map(Message::Clock),
             JournalEventsGroup::subscription().map(Message::JournalEvents),
             DarkModeGroup::subscription().map(Message::DarkMode),

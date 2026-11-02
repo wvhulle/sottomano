@@ -12,10 +12,10 @@ use super::{
     },
 };
 use crate::{
-    bar_slot_drag::BarSlotContext,
+    panel_slot_drag::PanelSlotContext,
     widgets::{
         list_end_corners::ListEndCorners,
-        pointer_drag::{BarSlotList, slot_pager::slot_pager},
+        pointer_drag::{PanelSlotList, slot_pager::slot_pager},
     },
 };
 
@@ -25,13 +25,13 @@ pub fn vertical_view<'a>(
     configured: Option<&ConfiguredWorkspaces>,
     empty_workspace_folding: &EmptyWorkspaceFolding,
     frame_corners: Radius,
-    slot_context: BarSlotContext<'_>,
+    slot_context: PanelSlotContext<'_>,
 ) -> Option<Element<'a, WorkspacesMessage>> {
-    let slot_context = BarSlotContext {
+    let slot_context = PanelSlotContext {
         edge: Position::Left,
         ..slot_context
     };
-    let BarSlotContext { config, drag, .. } = slot_context;
+    let PanelSlotContext { config, drag, .. } = slot_context;
     let workspaces = niri.workspaces_for_output(output);
     if workspaces.is_empty() {
         return None;
@@ -46,18 +46,19 @@ pub fn vertical_view<'a>(
     let rows = order
         .iter()
         .enumerate()
-        .map(|(position_in_bar, workspace)| {
-            let workspace_slot = WorkspaceSlot::new(workspace, niri, position_in_bar, slot_context);
+        .map(|(position_in_panel, workspace)| {
+            let workspace_slot =
+                WorkspaceSlot::new(workspace, niri, position_in_panel, slot_context);
             (
                 workspace_slot.key(),
-                workspace_slot.sidebar_view(end_corners.radius_at(position_in_bar)),
+                workspace_slot.sidebar_view(end_corners.radius_at(position_in_panel)),
             )
         });
     let pager = slot_pager(rows, Position::Left, config)
         .spacing(config.layout.panel.widget_spacing)
         .highlight(active_workspace_key(&order), active_highlight_color(&order))
         .frame_corners(frame_corners)
-        .draggable(BarSlotList::Workspaces, &drag, dragged);
+        .draggable(PanelSlotList::Workspaces, &drag, dragged);
     Some(
         Column::new()
             .extend(order_restore(configured, workspaces, output, config))

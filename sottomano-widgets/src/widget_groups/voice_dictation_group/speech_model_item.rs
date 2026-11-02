@@ -44,7 +44,7 @@ impl GroupItemReading for NotulistEngine {
         }
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         !matches!(self.engine, EngineState::LoadingSpeechModel)
     }
 
@@ -225,7 +225,7 @@ mod tests {
     }
 
     #[test]
-    fn a_loading_engine_stays_out_of_the_bar_but_an_unavailable_one_shows() {
+    fn a_loading_engine_stays_off_the_panel_but_an_unavailable_one_shows() {
         let loading = NotulistEngine {
             engine: EngineState::LoadingSpeechModel,
         };
@@ -234,8 +234,8 @@ mod tests {
                 ModelLoadError::ModelLoaderStoppedWithoutResult,
             ),
         };
-        assert!(!loading.visible_in_bar());
-        assert!(unavailable.visible_in_bar());
+        assert!(!loading.visible_on_panel());
+        assert!(unavailable.visible_on_panel());
         assert_eq!(
             unavailable.state(Clock::real()),
             ReadingDisplayState::Failed

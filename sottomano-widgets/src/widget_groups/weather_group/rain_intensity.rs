@@ -758,14 +758,14 @@ mod tests {
     }
 
     #[test]
-    fn a_dry_forecast_stays_in_the_bar_as_inactive() {
+    fn a_dry_forecast_stays_on_the_panel_as_inactive() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 0.0]);
         let forecast = RadarRainForecast {
             rain: &rain,
             alerts: &RainAlertsConfig::default(),
         };
-        assert!(forecast.visible_in_bar());
+        assert!(forecast.visible_on_panel());
         assert_eq!(forecast.state(clock), ReadingDisplayState::Off);
         assert_eq!(
             forecast.icon(),

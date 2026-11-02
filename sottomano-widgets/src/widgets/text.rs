@@ -18,7 +18,7 @@ pub fn column_heading<'a>(
     font: &ResolvedFont,
     title: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
-    bar_text(font, title)
+    panel_text(font, title)
         .size(font.small_text_size_px)
         .style(text::secondary)
 }
@@ -27,10 +27,10 @@ pub fn row_key_label<'a>(
     font: &ResolvedFont,
     title: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {
-    bar_text(font, title).font(FontFaces::from(font).italic)
+    panel_text(font, title).font(FontFaces::from(font).italic)
 }
 
-pub fn bar_text<'a>(
+pub fn panel_text<'a>(
     font: &ResolvedFont,
     content: impl IntoFragment<'a>,
 ) -> Text<'a, iced::Theme, iced::Renderer> {

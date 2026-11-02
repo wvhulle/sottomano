@@ -59,7 +59,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_bar_label_names_beaufort_and_compass_point() {
+    fn the_panel_label_names_beaufort_and_compass_point() {
         let wind = Wind {
             speed: Velocity::new::<kilometer_per_hour>(15.0),
             gusts: Velocity::new::<kilometer_per_hour>(30.0),

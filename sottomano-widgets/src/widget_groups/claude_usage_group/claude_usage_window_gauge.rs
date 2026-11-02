@@ -75,7 +75,7 @@ impl GroupItemReading for ClaudeUsageWindows {
         )
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.fullest_window_used().get::<percent>() > 0.0
     }
 

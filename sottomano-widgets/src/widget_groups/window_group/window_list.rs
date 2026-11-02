@@ -21,9 +21,9 @@ use sottomano_sources::{
 };
 
 use crate::{
-    bar_slot_drag::{BarSlotContext, DragMessage, SlotClick, SlotDragEvent, SlotPress},
     clock::Clock,
     hover_tooltips::{PressHints, TooltipMessage, hoverable},
+    panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
     widget_groups::window_group::{WindowTarget, process_tree::Folding},
     widgets::{
         DISABLED_ALPHA,
@@ -37,7 +37,7 @@ use crate::{
         panel_frame::panel_frame,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            BarSlotList, DraggedBarSlot, draggable_slot::draggable_slot, slot_pager::slot_pager,
+            DraggedPanelSlot, PanelSlotList, draggable_slot::draggable_slot, slot_pager::slot_pager,
         },
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         text::FontFaces,
@@ -223,9 +223,9 @@ impl WindowList {
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         output: &str,
-        slot_context: BarSlotContext<'_>,
+        slot_context: PanelSlotContext<'_>,
     ) -> Option<Element<'a, WindowListMessage>> {
-        let BarSlotContext {
+        let PanelSlotContext {
             config, edge, drag, ..
         } = slot_context;
         let workspace = drag
@@ -249,7 +249,7 @@ impl WindowList {
         let slots = order
             .iter()
             .enumerate()
-            .map(|(position_in_bar, window_entry)| {
+            .map(|(position_in_panel, window_entry)| {
                 let item = window_slot_key(window_entry, workspace);
                 let dimming = if drag.is_dragging(item) {
                     DISABLED_ALPHA
@@ -260,8 +260,8 @@ impl WindowList {
                     window_entry,
                     item,
                     extras: self.extras(window_entry, audio, config),
-                    position_in_bar,
-                    opacity: self.metrics.item_opacity(self.scroll, position_in_bar) * dimming,
+                    position_in_panel,
+                    opacity: self.metrics.item_opacity(self.scroll, position_in_panel) * dimming,
                     slot_context,
                 };
                 (item, window_slot.view(icons))
@@ -277,7 +277,7 @@ impl WindowList {
             .highlight(focused_key, move |theme| {
                 primary_color(theme).scale_alpha(focus_opacity)
             })
-            .draggable(BarSlotList::Windows, &drag, dragged);
+            .draggable(PanelSlotList::Windows, &drag, dragged);
         Some(window_list_viewport(
             pager,
             self.scroll,
@@ -294,9 +294,9 @@ impl WindowList {
         icons: WindowAssets<'a>,
         audio: Option<&HashMap<i32, WindowAudio>>,
         window: u64,
-        slot_context: BarSlotContext<'_>,
+        slot_context: PanelSlotContext<'_>,
     ) -> Option<Element<'a, WindowListMessage>> {
-        let BarSlotContext { config, drag, .. } = slot_context;
+        let PanelSlotContext { config, drag, .. } = slot_context;
         let workspace = drag.window_source_workspace()?;
         let window_entry = niri
             .windows_on_workspace(workspace)
@@ -306,7 +306,7 @@ impl WindowList {
             window_entry,
             item: window_slot_key(window_entry, workspace),
             extras: self.extras(window_entry, audio, config),
-            position_in_bar: 0,
+            position_in_panel: 0,
             opacity: 1.0,
             slot_context,
         };
@@ -357,8 +357,8 @@ impl WindowList {
 fn window_slot_key(
     window_entry: &niri_window_snapshot::WinEntry,
     workspace: u64,
-) -> DraggedBarSlot {
-    DraggedBarSlot::Window {
+) -> DraggedPanelSlot {
+    DraggedPanelSlot::Window {
         window: window_entry.id,
         workspace,
     }
@@ -401,11 +401,11 @@ impl Extras<'_> {
 
 struct WindowSlot<'s> {
     window_entry: &'s niri_window_snapshot::WinEntry,
-    item: DraggedBarSlot,
+    item: DraggedPanelSlot,
     extras: Extras<'s>,
-    position_in_bar: usize,
+    position_in_panel: usize,
     opacity: f32,
-    slot_context: BarSlotContext<'s>,
+    slot_context: PanelSlotContext<'s>,
 }
 
 impl WindowSlot<'_> {
@@ -434,7 +434,7 @@ impl WindowSlot<'_> {
     fn view<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
         let press = SlotPress {
             item: self.item,
-            position: self.position_in_bar,
+            position: self.position_in_panel,
             click: if self.maximize_toggles() {
                 SlotClick::MaximizeColumn
             } else {
@@ -631,18 +631,18 @@ mod tests {
 
     use super::{WindowList, WindowListMessage};
     use crate::{
-        bar_slot_drag::{
-            BarSlotContext, DragMessage,
-            pager_drag_simulation::{
-                SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
-                dragging_from_start, sweep_across_bar, three_workspaces_three_windows,
-            },
-        },
         clock::Clock,
         desktop_index::DesktopIndex,
+        panel_slot_drag::{
+            DragMessage, PanelSlotContext,
+            pager_drag_simulation::{
+                SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
+                dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
+            },
+        },
         widgets::{
             favicon::Favicons,
-            pointer_drag::{BarSlotList, DragEvent, DraggedBarSlot},
+            pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
             window_icon::WindowAssets,
         },
     };
@@ -651,7 +651,7 @@ mod tests {
     fn dragging_a_window_across_the_list_enters_each_slot_then_leaves() {
         let config = Config::default();
         let niri_snapshot = three_workspaces_three_windows();
-        let dragged_window = DraggedBarSlot::Window {
+        let dragged_window = DraggedPanelSlot::Window {
             window: SIMULATED_WINDOW_IDS[0],
             workspace: SIMULATED_WORKSPACE_IDS[0],
         };
@@ -665,7 +665,7 @@ mod tests {
             controller_artwork: &controller_artwork,
         };
         let window_list = WindowList::default();
-        let slot_context = BarSlotContext {
+        let slot_context = PanelSlotContext {
             config: &config,
             edge: Position::Bottom,
             drag: drag_view,
@@ -681,7 +681,7 @@ mod tests {
             )
             .expect("three windows on the active workspace");
         let drag_events: Vec<DragEvent<_>> =
-            sweep_across_bar(pager_element, config.layout.panel.height)
+            sweep_across_panel(pager_element, config.layout.panel.height)
                 .into_iter()
                 .filter_map(|window_list_message| match window_list_message {
                     WindowListMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),
@@ -698,7 +698,7 @@ mod tests {
         assert_eq!(entered_positions, [0, 1, 2]);
         assert!(matches!(
             drag_events.last(),
-            Some(DragEvent::LeftList(BarSlotList::Windows))
+            Some(DragEvent::LeftList(PanelSlotList::Windows))
         ));
     }
 }

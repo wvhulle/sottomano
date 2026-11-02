@@ -6,14 +6,14 @@ use sottomano_config::screen_edges::Position;
 use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_widgets::{
     background_work::niri_action,
-    bar_slot_drag::{BarSlotContext, DragMessage, SlotClick},
+    panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick},
     widget_groups::{
         sidebar_settings_group::WorkspacesPlacement, workspaces_group::shown_workspaces,
     },
     widgets::{
         panel_frame::LayerFrameStyle,
         pointer_drag::{
-            self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedBarSlot, PointerDrag,
+            self, ActiveDrag, DragOutcome, DragTransition, DragView, DraggedPanelSlot, PointerDrag,
         },
     },
 };
@@ -34,7 +34,7 @@ impl DesktopShell {
             && matches!(
                 self.pointer_drag,
                 PointerDrag::Dragging(ActiveDrag {
-                    item: DraggedBarSlot::Workspace(_),
+                    item: DraggedPanelSlot::Workspace(_),
                     ..
                 })
             );
@@ -52,8 +52,8 @@ impl DesktopShell {
     }
 
     #[must_use]
-    pub fn bar_slot_context(&self, edge: Position) -> BarSlotContext<'_> {
-        BarSlotContext {
+    pub fn panel_slot_context(&self, edge: Position) -> PanelSlotContext<'_> {
+        PanelSlotContext {
             config: &self.config,
             edge,
             drag: self.drag_view(),
@@ -89,7 +89,7 @@ impl DesktopShell {
                 self.follow_drag_outcome(outcome)
             }
             DragMessage::HoverSpringLoaded(hover) => {
-                let DraggedBarSlot::Workspace(workspace) = hover.item else {
+                let DraggedPanelSlot::Workspace(workspace) = hover.item else {
                     return Task::none();
                 };
                 if self.drag_view().drag.and_then(|drag| drag.hovered()) != Some(hover) {
@@ -109,7 +109,7 @@ impl DesktopShell {
             DragOutcome::Clicked(click) => click_slot(click),
             DragOutcome::Dropped(drag) => self.drop_dragged(drag),
             DragOutcome::HoveringForeign(hover) => match hover.item {
-                DraggedBarSlot::Workspace(_) => {
+                DraggedPanelSlot::Workspace(_) => {
                     let (task, handle) =
                         Task::future(sleep(self.config.panel_bar.drag_spring_load))
                             .map(move |()| {
@@ -119,7 +119,7 @@ impl DesktopShell {
                     self.spring_load = Some(handle.abort_on_drop());
                     task
                 }
-                DraggedBarSlot::Window { .. } => {
+                DraggedPanelSlot::Window { .. } => {
                     self.spring_load = None;
                     Task::none()
                 }
@@ -129,8 +129,8 @@ impl DesktopShell {
 
     fn drop_dragged(&mut self, drag: ActiveDrag) -> Task<Message> {
         if let Some(hover) = drag.hovered()
-            && let DraggedBarSlot::Workspace(workspace) = hover.item
-            && let DraggedBarSlot::Window { window, .. } = drag.item
+            && let DraggedPanelSlot::Workspace(workspace) = hover.item
+            && let DraggedPanelSlot::Window { window, .. } = drag.item
         {
             return self.move_window_to_workspace(window, workspace);
         }
@@ -143,7 +143,7 @@ impl DesktopShell {
     fn reorder(&mut self, drag: ActiveDrag, to: usize) -> Task<Message> {
         let snapshot = &self.niri_snapshot;
         match drag.item {
-            DraggedBarSlot::Workspace(workspace) => {
+            DraggedPanelSlot::Workspace(workspace) => {
                 let Some(index) = self
                     .surfaces
                     .get(&drag.surface)
@@ -168,7 +168,7 @@ impl DesktopShell {
                     reference: Some(WorkspaceReferenceArg::Id(workspace)),
                 })
             }
-            DraggedBarSlot::Window { window, workspace } => {
+            DraggedPanelSlot::Window { window, workspace } => {
                 let Some(index) = snapshot
                     .windows_on_workspace(workspace)
                     .get(to)

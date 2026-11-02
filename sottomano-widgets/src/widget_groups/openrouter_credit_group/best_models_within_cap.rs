@@ -97,7 +97,7 @@ impl GroupItemReading for OpenRouterModelRankings {
         )
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         !self.best_first.is_empty()
     }
 }

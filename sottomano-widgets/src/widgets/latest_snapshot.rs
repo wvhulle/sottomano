@@ -416,19 +416,19 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
 {
     pub fn visible_reading(&self) -> Option<&S> {
         self.get()
-            .filter(|held_snapshot| S::visible_in_bar(held_snapshot))
+            .filter(|held_snapshot| S::visible_on_panel(held_snapshot))
     }
 
     pub fn display(&self) -> Option<&dyn GroupItemReading> {
         match self {
             LatestSnapshot::SnapshotHeld { held_snapshot, .. } => held_snapshot
-                .visible_in_bar()
+                .visible_on_panel()
                 .then_some(held_snapshot as &dyn GroupItemReading),
             LatestSnapshot::SnapshotFetchFailed { fetch_failure, .. } => Some(fetch_failure),
             LatestSnapshot::SnapshotHeldOffline {
                 offline_snapshot, ..
             } => offline_snapshot
-                .visible_in_bar()
+                .visible_on_panel()
                 .then_some(offline_snapshot as &dyn GroupItemReading),
             LatestSnapshot::OfflineBeforeSnapshot {
                 offline_placeholder,

@@ -33,13 +33,13 @@ impl DesktopShell {
             Position::Bottom,
             start_menus
                 .into_iter()
-                .flat_map(|group_menu| group_menu.bar_views(config, Position::Bottom, self.clock))
+                .flat_map(|group_menu| group_menu.panel_views(config, Position::Bottom, self.clock))
                 .chain(start.map(view))
                 .chain([self.inline_workspaces(output)]),
             [self.window_group_view(output)],
             end_menus
                 .into_iter()
-                .flat_map(|group_menu| group_menu.bar_views(config, Position::Bottom, self.clock))
+                .flat_map(|group_menu| group_menu.panel_views(config, Position::Bottom, self.clock))
                 .chain(end.map(view)),
         )
     }
@@ -191,7 +191,7 @@ impl DesktopShell {
                 self.widget_groups
                     .sidebar_settings_group
                     .empty_workspace_folding(),
-                self.bar_slot_context(Position::Bottom),
+                self.panel_slot_context(Position::Bottom),
             )
             .map(|workspaces| workspaces.map(Message::from)),
         }
@@ -205,7 +205,7 @@ impl DesktopShell {
                 self.window_assets(),
                 self.widget_groups.audio_group.window_audio(),
                 output,
-                self.bar_slot_context(Position::Bottom),
+                self.panel_slot_context(Position::Bottom),
             )
             .map(|element| element.map(|event| Message::from(event.map(Message::WindowGroup))))
     }

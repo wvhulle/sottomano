@@ -72,7 +72,7 @@ pub trait GroupItemReading {
         None
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         true
     }
 
@@ -132,8 +132,8 @@ impl<ForwardedReading: GroupItemReading + ?Sized> GroupItemReading for &Forwarde
         (**self).announced_level(locale)
     }
 
-    fn visible_in_bar(&self) -> bool {
-        (**self).visible_in_bar()
+    fn visible_on_panel(&self) -> bool {
+        (**self).visible_on_panel()
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

@@ -10,7 +10,7 @@ use sottomano_config::Config;
 use crate::widgets::{
     configured_theme::{primary_weak_color, text_color},
     group_item::MenuParts,
-    text::bar_text,
+    text::panel_text,
     widget_group::GroupEvent,
 };
 
@@ -72,7 +72,7 @@ fn menu_line<'a, M: 'a>(
         .extend(leading)
         .push(leading_icon_slot(config, parts.icon))
         .push(
-            container(bar_text(&config.theme.font, name).wrapping(Wrapping::None))
+            container(panel_text(&config.theme.font, name).wrapping(Wrapping::None))
                 .width(Length::Fill)
                 .clip(true),
         )

@@ -15,10 +15,10 @@ use sottomano_sources::{
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
 };
 use sottomano_widgets::{
-    bar_slot_drag::BarSlotContext,
     clock::Clock,
     desktop_index::DesktopIndex,
     hover_tooltips::HoverTarget,
+    panel_slot_drag::PanelSlotContext,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
@@ -77,8 +77,8 @@ fn configured_in_fixture_order(snapshot: &Snapshot) -> ConfiguredWorkspaces {
         .collect()
 }
 
-fn undragged_slot_context(config: &Config, edge: Position, clock: Clock) -> BarSlotContext<'_> {
-    BarSlotContext {
+fn undragged_slot_context(config: &Config, edge: Position, clock: Clock) -> PanelSlotContext<'_> {
+    PanelSlotContext {
         config,
         edge,
         drag: DragView {
@@ -104,7 +104,7 @@ pub enum ShowcasedGroup {
     Caldav(Box<CaldavGroup>),
     Vpn(Box<VpnGroup>),
     LoginSession(Box<LoginSessionGroup>),
-    BottomBar(Box<ShowcasedNiriSession>),
+    BottomPanel(Box<ShowcasedNiriSession>),
     WorkspaceSidebar(Box<ShowcasedNiriSession>),
     Toasts(Box<ShowcasedToasts>),
     MenuMembers(Vec<ShowcasedGroup>),
@@ -339,7 +339,7 @@ impl ShowcasedNiriSession {
 impl ShowcasedGroup {
     pub fn position(&self) -> Position {
         match self {
-            ShowcasedGroup::BottomBar(_)
+            ShowcasedGroup::BottomPanel(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::AppearancePresets(_)
@@ -427,7 +427,7 @@ impl ShowcasedGroup {
                 .flat_map(|member| member.group_contents(config, clock))
                 .collect(),
             ShowcasedGroup::ShellSettings(settings) => settings.group_contents(config),
-            ShowcasedGroup::BottomBar(_)
+            ShowcasedGroup::BottomPanel(_)
             | ShowcasedGroup::WorkspaceSidebar(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
         }
@@ -440,7 +440,7 @@ impl ShowcasedGroup {
     ) -> Vec<Element<'a, ShowcaseMessage>> {
         let position = self.position();
         match self {
-            ShowcasedGroup::BottomBar(session) => session.workspaces_and_windows(config, clock),
+            ShowcasedGroup::BottomPanel(session) => session.workspaces_and_windows(config, clock),
             ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),
             _ => self
                 .group_contents(config, clock)
@@ -517,7 +517,7 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
-            ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
+            ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 if let ShowcaseMessage::WindowGroup(message) = message {
                     let _ = session.window_group.update(message, clock);
                 }
@@ -600,7 +600,7 @@ impl ShowcasedGroup {
                     .map(ShowcaseMessage::LoginSession)
                     .collect()
             }
-            ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
+            ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 let _ = session
                     .window_group
                     .hover(&session.niri, Some(target), config, clock);
@@ -715,7 +715,7 @@ impl ShowcasedGroup {
                 };
                 group.tooltip_for(*target, clock)
             }
-            ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
+            ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 session.tooltip_for(target, clock)
             }
             ShowcasedGroup::AppearancePresets(menu) => {
@@ -756,7 +756,7 @@ impl ShowcasedGroup {
 
     pub fn niri(&self) -> Option<&EventStreamState> {
         match self {
-            ShowcasedGroup::BottomBar(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
+            ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
                 Some(&session.niri)
             }
             ShowcasedGroup::Toasts(toasts) => Some(&toasts.niri),

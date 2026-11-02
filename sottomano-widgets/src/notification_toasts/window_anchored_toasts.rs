@@ -33,14 +33,14 @@ impl<'a> WindowAnchoredToasts<'a> {
     #[must_use]
     pub fn new(
         toasts: Vec<AnchoredToast<'a>>,
-        bar_clearance: Padding,
+        panel_clearance: Padding,
         overlays: &LayerAppearance,
         config: &Config,
     ) -> Self {
         let card = &config.notification_toasts.card;
         toasts.into_iter().fold(
             Self {
-                bar_clearance,
+                panel_clearance,
                 card_roles: RegionRoles {
                     takes_input: true,
                     blurred: overlays.blurred,
@@ -72,7 +72,7 @@ impl<'a> From<WindowAnchoredToasts<'a>> for Element<'a, NotificationMessage> {
 }
 
 pub struct WindowAnchoredToasts<'a> {
-    bar_clearance: Padding,
+    panel_clearance: Padding,
     card_roles: RegionRoles,
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
@@ -268,7 +268,7 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             .map(|(card, child)| card.as_widget_mut().layout(child, renderer, &card_limits))
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
-        let free_area = Rectangle::with_size(surface).shrink(self.bar_clearance);
+        let free_area = Rectangle::with_size(surface).shrink(self.panel_clearance);
         let targets =
             toast_anchor_geometry::origins(&self.anchors, &sizes, free_area, &self.placement);
         let positions =

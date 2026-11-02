@@ -19,7 +19,7 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::widgets::{
     configured_theme::ThemedColor,
     list_end_corners::ListEndCorners,
-    pointer_drag::{BarSlotList, DragEvent, DragView},
+    pointer_drag::{DragEvent, DragView, PanelSlotList},
 };
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
@@ -89,7 +89,7 @@ impl<'a, Message, Key> SlotPager<'a, Message, Key> {
     #[must_use]
     pub fn draggable<Click>(
         mut self,
-        list: BarSlotList,
+        list: PanelSlotList,
         drag: &DragView,
         on_drag: impl Fn(DragEvent<Click>) -> Message,
     ) -> Self {
@@ -262,12 +262,12 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
                 .collect()
         } else {
             let height = limits.max().height;
-            let along_bar = Limits::new(Size::ZERO, Size::new(f32::INFINITY, height));
+            let along_panel = Limits::new(Size::ZERO, Size::new(f32::INFINITY, height));
             self.slots
                 .iter_mut()
                 .zip(trees)
                 .map(|(slot, tree)| {
-                    let node = slot.as_widget_mut().layout(tree, renderer, &along_bar);
+                    let node = slot.as_widget_mut().layout(tree, renderer, &along_panel);
                     let centred = (height - node.size().height).max(0.0) / 2.0;
                     node.move_to((0.0, centred))
                 })

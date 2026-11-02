@@ -40,7 +40,7 @@ type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, G
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ItemPlacement {
-    Bar,
+    Panel,
     Table,
     Menu,
 }
@@ -262,7 +262,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             draw: Box::new(move |reveal, clock, placement| {
                 let on_control = Rc::clone(&on_control);
                 let slider_view = match placement {
-                    ItemPlacement::Bar => slider.view(config, reveal, clock),
+                    ItemPlacement::Panel => slider.view(config, reveal, clock),
                     ItemPlacement::Table => {
                         slider.always_open_view(config, clock, table_icon_gap(config))
                     }
@@ -484,7 +484,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     where
         M: Clone,
     {
-        self.placed_view(config, reveal, clock, ItemPlacement::Bar)
+        self.placed_view(config, reveal, clock, ItemPlacement::Panel)
     }
 
     pub(super) fn table_cell_view(
@@ -584,7 +584,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     {
         let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
         {
-            ItemPlacement::Bar => announcing_hoverable(
+            ItemPlacement::Panel => announcing_hoverable(
                 element,
                 target.clone(),
                 self.announcement(),

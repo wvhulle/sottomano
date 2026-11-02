@@ -11,7 +11,7 @@ use sottomano_sources::desktop_windows_apps::{
 
 use crate::widgets::{
     panel_frame::LayerFrameStyle,
-    pointer_drag::{ActiveDrag, DragTarget, DragView, DraggedBarSlot},
+    pointer_drag::{ActiveDrag, DragTarget, DragView, DraggedPanelSlot},
     shell_layer_appearance::ShellLayer,
 };
 
@@ -83,7 +83,7 @@ pub(crate) fn three_workspaces_three_windows() -> Snapshot {
     Snapshot::derive(&niri_state, &WindowProcesses::default())
 }
 
-pub(crate) fn dragging_from_start(dragged_item: DraggedBarSlot, config: &Config) -> DragView {
+pub(crate) fn dragging_from_start(dragged_item: DraggedPanelSlot, config: &Config) -> DragView {
     DragView {
         drag: Some(ActiveDrag {
             item: dragged_item,
@@ -96,25 +96,25 @@ pub(crate) fn dragging_from_start(dragged_item: DraggedBarSlot, config: &Config)
     }
 }
 
-pub(crate) fn sweep_across_bar<Message>(
+pub(crate) fn sweep_across_panel<Message>(
     pager_element: Element<'_, Message>,
-    bar_height: f32,
+    panel_height: f32,
 ) -> Vec<Message> {
-    let mut simulated_bar = Simulator::with_size(
+    let mut simulated_panel = Simulator::with_size(
         Settings::default(),
-        Size::new(SIMULATED_BAR_WIDTH_PX, bar_height),
+        Size::new(SIMULATED_BAR_WIDTH_PX, panel_height),
         pager_element,
     );
-    let sweep_height = bar_height / 2.0;
+    let sweep_height = panel_height / 2.0;
     let sweep_positions = (0..)
         .map(|step: u16| f32::from(step) * SWEEP_STEP_PX)
         .take_while(|sweep_x| *sweep_x < SIMULATED_BAR_WIDTH_PX)
         .map(|sweep_x| Point::new(sweep_x, sweep_height));
     for cursor_position in sweep_positions {
-        simulated_bar.point_at(cursor_position);
-        let _ = simulated_bar.simulate([Event::Mouse(mouse::Event::CursorMoved {
+        simulated_panel.point_at(cursor_position);
+        let _ = simulated_panel.simulate([Event::Mouse(mouse::Event::CursorMoved {
             position: cursor_position,
         })]);
     }
-    simulated_bar.into_messages().collect()
+    simulated_panel.into_messages().collect()
 }

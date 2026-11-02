@@ -8,8 +8,8 @@ use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{
-    bar_slot_drag::{BarSlotContext, SlotClick, SlotPress},
     hover_tooltips::{HoverTarget, PressHints, hoverable},
+    panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
     widgets::{
         activity_line::edge_activity_line,
         configured_theme::{
@@ -18,8 +18,8 @@ use crate::{
         },
         marker_track::MarkerTrack,
         pager_slot::PagerSlot,
-        pointer_drag::{DraggedBarSlot, draggable_slot::draggable_slot},
-        text::bar_text,
+        pointer_drag::{DraggedPanelSlot, draggable_slot::draggable_slot},
+        text::panel_text,
     },
 };
 
@@ -62,13 +62,13 @@ fn window_marker_color(
 
 pub(super) fn workspace_slot_key(
     workspace: &niri_window_snapshot::WorkspaceIndicator,
-) -> DraggedBarSlot {
-    DraggedBarSlot::Workspace(workspace.id)
+) -> DraggedPanelSlot {
+    DraggedPanelSlot::Workspace(workspace.id)
 }
 
 pub(super) fn active_workspace_key(
     order: &[&niri_window_snapshot::WorkspaceIndicator],
-) -> Option<DraggedBarSlot> {
+) -> Option<DraggedPanelSlot> {
     order
         .iter()
         .find(|workspace| workspace.is_active)
@@ -92,16 +92,16 @@ pub(super) struct WorkspaceSlot<'s> {
     workspace: &'s niri_window_snapshot::WorkspaceIndicator,
     niri: &'s niri_window_snapshot::Snapshot,
     tone: SlotTone,
-    position_in_bar: usize,
-    slot_context: BarSlotContext<'s>,
+    position_in_panel: usize,
+    slot_context: PanelSlotContext<'s>,
 }
 
 impl<'s> WorkspaceSlot<'s> {
     pub(super) fn new(
         workspace: &'s niri_window_snapshot::WorkspaceIndicator,
         niri: &'s niri_window_snapshot::Snapshot,
-        position_in_bar: usize,
-        slot_context: BarSlotContext<'s>,
+        position_in_panel: usize,
+        slot_context: PanelSlotContext<'s>,
     ) -> Self {
         let tone = if slot_context.drag.is_dragging(workspace_slot_key(workspace)) {
             SlotTone::Dragged
@@ -112,7 +112,7 @@ impl<'s> WorkspaceSlot<'s> {
             workspace,
             niri,
             tone,
-            position_in_bar,
+            position_in_panel,
             slot_context,
         }
     }
@@ -120,7 +120,7 @@ impl<'s> WorkspaceSlot<'s> {
     pub(super) fn ghost(
         workspace: &'s niri_window_snapshot::WorkspaceIndicator,
         niri: &'s niri_window_snapshot::Snapshot,
-        slot_context: BarSlotContext<'s>,
+        slot_context: PanelSlotContext<'s>,
     ) -> Self {
         Self {
             tone: SlotTone::Regular,
@@ -128,7 +128,7 @@ impl<'s> WorkspaceSlot<'s> {
         }
     }
 
-    pub(super) fn key(&self) -> DraggedBarSlot {
+    pub(super) fn key(&self) -> DraggedPanelSlot {
         workspace_slot_key(self.workspace)
     }
 
@@ -150,13 +150,13 @@ impl<'s> WorkspaceSlot<'s> {
 
     fn superscript<'a>(&self) -> Text<'a> {
         let font = &self.slot_context.config.theme.font;
-        bar_text(font, self.workspace.idx.to_string())
+        panel_text(font, self.workspace.idx.to_string())
             .size(font.small_text_size_px)
             .style(tinted_text(self.tone.tint(secondary_text_color)))
     }
 
     pub(super) fn label<'a>(&self) -> Element<'a, WorkspacesMessage> {
-        let name = bar_text(&self.slot_context.config.theme.font, self.display_name())
+        let name = panel_text(&self.slot_context.config.theme.font, self.display_name())
             .style(tinted_text(self.tone.tint(text_color)));
         if !self.has_superscript() {
             return name.into();
@@ -181,7 +181,7 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn edge_line<'a>(&self) -> Element<'a, WorkspacesMessage> {
-        let BarSlotContext {
+        let PanelSlotContext {
             config,
             edge,
             drag,
@@ -246,7 +246,7 @@ impl<'s> WorkspaceSlot<'s> {
     ) -> Element<'a, WorkspacesMessage> {
         let press = SlotPress {
             item: self.key(),
-            position: self.position_in_bar,
+            position: self.position_in_panel,
             click: SlotClick::Workspace {
                 id: self.workspace.id,
                 is_active: self.workspace.is_active,
@@ -269,7 +269,7 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     pub(super) fn inline_view<'a>(&self) -> Element<'a, WorkspacesMessage> {
-        let BarSlotContext { config, edge, .. } = self.slot_context;
+        let PanelSlotContext { config, edge, .. } = self.slot_context;
         let pager_slot = PagerSlot::new(self.label(), self.edge_line())
             .ticks(self.window_markers(edge).view())
             .spaced_by(config.layout.panel.widget_spacing)

@@ -61,10 +61,10 @@ impl LevelAnnouncement {
         }
     }
 
-    pub fn device_reported(&mut self, changed_outside_the_bar: bool) {
+    pub fn device_reported(&mut self, changed_outside_the_panel: bool) {
         self.external_change_count = Some(
             self.external_change_count
-                .map_or(0, |count| count + u64::from(changed_outside_the_bar)),
+                .map_or(0, |count| count + u64::from(changed_outside_the_panel)),
         );
     }
 
@@ -115,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn only_changes_outside_the_bar_after_the_first_report_are_counted() {
+    fn only_changes_outside_the_panel_after_the_first_report_are_counted() {
         assert_eq!(count_after(&[]), None);
         assert_eq!(count_after(&[true]), Some(0));
         assert_eq!(count_after(&[false, true, false, true]), Some(2));

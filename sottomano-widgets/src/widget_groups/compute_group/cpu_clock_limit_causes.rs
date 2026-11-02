@@ -132,7 +132,7 @@ impl GroupItemReading for ClockLimitCauses<'_> {
         .titled("Published limits")])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.clock.limited_cores() > 0
     }
 }
@@ -160,7 +160,7 @@ mod tests {
     #[test]
     fn hidden_without_published_causes() {
         let clock = clock_with([Vec::new(), Vec::new(), Vec::new(), Vec::new()]);
-        assert!(!ClockLimitCauses { clock: &clock }.visible_in_bar());
+        assert!(!ClockLimitCauses { clock: &clock }.visible_on_panel());
     }
 
     #[test]

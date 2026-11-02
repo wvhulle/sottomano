@@ -239,18 +239,18 @@ impl ComputeGroup {
                 self.cpu_clock
                     .get()
                     .map(|clock| ClockLimitCauses { clock })
-                    .filter(GroupItemReading::visible_in_bar)
+                    .filter(GroupItemReading::visible_on_panel)
                     .map(|limits| GroupItem::reading(limits, ComputeTarget::CpuClockLimits)),
                 self.cpu_temperature
                     .group_item(ComputeTarget::CpuTemperature),
                 self.cpu_power_draw
                     .get()
-                    .filter(GroupItemReading::visible_in_bar)
+                    .filter(GroupItemReading::visible_on_panel)
                     .map(|power| GroupItem::reading(power, ComputeTarget::CpuPowerDraw)),
                 self.host_hardware
                     .get()
                     .map(|hardware| &hardware.cpu)
-                    .filter(GroupItemReading::visible_in_bar)
+                    .filter(GroupItemReading::visible_on_panel)
                     .map(|model| GroupItem::reading(model, ComputeTarget::CpuModel)),
                 self.x3d_cache_preference.group_item(
                     ComputeTarget::X3dCachePreference,
@@ -305,7 +305,7 @@ impl ComputeGroup {
                     clock: self.cpu_clock.get()?,
                 };
                 self.cpu_clock
-                    .tooltip_with(limits.visible_in_bar().then(|| limits.tooltip(clock))?)
+                    .tooltip_with(limits.visible_on_panel().then(|| limits.tooltip(clock))?)
             }
             ComputeTarget::CpuTemperature => self.cpu_temperature.tooltip_with_groups(
                 self.core_temperatures
@@ -318,7 +318,7 @@ impl ComputeGroup {
             ComputeTarget::CpuModel => {
                 let model = &self.host_hardware.get()?.cpu;
                 self.host_hardware
-                    .tooltip_with(model.visible_in_bar().then(|| model.tooltip(clock))?)
+                    .tooltip_with(model.visible_on_panel().then(|| model.tooltip(clock))?)
             }
             ComputeTarget::X3dCachePreference => {
                 self.x3d_cache_preference.tooltip(clock).map(|tooltip| {
@@ -385,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn collapsed_group_on_the_bar_keeps_its_load_gauge_updating() {
+    fn collapsed_group_on_the_panel_keeps_its_load_gauge_updating() {
         let mut group_menus = GroupMenuState::default();
         group_menus.track_source_demand(
             None,
@@ -402,19 +402,19 @@ mod tests {
     }
 
     #[test]
-    fn expanding_on_the_bar_runs_every_source_and_collapsing_stops_the_rows() {
+    fn expanding_on_the_panel_runs_every_source_and_collapsing_stops_the_rows() {
         let mut group = ComputeGroup::default();
         let _ = group.update(
             super::ComputeMessage::Expansion(WidgetGroupExpansionMessage::Toggle),
             Clock::real(),
         );
         assert_eq!(
-            running_sources(&group, GroupSourceDemand::on_bar()),
+            running_sources(&group, GroupSourceDemand::on_panel()),
             WITH_EVERY_ROW
         );
         group.collapse();
         assert_eq!(
-            running_sources(&group, GroupSourceDemand::on_bar()),
+            running_sources(&group, GroupSourceDemand::on_panel()),
             WITH_LOAD_GAUGE
         );
     }

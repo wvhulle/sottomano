@@ -14,7 +14,7 @@ use crate::widgets::{
     icon_glyph::IconGlyph,
     list_end_corners::ListEndCorners,
     phosphor::{Phosphor, Weight},
-    text::bar_text,
+    text::panel_text,
 };
 
 const DIVIDER_THICKNESS: f32 = 1.0;
@@ -85,7 +85,7 @@ fn entry<'a, M: Clone + 'a>(
     if let Some(label) = row.label {
         content =
             content.push(
-                bar_text(&config.theme.font, label).style(move |theme| text::Style {
+                panel_text(&config.theme.font, label).style(move |theme| text::Style {
                     color: Some(color(theme)),
                 }),
             );
@@ -94,7 +94,7 @@ fn entry<'a, M: Clone + 'a>(
         Trailing::Nothing => {}
         Trailing::Note(note) => {
             content = content.push(space::horizontal()).push(
-                bar_text(&config.theme.font, note)
+                panel_text(&config.theme.font, note)
                     .size(config.theme.font.small_text_size_px)
                     .style(|theme| text::Style {
                         color: Some(background_strong_color(theme)),

@@ -440,7 +440,7 @@ impl ConnectorTriangle {
     #[must_use]
     pub fn between(
         anchor: Rectangle,
-        bar_edge: f32,
+        panel_edge: f32,
         popup: Rectangle,
         side: ConnectorSide,
         corner_radius: f32,
@@ -457,7 +457,7 @@ impl ConnectorTriangle {
                     centered_within(anchor.center_x(), popup.x, popup.x + popup.width, inset);
                 Self {
                     side,
-                    apex: Point::new(anchor.center_x(), bar_edge),
+                    apex: Point::new(anchor.center_x(), panel_edge),
                     base_center: Point::new(base_center, base_y),
                 }
             }
@@ -471,7 +471,7 @@ impl ConnectorTriangle {
                     centered_within(anchor.center_y(), popup.y, popup.y + popup.height, inset);
                 Self {
                     side,
-                    apex: Point::new(bar_edge, anchor.center_y()),
+                    apex: Point::new(panel_edge, anchor.center_y()),
                     base_center: Point::new(base_x, base_center),
                 }
             }

@@ -562,7 +562,7 @@ impl DesktopShell {
                     self.widget_groups
                         .overlay_settings_group
                         .overlay_appearance(),
-                    self.bar_clearance(output),
+                    self.panel_clearance(output),
                     self.clock,
                 ),
             )

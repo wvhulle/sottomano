@@ -52,8 +52,8 @@ impl GroupItemReading for NamedReading<'_> {
         self.reading.live_gauge()
     }
 
-    fn visible_in_bar(&self) -> bool {
-        self.reading.visible_in_bar()
+    fn visible_on_panel(&self) -> bool {
+        self.reading.visible_on_panel()
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {

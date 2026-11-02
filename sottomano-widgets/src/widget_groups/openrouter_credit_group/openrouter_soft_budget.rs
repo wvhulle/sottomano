@@ -95,7 +95,7 @@ impl GroupItemReading for OpenRouterSpend {
         ])
     }
 
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         self.month.cost().is_positive()
     }
 

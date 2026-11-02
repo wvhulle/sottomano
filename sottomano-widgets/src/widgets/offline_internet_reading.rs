@@ -63,8 +63,8 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.identity_ordinal()
     }
 
-    fn visible_in_bar(&self) -> bool {
-        self.held_snapshot.visible_in_bar()
+    fn visible_on_panel(&self) -> bool {
+        self.held_snapshot.visible_on_panel()
     }
 
     fn quota_windows(&self, now: DateTime<Utc>) -> Vec<Quota> {

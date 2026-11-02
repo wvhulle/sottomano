@@ -15,29 +15,29 @@ use iced::{
 use crate::widgets::panel_frame::LayerFrameStyle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DraggedBarSlot {
+pub enum DraggedPanelSlot {
     Workspace(u64),
     Window { window: u64, workspace: u64 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BarSlotList {
+pub enum PanelSlotList {
     Workspaces,
     Windows,
 }
 
-impl DraggedBarSlot {
-    fn list(self) -> BarSlotList {
+impl DraggedPanelSlot {
+    fn list(self) -> PanelSlotList {
         match self {
-            DraggedBarSlot::Workspace(_) => BarSlotList::Workspaces,
-            DraggedBarSlot::Window { .. } => BarSlotList::Windows,
+            DraggedPanelSlot::Workspace(_) => PanelSlotList::Workspaces,
+            DraggedPanelSlot::Window { .. } => PanelSlotList::Windows,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct SlotPress<Click> {
-    pub item: DraggedBarSlot,
+    pub item: DraggedPanelSlot,
     pub position: usize,
     pub click: Click,
 }
@@ -65,7 +65,7 @@ impl<Click> PointerDrag<Click> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ActiveDrag {
-    pub item: DraggedBarSlot,
+    pub item: DraggedPanelSlot,
     pub surface: window::Id,
     pub cursor: Point,
     pub from: usize,
@@ -96,7 +96,7 @@ impl ActiveDrag {
         }
     }
 
-    fn left(self, list: BarSlotList) -> Self {
+    fn left(self, list: PanelSlotList) -> Self {
         let target = match self.target {
             DragTarget::OwnList(_) if self.item.list() == list => DragTarget::Outside,
             DragTarget::ForeignSlot(hover) if hover.item.list() == list => DragTarget::Outside,
@@ -108,7 +108,7 @@ impl ActiveDrag {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ForeignHover {
-    pub item: DraggedBarSlot,
+    pub item: DraggedPanelSlot,
     pub since: Instant,
 }
 
@@ -121,10 +121,10 @@ pub enum DragEvent<Click> {
     },
     Released,
     EnteredSlot {
-        item: DraggedBarSlot,
+        item: DraggedPanelSlot,
         position: usize,
     },
-    LeftList(BarSlotList),
+    LeftList(PanelSlotList),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -214,7 +214,7 @@ fn pointer_moved<Click: Copy>(
 
 fn entered_slot<Click: Copy>(
     drag: PointerDrag<Click>,
-    item: DraggedBarSlot,
+    item: DraggedPanelSlot,
     position: usize,
     now: Instant,
 ) -> DragTransition<Click> {
@@ -285,7 +285,7 @@ impl DragView {
     }
 
     #[must_use]
-    pub fn is_dragging(&self, item: DraggedBarSlot) -> bool {
+    pub fn is_dragging(&self, item: DraggedPanelSlot) -> bool {
         self.drag.is_some_and(|drag| drag.item == item)
     }
 
@@ -296,14 +296,14 @@ impl DragView {
     }
 
     #[must_use]
-    pub fn hovers(&self, item: DraggedBarSlot) -> Option<ForeignHover> {
+    pub fn hovers(&self, item: DraggedPanelSlot) -> Option<ForeignHover> {
         self.drag?.hovered().filter(|hover| hover.item == item)
     }
 
     #[must_use]
     pub fn hover_charge(
         &self,
-        item: DraggedBarSlot,
+        item: DraggedPanelSlot,
         full_after: Duration,
         now: Instant,
     ) -> Option<f32> {
@@ -315,7 +315,7 @@ impl DragView {
     pub fn previewed<'s, T>(
         &self,
         items: &'s [T],
-        identity: impl Fn(&T) -> DraggedBarSlot,
+        identity: impl Fn(&T) -> DraggedPanelSlot,
     ) -> Vec<&'s T> {
         let mut order: Vec<&T> = items.iter().collect();
         let Some(drag) = self.drag else {
@@ -340,15 +340,15 @@ mod tests {
 
     const START_DISTANCE: f32 = 4.0;
 
-    fn first_window() -> DraggedBarSlot {
-        DraggedBarSlot::Window {
+    fn first_window() -> DraggedPanelSlot {
+        DraggedPanelSlot::Window {
             window: 10,
             workspace: 1,
         }
     }
 
-    fn third_window() -> DraggedBarSlot {
-        DraggedBarSlot::Window {
+    fn third_window() -> DraggedPanelSlot {
+        DraggedPanelSlot::Window {
             window: 30,
             workspace: 1,
         }
@@ -419,7 +419,7 @@ mod tests {
         let entered = advance(
             dragging,
             DragEvent::EnteredSlot {
-                item: DraggedBarSlot::Workspace(2),
+                item: DraggedPanelSlot::Workspace(2),
                 position: 1,
             },
             START_DISTANCE,
@@ -428,7 +428,7 @@ mod tests {
         assert!(matches!(
             entered.outcome,
             DragOutcome::HoveringForeign(ForeignHover {
-                item: DraggedBarSlot::Workspace(2),
+                item: DraggedPanelSlot::Workspace(2),
                 ..
             })
         ));
@@ -451,7 +451,7 @@ mod tests {
         );
         let left = advance(
             entered.drag,
-            DragEvent::LeftList(BarSlotList::Windows),
+            DragEvent::LeftList(PanelSlotList::Windows),
             START_DISTANCE,
             now,
         );

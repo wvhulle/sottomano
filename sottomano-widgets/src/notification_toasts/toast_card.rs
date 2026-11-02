@@ -29,7 +29,7 @@ use crate::{
         markup_body::MarkupBody,
         panel_frame::LayerFrameStyle,
         shell_layer_appearance::LayerAppearance,
-        text::{FontFaces, bar_text},
+        text::{FontFaces, panel_text},
     },
 };
 
@@ -317,7 +317,7 @@ impl<Routed> ToastCard<'_, Routed> {
         );
         let reltime_span = |visible: bool| {
             visible.then(|| {
-                bar_text(font, reltime.clone())
+                panel_text(font, reltime.clone())
                     .size(font.small_text_size_px)
                     .font(FontFaces::from(font).italic)
                     .color(text)
@@ -328,14 +328,14 @@ impl<Routed> ToastCard<'_, Routed> {
             .spacing(ROW_SPACING)
             .align_y(Alignment::Center)
             .push(
-                bar_text(font, data.summary.clone())
+                panel_text(font, data.summary.clone())
                     .color(text)
                     .font(FontFaces::from(font).bold)
                     .width(Length::Fill),
             );
         if let Some(app_name) = &data.app_name {
             title = title.push(
-                bar_text(font, app_name.clone())
+                panel_text(font, app_name.clone())
                     .size(font.small_text_size_px)
                     .font(FontFaces::from(font).italic)
                     .color(text),
@@ -480,7 +480,7 @@ impl<Routed> ToastCard<'_, Routed> {
     ) -> Element<'b, NotificationMessage> {
         let font = &self.config.theme.font;
         let radius = self.overlay_appearance.corner_radius_px;
-        button(bar_text(font, label))
+        button(panel_text(font, label))
             .padding(BUTTON_PADDING)
             .style(move |_, status| {
                 let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);

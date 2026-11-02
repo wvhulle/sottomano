@@ -189,7 +189,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
     fn handle_view<Outer: From<GroupEvent<M>> + 'a>(
         &self,
         config: &'a Config,
-        bar_position: Position,
+        panel_position: Position,
         clock: Clock,
     ) -> Element<'a, Outer> {
         let highest_alert_severity = self
@@ -214,17 +214,17 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         }
         .view(config, 0.0);
         PagerSlot::new(handle, indicator)
-            .view(config, bar_position)
+            .view(config, panel_position)
             .map(Outer::from)
     }
 
-    pub fn bar_views<Outer: From<GroupEvent<M>> + 'a>(
+    pub fn panel_views<Outer: From<GroupEvent<M>> + 'a>(
         self,
         config: &'a Config,
-        bar_position: Position,
+        panel_position: Position,
         clock: Clock,
     ) -> impl Iterator<Item = Option<Element<'a, Outer>>> + 'a {
-        let handle_slot = self.handle_view(config, bar_position, clock);
+        let handle_slot = self.handle_view(config, panel_position, clock);
         let promotion_severity = config.panel_bar.group_menu_promotion_severity;
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
@@ -233,12 +233,16 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 group_title: member.group_title(),
             };
             if group_menus.is_pinned(topic, group_entry) {
-                return vec![member.pinned_from(topic).view(config, bar_position, clock)];
+                return vec![
+                    member
+                        .pinned_from(topic)
+                        .view(config, panel_position, clock),
+                ];
             }
             if member.highest_alert_severity(clock) >= promotion_severity {
-                return vec![member.view(config, bar_position, clock)];
+                return vec![member.view(config, panel_position, clock)];
             }
-            member.pinned_item_views(group_menus, topic, config, bar_position, clock)
+            member.pinned_item_views(group_menus, topic, config, panel_position, clock)
         }))
     }
 

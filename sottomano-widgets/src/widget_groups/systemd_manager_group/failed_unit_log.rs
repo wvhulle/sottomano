@@ -182,7 +182,7 @@ fn failure_summary(unit: &FailedUnitInfo, now: DateTime<Utc>, locale: Locale) ->
 }
 
 impl GroupItemReading for FailedUnits {
-    fn visible_in_bar(&self) -> bool {
+    fn visible_on_panel(&self) -> bool {
         !self.is_empty()
     }
 
