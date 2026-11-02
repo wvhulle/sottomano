@@ -24,7 +24,7 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, InspectedRow, PanelPinOrigin, PressHints,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, PanelPinOrigin, PressHints,
         announcing_hoverable,
     },
     widget_groups::{
@@ -274,7 +274,7 @@ pub(crate) enum GroupItemPin {
 pub(crate) struct GroupMenuItemRow<'a, M> {
     pub name: Cow<'static, str>,
     pub pin: GroupItemPin,
-    pub inspected_row: InspectedRow,
+    pub inspected_target: HoverTarget,
     pub gestures: GroupItemGestures<M>,
     pub parts: MenuParts<'a, M>,
 }
@@ -457,6 +457,13 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             .unwrap_or_default()
     }
 
+    pub(crate) fn item_announcement(&self, target: &HoverTarget) -> Option<HoverAnnouncement> {
+        self.items
+            .iter()
+            .find(|item| item.inspected_target() == target)
+            .map(GroupItem::announcement)
+    }
+
     pub(crate) fn group_identity(&self) -> &WidgetGroupIdentity {
         &self.group_identity
     }
@@ -547,7 +554,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                 pin: item
                     .pinnable_key()
                     .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
-                inspected_row: item.inspected_row(),
+                inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),
                 parts: item.menu_parts(config, clock),
             })
@@ -858,5 +865,28 @@ mod tests {
             group.highest_alert_severity(Clock::real()),
             Severity::Warning
         );
+    }
+
+    #[test]
+    fn an_item_announcement_follows_the_current_press() {
+        let expansion = WidgetGroupExpansion::default();
+        let group_pressing = |description| {
+            WidgetGroupContent::expandable(
+                WidgetGroupFamily::Vpn,
+                &expansion,
+                |_| (),
+                [
+                    GroupItem::reading(AlertingReading, HoverTarget::Workspace(7))
+                        .on_press(description, ()),
+                ],
+            )
+        };
+        let left_hint = |description| {
+            group_pressing(description)
+                .item_announcement(&HoverTarget::Workspace(7))
+                .and_then(|announcement| announcement.press_hints.left)
+        };
+        assert_eq!(left_hint("connect the VPN"), Some("connect the VPN"));
+        assert_eq!(left_hint("disconnect the VPN"), Some("disconnect the VPN"));
     }
 }

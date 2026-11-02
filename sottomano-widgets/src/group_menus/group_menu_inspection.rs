@@ -1,5 +1,5 @@
 use crate::{
-    group_menus::group_menu_state::GroupMenuTopic, hover_cards::InspectedRow,
+    group_menus::group_menu_state::GroupMenuTopic, hover_cards::HoverTarget,
     widget_groups::widget_group_identity::WidgetGroupIdentity,
 };
 
@@ -21,7 +21,7 @@ pub(crate) struct OpenMenuGroup {
 enum RowInspection {
     #[default]
     Nothing,
-    Row(InspectedRow),
+    Row(HoverTarget),
 }
 
 impl GroupMenuInspection {
@@ -47,7 +47,7 @@ impl GroupMenuInspection {
     }
 
     #[must_use]
-    pub(crate) fn inspecting_row(self, menu: GroupMenuTopic, inspected: InspectedRow) -> Self {
+    pub(crate) fn inspecting_row(self, menu: GroupMenuTopic, inspected: HoverTarget) -> Self {
         match self {
             GroupMenuInspection::Group(open) if open.menu == menu => {
                 GroupMenuInspection::Group(Box::new(OpenMenuGroup {
@@ -66,7 +66,7 @@ impl GroupMenuInspection {
         }
     }
 
-    pub(crate) fn inspected_row(&self, menu: GroupMenuTopic) -> Option<&InspectedRow> {
+    pub(crate) fn inspected_target(&self, menu: GroupMenuTopic) -> Option<&HoverTarget> {
         match self {
             GroupMenuInspection::Group(open) if open.menu == menu => match &open.row {
                 RowInspection::Row(row) => Some(row),
@@ -82,7 +82,7 @@ mod tests {
     use super::GroupMenuInspection;
     use crate::{
         group_menus::group_menu_state::GroupMenuTopic,
-        hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow},
+        hover_cards::HoverTarget,
         widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     };
 
@@ -90,11 +90,8 @@ mod tests {
     const COMPUTE_GROUP: WidgetGroupIdentity =
         WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
 
-    fn inspected_workspace_row() -> InspectedRow {
-        InspectedRow {
-            target: HoverTarget::Workspace(7),
-            announcement: HoverAnnouncement::default(),
-        }
+    fn inspected_workspace_row() -> HoverTarget {
+        HoverTarget::Workspace(7)
     }
 
     #[test]
@@ -104,7 +101,7 @@ mod tests {
             .inspecting_row(GroupMenuTopic::Hardware, inspected_workspace_row())
             .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP);
         assert_eq!(
-            inspection.inspected_row(GroupMenuTopic::Hardware),
+            inspection.inspected_target(GroupMenuTopic::Hardware),
             Some(&inspected_workspace_row())
         );
     }
@@ -119,7 +116,7 @@ mod tests {
             inspection.open_group(GroupMenuTopic::Hardware),
             Some(&COMPUTE_GROUP)
         );
-        assert_eq!(inspection.inspected_row(GroupMenuTopic::Hardware), None);
+        assert_eq!(inspection.inspected_target(GroupMenuTopic::Hardware), None);
     }
 
     #[test]

@@ -11,7 +11,7 @@ use crate::{
         group_menu_inspection::GroupMenuInspection, group_source_demand::GroupSourceDemand,
         sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
     },
-    hover_cards::InspectedRow,
+    hover_cards::HoverTarget,
     widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -131,7 +131,7 @@ pub enum GroupMenuMessage {
     },
     InspectRow {
         menu: GroupMenuTopic,
-        row: InspectedRow,
+        target: HoverTarget,
     },
     Closed,
 }
@@ -220,8 +220,8 @@ impl GroupMenuState {
     }
 
     #[must_use]
-    pub fn inspected_row(&self, menu: GroupMenuTopic) -> Option<&InspectedRow> {
-        self.inspection.inspected_row(menu)
+    pub fn inspected_target(&self, menu: GroupMenuTopic) -> Option<&HoverTarget> {
+        self.inspection.inspected_target(menu)
     }
 
     pub fn update(&mut self, message: GroupMenuMessage) -> Task<GroupMenuMessage> {
@@ -254,8 +254,8 @@ impl GroupMenuState {
                 self.inspection = take(&mut self.inspection).revealing_group(menu, group_identity);
                 Task::none()
             }
-            GroupMenuMessage::InspectRow { menu, row } => {
-                self.inspection = take(&mut self.inspection).inspecting_row(menu, row);
+            GroupMenuMessage::InspectRow { menu, target } => {
+                self.inspection = take(&mut self.inspection).inspecting_row(menu, target);
                 Task::none()
             }
             GroupMenuMessage::Closed => {

@@ -25,8 +25,8 @@ use crate::{
         menu_rows::quantity_table::{QuantityTableColumn, quantity_table},
     },
     hover_cards::{
-        HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, PressHints,
-        announcing_hoverable, hover_card_body::hover_card_source_delivery::HoverCard,
+        HoverAnnouncement, HoverTarget, PopupMessage, PressHints, announcing_hoverable,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
     },
     widget_groups::{
@@ -91,10 +91,10 @@ impl<M> GroupMenuMessenger<'_, M> {
         })
     }
 
-    pub(crate) fn inspect_row(&self, row: InspectedRow) -> GroupEvent<M> {
+    pub(crate) fn inspect_row(&self, target: HoverTarget) -> GroupEvent<M> {
         self.sent(GroupMenuMessage::InspectRow {
             menu: self.topic,
-            row,
+            target,
         })
     }
 }
@@ -155,6 +155,13 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             },
             groups: groups.into_iter().collect(),
         }
+    }
+
+    #[must_use]
+    pub fn announcement_of(&self, target: &HoverTarget) -> Option<HoverAnnouncement> {
+        self.groups
+            .iter()
+            .find_map(|group| group.item_announcement(target))
     }
 
     #[must_use]

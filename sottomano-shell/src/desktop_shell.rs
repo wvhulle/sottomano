@@ -466,10 +466,12 @@ impl DesktopShell {
         let inspected_hover_card = self
             .widget_groups
             .group_menus
-            .inspected_row(*topic)
-            .and_then(|row| {
-                self.hover_card_for(&row.target)
-                    .map(|hover_card| hover_card.with_announcement(row.announcement.clone()))
+            .inspected_target(*topic)
+            .and_then(|target| {
+                self.hover_card_for(target).map(|hover_card| {
+                    hover_card
+                        .with_announcement(group_menu.announcement_of(target).unwrap_or_default())
+                })
             })
             .unwrap_or_else(HoverCard::empty);
         group_menu.surfaces(
