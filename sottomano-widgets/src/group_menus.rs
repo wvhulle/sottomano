@@ -1,3 +1,4 @@
+pub mod accordion_layout;
 pub mod cascading_layout;
 pub mod group_menu_inspection;
 pub mod group_menu_presentation;

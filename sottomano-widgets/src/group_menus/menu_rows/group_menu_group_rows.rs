@@ -6,8 +6,9 @@ use crate::{
     group_menus::{
         cascading_layout::{
             cascade_row::CascadeDirection, cascade_satellite_panels::CascadeSatellitePanels,
+            notched_panel::PanelGrowth,
         },
-        group_menu_presentation::{GroupMenuPresentation, HoverCardPlacement},
+        group_menu_presentation::{GroupMenuLayout, GroupMenuPresentation, HoverCardPlacement},
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
         menu_rows::menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, pressable_menu_row},
@@ -59,6 +60,14 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
     pub cascade_satellite_panels: &'p CascadeSatellitePanels,
 }
 
+const fn accordion_caret(open: bool, growth: PanelGrowth) -> Phosphor {
+    match (open, growth) {
+        (false, _) => Phosphor::CaretRight(Weight::Regular),
+        (true, PanelGrowth::Downward) => Phosphor::CaretDown(Weight::Regular),
+        (true, PanelGrowth::Upward) => Phosphor::CaretUp(Weight::Regular),
+    }
+}
+
 pub(crate) fn group_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     entry: GroupMenuGroupRow<'a, M>,
@@ -81,8 +90,21 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     } else {
         secondary_text_color
     };
-    let content = match layout.direction {
-        CascadeDirection::Rightward => MenuRowContent {
+    let content = match (layout.presentation.layout, layout.direction) {
+        (GroupMenuLayout::Accordion, _) => MenuRowContent {
+            leading: Vec::new(),
+            parts: entry.face,
+            name: group_title.to_string().into(),
+            trailing: vec![
+                pin,
+                IconGlyph::from(accordion_caret(
+                    look.highlighted,
+                    layout.cascade_satellite_panels.growth,
+                ))
+                .view(icon_size, caret_color),
+            ],
+        },
+        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => MenuRowContent {
             leading: Vec::new(),
             parts: entry.face,
             name: group_title.to_string().into(),
@@ -91,7 +113,7 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
                 IconGlyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
             ],
         },
-        CascadeDirection::Leftward => MenuRowContent {
+        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => MenuRowContent {
             leading: vec![
                 IconGlyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
             ],

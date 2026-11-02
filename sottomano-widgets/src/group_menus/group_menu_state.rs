@@ -142,6 +142,10 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         target: HoverTarget,
     },
+    MenuScrolled {
+        menu: GroupMenuTopic,
+        scrolled_px: f32,
+    },
     PresentationLoaded(GroupMenuPresentation),
     SwitchPresentation(GroupMenuPresentation),
     Closed,
@@ -238,6 +242,11 @@ impl GroupMenuState {
     }
 
     #[must_use]
+    pub fn scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
+        self.inspection.scrolled_px(menu)
+    }
+
+    #[must_use]
     pub fn open_groups(&self, menu: GroupMenuTopic) -> &[WidgetGroupIdentity] {
         self.inspection.open_groups(menu)
     }
@@ -296,6 +305,10 @@ impl GroupMenuState {
             }
             GroupMenuMessage::ToggleRowCard { menu, target } => {
                 self.inspection = take(&mut self.inspection).toggling_row_card(menu, target);
+                Task::none()
+            }
+            GroupMenuMessage::MenuScrolled { menu, scrolled_px } => {
+                self.inspection = take(&mut self.inspection).scrolled_to(menu, scrolled_px);
                 Task::none()
             }
             GroupMenuMessage::PresentationLoaded(presentation) => {

@@ -16,6 +16,7 @@ pub(crate) struct OpenGroupMenuRows {
     menu: GroupMenuTopic,
     open_groups: Vec<WidgetGroupIdentity>,
     row: RowInspection,
+    scrolled_px: f32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -32,18 +33,24 @@ impl GroupMenuInspection {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
     ) -> Self {
-        let row = match self {
+        let (row, scrolled_px) = match self {
             GroupMenuInspection::Open(open)
                 if open.menu == menu && open.open_groups.contains(&group_identity) =>
             {
-                open.row
+                (open.row, open.scrolled_px)
             }
-            GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => RowInspection::Nothing,
+            GroupMenuInspection::Open(open) if open.menu == menu => {
+                (RowInspection::Nothing, open.scrolled_px)
+            }
+            GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => {
+                (RowInspection::Nothing, 0.0)
+            }
         };
         GroupMenuInspection::Open(Box::new(OpenGroupMenuRows {
             menu,
             open_groups: vec![group_identity],
             row,
+            scrolled_px,
         }))
     }
 
@@ -54,10 +61,12 @@ impl GroupMenuInspection {
         group_identity: WidgetGroupIdentity,
         open_limit: OpenGroupLimit,
     ) -> Self {
-        let (mut open_groups, row) = match self {
-            GroupMenuInspection::Open(open) if open.menu == menu => (open.open_groups, open.row),
+        let (mut open_groups, row, scrolled_px) = match self {
+            GroupMenuInspection::Open(open) if open.menu == menu => {
+                (open.open_groups, open.row, open.scrolled_px)
+            }
             GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => {
-                (Vec::new(), RowInspection::Nothing)
+                (Vec::new(), RowInspection::Nothing, 0.0)
             }
         };
         if open_groups.contains(&group_identity) {
@@ -66,6 +75,7 @@ impl GroupMenuInspection {
                 menu,
                 open_groups,
                 row: RowInspection::Nothing,
+                scrolled_px,
             }));
         }
         match open_limit {
@@ -75,6 +85,7 @@ impl GroupMenuInspection {
                     menu,
                     open_groups,
                     row: RowInspection::Nothing,
+                    scrolled_px,
                 }))
             }
             OpenGroupLimit::Several => {
@@ -83,6 +94,7 @@ impl GroupMenuInspection {
                     menu,
                     open_groups,
                     row,
+                    scrolled_px,
                 }))
             }
         }
@@ -124,6 +136,33 @@ impl GroupMenuInspection {
                 GroupMenuInspection::Open(open)
             }
             (unchanged, _) => unchanged,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn scrolled_to(self, menu: GroupMenuTopic, scrolled_px: f32) -> Self {
+        match self {
+            GroupMenuInspection::Open(open) if open.menu == menu => {
+                GroupMenuInspection::Open(Box::new(OpenGroupMenuRows {
+                    row: RowInspection::Nothing,
+                    scrolled_px,
+                    ..*open
+                }))
+            }
+            GroupMenuInspection::Closed => GroupMenuInspection::Open(Box::new(OpenGroupMenuRows {
+                menu,
+                open_groups: Vec::new(),
+                row: RowInspection::Nothing,
+                scrolled_px,
+            })),
+            unrelated @ GroupMenuInspection::Open(_) => unrelated,
+        }
+    }
+
+    pub(crate) fn scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
+        match self {
+            GroupMenuInspection::Open(open) if open.menu == menu => open.scrolled_px,
+            GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => 0.0,
         }
     }
 

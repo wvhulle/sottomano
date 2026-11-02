@@ -5,6 +5,7 @@ use sottomano_config::Config;
 
 use crate::{
     group_menus::{
+        accordion_layout::menu_rows_viewport::menu_rows_viewport,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
@@ -37,6 +38,8 @@ pub(crate) fn cascading_columns<
     if entries.is_empty() {
         return None;
     }
+    let scrolled_px = layout.group_menus.scrolled_px(layout.menu.topic);
+    let scroll_message = layout.menu.scroll_message();
     let open_identity = layout.group_menus.open_groups(layout.menu.topic).first();
     let open_group = open_identity
         .and_then(|identity| {
@@ -60,7 +63,11 @@ pub(crate) fn cascading_columns<
         group_row(layout, entry, look)
     });
     Some(GroupMenuCascadeSurfaces {
-        primary: Element::from(uniform_width_column(group_rows)).map(Outer::from),
+        primary: menu_rows_viewport(
+            Element::from(uniform_width_column(group_rows)).map(Outer::from),
+            scrolled_px,
+            move |scrolled_px| Outer::from(scroll_message(scrolled_px)),
+        ),
         satellites: open_group
             .map(|open| open_group_satellites(layout, open, card))
             .unwrap_or_default(),
@@ -76,6 +83,7 @@ fn open_group_satellites<
     open: OpenGroup<'a, M>,
     card: &InspectionCard<'_, 'a>,
 ) -> Vec<Element<'a, Outer>> {
+    let scrolled_px = layout.group_menus.scrolled_px(layout.menu.topic);
     let OpenGroup {
         position: open_position,
         group_identity,
@@ -97,7 +105,7 @@ fn open_group_satellites<
     let item_satellite = layout.cascade_satellite_panels.beside_row(
         layout.config,
         item_list,
-        cascade_offset(layout.config, open_position),
+        cascade_offset(layout.config, open_position) - scrolled_px,
     );
     let card_satellite = card_position.and_then(|position| {
         card.view(layout.config).map(|card_view| {
@@ -106,7 +114,7 @@ fn open_group_satellites<
                 open_position,
                 position,
                 item_count,
-            );
+            ) - scrolled_px;
             layout.cascade_satellite_panels.beside_row(
                 layout.config,
                 card_view.map(Outer::from),
