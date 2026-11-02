@@ -6,7 +6,9 @@ use crate::{
     group_items::toggle_control::{IconToggle, SwitchPresses},
     widget_groups::niri_window_group::{
         NiriWindowMessage,
-        niri_kdl_rules::{HeatedWindow, NiriRulesFile, NiriStyling, SwitchHeat},
+        niri_kdl_rules::{
+            HeatedWindow, NiriRulesFile, NiriStyling, RulesSaveError, SaveStep, SwitchHeat,
+        },
     },
     widgets::phosphor::{Phosphor, Weight},
 };
@@ -56,7 +58,7 @@ impl SwitchHeatBorders {
         styling: NiriStyling,
         palette: &Palette,
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
-    ) -> Task<NiriWindowMessage> {
+    ) -> Result<SaveStep, RulesSaveError> {
         let switch_heat = if self.shown {
             SwitchHeat::Shown {
                 focus_ring_color: format!("{:x}", palette.primary.to_rgba8()),
@@ -66,9 +68,7 @@ impl SwitchHeatBorders {
         } else {
             SwitchHeat::Hidden
         };
-        rules_file
-            .reheat(styling, switch_heat)
-            .map_or_else(Task::none, |written| Task::future(written).discard())
+        rules_file.reheat(styling, switch_heat)
     }
 }
 

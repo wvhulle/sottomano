@@ -1,6 +1,8 @@
 pub mod niri_kdl_rules;
 mod switch_heat_borders;
 
+use std::io;
+
 use iced::Task;
 use sottomano_config::{Config, severity::Severity};
 
@@ -22,7 +24,8 @@ use crate::{
     widget_groups::{
         niri_window_group::{
             niri_kdl_rules::{
-                AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, StoredRules,
+                AdoptedRules, HeatedWindow, NiriLayout, NiriRulesFile, NiriStyling, RulesSaveError,
+                SaveStep, StoredRules,
             },
             switch_heat_borders::SwitchHeatBorders,
         },
@@ -73,11 +76,39 @@ pub enum NiriWindowMessage {
     ToggleSwitchHeat,
     SwitchHeatLoaded(bool),
     RulesLoaded(StoredRules),
+    RulesWritten(Result<(), io::ErrorKind>),
+}
+
+#[derive(Debug, Clone, Copy)]
+enum CommittedSlider {
+    CornerRadius(f32),
+    Gaps(f32),
+}
+
+impl CommittedSlider {
+    fn persisted(self, ok: bool) -> NiriWindowMessage {
+        match self {
+            Self::CornerRadius(value) => {
+                NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
+            }
+            Self::Gaps(value) => NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok }),
+        }
+    }
+}
+
+fn report_unsaved_rules(save_error: &RulesSaveError) {
+    match save_error {
+        RulesSaveError::Rendering(_) => tracing::warn!("niri rules: {save_error}"),
+        RulesSaveError::NotYetRead | RulesSaveError::Unreadable(_) => {
+            tracing::debug!("niri rules: {save_error}");
+        }
+    }
 }
 
 pub struct NiriWindowGroup {
     expansion: WidgetGroupExpansion,
     rules_file: NiriRulesFile,
+    sliders_awaiting_write: Vec<CommittedSlider>,
     xray: bool,
     corner_radius: SliderControl,
     gaps: SliderControl,
@@ -91,6 +122,7 @@ impl NiriWindowGroup {
         let mut niri_window_group = Self {
             expansion: WidgetGroupExpansion::default(),
             rules_file,
+            sliders_awaiting_write: Vec::new(),
             xray: defaults.xray,
             corner_radius: SliderControl::new(
                 "Window corner radius",
@@ -153,12 +185,13 @@ impl NiriWindowGroup {
         heated_windows: impl FnOnce() -> Vec<HeatedWindow>,
     ) -> Task<NiriWindowMessage> {
         let styling = self.requested_styling();
-        self.switch_heat.reheat(
+        let saved = self.switch_heat.reheat(
             &mut self.rules_file,
             styling,
             &config.theme.palette,
             heated_windows,
-        )
+        );
+        self.follow_save(saved)
     }
 
     fn adopt_styling(&mut self, styling: NiriStyling) {
@@ -171,18 +204,67 @@ impl NiriWindowGroup {
     }
 
     fn adopt_rules(&mut self, stored: StoredRules) -> Task<NiriWindowMessage> {
-        let AdoptedRules { styling, rewrite } =
+        let AdoptedRules { styling, saved } =
             self.rules_file.adopt(stored, self.requested_styling());
         self.adopt_styling(styling);
-        Task::future(rewrite).discard()
+        self.follow_save(saved)
     }
 
-    fn persist_styling(
-        &mut self,
-        on_persisted: impl FnOnce(bool) -> NiriWindowMessage + Send + 'static,
-    ) -> Task<NiriWindowMessage> {
+    fn save_styling(&mut self) -> Task<NiriWindowMessage> {
         let styling = self.requested_styling();
-        Task::perform(self.rules_file.write_styling(styling), on_persisted)
+        let saved = self.rules_file.save(styling);
+        self.follow_save(saved)
+    }
+
+    fn save_committed_slider(&mut self, committed: CommittedSlider) -> Task<NiriWindowMessage> {
+        self.sliders_awaiting_write.push(committed);
+        self.save_styling()
+    }
+
+    fn follow_save(
+        &mut self,
+        saved: Result<SaveStep, RulesSaveError>,
+    ) -> Task<NiriWindowMessage> {
+        match saved {
+            Ok(SaveStep::StartWrite(rules_write)) => {
+                Task::perform(rules_write.run(), NiriWindowMessage::RulesWritten)
+            }
+            Ok(SaveStep::WriteInFlight) => Task::none(),
+            Ok(SaveStep::NothingInFlight) => self.acknowledge_sliders(true),
+            Err(save_error) => {
+                report_unsaved_rules(&save_error);
+                self.acknowledge_sliders(false)
+            }
+        }
+    }
+
+    fn finish_rules_write(
+        &mut self,
+        written: Result<(), io::ErrorKind>,
+    ) -> Task<NiriWindowMessage> {
+        if let Err(kind) = written {
+            tracing::warn!(
+                "niri rules: writing {} failed: {kind}",
+                self.rules_file.path().display()
+            );
+        }
+        match self.rules_file.finish_write(written) {
+            SaveStep::StartWrite(rules_write) => {
+                Task::perform(rules_write.run(), NiriWindowMessage::RulesWritten)
+            }
+            SaveStep::WriteInFlight | SaveStep::NothingInFlight => {
+                self.acknowledge_sliders(written.is_ok())
+            }
+        }
+    }
+
+    fn acknowledge_sliders(&mut self, ok: bool) -> Task<NiriWindowMessage> {
+        Task::batch(
+            self.sliders_awaiting_write
+                .drain(..)
+                .map(|committed| Task::done(committed.persisted(ok)))
+                .collect::<Vec<_>>(),
+        )
     }
 
     #[must_use]
@@ -232,22 +314,17 @@ impl NiriWindowGroup {
                 let SliderAction::Commit(value) = self.corner_radius.update(control) else {
                     return Task::none();
                 };
-                self.persist_styling(move |ok| {
-                    NiriWindowMessage::CornerRadius(ControlMessage::Persisted { value, ok })
-                })
+                self.save_committed_slider(CommittedSlider::CornerRadius(value))
             }
             NiriWindowMessage::Gaps(control) => {
                 let SliderAction::Commit(value) = self.gaps.update(control) else {
                     return Task::none();
                 };
-                self.persist_styling(move |ok| {
-                    NiriWindowMessage::Gaps(ControlMessage::Persisted { value, ok })
-                })
+                self.save_committed_slider(CommittedSlider::Gaps(value))
             }
             NiriWindowMessage::ToggleXray => {
                 self.xray = !self.xray;
-                let styling = self.requested_styling();
-                Task::future(self.rules_file.write_styling(styling)).discard()
+                self.save_styling()
             }
             NiriWindowMessage::ToggleSwitchHeat => self.switch_heat.flip(),
             NiriWindowMessage::SwitchHeatLoaded(shown) => {
@@ -255,6 +332,7 @@ impl NiriWindowGroup {
                 Task::none()
             }
             NiriWindowMessage::RulesLoaded(stored) => self.adopt_rules(stored),
+            NiriWindowMessage::RulesWritten(written) => self.finish_rules_write(written),
         }
     }
 
