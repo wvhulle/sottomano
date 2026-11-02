@@ -25,6 +25,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::widget_group_content::{
         WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        WidgetGroupTitle,
     },
     widgets::latest_snapshot::LatestSnapshot,
 };
@@ -50,6 +51,10 @@ struct PhysicalDiskReadings {
     activity: LatestSnapshot<DiskActivity>,
     drive_health: LatestSnapshot<DriveHealth>,
     expansion: WidgetGroupExpansion,
+}
+
+fn disk_group_title(disk: &KernelDevice) -> WidgetGroupTitle {
+    WidgetGroupTitle::Named(format!("{} {}", PhysicalDriveGroup::TITLE, disk.name).into())
 }
 
 #[derive(Default)]
@@ -265,7 +270,8 @@ impl PhysicalDriveGroup {
                     .group_item(DriveTarget::Read(disk.name.clone())),
             )
             .chain(transfer_items);
-        Self::expandable_group(
+        Self::expandable_group_titled(
+            disk_group_title(disk),
             &readings.expansion,
             move |expansion| DriveMessage::DiskExpansion {
                 disk: disk.clone(),
@@ -289,7 +295,14 @@ impl PhysicalDriveGroup {
                     .iter()
                     .map(|(disk, readings)| self.disk_group(disk, readings)),
             )
-            .map(WidgetGroupContent::sharing_title_row)
+            .collect()
+    }
+
+    #[must_use]
+    pub fn group_titles(&self) -> Vec<WidgetGroupTitle> {
+        [WidgetGroupTitle::fixed(Self::TITLE)]
+            .into_iter()
+            .chain(self.disks.keys().map(disk_group_title))
             .collect()
     }
 
@@ -321,5 +334,31 @@ impl PhysicalDriveGroup {
             }
             DriveTarget::DriveHealth(name) => readings_of(name)?.drive_health.hover_card(clock),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_sources::disk_storage::block_filesystem_mounts::KernelDevice;
+
+    use super::{PhysicalDriveGroup, WidgetGroup, disk_group_title};
+
+    fn disk_named(name: &str) -> KernelDevice {
+        KernelDevice {
+            name: name.to_owned(),
+        }
+    }
+
+    #[test]
+    fn each_disk_gets_its_own_row_title() {
+        let first_disk_title = disk_group_title(&disk_named("nvme0n1")).to_string();
+        assert_eq!(
+            first_disk_title,
+            format!("{} nvme0n1", PhysicalDriveGroup::TITLE)
+        );
+        assert_ne!(
+            disk_group_title(&disk_named("nvme0n1")),
+            disk_group_title(&disk_named("sda"))
+        );
     }
 }
