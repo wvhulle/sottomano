@@ -1,10 +1,10 @@
 use std::mem::take;
 
-use iced::{Element, border::Radius};
+use iced::{Element, border::Radius, widget::mouse_area};
 use sottomano_config::Config;
 
 use crate::{
-    group_items::group_item::{MenuItemAction, MenuParts},
+    group_items::{group_item::MenuParts, group_item_gestures::GroupItemGesture},
     group_menus::{
         cascading_layout::{
             cascade_row::CascadeDirection, cascade_satellite_panels::CascadeSatellitePanels,
@@ -128,12 +128,12 @@ fn open_group_satellites<
     let card_position = inspected_target.and_then(|target| {
         items
             .iter()
-            .position(|item| item.action.inspected_target() == target)
+            .position(|item| item.inspected_row.target == *target)
     });
     let item_count = items.len();
     let item_corners = layout.cascade_satellite_panels.frame_corners;
     let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
-        inspected_target.is_some_and(|target| item.action.inspected_target() == target)
+        inspected_target.is_some_and(|target| item.inspected_row.target == *target)
     };
     let item_list =
         item_menu(layout, &group_identity, items, &is_inspected, item_corners).map(Outer::from);
@@ -239,7 +239,7 @@ fn item_row<'a, M: Clone + 'a>(
     item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
-    let marked_target = item.action.inspected_target().clone();
+    let marked_target = item.inspected_row.target.clone();
     marked_by_hover_target(unmarked_item_row(layout, group, item, look), marked_target)
 }
 
@@ -267,22 +267,17 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
         name: item.name,
         trailing: item_pin.into_iter().collect(),
     };
-    let config = layout.config;
-    match item.action {
-        MenuItemAction::Inspect(inspected_row) => {
-            let inspect = layout.menu.inspect_row(inspected_row);
-            hovered_menu_row(config, content, look, inspect.clone(), inspect)
-        }
-        MenuItemAction::PressAndInspect {
-            press,
-            inspected_row,
-        } => hovered_menu_row(
-            config,
-            content,
-            look,
-            GroupEvent::Group(press),
-            layout.menu.inspect_row(inspected_row),
-        ),
+    let inspect = layout.menu.inspect_row(item.inspected_row);
+    let left_press = match item.gestures.left {
+        GroupItemGesture::Performs { message, .. } => GroupEvent::Group(message),
+        GroupItemGesture::Inert => inspect.clone(),
+    };
+    let row = hovered_menu_row(layout.config, content, look, left_press, inspect);
+    match item.gestures.right {
+        GroupItemGesture::Performs { message, .. } => mouse_area(row)
+            .on_right_press(GroupEvent::Group(message))
+            .into(),
+        GroupItemGesture::Inert => row,
     }
 }
 

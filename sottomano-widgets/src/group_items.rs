@@ -2,6 +2,7 @@ pub mod aligned_quantity;
 pub mod device_setting;
 pub mod gauge;
 pub mod group_item;
+pub mod group_item_gestures;
 pub mod group_item_reading;
 pub mod offline_internet_reading;
 pub mod reading_display_state;
