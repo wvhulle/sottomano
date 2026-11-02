@@ -6913,6 +6913,7 @@ dependencies = [
  "sottomano-config",
  "sottomano-icon-sets",
  "sottomano-sources",
+ "strum",
  "system-tray",
  "tokio",
  "tracing",

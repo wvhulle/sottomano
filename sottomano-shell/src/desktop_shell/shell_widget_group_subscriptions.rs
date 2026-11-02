@@ -6,32 +6,17 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     background_work::snapshot_subscription,
-    group_menus::{group_menu_state::GroupMenuTopic, group_source_demand::GroupSourceDemand},
+    group_menus::group_source_demand::GroupSourceDemand,
     widget_groups::{
-        audio_group::AudioGroup,
-        bluetooth_adapters_group::BluetoothAdaptersGroup,
-        compute_group::ComputeGroup,
-        copilot_usage_group::CopilotUsageGroup,
-        dark_mode_group::DarkModeGroup,
-        ethernet_ports_group::PORT_TITLES,
-        gamepad_group::{GamepadGroup, GamepadWindowClaim},
-        journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup,
-        memory_board_group::MemoryBoardGroup,
-        mobile_modems_group::MobileModemsGroup,
-        monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup,
-        power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup,
-        reachability_group::ReachabilityGroup,
-        session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup,
-        tray_group::TrayGroup,
-        vpn_group::VpnGroup,
-        weather_group::WeatherGroup,
-        widget_group_content::{WidgetGroup, WidgetGroupTitle},
-        wifi_adapters_group::ADAPTER_TITLES,
-        window_group::WindowGroup,
+        audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
+        copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
+        gamepad_group::GamepadWindowClaim, journal_events_group::JournalEventsGroup,
+        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
+        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
+        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
+        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
+        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
+        widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
     },
 };
 
@@ -49,10 +34,7 @@ impl ShellWidgetGroups {
             self.weather_group
                 .subscription(
                     buses,
-                    self.group_menus.source_demand(
-                        GroupMenuTopic::Agenda,
-                        &[WidgetGroupTitle::fixed(WeatherGroup::TITLE)],
-                    ),
+                    self.group_menus.source_demand(WidgetGroupFamily::Weather),
                 )
                 .map(Message::Weather),
             self.wallpaper_group
@@ -64,10 +46,7 @@ impl ShellWidgetGroups {
             self.compute_group
                 .subscription(
                     &config.widget_groups.compute.temperature_sensors,
-                    self.group_menus.source_demand(
-                        GroupMenuTopic::Hardware,
-                        &[WidgetGroupTitle::fixed(ComputeGroup::TITLE)],
-                    ),
+                    self.group_menus.source_demand(WidgetGroupFamily::Compute),
                 )
                 .map(Message::Compute),
             MemoryBoardGroup::subscription().map(Message::MemoryBoard),
@@ -78,10 +57,8 @@ impl ShellWidgetGroups {
             self.physical_drive_group
                 .subscription(
                     &config.widget_groups.physical_drive.temperature_sensors,
-                    self.group_menus.source_demand(
-                        GroupMenuTopic::Hardware,
-                        &self.physical_drive_group.group_titles(),
-                    ),
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::PhysicalDrive),
                 )
                 .map(Message::Drive),
             self.clock_group
@@ -123,51 +100,42 @@ impl ShellWidgetGroups {
                 .subscription(
                     &config.widget_groups.reachability,
                     buses,
-                    self.group_menus.source_demand(
-                        GroupMenuTopic::Network,
-                        &[WidgetGroupTitle::fixed(ReachabilityGroup::TITLE)],
-                    ),
+                    self.group_menus
+                        .source_demand(WidgetGroupFamily::Reachability),
                 )
                 .map(Message::Reachability),
             self.vpn_group
                 .subscription(
                     buses,
-                    &self.group_menus.source_demand(
-                        GroupMenuTopic::Network,
-                        &[WidgetGroupTitle::fixed(VpnGroup::TITLE)],
-                    ),
+                    &self.group_menus.source_demand(WidgetGroupFamily::Vpn),
                 )
                 .map(Message::Vpn),
             self.wifi_adapters_group
                 .subscription(
                     buses,
                     self.group_menus
-                        .source_demand(GroupMenuTopic::Network, &ADAPTER_TITLES.sibling_titles()),
+                        .source_demand(WidgetGroupFamily::WifiAdapters),
                 )
                 .map(Message::WifiAdapters),
             MobileModemsGroup::subscription(
                 buses,
-                &self.group_menus.source_demand(
-                    GroupMenuTopic::Network,
-                    &WidgetGroupTitle::numbered_siblings(MobileModemsGroup::TITLE),
-                ),
+                &self
+                    .group_menus
+                    .source_demand(WidgetGroupFamily::MobileModems),
             )
             .map(Message::MobileModems),
             self.ethernet_ports_group
                 .subscription(
                     buses,
                     self.group_menus
-                        .source_demand(GroupMenuTopic::Network, &PORT_TITLES.sibling_titles()),
+                        .source_demand(WidgetGroupFamily::EthernetPorts),
                 )
                 .map(Message::EthernetPorts),
             BluetoothAdaptersGroup::subscription(buses).map(Message::BluetoothAdapters),
             self.gamepad_group
                 .network_subscription(
                     buses,
-                    self.group_menus.source_demand(
-                        GroupMenuTopic::Media,
-                        &[WidgetGroupTitle::fixed(GamepadGroup::TITLE)],
-                    ),
+                    self.group_menus.source_demand(WidgetGroupFamily::Gamepad),
                 )
                 .map(Message::Gamepad),
             MonitorGroup::subscription(buses).map(Message::Monitor),
@@ -175,10 +143,7 @@ impl ShellWidgetGroups {
                 .subscription(
                     buses,
                     &config.widget_groups.media.lyrics,
-                    &self.group_menus.source_demand(
-                        GroupMenuTopic::Media,
-                        &self.media_group.player_group_titles(),
-                    ),
+                    &self.group_menus.source_demand(WidgetGroupFamily::Media),
                 )
                 .map(Message::Media),
             DarkModeGroup::resume_subscription(buses).map(Message::DarkMode),

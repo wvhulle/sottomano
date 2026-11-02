@@ -3,7 +3,7 @@ use std::time::Instant;
 use iced::Task;
 use sottomano_widgets::{
     hover_cards::{
-        GroupHandle, HoverCardMessage, HoverTarget,
+        HoverCardMessage, HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
@@ -138,7 +138,7 @@ impl DesktopShell {
                 ))
             }
             HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::hover_card_for(app_id)),
-            HoverTarget::GroupHandle(_) => Some(HoverCard::sourced(
+            HoverTarget::GroupMenu(_) | HoverTarget::GroupFace(_) => Some(HoverCard::sourced(
                 HoverCardBody::sections([]),
                 DeliveryTiming::LivePush,
             )),
@@ -341,7 +341,8 @@ impl DesktopShell {
             | HoverTarget::OverlaySettings(_)
             | HoverTarget::Notification(_)
             | HoverTarget::QuickLaunch(_)
-            | HoverTarget::GroupHandle(_)
+            | HoverTarget::GroupMenu(_)
+            | HoverTarget::GroupFace(_)
             | HoverTarget::Session(_)
             | HoverTarget::Tray(_)
             | HoverTarget::Window(_)
@@ -354,7 +355,7 @@ impl DesktopShell {
     pub(super) fn hovered_reading_target(&self) -> Option<&HoverTarget> {
         let open_target = self.hover_card.target();
         let inspected_in_menu = match open_target {
-            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind))) => self
+            Some(HoverTarget::GroupMenu(kind)) => self
                 .widget_groups
                 .group_menus
                 .inspected_row(*kind)

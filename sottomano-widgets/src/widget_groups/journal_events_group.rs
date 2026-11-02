@@ -1,6 +1,6 @@
 use iced::{Subscription, Task};
 
-use crate::widgets::phosphor::Weight;
+use crate::{widget_groups::widget_group_identity::WidgetGroupFamily, widgets::phosphor::Weight};
 
 mod coredump_log;
 mod kernel_error_log;
@@ -31,7 +31,7 @@ use crate::{
     widget_groups::{
         terminal_command::TerminalCommand,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
     },
     widgets::{
@@ -80,10 +80,6 @@ pub enum JournalEventsMessage {
     OomKills(SnapshotDelivery<Vec<OomKillEntry>>),
     OpenLog(TerminalCommand),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for JournalEventsGroup {
-    const TITLE: &'static str = "Journal";
 }
 
 impl JournalEventsGroup {
@@ -147,7 +143,8 @@ impl JournalEventsGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, JournalEventsMessage> {
         let has_kinds = self.kinds().iter().any(Option::is_some);
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::JournalEvents,
             &self.expansion,
             JournalEventsMessage::Expansion,
             [

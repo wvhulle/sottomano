@@ -39,9 +39,9 @@ use crate::{
         },
         interface_group_titles::AttachmentTitles,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupTitle,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -102,10 +102,6 @@ pub struct WifiAdaptersGroup {
     wifi_details: HoverFetchedSnapshot<WifiDetails>,
     gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
     sessions: BTreeMap<String, AdapterSession>,
-}
-
-impl WidgetGroup for WifiAdaptersGroup {
-    const TITLE: &'static str = "Wi-Fi";
 }
 
 impl WifiAdaptersGroup {
@@ -363,7 +359,8 @@ impl WifiAdaptersGroup {
         let radios_item = GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios)
             .on_press(radios_press_does, WifiAdaptersMessage::ToggleAllRadios);
         let adapter_device = adapter.device.clone();
-        Some(Self::expandable_group_titled(
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),
             group_title,
             &session.expansion,
             move |expansion| WifiAdaptersMessage::Expansion {

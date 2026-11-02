@@ -23,12 +23,14 @@ use crate::{
         unit_switch::{UnitSwitch, UnitSwitchMessage},
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::LatestSnapshot,
@@ -70,10 +72,6 @@ pub enum ColorTemperatureMessage {
     Dim(ControlMessage),
     Warmth(ControlMessage),
     Auto(UnitSwitchMessage),
-}
-
-impl WidgetGroup for ColorTemperatureGroup {
-    const TITLE: &'static str = "Color temperature";
 }
 
 impl ColorTemperatureGroup {
@@ -239,7 +237,8 @@ impl ColorTemperatureGroup {
         config: &'a Config,
     ) -> WidgetGroupContent<'a, ColorTemperatureMessage> {
         let gamma_available = self.gamma.get().is_some();
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::ColorTemperature,
             &self.expansion,
             ColorTemperatureMessage::Expansion,
             [
@@ -260,7 +259,6 @@ impl ColorTemperatureGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ThermometerHot(Weight::Regular).into(),
-            handle: GroupHandle::ColorTemperature,
         })
         .forwards_scroll(gamma_available.then_some("change the screen warmth"))
     }

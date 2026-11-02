@@ -22,12 +22,14 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::LatestSnapshot,
@@ -75,10 +77,6 @@ pub enum OpenRouterCreditMessage {
     StrictBudget(SnapshotDelivery<OpenRouterStrictBudget>),
     ModelRankings(SnapshotDelivery<OpenRouterModelRankings>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for OpenRouterCreditGroup {
-    const TITLE: &'static str = "OpenRouter credit";
 }
 
 impl OpenRouterCreditGroup {
@@ -235,7 +233,8 @@ impl OpenRouterCreditGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, OpenRouterCreditMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::OpenRouterCredit,
             &self.expansion,
             OpenRouterCreditMessage::Expansion,
             [
@@ -264,7 +263,6 @@ impl OpenRouterCreditGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::OpenRouter.into(),
-            handle: GroupHandle::OpenRouterCredit,
         })
     }
 }

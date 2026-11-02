@@ -36,9 +36,9 @@ use crate::{
         },
         interface_group_titles::AttachmentTitles,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupTitle,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -108,10 +108,6 @@ pub struct EthernetPortsGroup {
     ethernet_details: HoverFetchedSnapshot<EthernetDetails>,
     gateway_latencies: LatestSnapshot<GatewayLatencies, HidesFetchFailures>,
     sessions: BTreeMap<String, PortSession>,
-}
-
-impl WidgetGroup for EthernetPortsGroup {
-    const TITLE: &'static str = "Ethernet";
 }
 
 impl EthernetPortsGroup {
@@ -364,7 +360,8 @@ impl EthernetPortsGroup {
             )
         });
         let port_name = port_state.name.clone();
-        Some(Self::expandable_group_titled(
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(WidgetGroupFamily::EthernetPorts, port_state.name.clone()),
             group_title,
             &session.expansion,
             move |expansion| EthernetPortsMessage::Expansion {

@@ -16,10 +16,12 @@ pub use self::sqlite_idle_timeouts::{ScheduledAfterIdle, Timeouts};
 use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, slider_control::ControlMessage},
-    hover_cards::{GroupHandle, hover_card_body::hover_card_source_delivery::HoverCard},
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    hover_cards::hover_card_body::hover_card_source_delivery::HoverCard,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         idle::{
@@ -76,10 +78,6 @@ impl Default for IdleTimeoutsGroup {
             expansion: WidgetGroupExpansion::default(),
         }
     }
-}
-
-impl WidgetGroup for IdleTimeoutsGroup {
-    const TITLE: &'static str = "Idle timeouts";
 }
 
 impl IdleTimeoutsGroup {
@@ -229,7 +227,8 @@ impl IdleTimeoutsGroup {
         &'a self,
         config: &'a Config,
     ) -> WidgetGroupContent<'a, IdleTimeoutsMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::IdleTimeouts,
             &self.expansion,
             IdleTimeoutsMessage::Expansion,
             self.entries().map(|(kind, timer)| {
@@ -241,7 +240,6 @@ impl IdleTimeoutsGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Timer(Weight::Regular).into(),
-            handle: GroupHandle::IdleTimeouts,
         })
     }
 }

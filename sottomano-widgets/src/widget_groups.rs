@@ -46,6 +46,7 @@ pub mod vpn_group;
 pub mod wallpaper_group;
 pub mod weather_group;
 pub mod widget_group_content;
+pub mod widget_group_identity;
 pub mod wifi_adapters_group;
 pub mod window_group;
 pub mod workspaces_group;

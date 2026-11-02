@@ -13,7 +13,7 @@ use crate::{
         toggle_control::{IconToggle, SwitchPresses},
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{
             Section,
             hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
@@ -27,9 +27,9 @@ use crate::{
             switch_heat_borders::SwitchHeatBorders,
         },
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         phosphor::{Phosphor, Weight},
@@ -82,10 +82,6 @@ pub struct NiriWindowGroup {
     corner_radius: SliderControl,
     gaps: SliderControl,
     switch_heat: SwitchHeatBorders,
-}
-
-impl WidgetGroup for NiriWindowGroup {
-    const TITLE: &'static str = "Niri";
 }
 
 impl NiriWindowGroup {
@@ -266,7 +262,8 @@ impl NiriWindowGroup {
         &'a self,
         config: &'a Config,
     ) -> WidgetGroupContent<'a, NiriWindowMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::NiriWindow,
             &self.expansion,
             NiriWindowMessage::Expansion,
             [
@@ -287,7 +284,6 @@ impl NiriWindowGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::niri.into(),
-            handle: GroupHandle::NiriWindow,
         })
     }
 }

@@ -29,12 +29,12 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
@@ -72,10 +72,6 @@ pub enum MonitorMessage {
     BacklightsReread(Vec<Backlight>),
     Backlight(String, ControlMessage),
     AutoBrightness(ToggleMessage<AutoBrightness>),
-}
-
-impl WidgetGroup for MonitorGroup {
-    const TITLE: &'static str = "Monitor";
 }
 
 impl MonitorGroup {
@@ -240,7 +236,8 @@ impl MonitorGroup {
             })
             .previewed_on_handle()
         });
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Monitor,
             &self.expansion,
             MonitorMessage::Expansion,
             backlight_items.chain(
@@ -251,7 +248,6 @@ impl MonitorGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Lightbulb(Weight::Regular).into(),
-            handle: GroupHandle::Monitor,
         })
         .forwards_scroll((!self.sliders.is_empty()).then_some("change every backlight"))
     }

@@ -61,8 +61,11 @@ use crate::{
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         input_report_sections::MeasuredReportTiming,
@@ -217,10 +220,6 @@ fn niri_control_toggle(driving_niri: bool) -> IconToggle {
             turning_off: "hand this controller to the focused window",
         },
     )
-}
-
-impl WidgetGroup for GamepadGroup {
-    const TITLE: &'static str = "Gamepads";
 }
 
 impl GamepadGroup {
@@ -700,7 +699,8 @@ impl GamepadGroup {
                 UsbCableRole::InputAndCharging => item,
             }
         });
-        Some(Self::expandable_group(
+        Some(WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gamepad,
             &session.expansion,
             move |expansion| GamepadMessage::Expansion { slot, expansion },
             [
@@ -726,7 +726,6 @@ impl GamepadGroup {
             .filter_map(|(gamepad, link)| {
                 self.controller_group(gamepad, link, bindings, window_claim)
             })
-            .map(WidgetGroupContent::sharing_title_row)
             .collect()
     }
 }

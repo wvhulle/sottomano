@@ -1,16 +1,19 @@
-use crate::{group_menus::group_menu_state::GroupMenuTopic, hover_cards::InspectedRow};
+use crate::{
+    group_menus::group_menu_state::GroupMenuTopic, hover_cards::InspectedRow,
+    widget_groups::widget_group_identity::WidgetGroupIdentity,
+};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) enum GroupMenuInspection {
     #[default]
     Closed,
-    Member(Box<OpenMember>),
+    Group(Box<OpenMenuGroup>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct OpenMember {
+pub(crate) struct OpenMenuGroup {
     menu: GroupMenuTopic,
-    member: usize,
+    group_identity: WidgetGroupIdentity,
     row: RowInspection,
 }
 
@@ -23,21 +26,31 @@ enum RowInspection {
 
 impl GroupMenuInspection {
     #[must_use]
-    pub(crate) fn inspecting_member(self, menu: GroupMenuTopic, member: usize) -> Self {
+    pub(crate) fn revealing_group(
+        self,
+        menu: GroupMenuTopic,
+        group_identity: WidgetGroupIdentity,
+    ) -> Self {
         let row = match self {
-            GroupMenuInspection::Member(open) if open.menu == menu && open.member == member => {
+            GroupMenuInspection::Group(open)
+                if open.menu == menu && open.group_identity == group_identity =>
+            {
                 open.row
             }
-            GroupMenuInspection::Member(_) | GroupMenuInspection::Closed => RowInspection::Nothing,
+            GroupMenuInspection::Group(_) | GroupMenuInspection::Closed => RowInspection::Nothing,
         };
-        GroupMenuInspection::Member(Box::new(OpenMember { menu, member, row }))
+        GroupMenuInspection::Group(Box::new(OpenMenuGroup {
+            menu,
+            group_identity,
+            row,
+        }))
     }
 
     #[must_use]
     pub(crate) fn inspecting_row(self, menu: GroupMenuTopic, inspected: InspectedRow) -> Self {
         match self {
-            GroupMenuInspection::Member(open) if open.menu == menu => {
-                GroupMenuInspection::Member(Box::new(OpenMember {
+            GroupMenuInspection::Group(open) if open.menu == menu => {
+                GroupMenuInspection::Group(Box::new(OpenMenuGroup {
                     row: RowInspection::Row(inspected),
                     ..*open
                 }))
@@ -46,20 +59,20 @@ impl GroupMenuInspection {
         }
     }
 
-    pub(crate) fn open_member(&self, menu: GroupMenuTopic) -> Option<usize> {
+    pub(crate) fn open_group(&self, menu: GroupMenuTopic) -> Option<&WidgetGroupIdentity> {
         match self {
-            GroupMenuInspection::Member(open) if open.menu == menu => Some(open.member),
-            GroupMenuInspection::Member(_) | GroupMenuInspection::Closed => None,
+            GroupMenuInspection::Group(open) if open.menu == menu => Some(&open.group_identity),
+            GroupMenuInspection::Group(_) | GroupMenuInspection::Closed => None,
         }
     }
 
     pub(crate) fn inspected_row(&self, menu: GroupMenuTopic) -> Option<&InspectedRow> {
         match self {
-            GroupMenuInspection::Member(open) if open.menu == menu => match &open.row {
+            GroupMenuInspection::Group(open) if open.menu == menu => match &open.row {
                 RowInspection::Row(row) => Some(row),
                 RowInspection::Nothing => None,
             },
-            GroupMenuInspection::Member(_) | GroupMenuInspection::Closed => None,
+            GroupMenuInspection::Group(_) | GroupMenuInspection::Closed => None,
         }
     }
 }
@@ -70,7 +83,12 @@ mod tests {
     use crate::{
         group_menus::group_menu_state::GroupMenuTopic,
         hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow},
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     };
+
+    const GPU_GROUP: WidgetGroupIdentity = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
+    const COMPUTE_GROUP: WidgetGroupIdentity =
+        WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
 
     fn inspected_workspace_row() -> InspectedRow {
         InspectedRow {
@@ -82,9 +100,9 @@ mod tests {
     #[test]
     fn reentering_the_open_member_keeps_its_inspected_row() {
         let inspection = GroupMenuInspection::Closed
-            .inspecting_member(GroupMenuTopic::Hardware, 2)
+            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP)
             .inspecting_row(GroupMenuTopic::Hardware, inspected_workspace_row())
-            .inspecting_member(GroupMenuTopic::Hardware, 2);
+            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP);
         assert_eq!(
             inspection.inspected_row(GroupMenuTopic::Hardware),
             Some(&inspected_workspace_row())
@@ -94,17 +112,21 @@ mod tests {
     #[test]
     fn opening_another_member_clears_the_inspected_row() {
         let inspection = GroupMenuInspection::Closed
-            .inspecting_member(GroupMenuTopic::Hardware, 2)
+            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP)
             .inspecting_row(GroupMenuTopic::Hardware, inspected_workspace_row())
-            .inspecting_member(GroupMenuTopic::Hardware, 3);
-        assert_eq!(inspection.open_member(GroupMenuTopic::Hardware), Some(3));
+            .revealing_group(GroupMenuTopic::Hardware, COMPUTE_GROUP);
+        assert_eq!(
+            inspection.open_group(GroupMenuTopic::Hardware),
+            Some(&COMPUTE_GROUP)
+        );
         assert_eq!(inspection.inspected_row(GroupMenuTopic::Hardware), None);
     }
 
     #[test]
     fn another_menu_sees_no_open_member() {
-        let inspection = GroupMenuInspection::Closed.inspecting_member(GroupMenuTopic::Hardware, 1);
-        assert_eq!(inspection.open_member(GroupMenuTopic::Behaviour), None);
+        let inspection =
+            GroupMenuInspection::Closed.revealing_group(GroupMenuTopic::Hardware, GPU_GROUP);
+        assert_eq!(inspection.open_group(GroupMenuTopic::Behaviour), None);
     }
 
     #[test]

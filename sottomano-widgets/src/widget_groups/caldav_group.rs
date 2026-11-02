@@ -22,12 +22,14 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -67,10 +69,6 @@ pub enum CaldavMessage {
     UpcomingEvents(Box<SnapshotDelivery<UpcomingEventList>>),
     OpenTasks(Box<SnapshotDelivery<OpenTaskList>>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for CaldavGroup {
-    const TITLE: &'static str = "Calendar";
 }
 
 impl CaldavGroup {
@@ -178,7 +176,8 @@ impl CaldavGroup {
             self.upcoming_events
                 .group_item(CaldavTarget::UpcomingEvents)
         };
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Caldav,
             &self.expansion,
             CaldavMessage::Expansion,
             [
@@ -190,7 +189,6 @@ impl CaldavGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: self.account_handle_glyph(),
-            handle: GroupHandle::Caldav,
         })
     }
 }

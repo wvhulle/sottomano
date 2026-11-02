@@ -9,16 +9,14 @@ use crate::{
         slider_control::{Action as SliderAction, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         sqlite_shell_settings_row,
         sqlite_shell_settings_row::ShellSetting,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -156,10 +154,6 @@ impl Default for PanelSettingsGroup {
     }
 }
 
-impl WidgetGroup for PanelSettingsGroup {
-    const TITLE: &'static str = "Panels";
-}
-
 impl PanelSettingsGroup {
     pub fn load() -> Task<PanelSettingsMessage> {
         Task::batch([
@@ -287,7 +281,8 @@ impl PanelSettingsGroup {
         &'a self,
         config: &'a Config,
     ) -> WidgetGroupContent<'a, PanelSettingsMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::PanelSettings,
             &self.expansion,
             PanelSettingsMessage::Expansion,
             [
@@ -315,7 +310,6 @@ impl PanelSettingsGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Rows(Weight::Regular).into(),
-            handle: GroupHandle::PanelSettings,
         })
     }
 }

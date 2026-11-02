@@ -32,9 +32,11 @@ use crate::{
         reading_display_state::ReadingDisplayState,
     },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupTitle,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         input_report_sections::MeasuredReportTiming,
@@ -81,10 +83,12 @@ struct AdapterSession {
 
 fn adapter_group_title(naming: AdapterNaming) -> WidgetGroupTitle {
     match naming {
-        AdapterNaming::SoleAdapter => WidgetGroupTitle::fixed(BluetoothAdaptersGroup::TITLE),
-        AdapterNaming::OneOfSeveral { label } => {
-            WidgetGroupTitle::Named(format!("{} {label}", BluetoothAdaptersGroup::TITLE).into())
+        AdapterNaming::SoleAdapter => {
+            WidgetGroupTitle::fixed(WidgetGroupFamily::BluetoothAdapters.title())
         }
+        AdapterNaming::OneOfSeveral { label } => WidgetGroupTitle::Named(
+            format!("{} {label}", WidgetGroupFamily::BluetoothAdapters.title()).into(),
+        ),
     }
 }
 
@@ -100,10 +104,6 @@ async fn logged_bus_call(action: &'static str, bus_call: impl Future<Output = zb
     if let Err(bus_error) = bus_call.await {
         tracing::warn!("{action}: {bus_error}");
     }
-}
-
-impl WidgetGroup for BluetoothAdaptersGroup {
-    const TITLE: &'static str = "Bluetooth";
 }
 
 impl BluetoothAdaptersGroup {
@@ -318,7 +318,11 @@ impl BluetoothAdaptersGroup {
             })
             .collect();
         let controller_name = adapter.controller_name.clone();
-        Some(Self::expandable_group_titled(
+        Some(WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(
+                WidgetGroupFamily::BluetoothAdapters,
+                adapter.controller_name.clone(),
+            ),
             adapter_group_title(self.adapter_naming(adapter)),
             &session.expansion,
             move |expansion| BluetoothMessage::Expansion {
@@ -347,7 +351,7 @@ impl BluetoothAdaptersGroup {
 
 #[cfg(test)]
 mod tests {
-    use super::{AdapterNaming, BluetoothAdaptersGroup, WidgetGroup, adapter_group_title};
+    use super::{AdapterNaming, WidgetGroupFamily, adapter_group_title};
 
     fn one_of_several(label: &str) -> AdapterNaming {
         AdapterNaming::OneOfSeveral {
@@ -359,7 +363,7 @@ mod tests {
     fn a_sole_adapter_keeps_the_plain_title() {
         assert_eq!(
             adapter_group_title(AdapterNaming::SoleAdapter).to_string(),
-            BluetoothAdaptersGroup::TITLE
+            WidgetGroupFamily::BluetoothAdapters.title()
         );
     }
 

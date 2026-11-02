@@ -14,8 +14,9 @@ use crate::{
         menu_rows::menu_row::{MenuRowContent, MenuRowLook, hovered_menu_row, menu_row_height},
     },
     hover_cards::{PopupMessage, marked_by_hover_target, marked_by_menu_pin},
-    widget_groups::widget_group_content::{
-        GroupEvent, GroupItemPin, GroupMenuItemRow, GroupTitleClaim, TitleRow, WidgetGroupTitle,
+    widget_groups::{
+        widget_group_content::{GroupEvent, GroupItemPin, GroupMenuItemRow},
+        widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         configured_theme::{secondary_text_color, text_color},
@@ -28,44 +29,26 @@ use crate::{
 };
 
 pub(crate) struct GroupMenuGroupRow<'a, M> {
-    pub title_claim: GroupTitleClaim,
+    pub group_identity: WidgetGroupIdentity,
+    pub group_title: WidgetGroupTitle,
     pub face: MenuParts<'a, M>,
     pub items: Vec<GroupMenuItemRow<'a, M>>,
 }
 
-pub(crate) fn merged_where_requested<'a, M>(
-    entries: impl IntoIterator<Item = GroupMenuGroupRow<'a, M>>,
+pub(crate) fn one_row_per_identity<'a, M>(
+    rows: impl IntoIterator<Item = GroupMenuGroupRow<'a, M>>,
 ) -> Vec<GroupMenuGroupRow<'a, M>> {
-    entries.into_iter().fold(Vec::new(), |mut merged, entry| {
+    rows.into_iter().fold(Vec::new(), |mut merged, row| {
         match merged
             .iter_mut()
             .find(|existing: &&mut GroupMenuGroupRow<'a, M>| {
-                entry.title_claim.title_row == TitleRow::SharedWithSameTitle
-                    && existing.title_claim == entry.title_claim
+                existing.group_identity == row.group_identity
             }) {
-            Some(existing) => existing.items.extend(entry.items),
-            None => merged.push(entry),
+            Some(existing) => existing.items.extend(row.items),
+            None => merged.push(row),
         }
         merged
     })
-}
-
-pub(crate) fn duplicate_group_titles(
-    title_claims: impl IntoIterator<Item = GroupTitleClaim>,
-) -> Vec<WidgetGroupTitle> {
-    let title_claims: Vec<GroupTitleClaim> = title_claims.into_iter().collect();
-    title_claims
-        .iter()
-        .enumerate()
-        .filter(|(position, claim)| {
-            title_claims[..*position].iter().any(|earlier_claim| {
-                earlier_claim.group_title == claim.group_title
-                    && (earlier_claim.title_row == TitleRow::OwnRow
-                        || claim.title_row == TitleRow::OwnRow)
-            })
-        })
-        .map(|(_, claim)| claim.group_title.clone())
-        .collect()
 }
 
 pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
@@ -77,8 +60,8 @@ pub(crate) struct GroupMenuRowContext<'p, 'a, M> {
 }
 
 struct OpenGroup<'a, M> {
-    member: usize,
-    group_title: WidgetGroupTitle,
+    position: usize,
+    group_identity: WidgetGroupIdentity,
     items: Vec<GroupMenuItemRow<'a, M>>,
 }
 
@@ -94,24 +77,27 @@ pub(crate) fn cascading_columns<
     if entries.is_empty() {
         return None;
     }
-    let open_group = layout
-        .group_menus
-        .open_member(layout.menu.topic)
-        .filter(|member| *member < entries.len())
-        .map(|member| OpenGroup {
-            member,
-            group_title: entries[member].title_claim.group_title.clone(),
-            items: take(&mut entries[member].items),
+    let open_identity = layout.group_menus.open_group(layout.menu.topic);
+    let open_group = open_identity
+        .and_then(|identity| {
+            entries
+                .iter()
+                .position(|entry| entry.group_identity == *identity)
+        })
+        .map(|position| OpenGroup {
+            position,
+            group_identity: entries[position].group_identity.clone(),
+            items: take(&mut entries[position].items),
         });
-    let open_member = open_group.as_ref().map(|open| open.member);
+    let open_position = open_group.as_ref().map(|open| open.position);
     let group_corners =
         ListEndCorners::new(entries.len(), layout.cascade_satellite_panels.frame_corners);
-    let group_rows = entries.into_iter().enumerate().map(|(member, entry)| {
+    let group_rows = entries.into_iter().enumerate().map(|(position, entry)| {
         let look = MenuRowLook {
-            highlighted: open_member == Some(member),
-            corners: group_corners.radius_at(member),
+            highlighted: open_position == Some(position),
+            corners: group_corners.radius_at(position),
         };
-        group_row(layout, member, entry, look)
+        group_row(layout, entry, look)
     });
     Some(GroupMenuCascadeSurfaces {
         primary: Element::from(uniform_width_column(group_rows)).map(Outer::from),
@@ -131,8 +117,8 @@ fn open_group_satellites<
     card: &InspectionCard<'_, 'a>,
 ) -> Vec<Element<'a, Outer>> {
     let OpenGroup {
-        member,
-        group_title,
+        position: open_position,
+        group_identity,
         items,
     } = open;
     let inspected_target = layout
@@ -150,17 +136,17 @@ fn open_group_satellites<
         inspected_target.is_some_and(|target| item.action.inspected_target() == target)
     };
     let item_list =
-        item_menu(layout, &group_title, items, &is_inspected, item_corners).map(Outer::from);
+        item_menu(layout, &group_identity, items, &is_inspected, item_corners).map(Outer::from);
     let item_satellite = layout.cascade_satellite_panels.beside_row(
         layout.config,
         item_list,
-        cascade_offset(layout.config, member),
+        cascade_offset(layout.config, open_position),
     );
     let card_satellite = card_position.and_then(|position| {
         card.view(layout.config).map(|card_view| {
             let card_row_top = layout.cascade_satellite_panels.item_row_top(
                 layout.config,
-                member,
+                open_position,
                 position,
                 item_count,
             );
@@ -180,15 +166,12 @@ pub(crate) fn cascade_offset(config: &Config, rows_above: usize) -> f32 {
 
 fn group_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
-    member: usize,
     entry: GroupMenuGroupRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let icon_size = layout.config.theme.font.icon_size_px;
-    let group_title = entry.title_claim.group_title;
-    let pinned_entry = GroupMenuPin::Group {
-        group_title: group_title.clone(),
-    };
+    let group_title = entry.group_title;
+    let pinned_entry = GroupMenuPin::Group(entry.group_identity.clone());
     let pin = marked_by_menu_pin(
         glyph_button(
             Phosphor::PushPin(Weight::Regular),
@@ -222,19 +205,19 @@ fn group_row<'a, M: Clone + 'a>(
             trailing: vec![pin],
         },
     };
-    let inspect_member = layout.menu.inspect_member(member);
+    let reveal_group = layout.menu.reveal_group(entry.group_identity);
     hovered_menu_row(
         layout.config,
         content,
         look,
-        inspect_member.clone(),
-        inspect_member,
+        reveal_group.clone(),
+        reveal_group,
     )
 }
 
 fn item_menu<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
-    group_title: &WidgetGroupTitle,
+    group: &WidgetGroupIdentity,
     items: Vec<GroupMenuItemRow<'a, M>>,
     is_inspected: &dyn Fn(&GroupMenuItemRow<'a, M>) -> bool,
     panel_corners: Radius,
@@ -245,27 +228,24 @@ fn item_menu<'a, M: Clone + 'a>(
             highlighted: is_inspected(&item),
             corners: end_corners.radius_at(position),
         };
-        item_row(layout, group_title, item, look)
+        item_row(layout, group, item, look)
     }))
     .into()
 }
 
 fn item_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
-    group_title: &WidgetGroupTitle,
+    group: &WidgetGroupIdentity,
     item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
     let marked_target = item.action.inspected_target().clone();
-    marked_by_hover_target(
-        unmarked_item_row(layout, group_title, item, look),
-        marked_target,
-    )
+    marked_by_hover_target(unmarked_item_row(layout, group, item, look), marked_target)
 }
 
 fn unmarked_item_row<'a, M: Clone + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
-    group_title: &WidgetGroupTitle,
+    group: &WidgetGroupIdentity,
     item: GroupMenuItemRow<'a, M>,
     look: MenuRowLook,
 ) -> Element<'a, GroupEvent<M>> {
@@ -276,7 +256,7 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
             layout.config.theme.font.icon_size_px,
             secondary_text_color,
             layout.menu.toggle_pin(GroupMenuPin::Item {
-                group_title: group_title.clone(),
+                group: group.clone(),
                 item_name,
             }),
         )),
@@ -310,32 +290,16 @@ fn unmarked_item_row<'a, M: Clone + 'a>(
 mod tests {
     use iced::widget::Space;
 
-    use super::{
-        GroupMenuGroupRow, GroupTitleClaim, TitleRow, WidgetGroupTitle, duplicate_group_titles,
-        merged_where_requested,
+    use super::{GroupMenuGroupRow, WidgetGroupIdentity, one_row_per_identity};
+    use crate::{
+        group_items::group_item::MenuParts,
+        widget_groups::widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
     };
-    use crate::group_items::group_item::MenuParts;
 
-    const ETHERNET_TITLE: WidgetGroupTitle = WidgetGroupTitle::fixed("Ethernet");
-    const DRIVE_TITLE: WidgetGroupTitle = WidgetGroupTitle::fixed("Drive");
-
-    fn own_row(group_title: WidgetGroupTitle) -> GroupTitleClaim {
-        GroupTitleClaim {
-            group_title,
-            title_row: TitleRow::OwnRow,
-        }
-    }
-
-    fn shared_row(group_title: WidgetGroupTitle) -> GroupTitleClaim {
-        GroupTitleClaim {
-            group_title,
-            title_row: TitleRow::SharedWithSameTitle,
-        }
-    }
-
-    fn entry_claiming(title_claim: GroupTitleClaim) -> GroupMenuGroupRow<'static, ()> {
+    fn row_of(group_identity: WidgetGroupIdentity, title: &str) -> GroupMenuGroupRow<'static, ()> {
         GroupMenuGroupRow {
-            title_claim,
+            group_identity,
+            group_title: WidgetGroupTitle::Named(title.to_owned().into()),
             face: MenuParts {
                 icon: Space::new().into(),
                 value: Space::new().into(),
@@ -344,47 +308,37 @@ mod tests {
         }
     }
 
-    fn merged_row_count(title_claims: [GroupTitleClaim; 2]) -> usize {
-        merged_where_requested(title_claims.map(entry_claiming)).len()
+    #[test]
+    fn groups_of_one_identity_share_a_row() {
+        let gpu = WidgetGroupIdentity::sole(WidgetGroupFamily::Gpu);
+        let rows = one_row_per_identity([row_of(gpu.clone(), "GPU"), row_of(gpu, "GPU")]);
+        assert_eq!(rows.len(), 1);
     }
 
     #[test]
-    fn an_own_row_duplicate_is_flagged() {
-        assert_eq!(
-            duplicate_group_titles([own_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
-            [ETHERNET_TITLE]
-        );
+    fn instances_of_one_family_keep_their_own_rows() {
+        let rows = one_row_per_identity([
+            row_of(
+                WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, "sda"),
+                "a",
+            ),
+            row_of(
+                WidgetGroupIdentity::durable(WidgetGroupFamily::PhysicalDrive, "sdb"),
+                "b",
+            ),
+        ]);
+        assert_eq!(rows.len(), 2);
     }
 
     #[test]
-    fn a_duplicate_with_only_one_side_sharing_is_flagged() {
-        assert_eq!(
-            duplicate_group_titles([shared_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
-            [ETHERNET_TITLE]
-        );
-    }
-
-    #[test]
-    fn requested_sharing_and_distinct_titles_are_not_flagged() {
-        assert!(
-            duplicate_group_titles([shared_row(DRIVE_TITLE), shared_row(DRIVE_TITLE)]).is_empty()
-        );
-        assert!(duplicate_group_titles([own_row(DRIVE_TITLE), own_row(ETHERNET_TITLE)]).is_empty());
-    }
-
-    #[test]
-    fn only_groups_requesting_it_share_a_row() {
-        assert_eq!(
-            merged_row_count([shared_row(DRIVE_TITLE), shared_row(DRIVE_TITLE)]),
-            1
-        );
-        assert_eq!(
-            merged_row_count([own_row(ETHERNET_TITLE), own_row(ETHERNET_TITLE)]),
-            2
-        );
-        assert_eq!(
-            merged_row_count([shared_row(DRIVE_TITLE), own_row(DRIVE_TITLE)]),
-            2
-        );
+    fn a_player_named_audio_keeps_its_own_row() {
+        let rows = one_row_per_identity([
+            row_of(WidgetGroupIdentity::sole(WidgetGroupFamily::Audio), "Audio"),
+            row_of(
+                WidgetGroupIdentity::durable(WidgetGroupFamily::Media, "Audio"),
+                "Audio",
+            ),
+        ]);
+        assert_eq!(rows.len(), 2);
     }
 }

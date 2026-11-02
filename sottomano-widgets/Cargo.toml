@@ -8,6 +8,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+strum.workspace = true
 sottomano-config = { path = "../sottomano-config" }
 sottomano-icon-sets = { path = "../sottomano-icon-sets" }
 sottomano-sources = { path = "../sottomano-sources" }

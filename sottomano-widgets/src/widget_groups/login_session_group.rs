@@ -24,9 +24,7 @@ use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         login_session_group::{
             account_face::AccountFace, compositor_face::CompositorFace,
@@ -35,9 +33,9 @@ use crate::{
             service_manager_face::ServiceManagerFace,
         },
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -86,10 +84,6 @@ pub enum LoginSessionMessage {
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
     PowerFetched(Box<SnapshotDelivery<PowerPolicy>>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for LoginSessionGroup {
-    const TITLE: &'static str = "Login session";
 }
 
 impl LoginSessionGroup {
@@ -220,14 +214,14 @@ impl LoginSessionGroup {
             .system
             .get()
             .map(|system| GroupItem::reading(KernelFace { system }, LoginSessionTarget::Kernel));
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::LoginSession,
             &self.expansion,
             LoginSessionMessage::Expansion,
             kernel.into_iter().chain(items),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::StackSimple(Weight::Regular).into(),
-            handle: GroupHandle::LoginSession,
         })
     }
 

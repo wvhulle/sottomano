@@ -7,16 +7,14 @@ use crate::{
         group_item::GroupItem,
         toggle_control::{IconToggle, SwitchPresses},
     },
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         sqlite_shell_settings_row,
         sqlite_shell_settings_row::ShellSetting,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         layer_appearance_controls::{AppearanceMessage, AppearanceTarget, LayerAppearanceControls},
@@ -82,10 +80,6 @@ impl Default for OverlaySettingsGroup {
             }),
         }
     }
-}
-
-impl WidgetGroup for OverlaySettingsGroup {
-    const TITLE: &'static str = "Overlays";
 }
 
 impl OverlaySettingsGroup {
@@ -165,7 +159,8 @@ impl OverlaySettingsGroup {
         &'a self,
         config: &'a Config,
     ) -> WidgetGroupContent<'a, OverlaySettingsMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::OverlaySettings,
             &self.expansion,
             OverlaySettingsMessage::Expansion,
             [GroupItem::toggle(
@@ -181,7 +176,6 @@ impl OverlaySettingsGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Stack(Weight::Regular).into(),
-            handle: GroupHandle::OverlaySettings,
         })
     }
 }

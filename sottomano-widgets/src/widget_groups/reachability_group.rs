@@ -1,5 +1,7 @@
 use iced::{Subscription, Task};
 
+use crate::widget_groups::widget_group_identity::WidgetGroupFamily;
+
 mod connectivity_state_reading;
 mod icmp_latency_gauge;
 mod metered_volume_tally;
@@ -25,7 +27,7 @@ use crate::{
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
@@ -34,8 +36,7 @@ use crate::{
             sqlite_metered_volume::{MeteredVolumeTotals, TransferTotals},
         },
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-            WidgetGroupFace,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
     },
     widgets::{
@@ -79,10 +80,6 @@ pub enum ReachabilityMessage {
     Connectivity(SnapshotDelivery<UplinkConnectivity>),
     MeteredTotalsLoaded(Option<MeteredVolumeTotals>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for ReachabilityGroup {
-    const TITLE: &'static str = "Reachability";
 }
 
 impl ReachabilityGroup {
@@ -202,23 +199,21 @@ impl ReachabilityGroup {
     }
 
     fn handle_face(&self) -> WidgetGroupFace<'_> {
-        let handle = GroupHandle::Reachability;
         match self.connectivity.display() {
             Some(reading) => WidgetGroupFace::IconColoredBy {
                 glyph: reading.icon(),
                 reading,
-                handle,
             },
             None => WidgetGroupFace::Icon {
                 glyph: Phosphor::CloudCheck(Weight::Regular).into(),
-                handle,
             },
         }
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, ReachabilityMessage> {
         let throughput = self.throughput.get();
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Reachability,
             &self.expansion,
             ReachabilityMessage::Expansion,
             self.throughput

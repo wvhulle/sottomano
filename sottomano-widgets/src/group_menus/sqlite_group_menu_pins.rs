@@ -2,17 +2,19 @@ use std::collections::BTreeSet;
 
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
-pub const CREATE_GROUP_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS group_menu_pins (
-    group_menu TEXT NOT NULL,
-    group_title TEXT NOT NULL,
-    PRIMARY KEY (group_menu, group_title)
+pub const CREATE_GROUP_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_widget_groups (
+    menu_topic TEXT NOT NULL,
+    group_family TEXT NOT NULL,
+    group_instance TEXT NOT NULL,
+    PRIMARY KEY (menu_topic, group_family, group_instance)
 )";
 
-pub const CREATE_ITEM_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS group_menu_item_pins (
-    group_menu TEXT NOT NULL,
-    group_title TEXT NOT NULL,
+pub const CREATE_ITEM_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_group_items (
+    menu_topic TEXT NOT NULL,
+    group_family TEXT NOT NULL,
+    group_instance TEXT NOT NULL,
     item_name TEXT NOT NULL,
-    PRIMARY KEY (group_menu, group_title, item_name)
+    PRIMARY KEY (menu_topic, group_family, group_instance, item_name)
 )";
 
 const CREATE_PIN_TABLES: [&str; 2] = [CREATE_GROUP_PINS_TABLE, CREATE_ITEM_PINS_TABLE];
@@ -20,12 +22,14 @@ const CREATE_PIN_TABLES: [&str; 2] = [CREATE_GROUP_PINS_TABLE, CREATE_ITEM_PINS_
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StoredGroupMenuPin {
     Group {
-        group_menu: String,
-        group_title: String,
+        menu_topic: String,
+        group_family: String,
+        group_instance: String,
     },
     Item {
-        group_menu: String,
-        group_title: String,
+        menu_topic: String,
+        group_family: String,
+        group_instance: String,
         item_name: String,
     },
 }
@@ -55,26 +59,31 @@ async fn read_pins(
 ) -> Result<BTreeSet<StoredGroupMenuPin>, StoreError> {
     let mut pins = BTreeSet::new();
     let mut group_rows = connection
-        .query("SELECT group_menu, group_title FROM group_menu_pins", ())
+        .query(
+            "SELECT menu_topic, group_family, group_instance FROM pinned_widget_groups",
+            (),
+        )
         .await?;
     let group_columns = Columns::of(&group_rows);
     while let Some(row) = group_rows.next().await? {
         pins.insert(StoredGroupMenuPin::Group {
-            group_menu: group_columns.text(&row, "group_menu")?,
-            group_title: group_columns.text(&row, "group_title")?,
+            menu_topic: group_columns.text(&row, "menu_topic")?,
+            group_family: group_columns.text(&row, "group_family")?,
+            group_instance: group_columns.text(&row, "group_instance")?,
         });
     }
     let mut item_rows = connection
         .query(
-            "SELECT group_menu, group_title, item_name FROM group_menu_item_pins",
+            "SELECT menu_topic, group_family, group_instance, item_name FROM pinned_group_items",
             (),
         )
         .await?;
     let item_columns = Columns::of(&item_rows);
     while let Some(row) = item_rows.next().await? {
         pins.insert(StoredGroupMenuPin::Item {
-            group_menu: item_columns.text(&row, "group_menu")?,
-            group_title: item_columns.text(&row, "group_title")?,
+            menu_topic: item_columns.text(&row, "menu_topic")?,
+            group_family: item_columns.text(&row, "group_family")?,
+            group_instance: item_columns.text(&row, "group_instance")?,
             item_name: item_columns.text(&row, "item_name")?,
         });
     }
@@ -88,37 +97,48 @@ async fn write_pin(
 ) -> Result<(), StoreError> {
     match pin {
         StoredGroupMenuPin::Group {
-            group_menu,
-            group_title,
+            menu_topic,
+            group_family,
+            group_instance,
         } => {
             let statement = if pinned {
-                "INSERT INTO group_menu_pins (group_menu, group_title) VALUES (?1, ?2) ON CONFLICT \
-                 DO NOTHING"
+                "INSERT INTO pinned_widget_groups (menu_topic, group_family, group_instance) \
+                 VALUES (?1, ?2, ?3) ON CONFLICT DO NOTHING"
             } else {
-                "DELETE FROM group_menu_pins WHERE group_menu = ?1 AND group_title = ?2"
-            };
-            connection
-                .execute(statement, (group_menu.as_str(), group_title.as_str()))
-                .await?;
-        }
-        StoredGroupMenuPin::Item {
-            group_menu,
-            group_title,
-            item_name,
-        } => {
-            let statement = if pinned {
-                "INSERT INTO group_menu_item_pins (group_menu, group_title, item_name) VALUES (?1, \
-                 ?2, ?3) ON CONFLICT DO NOTHING"
-            } else {
-                "DELETE FROM group_menu_item_pins WHERE group_menu = ?1 AND group_title = ?2 AND \
-                 item_name = ?3"
+                "DELETE FROM pinned_widget_groups WHERE menu_topic = ?1 AND group_family = ?2 AND \
+                 group_instance = ?3"
             };
             connection
                 .execute(
                     statement,
                     (
-                        group_menu.as_str(),
-                        group_title.as_str(),
+                        menu_topic.as_str(),
+                        group_family.as_str(),
+                        group_instance.as_str(),
+                    ),
+                )
+                .await?;
+        }
+        StoredGroupMenuPin::Item {
+            menu_topic,
+            group_family,
+            group_instance,
+            item_name,
+        } => {
+            let statement = if pinned {
+                "INSERT INTO pinned_group_items (menu_topic, group_family, group_instance, \
+                 item_name) VALUES (?1, ?2, ?3, ?4) ON CONFLICT DO NOTHING"
+            } else {
+                "DELETE FROM pinned_group_items WHERE menu_topic = ?1 AND group_family = ?2 AND \
+                 group_instance = ?3 AND item_name = ?4"
+            };
+            connection
+                .execute(
+                    statement,
+                    (
+                        menu_topic.as_str(),
+                        group_family.as_str(),
+                        group_instance.as_str(),
                         item_name.as_str(),
                     ),
                 )
@@ -136,15 +156,17 @@ mod tests {
 
     fn gpu_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Group {
-            group_menu: "HardwareMenu".to_owned(),
-            group_title: "GPU".to_owned(),
+            menu_topic: "HardwareMenu".to_owned(),
+            group_family: "gpu".to_owned(),
+            group_instance: String::new(),
         }
     }
 
     fn gpu_load_in_hardware() -> StoredGroupMenuPin {
         StoredGroupMenuPin::Item {
-            group_menu: "HardwareMenu".to_owned(),
-            group_title: "GPU".to_owned(),
+            menu_topic: "HardwareMenu".to_owned(),
+            group_family: "gpu".to_owned(),
+            group_instance: String::new(),
             item_name: "GPU load".to_owned(),
         }
     }

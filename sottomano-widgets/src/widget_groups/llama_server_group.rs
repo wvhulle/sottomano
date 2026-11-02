@@ -19,12 +19,12 @@ use sottomano_sources::{
 use crate::{
     clock::Clock,
     group_items::{toggle_control::SwitchPresses, unit_switch::UnitSwitchFace},
-    hover_cards::{
-        GroupHandle, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
-    },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         hover_fetched_snapshot::HoverFetchedSnapshot,
@@ -93,10 +93,6 @@ pub enum LlamaServerMessage {
     GgufCardRead(SnapshotDelivery<GgufModelCard>),
     BaseModelCardFetched(SnapshotDelivery<HuggingFaceModelCard>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for LlamaServerGroup {
-    const TITLE: &'static str = "Llama server";
 }
 
 impl LlamaServerGroup {
@@ -225,7 +221,8 @@ impl LlamaServerGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, LlamaServerMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::LlamaServer,
             &self.expansion,
             LlamaServerMessage::Expansion,
             self.user
@@ -234,7 +231,6 @@ impl LlamaServerGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::Robot(Weight::Regular).into(),
-            handle: GroupHandle::LlamaServer,
         })
     }
 }

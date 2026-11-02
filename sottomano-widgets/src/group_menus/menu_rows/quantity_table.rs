@@ -8,7 +8,7 @@ use sottomano_config::Config;
 
 use crate::{
     group_items::aligned_quantity::AlignedQuantity,
-    widget_groups::widget_group_content::{GroupEvent, WidgetGroupTitle},
+    widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupTitle},
     widgets::{
         content_sized_table::{SpannableRow, content_sized_spanning_grid},
         text::{column_heading, row_key_label},

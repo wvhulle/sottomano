@@ -19,7 +19,7 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
     hover_cards::{HoverAnnouncement, HoverTarget, InspectedRow, PressHints, announcing_hoverable},
-    widget_groups::widget_group_content::{GroupEvent, WidgetGroupTitle},
+    widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
     widgets::{
         announced_level::LevelReading,
         configured_theme::text_color,
@@ -549,7 +549,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(crate) fn pinned_item_name(
         &self,
-        group_title: &WidgetGroupTitle,
+        group: &WidgetGroupIdentity,
         group_menus: &GroupMenuState,
         menu: GroupMenuTopic,
     ) -> Option<&'static str> {
@@ -557,7 +557,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             group_menus.is_pinned(
                 menu,
                 GroupMenuPin::Item {
-                    group_title: group_title.clone(),
+                    group: group.clone(),
                     item_name,
                 },
             )

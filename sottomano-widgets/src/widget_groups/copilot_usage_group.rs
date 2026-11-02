@@ -21,12 +21,14 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::LatestSnapshot,
@@ -73,10 +75,6 @@ pub enum CopilotUsageMessage {
     Free(SnapshotDelivery<CopilotFree>),
     Cli(SnapshotDelivery<CopilotCcusage>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for CopilotUsageGroup {
-    const TITLE: &'static str = "Copilot usage";
 }
 
 impl CopilotUsageGroup {
@@ -187,7 +185,8 @@ impl CopilotUsageGroup {
     }
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, CopilotUsageMessage> {
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::CopilotUsage,
             &self.expansion,
             CopilotUsageMessage::Expansion,
             [
@@ -211,7 +210,6 @@ impl CopilotUsageGroup {
         )
         .face(WidgetGroupFace::Icon {
             glyph: SimpleIcon::GitHubCopilot.into(),
-            handle: GroupHandle::CopilotUsage,
         })
     }
 }

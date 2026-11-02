@@ -20,12 +20,14 @@ use crate::{
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
     },
     hover_cards::{
-        GroupHandle, HoverTarget,
+        HoverTarget,
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupFace,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         latest_snapshot::LatestSnapshot,
@@ -124,10 +126,6 @@ impl Default for AudioGroup {
             .announces_level("Microphone"),
         }
     }
-}
-
-impl WidgetGroup for AudioGroup {
-    const TITLE: &'static str = "Audio";
 }
 
 impl AudioGroup {
@@ -305,7 +303,8 @@ impl AudioGroup {
     pub fn group_content<'a>(&'a self, config: &'a Config) -> WidgetGroupContent<'a, AudioMessage> {
         let sink = self.state.get().and_then(|state| state.sink.as_ref());
         let source = self.state.get().and_then(|state| state.source.as_ref());
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Audio,
             &self.expansion,
             AudioMessage::Expansion,
             [
@@ -334,7 +333,6 @@ impl AudioGroup {
         .face(WidgetGroupFace::IconColoredBy {
             glyph: Phosphor::Waveform(Weight::Regular).into(),
             reading: &self.sink_control,
-            handle: GroupHandle::Audio,
         })
         .forwards_scroll(sink.map(|_| "change the output volume"))
     }

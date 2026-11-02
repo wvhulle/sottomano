@@ -18,8 +18,11 @@ use crate::{
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::latest_snapshot::LatestSnapshot,
 };
@@ -48,10 +51,6 @@ pub struct WallpaperGroup {
 pub enum WallpaperMessage {
     Lookup(Box<SnapshotDelivery<Lookup>>),
     Expansion(WidgetGroupExpansionMessage),
-}
-
-impl WidgetGroup for WallpaperGroup {
-    const TITLE: &'static str = "Wallpaper";
 }
 
 impl WallpaperGroup {
@@ -109,7 +108,8 @@ impl WallpaperGroup {
 
     pub fn group_content(&self) -> WidgetGroupContent<'_, WallpaperMessage> {
         let lookup = self.lookup.get();
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Wallpaper,
             &self.expansion,
             WallpaperMessage::Expansion,
             [

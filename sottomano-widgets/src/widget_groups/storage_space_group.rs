@@ -27,9 +27,11 @@ use crate::{
         HoverTarget,
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
-    widget_groups::widget_group_content::{
-        WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
-        WidgetGroupTitle,
+    widget_groups::{
+        widget_group_content::{
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -158,10 +160,6 @@ pub enum StorageMessage {
     },
 }
 
-impl WidgetGroup for StorageSpaceGroup {
-    const TITLE: &'static str = "Filesystem";
-}
-
 impl StorageSpaceGroup {
     pub fn collapse(&mut self) {
         self.discovery_expansion.collapse();
@@ -273,7 +271,11 @@ impl StorageSpaceGroup {
                 })
         });
         let owned_mount_point = primary_mount_point.to_path_buf();
-        Self::expandable_group_titled(
+        WidgetGroupContent::expandable_instance(
+            WidgetGroupIdentity::durable(
+                WidgetGroupFamily::StorageSpace,
+                primary_mount_point.display().to_string(),
+            ),
             mount_group_title(primary_mount_point),
             &filesystem.expansion,
             move |expansion| StorageMessage::MountExpansion {
@@ -290,7 +292,8 @@ impl StorageSpaceGroup {
 
     #[must_use]
     pub fn group_contents(&self) -> Vec<WidgetGroupContent<'_, StorageMessage>> {
-        let discovery_group = Self::expandable_group(
+        let discovery_group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::StorageSpace,
             &self.discovery_expansion,
             StorageMessage::DiscoveryExpansion,
             self.discovery.group_item(StorageTarget::MountDiscovery),

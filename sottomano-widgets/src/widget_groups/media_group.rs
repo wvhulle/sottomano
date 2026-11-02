@@ -38,8 +38,10 @@ use crate::{
     widget_groups::{
         media_group::confirm_button::{ConfirmButton, Press},
         widget_group_content::{
-            GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
-            WidgetGroupExpansionMessage, WidgetGroupTitle,
+            GroupEvent, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+        },
+        widget_group_identity::{
+            WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupInstance, WidgetGroupTitle,
         },
     },
     widgets::{
@@ -176,6 +178,16 @@ pub enum Action {
     FocusAppWindow(AppWindowFocus<MediaMessage>),
 }
 
+fn player_group_identity(media: &Media, bus: &str) -> WidgetGroupIdentity {
+    WidgetGroupIdentity {
+        family: WidgetGroupFamily::Media,
+        instance: WidgetGroupInstance::Session {
+            durable: media.identity.clone().into(),
+            session: bus.to_owned().into(),
+        },
+    }
+}
+
 fn player_message(bus: &str, message: PlayerMessage) -> MediaMessage {
     MediaMessage::Player {
         bus: bus.to_owned(),
@@ -188,10 +200,6 @@ fn lifted_to_player<'a>(
     element: Element<'a, GroupEvent<PlayerMessage>>,
 ) -> Element<'a, GroupEvent<MediaMessage>> {
     element.map(move |event| event.map(|message| player_message(bus, message)))
-}
-
-impl WidgetGroup for MediaGroup {
-    const TITLE: &'static str = "Media";
 }
 
 impl MediaGroup {
@@ -295,14 +303,6 @@ impl MediaGroup {
             .filter(|other| other.identity == media.identity)
             .count();
         WidgetGroupTitle::numbered_from_second(media.identity.clone(), earlier_namesakes)
-    }
-
-    #[must_use]
-    pub fn player_group_titles(&self) -> Vec<WidgetGroupTitle> {
-        self.titled_players()
-            .into_iter()
-            .map(|media| self.group_title_of(media))
-            .collect()
     }
 
     pub fn update(&mut self, msg: MediaMessage, clock: Clock) -> Action {
@@ -474,6 +474,28 @@ impl MediaGroup {
     }
 }
 
+fn session_buttons_item<'a>(
+    config: &'a Config,
+    media: &'a Media,
+    session: &'a PlayerSession,
+) -> Option<GroupItem<'a, MediaMessage>> {
+    let bus = media.bus.as_str();
+    (!session_controls(config, media, session, 1.0).is_empty()).then(|| {
+        GroupItem::composed(
+            ComposedGroupItemFace {
+                name: "Session".into(),
+                icon: GroupItemIcon::Absent,
+            },
+            GroupItemHoverArea::ByChildren {
+                row_target: PlayerTarget::of(bus, MediaTarget::SessionControls).into(),
+            },
+            GroupItemValue::drawn(move |reveal| {
+                lifted_to_player(bus, session_controls(config, media, session, reveal).into())
+            }),
+        )
+    })
+}
+
 fn player_group<'a>(
     config: &'a Config,
     clock: Clock,
@@ -546,21 +568,9 @@ fn player_group<'a>(
             )
         }),
     );
-    let session_buttons = (!session_controls(config, media, session, 1.0).is_empty()).then(|| {
-        GroupItem::composed(
-            ComposedGroupItemFace {
-                name: "Session".into(),
-                icon: GroupItemIcon::Absent,
-            },
-            GroupItemHoverArea::ByChildren {
-                row_target: PlayerTarget::of(bus, MediaTarget::SessionControls).into(),
-            },
-            GroupItemValue::drawn(move |reveal| {
-                lifted_to_player(bus, session_controls(config, media, session, reveal).into())
-            }),
-        )
-    });
-    MediaGroup::expandable_group_titled(
+    let session_buttons = session_buttons_item(config, media, session);
+    WidgetGroupContent::expandable_instance(
+        player_group_identity(media, bus),
         group_title,
         &session.expansion,
         move |expansion| player_message(bus, PlayerMessage::Expansion(expansion)),
@@ -739,9 +749,9 @@ mod tests {
             clock,
         );
         let titles: Vec<String> = group
-            .player_group_titles()
-            .iter()
-            .map(ToString::to_string)
+            .titled_players()
+            .into_iter()
+            .map(|media| group.group_title_of(media).to_string())
             .collect();
         assert_eq!(titles, ["Firefox", "Firefox 2", "Spotify"]);
     }

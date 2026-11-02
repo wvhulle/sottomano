@@ -27,7 +27,7 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        GroupHandle, HoverCardHost, HoverCardMessage, HoverTarget,
+        HoverCardHost, HoverCardMessage, HoverTarget,
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
@@ -153,12 +153,10 @@ impl ShowcaseState {
             )))
         }));
         let mut group_menus = GroupMenuState::default();
-        if let GroupShown::PinnedFrom { menu, group_title } = &demo.shown {
+        if let GroupShown::PinnedFrom { menu, group } = &demo.shown {
             let _unsaved_pin = group_menus.update(GroupMenuMessage::TogglePin {
                 menu: *menu,
-                entry: GroupMenuPin::Group {
-                    group_title: group_title.clone(),
-                },
+                entry: GroupMenuPin::Group(group.clone()),
             });
         }
         let state = ShowcaseState {
@@ -439,7 +437,7 @@ impl ShowcaseState {
             },
             self.window_assets(),
             |target: &HoverTarget| {
-                if let HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind)) = target {
+                if let HoverTarget::GroupMenu(kind) = target {
                     return self.menu_cascade(*kind);
                 }
                 let described = self

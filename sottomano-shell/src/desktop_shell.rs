@@ -53,8 +53,8 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
     },
     hover_cards::{
-        GroupHandle, HoverCardHost, HoverTarget,
-        hover_card_body::hover_card_source_delivery::HoverCard, hover_card_surfaces::HoverContent,
+        HoverCardHost, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
+        hover_card_surfaces::HoverContent,
     },
     notification_toasts::NotificationLayer,
     widget_groups::{
@@ -198,7 +198,9 @@ impl DesktopShell {
             toast_requests,
             promoted_groups,
         } = self.scan_group_alerts();
-        let open_menu = self.open_group_menu();
+        let open_menu = self
+            .open_group_menu()
+            .map(|topic| self.group_menu_of(topic).open_group_menu());
         self.widget_groups.group_menus.track_source_demand(
             open_menu,
             promoted_groups,
@@ -448,7 +450,7 @@ impl DesktopShell {
 
     fn open_group_menu(&self) -> Option<GroupMenuTopic> {
         match self.hover_card.target() {
-            Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic))) => Some(*topic),
+            Some(HoverTarget::GroupMenu(topic)) => Some(*topic),
             _ => None,
         }
     }
@@ -457,7 +459,7 @@ impl DesktopShell {
         &self,
         target: &HoverTarget,
     ) -> Option<GroupMenuCascadeSurfaces<'_, Message>> {
-        let HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic)) = target else {
+        let HoverTarget::GroupMenu(topic) = target else {
             return None;
         };
         let group_menu = self.group_menu_of(*topic);

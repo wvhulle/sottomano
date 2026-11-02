@@ -20,8 +20,9 @@ use crate::{
         sqlite_shell_settings_row,
         sqlite_shell_settings_row::ShellSetting,
         widget_group_content::{
-            WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
+            WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
+        widget_group_identity::WidgetGroupFamily,
     },
     widgets::{
         icon_glyph::IconGlyph,
@@ -84,10 +85,6 @@ fn sound_toggle(alert_sound: bool) -> IconToggle {
             turning_off: "show notifications silently",
         },
     )
-}
-
-impl WidgetGroup for NotificationGroup {
-    const TITLE: &'static str = "Notifications";
 }
 
 impl NotificationGroup {
@@ -154,7 +151,8 @@ impl NotificationGroup {
         status: NotificationStatus,
     ) -> WidgetGroupContent<'_, NotificationGroupMessage> {
         let quiet = status.quiet;
-        Self::expandable_group(
+        WidgetGroupContent::expandable(
+            WidgetGroupFamily::Notification,
             &self.expansion,
             NotificationGroupMessage::Expansion,
             [
