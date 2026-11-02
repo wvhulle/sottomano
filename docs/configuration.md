@@ -40,60 +40,67 @@ text_size = "14px"
 small_text_size = "12px"
 icon_size = "15.5px"
 
-[layout.panel]
+[desktop_panels]
 height = "24px"
-group_padding = "5px"
-widget_spacing = "4px"
-group_spacing = "11px"
+frame_outline_width = "1px"
+group_edge_padding = "5px"
+joined_group_gap = "11px"
+framed_group_gap = "4px"
 
-[layout.overlay]
-panel_gap = "14px"
-content_inset = "10px"
-row_spacing = "4px"
-column_spacing = "14px"
-section_spacing = "16px"
+[desktop_panels.slot_drag]
+start_distance = "6px"
+ghost_scale = 1.08
+spring_load_delay = "600ms"
+focus_indicator_duration = "160ms"
 
-[panel_bar]
+[group_menus]
+alert_promotion_severity = "warning"
+
+[widget_group_layout]
+edge_indicator_thickness = "2.4px"
+expansion_duration = "90ms"
+
+[group_items]
+item_gap = "4px"
 slider_width = "60px"
-slider_stroke = "2px"
-indicator_thickness = "2.4px"
-frame_outline = "1px"
-drag_start_distance = "6px"
-drag_ghost_scale = 1.08
-drag_spring_load = "600ms"
-group_expansion = "90ms"
-slider_expansion = "90ms"
-focus_indicator_motion = "160ms"
-group_menu_promotion_severity = "warning"
+slider_stroke_width = "2px"
+slider_expansion_duration = "90ms"
 
-[tooltips]
-value_width = "620px"
-popup_morph = "160ms"
-copy_flash = "700ms"
+[hover_cards]
+value_column_width = "620px"
+copy_flash_duration = "700ms"
 
-[tooltips.loading]
+[hover_cards.loading]
 debug_delay = "0s"
 
-[tooltips.loading.placeholder]
+[hover_cards.loading.placeholder]
 effect = "pulse"
 period = "1s 400ms"
 
-[tooltips.loading.intro]
+[hover_cards.loading.intro]
 effect = "fade"
 duration = "500ms"
 
-[tooltips.loading.replace]
+[hover_cards.loading.replace]
 effect = "decode"
 duration = "350ms"
 glyph_change = "55ms"
 
-[widget_groups.window_list]
+[overlay_surfaces]
+content_inset = "10px"
+row_gap = "4px"
+column_gap = "14px"
+section_gap = "16px"
+satellite_gap = "14px"
+surface_morph_duration = "160ms"
+
+[widget_groups.window]
 audio_indicator = true
 progress = true
 count_badge = true
 nixpkgs_branch = "nixpkgs-unstable"
 
-[widget_groups.window_list.agents]
+[widget_groups.window.agents]
 kitty = true
 
 [widget_groups.workspaces]
@@ -113,9 +120,9 @@ middle_click = "secondary_activate_item"
 right_click = "ignore"
 window_app_id = "spotify"
 
-[widget_groups.temperature_sensors.cpu]
+[widget_groups.compute.temperature_sensors]
 
-[widget_groups.temperature_sensors.drive]
+[widget_groups.physical_drive.temperature_sensors]
 
 [widget_groups.systemd_manager]
 slow_job = "10s"
@@ -135,7 +142,7 @@ monthly_budget_usd = 20
 daily_warning_usd = 5
 max_blended_usd_per_million = 4.0
 
-[widget_groups.focus_time]
+[widget_groups.session_focus]
 idle_detection_delay = "30s"
 shortest_counted_focus = "1s"
 idle_after = "3m"
@@ -148,11 +155,11 @@ switch_heat_span = "30m"
 switch_heat_warning = 20
 switch_heat_critical = 32
 
-[widget_groups.focus_time.app_daily_budget_minutes]
+[widget_groups.session_focus.app_daily_budget_minutes]
 
-[widget_groups.focus_time.project_daily_budget_minutes]
+[widget_groups.session_focus.project_daily_budget_minutes]
 
-[widget_groups.rain_alerts]
+[widget_groups.weather.rain_alerts]
 lead_time = "15m"
 minimum_millimeters_per_hour = 0.5
 heavy_millimeters_per_hour = 4.0
@@ -203,7 +210,7 @@ change_poll_interval = "1m"
 push_safety_recheck_interval = "15m"
 subscription_download_interval = "15m"
 
-[widget_groups.media_lyrics]
+[widget_groups.media.lyrics]
 lrclib_lookup = true
 
 [notification_toasts.placement]

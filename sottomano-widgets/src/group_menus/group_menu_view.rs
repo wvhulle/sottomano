@@ -220,7 +220,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         clock: Clock,
     ) -> impl Iterator<Item = Option<Element<'a, Outer>>> + 'a {
         let handle_slot = self.handle_view(config, panel_position, clock);
-        let promotion_severity = config.panel_bar.group_menu_promotion_severity;
+        let promotion_severity = config.group_menus.alert_promotion_severity;
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
         once(Some(handle_slot)).chain(self.groups.into_iter().flat_map(move |member| {
@@ -283,7 +283,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| {
-            Element::from(container(table).padding(config.layout.overlay.content_inset))
+            Element::from(container(table).padding(config.overlay_surfaces.content_inset))
                 .map(Outer::from)
         });
         let cascade_satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);

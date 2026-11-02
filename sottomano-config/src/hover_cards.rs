@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::layout::spacing::Spacing;
+use crate::spacing::Spacing;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(
@@ -10,33 +10,29 @@ use crate::layout::spacing::Spacing;
     deny_unknown_fields,
     bound(deserialize = "L: Deserialize<'de> + From<f32>")
 )]
-pub struct TooltipsConfig<L = f32> {
-    pub value_width: L,
+pub struct HoverCardsConfig<L = f32> {
+    pub value_column_width: L,
     #[serde(with = "humantime_serde")]
-    pub popup_morph: Duration,
-    #[serde(with = "humantime_serde")]
-    pub copy_flash: Duration,
+    pub copy_flash_duration: Duration,
     pub loading: HoverCardLoading,
 }
 
-impl<L: From<f32>> Default for TooltipsConfig<L> {
+impl<L: From<f32>> Default for HoverCardsConfig<L> {
     fn default() -> Self {
         Self {
-            value_width: L::from(620.0),
-            popup_morph: Duration::from_millis(160),
-            copy_flash: Duration::from_millis(700),
+            value_column_width: L::from(620.0),
+            copy_flash_duration: Duration::from_millis(700),
             loading: HoverCardLoading::default(),
         }
     }
 }
 
-impl TooltipsConfig<Spacing> {
+impl HoverCardsConfig<Spacing> {
     #[must_use]
-    pub fn resolve(self, em_px: f32) -> TooltipsConfig {
-        TooltipsConfig {
-            value_width: self.value_width.resolve(em_px),
-            popup_morph: self.popup_morph,
-            copy_flash: self.copy_flash,
+    pub fn resolve(self, em_px: f32) -> HoverCardsConfig {
+        HoverCardsConfig {
+            value_column_width: self.value_column_width.resolve(em_px),
+            copy_flash_duration: self.copy_flash_duration,
             loading: self.loading,
         }
     }

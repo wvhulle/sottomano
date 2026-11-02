@@ -148,7 +148,7 @@ impl ComputeGroup {
                 .start_hover_fetch((), ComputeMessage::CoreLoadsFetched, config, clock),
             Some(HoverTarget::Compute(ComputeTarget::CpuTemperature)) => {
                 self.core_temperatures.start_hover_fetch(
-                    config.widget_groups.temperature_sensors.cpu.overrides(),
+                    config.widget_groups.compute.temperature_sensors.overrides(),
                     ComputeMessage::CoreTemperaturesFetched,
                     config,
                     clock,

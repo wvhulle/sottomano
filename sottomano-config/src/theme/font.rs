@@ -3,7 +3,7 @@ use std::{fmt, fs, io, process::Command, sync::Arc};
 use serde::{Deserialize, Serialize};
 use ttf_parser::FaceParsingError;
 
-use crate::layout::spacing::Spacing;
+use crate::spacing::Spacing;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]

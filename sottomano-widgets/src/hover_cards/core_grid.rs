@@ -29,7 +29,7 @@ impl<'a> CoreCellGrid<'a> {
 
     #[must_use]
     pub fn view(self) -> Element<'static, PopupMessage> {
-        let gap = self.config.layout.overlay.row_spacing / 2.0;
+        let gap = self.config.overlay_surfaces.row_gap / 2.0;
         Row::with_children(self.cores.iter().map(|core| self.core_cell(core)))
             .spacing(gap)
             .into()

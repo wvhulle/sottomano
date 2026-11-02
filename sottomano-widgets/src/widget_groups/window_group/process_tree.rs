@@ -269,7 +269,7 @@ impl<'a> ProcessTree<'a> {
     }
 
     fn copy_flash(&self) -> Duration {
-        self.config.tooltips.copy_flash
+        self.config.hover_cards.copy_flash_duration
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, fmt, path::PathBuf, str::FromStr};
 
 use chrono::TimeDelta;
-use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
+use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum FocusUnit {
@@ -71,7 +71,7 @@ impl FocusUnit {
     }
 
     #[must_use]
-    pub fn budget(&self, config: &FocusTimeConfig) -> Option<TimeDelta> {
+    pub fn budget(&self, config: &SessionFocusConfig) -> Option<TimeDelta> {
         match self {
             FocusUnit::App(app_id) => config.app_daily_budget_minutes.get(app_id),
             FocusUnit::Project(root) => config

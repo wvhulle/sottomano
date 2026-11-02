@@ -219,7 +219,7 @@ impl WeatherGroup {
         };
         Some(RainForecast {
             sources,
-            alerts: &config.widget_groups.rain_alerts,
+            alerts: &config.widget_groups.weather.rain_alerts,
         })
     }
 

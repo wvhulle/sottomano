@@ -38,9 +38,9 @@ impl CascadeSatellitePanels {
             },
             frame: LayerFrameStyle::new(appearance, config),
             blurred: appearance.blurred,
-            morph: config.tooltips.popup_morph,
+            morph: config.overlay_surfaces.surface_morph_duration,
             frame_corners: Radius::from(appearance.corner_radius_px),
-            notch_depth: config.layout.overlay.panel_gap,
+            notch_depth: config.overlay_surfaces.satellite_gap,
         }
     }
 

@@ -56,7 +56,7 @@ pub fn inline_view<'a>(
                 config,
             ))
             .extend(order_restore(configured, workspaces, output, config))
-            .spacing(config.layout.panel.widget_spacing)
+            .spacing(config.group_items.item_gap)
             .height(Length::Fill)
             .align_y(Alignment::Center)
             .into(),
@@ -106,7 +106,7 @@ mod tests {
         )
         .expect("three workspaces on the output");
         let drag_events: Vec<DragEvent<_>> =
-            sweep_across_panel(pager_element, config.layout.panel.height)
+            sweep_across_panel(pager_element, config.desktop_panels.height)
                 .into_iter()
                 .filter_map(|workspaces_message| match workspaces_message {
                     WorkspacesMessage::Drag(DragMessage::Pointer(drag_event)) => Some(drag_event),

@@ -62,7 +62,9 @@ mod tests {
     use std::time::Duration;
 
     use color::{AlphaColor, Oklab, Srgb};
-    use sottomano_config::{theme::palette::Palette, widget_groups::focus_time::FocusTimeConfig};
+    use sottomano_config::{
+        theme::palette::Palette, widget_groups::session_focus::SessionFocusConfig,
+    };
 
     use super::super::{
         FocusLedger,
@@ -79,14 +81,14 @@ mod tests {
         ledger
     }
 
-    fn two_hour_span_config() -> FocusTimeConfig {
-        FocusTimeConfig {
+    fn two_hour_span_config() -> SessionFocusConfig {
+        SessionFocusConfig {
             switch_heat_span: Duration::from_hours(2),
             ..config()
         }
     }
 
-    fn heat_after_returning(times: u32, config: &FocusTimeConfig) -> AlphaColor<Srgb> {
+    fn heat_after_returning(times: u32, config: &SessionFocusConfig) -> AlphaColor<Srgb> {
         returned_to_kitty(i64::from(times))
             .accounted(config)
             .switch_heat_color(1, &Palette::default(), at(i64::from(times) * 2))

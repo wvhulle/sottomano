@@ -1,7 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
+use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
 
 use super::{
     FocusLedger, FocusSignal, away_reasons::ScreenEdge, focus_identity::Focused,
@@ -16,10 +16,10 @@ pub(super) fn at(minutes: i64) -> DateTime<Utc> {
     "2026-10-14T10:00:00Z".parse::<DateTime<Utc>>().unwrap() + TimeDelta::minutes(minutes)
 }
 
-pub(super) fn config() -> FocusTimeConfig {
-    FocusTimeConfig {
+pub(super) fn config() -> SessionFocusConfig {
+    SessionFocusConfig {
         idle_after: Duration::from_mins(3),
-        ..FocusTimeConfig::default()
+        ..SessionFocusConfig::default()
     }
 }
 

@@ -201,7 +201,7 @@ impl GroupItemReading for SessionFace<'_> {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
+    use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
     use sottomano_sources::login_session_presence::focus_time_ledger::{
         FocusLedger, FocusSignal, Focused,
     };
@@ -228,16 +228,16 @@ mod tests {
         ledger
     }
 
-    fn config() -> FocusTimeConfig {
-        FocusTimeConfig {
+    fn config() -> SessionFocusConfig {
+        SessionFocusConfig {
             idle_after: Duration::from_mins(3),
-            ..FocusTimeConfig::default()
+            ..SessionFocusConfig::default()
         }
     }
 
     #[test]
     fn a_snooze_silences_a_long_session_until_it_ends() {
-        let config = FocusTimeConfig {
+        let config = SessionFocusConfig {
             session_warning: Duration::from_mins(45),
             ..config()
         };

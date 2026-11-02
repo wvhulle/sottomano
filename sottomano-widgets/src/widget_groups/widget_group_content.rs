@@ -677,7 +677,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
             cursor_hovering: expansion.cursor_hovering,
             expanded: expansion.expanded,
         };
-        let expansion_duration = config.panel_bar.group_expansion;
+        let expansion_duration = config.widget_group_layout.expansion_duration;
         let animated = expand_animation(expansion.expanded, expansion_duration, move |reveal| {
             let handle: Element<'a, GroupEvent<M>> = button(
                 Row::with_children([
@@ -733,7 +733,7 @@ fn fixed_view<'a, M: Clone + 'a, Outer: From<GroupEvent<M>> + 'a>(
     clock: Clock,
 ) -> Element<'a, Outer> {
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
-        .spacing(config.layout.panel.widget_spacing)
+        .spacing(config.group_items.item_gap)
         .align_y(Alignment::Center);
     let indicator = EdgeIndicator {
         highest_alert_severity,
@@ -755,7 +755,7 @@ pub(crate) struct EdgeIndicator {
 
 impl EdgeIndicator {
     pub(crate) fn view<'a, M: 'a>(self, config: &Config, reveal: f32) -> Element<'a, M> {
-        let thickness = config.panel_bar.indicator_thickness;
+        let thickness = config.widget_group_layout.edge_indicator_thickness;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
         let revealing_opacity = base + (1.0 - base) * reveal;
         match self.highest_alert_severity {
@@ -787,7 +787,7 @@ fn items_row<'a, M: Clone + 'a>(
     clock: Clock,
 ) -> Element<'a, GroupEvent<M>> {
     Row::with_children(items.iter().map(|item| item.view(config, reveal, clock)))
-        .spacing(config.layout.panel.widget_spacing)
+        .spacing(config.group_items.item_gap)
         .align_y(Alignment::Center)
         .into()
 }
@@ -827,6 +827,6 @@ fn revealed_content<'a, Message: 'a>(
     reveal: f32,
     content: Element<'a, Message>,
 ) -> Element<'a, Message> {
-    let gap = config.layout.panel.widget_spacing;
+    let gap = config.group_items.item_gap;
     reveal_x(container(content).padding(Padding::ZERO.left(gap)), reveal)
 }

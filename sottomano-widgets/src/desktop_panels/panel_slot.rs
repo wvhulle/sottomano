@@ -37,7 +37,7 @@ impl<'a, Message: 'a> PanelSlot<'a, Message> {
 
     #[must_use]
     pub fn view(self, config: &Config, position: Position) -> Element<'a, Message> {
-        let band = config.panel_bar.indicator_thickness;
+        let band = config.widget_group_layout.edge_indicator_thickness;
         let Self {
             content,
             indicator,

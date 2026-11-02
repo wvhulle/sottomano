@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, TimeDelta, Utc};
 use iced::futures::{Stream, StreamExt, stream};
 use niri_ipc::state::EventStreamState;
-use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
+use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
 use sottomano_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::kitty_terminal_windows::WindowProcesses,
@@ -97,7 +97,7 @@ impl FocusTracker {
     pub fn update(
         &mut self,
         message: TrackerMessage,
-        config: &FocusTimeConfig,
+        config: &SessionFocusConfig,
         now: DateTime<Utc>,
     ) -> impl Future<Output = ()> + Send + use<> {
         let span_writes = match message {

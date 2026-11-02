@@ -14,7 +14,7 @@ mod window_focus_timeline;
 use std::{mem::take, path::Path};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_config::widget_groups::focus_time::FocusTimeConfig;
+use sottomano_config::widget_groups::session_focus::SessionFocusConfig;
 
 use self::{away_reasons::LatestAwayReasons, window_focus_timeline::OngoingWindowFocus};
 pub use self::{
@@ -53,7 +53,7 @@ pub struct FocusLedger {
 #[derive(Debug, Clone, Copy)]
 pub struct Accounting<'a> {
     pub ledger: &'a FocusLedger,
-    pub config: &'a FocusTimeConfig,
+    pub config: &'a SessionFocusConfig,
 }
 
 impl FocusLedger {
@@ -73,7 +73,7 @@ impl FocusLedger {
         }
     }
 
-    pub fn load_history(&mut self, loaded: LoadedSpans, config: &FocusTimeConfig) {
+    pub fn load_history(&mut self, loaded: LoadedSpans, config: &SessionFocusConfig) {
         let tracking_started_at = self.tracking_started_at;
         let shortest_counted_focus =
             TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);
@@ -95,7 +95,7 @@ impl FocusLedger {
     }
 
     #[must_use]
-    pub fn accounted<'a>(&'a self, config: &'a FocusTimeConfig) -> Accounting<'a> {
+    pub fn accounted<'a>(&'a self, config: &'a SessionFocusConfig) -> Accounting<'a> {
         Accounting {
             ledger: self,
             config,
@@ -106,7 +106,7 @@ impl FocusLedger {
         &mut self,
         signal: FocusSignal,
         now: DateTime<Utc>,
-        config: &FocusTimeConfig,
+        config: &SessionFocusConfig,
     ) -> Vec<SpanWrite> {
         let shortest_counted_focus =
             TimeDelta::from_std(config.shortest_counted_focus).unwrap_or(TimeDelta::MAX);

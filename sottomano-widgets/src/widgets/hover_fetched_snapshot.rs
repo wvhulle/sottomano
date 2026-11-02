@@ -142,7 +142,7 @@ where
                 remembered.refetch_schedule(clock)
             });
         let fetch_delay = match schedule {
-            RefetchSchedule::FetchNow => config.tooltips.loading.debug_delay,
+            RefetchSchedule::FetchNow => config.hover_cards.loading.debug_delay,
             RefetchSchedule::FetchAfter(remaining) => remaining,
         };
         let stream_inputs = inputs.clone();

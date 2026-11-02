@@ -64,7 +64,7 @@ impl ShellWidgetGroups {
                 .map(Message::Caldav),
             self.compute_group
                 .subscription(
-                    &config.widget_groups.temperature_sensors.cpu,
+                    &config.widget_groups.compute.temperature_sensors,
                     self.group_menus.source_demand(
                         GroupMenuTopic::Hardware,
                         &[WidgetGroupTitle::fixed(ComputeGroup::TITLE)],
@@ -78,7 +78,7 @@ impl ShellWidgetGroups {
                 .map(Message::Storage),
             self.physical_drive_group
                 .subscription(
-                    &config.widget_groups.temperature_sensors.drive,
+                    &config.widget_groups.physical_drive.temperature_sensors,
                     self.group_menus.source_demand(
                         GroupMenuTopic::Hardware,
                         &[WidgetGroupTitle::fixed(PhysicalDriveGroup::TITLE)],
@@ -102,9 +102,9 @@ impl ShellWidgetGroups {
             self.openrouter_credit_group
                 .subscription(config, buses)
                 .map(Message::OpenRouterCredit),
-            WindowGroup::subscription(&config.widget_groups.window_list.agents)
+            WindowGroup::subscription(&config.widget_groups.window.agents)
                 .map(Message::WindowGroup),
-            SessionFocusGroup::subscription(&config.widget_groups.focus_time)
+            SessionFocusGroup::subscription(&config.widget_groups.session_focus)
                 .map(Message::SessionFocus),
         ])
     }
@@ -175,7 +175,7 @@ impl ShellWidgetGroups {
             self.media_group
                 .subscription(
                     buses,
-                    &config.widget_groups.media_lyrics,
+                    &config.widget_groups.media.lyrics,
                     &self.group_menus.source_demand(
                         GroupMenuTopic::Media,
                         &self.media_group.player_group_titles(),

@@ -102,7 +102,7 @@ impl DesktopShell {
             card,
             &drag,
             placement,
-            self.config.panel_bar.drag_ghost_scale,
+            self.config.desktop_panels.slot_drag.ghost_scale,
         ))
     }
 }

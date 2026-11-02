@@ -93,10 +93,11 @@ pub fn anchored_popup<'a, Message: 'a>(
     Element::new(AnchoredPopup {
         renderings,
         anchor,
-        edge_inset: config.layout.panel.height + config.layout.overlay.panel_gap,
-        panel_thickness: config.layout.panel.height,
-        popup_gap: config.layout.overlay.panel_gap,
-        leading_icon_center: config.layout.overlay.content_inset + config.layout.panel.height / 2.0,
+        edge_inset: config.desktop_panels.height + config.overlay_surfaces.satellite_gap,
+        panel_thickness: config.desktop_panels.height,
+        popup_gap: config.overlay_surfaces.satellite_gap,
+        leading_icon_center: config.overlay_surfaces.content_inset
+            + config.desktop_panels.height / 2.0,
         position,
         morph,
         frame: overlay_frame,

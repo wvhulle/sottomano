@@ -397,7 +397,7 @@ impl ShowcaseState {
     }
 
     fn group_strip(&self) -> Element<'_, ShowcaseMessage> {
-        let panel = &self.config.layout.panel;
+        let panel = &self.config.desktop_panels;
         let position = self.group.position();
         let layer = match position {
             Position::Left => self.appearance.sidebar,
@@ -412,7 +412,7 @@ impl ShowcaseState {
                 Position::Top | Position::Bottom => container(group)
                     .height(Length::Fixed(panel.height))
                     .align_y(Vertical::Center)
-                    .padding([0.0, layer.frame_corner_inset() + panel.group_padding]),
+                    .padding([0.0, layer.frame_corner_inset() + panel.group_edge_padding]),
             };
             panel_frame(content, frame_style)
                 .outlined_sides(outlined_sides)
@@ -420,10 +420,10 @@ impl ShowcaseState {
         });
         match position {
             Position::Left => Column::with_children(framed)
-                .spacing(panel.widget_spacing)
+                .spacing(panel.framed_group_gap)
                 .into(),
             Position::Top | Position::Bottom => Row::with_children(framed)
-                .spacing(panel.widget_spacing)
+                .spacing(panel.framed_group_gap)
                 .into(),
         }
     }
@@ -506,7 +506,7 @@ impl Program for ShowcaseProgram {
         state: &'a ShowcaseState,
         _window: window::Id,
     ) -> Element<'a, ShowcaseMessage> {
-        let gap = state.config.layout.panel.group_padding;
+        let gap = state.config.desktop_panels.group_edge_padding;
         let panel_side = match state.group.position() {
             Position::Top => Vertical::Top,
             Position::Left => Vertical::Center,

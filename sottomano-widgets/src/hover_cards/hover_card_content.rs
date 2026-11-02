@@ -89,7 +89,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn transition(&self, presence: TextPresence) -> TransitionStyle {
         TransitionStyle {
-            loading: self.config.tooltips.loading,
+            loading: self.config.hover_cards.loading,
             presence,
             highlight: success_color,
         }
@@ -133,7 +133,7 @@ impl<'a> HoverCardContent<'a> {
                     self.group_sections(group),
                     self.footer_row(None, Some(self.delivery_state_view(group.delivery_state()))),
                 ])
-                .spacing(self.config.layout.overlay.row_spacing)
+                .spacing(self.config.overlay_surfaces.row_gap)
                 .into(),
             )
         });
@@ -144,10 +144,10 @@ impl<'a> HoverCardContent<'a> {
                     self.closing_row(Some(closing_group.delivery_state())),
                 ))),
         )
-        .spacing(self.config.layout.overlay.row_spacing)
+        .spacing(self.config.overlay_surfaces.row_gap)
         .into();
         let content = uniform_width_column(leading.chain(once(closing)))
-            .spacing(self.config.layout.overlay.section_spacing)
+            .spacing(self.config.overlay_surfaces.section_gap)
             .into();
         self.shell_below_title(group_title, content)
     }
@@ -159,7 +159,7 @@ impl<'a> HoverCardContent<'a> {
     ) -> Element<'panel, Message> {
         container(
             uniform_width_column(group_title.into_iter().chain(once(content)))
-                .spacing(self.config.layout.overlay.row_spacing),
+                .spacing(self.config.overlay_surfaces.row_gap),
         )
         .padding(self.shell_padding())
         .into()
@@ -197,7 +197,7 @@ impl<'a> HoverCardContent<'a> {
                 };
                 Some(
                     Column::with_children(once(title).chain(unpin))
-                        .spacing(self.config.layout.overlay.row_spacing)
+                        .spacing(self.config.overlay_surfaces.row_gap)
                         .into(),
                 )
             }
@@ -211,13 +211,13 @@ impl<'a> HoverCardContent<'a> {
             IconGlyph::from(Phosphor::PushPin(Weight::Fill)).view(font.icon_size_px, text_color),
             panel_text(font, "unpin from the panel").into(),
         ])
-        .spacing(self.config.layout.overlay.row_spacing)
+        .spacing(self.config.overlay_surfaces.row_gap)
         .align_y(Vertical::Center);
         button(label)
             .width(Length::Fill)
             .padding(
                 self.edge_row_padding()
-                    .vertical(self.config.layout.overlay.row_spacing),
+                    .vertical(self.config.overlay_surfaces.row_gap),
             )
             .style(|theme, status| button::Style {
                 background: matches!(status, button::Status::Hovered | button::Status::Pressed)
@@ -234,7 +234,7 @@ impl<'a> HoverCardContent<'a> {
         let source_heading = group.source_heading().map(|heading| {
             self.inset(
                 Column::with_children(self.heading_rows(heading))
-                    .spacing(self.config.layout.overlay.row_spacing)
+                    .spacing(self.config.overlay_surfaces.row_gap)
                     .into(),
             )
         });
@@ -243,10 +243,10 @@ impl<'a> HoverCardContent<'a> {
                 .filled_sections()
                 .map(|section| content.section(section)),
         )
-        .spacing(self.config.layout.overlay.section_spacing)
+        .spacing(self.config.overlay_surfaces.section_gap)
         .into();
         uniform_width_column(source_heading.into_iter().chain(once(sections)))
-            .spacing(self.config.layout.overlay.row_spacing)
+            .spacing(self.config.overlay_surfaces.row_gap)
             .into()
     }
 
@@ -277,7 +277,7 @@ impl<'a> HoverCardContent<'a> {
                     secondary_text_color,
                 ),
             ])
-            .spacing(self.config.layout.overlay.row_spacing)
+            .spacing(self.config.overlay_surfaces.row_gap)
             .align_y(Vertical::Center)
             .into(),
         }
@@ -293,7 +293,7 @@ impl<'a> HoverCardContent<'a> {
                 .into_iter()
                 .chain(once(Space::new().width(Length::Fill).into()))
                 .chain(delivery_timing))
-            .spacing(self.config.layout.overlay.column_spacing)
+            .spacing(self.config.overlay_surfaces.column_gap)
             .align_y(Vertical::Center),
         )
         .padding(self.edge_row_padding())
@@ -301,19 +301,19 @@ impl<'a> HoverCardContent<'a> {
     }
 
     fn content_inset(&self) -> Padding {
-        let inset = self.config.layout.overlay.content_inset;
+        let inset = self.config.overlay_surfaces.content_inset;
         Padding::ZERO.horizontal(inset)
     }
 
     fn shell_padding(&self) -> Padding {
-        let inset = self.config.layout.overlay.content_inset;
+        let inset = self.config.overlay_surfaces.content_inset;
         Padding::ZERO.vertical(inset)
     }
 
     fn edge_row_padding(&self) -> Padding {
-        let overlay = &self.config.layout.overlay;
+        let overlay = &self.config.overlay_surfaces;
         Padding::ZERO
-            .left(overlay.content_inset + overlay.row_spacing)
+            .left(overlay.content_inset + overlay.row_gap)
             .right(overlay.content_inset)
     }
 
@@ -330,12 +330,12 @@ impl<'a> HoverCardContent<'a> {
                     IconGlyph::from(gesture.glyph()).view(icon_size, secondary_text_color),
                     self.small_dim_text(does.to_owned()).into(),
                 ])
-                .spacing(self.config.layout.overlay.row_spacing)
+                .spacing(self.config.overlay_surfaces.row_gap)
                 .align_y(Vertical::Center)
                 .into(),
             )
         }))
-        .spacing(self.config.layout.overlay.column_spacing)
+        .spacing(self.config.overlay_surfaces.column_gap)
         .into()
     }
 
@@ -343,7 +343,7 @@ impl<'a> HoverCardContent<'a> {
         let glyph_size = self.config.theme.font.small_text_size_px;
         let labelled = |label: Text<'static>, glyph: Element<'static, PopupMessage>| {
             row([label.into(), glyph])
-                .spacing(self.config.layout.overlay.row_spacing)
+                .spacing(self.config.overlay_surfaces.row_gap)
                 .align_y(Vertical::Center)
                 .into()
         };
@@ -401,12 +401,12 @@ impl<'a> HoverCardContent<'a> {
                 )
                 .view(),
             ])
-            .spacing(self.config.layout.overlay.row_spacing)
+            .spacing(self.config.overlay_surfaces.row_gap)
             .align_y(Vertical::Center),
             (),
             |()| PopupMessage::RefreshHoveredReading,
             success_shades,
-            self.config.tooltips.copy_flash,
+            self.config.hover_cards.copy_flash_duration,
             Interaction::Pointer,
         )
     }
@@ -425,7 +425,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn note_title(&self, title: &str) -> Element<'static, PopupMessage> {
         container(self.bold_title(title))
-            .max_width(self.config.tooltips.value_width)
+            .max_width(self.config.hover_cards.value_column_width)
             .into()
     }
 
@@ -436,12 +436,12 @@ impl<'a> HoverCardContent<'a> {
                 &self.config.theme.font,
                 body.to_owned(),
                 secondary_text_color,
-                self.config.tooltips.value_width,
+                self.config.hover_cards.value_column_width,
                 Wrapping::default(),
             )
             .into(),
         ])
-        .spacing(self.config.layout.overlay.row_spacing)
+        .spacing(self.config.overlay_surfaces.row_gap)
         .into()
     }
 
@@ -450,7 +450,7 @@ impl<'a> HoverCardContent<'a> {
         let line_height_px = LINE_HEIGHT.to_absolute(Pixels(font.text_size_px)).0;
         TransitioningText::new(
             container(Space::new())
-                .width(self.config.tooltips.value_width)
+                .width(self.config.hover_cards.value_column_width)
                 .height(line_height_px),
             String::new(),
             self.transition(TextPresence::Placeholder),
@@ -471,13 +471,13 @@ impl<'a> HoverCardContent<'a> {
                     .into_iter()
                     .chain(once(self.body(section.body()))),
             )
-            .spacing(self.config.layout.overlay.row_spacing)
+            .spacing(self.config.overlay_surfaces.row_gap)
             .into(),
         )
     }
 
     fn heading_rows(&self, heading: &Heading) -> Vec<Element<'static, PopupMessage>> {
-        let title_padding = Padding::ZERO.left(self.config.layout.overlay.row_spacing);
+        let title_padding = Padding::ZERO.left(self.config.overlay_surfaces.row_gap);
         let title = container(self.bold_title(heading.title()))
             .padding(title_padding)
             .into();
@@ -486,7 +486,7 @@ impl<'a> HoverCardContent<'a> {
             Heading::Captioned { caption, .. } => vec![
                 title,
                 container(self.small_dim_text(caption.clone()))
-                    .max_width(self.config.tooltips.value_width)
+                    .max_width(self.config.hover_cards.value_column_width)
                     .padding(title_padding)
                     .into(),
             ],
@@ -514,7 +514,7 @@ impl<'a> HoverCardContent<'a> {
         ValueCellView {
             figure_font: self.config.theme.monospace_font.clone(),
             prose_font: self.config.theme.font.clone(),
-            max_width: self.config.tooltips.value_width,
+            max_width: self.config.hover_cards.value_column_width,
             wrapping: Wrapping::default(),
             locale: self.config.calendar.locale,
             now: self.clock.utc(),
@@ -522,7 +522,7 @@ impl<'a> HoverCardContent<'a> {
             link: primary_shades,
             hint: secondary_text_color,
             transition: self.transition(self.presence),
-            copy_flash: self.config.tooltips.copy_flash,
+            copy_flash: self.config.hover_cards.copy_flash_duration,
             press_messages: ValueCellPressMessages {
                 copy_text: PopupMessage::CopyText,
                 open_url: PopupMessage::OpenUrl,
@@ -536,8 +536,8 @@ impl<'a> HoverCardContent<'a> {
             cell_view: self.value_cell_view(),
             key_color: text_color,
             heading_font: self.config.theme.font.clone(),
-            column_gap: self.config.layout.overlay.column_spacing,
-            row_spacing: self.config.layout.overlay.row_spacing,
+            column_gap: self.config.overlay_surfaces.column_gap,
+            row_spacing: self.config.overlay_surfaces.row_gap,
         }
     }
 
@@ -567,22 +567,22 @@ impl<'a> HoverCardContent<'a> {
     }
 
     fn core_grid(&self, chiplets: &[ChipletCells]) -> Element<'static, PopupMessage> {
-        let spacing = self.config.layout.overlay.row_spacing;
+        let spacing = self.config.overlay_surfaces.row_gap;
         Column::with_children(chiplets.iter().map(|chiplet| {
             let cells = container(CoreCellGrid::new(&chiplet.cores, self.config).view())
-                .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing));
+                .padding(Padding::ZERO.left(self.config.overlay_surfaces.row_gap));
             Column::with_children([
                 container(
                     panel_text(&self.config.theme.font, chiplet.title.clone()).style(text::base),
                 )
-                .padding(Padding::ZERO.left(self.config.layout.overlay.row_spacing))
+                .padding(Padding::ZERO.left(self.config.overlay_surfaces.row_gap))
                 .into(),
                 row![
                     cells,
                     KeyedRecordTable::labeled_values(chiplet.facts.clone())
                         .view(&self.record_table_style())
                 ]
-                .spacing(self.config.layout.overlay.column_spacing)
+                .spacing(self.config.overlay_surfaces.column_gap)
                 .align_y(Vertical::Center)
                 .into(),
             ])
