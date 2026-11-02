@@ -342,7 +342,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Media),
         script: &[
             Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
-            Step::HoverText("Gamepads"),
+            Step::HoverText("DualSense Wireless Controller"),
             Step::Hover(HoverTarget::Gamepad(GamepadTarget::Controller {
                 slot: gamepad::DUALSENSE_SLOT,
             })),
