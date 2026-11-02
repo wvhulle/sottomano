@@ -221,10 +221,7 @@ impl NiriWindowGroup {
         self.save_styling()
     }
 
-    fn follow_save(
-        &mut self,
-        saved: Result<SaveStep, RulesSaveError>,
-    ) -> Task<NiriWindowMessage> {
+    fn follow_save(&mut self, saved: Result<SaveStep, RulesSaveError>) -> Task<NiriWindowMessage> {
         match saved {
             Ok(SaveStep::StartWrite(rules_write)) => {
                 Task::perform(rules_write.run(), NiriWindowMessage::RulesWritten)
