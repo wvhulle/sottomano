@@ -174,7 +174,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         let menu = self.messenger.topic;
         self.groups
             .iter()
-            .filter(move |member| member.highest_alert_severity(clock) >= promotion_severity)
+            .filter(move |member| member.promoted_by_alert(promotion_severity, clock))
             .map(move |member| AlertPromotedGroup {
                 menu,
                 group_title: member.group_title(),
@@ -234,7 +234,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                         .view(config, panel_position, clock),
                 ];
             }
-            if member.highest_alert_severity(clock) >= promotion_severity {
+            if member.promoted_by_alert(promotion_severity, clock) {
                 return vec![member.view(config, panel_position, clock)];
             }
             member.pinned_item_views(group_menus, topic, config, panel_position, clock)
