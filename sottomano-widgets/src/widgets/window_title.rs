@@ -57,7 +57,7 @@ impl<'a> WindowTitle<'a> {
     }
 
     fn context_span(&self, content: &str) -> Span<'static> {
-        styled_span(content, FontFaces::from(&self.config.theme.font).italic)
+        styled_span(content, FontFaces::from(&self.config.theme.font).regular)
     }
 
     fn separator_span(&self) -> Span<'static> {

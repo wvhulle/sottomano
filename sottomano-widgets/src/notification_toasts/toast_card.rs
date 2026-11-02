@@ -319,7 +319,7 @@ impl<Routed> ToastCard<'_, Routed> {
             visible.then(|| {
                 panel_text(font, reltime.clone())
                     .size(font.small_text_size_px)
-                    .font(FontFaces::from(font).italic)
+                    .font(FontFaces::from(font).regular)
                     .color(text)
             })
         };
@@ -337,7 +337,7 @@ impl<Routed> ToastCard<'_, Routed> {
             title = title.push(
                 panel_text(font, app_name.clone())
                     .size(font.small_text_size_px)
-                    .font(FontFaces::from(font).italic)
+                    .font(FontFaces::from(font).regular)
                     .color(text),
             );
         }

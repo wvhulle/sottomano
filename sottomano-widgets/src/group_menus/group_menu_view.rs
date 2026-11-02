@@ -357,7 +357,10 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 
 #[cfg(test)]
 mod tests {
-    use iced::{Settings, Size, widget::Row};
+    use iced::{
+        Settings, Size,
+        widget::{Row, text},
+    };
     use iced_controller_diagram::ControllerArtwork;
     use iced_test::Simulator;
     use sottomano_config::{Config, screen_edges::Position};
@@ -576,7 +579,7 @@ mod tests {
                     icon: GroupItemIcon::Absent,
                 },
                 target,
-                GroupItemValue::drawn(|_| iced::widget::text("the sung line").into()),
+                GroupItemValue::drawn(|_| text("the sung line").into()),
             )],
         );
         let panel_views: Vec<_> = GroupMenuView::new(
