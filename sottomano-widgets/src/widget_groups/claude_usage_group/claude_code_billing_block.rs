@@ -9,10 +9,10 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_cost,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -35,10 +35,12 @@ impl GroupItemReading for ClaudeCcusageBlock {
             .map(|block| format!("{} block", spend_text(&block.cost)))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        self.active.as_ref().map_or(WidgetState::Idle, |block| {
-            level_from_cost(&block.cost).into()
-        })
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        self.active
+            .as_ref()
+            .map_or(ReadingDisplayState::Idle, |block| {
+                level_from_cost(&block.cost).into()
+            })
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {

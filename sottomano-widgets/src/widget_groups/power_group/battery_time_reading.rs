@@ -25,9 +25,9 @@ use crate::{
         keyed_record_table::{IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -225,19 +225,19 @@ impl GroupItemReading for BatteryTime {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self {
             BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_CRITICAL =>
             {
-                WidgetState::Critical
+                ReadingDisplayState::Critical
             }
             BatteryTime::Countdown(Countdown::UntilEmpty(Forecast::Estimated(estimate)))
                 if estimate.time < EMPTY_WARNING =>
             {
-                WidgetState::Warning
+                ReadingDisplayState::Warning
             }
-            BatteryTime::Idle(_) | BatteryTime::Countdown(_) => WidgetState::Idle,
+            BatteryTime::Idle(_) | BatteryTime::Countdown(_) => ReadingDisplayState::Idle,
         }
     }
 

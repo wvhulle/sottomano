@@ -32,6 +32,7 @@ use crate::{
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
+        reading_display_state::ReadingDisplayState,
         refresh_dial::RefreshDial,
         text::{FontFaces, LINE_HEIGHT, bar_text},
         tooltip_body::{
@@ -44,7 +45,6 @@ use crate::{
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
         value_cells::{ValueCellPressMessages, ValueCellView, wrapped_text},
-        widget_state::WidgetState,
         window_icon::WindowAssets,
     },
 };
@@ -557,7 +557,7 @@ impl<'a> TooltipContent<'a> {
                     drawn.callout(
                         callout.anchor,
                         bar_text(font, callout.label.clone())
-                            .style(WidgetState::from(callout.level).text_style()),
+                            .style(ReadingDisplayState::from(callout.level).text_style()),
                     )
                 },
             )

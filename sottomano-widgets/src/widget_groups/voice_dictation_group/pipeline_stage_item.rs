@@ -9,9 +9,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -50,16 +50,16 @@ impl GroupItemReading for NotulistPipeline {
         Phosphor::Pulse(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.activity.stage {
-            PipelineStage::Idle => WidgetState::Idle,
-            PipelineStage::Capturing => WidgetState::Live,
+            PipelineStage::Idle => ReadingDisplayState::Idle,
+            PipelineStage::Capturing => ReadingDisplayState::Live,
             PipelineStage::Gating
             | PipelineStage::DetectingLanguage
             | PipelineStage::Decoding
             | PipelineStage::Filtering
             | PipelineStage::Reconciling
-            | PipelineStage::CleaningText => WidgetState::Pending,
+            | PipelineStage::CleaningText => ReadingDisplayState::Pending,
         }
     }
 

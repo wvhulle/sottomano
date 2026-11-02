@@ -10,9 +10,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -46,13 +46,15 @@ impl GroupItemReading for LlamaModel {
         Some(self.id.clone())
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.status {
-            LlamaModelStatus::Loading | LlamaModelStatus::Downloading => WidgetState::Pending,
+            LlamaModelStatus::Loading | LlamaModelStatus::Downloading => {
+                ReadingDisplayState::Pending
+            }
             LlamaModelStatus::Sleeping
             | LlamaModelStatus::Unloaded
-            | LlamaModelStatus::Downloaded => WidgetState::Off,
-            LlamaModelStatus::Loaded => WidgetState::Idle,
+            | LlamaModelStatus::Downloaded => ReadingDisplayState::Off,
+            LlamaModelStatus::Loaded => ReadingDisplayState::Idle,
         }
     }
 
@@ -79,9 +81,9 @@ impl GroupItemReading for ServedModel<'_> {
             .and_then(|resident| resident.label(clock, locale))
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.resident
-            .map_or(WidgetState::Off, |resident| resident.state(clock))
+            .map_or(ReadingDisplayState::Off, |resident| resident.state(clock))
     }
 
     fn tooltip(&self, clock: Clock) -> TooltipBody {

@@ -17,10 +17,10 @@ use crate::{
         localized_durations::{relative_day_word, relative_moment_text},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -155,14 +155,14 @@ impl GroupItemReading for UpcomingEventList {
         ))
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         let now = clock.local();
         if self.events.iter().any(|event| event.is_ongoing(now)) {
-            WidgetState::On
+            ReadingDisplayState::On
         } else if self.failed_subscription_names.is_empty() {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         } else {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         }
     }
 
@@ -219,7 +219,7 @@ mod tests {
         widget_groups::caldav_group::CaldavTarget,
         widgets::{
             group_item_reading::GroupItemReading, latest_snapshot::LatestSnapshot,
-            widget_state::WidgetState,
+            reading_display_state::ReadingDisplayState,
         },
     };
 
@@ -255,7 +255,7 @@ mod tests {
             event_list.label(Clock::real(), Locale::en_US).as_deref(),
             Some("No upcoming events"),
         );
-        assert_eq!(event_list.state(Clock::real()), WidgetState::Idle);
+        assert_eq!(event_list.state(Clock::real()), ReadingDisplayState::Idle);
     }
 
     #[test]
@@ -265,6 +265,9 @@ mod tests {
             event_list.label(Clock::real(), Locale::en_US).as_deref(),
             Some("Proton unavailable"),
         );
-        assert_eq!(event_list.state(Clock::real()), WidgetState::Warning);
+        assert_eq!(
+            event_list.state(Clock::real()),
+            ReadingDisplayState::Warning
+        );
     }
 }

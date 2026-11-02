@@ -13,9 +13,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -47,11 +47,11 @@ impl GroupItemReading for Memory {
         Phosphor::Memory(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.percent() {
-            p if p > 90 => WidgetState::Critical,
-            p if p > 75 => WidgetState::Warning,
-            _ => WidgetState::Idle,
+            p if p > 90 => ReadingDisplayState::Critical,
+            p if p > 75 => ReadingDisplayState::Warning,
+            _ => ReadingDisplayState::Idle,
         }
     }
 

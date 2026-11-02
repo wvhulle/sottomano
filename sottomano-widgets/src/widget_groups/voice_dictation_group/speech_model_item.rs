@@ -7,10 +7,10 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -36,11 +36,11 @@ impl GroupItemReading for NotulistEngine {
         Phosphor::Brain(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match &self.engine {
-            EngineState::LoadingSpeechModel => WidgetState::Pending,
-            EngineState::SpeechModelReady(_) => WidgetState::On,
-            EngineState::SpeechModelUnavailable(_) => WidgetState::Failed,
+            EngineState::LoadingSpeechModel => ReadingDisplayState::Pending,
+            EngineState::SpeechModelReady(_) => ReadingDisplayState::On,
+            EngineState::SpeechModelUnavailable(_) => ReadingDisplayState::Failed,
         }
     }
 
@@ -236,7 +236,10 @@ mod tests {
         };
         assert!(!loading.visible_in_bar());
         assert!(unavailable.visible_in_bar());
-        assert_eq!(unavailable.state(Clock::real()), WidgetState::Failed);
+        assert_eq!(
+            unavailable.state(Clock::real()),
+            ReadingDisplayState::Failed
+        );
     }
 
     #[test]

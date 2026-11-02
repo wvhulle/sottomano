@@ -32,12 +32,12 @@ use crate::{
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, GroupTitle, WidgetGroup,
         },
-        widget_state::WidgetState,
     },
 };
 
@@ -480,7 +480,7 @@ fn player_group<'a>(
                 name: "Position".into(),
                 icon: ItemIcon::IconGlyph {
                     glyph: Phosphor::HourglassMedium(Weight::Regular).into(),
-                    state: WidgetState::Idle,
+                    state: ReadingDisplayState::Idle,
                 },
             },
             ItemHover::ByChildren {

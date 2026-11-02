@@ -33,9 +33,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         input_report_sections::MeasuredReportTiming,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -290,7 +290,7 @@ impl BluetoothAdaptersGroup {
             .iter()
             .map(|device| {
                 let reading = self.device_reading(device, siblings, report_timing_for, clock);
-                let needs_attention = reading.state(clock) == WidgetState::Critical;
+                let needs_attention = reading.state(clock) == ReadingDisplayState::Critical;
                 GroupItem::reading(
                     reading,
                     BluetoothTarget::Device {

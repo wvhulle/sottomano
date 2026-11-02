@@ -26,10 +26,10 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
-        widget_state::WidgetState,
     },
 };
 
@@ -467,11 +467,13 @@ impl GroupItemReading for RainForecast<'_> {
         }
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         match (self.radar_forecast(), self.sources.model()) {
             (Some(radar), _) => radar.state(clock),
-            (None, Some(model)) if model.current.condition.is_precipitation() => WidgetState::Idle,
-            (None, _) => WidgetState::Off,
+            (None, Some(model)) if model.current.condition.is_precipitation() => {
+                ReadingDisplayState::Idle
+            }
+            (None, _) => ReadingDisplayState::Off,
         }
     }
 
@@ -579,7 +581,7 @@ impl GroupItemReading for RadarRainForecast<'_> {
         self.rain.label(clock, locale)
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         match self.severity(clock.local()) {
             Severity::Normal => self.rain.state(clock),
             alerting => alerting.into(),
@@ -647,11 +649,11 @@ impl GroupItemReading for Rain {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.outlook == RainOutlook::Dry {
-            WidgetState::Off
+            ReadingDisplayState::Off
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 
@@ -764,7 +766,7 @@ mod tests {
             alerts: &RainAlertsConfig::default(),
         };
         assert!(forecast.visible_in_bar());
-        assert_eq!(forecast.state(clock), WidgetState::Off);
+        assert_eq!(forecast.state(clock), ReadingDisplayState::Off);
         assert_eq!(
             forecast.icon(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
@@ -775,7 +777,7 @@ mod tests {
                 alerts: &RainAlertsConfig::default(),
             }
             .state(clock),
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         );
     }
 
@@ -881,7 +883,7 @@ mod tests {
     fn rain_starting_soon_raises_a_toast() {
         let clock = Clock::real();
         let rain = radar_frames(clock, &[0.0, 3.0]);
-        let toast = OngoingToast::from_widget_state(
+        let toast = OngoingToast::from_reading_display_state(
             HoverTarget::Weather(WeatherTarget::Rain),
             &RadarRainForecast {
                 rain: &rain,
@@ -1039,7 +1041,7 @@ mod tests {
             clear_forecast.icon(),
             IconGlyph::from(Phosphor::DropSlash(Weight::Regular))
         );
-        assert_eq!(clear_forecast.state(clock), WidgetState::Off);
+        assert_eq!(clear_forecast.state(clock), ReadingDisplayState::Off);
     }
 
     #[test]

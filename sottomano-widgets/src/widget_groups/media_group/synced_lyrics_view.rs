@@ -20,9 +20,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, TableRecord},
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -47,11 +47,11 @@ impl GroupItemReading for TrackLyrics {
         Phosphor::MicrophoneSlash(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self {
-            TrackLyrics::Synced(_) => WidgetState::Idle,
+            TrackLyrics::Synced(_) => ReadingDisplayState::Idle,
             TrackLyrics::PlainOnly(_) | TrackLyrics::Instrumental | TrackLyrics::Missing => {
-                WidgetState::Off
+                ReadingDisplayState::Off
             }
         }
     }
@@ -144,12 +144,12 @@ fn current_lyric_line<'a>(
         name: "Lyrics".into(),
         icon: ItemIcon::IconGlyph {
             glyph: Phosphor::MicrophoneStage(Weight::Regular).into(),
-            state: WidgetState::Idle,
+            state: ReadingDisplayState::Idle,
         },
     };
     let hover = ItemHover::WholeItem(PlayerTarget::of(&media.bus, MediaTarget::Lyrics).into());
     let value = ItemValue::drawn(move |reveal| {
-        let tinted = move |state| StateTint {
+        let tinted = move |state| ReadingStateTint {
             state,
             opacity: reveal,
         };
@@ -162,8 +162,8 @@ fn current_lyric_line<'a>(
             },
             &config.theme.font,
             KaraokeColors {
-                sung: Box::new(move |theme| tinted(WidgetState::Live).color(theme)),
-                unsung: Box::new(move |theme| tinted(WidgetState::Off).color(theme)),
+                sung: Box::new(move |theme| tinted(ReadingDisplayState::Live).color(theme)),
+                unsung: Box::new(move |theme| tinted(ReadingDisplayState::Off).color(theme)),
             },
         )
         .into()

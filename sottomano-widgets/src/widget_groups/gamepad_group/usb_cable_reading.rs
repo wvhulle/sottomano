@@ -7,9 +7,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -39,10 +39,10 @@ impl GroupItemReading for UsbCableReading {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.role {
-            UsbCableRole::InputAndCharging => WidgetState::Idle,
-            UsbCableRole::ChargingOnly => WidgetState::Warning,
+            UsbCableRole::InputAndCharging => ReadingDisplayState::Idle,
+            UsbCableRole::ChargingOnly => ReadingDisplayState::Warning,
         }
     }
 

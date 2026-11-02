@@ -13,6 +13,7 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         toggle_control::{IconToggle, SwitchPresses},
         tooltip_body::{
             TooltipBody,
@@ -20,7 +21,6 @@ use crate::{
         },
         value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -200,13 +200,13 @@ impl GroupItemReading for NotificationStatus {
             .filter(|count| *count > 0)
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.quiet {
-            WidgetState::Off
+            ReadingDisplayState::Off
         } else if self.live > 0 {
-            WidgetState::On
+            ReadingDisplayState::On
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 
@@ -236,8 +236,8 @@ impl GroupItemReading for DoNotDisturbStatus {
         Phosphor::Prohibit(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.quiet)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.quiet)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

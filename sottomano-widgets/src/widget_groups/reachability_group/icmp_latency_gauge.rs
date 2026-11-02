@@ -10,8 +10,8 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
-        widget_state::WidgetState,
     },
 };
 
@@ -35,7 +35,7 @@ impl GroupItemReading for InternetLatency {
         Phosphor::Timer(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         probe_window_severity(&self.window).into()
     }
 

@@ -11,11 +11,11 @@ use crate::{
         icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{
             Section, TooltipBody,
             tooltip_source_delivery::{DeliveryTiming, Tooltip},
         },
-        widget_state::WidgetState,
     },
 };
 
@@ -68,8 +68,8 @@ impl GroupItemReading for IconToggle {
         self.icon.with_weight(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.enabled)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.enabled)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -210,7 +210,7 @@ mod tests {
             .reading
             .display()
             .expect("failed reading still shows");
-        assert_eq!(shown.state(Clock::real()), WidgetState::Failed);
+        assert_eq!(shown.state(Clock::real()), ReadingDisplayState::Failed);
         assert!(
             control
                 .group_item::<()>(

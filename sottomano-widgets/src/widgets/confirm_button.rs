@@ -4,8 +4,8 @@ use sottomano_config::Config;
 use crate::widgets::{
     glyph_button,
     phosphor::{Phosphor, Weight},
+    reading_display_state::{ReadingDisplayState, ReadingStateTint},
     source_reading::icon_value_gap,
-    widget_state::{StateTint, WidgetState},
 };
 
 pub enum Press {
@@ -56,12 +56,12 @@ impl ConfirmButton {
         on_cancel: Message,
     ) -> Element<'a, Message> {
         let size = config.theme.font.icon_size_px;
-        let color = |state: WidgetState| {
-            let tint = StateTint { state, opacity };
+        let color = |state: ReadingDisplayState| {
+            let tint = ReadingStateTint { state, opacity };
             move |theme: &Theme| tint.color(theme)
         };
         if !self.armed {
-            let state = WidgetState::of_toggle(active);
+            let state = ReadingDisplayState::of_toggle(active);
             return glyph_button(
                 idle_glyph.with_weight(state.weight()),
                 size,
@@ -73,13 +73,13 @@ impl ConfirmButton {
             glyph_button(
                 Phosphor::Check(Weight::Bold),
                 size,
-                color(WidgetState::Pending),
+                color(ReadingDisplayState::Pending),
                 on_press
             ),
             glyph_button(
                 Phosphor::X(Weight::Regular),
                 size,
-                color(WidgetState::Off),
+                color(ReadingDisplayState::Off),
                 on_cancel
             ),
         ]

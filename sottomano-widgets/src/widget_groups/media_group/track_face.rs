@@ -15,16 +15,16 @@ use crate::widgets::{
     icon_glyph::IconGlyph,
     icon_handle::IconHandle,
     phosphor::{Phosphor, Weight},
+    reading_display_state::{ReadingDisplayState, ReadingStateTint},
     simple_icons::SimpleIcon,
     text::{FontFaces, LINE_HEIGHT},
-    widget_state::{StateTint, WidgetState},
 };
 
-fn playback_state(media: &Media) -> WidgetState {
+fn playback_state(media: &Media) -> ReadingDisplayState {
     if media.status == Status::Playing {
-        WidgetState::Idle
+        ReadingDisplayState::Idle
     } else {
-        WidgetState::Off
+        ReadingDisplayState::Off
     }
 }
 
@@ -50,8 +50,8 @@ pub(super) fn track_item<'a>(
         ItemValue::drawn(move |reveal| {
             rich_text(label_spans(config, media))
                 .style(
-                    StateTint {
-                        state: WidgetState::Idle,
+                    ReadingStateTint {
+                        state: ReadingDisplayState::Idle,
                         opacity: reveal,
                     }
                     .text_style(),
@@ -81,7 +81,7 @@ pub(super) fn player_item<'a>(
         .map_or_else(|| Phosphor::Radio(Weight::Regular).into(), IconGlyph::from);
     let value = gauge_fraction.map_or(ItemValue::Nothing, |fraction| {
         ItemValue::drawn(move |reveal| {
-            let tint = StateTint {
+            let tint = ReadingStateTint {
                 state,
                 opacity: reveal,
             };

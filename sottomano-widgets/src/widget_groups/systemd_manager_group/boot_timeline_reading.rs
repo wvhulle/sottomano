@@ -16,9 +16,9 @@ use crate::{
         localized_durations::duration_text,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -75,7 +75,7 @@ impl GroupItemReading for BootTimeline {
         })
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         self.startup_comparison
             .as_ref()
             .map(|comparison| comparison.os_startup.severity)
@@ -181,8 +181,8 @@ impl GroupItemReading for StartupUnits<'_> {
         u32::try_from(count).ok().filter(|count| *count > 0)
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        let slowness_state = |ranked: &RankedActivations| -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        let slowness_state = |ranked: &RankedActivations| -> ReadingDisplayState {
             ranked
                 .slowest_first
                 .iter()
@@ -202,7 +202,7 @@ impl GroupItemReading for StartupUnits<'_> {
         ]
         .into_iter()
         .flatten()
-        .map(WidgetState::severity)
+        .map(ReadingDisplayState::severity)
         .max()
         .unwrap_or_default()
         .into()

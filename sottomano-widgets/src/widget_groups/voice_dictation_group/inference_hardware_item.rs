@@ -7,10 +7,10 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         tooltip_body::TooltipBody,
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -69,8 +69,8 @@ impl GroupItemReading for InferenceHardware<'_> {
         Phosphor::Cpu(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::On
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::On
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

@@ -15,9 +15,9 @@ use crate::{
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::WidgetState,
     },
 };
 
@@ -67,7 +67,7 @@ impl GroupItemReading for Vec<OomKillEntry> {
         u32::try_from(self.len()).ok()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         self.iter()
             .map(|entry| entry.severity)
             .max()

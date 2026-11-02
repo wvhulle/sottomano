@@ -20,9 +20,9 @@ use crate::{
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -185,13 +185,13 @@ impl GroupItemReading for ConnectedDeviceReading<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.battery_draining_to(CRITICAL_BATTERY_PERCENT) {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else if self.battery_draining_to(LOW_BATTERY_PERCENT) || self.link_unstable() {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

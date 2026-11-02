@@ -9,9 +9,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::TooltipBody,
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -60,8 +60,8 @@ impl GroupItemReading for RuntimeConfiguration<'_> {
         Phosphor::SlidersHorizontal(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::On
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::On
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

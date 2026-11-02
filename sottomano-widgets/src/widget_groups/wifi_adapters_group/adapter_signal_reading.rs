@@ -10,9 +10,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -48,14 +48,16 @@ impl GroupItemReading for AdapterSignalReading<'_> {
         Phosphor::WifiHigh(Weight::Regular).into()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.adapter.switching {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
         self.adapter
             .link
             .as_ref()
-            .map_or(WidgetState::Off, |link| signal_level(link.signal).into())
+            .map_or(ReadingDisplayState::Off, |link| {
+                signal_level(link.signal).into()
+            })
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -119,11 +121,11 @@ impl GroupItemReading for AdapterConnectionSwitch<'_> {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.adapter.switching {
-            return WidgetState::Pending;
+            return ReadingDisplayState::Pending;
         }
-        WidgetState::of_toggle(self.adapter.connected)
+        ReadingDisplayState::of_toggle(self.adapter.connected)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {
@@ -158,8 +160,8 @@ impl GroupItemReading for AllWifiRadiosSwitch {
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::of_toggle(self.radio_enabled)
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::of_toggle(self.radio_enabled)
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

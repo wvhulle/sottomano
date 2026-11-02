@@ -9,9 +9,9 @@ use crate::{
         localized_quantities::Quantity,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -32,13 +32,13 @@ impl GroupItemReading for CopilotFree {
         Some(format!("{} chats", self.chat))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.chat <= 5 {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else if self.chat <= 20 {
-            WidgetState::Warning
+            ReadingDisplayState::Warning
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

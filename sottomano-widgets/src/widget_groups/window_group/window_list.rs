@@ -39,9 +39,9 @@ use crate::{
         pointer_drag::{
             BarSlotList, DraggedBarSlot, draggable_slot::draggable_slot, slot_pager::slot_pager,
         },
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         text::FontFaces,
         tooltip_body::{Section, tooltip_source_delivery::SourcedSections},
-        widget_state::{StateTint, WidgetState},
         window_icon::{WindowAssets, window_icon},
         window_list_viewport::{Metrics, window_list_viewport},
         window_title::WindowTitle,
@@ -500,8 +500,8 @@ impl WindowSlot<'_> {
     }
 
     fn secondary_glyph<'a>(&self, icon: fn(Weight) -> Phosphor) -> Element<'a, WindowListMessage> {
-        let tint = StateTint {
-            state: WidgetState::Off,
+        let tint = ReadingStateTint {
+            state: ReadingDisplayState::Off,
             opacity: self.opacity,
         };
         IconGlyph::from(icon(tint.state.weight())).view(
@@ -531,13 +531,13 @@ impl WindowSlot<'_> {
         if !audio.playing && !audio.muted {
             return None;
         }
-        let state = WidgetState::of_toggle(!audio.muted);
+        let state = ReadingDisplayState::of_toggle(!audio.muted);
         let icon = if audio.muted {
             Phosphor::SpeakerX(Weight::Regular)
         } else {
             Phosphor::SpeakerHigh(Weight::Regular)
         };
-        let tint = StateTint {
+        let tint = ReadingStateTint {
             state,
             opacity: self.opacity,
         };

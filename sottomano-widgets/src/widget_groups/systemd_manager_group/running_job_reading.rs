@@ -22,9 +22,9 @@ use crate::{
         localized_time::LocalizedTimeFormat,
         ongoing_toast::{OngoingKey, OngoingToast, definition_list, moment_text},
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
-        widget_state::WidgetState,
     },
 };
 
@@ -111,8 +111,8 @@ impl GroupItemReading for SlowJobs {
         u32::try_from(self.jobs.len()).ok()
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Warning
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Warning
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

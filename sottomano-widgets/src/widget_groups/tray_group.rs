@@ -32,11 +32,11 @@ use crate::{
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         widget_group::{
             ExpansionMessage, GroupContent, GroupEvent, GroupExpansion, HandleFace, WidgetGroup,
         },
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -270,8 +270,8 @@ fn item_view<'a>(
     reveal: f32,
 ) -> Element<'a, GroupEvent<TrayMessage>> {
     let side = config.theme.font.icon_size_px;
-    let tint = StateTint {
-        state: WidgetState::Idle,
+    let tint = ReadingStateTint {
+        state: ReadingDisplayState::Idle,
         opacity: reveal,
     };
     let glyph: Element<'a, GroupEvent<TrayMessage>> = item.icon.as_ref().map_or_else(

@@ -5,8 +5,8 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading, icon_glyph::IconGlyph,
-        localized_quantities::Quantity, tooltip_body::TooltipBody, value_cells::LabeledValue,
-        weather_icons::WeatherIcon, widget_state::WidgetState,
+        localized_quantities::Quantity, reading_display_state::ReadingDisplayState,
+        tooltip_body::TooltipBody, value_cells::LabeledValue, weather_icons::WeatherIcon,
     },
 };
 
@@ -29,11 +29,11 @@ impl GroupItemReading for Wind {
         Some(format!("{} Bft {}", self.beaufort(), self.compass_point()))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         match self.beaufort() {
-            0..=6 => WidgetState::Idle,
-            7..=8 => WidgetState::Warning,
-            _ => WidgetState::Critical,
+            0..=6 => ReadingDisplayState::Idle,
+            7..=8 => ReadingDisplayState::Warning,
+            _ => ReadingDisplayState::Critical,
         }
     }
 

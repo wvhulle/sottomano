@@ -13,9 +13,9 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -36,11 +36,11 @@ impl GroupItemReading for OpenRouterStrictBudget {
         Some(format!("{} left", spend_text(&self.tightest_remaining())))
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
         if self.exhausted() {
-            WidgetState::Critical
+            ReadingDisplayState::Critical
         } else {
-            WidgetState::Idle
+            ReadingDisplayState::Idle
         }
     }
 

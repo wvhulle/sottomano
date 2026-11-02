@@ -12,11 +12,11 @@ use crate::{
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         spend_forecast_basis::MONTH_HEADING_FORMAT,
         spend_to_level::level_from_cost,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -41,7 +41,7 @@ impl GroupItemReading for CopilotCcusage {
         })
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         Quota::worst_severity(&self.quotas(clock.utc()))
             .unwrap_or_else(|| level_from_cost(&self.period.usage.cost))
             .into()

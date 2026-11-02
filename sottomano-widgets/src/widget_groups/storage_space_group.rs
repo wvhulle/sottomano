@@ -27,10 +27,10 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{ExpansionMessage, GroupContent, GroupExpansion, WidgetGroup},
-        widget_state::WidgetState,
     },
 };
 
@@ -98,7 +98,7 @@ impl GroupItemReading for MountPointLabel<'_> {
         Some(self.mount_point.display().to_string())
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         self.usage.state(clock)
     }
 

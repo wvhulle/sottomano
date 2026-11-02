@@ -13,10 +13,10 @@ use crate::{
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
+        reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
         tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
-        widget_state::WidgetState,
     },
 };
 
@@ -106,14 +106,14 @@ impl GroupItemReading for Tailscale {
         SimpleIcon::Tailscale.into()
     }
 
-    fn state(&self, clock: Clock) -> WidgetState {
+    fn state(&self, clock: Clock) -> ReadingDisplayState {
         match self {
-            Tailscale::Stopped => WidgetState::Off,
-            Tailscale::Starting => WidgetState::Pending,
+            Tailscale::Stopped => ReadingDisplayState::Off,
+            Tailscale::Starting => ReadingDisplayState::Pending,
             Tailscale::Running(tailnet) if tailnet_needs_attention(tailnet, clock.utc()) => {
-                WidgetState::Warning
+                ReadingDisplayState::Warning
             }
-            Tailscale::Running(_) => WidgetState::On,
+            Tailscale::Running(_) => ReadingDisplayState::On,
         }
     }
 

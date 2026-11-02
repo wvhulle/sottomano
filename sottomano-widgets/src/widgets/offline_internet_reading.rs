@@ -13,9 +13,9 @@ use crate::{
     widgets::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
+        reading_display_state::ReadingDisplayState,
         tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
-        widget_state::WidgetState,
     },
 };
 
@@ -47,8 +47,8 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.label(clock, locale)
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Off
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Off
     }
 
     fn gauge(&self) -> Option<Ratio> {
@@ -104,8 +104,8 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
         }
     }
 
-    fn state(&self, _clock: Clock) -> WidgetState {
-        WidgetState::Off
+    fn state(&self, _clock: Clock) -> ReadingDisplayState {
+        ReadingDisplayState::Off
     }
 
     fn tooltip(&self, _clock: Clock) -> TooltipBody {

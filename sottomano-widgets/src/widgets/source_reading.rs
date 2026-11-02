@@ -11,9 +11,9 @@ use crate::{
         group_item_reading::GroupItemReading,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
+        reading_display_state::{ReadingDisplayState, ReadingStateTint},
         steady_label_width::{LabelShape, steady_label_width},
         text::{FontFaces, bar_text},
-        widget_state::{StateTint, WidgetState},
     },
 };
 
@@ -40,9 +40,14 @@ fn composed_reading<'a, Message: 'a>(
     widget: &dyn GroupItemReading,
     opacity: f32,
     clock: Clock,
-    value: fn(&Config, &dyn GroupItemReading, StateTint, Clock) -> Option<Element<'a, Message>>,
+    value: fn(
+        &Config,
+        &dyn GroupItemReading,
+        ReadingStateTint,
+        Clock,
+    ) -> Option<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let tint = StateTint {
+    let tint = ReadingStateTint {
         state: widget.state(clock),
         opacity,
     };
@@ -56,7 +61,7 @@ fn composed_reading<'a, Message: 'a>(
         None => icon,
     };
 
-    if widget.state(clock) == WidgetState::Failed {
+    if widget.state(clock) == ReadingDisplayState::Failed {
         return reading;
     }
     badged(config, reading, widget.badge(), tint)
@@ -65,7 +70,7 @@ fn composed_reading<'a, Message: 'a>(
 pub fn reading_icon<'a, Message: 'a>(
     config: &Config,
     widget: &dyn GroupItemReading,
-    tint: StateTint,
+    tint: ReadingStateTint,
     clock: Clock,
 ) -> Element<'a, Message> {
     let bare_icon = widget
@@ -78,8 +83,8 @@ pub fn reading_icon<'a, Message: 'a>(
             config,
             bare_icon,
             ordinal.to_string(),
-            StateTint {
-                state: WidgetState::Off,
+            ReadingStateTint {
+                state: ReadingDisplayState::Off,
                 opacity: tint.opacity,
             },
         ),
@@ -95,10 +100,10 @@ pub fn icon_value_gap(config: &Config) -> f32 {
 pub fn reading_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn GroupItemReading,
-    tint: StateTint,
+    tint: ReadingStateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
-    if widget.state(clock) == WidgetState::Failed {
+    if widget.state(clock) == ReadingDisplayState::Failed {
         return Some(failure_marker(config, tint));
     }
     match widget.gauge() {
@@ -114,10 +119,10 @@ pub fn reading_value<'a, Message: 'a>(
 fn label_value<'a, Message: 'a>(
     config: &Config,
     widget: &dyn GroupItemReading,
-    tint: StateTint,
+    tint: ReadingStateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
-    if widget.state(clock) == WidgetState::Failed {
+    if widget.state(clock) == ReadingDisplayState::Failed {
         return Some(failure_marker(config, tint));
     }
     label_text(config, widget, tint, clock)
@@ -126,7 +131,7 @@ fn label_value<'a, Message: 'a>(
 fn label_text<'a, Message: 'a>(
     config: &Config,
     widget: &dyn GroupItemReading,
-    tint: StateTint,
+    tint: ReadingStateTint,
     clock: Clock,
 ) -> Option<Element<'a, Message>> {
     widget
@@ -146,7 +151,10 @@ fn label_text<'a, Message: 'a>(
         })
 }
 
-fn failure_marker<'a, Message: 'a>(config: &Config, tint: StateTint) -> Element<'a, Message> {
+fn failure_marker<'a, Message: 'a>(
+    config: &Config,
+    tint: ReadingStateTint,
+) -> Element<'a, Message> {
     IconGlyph::from(Phosphor::Warning(Weight::Thin))
         .view(config.theme.font.icon_size_px, move |theme| {
             tint.color(theme)
@@ -157,7 +165,7 @@ fn badged<'a, Message: 'a>(
     config: &Config,
     reading: Element<'a, Message>,
     badge: Option<u32>,
-    tint: StateTint,
+    tint: ReadingStateTint,
 ) -> Element<'a, Message> {
     match badge {
         Some(count) if count > 0 => superscripted(config, reading, count.to_string(), tint),
@@ -169,7 +177,7 @@ fn superscripted<'a, Message: 'a>(
     config: &Config,
     marked: Element<'a, Message>,
     digits: String,
-    tint: StateTint,
+    tint: ReadingStateTint,
 ) -> Element<'a, Message> {
     let superscript = text(digits)
         .size(config.theme.font.small_text_size_px)

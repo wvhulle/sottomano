@@ -13,9 +13,9 @@ use crate::widgets::{
         ContentSizedColumn, SpannableRow, content_sized_column, content_sized_spanning_table,
     },
     ellipsis_rule::ellipsis_rule,
+    reading_display_state::ReadingDisplayState,
     text::{LINE_HEIGHT, column_heading},
     value_cells::{LabeledValue, ValueCell, ValueCellView},
-    widget_state::WidgetState,
 };
 
 const SEPARATOR_RULE_THICKNESS_PX: f32 = 1.0;
@@ -405,7 +405,7 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
         let cell_view = self.cell_view.clone();
         content_sized_column(heading_view, move |content| match content {
             ColumnedRowContent::Record(record) => {
-                let state = WidgetState::from(record.severity());
+                let state = ReadingDisplayState::from(record.severity());
                 cell_view.value(
                     record.cell(position).clone(),
                     move |theme| state.color(theme),
