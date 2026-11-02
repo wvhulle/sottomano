@@ -34,7 +34,7 @@ use pipewire::{
             SPA_PARAM_ROUTE_props, SPA_PARAM_ROUTE_save, SPA_PARAM_Route, SPA_PROP_channelVolumes,
             SPA_PROP_mute, SPA_TYPE_OBJECT_ParamRoute, SPA_TYPE_OBJECT_Props,
         },
-        utils::dict::DictRef,
+        utils::{dict::DictRef, result::AsyncSeq},
     },
     types::ObjectType,
 };
@@ -694,10 +694,44 @@ struct Proxies {
     defaults: Vec<Bound<Metadata, MetadataListener>>,
 }
 
+#[derive(Clone, Copy, Default)]
+enum GraphEnumeration {
+    #[default]
+    NotStarted,
+    ListingGlobals(AsyncSeq),
+    AnsweringBinds(AsyncSeq),
+    Settled,
+}
+
+impl GraphEnumeration {
+    fn started(sync_result: Result<AsyncSeq, pipewire::Error>) -> Self {
+        sync_result
+            .inspect_err(|sync_error| tracing::warn!("audio: pipewire sync failed: {sync_error}"))
+            .map_or(Self::Settled, Self::ListingGlobals)
+    }
+
+    fn advanced(
+        self,
+        finished: AsyncSeq,
+        sync_again: impl FnOnce() -> Result<AsyncSeq, pipewire::Error>,
+    ) -> Self {
+        match self {
+            Self::ListingGlobals(pending) if pending == finished => sync_again()
+                .inspect_err(|sync_error| {
+                    tracing::warn!("audio: pipewire sync failed: {sync_error}");
+                })
+                .map_or(Self::Settled, Self::AnsweringBinds),
+            Self::AnsweringBinds(pending) if pending == finished => Self::Settled,
+            unfinished => unfinished,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Session {
     graph: Graph,
     proxies: Proxies,
+    enumeration: GraphEnumeration,
     reported_missing: HashSet<Direction>,
 }
 
@@ -798,6 +832,9 @@ fn dispatch(session: &Shared, states: &Publisher, event: Event) {
 }
 
 fn report_missing_defaults(session: &mut Session) {
+    if !matches!(session.enumeration, GraphEnumeration::Settled) {
+        return;
+    }
     for direction in [Direction::Output, Direction::Input] {
         let graph = &session.graph;
         let present = graph.node_count(direction);
@@ -901,6 +938,15 @@ fn serve(
         .error(|id, _, res, message| {
             tracing::warn!("audio: pipewire object {id} reported an error ({res}): {message}");
         })
+        .done({
+            let core = core.clone();
+            let session = session.clone();
+            move |_, finished| {
+                let mut owned = session.borrow_mut();
+                owned.enumeration = owned.enumeration.advanced(finished, || core.sync(0));
+                report_missing_defaults(&mut owned);
+            }
+        })
         .register();
 
     let _registry_listener = registry
@@ -924,6 +970,8 @@ fn serve(
             }
         })
         .register();
+
+    session.borrow_mut().enumeration = GraphEnumeration::started(core.sync(0));
 
     main_loop.run();
 }
@@ -1403,6 +1451,56 @@ mod tests {
             reduce(&mut graph, event);
         }
         graph
+    }
+
+    fn session_with_undefaulted_sink(enumeration: GraphEnumeration) -> Session {
+        Session {
+            graph: graph_with(vec![Event::NodeAdded {
+                id: 56,
+                node: node(Direction::Output, "speaker", &[cubic(54)]),
+            }]),
+            enumeration,
+            ..Session::default()
+        }
+    }
+
+    #[test]
+    fn missing_defaults_stay_unreported_while_enumerating() {
+        let mut session = session_with_undefaulted_sink(GraphEnumeration::NotStarted);
+        report_missing_defaults(&mut session);
+        assert!(session.reported_missing.is_empty());
+    }
+
+    #[test]
+    fn missing_defaults_are_reported_once_settled() {
+        let mut session = session_with_undefaulted_sink(GraphEnumeration::Settled);
+        report_missing_defaults(&mut session);
+        assert!(session.reported_missing.contains(&Direction::Output));
+    }
+
+    #[test]
+    fn enumeration_settles_after_two_matching_sync_rounds() {
+        let first_sync = AsyncSeq::from_seq(1);
+        let second_sync = AsyncSeq::from_seq(2);
+        let unrelated_sync = AsyncSeq::from_seq(9);
+        let listing = GraphEnumeration::started(Ok(first_sync));
+        let unchanged = listing.advanced(unrelated_sync, || Ok(second_sync));
+        assert!(
+            matches!(unchanged, GraphEnumeration::ListingGlobals(pending) if pending == first_sync)
+        );
+        let answering = unchanged.advanced(first_sync, || Ok(second_sync));
+        assert!(
+            matches!(answering, GraphEnumeration::AnsweringBinds(pending) if pending == second_sync)
+        );
+        let still_answering = answering.advanced(first_sync, || Ok(unrelated_sync));
+        assert!(matches!(
+            still_answering,
+            GraphEnumeration::AnsweringBinds(_)
+        ));
+        assert!(matches!(
+            still_answering.advanced(second_sync, || Ok(unrelated_sync)),
+            GraphEnumeration::Settled
+        ));
     }
 
     #[test]
