@@ -28,7 +28,7 @@ boots with a `sottomano_widgets::clock::Clock` whose wall time is the fixed
 showcase epoch, and the recorder advances that clock one frame interval per
 captured frame and sends it as a `Frame` message. The frame also rewrites the
 redraw instant iced hands to widgets, so animations run from the same scripted
-time. Live readings, toast expiry and the tooltip hide timer fire when their
+time. Live readings, toast expiry and the hover card hide timer fire when their
 deadline passes on that clock, and the scripted program has no subscriptions.
 Keep that property when writing fixtures and widgets: take the clock as an
 argument, never read `Instant::now()` or `Utc::now()` (the widgets crate's

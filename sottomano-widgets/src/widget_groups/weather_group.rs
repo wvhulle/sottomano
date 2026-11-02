@@ -26,7 +26,7 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         group_menus::group_source_demand::GroupSourceDemand,
         weather_group::rain_intensity::{RainForecast, RainSources},
@@ -34,8 +34,8 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         latest_snapshot::{HidesFailuresAfterSuccess, LatestSnapshot},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -187,21 +187,24 @@ impl WeatherGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: WeatherTarget,
         config: &Config,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         match target {
-            WeatherTarget::Temperature => self.temperature.tooltip(clock),
-            WeatherTarget::Wind => self.wind.tooltip(clock),
-            WeatherTarget::Rain => self.rain_tooltip(config, clock),
-            WeatherTarget::Pollen => self.pollen.tooltip(clock),
-            WeatherTarget::Allergen(allergen) => self
-                .pollen
-                .tooltip_with(self.pollen.get()?.concentration(allergen)?.tooltip(clock)),
-            WeatherTarget::Location => self.location.tooltip(clock),
+            WeatherTarget::Temperature => self.temperature.hover_card(clock),
+            WeatherTarget::Wind => self.wind.hover_card(clock),
+            WeatherTarget::Rain => self.rain_hover_card(config, clock),
+            WeatherTarget::Pollen => self.pollen.hover_card(clock),
+            WeatherTarget::Allergen(allergen) => self.pollen.hover_card_with(
+                self.pollen
+                    .get()?
+                    .concentration(allergen)?
+                    .hover_card(clock),
+            ),
+            WeatherTarget::Location => self.location.hover_card(clock),
         }
     }
 
@@ -221,25 +224,25 @@ impl WeatherGroup {
         })
     }
 
-    fn rain_tooltip(&self, config: &Config, clock: Clock) -> Option<Tooltip> {
+    fn rain_hover_card(&self, config: &Config, clock: Clock) -> Option<HoverCard> {
         let Some(forecast) = self.rain_forecast(config) else {
             return self
                 .rain
-                .tooltip(clock)
-                .or_else(|| self.precipitation_model.tooltip(clock));
+                .hover_card(clock)
+                .or_else(|| self.precipitation_model.hover_card(clock));
         };
         let radar_failure_sections = self
             .rain
             .failure()
-            .map(|failure| failure.tooltip(clock).listed_sections().to_vec())
+            .map(|failure| failure.hover_card(clock).listed_sections().to_vec())
             .unwrap_or_default();
         let body = forecast
-            .tooltip(clock)
+            .hover_card(clock)
             .with_sections(radar_failure_sections);
         match forecast.sources {
-            RainSources::Model(_) => self.precipitation_model.tooltip_with(body),
+            RainSources::Model(_) => self.precipitation_model.hover_card_with(body),
             RainSources::RadarAndModel { .. } | RainSources::Radar(_) => {
-                self.rain.tooltip_with(body)
+                self.rain.hover_card_with(body)
             }
         }
     }

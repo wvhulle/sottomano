@@ -1,5 +1,5 @@
-pub mod tooltip_figure_payloads;
-pub mod tooltip_source_delivery;
+pub mod hover_card_figure_payloads;
+pub mod hover_card_source_delivery;
 
 use std::{convert::Infallible, fmt::Display, num::NonZeroUsize};
 
@@ -7,7 +7,7 @@ use sottomano_sources::{
     SnapshotSource, SourceCaption, desktop_windows_apps::process_tree_inspection::Process,
 };
 
-use self::tooltip_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview};
+use self::hover_card_figure_payloads::{ChipletCells, ControllerCallouts, WorkspacePreview};
 use crate::{
     clock::Clock,
     widget_groups::window_group::process_tree::Folding,
@@ -254,11 +254,11 @@ impl Section {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct TooltipBody {
+pub struct HoverCardBody {
     sections: Vec<Section>,
 }
 
-impl TooltipBody {
+impl HoverCardBody {
     pub fn sections(sections: impl IntoIterator<Item = Section>) -> Self {
         Self {
             sections: sections.into_iter().collect(),
@@ -281,7 +281,7 @@ impl TooltipBody {
     }
 }
 
-impl From<Section> for TooltipBody {
+impl From<Section> for HoverCardBody {
     fn from(section: Section) -> Self {
         Self::sections([section])
     }

@@ -1,7 +1,7 @@
 use sottomano_sources::desktop_windows_apps::niri_action_requests::ActionFailure;
 use sottomano_widgets::{
     clock::Clock,
-    hover_tooltips::{PopupMessage, TooltipMessage},
+    hover_cards::{HoverCardMessage, PopupMessage},
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
     widget_groups::{
@@ -36,8 +36,8 @@ pub enum ShowcaseMessage {
     WindowGroup(WindowGroupMessage),
     AppearancePresets(AppearancePresetsMessage),
     GroupMenuState(GroupMenuMessage),
-    Tooltip(TooltipMessage),
-    TooltipHideElapsed,
+    HoverCard(HoverCardMessage),
+    HoverCardHideElapsed,
     Notification(NotificationMessage),
     OutsideShowcase,
 }
@@ -46,7 +46,7 @@ impl From<GroupEvent<ShowcaseMessage>> for ShowcaseMessage {
     fn from(event: GroupEvent<ShowcaseMessage>) -> Self {
         match event {
             GroupEvent::Group(message) => message,
-            GroupEvent::Tooltip(tooltip) => ShowcaseMessage::Tooltip(tooltip),
+            GroupEvent::HoverCard(hover_card) => ShowcaseMessage::HoverCard(hover_card),
         }
     }
 }
@@ -54,7 +54,7 @@ impl From<GroupEvent<ShowcaseMessage>> for ShowcaseMessage {
 impl From<WorkspacesMessage> for ShowcaseMessage {
     fn from(workspaces_message: WorkspacesMessage) -> Self {
         match workspaces_message {
-            WorkspacesMessage::Tooltip(tooltip) => ShowcaseMessage::Tooltip(tooltip),
+            WorkspacesMessage::HoverCard(hover_card) => ShowcaseMessage::HoverCard(hover_card),
             WorkspacesMessage::Drag(_)
             | WorkspacesMessage::RestoreOrder { .. }
             | WorkspacesMessage::ToggleEmptyWorkspaces => ShowcaseMessage::OutsideShowcase,
@@ -65,7 +65,7 @@ impl From<WorkspacesMessage> for ShowcaseMessage {
 impl From<PopupMessage> for ShowcaseMessage {
     fn from(popup_message: PopupMessage) -> Self {
         match popup_message {
-            PopupMessage::Tooltip(tooltip) => ShowcaseMessage::Tooltip(tooltip),
+            PopupMessage::HoverCard(hover_card) => ShowcaseMessage::HoverCard(hover_card),
             PopupMessage::WindowGroup(window_group) => ShowcaseMessage::WindowGroup(window_group),
             PopupMessage::CopyText(_)
             | PopupMessage::OpenUrl(_)

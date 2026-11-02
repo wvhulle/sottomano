@@ -2,16 +2,16 @@ use std::time::Instant;
 
 use iced::Task;
 use sottomano_widgets::{
-    hover_tooltips::{GroupHandle, HoverTarget, TooltipMessage, tooltip_transition::Departed},
+    hover_cards::{GroupHandle, HoverCardMessage, HoverTarget, hover_card_transition::Departed},
     layer_surfaces::PanelEdge,
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
         window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
-        workspaces_group::workspace_tooltip,
+        workspaces_group::workspace_hover_card,
     },
-    widgets::tooltip_body::{
-        TooltipBody,
-        tooltip_source_delivery::{DeliveryTiming, Tooltip},
+    widgets::hover_card_body::{
+        HoverCardBody,
+        hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
 };
 use tokio::time::sleep_until;
@@ -21,17 +21,17 @@ use crate::{
     shell_message::Message,
 };
 
-fn hide_tooltip_at(due: Instant) -> Task<Message> {
+fn hide_hover_card_at(due: Instant) -> Task<Message> {
     Task::future(async move {
         sleep_until(due.into()).await;
-        Message::TooltipHideElapsed
+        Message::HoverCardHideElapsed
     })
 }
 
 impl DesktopShell {
-    pub fn update_tooltip(&mut self, msg: TooltipMessage) -> Task<Message> {
+    pub fn update_hover_card(&mut self, msg: HoverCardMessage) -> Task<Message> {
         match msg {
-            TooltipMessage::Enter {
+            HoverCardMessage::Enter {
                 surface,
                 position,
                 target,
@@ -52,18 +52,18 @@ impl DesktopShell {
                     position,
                 };
                 if let Some(intent_elapsed) =
-                    self.tooltip
+                    self.hover_card
                         .defer_switch(&parent, &target, anchor, announcement.clone())
                 {
-                    return intent_elapsed.map(Message::Tooltip);
+                    return intent_elapsed.map(Message::HoverCard);
                 }
-                self.tooltip
+                self.hover_card
                     .open(&parent, target, anchor, announcement, self.clock.instant);
                 Task::none()
             }
-            TooltipMessage::SwitchIntentElapsed => {
-                if let Some(pending) = self.tooltip.take_pending_switch() {
-                    self.tooltip.open(
+            HoverCardMessage::SwitchIntentElapsed => {
+                if let Some(pending) = self.hover_card.take_pending_switch() {
+                    self.hover_card.open(
                         &pending.parent,
                         pending.target,
                         pending.anchor,
@@ -74,101 +74,103 @@ impl DesktopShell {
                 Task::none()
             }
             other => self
-                .tooltip
+                .hover_card
                 .update(other, self.clock.instant)
-                .map_or_else(Task::none, hide_tooltip_at),
+                .map_or_else(Task::none, hide_hover_card_at),
         }
     }
 
-    pub fn leave_tooltip(&mut self) -> Task<Message> {
-        hide_tooltip_at(self.tooltip.leave_after_grace(self.clock.instant))
+    pub fn leave_hover_card(&mut self) -> Task<Message> {
+        hide_hover_card_at(self.hover_card.leave_after_grace(self.clock.instant))
     }
 
-    fn tooltip_departure(&self) -> Option<Departed> {
+    fn hover_card_departure(&self) -> Option<Departed> {
         let content = self
-            .tooltip
+            .hover_card
             .target()
             .and_then(|target| self.hover_content(target))?;
-        self.tooltip.departure(content)
+        self.hover_card.departure(content)
     }
 
-    pub fn dismiss_tooltip(&mut self) -> Task<Message> {
-        let departing = self.tooltip_departure();
-        self.tooltip.dismiss(departing, self.clock.instant);
+    pub fn dismiss_hover_card(&mut self) -> Task<Message> {
+        let departing = self.hover_card_departure();
+        self.hover_card.dismiss(departing, self.clock.instant);
         Task::none()
     }
 
-    pub fn leave_tooltip_after_grace(&mut self) -> Task<Message> {
-        let departing = self.tooltip_departure();
-        self.tooltip.leave_elapsed(self.clock.instant, departing);
+    pub fn leave_hover_card_after_grace(&mut self) -> Task<Message> {
+        let departing = self.hover_card_departure();
+        self.hover_card.leave_elapsed(self.clock.instant, departing);
         Task::none()
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &HoverTarget) -> Option<HoverCard> {
         match target {
             HoverTarget::PanelSettings(target) => Some(
                 self.widget_groups
                     .panel_settings_group
-                    .tooltip_for(*target, self.clock),
+                    .hover_card_for(*target, self.clock),
             ),
             HoverTarget::AppearancePresets(target) => Some(
                 self.widget_groups
                     .appearance_presets_group
-                    .tooltip_for(*target),
+                    .hover_card_for(*target),
             ),
             HoverTarget::SidebarSettings(target) => Some(
                 self.widget_groups
                     .sidebar_settings_group
-                    .tooltip_for(*target, self.clock),
+                    .hover_card_for(*target, self.clock),
             ),
             HoverTarget::OverlaySettings(target) => Some(
                 self.widget_groups
                     .overlay_settings_group
-                    .tooltip_for(*target, self.clock),
+                    .hover_card_for(*target, self.clock),
             ),
             HoverTarget::Notification(target) => {
-                Some(self.widget_groups.notification_group.tooltip_for(
+                Some(self.widget_groups.notification_group.hover_card_for(
                     *target,
                     self.notification_status(),
                     self.clock,
                 ))
             }
-            HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::tooltip_for(app_id)),
-            HoverTarget::GroupHandle(_) => Some(Tooltip::sourced(
-                TooltipBody::sections([]),
+            HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::hover_card_for(app_id)),
+            HoverTarget::GroupHandle(_) => Some(HoverCard::sourced(
+                HoverCardBody::sections([]),
                 DeliveryTiming::LivePush,
             )),
-            HoverTarget::Session(target) => {
-                Some(self.widget_groups.session_power_group.tooltip_for(*target))
-            }
-            HoverTarget::Tray(address) => self.widget_groups.tray_group.tooltip_for(address),
+            HoverTarget::Session(target) => Some(
+                self.widget_groups
+                    .session_power_group
+                    .hover_card_for(*target),
+            ),
+            HoverTarget::Tray(address) => self.widget_groups.tray_group.hover_card_for(address),
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_tooltip(&self.niri, *window, self.clock)
+                WindowGroup::pick_hover_card(&self.niri, *window, self.clock)
             }
-            HoverTarget::Window(WindowTarget::Inspect(_)) => {
-                Some(self.widget_groups.window_group.inspect_tooltip(self.clock))
-            }
-            HoverTarget::Window(WindowTarget::Usage(window)) => {
-                Some(self.widget_groups.session_focus_group.window_usage_tooltip(
-                    *window,
-                    &self.config,
-                    self.clock,
-                ))
-            }
-            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
+            HoverTarget::Window(WindowTarget::Inspect(_)) => Some(
+                self.widget_groups
+                    .window_group
+                    .inspect_hover_card(self.clock),
+            ),
+            HoverTarget::Window(WindowTarget::Usage(window)) => Some(
+                self.widget_groups
+                    .session_focus_group
+                    .window_usage_hover_card(*window, &self.config, self.clock),
+            ),
+            HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.niri_snapshot,
                 &self.desktop_entries,
                 self.widget_groups.niri_window_group.niri_layout(),
                 *workspace,
             ),
-            HoverTarget::WorkspaceOrder | HoverTarget::WorkspaceFolding => Some(Tooltip::empty()),
-            source_target => self.source_group_tooltip_for(source_target),
+            HoverTarget::WorkspaceOrder | HoverTarget::WorkspaceFolding => Some(HoverCard::empty()),
+            source_target => self.source_group_hover_card_for(source_target),
         }
     }
 
-    fn bluetooth_tooltip_for(&self, target: &BluetoothTarget) -> Option<Tooltip> {
-        self.widget_groups.bluetooth_adapters_group.tooltip_for(
+    fn bluetooth_hover_card_for(&self, target: &BluetoothTarget) -> Option<HoverCard> {
+        self.widget_groups.bluetooth_adapters_group.hover_card_for(
             target,
             &|hardware_address| {
                 self.widget_groups
@@ -180,114 +182,116 @@ impl DesktopShell {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn source_group_tooltip_for(&self, target: &HoverTarget) -> Option<Tooltip> {
+    fn source_group_hover_card_for(&self, target: &HoverTarget) -> Option<HoverCard> {
         match target {
             HoverTarget::Compute(target) => self
                 .widget_groups
                 .compute_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::MemoryBoard(target) => self
                 .widget_groups
                 .memory_board_group
-                .tooltip_for(*target, self.clock),
-            HoverTarget::Gpu(target) => {
-                self.widget_groups.gpu_group.tooltip_for(target, self.clock)
-            }
+                .hover_card_for(*target, self.clock),
+            HoverTarget::Gpu(target) => self
+                .widget_groups
+                .gpu_group
+                .hover_card_for(target, self.clock),
             HoverTarget::Storage(target) => self
                 .widget_groups
                 .storage_space_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::Drive(target) => self
                 .widget_groups
                 .physical_drive_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::Power(target) => self
                 .widget_groups
                 .power_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::NiriWindow(target) => Some(
                 self.widget_groups
                     .niri_window_group
-                    .tooltip_for(*target, self.clock),
+                    .hover_card_for(*target, self.clock),
             ),
             HoverTarget::Systemd(target) => self
                 .widget_groups
                 .systemd_manager_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::Journal(target) => self
                 .widget_groups
                 .journal_events_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::PendingUpgrades(target) => self
                 .widget_groups
                 .pending_upgrades_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::WifiAdapter(target) => self
                 .widget_groups
                 .wifi_adapters_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::MobileModem(target) => self
                 .widget_groups
                 .mobile_modems_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::EthernetPort(target) => self
                 .widget_groups
                 .ethernet_ports_group
-                .tooltip_for(target, self.clock),
-            HoverTarget::Bluetooth(target) => self.bluetooth_tooltip_for(target),
+                .hover_card_for(target, self.clock),
+            HoverTarget::Bluetooth(target) => self.bluetooth_hover_card_for(target),
             HoverTarget::Audio(kind) => self
                 .widget_groups
                 .audio_group
-                .tooltip_for(*kind, self.clock),
+                .hover_card_for(*kind, self.clock),
             HoverTarget::Monitor(target) => {
                 self.widget_groups
                     .monitor_group
-                    .tooltip_for(target, &self.outputs, self.clock)
+                    .hover_card_for(target, &self.outputs, self.clock)
             }
             HoverTarget::ColorTemperature(target) => self
                 .widget_groups
                 .color_temperature_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::DarkMode(target) => self
                 .widget_groups
                 .dark_mode_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::VoiceDictation(target) => self
                 .widget_groups
                 .voice_dictation_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::IdleTimeout(kind) => Some(
                 self.widget_groups
                     .idle_timeouts_group
-                    .tooltip_for(*kind, self.clock),
+                    .hover_card_for(*kind, self.clock),
             ),
             HoverTarget::Reachability(target) => self
                 .widget_groups
                 .reachability_group
-                .tooltip_for(target, self.clock),
-            HoverTarget::Vpn(target) => {
-                self.widget_groups.vpn_group.tooltip_for(target, self.clock)
-            }
+                .hover_card_for(target, self.clock),
+            HoverTarget::Vpn(target) => self
+                .widget_groups
+                .vpn_group
+                .hover_card_for(target, self.clock),
             HoverTarget::Weather(target) => {
                 self.widget_groups
                     .weather_group
-                    .tooltip_for(*target, &self.config, self.clock)
+                    .hover_card_for(*target, &self.config, self.clock)
             }
             HoverTarget::Wallpaper(target) => self
                 .widget_groups
                 .wallpaper_group
-                .tooltip_for(*target, self.clock),
-            HoverTarget::Caldav(target) => self.widget_groups.caldav_group.tooltip_for(
+                .hover_card_for(*target, self.clock),
+            HoverTarget::Caldav(target) => self.widget_groups.caldav_group.hover_card_for(
                 *target,
                 &self.config.widget_groups.caldav,
                 self.clock,
             ),
-            HoverTarget::Media(target) => self.widget_groups.media_group.tooltip_for(
+            HoverTarget::Media(target) => self.widget_groups.media_group.hover_card_for(
                 target,
                 &self.desktop_entries,
                 self.clock,
             ),
-            HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.tooltip_for(
+            HoverTarget::Gamepad(target) => self.widget_groups.gamepad_group.hover_card_for(
                 *target,
                 &self.config.widget_groups.gamepad,
                 gamepad_window_claim(&self.niri, &self.outputs),
@@ -296,21 +300,21 @@ impl DesktopShell {
             HoverTarget::ClaudeUsage(target) => self
                 .widget_groups
                 .claude_usage_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::CopilotUsage(target) => self
                 .widget_groups
                 .copilot_usage_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::OpenRouterCredit(target) => self
                 .widget_groups
                 .openrouter_credit_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::LlamaServer(target) => self
                 .widget_groups
                 .llama_server_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::SessionFocus(target) => {
-                Some(self.widget_groups.session_focus_group.tooltip_for(
+                Some(self.widget_groups.session_focus_group.hover_card_for(
                     *target,
                     &self.config,
                     self.clock,
@@ -319,15 +323,15 @@ impl DesktopShell {
             HoverTarget::LoginSession(target) => self
                 .widget_groups
                 .login_session_group
-                .tooltip_for(*target, self.clock),
+                .hover_card_for(*target, self.clock),
             HoverTarget::Clock(target) => self
                 .widget_groups
                 .clock_group
-                .tooltip_for(target, self.clock),
+                .hover_card_for(target, self.clock),
             HoverTarget::QuietSchedule(target) => self
                 .widget_groups
                 .quiet_schedule_group
-                .tooltip_for(*target, self.config.calendar.locale, self.clock),
+                .hover_card_for(*target, self.config.calendar.locale, self.clock),
             HoverTarget::PanelSettings(_)
             | HoverTarget::SidebarSettings(_)
             | HoverTarget::AppearancePresets(_)
@@ -345,7 +349,7 @@ impl DesktopShell {
     }
 
     pub(super) fn hovered_reading_target(&self) -> Option<&HoverTarget> {
-        let open_target = self.tooltip.target();
+        let open_target = self.hover_card.target();
         let inspected_in_menu = match open_target {
             Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(kind))) => self
                 .widget_groups

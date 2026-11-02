@@ -5,7 +5,7 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::{
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::{AudioTarget, ControlKind},

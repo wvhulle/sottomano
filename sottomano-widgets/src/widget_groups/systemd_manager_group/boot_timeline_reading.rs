@@ -11,13 +11,13 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -83,7 +83,7 @@ impl GroupItemReading for BootTimeline {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let comparison = self.startup_comparison.as_ref();
         let login_gap = self
             .user_startup
@@ -149,7 +149,7 @@ impl GroupItemReading for BootTimeline {
             )
             .titled("After boot")
         });
-        TooltipBody::sections(once(stages_section).chain(login_section))
+        HoverCardBody::sections(once(stages_section).chain(login_section))
     }
 }
 
@@ -208,7 +208,7 @@ impl GroupItemReading for StartupUnits<'_> {
         .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let blame_section = |ranked: &RankedActivations, title: &str| {
             Section::dictionary(ranked.slowest_first.iter().map(|activation| {
                 LabeledValue::new(
@@ -238,6 +238,6 @@ impl GroupItemReading for StartupUnits<'_> {
         .into_iter()
         .flatten()
         .collect();
-        TooltipBody::sections(sections)
+        HoverCardBody::sections(sections)
     }
 }

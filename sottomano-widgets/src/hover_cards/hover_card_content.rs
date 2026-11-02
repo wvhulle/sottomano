@@ -15,7 +15,7 @@ use sottomano_config::Config;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{
+    hover_cards::{
         HoverOrigin, MouseGesture, PanelPinOrigin, PopupMessage, PressHints,
         core_grid::CoreCellGrid,
     },
@@ -28,6 +28,13 @@ use crate::{
             primary_color, primary_shades, primary_weak_color, secondary_text_color, success_color,
             success_shades, text_color,
         },
+        hover_card_body::{
+            Heading, Section, SectionBody, SectionHeading,
+            hover_card_figure_payloads::{ChipletCells, ControllerCallouts},
+            hover_card_source_delivery::{
+                DeliveryTiming, HoverCard, SectionsDeliveryState, SourcedSections,
+            },
+        },
         icon_glyph::IconGlyph,
         keyed_record_table::{KeyedRecordTable, KeyedRecordTableStyle},
         localized_durations::duration_text,
@@ -36,13 +43,6 @@ use crate::{
         reading_display_state::ReadingDisplayState,
         refresh_dial::RefreshDial,
         text::{FontFaces, LINE_HEIGHT, panel_text},
-        tooltip_body::{
-            Heading, Section, SectionBody, SectionHeading,
-            tooltip_figure_payloads::{ChipletCells, ControllerCallouts},
-            tooltip_source_delivery::{
-                DeliveryTiming, SectionsDeliveryState, SourcedSections, Tooltip,
-            },
-        },
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
         value_cells::{ValueCellPressMessages, ValueCellView, wrapped_text},
@@ -53,24 +53,24 @@ use crate::{
 const CONTROLLER_DIAGRAM_WIDTH_PX: f32 = 300.0;
 
 #[derive(Clone, Copy)]
-pub struct TooltipContent<'a> {
-    tooltip: &'a Tooltip,
+pub struct HoverCardContent<'a> {
+    hover_card: &'a HoverCard,
     config: &'a Config,
     assets: WindowAssets<'a>,
     clock: Clock,
     presence: TextPresence,
 }
 
-impl<'a> TooltipContent<'a> {
+impl<'a> HoverCardContent<'a> {
     #[must_use]
     pub fn new(
-        tooltip: &'a Tooltip,
+        hover_card: &'a HoverCard,
         config: &'a Config,
         assets: WindowAssets<'a>,
         clock: Clock,
     ) -> Self {
         Self {
-            tooltip,
+            hover_card,
             config,
             assets,
             clock,
@@ -116,7 +116,7 @@ impl<'a> TooltipContent<'a> {
             element.map(Message::from)
         };
         let group_title = self.group_title_row().map(lift);
-        let groups: Vec<&SourcedSections> = self.tooltip.filled_groups().collect();
+        let groups: Vec<&SourcedSections> = self.hover_card.filled_groups().collect();
         let Some((closing_group, leading_groups)) = groups.split_last() else {
             let content = uniform_width_column(
                 enclosed_panel
@@ -165,7 +165,7 @@ impl<'a> TooltipContent<'a> {
     }
 
     fn group_title_row(&self) -> Option<Element<'static, PopupMessage>> {
-        match &self.tooltip.announcement.origin {
+        match &self.hover_card.announcement.origin {
             HoverOrigin::GroupHandle {
                 group_title,
                 panel_pin,
@@ -253,7 +253,7 @@ impl<'a> TooltipContent<'a> {
         &self,
         closing_delivery_state: Option<SectionsDeliveryState>,
     ) -> Element<'static, PopupMessage> {
-        let press_hints = self.tooltip.announcement.press_hints;
+        let press_hints = self.hover_card.announcement.press_hints;
         let hints = (!press_hints.is_empty()).then(|| self.gesture_hints(press_hints));
         self.footer_row(
             hints,

@@ -13,17 +13,17 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
 
-const TOOLTIP_ROWS: usize = 15;
+const HOVER_CARD_ROWS: usize = 15;
 
 impl JournalEventsGroup {
     pub(super) fn kernel_log_item(
@@ -81,8 +81,8 @@ impl GroupItemReading for Vec<KernelOccurrence> {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        let hidden = self.len().saturating_sub(TOOLTIP_ROWS);
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        let hidden = self.len().saturating_sub(HOVER_CARD_ROWS);
         let hidden_notice = (hidden > 0).then(|| {
             TableRecord::new(
                 "",
@@ -92,7 +92,7 @@ impl GroupItemReading for Vec<KernelOccurrence> {
                 ],
             )
         });
-        TooltipBody::sections([Section::column_table(
+        HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Count"),
                 ColumnHeading::titled("Message").align_x(Horizontal::Left),
@@ -124,10 +124,10 @@ mod tests {
     use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
 
     use super::*;
-    use crate::widgets::tooltip_body::SectionBody;
+    use crate::widgets::hover_card_body::SectionBody;
 
     #[test]
-    fn tooltip_lists_latest_messages_oldest_first_after_a_hidden_notice() {
+    fn hover_card_lists_latest_messages_oldest_first_after_a_hidden_notice() {
         let errors = KernelOccurrence::merged_oldest_first(
             (0..17)
                 .rev()
@@ -138,7 +138,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>(),
         );
-        let body = errors.tooltip(Clock::real());
+        let body = errors.hover_card(Clock::real());
         let sections = body.listed_sections();
         let SectionBody::ColumnTable(table) = sections[0].body() else {
             panic!("expected column table");

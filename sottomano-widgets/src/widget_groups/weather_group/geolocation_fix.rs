@@ -7,11 +7,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -78,7 +78,7 @@ impl GroupItemReading for Location {
         self.geo.place.as_ref().map(|place| place.name.clone())
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let estimate = match &self.geo.origin {
             FixOrigin::Manual | FixOrigin::Pinned => None,
             FixOrigin::Estimated(estimate) => Some(estimate),
@@ -90,7 +90,7 @@ impl GroupItemReading for Location {
             LabeledValue::new("Source", self.geo.origin.to_string()),
         ])
         .titled("Position");
-        TooltipBody::sections([
+        HoverCardBody::sections([
             place_section(self.geo.place.as_ref()),
             position_section,
             estimate_section(estimate),

@@ -105,7 +105,7 @@ impl DesktopShell {
     fn follow_drag_outcome(&mut self, outcome: DragOutcome<SlotClick>) -> Task<Message> {
         match outcome {
             DragOutcome::Unchanged => Task::none(),
-            DragOutcome::Started => self.dismiss_tooltip(),
+            DragOutcome::Started => self.dismiss_hover_card(),
             DragOutcome::Clicked(click) => click_slot(click),
             DragOutcome::Dropped(drag) => self.drop_dragged(drag),
             DragOutcome::HoveringForeign(hover) => match hover.item {

@@ -11,7 +11,7 @@ use iced::{
 };
 
 use crate::{
-    hover_tooltips::{HoverAnnouncement, HoverTarget, PressHints, TooltipMessage},
+    hover_cards::{HoverAnnouncement, HoverCardMessage, HoverTarget, PressHints},
     widget_groups::group_menus::GroupMenuPin,
 };
 
@@ -19,7 +19,7 @@ pub fn hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
     press_hints: PressHints,
-    wrap: impl Fn(TooltipMessage) -> M + 'a,
+    wrap: impl Fn(HoverCardMessage) -> M + 'a,
 ) -> Element<'a, M> {
     announcing_hoverable(
         content,
@@ -33,7 +33,7 @@ pub fn announcing_hoverable<'a, M: 'a>(
     content: Element<'a, M>,
     target: HoverTarget,
     announcement: HoverAnnouncement,
-    wrap: impl Fn(TooltipMessage) -> M + 'a,
+    wrap: impl Fn(HoverCardMessage) -> M + 'a,
 ) -> Element<'a, M> {
     Element::new(HoverArea {
         content,
@@ -47,7 +47,7 @@ struct HoverArea<'a, M> {
     content: Element<'a, M>,
     target: HoverTarget,
     announcement: HoverAnnouncement,
-    wrap: Box<dyn Fn(TooltipMessage) -> M + 'a>,
+    wrap: Box<dyn Fn(HoverCardMessage) -> M + 'a>,
 }
 
 #[derive(Default)]
@@ -59,7 +59,7 @@ struct HoverState {
 impl<M> HoverArea<'_, M> {
     fn enter(&self, state: &mut HoverState, anchor: Rectangle) -> M {
         state.announced = self.announcement.clone();
-        (self.wrap)(TooltipMessage::EnterAnchor {
+        (self.wrap)(HoverCardMessage::EnterAnchor {
             target: self.target.clone(),
             anchor,
             announcement: self.announcement.clone(),
@@ -67,7 +67,7 @@ impl<M> HoverArea<'_, M> {
     }
 
     fn exit(&self) -> M {
-        (self.wrap)(TooltipMessage::Exit {
+        (self.wrap)(HoverCardMessage::Exit {
             target: self.target.clone(),
         })
     }
@@ -77,7 +77,7 @@ impl<M> HoverArea<'_, M> {
             return None;
         }
         state.announced = self.announcement.clone();
-        Some((self.wrap)(TooltipMessage::AnnouncementChanged {
+        Some((self.wrap)(HoverCardMessage::AnnouncementChanged {
             target: self.target.clone(),
             announcement: self.announcement.clone(),
         }))

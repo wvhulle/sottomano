@@ -5,11 +5,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -37,8 +37,8 @@ impl GroupItemReading for Battery {
         Some(self.capacity)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(
             [
                 Some(LabeledValue::new("Battery", Quantity::share(self.capacity))),
                 self.status

@@ -23,7 +23,7 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::login_session_group::{
         account_face::AccountFace, compositor_face::CompositorFace,
         desktop_services_face::DesktopServicesFace, kernel_face::KernelFace, login_face::LoginFace,
@@ -33,10 +33,10 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -245,16 +245,16 @@ impl LoginSessionGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: LoginSessionTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: LoginSessionTarget, clock: Clock) -> Option<HoverCard> {
         let session_face =
-            |face: &dyn GroupItemReading| self.identity.tooltip_with(face.tooltip(clock));
+            |face: &dyn GroupItemReading| self.identity.hover_card_with(face.hover_card(clock));
         let identity = self.identity.get();
         match target {
-            LoginSessionTarget::Kernel => self.system.tooltip_with(
+            LoginSessionTarget::Kernel => self.system.hover_card_with(
                 (KernelFace {
                     system: self.system.get()?,
                 })
-                .tooltip(clock),
+                .hover_card(clock),
             ),
             LoginSessionTarget::Seat => {
                 let identity = identity?;
@@ -266,20 +266,20 @@ impl LoginSessionGroup {
             LoginSessionTarget::Login => session_face(&LoginFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_groups(self.session.sections(clock))),
+            .map(|hover_card| hover_card.with_groups(self.session.sections(clock))),
             LoginSessionTarget::Account => session_face(&AccountFace {
                 identity: identity?,
             }),
             LoginSessionTarget::Compositor => session_face(&CompositorFace {
                 identity: identity?,
             })
-            .map(|tooltip| tooltip.with_groups(self.graphical.sections(clock))),
+            .map(|hover_card| hover_card.with_groups(self.graphical.sections(clock))),
             LoginSessionTarget::ServiceManager => session_face(&ServiceManagerFace)
-                .map(|tooltip| tooltip.with_groups(self.service_manager.sections(clock))),
+                .map(|hover_card| hover_card.with_groups(self.service_manager.sections(clock))),
             LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
-                .map(|tooltip| tooltip.with_groups(self.graphical_target.sections(clock))),
+                .map(|hover_card| hover_card.with_groups(self.graphical_target.sections(clock))),
             LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
-                .map(|tooltip| tooltip.with_groups(self.power.sections(clock))),
+                .map(|hover_card| hover_card.with_groups(self.power.sections(clock))),
         }
     }
 }

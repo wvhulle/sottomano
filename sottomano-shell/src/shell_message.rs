@@ -16,7 +16,7 @@ use sottomano_sources::{
 };
 use sottomano_widgets::{
     desktop_index::ResolvedIcons,
-    hover_tooltips::{PopupMessage, TooltipMessage},
+    hover_cards::{HoverCardMessage, PopupMessage},
     layer_surfaces::SurfaceRequest,
     panel_slot_drag::DragMessage,
     toast_messages::NotificationMessage,
@@ -147,9 +147,9 @@ pub enum Message {
     OpenUrl(String),
     RefreshHoveredReading,
     FocusWindow(u64),
-    TooltipHideElapsed,
-    TooltipFadeElapsed,
-    Tooltip(TooltipMessage),
+    HoverCardHideElapsed,
+    HoverCardFadeElapsed,
+    HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
     OutputsResolved(HashMap<String, niri_output_facts::OutputInfo>),
     Output(OutputChange),
@@ -167,9 +167,9 @@ pub enum Message {
     DesktopBus(Result<DesktopBusEvent, zbus::Error>),
 }
 
-impl From<TooltipMessage> for Message {
-    fn from(message: TooltipMessage) -> Self {
-        Message::Tooltip(message)
+impl From<HoverCardMessage> for Message {
+    fn from(message: HoverCardMessage) -> Self {
+        Message::HoverCard(message)
     }
 }
 
@@ -177,7 +177,7 @@ impl From<GroupEvent<Message>> for Message {
     fn from(event: GroupEvent<Message>) -> Self {
         match event {
             GroupEvent::Group(message) => message,
-            GroupEvent::Tooltip(tooltip) => Message::Tooltip(tooltip),
+            GroupEvent::HoverCard(hover_card) => Message::HoverCard(hover_card),
         }
     }
 }
@@ -185,7 +185,7 @@ impl From<GroupEvent<Message>> for Message {
 impl From<PopupMessage> for Message {
     fn from(popup_message: PopupMessage) -> Self {
         match popup_message {
-            PopupMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
+            PopupMessage::HoverCard(hover_card) => Message::HoverCard(hover_card),
             PopupMessage::CopyText(copied) => Message::CopyText(copied),
             PopupMessage::OpenUrl(url) => Message::OpenUrl(url),
             PopupMessage::FocusWindow(window) => Message::FocusWindow(window),
@@ -251,7 +251,7 @@ impl From<niri_action_requests::ActionFailure> for Message {
 impl From<WorkspacesMessage> for Message {
     fn from(workspaces_message: WorkspacesMessage) -> Self {
         match workspaces_message {
-            WorkspacesMessage::Tooltip(tooltip) => Message::Tooltip(tooltip),
+            WorkspacesMessage::HoverCard(hover_card) => Message::HoverCard(hover_card),
             WorkspacesMessage::Drag(drag) => Message::PointerDrag(drag),
             WorkspacesMessage::RestoreOrder { output } => Message::RestoreWorkspaceOrder { output },
             WorkspacesMessage::ToggleEmptyWorkspaces => {

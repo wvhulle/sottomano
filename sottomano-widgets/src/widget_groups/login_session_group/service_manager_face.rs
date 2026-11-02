@@ -4,11 +4,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -24,8 +24,8 @@ impl GroupItemReading for ServiceManagerFace {
         Phosphor::GearSix(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary([
             LabeledValue::new("Service manager", "systemd --user"),
             LabeledValue::new(
                 "Wiki",

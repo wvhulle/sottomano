@@ -13,13 +13,13 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody, ReadingSections, Section, hover_card_figure_payloads::ThreadCell,
+        },
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{
-            ReadingSections, Section, TooltipBody, tooltip_figure_payloads::ThreadCell,
-        },
         value_cells::LabeledValue,
     },
 };
@@ -125,8 +125,8 @@ impl GroupItemReading for CpuUsage {
         Some(self.busy)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new("CPU load", Quantity::share(self.busy))])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new("CPU load", Quantity::share(self.busy))])
     }
 }
 

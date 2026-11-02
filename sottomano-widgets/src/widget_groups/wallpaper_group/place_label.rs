@@ -5,10 +5,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -32,14 +32,14 @@ impl GroupItemReading for Place {
         Some(self.name.clone())
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let coordinates = self.position.into_iter().flat_map(|position| {
             [
                 LabeledValue::new("Latitude", Quantity::angle(position.latitude).decimals(5)),
                 LabeledValue::new("Longitude", Quantity::angle(position.longitude).decimals(5)),
             ]
         });
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             [LabeledValue::new("Where", self.name.as_str())]
                 .into_iter()
                 .chain(coordinates),

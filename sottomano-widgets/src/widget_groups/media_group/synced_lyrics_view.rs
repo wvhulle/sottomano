@@ -15,6 +15,7 @@ use crate::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         karaoke_lyric_line::{
             INSTRUMENTAL_BREAK_MARK, KaraokeColors, KaraokeLyricLine, PlaybackPosition,
@@ -23,7 +24,6 @@ use crate::{
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
@@ -58,8 +58,8 @@ impl GroupItemReading for TrackLyrics {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([lyrics_section(self, Duration::ZERO)])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([lyrics_section(self, Duration::ZERO)])
     }
 }
 
@@ -177,7 +177,7 @@ fn current_lyric_line<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::widgets::{keyed_record_table::KeyedTableRow, tooltip_body::SectionBody};
+    use crate::widgets::{hover_card_body::SectionBody, keyed_record_table::KeyedTableRow};
 
     fn verse_lines() -> TrackLyrics {
         TrackLyrics::synced_from_lrc(

@@ -7,17 +7,17 @@ use sottomano_sources::{
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody, ReadingSections, Section,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard, SourcedSections},
+        },
         icon_glyph::IconGlyph,
         offline_internet_reading::{OfflineSnapshot, PlaceholderCause, SnapshotPlaceholder},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{
-            ReadingSections, Section, TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, SourcedSections, Tooltip},
-        },
     },
 };
 
@@ -48,8 +48,8 @@ impl<S: SnapshotSource<Error: Into<Section>>> GroupItemReading for FailedSnapsho
         ReadingDisplayState::Failed
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([self.error.clone().into()])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([self.error.clone().into()])
     }
 }
 
@@ -62,7 +62,7 @@ impl GroupItemReading for Infallible {
         match *self {}
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         match *self {}
     }
 }
@@ -352,12 +352,12 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
         }
     }
 
-    pub fn tooltip_with(&self, body: TooltipBody) -> Option<Tooltip> {
+    pub fn hover_card_with(&self, body: HoverCardBody) -> Option<HoverCard> {
         match self {
-            LatestSnapshot::OfflineBeforeSnapshot { .. } => Some(Tooltip::grouped([
+            LatestSnapshot::OfflineBeforeSnapshot { .. } => Some(HoverCard::grouped([
                 SourcedSections::source_awaiting_delivery::<S>(body),
             ])),
-            _ => Some(Tooltip::sourced(body, self.delivery_timing()?)),
+            _ => Some(HoverCard::sourced(body, self.delivery_timing()?)),
         }
     }
 
@@ -376,7 +376,7 @@ impl<S: SnapshotSource, Policy: FetchFailurePolicy<S>> LatestSnapshot<S, Policy>
     ) -> Option<SourcedSections> {
         let held_snapshot = self.get()?;
         Some(SourcedSections::delivered(
-            TooltipBody::sections(describe(held_snapshot)).with_sections(self.offline_sections()),
+            HoverCardBody::sections(describe(held_snapshot)).with_sections(self.offline_sections()),
             self.delivery_timing()?,
         ))
     }
@@ -397,7 +397,7 @@ impl<S: SnapshotSource + ReadingSections, Policy: FetchFailurePolicy<S>> LatestS
     pub fn sections(&self, clock: Clock) -> Option<SourcedSections> {
         let held_snapshot = self.get()?;
         Some(SourcedSections::source_delivered::<S>(
-            TooltipBody::sections(held_snapshot.sections(clock))
+            HoverCardBody::sections(held_snapshot.sections(clock))
                 .with_sections(self.offline_sections()),
             self.delivery_timing()?,
         ))
@@ -461,27 +461,27 @@ impl<S: SnapshotSource + GroupItemReading, Policy: FetchFailurePolicy<S>>
         self.group_item(target)
     }
 
-    pub fn tooltip(&self, clock: Clock) -> Option<Tooltip> {
-        self.tooltip_with(self.display()?.tooltip(clock))
+    pub fn hover_card(&self, clock: Clock) -> Option<HoverCard> {
+        self.hover_card_with(self.display()?.hover_card(clock))
     }
 
-    pub fn tooltip_while_pending(&self, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_while_pending(&self, clock: Clock) -> Option<HoverCard> {
         if matches!(self, LatestSnapshot::AwaitingFirstSnapshot) {
-            return Some(Tooltip::grouped([
+            return Some(HoverCard::grouped([
                 SourcedSections::source_awaiting_delivery::<S>(
-                    awaiting_snapshot_placeholder::<S>().tooltip(clock),
+                    awaiting_snapshot_placeholder::<S>().hover_card(clock),
                 ),
             ]));
         }
-        self.tooltip(clock)
+        self.hover_card(clock)
     }
 
-    pub fn tooltip_with_groups(
+    pub fn hover_card_with_groups(
         &self,
         extra: impl IntoIterator<Item = SourcedSections>,
         clock: Clock,
-    ) -> Option<Tooltip> {
-        let own = self.tooltip_with(self.display()?.tooltip(clock))?;
+    ) -> Option<HoverCard> {
+        let own = self.hover_card_with(self.display()?.hover_card(clock))?;
         Some(own.with_groups(extra))
     }
 }
@@ -536,8 +536,8 @@ mod tests {
             Self::fallback_icon()
         }
 
-        fn tooltip(&self, _clock: Clock) -> TooltipBody {
-            TooltipBody::sections([])
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
         }
     }
 
@@ -650,6 +650,6 @@ mod tests {
         );
         assert!(latest.get().is_none());
         assert!(latest.display().is_some());
-        assert!(latest.tooltip(clock_at(10)).is_some());
+        assert!(latest.hover_card(clock_at(10)).is_some());
     }
 }

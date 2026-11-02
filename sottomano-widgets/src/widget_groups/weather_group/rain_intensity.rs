@@ -19,6 +19,7 @@ use crate::{
     },
     widgets::{
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::{duration_text, relative_moment_text},
@@ -27,7 +28,6 @@ use crate::{
         ongoing_toast::{definition_list, moment_text},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
     },
@@ -488,13 +488,13 @@ impl GroupItemReading for RainForecast<'_> {
         self.radar_forecast()?.ongoing_toast_body(clock, locale)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let timeline = self.timeline(clock);
         let timeline_section = timeline
             .iter()
             .any(|row| row.is_wet())
             .then(|| rain_timeline_section(&timeline, self.sources.timeline_headings()));
-        TooltipBody::sections(iter::once(self.summary_section()).chain(timeline_section))
+        HoverCardBody::sections(iter::once(self.summary_section()).chain(timeline_section))
     }
 }
 
@@ -611,12 +611,12 @@ impl GroupItemReading for RadarRainForecast<'_> {
         ])))
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         RainForecast {
             sources: RainSources::Radar(self.rain),
             alerts: self.alerts,
         }
-        .tooltip(clock)
+        .hover_card(clock)
     }
 }
 
@@ -657,12 +657,12 @@ impl GroupItemReading for Rain {
         }
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         RadarRainForecast {
             rain: self,
             alerts: &RainAlertsConfig::default(),
         }
-        .tooltip(clock)
+        .hover_card(clock)
     }
 }
 
@@ -691,12 +691,12 @@ impl GroupItemReading for PrecipitationModel {
         .label(clock, locale)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         RainForecast {
             sources: RainSources::Model(self),
             alerts: &RainAlertsConfig::default(),
         }
-        .tooltip(clock)
+        .hover_card(clock)
     }
 }
 
@@ -715,7 +715,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        hover_tooltips::HoverTarget,
+        hover_cards::HoverTarget,
         widget_groups::weather_group::WeatherTarget,
         widgets::{keyed_record_table::RecordCells, ongoing_toast::OngoingToast},
     };

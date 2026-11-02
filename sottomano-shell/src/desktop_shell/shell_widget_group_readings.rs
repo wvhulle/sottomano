@@ -2,7 +2,7 @@ use iced::Task;
 use sottomano_config::Config;
 use sottomano_sources::system_protocol_clients::dbus_desktop_buses::DesktopBuses;
 use sottomano_widgets::{
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::{
         clock_group::ClockGroup, color_temperature_group::ColorTemperatureGroup,
         compute_group::ComputeGroup, dark_mode_group::DarkModeGroup,

@@ -23,10 +23,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section, hover_card_figure_payloads::DiagramCallout},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody, tooltip_figure_payloads::DiagramCallout},
         value_cells::LabeledValue,
     },
 };
@@ -300,8 +300,8 @@ impl GroupItemReading for ConnectedControllerReading<'_> {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(
             once(self.identity_section())
                 .chain(self.marking.numbering_note())
                 .chain([

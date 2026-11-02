@@ -6,8 +6,8 @@ use sottomano_sources::{
 };
 
 use crate::widgets::{
+    hover_card_body::Section,
     localized_quantities::{DisplayUnit, Quantity},
-    tooltip_body::Section,
     value_cells::{LabeledValue, ValueCell},
     vendor_logo::{PciVendorId, VendorLogo},
 };

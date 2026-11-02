@@ -5,7 +5,7 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_tooltips::TooltipMessage,
+    hover_cards::HoverCardMessage,
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
         DraggedPanelSlot,
@@ -15,18 +15,18 @@ use sottomano_widgets::{
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
-fn anchor_tooltips_on_surface(
+fn anchor_hover_cards_on_surface(
     surface: Id,
     position: Position,
     origin_in_overlay: Vector,
     content: Element<'_, Message>,
 ) -> Element<'_, Message> {
     content.map(move |message| match message {
-        Message::Tooltip(TooltipMessage::EnterAnchor {
+        Message::HoverCard(HoverCardMessage::EnterAnchor {
             target,
             anchor,
             announcement,
-        }) => Message::Tooltip(TooltipMessage::Enter {
+        }) => Message::HoverCard(HoverCardMessage::Enter {
             surface,
             position,
             target,
@@ -46,7 +46,7 @@ impl DesktopShell {
         let float = self.widget_groups.panel_settings_group.float_offset_px();
         let origin = Vector::new(-float, -float);
         let on_edge =
-            |position, content| anchor_tooltips_on_surface(window, position, origin, content);
+            |position, content| anchor_hover_cards_on_surface(window, position, origin, content);
         let workspace_sidebar = container(on_edge(
             Position::Left,
             self.workspace_sidebar(window, output),

@@ -2,9 +2,9 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 
-mod network_manager_vpn_tooltip;
-mod tailscale_mesh_tooltip;
-mod wireguard_tunnel_tooltip;
+mod network_manager_vpn_hover_card;
+mod tailscale_mesh_hover_card;
+mod wireguard_tunnel_hover_card;
 
 use sottomano_config::Config;
 use sottomano_sources::{
@@ -25,14 +25,14 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         group_item::GroupItem,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::LatestSnapshot,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -98,21 +98,21 @@ impl VpnGroup {
         Subscription::batch([
             demand.while_face_shown(
                 &[
-                    network_manager_vpn_tooltip::NETWORK_MANAGER_VPNS_ITEM_NAME,
-                    network_manager_vpn_tooltip::VPN_CONNECTION_ITEM_NAME,
+                    network_manager_vpn_hover_card::NETWORK_MANAGER_VPNS_ITEM_NAME,
+                    network_manager_vpn_hover_card::VPN_CONNECTION_ITEM_NAME,
                 ],
                 snapshot_subscription::<NetworkManagerVpns>(buses.clone())
                     .map(VpnMessage::NetworkManagerVpns),
             ),
             demand.while_face_shown(
                 &[
-                    wireguard_tunnel_tooltip::WIREGUARD_ITEM_NAME,
-                    wireguard_tunnel_tooltip::WIREGUARD_TUNNEL_ITEM_NAME,
+                    wireguard_tunnel_hover_card::WIREGUARD_ITEM_NAME,
+                    wireguard_tunnel_hover_card::WIREGUARD_TUNNEL_ITEM_NAME,
                 ],
                 snapshot_subscription::<Wireguard>(buses.clone()).map(VpnMessage::Wireguard),
             ),
             demand.while_face_shown(
-                &[tailscale_mesh_tooltip::TAILSCALE_ITEM_NAME],
+                &[tailscale_mesh_hover_card::TAILSCALE_ITEM_NAME],
                 snapshot_subscription::<Tailscale>(()).map(VpnMessage::Tailscale),
             ),
         ])
@@ -186,7 +186,7 @@ impl VpnGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &VpnTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &VpnTarget, clock: Clock) -> Option<HoverCard> {
         use crate::widgets::group_item_reading::GroupItemReading;
         match target {
             VpnTarget::NetworkManagerVpn(name) => {
@@ -197,7 +197,7 @@ impl VpnGroup {
                     .iter()
                     .find(|vpn_connection| vpn_connection.name == *name)?;
                 self.network_manager_vpns
-                    .tooltip_with(vpn_connection.tooltip(clock))
+                    .hover_card_with(vpn_connection.hover_card(clock))
             }
             VpnTarget::Wireguard(interface) => {
                 let tunnel = self
@@ -208,11 +208,11 @@ impl VpnGroup {
                     .find(|tunnel| tunnel.interface == interface.as_ref())?;
                 Some(
                     self.wireguard
-                        .tooltip_with(tunnel.tooltip(clock))?
+                        .hover_card_with(tunnel.hover_card(clock))?
                         .with_groups(self.tunnel_address.sections(clock)),
                 )
             }
-            VpnTarget::Tailscale => self.tailscale.tooltip(clock),
+            VpnTarget::Tailscale => self.tailscale.hover_card(clock),
         }
     }
 

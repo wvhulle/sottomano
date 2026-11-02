@@ -20,13 +20,13 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         latest_snapshot::LatestSnapshot,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -298,7 +298,7 @@ impl PhysicalDriveGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: &DriveTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: &DriveTarget, clock: Clock) -> Option<HoverCard> {
         let readings_of = |name: &String| {
             self.disks
                 .iter()
@@ -306,22 +306,24 @@ impl PhysicalDriveGroup {
                 .map(|(_, readings)| readings)
         };
         match target {
-            DriveTarget::MountDiscovery => self.discovery.tooltip(clock),
-            DriveTarget::Space(name) => readings_of(name)?.space.tooltip(clock),
+            DriveTarget::MountDiscovery => self.discovery.hover_card(clock),
+            DriveTarget::Space(name) => readings_of(name)?.space.hover_card(clock),
             DriveTarget::Read(name) => {
                 let readings = readings_of(name)?;
                 match readings.activity.get() {
-                    Some(activity) => readings.activity.tooltip_with(activity.read.tooltip(clock)),
-                    None => readings.activity.tooltip(clock),
+                    Some(activity) => readings
+                        .activity
+                        .hover_card_with(activity.read.hover_card(clock)),
+                    None => readings.activity.hover_card(clock),
                 }
             }
             DriveTarget::Write(name) => {
                 let readings = readings_of(name)?;
                 readings
                     .activity
-                    .tooltip_with(readings.activity.get()?.write.tooltip(clock))
+                    .hover_card_with(readings.activity.get()?.write.hover_card(clock))
             }
-            DriveTarget::DriveHealth(name) => readings_of(name)?.drive_health.tooltip(clock),
+            DriveTarget::DriveHealth(name) => readings_of(name)?.drive_health.hover_card(clock),
         }
     }
 }

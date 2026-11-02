@@ -11,10 +11,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -124,8 +124,8 @@ impl GroupItemReading for ClockLimitCauses<'_> {
         })
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary(self.spreads().iter().map(|spread| {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary(self.spreads().iter().map(|spread| {
             LabeledValue::new(cause_text(spread.cause), self.spread_text(spread))
                 .level(cause_level(spread.cause))
         }))

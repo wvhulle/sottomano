@@ -7,11 +7,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
         vendor_logo::{PciVendorId, VendorLogo},
     },
@@ -42,7 +42,7 @@ impl GroupItemReading for MachineInfo {
         self.hardware_model.clone()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let firmware = non_empty(
             [
                 self.firmware_vendor.as_deref(),
@@ -57,7 +57,7 @@ impl GroupItemReading for MachineInfo {
             at,
             format: LocalizedTimeFormat::Date,
         });
-        TooltipBody::sections([Section::dictionary(
+        HoverCardBody::sections([Section::dictionary(
             [
                 self.hardware_vendor
                     .clone()

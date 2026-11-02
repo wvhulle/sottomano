@@ -12,11 +12,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -73,15 +73,15 @@ impl GroupItemReading for Throughput {
         Some(Ratio::new::<ratio>(f64::from(self.current_fraction())))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         if self.interfaces.is_empty() {
-            return TooltipBody::dictionary([LabeledValue::new("Interfaces", "none")]);
+            return HoverCardBody::dictionary([LabeledValue::new("Interfaces", "none")]);
         }
         let rate_label = match self.direction {
             NetworkTrafficDirection::Upload => "Up",
             NetworkTrafficDirection::Download => "Down",
         };
-        TooltipBody::dictionary(
+        HoverCardBody::dictionary(
             [
                 LabeledValue::new(rate_label, Quantity::transfer_rate(self.rate)),
                 LabeledValue::new("Peak", Quantity::transfer_rate(self.peak_rate)),
@@ -111,8 +111,8 @@ impl GroupItemReading for InterfaceThroughput {
         false
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Down", Quantity::transfer_rate(self.down.rate)),
             LabeledValue::new("Up", Quantity::transfer_rate(self.up.rate)),
         ])

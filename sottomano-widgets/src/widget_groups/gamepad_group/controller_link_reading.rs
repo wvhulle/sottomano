@@ -13,12 +13,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         input_report_sections::{KernelErrorListing, MeasuredReportTiming},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -156,8 +156,8 @@ impl GroupItemReading for ControllerLinkReading<'_> {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(
             [
                 Some(
                     self.report_timing

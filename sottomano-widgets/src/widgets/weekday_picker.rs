@@ -6,7 +6,7 @@ use iced::{
 use sottomano_config::Config;
 
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     widgets::{
         flat_button,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
@@ -29,7 +29,7 @@ pub struct WeekdayPicker<'c, Message> {
 pub struct WeekdayPickerMessages<Message> {
     pub target: fn(Weekday) -> HoverTarget,
     pub on_toggle: fn(Weekday) -> Message,
-    pub on_tooltip: fn(TooltipMessage) -> Message,
+    pub on_hover_card: fn(HoverCardMessage) -> Message,
 }
 
 impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
@@ -81,7 +81,7 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
                 }),
                 ..PressHints::default()
             },
-            self.messages.on_tooltip,
+            self.messages.on_hover_card,
         )
     }
 }

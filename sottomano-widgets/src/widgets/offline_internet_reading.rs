@@ -12,9 +12,9 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -71,9 +71,9 @@ impl<S: GroupItemReading> GroupItemReading for OfflineSnapshot<S> {
         self.held_snapshot.quota_windows(now)
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         self.held_snapshot
-            .tooltip(clock)
+            .hover_card(clock)
             .with_sections([(*self.offline_reason).clone().into()])
     }
 }
@@ -108,8 +108,8 @@ impl<S: SnapshotSource + GroupItemReading> GroupItemReading for SnapshotPlacehol
         ReadingDisplayState::Off
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([match &self.placeholder_cause {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([match &self.placeholder_cause {
             PlaceholderCause::Offline(offline_reason) => offline_reason.clone().into(),
             PlaceholderCause::AwaitingFirstSnapshot => Section::note(AWAITING_SNAPSHOT_LABEL),
         }])

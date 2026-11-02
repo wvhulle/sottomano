@@ -7,10 +7,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -28,8 +28,8 @@ impl GroupItemReading for NetworkManagerVpns {
         Phosphor::LockKey(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 
@@ -57,7 +57,7 @@ impl GroupItemReading for VpnConnection {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let profile_entries = [
             Some(LabeledValue::new(self.name.as_str(), self.protocol_label())),
             self.remote_gateway
@@ -65,7 +65,7 @@ impl GroupItemReading for VpnConnection {
                 .map(|gateway| LabeledValue::new("Gateway", gateway)),
         ];
         let VpnActivity::Active(tunnel) = &self.activity else {
-            return TooltipBody::sections([Section::dictionary(
+            return HoverCardBody::sections([Section::dictionary(
                 profile_entries
                     .into_iter()
                     .flatten()
@@ -95,7 +95,7 @@ impl GroupItemReading for VpnConnection {
             .banner
             .as_deref()
             .map(|banner| LabeledValue::new("Banner", banner));
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::dictionary(
                 profile_entries
                     .into_iter()

@@ -9,12 +9,12 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_forecast_basis::{MONTH_HEADING_FORMAT, WEEK_HEADING_FORMAT},
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -47,7 +47,7 @@ impl GroupItemReading for OpenRouterSpend {
             .into()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let now = clock.local();
         let daily_warning =
             LabeledValue::new("Daily Warning", Quantity::spend(self.daily_warning()))
@@ -72,7 +72,7 @@ impl GroupItemReading for OpenRouterSpend {
             )
             .titled(title)
         };
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::spend_forecast_basis(
                 [LabeledValue::new("Source", "OpenRouter analytics")],
                 &self.budget,

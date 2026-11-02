@@ -8,11 +8,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_quantities::{DisplayUnit, Quantity},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -116,7 +116,7 @@ impl GroupItemReading for ContextSwitchRate<'_> {
         self.severity(clock.utc()).into()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        TooltipBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.sections(clock.utc()))
     }
 }

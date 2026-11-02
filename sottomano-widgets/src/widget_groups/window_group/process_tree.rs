@@ -15,7 +15,7 @@ use uom::{
 };
 
 use crate::{
-    hover_tooltips::PopupMessage,
+    hover_cards::PopupMessage,
     widget_groups::window_group::{WindowGroupMessage, window_list::WindowListMessage},
     widgets::{
         configured_theme::{

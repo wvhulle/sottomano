@@ -20,14 +20,14 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         latest_snapshot::LatestSnapshot,
         most_used_model::{ModelSpendRanking, MostUsedModel, MostUsedModelSpend, RankedSpan},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -215,17 +215,21 @@ impl OpenRouterCreditGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: OpenRouterCreditTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(
+        &self,
+        target: OpenRouterCreditTarget,
+        clock: Clock,
+    ) -> Option<HoverCard> {
         match target {
-            OpenRouterCreditTarget::SoftBudget => self.spend.tooltip(clock),
-            OpenRouterCreditTarget::StrictBudget => self.strict_budget.tooltip(clock),
-            OpenRouterCreditTarget::BestModelsWithinCap => self.model_rankings.tooltip(clock),
+            OpenRouterCreditTarget::SoftBudget => self.spend.hover_card(clock),
+            OpenRouterCreditTarget::StrictBudget => self.strict_budget.hover_card(clock),
+            OpenRouterCreditTarget::BestModelsWithinCap => self.model_rankings.hover_card(clock),
             OpenRouterCreditTarget::MostUsedModel => self
                 .spend
-                .tooltip_with(MostUsedModel(self.model_ranking()?).tooltip(clock)),
+                .hover_card_with(MostUsedModel(self.model_ranking()?).hover_card(clock)),
             OpenRouterCreditTarget::MostUsedModelSpend => self
                 .spend
-                .tooltip_with(MostUsedModelSpend(self.model_ranking()?).tooltip(clock)),
+                .hover_card_with(MostUsedModelSpend(self.model_ranking()?).hover_card(clock)),
         }
     }
 

@@ -1,6 +1,7 @@
 pub mod bottom_bar;
 mod config_adoption;
 mod group_actions;
+pub mod hover_card_updates;
 pub mod monitor_layout;
 pub mod monitor_surfaces;
 mod niri_event_updates;
@@ -11,7 +12,6 @@ mod shell_widget_group_readings;
 mod shell_widget_group_subscriptions;
 pub mod shell_widget_groups;
 mod sqlite_app_launches;
-pub mod tooltip_updates;
 pub mod top_bar;
 pub mod workspace_sidebar;
 
@@ -46,7 +46,7 @@ use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{GroupHandle, HoverTarget, TooltipHost, tooltip_surfaces::HoverContent},
+    hover_cards::{GroupHandle, HoverCardHost, HoverTarget, hover_card_surfaces::HoverContent},
     notification_toasts::NotificationLayer,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
@@ -60,9 +60,9 @@ use sottomano_widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
         group_menu::{GroupMenuCascadeSurfaces, InspectionCard},
+        hover_card_body::hover_card_source_delivery::HoverCard,
         notched_panel::PanelGrowth,
         text::FontFaces,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         window_icon::WindowAssets,
     },
 };
@@ -94,7 +94,7 @@ pub struct DesktopShell {
     pub surfaces: BTreeMap<Id, Surface>,
     pub backdrops: BTreeMap<Id, Position>,
     pub sidebar_widths: HashMap<Id, f32>,
-    pub tooltip: TooltipHost,
+    pub hover_card: HoverCardHost,
     pub notifications: NotificationLayer<Message>,
     pub desktop_entries: DesktopIndex,
     pub favicons: Favicons,
@@ -127,7 +127,7 @@ impl DesktopShell {
             surfaces: BTreeMap::new(),
             backdrops: BTreeMap::new(),
             sidebar_widths: HashMap::new(),
-            tooltip: TooltipHost::default(),
+            hover_card: HoverCardHost::default(),
             notifications: NotificationLayer::default(),
             desktop_entries: DesktopIndex::default(),
             favicons: Favicons::default(),
@@ -166,7 +166,7 @@ impl DesktopShell {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let _span = tracing::trace_span!("update", ?message).entered();
         self.clock = Clock::real();
-        let tooltip_target_before = self.tooltip.target().cloned();
+        let hover_card_target_before = self.hover_card.target().cloned();
         let hovered_before = self.hovered_reading_target().cloned();
         let reheat_due = reheats_switch_heat(&message);
         let dispatched = self.dispatch_message(message);
@@ -179,7 +179,7 @@ impl DesktopShell {
         } else {
             Task::none()
         };
-        if self.tooltip.target() != tooltip_target_before.as_ref() {
+        if self.hover_card.target() != hover_card_target_before.as_ref() {
             let _closed = self
                 .widget_groups
                 .group_menus
@@ -248,7 +248,7 @@ impl DesktopShell {
             Message::QuietSchedule(msg) => self.update_quiet_schedule(msg),
             Message::Session(msg) => self.update_session(msg),
             Message::AppearancePresets(AppearancePresetsMessage::Apply(preset)) => Task::batch([
-                self.dismiss_tooltip(),
+                self.dismiss_hover_card(),
                 self.widget_groups.apply_appearance_preset(preset),
             ]),
             Message::Media(msg) => self.update_media(msg),
@@ -270,7 +270,7 @@ impl DesktopShell {
                 .update(msg)
                 .map(Message::GroupMenuState),
             Message::UnpinFromPanel { menu, entry } => Task::batch([
-                self.dismiss_tooltip(),
+                self.dismiss_hover_card(),
                 self.widget_groups
                     .group_menus
                     .update(GroupMenuMessage::TogglePin { menu, entry })
@@ -292,10 +292,10 @@ impl DesktopShell {
             Message::SidebarWidthChanged { window, width } => {
                 self.update_sidebar_width(window, width)
             }
-            Message::Tooltip(msg) => self.update_tooltip(msg),
+            Message::HoverCard(msg) => self.update_hover_card(msg),
             Message::PointerLeft => {
                 self.pointer_drag = ShellDrag::Idle;
-                self.leave_tooltip()
+                self.leave_hover_card()
             }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
@@ -336,10 +336,10 @@ impl DesktopShell {
                 self.retarget_hover_readings(),
             ]),
             Message::FocusWindow(window) => Task::batch([
-                self.dismiss_tooltip(),
+                self.dismiss_hover_card(),
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),
             ]),
-            Message::TooltipHideElapsed => self.leave_tooltip_after_grace(),
+            Message::HoverCardHideElapsed => self.leave_hover_card_after_grace(),
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => {
                 self.notifications.prune(self.clock.instant);
@@ -381,7 +381,7 @@ impl DesktopShell {
                 self.widget_groups
                     .route(group_message, &self.config, self.clock)
             }
-            Message::TooltipFadeElapsed
+            Message::HoverCardFadeElapsed
             | Message::LayoutChange { .. }
             | Message::BlurOptionChange { .. }
             | Message::PopUpReposition { .. }
@@ -417,15 +417,15 @@ impl DesktopShell {
         }
         match self.interactive_panel(target) {
             Some(panel) => Some(HoverContent::Interactive {
-                described: self.tooltip_for(target).unwrap_or_else(Tooltip::empty),
+                described: self.hover_card_for(target).unwrap_or_else(HoverCard::empty),
                 panel,
             }),
-            None => self.tooltip_for(target).map(HoverContent::Described),
+            None => self.hover_card_for(target).map(HoverContent::Described),
         }
     }
 
     fn group_menu_orientation(&self) -> CascadeOrientation {
-        let Some(placement) = self.tooltip.placement() else {
+        let Some(placement) = self.hover_card.placement() else {
             return CascadeOrientation {
                 direction: CascadeDirection::Rightward,
                 growth: PanelGrowth::Downward,
@@ -439,7 +439,7 @@ impl DesktopShell {
     }
 
     fn open_group_menu(&self) -> Option<GroupMenuTopic> {
-        match self.tooltip.target() {
+        match self.hover_card.target() {
             Some(HoverTarget::GroupHandle(GroupHandle::GroupMenu(topic))) => Some(*topic),
             _ => None,
         }
@@ -455,15 +455,15 @@ impl DesktopShell {
         let group_menu = self
             .bar_group_menus()
             .find(|group_menu| group_menu.topic() == *topic)?;
-        let card_tooltip = self
+        let inspected_hover_card = self
             .widget_groups
             .group_menus
             .inspected_row(*topic)
             .and_then(|row| {
-                self.tooltip_for(&row.target)
-                    .map(|tooltip| tooltip.with_announcement(row.announcement.clone()))
+                self.hover_card_for(&row.target)
+                    .map(|hover_card| hover_card.with_announcement(row.announcement.clone()))
             })
-            .unwrap_or_else(Tooltip::empty);
+            .unwrap_or_else(HoverCard::empty);
         group_menu.surfaces(
             &self.config,
             &self
@@ -471,7 +471,7 @@ impl DesktopShell {
                 .overlay_settings_group
                 .overlay_appearance(),
             &InspectionCard {
-                tooltip: &card_tooltip,
+                hover_card: &inspected_hover_card,
                 assets: self.window_assets(),
                 clock: self.clock,
             },
@@ -527,18 +527,18 @@ impl DesktopShell {
 
     pub fn view(&self, window: Id) -> Element<'_, Message> {
         let _span = tracing::trace_span!("view", ?window).entered();
-        if let Some(tooltip) = self.tooltip.view(
+        if let Some(hover_card) = self.hover_card.view(
             window,
             &self.config,
-            self.widget_groups.tooltip_surface_style(),
+            self.widget_groups.hover_card_surface_style(),
             self.window_assets(),
             |target: &HoverTarget| {
                 self.hover_content(target)
-                    .unwrap_or_else(|| HoverContent::Described(Tooltip::empty()))
+                    .unwrap_or_else(|| HoverContent::Described(HoverCard::empty()))
             },
             self.clock,
         ) {
-            return tooltip;
+            return hover_card;
         }
         let blank = || Space::new().width(Length::Fill).height(Length::Fill);
         if self.backdrops.contains_key(&window) {

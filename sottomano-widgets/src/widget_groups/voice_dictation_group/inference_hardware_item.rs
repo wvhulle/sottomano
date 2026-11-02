@@ -5,11 +5,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         simple_icons::SimpleIcon,
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -73,8 +73,8 @@ impl GroupItemReading for InferenceHardware<'_> {
         ReadingDisplayState::On
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary(self.hardware_rows())
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary(self.hardware_rows())
     }
 }
 

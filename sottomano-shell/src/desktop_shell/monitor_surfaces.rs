@@ -137,7 +137,7 @@ impl DesktopShell {
             .filter(|(_, surface)| surface.output == output)
             .map(|(&id, _)| id)
             .collect();
-        self.tooltip.forget_output(output);
+        self.hover_card.forget_output(output);
         Task::batch(stranded.into_iter().flat_map(|id| {
             [
                 self.forget_window(id),
@@ -149,7 +149,7 @@ impl DesktopShell {
     pub fn forget_window(&mut self, window: Id) -> Task<Message> {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
-        self.tooltip.forget(window);
+        self.hover_card.forget(window);
         self.sidebar_widths.remove(&window);
         Task::none()
     }
@@ -266,12 +266,12 @@ impl DesktopShell {
     }
 
     pub fn reconcile_overlay_surfaces(&mut self) -> Task<Message> {
-        let tooltip_surfaces = self
-            .tooltip
+        let hover_card_surfaces = self
+            .hover_card
             .reconcile_surfaces(self.clock.instant, self.config.tooltips.popup_morph)
             .map(Message::from);
         Task::batch([
-            tooltip_surfaces,
+            hover_card_surfaces,
             self.reconcile_notification_toasts_surfaces(),
         ])
     }

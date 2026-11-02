@@ -6,11 +6,11 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
@@ -72,8 +72,8 @@ impl GroupItemReading for ContextFill<'_> {
         Some(self.fullest)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::column_table(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("State").align_x(Horizontal::Left),
                 ColumnHeading::titled("Tokens"),

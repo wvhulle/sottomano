@@ -39,7 +39,7 @@ recordings are in [docs/development.md](docs/development.md).
   pointers into `docs/`. Installation, configuration, development and the full
   tour live in `docs/`. No user instructions beyond those: the UX should be
   intuitive. Where help or explanation is needed, keep it next to the widget in
-  question, as descriptive labels, tooltip cards and visual indicators, rather
+  question, as descriptive labels, hover cards and visual indicators, rather
   than as prose in the docs.
 - No config keys, defaults or TOML snippets in `README.md`. Users get a
   complete default config from `sottomano default-config` and start from there,

@@ -4,18 +4,18 @@ use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
         phosphor::Phosphor,
         slider_control::{Action, ControlMessage, SliderControl},
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -101,26 +101,26 @@ impl IdleTimer {
     }
 
     #[must_use]
-    pub fn tooltip(&self, clock: Clock) -> Tooltip {
-        self.tooltip_of(timeout_at(self.control.current()), None, clock)
+    pub fn hover_card(&self, clock: Clock) -> HoverCard {
+        self.hover_card_of(timeout_at(self.control.current()), None, clock)
     }
 
     #[must_use]
-    pub fn tooltip_overridden_by(
+    pub fn hover_card_overridden_by(
         &self,
         overrider: &'static str,
         timeout: Duration,
         clock: Clock,
-    ) -> Tooltip {
-        self.tooltip_of(Some(timeout), Some(overrider), clock)
+    ) -> HoverCard {
+        self.hover_card_of(Some(timeout), Some(overrider), clock)
     }
 
-    fn tooltip_of(
+    fn hover_card_of(
         &self,
         timeout: Option<Duration>,
         overrider: Option<&'static str>,
         clock: Clock,
-    ) -> Tooltip {
+    ) -> HoverCard {
         let when = match timeout {
             None => LabeledValue::new("State", "disabled"),
             Some(timeout) => LabeledValue::new(
@@ -134,8 +134,8 @@ impl IdleTimer {
         let overridden = overrider
             .zip(timeout)
             .map(|(overrider, timeout)| LabeledValue::new(overrider, ValueCell::duration(timeout)));
-        Tooltip::sourced(
-            TooltipBody::dictionary(
+        HoverCard::sourced(
+            HoverCardBody::dictionary(
                 [
                     when,
                     LabeledValue::new("Via", self.action.session_action().mechanism()),

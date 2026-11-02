@@ -16,12 +16,12 @@ use self::wallpaper_lookup::Lookup;
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         latest_snapshot::LatestSnapshot,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -96,18 +96,18 @@ impl WallpaperGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: WallpaperTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: WallpaperTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            WallpaperTarget::Lookup => self.lookup.tooltip(clock),
+            WallpaperTarget::Lookup => self.lookup.hover_card(clock),
             WallpaperTarget::Place => self
                 .lookup
-                .tooltip_with(self.lookup.get()?.place.as_ref()?.tooltip(clock)),
+                .hover_card_with(self.lookup.get()?.place.as_ref()?.hover_card(clock)),
             WallpaperTarget::Article => self
                 .lookup
-                .tooltip_with(self.lookup.get()?.article.as_ref()?.tooltip(clock)),
+                .hover_card_with(self.lookup.get()?.article.as_ref()?.hover_card(clock)),
             WallpaperTarget::Photo => self
                 .lookup
-                .tooltip_with(self.lookup.get()?.photo.tooltip(clock)),
+                .hover_card_with(self.lookup.get()?.photo.hover_card(clock)),
         }
     }
 

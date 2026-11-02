@@ -4,8 +4,8 @@ use sottomano_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::DeliveryCadence,
 };
 
-use super::{Heading, Section, TooltipBody};
-use crate::{clock::Clock, hover_tooltips::HoverAnnouncement};
+use super::{Heading, HoverCardBody, Section};
+use crate::{clock::Clock, hover_cards::HoverAnnouncement};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SectionsDeliveryState {
@@ -28,7 +28,7 @@ pub struct SourcedSections {
 
 impl SourcedSections {
     #[must_use]
-    pub fn delivered(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
+    pub fn delivered(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
         Self {
             heading: GroupHeading::Unheaded,
             delivery_state: SectionsDeliveryState::Delivered { delivery_timing },
@@ -38,7 +38,7 @@ impl SourcedSections {
 
     #[must_use]
     pub fn source_delivered<S: SnapshotSource>(
-        body: TooltipBody,
+        body: HoverCardBody,
         delivery_timing: DeliveryTiming,
     ) -> Self {
         Self {
@@ -49,7 +49,7 @@ impl SourcedSections {
     }
 
     #[must_use]
-    pub fn source_awaiting_delivery<S: SnapshotSource>(body: TooltipBody) -> Self {
+    pub fn source_awaiting_delivery<S: SnapshotSource>(body: HoverCardBody) -> Self {
         Self {
             heading: GroupHeading::Source(Heading::of_source::<S>()),
             delivery_state: SectionsDeliveryState::AwaitingDelivery,
@@ -152,12 +152,12 @@ impl DeliveryTiming {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Tooltip {
+pub struct HoverCard {
     pub groups: Vec<SourcedSections>,
     pub announcement: HoverAnnouncement,
 }
 
-impl Tooltip {
+impl HoverCard {
     #[must_use]
     pub fn empty() -> Self {
         Self::grouped([])
@@ -171,7 +171,7 @@ impl Tooltip {
     }
 
     #[must_use]
-    pub fn sourced(body: TooltipBody, delivery_timing: DeliveryTiming) -> Self {
+    pub fn sourced(body: HoverCardBody, delivery_timing: DeliveryTiming) -> Self {
         Self::grouped([SourcedSections::delivered(body, delivery_timing)])
     }
 
@@ -205,25 +205,25 @@ mod tests {
 
     #[test]
     fn a_seeding_section_keeps_its_group_visible() {
-        let tooltip = Tooltip::grouped([SourcedSections::source_awaiting_delivery::<
+        let hover_card = HoverCard::grouped([SourcedSections::source_awaiting_delivery::<
             CpuBusyProcesses,
-        >(TooltipBody::sections([
+        >(HoverCardBody::sections([
             Section::section_seeding(),
         ]))]);
-        assert_eq!(tooltip.filled_groups().count(), 1);
+        assert_eq!(hover_card.filled_groups().count(), 1);
     }
 
     #[test]
     fn a_source_group_carries_its_source_title_and_caption() {
         let headed = SourcedSections::source_delivered::<CpuBusyProcesses>(
-            TooltipBody::sections([]),
+            HoverCardBody::sections([]),
             DeliveryTiming::LivePush,
         );
         let heading = headed.source_heading().unwrap();
         assert_eq!(heading.title(), CpuBusyProcesses::NAME);
         assert!(heading.caption().is_some());
         let unheaded =
-            SourcedSections::delivered(TooltipBody::sections([]), DeliveryTiming::LivePush);
+            SourcedSections::delivered(HoverCardBody::sections([]), DeliveryTiming::LivePush);
         assert!(unheaded.source_heading().is_none());
     }
 }

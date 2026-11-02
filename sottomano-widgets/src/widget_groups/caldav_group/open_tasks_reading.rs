@@ -17,12 +17,12 @@ use crate::{
     },
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -121,7 +121,7 @@ impl GroupItemReading for OpenTaskList {
         !self.tasks.is_empty()
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
         let now = clock.local();
         let provider = &self.provider;
         let with_deadline: Vec<&OpenTask> = self
@@ -138,7 +138,7 @@ impl GroupItemReading for OpenTaskList {
                 provider,
             })
             .collect();
-        TooltipBody::sections([
+        HoverCardBody::sections([
             Section::grouped_column_table(
                 [
                     ColumnHeading::titled("Day"),

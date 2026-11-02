@@ -26,7 +26,7 @@ use sottomano_sources::{
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widget_groups::window_group::{
         WindowGroup, WindowGroupMessage, WindowTarget, window_list::WindowListMessage,
     },

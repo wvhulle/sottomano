@@ -8,27 +8,27 @@ use sottomano_sources::desktop_windows_apps::{
 use crate::{
     desktop_index::DesktopIndex,
     widget_groups::niri_window_group::niri_kdl_rules::NiriLayout,
-    widgets::tooltip_body::{
-        Section, TooltipBody,
-        tooltip_figure_payloads::{PreviewTile, WorkspacePreview},
-        tooltip_source_delivery::{DeliveryTiming, Tooltip},
+    widgets::hover_card_body::{
+        HoverCardBody, Section,
+        hover_card_figure_payloads::{PreviewTile, WorkspacePreview},
+        hover_card_source_delivery::{DeliveryTiming, HoverCard},
     },
 };
 
 #[must_use]
-pub fn tooltip(
+pub fn hover_card(
     snapshot: &niri_window_snapshot::Snapshot,
     icons: &DesktopIndex,
     niri_layout: NiriLayout,
     workspace: u64,
-) -> Option<Tooltip> {
+) -> Option<HoverCard> {
     let windows = snapshot.windows_on_workspace(workspace);
     if windows.is_empty() {
         return None;
     }
     let tile = |window| preview_tile(icons, window);
-    Some(Tooltip::sourced(
-        TooltipBody::from(Section::workspace(WorkspacePreview {
+    Some(HoverCard::sourced(
+        HoverCardBody::from(Section::workspace(WorkspacePreview {
             columns: scrolling_columns(windows)
                 .into_iter()
                 .map(|column| column.into_iter().map(&tile).collect())

@@ -1,8 +1,8 @@
 pub mod inline_strip;
 pub mod sidebar_column;
+pub mod workspace_hover_card;
 pub mod workspace_preview;
 mod workspace_slot;
-pub mod workspace_tooltip;
 
 use std::collections::HashMap;
 
@@ -17,7 +17,7 @@ use sottomano_sources::desktop_windows_apps::{
 
 use self::workspace_slot::WorkspaceSlot;
 use crate::{
-    hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     panel_slot_drag::{DragMessage, PanelSlotContext, SlotDragEvent},
     widgets::{
         configured_theme::secondary_text_color,
@@ -31,7 +31,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum WorkspacesMessage {
-    Tooltip(TooltipMessage),
+    HoverCard(HoverCardMessage),
     Drag(DragMessage),
     RestoreOrder { output: String },
     ToggleEmptyWorkspaces,
@@ -262,7 +262,7 @@ fn empty_workspaces_toggle<'a>(
             left: Some(does),
             ..PressHints::default()
         },
-        WorkspacesMessage::Tooltip,
+        WorkspacesMessage::HoverCard,
     ))
 }
 
@@ -314,7 +314,7 @@ fn order_restore<'a>(
             left: Some("restore the order from niri's config"),
             ..PressHints::default()
         },
-        WorkspacesMessage::Tooltip,
+        WorkspacesMessage::HoverCard,
     ))
 }
 

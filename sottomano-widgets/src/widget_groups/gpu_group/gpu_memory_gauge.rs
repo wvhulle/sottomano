@@ -8,10 +8,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -44,8 +44,8 @@ impl GroupItemReading for GpuMemory {
         }
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        TooltipBody::sections(self.sections(clock))
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.sections(clock))
     }
 }
 

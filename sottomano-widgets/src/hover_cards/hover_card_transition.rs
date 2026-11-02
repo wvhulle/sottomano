@@ -6,8 +6,8 @@ use iced::{
 use sottomano_config::screen_edges::Position;
 
 use crate::{
-    hover_tooltips::{HoverAnnouncement, HoverTarget},
-    widgets::tooltip_body::tooltip_source_delivery::Tooltip,
+    hover_cards::{HoverAnnouncement, HoverTarget},
+    widgets::hover_card_body::hover_card_source_delivery::HoverCard,
 };
 
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct Occupant {
 }
 
 pub enum DepartedContent {
-    Described(Tooltip),
+    Described(HoverCard),
     Interactive,
 }
 
@@ -64,17 +64,17 @@ enum Stage {
     },
 }
 
-pub struct TooltipTransition {
+pub struct HoverCardTransition {
     stage: Stage,
 }
 
-impl Default for TooltipTransition {
+impl Default for HoverCardTransition {
     fn default() -> Self {
         Self { stage: Stage::Idle }
     }
 }
 
-impl TooltipTransition {
+impl HoverCardTransition {
     pub fn show(&mut self, current: Occupant, now: Instant) {
         self.stage = Stage::Showing {
             current,

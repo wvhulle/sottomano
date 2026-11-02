@@ -35,7 +35,7 @@ use window_anchored_toasts::WindowAnchoredToasts;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::PopupMessage,
+    hover_cards::PopupMessage,
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
     widgets::{

@@ -12,7 +12,7 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position};
 
 use crate::{
-    hover_tooltips::tooltip_transition::ShownTarget,
+    hover_cards::hover_card_transition::ShownTarget,
     widgets::{
         cascade_row::{CascadeDirection, CascadeOrientation},
         child_view::{ChildView, ChildViewMut},

@@ -2,10 +2,10 @@ use notulist_client::DictationEngine;
 
 use super::speech_model_item::non_empty;
 use crate::widgets::{
+    hover_card_body::Section,
     icon_glyph::IconGlyph,
     phosphor::{Phosphor, Weight},
     simple_icons::SimpleIcon,
-    tooltip_body::Section,
     value_cells::LabeledValue,
 };
 

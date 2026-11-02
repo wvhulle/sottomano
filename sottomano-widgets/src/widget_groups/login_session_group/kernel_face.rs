@@ -7,10 +7,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
         vendor_logo::{DistributionIds, VendorLogo},
     },
@@ -38,8 +38,8 @@ impl GroupItemReading for KernelFace<'_> {
         Some(self.system.kernel.clone())
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary(
             [
                 Some(LabeledValue::new("Host", self.system.hostname.clone())),
                 Some(LabeledValue::new("Kernel", self.system.kernel.clone())),

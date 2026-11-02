@@ -80,8 +80,8 @@ impl ConnectedOutput<'_> {
 mod tests {
     use super::*;
     use crate::widgets::{
+        hover_card_body::{Section, SectionBody},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, SectionBody},
         value_cells::ValueCell,
     };
 

@@ -13,7 +13,7 @@ use uom::si::{f64::Ratio, ratio};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{HoverTarget, PressHints, TooltipMessage, hoverable},
+    hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
         configured_theme::text_color,
@@ -21,6 +21,10 @@ use crate::{
         expand_animation::expand_animation,
         flat_button,
         group_item_reading::GroupItemReading,
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
+        },
         icon_glyph::IconGlyph,
         inline_slider::inline_slider,
         phosphor::Phosphor,
@@ -28,10 +32,6 @@ use crate::{
         reveal::reveal_x,
         source_reading::{labeled_reading, source_reading},
         text::panel_text,
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
     },
@@ -125,7 +125,7 @@ pub enum ControlMessage {
     Level(f32),
     Disabled(bool),
     Right,
-    Tooltip(TooltipMessage),
+    HoverCard(HoverCardMessage),
 }
 
 impl ControlMessage {
@@ -291,9 +291,9 @@ impl SliderControl {
         ValueCell::Readout(SliderReadout::new(self.current(), self.readout))
     }
 
-    pub fn readout_tooltip(&self, label: impl Into<ValueCell>) -> Tooltip {
-        Tooltip::sourced(
-            TooltipBody::dictionary([LabeledValue::new(label, self.readout_cell())]),
+    pub fn readout_hover_card(&self, label: impl Into<ValueCell>) -> HoverCard {
+        HoverCard::sourced(
+            HoverCardBody::dictionary([LabeledValue::new(label, self.readout_cell())]),
             DeliveryTiming::LivePush,
         )
     }
@@ -383,7 +383,7 @@ impl SliderControl {
                 Action::None
             }
             ControlMessage::Right => Action::Right,
-            ControlMessage::Tooltip(_) => Action::None,
+            ControlMessage::HoverCard(_) => Action::None,
         }
     }
 
@@ -522,7 +522,7 @@ impl SliderControl {
             content,
             self.target.clone(),
             press_hints,
-            ControlMessage::Tooltip,
+            ControlMessage::HoverCard,
         );
         let mut area = mouse_area(hover).on_scroll(ControlMessage::Scroll);
         if self.right_click.is_some() {
@@ -551,7 +551,7 @@ impl SliderControl {
             reading,
             self.target.clone(),
             press_hints,
-            ControlMessage::Tooltip,
+            ControlMessage::HoverCard,
         );
         let mut area = mouse_area(hover)
             .on_press(ControlMessage::Press)
@@ -604,8 +604,8 @@ impl GroupItemReading for SliderControl {
         announcement.level(self.range_fill(), body_text)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([])
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([])
     }
 }
 

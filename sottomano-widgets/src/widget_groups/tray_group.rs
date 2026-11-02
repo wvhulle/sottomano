@@ -21,7 +21,7 @@ use tokio::sync::mpsc;
 use self::menu_lines::TrayMenuLines;
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget, PressHints, hoverable},
+    hover_cards::{GroupHandle, HoverTarget, PressHints, hoverable},
     widgets::{
         activity_line::activity_line,
         app_window_focus::AppWindowFocus,
@@ -30,12 +30,12 @@ use crate::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         icon_handle::PixmapHandles,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
-        tooltip_body::{Section, TooltipBody, tooltip_source_delivery::Tooltip},
         widget_group::{
             GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
             WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -157,21 +157,21 @@ impl TrayGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, address: &str) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, address: &str) -> Option<HoverCard> {
         self.items
             .get()
             .into_iter()
             .flatten()
             .find(|item| item.address == address)
-            .and_then(|item| self.items.tooltip_with(Self::item_tooltip(item)))
+            .and_then(|item| self.items.hover_card_with(Self::item_hover_card(item)))
     }
 
-    fn item_tooltip(item: &TrayItem) -> TooltipBody {
+    fn item_hover_card(item: &TrayItem) -> HoverCardBody {
         let tip = item.tooltip.as_ref();
         let title = tip
             .and_then(|tip| tip.title.clone())
             .unwrap_or_else(|| item.name().to_owned());
-        TooltipBody::from(match tip.and_then(|tip| tip.body.clone()) {
+        HoverCardBody::from(match tip.and_then(|tip| tip.body.clone()) {
             Some(body) => Section::detailed_note(title, body),
             None => Section::note(title),
         })
@@ -312,7 +312,7 @@ fn item_view<'a>(
         marked,
         HoverTarget::Tray(item.address.clone()),
         press_hints,
-        GroupEvent::Tooltip,
+        GroupEvent::HoverCard,
     );
     let mut clickable = mouse_area(hover);
     if let Some(message) = left {

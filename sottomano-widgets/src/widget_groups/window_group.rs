@@ -1,7 +1,7 @@
 pub mod process_tree;
 pub mod quick_launch;
+mod window_hover_card;
 pub mod window_list;
-mod window_tooltip;
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -21,10 +21,10 @@ use window_list::{WindowList, WindowListMessage};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     panel_slot_drag::PanelSlotContext,
     widgets::{
-        tooltip_body::tooltip_source_delivery::{DeliveryTiming, Tooltip},
+        hover_card_body::hover_card_source_delivery::{DeliveryTiming, HoverCard},
         widget_group::GroupEvent,
         window_icon::WindowAssets,
     },
@@ -92,20 +92,20 @@ impl WindowGroup {
     }
 
     #[must_use]
-    pub fn pick_tooltip(
+    pub fn pick_hover_card(
         niri_state: &EventStreamState,
         window: u64,
         clock: Clock,
-    ) -> Option<Tooltip> {
-        Some(Tooltip::sourced(
-            window_tooltip::pick_body(niri_state, window, clock.wall)?,
+    ) -> Option<HoverCard> {
+        Some(HoverCard::sourced(
+            window_hover_card::pick_body(niri_state, window, clock.wall)?,
             DeliveryTiming::LivePush,
         ))
     }
 
     #[must_use]
-    pub fn inspect_tooltip(&self, clock: Clock) -> Tooltip {
-        Tooltip::grouped(self.window_list.process_sections(clock))
+    pub fn inspect_hover_card(&self, clock: Clock) -> HoverCard {
+        HoverCard::grouped(self.window_list.process_sections(clock))
     }
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
@@ -158,7 +158,7 @@ impl WindowGroup {
             .view(niri, icons, audio, output, slot_context)
             .map(|element| {
                 element.map(|message| match message {
-                    WindowListMessage::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
+                    WindowListMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
                     message => GroupEvent::Group(WindowGroupMessage::WindowList(message)),
                 })
             });

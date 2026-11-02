@@ -8,12 +8,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
@@ -67,8 +67,8 @@ impl GroupItemReading for LastShutdown {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::column_table(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Took"),
                 ColumnHeading::titled("Result").align_x(Horizontal::Left),

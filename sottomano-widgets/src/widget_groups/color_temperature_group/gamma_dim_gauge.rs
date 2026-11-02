@@ -6,10 +6,10 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -27,8 +27,8 @@ impl GroupItemReading for ColorTemperature {
         Some(percent_fill(self.brightness))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
             LabeledValue::new("Dim", Quantity::share(percent_fill(self.brightness))),
             LabeledValue::new("Temperature", Quantity::color_temperature(self.temperature)),
         ])

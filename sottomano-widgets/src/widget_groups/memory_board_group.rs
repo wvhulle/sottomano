@@ -16,13 +16,13 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{Section, hover_card_source_delivery::HoverCard},
         hover_fetched_snapshot::HoverFetchedSnapshot,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
-        tooltip_body::{Section, tooltip_source_delivery::Tooltip},
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -151,9 +151,9 @@ impl MemoryBoardGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(&self, target: MemoryBoardTarget, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card_for(&self, target: MemoryBoardTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            MemoryBoardTarget::Memory => self.memory.tooltip_with_groups(
+            MemoryBoardTarget::Memory => self.memory.hover_card_with_groups(
                 [
                     self.memory_processes.sections(clock),
                     self.module_temperatures.sections(clock),
@@ -166,8 +166,11 @@ impl MemoryBoardGroup {
             ),
             MemoryBoardTarget::Board => {
                 let machine = &self.hardware.get()?.machine;
-                self.hardware
-                    .tooltip_with(machine.visible_on_panel().then(|| machine.tooltip(clock))?)
+                self.hardware.hover_card_with(
+                    machine
+                        .visible_on_panel()
+                        .then(|| machine.hover_card(clock))?,
+                )
             }
         }
     }

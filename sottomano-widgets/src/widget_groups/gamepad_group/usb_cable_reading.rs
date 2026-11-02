@@ -5,10 +5,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -46,15 +46,15 @@ impl GroupItemReading for UsbCableReading {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         match self.role {
             UsbCableRole::InputAndCharging => {
-                TooltipBody::sections([Section::dictionary([LabeledValue::new(
+                HoverCardBody::sections([Section::dictionary([LabeledValue::new(
                     "Carries",
                     "input and charging",
                 )])])
             }
-            UsbCableRole::ChargingOnly => TooltipBody::sections([
+            UsbCableRole::ChargingOnly => HoverCardBody::sections([
                 Section::dictionary([
                     LabeledValue::new("Carries", "charging only").level(Severity::Warning)
                 ]),

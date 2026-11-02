@@ -4,10 +4,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -23,8 +23,8 @@ impl GroupItemReading for DesktopServicesFace {
         Phosphor::ListChecks(Weight::Regular).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::dictionary([LabeledValue::new(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::dictionary([LabeledValue::new(
             "Started by",
             "systemd --user",
         )])

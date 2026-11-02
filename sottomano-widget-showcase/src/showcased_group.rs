@@ -17,7 +17,7 @@ use sottomano_sources::{
 use sottomano_widgets::{
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     panel_slot_drag::PanelSlotContext,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
@@ -40,17 +40,18 @@ use sottomano_widgets::{
         weather_group::WeatherGroup,
         window_group::{WindowGroup, WindowTarget},
         workspaces_group::{
-            EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column, workspace_tooltip,
+            EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
+            workspace_hover_card,
         },
     },
     widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::{background_color, primary_color, secondary_text_color, success_color},
         favicon::Favicons,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         panel_frame::{LayerFrameStyle, OutlinedSides},
         pointer_drag::DragView,
         shell_layer_appearance::ShellLayer,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::WidgetGroupContent,
         window_icon::WindowAssets,
     },
@@ -154,12 +155,18 @@ impl ShowcasedShellSettings {
         }
     }
 
-    fn tooltip_for(&self, target: &HoverTarget, clock: Clock) -> Option<Tooltip> {
+    fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Option<HoverCard> {
         match target {
-            HoverTarget::PanelSettings(target) => Some(self.panels.tooltip_for(*target, clock)),
-            HoverTarget::SidebarSettings(target) => Some(self.sidebar.tooltip_for(*target, clock)),
-            HoverTarget::OverlaySettings(target) => Some(self.overlays.tooltip_for(*target, clock)),
-            HoverTarget::NiriWindow(target) => Some(self.niri_window.tooltip_for(*target, clock)),
+            HoverTarget::PanelSettings(target) => Some(self.panels.hover_card_for(*target, clock)),
+            HoverTarget::SidebarSettings(target) => {
+                Some(self.sidebar.hover_card_for(*target, clock))
+            }
+            HoverTarget::OverlaySettings(target) => {
+                Some(self.overlays.hover_card_for(*target, clock))
+            }
+            HoverTarget::NiriWindow(target) => {
+                Some(self.niri_window.hover_card_for(*target, clock))
+            }
             _ => None,
         }
     }
@@ -317,15 +324,15 @@ impl ShowcasedNiriSession {
         workspaces.into_iter().chain(windows).collect()
     }
 
-    fn tooltip_for(&self, target: &HoverTarget, clock: Clock) -> Option<Tooltip> {
+    fn hover_card_for(&self, target: &HoverTarget, clock: Clock) -> Option<HoverCard> {
         match target {
             HoverTarget::Window(WindowTarget::Pick(window)) => {
-                WindowGroup::pick_tooltip(&self.niri, *window, clock)
+                WindowGroup::pick_hover_card(&self.niri, *window, clock)
             }
             HoverTarget::Window(WindowTarget::Inspect(_)) => {
-                Some(self.window_group.inspect_tooltip(clock))
+                Some(self.window_group.inspect_hover_card(clock))
             }
-            HoverTarget::Workspace(workspace) => workspace_tooltip::tooltip(
+            HoverTarget::Workspace(workspace) => workspace_hover_card::hover_card(
                 &self.snapshot,
                 &self.desktop_entries,
                 NiriLayout::default(),
@@ -626,36 +633,36 @@ impl ShowcasedGroup {
         }
     }
 
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: &HoverTarget,
         config: &Config,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         match self {
             ShowcasedGroup::Compute(group) => {
                 let HoverTarget::Compute(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::MemoryBoard(group) => {
                 let HoverTarget::MemoryBoard(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::Weather(group) => {
                 let HoverTarget::Weather(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, config, clock)
+                group.hover_card_for(*target, config, clock)
             }
             ShowcasedGroup::ClaudeUsage(group) => {
                 let HoverTarget::ClaudeUsage(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::Media(media) => {
                 let HoverTarget::Media(target) = target else {
@@ -663,25 +670,25 @@ impl ShowcasedGroup {
                 };
                 media
                     .group
-                    .tooltip_for(target, &media.desktop_entries, clock)
+                    .hover_card_for(target, &media.desktop_entries, clock)
             }
             ShowcasedGroup::IdleTimeouts(group) => {
                 let HoverTarget::IdleTimeout(kind) = target else {
                     return None;
                 };
-                Some(group.tooltip_for(*kind, clock))
+                Some(group.hover_card_for(*kind, clock))
             }
             ShowcasedGroup::Wallpaper(group) => {
                 let HoverTarget::Wallpaper(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::Audio(group) => {
                 let HoverTarget::Audio(kind) = target else {
                     return None;
                 };
-                group.tooltip_for(*kind, clock)
+                group.hover_card_for(*kind, clock)
             }
             ShowcasedGroup::Gamepad(gamepad) => {
                 let HoverTarget::Gamepad(target) = target else {
@@ -689,45 +696,45 @@ impl ShowcasedGroup {
                 };
                 gamepad
                     .group
-                    .tooltip_for(*target, &gamepad.bindings, Unclaimed, clock)
+                    .hover_card_for(*target, &gamepad.bindings, Unclaimed, clock)
             }
             ShowcasedGroup::VoiceDictation(group) => {
                 let HoverTarget::VoiceDictation(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::Caldav(group) => {
                 let HoverTarget::Caldav(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, &CaldavAccountConfig::default(), clock)
+                group.hover_card_for(*target, &CaldavAccountConfig::default(), clock)
             }
             ShowcasedGroup::Vpn(group) => {
                 let HoverTarget::Vpn(target) = target else {
                     return None;
                 };
-                group.tooltip_for(target, clock)
+                group.hover_card_for(target, clock)
             }
             ShowcasedGroup::LoginSession(group) => {
                 let HoverTarget::LoginSession(target) = target else {
                     return None;
                 };
-                group.tooltip_for(*target, clock)
+                group.hover_card_for(*target, clock)
             }
             ShowcasedGroup::BottomPanel(session) | ShowcasedGroup::WorkspaceSidebar(session) => {
-                session.tooltip_for(target, clock)
+                session.hover_card_for(target, clock)
             }
             ShowcasedGroup::AppearancePresets(menu) => {
                 let HoverTarget::AppearancePresets(target) = target else {
                     return None;
                 };
-                Some(menu.tooltip_for(*target))
+                Some(menu.hover_card_for(*target))
             }
             ShowcasedGroup::MenuMembers(groups) => groups
                 .iter()
-                .find_map(|member| member.tooltip_for(target, config, clock)),
-            ShowcasedGroup::ShellSettings(settings) => settings.tooltip_for(target, clock),
+                .find_map(|member| member.hover_card_for(target, config, clock)),
+            ShowcasedGroup::ShellSettings(settings) => settings.hover_card_for(target, clock),
             ShowcasedGroup::Toasts(_) => None,
         }
     }

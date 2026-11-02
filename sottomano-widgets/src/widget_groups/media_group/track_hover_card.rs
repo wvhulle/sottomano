@@ -6,9 +6,9 @@ use sottomano_sources::media_playback_audio::mpris_players::Media;
 use crate::{
     desktop_index::DesktopIndex,
     widgets::{
+        hover_card_body::Section,
         icon_glyph::IconGlyph,
         simple_icons::SimpleIcon,
-        tooltip_body::Section,
         value_cells::{LabeledValue, ValueCell},
     },
 };

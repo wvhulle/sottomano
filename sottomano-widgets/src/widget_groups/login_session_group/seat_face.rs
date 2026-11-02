@@ -6,10 +6,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -35,7 +35,7 @@ impl GroupItemReading for SeatFace<'_> {
         )
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let seat = Section::dictionary([
             LabeledValue::new("Hardware seat", self.seat.to_owned()),
             LabeledValue::new(
@@ -69,6 +69,6 @@ impl GroupItemReading for SeatFace<'_> {
                 "The text terminal this login started on; the compositor took it over.",
             ))
         });
-        TooltipBody::sections([seat].into_iter().chain(console))
+        HoverCardBody::sections([seat].into_iter().chain(console))
     }
 }

@@ -9,10 +9,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -38,8 +38,8 @@ impl GroupItemReading for GpuClockLabel {
         Some(megahertz_text(self.current))
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new(
             "Graphics clock",
             Quantity::clock_megahertz(self.current),
         )])

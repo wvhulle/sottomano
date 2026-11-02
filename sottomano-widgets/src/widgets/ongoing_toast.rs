@@ -13,7 +13,7 @@ use uom::si::f64::Ratio;
 
 use crate::{
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         amount_text::percent_text,
         group_item_reading::{GroupItemReading, OngoingToastThreshold},
@@ -280,9 +280,9 @@ mod tests {
     use crate::{
         widget_groups::power_group::PowerTarget,
         widgets::{
+            hover_card_body::HoverCardBody,
             icon_glyph::IconGlyph,
             phosphor::{Phosphor, Weight},
-            tooltip_body::TooltipBody,
         },
     };
 
@@ -308,8 +308,8 @@ mod tests {
             self.threshold
         }
 
-        fn tooltip(&self, _clock: Clock) -> TooltipBody {
-            TooltipBody::sections([])
+        fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+            HoverCardBody::sections([])
         }
     }
 

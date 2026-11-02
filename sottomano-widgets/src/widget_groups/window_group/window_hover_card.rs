@@ -11,9 +11,9 @@ use sottomano_sources::desktop_windows_apps::{
 use crate::{
     clock::Clock,
     widgets::{
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         localized_quantities::Quantity,
         simple_icons::SimpleIcon,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -22,7 +22,7 @@ pub fn pick_body(
     niri_state: &EventStreamState,
     window: u64,
     now: SystemTime,
-) -> Option<TooltipBody> {
+) -> Option<HoverCardBody> {
     let window = niri_state.windows.windows.get(&window)?;
     let window_entries = [
         window
@@ -38,7 +38,7 @@ pub fn pick_body(
             LabeledValue::new("Focused", ValueCell::RelativeMoment((now - focused).into()))
         }),
     ];
-    Some(TooltipBody::sections([Section::dictionary(
+    Some(HoverCardBody::sections([Section::dictionary(
         window_entries.into_iter().flatten(),
     )]))
 }

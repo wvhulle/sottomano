@@ -10,12 +10,12 @@ use crate::{
     widgets::{
         amount_text::spend_text,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, ReadingSections, Section},
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         spend_to_level::level_from_used,
-        tooltip_body::{ReadingSections, Section, TooltipBody},
         value_cells::LabeledValue,
     },
 };
@@ -47,7 +47,7 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
         self.limit.as_ref().map(|_| self.used_share)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let (status, reason) = match &self.status {
             ExtraStatus::Enabled => ("enabled", None),
             ExtraStatus::Disabled { reason } => ("disabled", reason.as_deref()),
@@ -58,7 +58,7 @@ impl GroupItemReading for ClaudeEnterpriseSpend {
                 LabeledValue::new("Percent Used", Quantity::share(self.used_share).decimals(2)),
             ]
         });
-        TooltipBody::sections([Section::dictionary(
+        HoverCardBody::sections([Section::dictionary(
             [LabeledValue::new("Status", status)]
                 .into_iter()
                 .chain(reason.map(|reason| LabeledValue::new("Reason", reason)))

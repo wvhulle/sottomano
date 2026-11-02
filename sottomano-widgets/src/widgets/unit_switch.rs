@@ -11,16 +11,16 @@ use sottomano_sources::{
 use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
-    hover_tooltips::HoverTarget,
+    hover_cards::HoverTarget,
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         icon_glyph::IconGlyph,
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
         toggle_control::SwitchPresses,
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
     },
 };
@@ -65,8 +65,8 @@ impl GroupItemReading for UnitSwitchReading {
         }
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::dictionary([LabeledValue::new(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([LabeledValue::new(
             "Service",
             match self.activity {
                 UnitActivity::Running => "running",
@@ -184,9 +184,9 @@ impl UnitSwitch {
     }
 
     #[must_use]
-    pub fn tooltip(&self, serving: bool, clock: Clock) -> Option<Tooltip> {
+    pub fn hover_card(&self, serving: bool, clock: Clock) -> Option<HoverCard> {
         self.active_state
-            .tooltip_with(self.reading(serving)?.tooltip(clock))
+            .hover_card_with(self.reading(serving)?.hover_card(clock))
     }
 
     pub fn group_item<'a, M: 'a>(

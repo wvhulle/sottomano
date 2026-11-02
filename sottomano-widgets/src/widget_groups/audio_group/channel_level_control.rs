@@ -8,11 +8,11 @@ use crate::{
     widgets::{
         gauge::percent_fill,
         group_item_reading::GroupItemReading,
+        hover_card_body::HoverCardBody,
         icon_glyph::IconGlyph,
         localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         slider_control::{ControlMessage, SliderControl, percent_f},
-        tooltip_body::TooltipBody,
         value_cells::LabeledValue,
     },
 };
@@ -37,7 +37,7 @@ impl GroupItemReading for AudioState {
         audio_output_icon(self).into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
         let sink = self
             .sink
             .iter()
@@ -46,7 +46,7 @@ impl GroupItemReading for AudioState {
             .source
             .iter()
             .flat_map(|source| device_entries(ControlKind::Source, source));
-        TooltipBody::dictionary(sink.chain(source))
+        HoverCardBody::dictionary(sink.chain(source))
     }
 }
 

@@ -24,14 +24,14 @@ use sottomano_sources::{
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widgets::{
         group_item::GroupItem,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         latest_snapshot::{CommandOutcome, HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl, as_percent, percent_f},
         toggle_control::{ToggleControl, ToggleMessage},
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             WidgetGroup, WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
             WidgetGroupFace,
@@ -201,12 +201,12 @@ impl MonitorGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: &MonitorTarget,
         outputs: &HashMap<String, OutputInfo>,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         match target {
             MonitorTarget::Backlight(serial) => {
                 let backlight = self
@@ -215,13 +215,14 @@ impl MonitorGroup {
                     .iter()
                     .find(|b| &b.serial == serial)?;
                 let brightness = self.sliders.get(serial)?.readout_cell();
-                self.backlights.tooltip_with(backlight_display::tooltip(
-                    backlight,
-                    brightness,
-                    ConnectedOutput::driving(backlight, outputs).as_ref(),
-                ))
+                self.backlights
+                    .hover_card_with(backlight_display::hover_card(
+                        backlight,
+                        brightness,
+                        ConnectedOutput::driving(backlight, outputs).as_ref(),
+                    ))
             }
-            MonitorTarget::ClightAuto => self.clight.tooltip(clock),
+            MonitorTarget::ClightAuto => self.clight.hover_card(clock),
         }
     }
 

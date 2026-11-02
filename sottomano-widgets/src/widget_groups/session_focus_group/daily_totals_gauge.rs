@@ -14,12 +14,12 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, TableRecord},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -187,8 +187,8 @@ impl GroupItemReading for DailyTotalsGauge {
         self.worst().map(|quota| quota.used)
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections(self.sections())
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.sections())
     }
 
     fn quota_windows(&self, _now: DateTime<Utc>) -> Vec<Quota> {

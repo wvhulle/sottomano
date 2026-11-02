@@ -7,10 +7,10 @@ use crate::{
     clock::Clock,
     widgets::{
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -102,7 +102,7 @@ impl GroupItemReading for FocusRunReading<'_> {
             .map(|run| run.unit.label().into_owned())
     }
 
-    fn tooltip(&self, clock: Clock) -> TooltipBody {
-        TooltipBody::sections(self.sections(clock.utc()))
+    fn hover_card(&self, clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections(self.sections(clock.utc()))
     }
 }

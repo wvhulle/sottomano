@@ -41,7 +41,7 @@ in
       lib.mkEnableOption ''
         counting L3 lookups and misses per AMD chiplet: loads `amd_uncore` and
         sets `kernel.perf_event_paranoid` to 0, which lets every local user
-        count CPU-wide hardware events, so the CPU tooltip can show each
+        count CPU-wide hardware events, so the CPU hover card can show each
         chiplet's L3 hit rate. Defaults to on for hosts that load AMD
         microcode
       ''

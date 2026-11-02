@@ -1,7 +1,7 @@
 pub mod background_work;
 pub mod clock;
 pub mod desktop_index;
-pub mod hover_tooltips;
+pub mod hover_cards;
 pub mod layer_surfaces;
 pub mod notification_toasts;
 pub mod panel_slot_drag;

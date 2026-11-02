@@ -21,11 +21,15 @@ use self::{
 };
 use crate::{
     clock::Clock,
-    hover_tooltips::{GroupHandle, HoverTarget},
+    hover_cards::{GroupHandle, HoverTarget},
     widget_groups::quiet_schedule_group::quiet_window::{Phase, QuietWindow},
     widgets::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+        },
+        hover_card_body::{
+            HoverCardBody,
+            hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
         idle::{MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
@@ -33,10 +37,6 @@ use crate::{
         phosphor::{Phosphor, Weight},
         slider_control::{Action, ControlMessage, SliderControl},
         toggle_control::{IconToggle, SwitchPresses},
-        tooltip_body::{
-            TooltipBody,
-            tooltip_source_delivery::{DeliveryTiming, Tooltip},
-        },
         value_cells::{LabeledValue, ValueCell},
         weather_icons::WeatherIcon,
         weekday_picker::{WeekdayPicker, WeekdayPickerMessages, weekday_name},
@@ -433,28 +433,28 @@ impl QuietScheduleGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: QuietScheduleTarget,
         locale: Locale,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         match target {
-            QuietScheduleTarget::DoNotDisturb => Some(Tooltip::sourced(
-                self.status_tooltip(clock),
+            QuietScheduleTarget::DoNotDisturb => Some(HoverCard::sourced(
+                self.status_hover_card(clock),
                 DeliveryTiming::LivePush,
             )),
             QuietScheduleTarget::FollowSchedule => {
-                Some(self.follow_schedule_toggle().switch_tooltip(clock))
+                Some(self.follow_schedule_toggle().switch_hover_card(clock))
             }
-            QuietScheduleTarget::Start => Some(self.start_slider.readout_tooltip("Quiet from")),
-            QuietScheduleTarget::End => Some(self.end_slider.readout_tooltip("Quiet until")),
+            QuietScheduleTarget::Start => Some(self.start_slider.readout_hover_card("Quiet from")),
+            QuietScheduleTarget::End => Some(self.end_slider.readout_hover_card("Quiet until")),
             QuietScheduleTarget::ScreenOff => Some(
                 self.screen_off_slider
-                    .readout_tooltip("Screen off while quiet"),
+                    .readout_hover_card("Screen off while quiet"),
             ),
-            QuietScheduleTarget::WorkingDays => Some(Tooltip::sourced(
-                TooltipBody::sections([]),
+            QuietScheduleTarget::WorkingDays => Some(HoverCard::sourced(
+                HoverCardBody::sections([]),
                 DeliveryTiming::LivePush,
             )),
             QuietScheduleTarget::WorkingDay(day) => {
@@ -463,15 +463,15 @@ impl QuietScheduleGroup {
                 } else {
                     "day off"
                 };
-                Some(Tooltip::sourced(
-                    TooltipBody::dictionary([LabeledValue::new(weekday_name(day, locale), kind)]),
+                Some(HoverCard::sourced(
+                    HoverCardBody::dictionary([LabeledValue::new(weekday_name(day, locale), kind)]),
                     DeliveryTiming::LivePush,
                 ))
             }
         }
     }
 
-    fn status_tooltip(&self, clock: Clock) -> TooltipBody {
+    fn status_hover_card(&self, clock: Clock) -> HoverCardBody {
         let now = clock.local();
         let manual = self
             .manual_at(now)
@@ -493,7 +493,7 @@ impl QuietScheduleGroup {
                 LabeledValue::new("In", ValueCell::duration(at - now)),
             ]
         });
-        TooltipBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))
+        HoverCardBody::dictionary(manual.into_iter().chain(upcoming.into_iter().flatten()))
     }
 
     pub fn group_content<'a>(
@@ -541,7 +541,7 @@ impl QuietScheduleGroup {
                                 on_toggle: |day| {
                                     GroupEvent::Group(QuietScheduleMessage::ToggleWorkingDay(day))
                                 },
-                                on_tooltip: GroupEvent::Tooltip,
+                                on_hover_card: GroupEvent::HoverCard,
                             },
                         )
                         .into()

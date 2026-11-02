@@ -31,7 +31,7 @@ use crate::{
 impl DesktopShell {
     pub(super) fn open_url(&mut self, url: String) -> Task<Message> {
         Task::batch([
-            self.dismiss_tooltip(),
+            self.dismiss_hover_card(),
             Task::future(blocking("open url", move || run("xdg-open", &[&url]))).discard(),
         ])
     }
@@ -135,7 +135,7 @@ impl DesktopShell {
         match self.widget_groups.session_power_group.update(msg) {
             session_power_group::Action::Run(task) => task.map(Message::Session),
             session_power_group::Action::Performed(task) => {
-                Task::batch([self.dismiss_tooltip(), task.map(Message::Session)])
+                Task::batch([self.dismiss_hover_card(), task.map(Message::Session)])
             }
         }
     }
@@ -143,7 +143,7 @@ impl DesktopShell {
     pub(super) fn update_tray(&mut self, msg: TrayMessage) -> Task<Message> {
         match self.widget_groups.tray_group.update(msg, self.clock) {
             tray_group::Action::None => Task::none(),
-            tray_group::Action::MenuItemActivated => self.dismiss_tooltip(),
+            tray_group::Action::MenuItemActivated => self.dismiss_hover_card(),
             tray_group::Action::FocusAppWindow(focus) => {
                 self.focus_app_window(focus, Message::Tray)
             }

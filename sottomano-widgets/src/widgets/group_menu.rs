@@ -22,9 +22,9 @@ use self::{
 };
 use crate::{
     clock::Clock,
-    hover_tooltips::{
+    hover_cards::{
         GroupHandle, HoverAnnouncement, HoverTarget, InspectedRow, PopupMessage, PressHints,
-        announcing_hoverable, tooltip_content::TooltipContent,
+        announcing_hoverable, hover_card_content::HoverCardContent,
     },
     widget_groups::group_menus::{
         AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
@@ -32,10 +32,10 @@ use crate::{
     widgets::{
         cascade_row::CascadeOrientation,
         configured_theme::text_color,
+        hover_card_body::hover_card_source_delivery::HoverCard,
         icon_glyph::IconGlyph,
         pager_slot::PagerSlot,
         shell_layer_appearance::LayerAppearance,
-        tooltip_body::tooltip_source_delivery::Tooltip,
         widget_group::{
             EdgeIndicator, GroupEvent, GroupMenuRowParts, GroupToastRequests, WidgetGroupContent,
             WidgetGroupTitle,
@@ -58,15 +58,15 @@ pub struct GroupMenuCascadeSurfaces<'a, Message> {
 }
 
 pub struct InspectionCard<'c, 'a> {
-    pub tooltip: &'c Tooltip,
+    pub hover_card: &'c HoverCard,
     pub assets: WindowAssets<'a>,
     pub clock: Clock,
 }
 
 impl InspectionCard<'_, '_> {
     fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
-        (!self.tooltip.is_empty())
-            .then(|| TooltipContent::new(self.tooltip, config, self.assets, self.clock).view())
+        (!self.hover_card.is_empty())
+            .then(|| HoverCardContent::new(self.hover_card, config, self.assets, self.clock).view())
     }
 }
 
@@ -205,7 +205,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 WidgetGroupTitle::fixed(self.title),
                 PressHints::default(),
             ),
-            GroupEvent::Tooltip,
+            GroupEvent::HoverCard,
         );
         let indicator = EdgeIndicator {
             highest_alert_severity,

@@ -11,12 +11,12 @@ use crate::{
     widgets::{
         group_item::GroupItem,
         group_item_reading::GroupItemReading,
+        hover_card_body::{HoverCardBody, Section},
         icon_glyph::IconGlyph,
         keyed_record_table::{ColumnHeading, IntoTableRecord, TableRecord},
         localized_time::LocalizedTimeFormat,
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{Section, TooltipBody},
         value_cells::ValueCell,
     },
 };
@@ -75,8 +75,8 @@ impl GroupItemReading for Vec<OomKillEntry> {
             .into()
     }
 
-    fn tooltip(&self, _clock: Clock) -> TooltipBody {
-        TooltipBody::sections([Section::column_table(
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::sections([Section::column_table(
             [
                 ColumnHeading::titled("Unit").align_x(Horizontal::Left),
                 ColumnHeading::titled("Killed by").align_x(Horizontal::Left),

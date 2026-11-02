@@ -3,8 +3,8 @@ use sottomano_sources::screen_brightness_color::clightd_backlight::{Backlight, B
 use crate::{
     widget_groups::monitor_group::output_details::ConnectedOutput,
     widgets::{
+        hover_card_body::{HoverCardBody, Section},
         phosphor::{Phosphor, Weight},
-        tooltip_body::{Section, TooltipBody},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -16,11 +16,11 @@ pub fn face(backlight: &Backlight) -> Phosphor {
     }
 }
 
-pub fn tooltip(
+pub fn hover_card(
     backlight: &Backlight,
     brightness: ValueCell,
     output: Option<&ConnectedOutput>,
-) -> TooltipBody {
+) -> HoverCardBody {
     let kind = match backlight.kind {
         BacklightKind::Internal => "Internal",
         BacklightKind::External => "External (DDC)",
@@ -31,7 +31,7 @@ pub fn tooltip(
         LabeledValue::new("Brightness", brightness),
     ];
     let output_entries = output.into_iter().flat_map(ConnectedOutput::entries);
-    TooltipBody::sections([
+    HoverCardBody::sections([
         Section::dictionary(display_entries.into_iter().chain(output_entries)),
         Section::hardware_identity(output.iter().flat_map(|output| output.hardware_entries())),
     ])

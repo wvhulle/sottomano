@@ -23,7 +23,7 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     desktop_index::DesktopIndex,
-    hover_tooltips::{HoverTarget, PressHints, hoverable},
+    hover_cards::{HoverTarget, PressHints, hoverable},
     widget_groups::group_menus::group_source_demand::GroupSourceDemand,
     widgets::{
         app_window_focus::AppWindowFocus,
@@ -31,11 +31,11 @@ use crate::{
         group_item::{
             ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
         },
+        hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         icon_handle::IconHandle,
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         phosphor::{Phosphor, Weight},
         reading_display_state::ReadingDisplayState,
-        tooltip_body::{TooltipBody, tooltip_source_delivery::Tooltip},
         value_cells::LabeledValue,
         widget_group::{
             GroupEvent, WidgetGroup, WidgetGroupContent, WidgetGroupExpansion,
@@ -48,7 +48,7 @@ mod seek_bar;
 mod session_controls;
 mod synced_lyrics_view;
 mod track_face;
-mod track_tooltip;
+mod track_hover_card;
 mod transport_controls;
 
 use self::{
@@ -56,7 +56,7 @@ use self::{
     session_controls::{SessionControls, SessionMessages},
     synced_lyrics_view::{lyrics_item, lyrics_section},
     track_face::{player_item, track_item},
-    track_tooltip::{playback_section, search_section, track_section},
+    track_hover_card::{playback_section, search_section, track_section},
     transport_controls::TransportControls,
 };
 
@@ -400,24 +400,24 @@ impl MediaGroup {
     }
 
     #[must_use]
-    pub fn tooltip_for(
+    pub fn hover_card_for(
         &self,
         target: &PlayerTarget,
         index: &DesktopIndex,
         clock: Clock,
-    ) -> Option<Tooltip> {
+    ) -> Option<HoverCard> {
         let media = self.player(&target.bus)?;
         match target.control {
-            MediaTarget::Player => self.players.tooltip_with(TooltipBody::dictionary([
+            MediaTarget::Player => self.players.hover_card_with(HoverCardBody::dictionary([
                 LabeledValue::new("Player", media.identity.clone()),
                 LabeledValue::new("State", media.status.label()),
             ])),
-            MediaTarget::Track => self.players.tooltip_with(TooltipBody::sections([
+            MediaTarget::Track => self.players.hover_card_with(HoverCardBody::sections([
                 track_section(media, index),
                 playback_section(media, clock.instant),
                 search_section(media, index),
             ])),
-            MediaTarget::Lyrics => self.lyrics_tooltip(media, clock),
+            MediaTarget::Lyrics => self.lyrics_hover_card(media, clock),
             MediaTarget::Seek
             | MediaTarget::Shuffle
             | MediaTarget::Previous
@@ -427,17 +427,19 @@ impl MediaGroup {
             | MediaTarget::Transport
             | MediaTarget::Stop
             | MediaTarget::Quit
-            | MediaTarget::SessionControls => self.players.tooltip_with(TooltipBody::sections([])),
+            | MediaTarget::SessionControls => {
+                self.players.hover_card_with(HoverCardBody::sections([]))
+            }
         }
     }
 
-    fn lyrics_tooltip(&self, media: &Media, clock: Clock) -> Option<Tooltip> {
+    fn lyrics_hover_card(&self, media: &Media, clock: Clock) -> Option<HoverCard> {
         let lyrics_snapshot = self.lyrics_of(media)?;
         let Some(track_lyrics) = lyrics_snapshot.get() else {
-            return lyrics_snapshot.tooltip(clock);
+            return lyrics_snapshot.hover_card(clock);
         };
         let played = media.progress.played(media.status, clock.instant)?;
-        lyrics_snapshot.tooltip_with(TooltipBody::sections([lyrics_section(
+        lyrics_snapshot.hover_card_with(HoverCardBody::sections([lyrics_section(
             track_lyrics,
             played,
         )]))
@@ -507,7 +509,7 @@ fn player_group<'a>(
                             scroll: Some("seek"),
                             ..PressHints::default()
                         },
-                        GroupEvent::Tooltip,
+                        GroupEvent::HoverCard,
                     ),
                 )
             }),
@@ -529,7 +531,7 @@ fn player_group<'a>(
                     media,
                     reveal,
                     |command| GroupEvent::Group(PlayerMessage::Command(command)),
-                    GroupEvent::Tooltip,
+                    GroupEvent::HoverCard,
                 )
                 .into(),
             )
@@ -588,7 +590,7 @@ fn session_controls<'a>(
             command: |command| GroupEvent::Group(PlayerMessage::Command(command)),
             quit: GroupEvent::Group(PlayerMessage::Quit),
             cancel_quit: GroupEvent::Group(PlayerMessage::CancelQuit),
-            tooltip: GroupEvent::Tooltip,
+            hover_card: GroupEvent::HoverCard,
         },
     )
 }

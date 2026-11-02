@@ -16,8 +16,8 @@ use sottomano_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
-    hover_tooltips::{
-        GroupHandle, HoverAnnouncement, HoverTarget, PanelPinOrigin, PressHints, TooltipMessage,
+    hover_cards::{
+        GroupHandle, HoverAnnouncement, HoverCardMessage, HoverTarget, PanelPinOrigin, PressHints,
         announcing_hoverable,
     },
     widget_groups::group_menus::{GroupMenuState, GroupMenuTopic},
@@ -147,14 +147,14 @@ impl WidgetGroupExpansion {
 #[derive(Debug, Clone)]
 pub enum GroupEvent<M> {
     Group(M),
-    Tooltip(TooltipMessage),
+    HoverCard(HoverCardMessage),
 }
 
 impl<M> GroupEvent<M> {
     pub fn map<Lifted>(self, lift: impl FnOnce(M) -> Lifted) -> GroupEvent<Lifted> {
         match self {
             GroupEvent::Group(message) => GroupEvent::Group(lift(message)),
-            GroupEvent::Tooltip(tooltip) => GroupEvent::Tooltip(tooltip),
+            GroupEvent::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
         }
     }
 }
@@ -693,7 +693,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     handle,
                     target.clone(),
                     handle_announcement.clone(),
-                    GroupEvent::Tooltip,
+                    GroupEvent::HoverCard,
                 ),
                 None => handle,
             };
