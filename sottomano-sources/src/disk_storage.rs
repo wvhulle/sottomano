@@ -1,4 +1,5 @@
 pub mod bcachefs_filesystem_space;
+pub mod bcachefs_subvolume_usage;
 pub mod block_filesystem_mounts;
 pub mod btrfs_filesystem_space;
 pub mod disk_io_activity;
@@ -9,7 +10,7 @@ pub mod whole_disk_space_occupancy;
 
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-use crate::blocking_background_work::Panicked;
+use crate::{blocking_background_work::Panicked, system_protocol_clients::shell_command_output};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -23,7 +24,14 @@ pub enum Error {
         fs_type: &'static str,
         device: String,
     },
+    Command(shell_command_output::Error),
     Panicked,
+}
+
+impl From<shell_command_output::Error> for Error {
+    fn from(error: shell_command_output::Error) -> Self {
+        Error::Command(error)
+    }
 }
 
 impl From<Panicked> for Error {
@@ -43,6 +51,7 @@ impl Display for Error {
             Error::NoFilesystemOn { fs_type, device } => {
                 write!(f, "no {fs_type} filesystem found on {device}")
             }
+            Error::Command(error) => write!(f, "{error}"),
             Error::Panicked => write!(f, "disk read panicked"),
         }
     }

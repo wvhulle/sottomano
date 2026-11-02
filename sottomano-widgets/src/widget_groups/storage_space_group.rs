@@ -1,28 +1,30 @@
 mod filesystem_usage_gauge;
+mod subvolume_usage_row;
 
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
 };
 
-use chrono::Locale;
 use iced::{Subscription, Task};
 use sottomano_sources::{
     SnapshotDelivery,
     disk_storage::{
         self,
+        bcachefs_subvolume_usage::BcachefsSubvolumeUsage,
         block_filesystem_mounts::{BlockFilesystemDiscovery, FilesystemMount},
         mounted_filesystem_usage::FilesystemUsage,
     },
 };
 
+use self::{
+    filesystem_usage_gauge::{SnapshotDeletionRow, snapshot_deletion_running},
+    subvolume_usage_row::SubvolumeUsageRow,
+};
 use crate::{
     background_work::{first_delivery, snapshot_subscription},
     clock::Clock,
-    group_items::{
-        group_item::GroupItem, group_item_reading::GroupItemReading,
-        reading_display_state::ReadingDisplayState,
-    },
+    group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
     hover_cards::{
         HoverTarget,
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
@@ -36,20 +38,23 @@ use crate::{
     widgets::{
         icon_glyph::IconGlyph,
         latest_snapshot::LatestSnapshot,
-        localized_quantities::Quantity,
         phosphor::{Phosphor, Weight},
         value_cells::LabeledValue,
     },
 };
 
+const BCACHEFS_FS_TYPE: &str = "bcachefs";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageTarget {
     MountDiscovery,
     Usage(PathBuf),
-    MountPoint {
+    SubvolumeUsage(PathBuf),
+    Subvolume {
         filesystem: PathBuf,
-        mount_point: PathBuf,
+        subvolume_path: PathBuf,
     },
+    SnapshotDeletion(PathBuf),
 }
 
 impl From<disk_storage::Error> for Section {
@@ -87,58 +92,14 @@ impl GroupItemReading for BlockFilesystemDiscovery {
     }
 }
 
-struct MountPointLabel<'a> {
-    mount: &'a FilesystemMount,
-    usage: &'a FilesystemUsage,
-    mount_point: &'a Path,
-}
-
-impl GroupItemReading for MountPointLabel<'_> {
-    fn name(&self) -> &'static str {
-        "Mount point"
-    }
-
-    fn icon(&self) -> IconGlyph {
-        Phosphor::FolderSimple(Weight::Regular).into()
-    }
-
-    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        Some(self.mount_point.display().to_string())
-    }
-
-    fn state(&self, clock: Clock) -> ReadingDisplayState {
-        self.usage.state(clock)
-    }
-
-    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
-        let sharing_mount_points = self
-            .mount
-            .mount_points
-            .iter()
-            .filter(|other| other.as_path() != self.mount_point)
-            .map(|other| other.display().to_string())
-            .collect::<Vec<_>>();
-        let sharing_entry = (!sharing_mount_points.is_empty())
-            .then(|| LabeledValue::new("Shares space with", sharing_mount_points.join("  ")));
-        HoverCardBody::dictionary(
-            [
-                LabeledValue::new("Mount point", self.mount_point.display().to_string()),
-                LabeledValue::new("Filesystem", self.mount.fs_type.clone()),
-                LabeledValue::new("Free", Quantity::size(self.usage.free)),
-            ]
-            .into_iter()
-            .chain(sharing_entry),
-        )
-    }
-}
-
 fn mount_group_title(primary_mount_point: &Path) -> WidgetGroupTitle {
-    WidgetGroupTitle::Named(primary_mount_point.display().to_string().into())
+    WidgetGroupTitle::Named(format!("Filesystem {}", primary_mount_point.display()).into())
 }
 
 struct MountedFilesystem {
     mount: FilesystemMount,
     usage: LatestSnapshot<FilesystemUsage>,
+    subvolume_usage: LatestSnapshot<BcachefsSubvolumeUsage>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -153,6 +114,7 @@ pub struct StorageSpaceGroup {
 pub enum StorageMessage {
     Discovered(SnapshotDelivery<BlockFilesystemDiscovery>),
     Usage(PathBuf, Box<SnapshotDelivery<FilesystemUsage>>),
+    SubvolumeUsage(PathBuf, Box<SnapshotDelivery<BcachefsSubvolumeUsage>>),
     DiscoveryExpansion(WidgetGroupExpansionMessage),
     MountExpansion {
         mount_point: PathBuf,
@@ -174,34 +136,62 @@ impl StorageSpaceGroup {
                 .with(mount_point.clone())
                 .map(|(mount_point, reading)| StorageMessage::Usage(mount_point, Box::new(reading)))
         });
+        let subvolume_usages = self
+            .filesystems
+            .iter()
+            .filter(|(_, filesystem)| filesystem.mount.fs_type == BCACHEFS_FS_TYPE)
+            .map(|(mount_point, filesystem)| {
+                snapshot_subscription::<BcachefsSubvolumeUsage>(filesystem.mount.clone())
+                    .with(mount_point.clone())
+                    .map(|(mount_point, reading)| {
+                        StorageMessage::SubvolumeUsage(mount_point, Box::new(reading))
+                    })
+            });
         Subscription::batch(
             [
                 snapshot_subscription::<BlockFilesystemDiscovery>(())
                     .map(StorageMessage::Discovered),
             ]
             .into_iter()
-            .chain(usages),
+            .chain(usages)
+            .chain(subvolume_usages),
         )
     }
 
     pub fn refresh(&self, target: &StorageTarget) -> Task<StorageMessage> {
         let discover =
             || first_delivery::<BlockFilesystemDiscovery>(()).map(StorageMessage::Discovered);
-        let primary_mount_point = match target {
-            StorageTarget::MountDiscovery => return discover(),
+        match target {
+            StorageTarget::MountDiscovery => discover(),
             StorageTarget::Usage(primary_mount_point)
-            | StorageTarget::MountPoint {
+            | StorageTarget::SnapshotDeletion(primary_mount_point) => {
+                let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
+                    return discover();
+                };
+                let primary_mount_point = primary_mount_point.clone();
+                first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |reading| {
+                    StorageMessage::Usage(primary_mount_point.clone(), Box::new(reading))
+                })
+            }
+            StorageTarget::SubvolumeUsage(primary_mount_point)
+            | StorageTarget::Subvolume {
                 filesystem: primary_mount_point,
                 ..
-            } => primary_mount_point,
-        };
-        let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
-            return discover();
-        };
-        let primary_mount_point = primary_mount_point.clone();
-        first_delivery::<FilesystemUsage>(filesystem.mount.clone()).map(move |reading| {
-            StorageMessage::Usage(primary_mount_point.clone(), Box::new(reading))
-        })
+            } => {
+                let Some(filesystem) = self.filesystems.get(primary_mount_point) else {
+                    return discover();
+                };
+                let primary_mount_point = primary_mount_point.clone();
+                first_delivery::<BcachefsSubvolumeUsage>(filesystem.mount.clone()).map(
+                    move |reading| {
+                        StorageMessage::SubvolumeUsage(
+                            primary_mount_point.clone(),
+                            Box::new(reading),
+                        )
+                    },
+                )
+            }
+        }
     }
 
     pub fn update(&mut self, msg: StorageMessage, clock: Clock) -> Task<StorageMessage> {
@@ -219,6 +209,7 @@ impl StorageSpaceGroup {
                                 known => MountedFilesystem {
                                     mount: mount.clone(),
                                     usage: LatestSnapshot::default(),
+                                    subvolume_usage: LatestSnapshot::default(),
                                     expansion: known
                                         .map(|known| known.expansion)
                                         .unwrap_or_default(),
@@ -232,6 +223,11 @@ impl StorageSpaceGroup {
             StorageMessage::Usage(mount_point, reading) => {
                 if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
                     filesystem.usage.receive(*reading, clock);
+                }
+            }
+            StorageMessage::SubvolumeUsage(mount_point, reading) => {
+                if let Some(filesystem) = self.filesystems.get_mut(&mount_point) {
+                    filesystem.subvolume_usage.receive(*reading, clock);
                 }
             }
             StorageMessage::DiscoveryExpansion(expansion) => {
@@ -251,25 +247,39 @@ impl StorageSpaceGroup {
 
     fn mount_group(filesystem: &MountedFilesystem) -> WidgetGroupContent<'_, StorageMessage> {
         let primary_mount_point = filesystem.mount.primary_mount_point();
-        let mount_point_items = filesystem.usage.get().into_iter().flat_map(move |usage| {
-            filesystem
-                .mount
-                .mount_points
-                .iter()
-                .map(move |mount_point| {
+        let usage = filesystem.usage.get();
+        let subvolume_items = usage
+            .zip(filesystem.subvolume_usage.get())
+            .into_iter()
+            .flat_map(move |(usage, subvolume_usage)| {
+                subvolume_usage.subvolumes.iter().map(move |subvolume| {
                     GroupItem::reading(
-                        MountPointLabel {
-                            mount: &filesystem.mount,
-                            usage,
-                            mount_point,
+                        SubvolumeUsageRow {
+                            subvolume,
+                            pool_total: usage.total,
                         },
-                        StorageTarget::MountPoint {
+                        StorageTarget::Subvolume {
                             filesystem: primary_mount_point.to_path_buf(),
-                            mount_point: mount_point.clone(),
+                            subvolume_path: subvolume.path.clone(),
                         },
                     )
                 })
+            });
+        let subvolume_failure_item = filesystem.subvolume_usage.failure().map(|failure| {
+            GroupItem::reading(
+                failure,
+                StorageTarget::SubvolumeUsage(primary_mount_point.to_path_buf()),
+            )
         });
+        let snapshot_deletion_item =
+            usage
+                .filter(|usage| snapshot_deletion_running(usage))
+                .map(|_| {
+                    GroupItem::reading(
+                        SnapshotDeletionRow,
+                        StorageTarget::SnapshotDeletion(primary_mount_point.to_path_buf()),
+                    )
+                });
         let owned_mount_point = primary_mount_point.to_path_buf();
         WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(
@@ -286,7 +296,9 @@ impl StorageSpaceGroup {
                 .usage
                 .group_item(StorageTarget::Usage(primary_mount_point.to_path_buf()))
                 .into_iter()
-                .chain(mount_point_items),
+                .chain(subvolume_items)
+                .chain(subvolume_failure_item)
+                .chain(snapshot_deletion_item),
         )
     }
 
@@ -311,25 +323,39 @@ impl StorageSpaceGroup {
             StorageTarget::Usage(mount_point) => {
                 self.filesystems.get(mount_point)?.usage.hover_card(clock)
             }
-            StorageTarget::MountPoint {
+            StorageTarget::SubvolumeUsage(mount_point) => self
+                .filesystems
+                .get(mount_point)?
+                .subvolume_usage
+                .hover_card(clock),
+            StorageTarget::Subvolume {
                 filesystem,
-                mount_point,
+                subvolume_path,
             } => {
                 let filesystem = self.filesystems.get(filesystem)?;
-                let usage = filesystem.usage.get()?;
-                let mount_point = filesystem
-                    .mount
-                    .mount_points
+                let subvolume = filesystem
+                    .subvolume_usage
+                    .get()?
+                    .subvolumes
                     .iter()
-                    .find(|known| *known == mount_point)?;
-                filesystem.usage.hover_card_with(
-                    MountPointLabel {
-                        mount: &filesystem.mount,
-                        usage,
-                        mount_point,
+                    .find(|known| known.path == *subvolume_path)?;
+                filesystem.subvolume_usage.hover_card_with(
+                    SubvolumeUsageRow {
+                        subvolume,
+                        pool_total: filesystem.usage.get()?.total,
                     }
                     .hover_card(clock),
                 )
+            }
+            StorageTarget::SnapshotDeletion(mount_point) => {
+                let filesystem = self.filesystems.get(mount_point)?;
+                filesystem
+                    .usage
+                    .get()
+                    .filter(|usage| snapshot_deletion_running(usage))?;
+                filesystem
+                    .usage
+                    .hover_card_with(SnapshotDeletionRow.hover_card(clock))
             }
         }
     }
@@ -337,16 +363,33 @@ impl StorageSpaceGroup {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
-    use super::mount_group_title;
+    use super::{StorageTarget, mount_group_title};
+    use crate::hover_cards::HoverTarget;
 
     #[test]
     fn each_filesystem_gets_its_own_row_titled_by_its_mount_point() {
-        assert_eq!(mount_group_title(Path::new("/home")).to_string(), "/home");
+        assert_eq!(
+            mount_group_title(Path::new("/home")).to_string(),
+            "Filesystem /home"
+        );
         assert_ne!(
             mount_group_title(Path::new("/")),
             mount_group_title(Path::new("/home"))
         );
+    }
+
+    #[test]
+    fn subvolume_rows_pin_separately_by_path() {
+        let pin_key_of = |subvolume_path: &str| {
+            HoverTarget::from(StorageTarget::Subvolume {
+                filesystem: PathBuf::from("/"),
+                subvolume_path: PathBuf::from(subvolume_path),
+            })
+            .stable_item_key()
+        };
+        assert_ne!(pin_key_of("/home"), pin_key_of("/nix"));
+        assert_eq!(pin_key_of("/home"), pin_key_of("/home"));
     }
 }

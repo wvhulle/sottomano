@@ -1,4 +1,5 @@
 use bytesize::ByteSize;
+use chrono::Locale;
 use sottomano_config::severity::Severity;
 use sottomano_sources::disk_storage::{
     bcachefs_filesystem_space::{BcachefsSpace, SnapshotDeletion},
@@ -166,6 +167,36 @@ impl GroupItemReading for FilesystemUsage {
     }
 }
 
+pub(super) fn snapshot_deletion_running(usage: &FilesystemUsage) -> bool {
+    matches!(
+        &usage.filesystem,
+        Filesystem::Bcachefs(space) if space.snapshot_deletion == SnapshotDeletion::Running
+    )
+}
+
+pub(super) struct SnapshotDeletionRow;
+
+impl GroupItemReading for SnapshotDeletionRow {
+    fn name(&self) -> &'static str {
+        "Snapshot deletion"
+    }
+
+    fn icon(&self) -> IconGlyph {
+        Phosphor::Trash(Weight::Regular).into()
+    }
+
+    fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
+        Some("in progress".to_owned())
+    }
+
+    fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        HoverCardBody::dictionary([
+            LabeledValue::new("Snapshot deletion", "in progress"),
+            LabeledValue::new("Free space", "grows as it finishes"),
+        ])
+    }
+}
+
 fn btrfs_sections(space: &BtrfsSpace, pressure: MetadataPressure) -> Vec<Section> {
     let reclaim_hint = (pressure > MetadataPressure::Comfortable)
         .then(|| LabeledValue::new("Reclaim with", BTRFS_RECLAIM_COMMAND));
@@ -210,8 +241,6 @@ fn bcachefs_sections(space: &BcachefsSpace, pressure: MetadataPressure) -> Vec<S
         })
         .into_iter()
         .flatten();
-    let snapshot_deletion = (space.snapshot_deletion == SnapshotDeletion::Running)
-        .then(|| LabeledValue::new("Snapshot deletion", "in progress"));
     let summary = Section::dictionary(
         [
             LabeledValue::new(
@@ -229,8 +258,7 @@ fn bcachefs_sections(space: &BcachefsSpace, pressure: MetadataPressure) -> Vec<S
             LabeledValue::new("Compression", compression),
         ]
         .into_iter()
-        .chain(compressed_sizes)
-        .chain(snapshot_deletion),
+        .chain(compressed_sizes),
     )
     .titled("Bcachefs");
     let members = Section::dictionary(space.devices.iter().map(|device| {
