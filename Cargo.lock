@@ -6896,6 +6896,7 @@ dependencies = [
  "iced_controller_diagram",
  "iced_exwlshell",
  "iced_test",
+ "iced_wgpu",
  "icu_decimal",
  "icu_experimental",
  "icu_locale_core",

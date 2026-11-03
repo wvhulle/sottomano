@@ -29,6 +29,7 @@ unicode-segmentation.workspace = true
 iced_controller_diagram.workspace = true
 exwlshellev.workspace = true
 iced_exwlshell.workspace = true
+iced_wgpu = "0.14.0"
 image.workspace = true
 nalgebra.workspace = true
 niri-ipc.workspace = true

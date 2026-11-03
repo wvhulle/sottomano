@@ -53,16 +53,14 @@ impl DesktopShell {
 
     #[must_use]
     pub fn panel_slot_context(&self, edge: Position) -> PanelSlotContext<'_> {
+        let panel_appearance = self.widget_groups.panel_settings_group.panel_appearance();
         PanelSlotContext {
             config: &self.config,
             edge,
             drag: self.drag_view(),
             clock: self.clock,
-            panel_corner_radius_px: self
-                .widget_groups
-                .panel_settings_group
-                .panel_appearance()
-                .corner_radius_px,
+            panel_corner_radius_px: panel_appearance.corner_radius_px,
+            panel_frame_style: LayerFrameStyle::new(&panel_appearance),
             window_row_layout: self.widget_groups.panel_settings_group.window_row_layout(),
         }
     }
