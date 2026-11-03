@@ -73,10 +73,7 @@ impl DesktopShell {
                 else {
                     return Task::none();
                 };
-                match self
-                    .hover_card
-                    .response_to_menu_handle(gesture, &target, &output)
-                {
+                match self.hover_card.response_to_menu_handle(gesture, &target) {
                     MenuHandleResponse::RememberAnchor => {
                         self.hover_card
                             .remember_menu_handle(&output, target, anchor);

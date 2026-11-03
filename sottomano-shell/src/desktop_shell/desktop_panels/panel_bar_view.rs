@@ -67,7 +67,12 @@ impl DesktopShell {
                 .collect(),
             PanelZoneEntry::Fixed(entry) => self
                 .fixed_panel_group(entry)
-                .view(config, position, self.clock)
+                .view(
+                    config,
+                    position,
+                    self.widget_groups.group_menus.presentation().open_trigger,
+                    self.clock,
+                )
                 .into_iter()
                 .collect(),
             PanelZoneEntry::InlineWorkspaces => self
