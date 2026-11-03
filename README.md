@@ -9,28 +9,27 @@ toasts, in one binary.
 
 ## Why
 
-I wanted more to read at a glance while running niri. Waybar left me fighting
-GTK CSS. Odin, a QML shell on Quickshell, traded that for JavaScript bindings
-and a subprocess spawned and polled for every reading. Sottomano is Rust, so
-readings arrive as streams from niri IPC, D-Bus, PipeWire and native libraries
-instead of polled commands.
+After twenty years of GNOME and KDE Plasma I wanted a niri desktop that never
+asks for attention but answers when I look, with the widgets I kept missing
+there. Sottomano is written in Rust, so readings arrive as streams from niri
+IPC, D-Bus, PipeWire and native libraries instead of polled commands, and each
+one explains itself in a hover card whose top line says what a click does.
 
-The goal is a desktop that never asks for attention but answers when I look.
-After twenty years of GNOME and KDE Plasma, these are the widgets I kept
-missing there. They are opinionated: they show what I want to know, the way I
-want to see it. I use it from morning to evening, at work and at home, and fix
-bugs as soon as I run into them.
+Previous work:
 
-Every reading explains itself: hover it for a card that says what it shows, and
-the card's top line says what a click does.
+- [niri-waybar-windowlist](https://github.com/wvhulle/niri-waybar-windowlist):
+  a hard fork of a Waybar window list module, where styling meant fighting GTK
+  CSS.
+- [Odin](https://codeberg.org/wvhulle/odin): two Qt Quick panels on Quickshell,
+  with a subprocess spawned and polled for every reading.
 
 ## Tour
 
 ### Weather: Conditions
 
-Pressing the temperature opens the forecast for the coming hours.
+Hovering the temperature opens the forecast for the coming hours.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="884" alt="Pressing the temperature in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="884" alt="Hovering the temperature in the weather group">
 
 ### VPN: Tailscale
 

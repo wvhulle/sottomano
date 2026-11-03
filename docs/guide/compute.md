@@ -30,7 +30,7 @@ The hottest sensor, and the chip it is read from.
 
 ## Compute: Clock
 
-Each thread's clock per chiplet, with the cores the scheduler prefers starred.
+Each thread's clock per chiplet, with the chiplet the scheduler prefers starred.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_clock.webp" width="1221" alt="Hovering the CPU clock in the compute group">
 
