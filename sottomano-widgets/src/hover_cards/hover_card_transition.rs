@@ -1,8 +1,4 @@
-use iced::{
-    Animation, Rectangle,
-    animation::Easing,
-    time::{Duration, Instant},
-};
+use iced::{Rectangle, time::Instant};
 use sottomano_config::screen_edges::Position;
 
 use crate::hover_cards::{
@@ -59,15 +55,8 @@ pub enum ShownTarget {
 
 enum Stage {
     Idle,
-    Showing {
-        current: Occupant,
-        leaving: bool,
-        since: Instant,
-    },
-    Hiding {
-        previous: Departed,
-        since: Instant,
-    },
+    Showing { current: Occupant, leaving: bool },
+    Hiding { previous: Departed, since: Instant },
 }
 
 pub struct HoverCardTransition {
@@ -81,11 +70,10 @@ impl Default for HoverCardTransition {
 }
 
 impl HoverCardTransition {
-    pub fn show(&mut self, current: Occupant, now: Instant) {
+    pub fn show(&mut self, current: Occupant) {
         self.stage = Stage::Showing {
             current,
             leaving: false,
-            since: now,
         };
     }
 
@@ -101,18 +89,6 @@ impl HoverCardTransition {
 
     pub fn reset(&mut self) {
         self.stage = Stage::Idle;
-    }
-
-    #[must_use]
-    pub fn morph_progress(&self, now: Instant, morph: Duration) -> f32 {
-        match self.stage {
-            Stage::Idle => 1.0,
-            Stage::Showing { since, .. } | Stage::Hiding { since, .. } => Animation::new(false)
-                .easing(Easing::EaseOutCubic)
-                .duration(morph)
-                .go(true, since)
-                .interpolate(0.0, 1.0, now),
-        }
     }
 
     #[must_use]

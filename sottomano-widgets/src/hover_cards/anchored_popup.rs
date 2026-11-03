@@ -8,6 +8,8 @@ use iced::{
     },
     border::Radius,
     mouse::Cursor,
+    time::Duration,
+    window,
 };
 use sottomano_config::{Config, screen_edges::Position};
 
@@ -26,7 +28,7 @@ use crate::{
     },
     widgets::{
         child_view::{ChildView, ChildViewMut},
-        rectangle_morph::interpolated,
+        rectangle_morph::RectangleMorph,
         shell_layer_appearance::LayerAppearance,
     },
 };
@@ -152,14 +154,13 @@ struct AnchoredPopup<'a, Message> {
 
 #[derive(Debug, Clone)]
 pub struct PopupMorph {
-    pub progress: f32,
+    pub duration: Duration,
     pub shown: ShownTarget,
 }
 
 struct MorphState {
     shown: ShownTarget,
-    origin: Rectangle,
-    current: Rectangle,
+    morph: RectangleMorph,
     connector: ConnectorTriangle,
 }
 
@@ -285,8 +286,8 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         self.renderings.iter().any(|rendering| rendering.incoming)
     }
 
-    fn is_settled(&self) -> bool {
-        self.morph.progress >= 1.0 && self.is_live()
+    fn is_settled(&self, state: &MorphState) -> bool {
+        state.morph.is_settled() && self.is_live()
     }
 
     fn frame(&self, state: &MorphState, layout: Layout<'_>) -> PopupFrame {
@@ -295,15 +296,15 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
             surface_rows: state
                 .connector
                 .translated(origin)
-                .surface_rows(state.current + origin, Radius::from(self.radius)),
-            settled: self.is_settled(),
+                .surface_rows(state.morph.current() + origin, Radius::from(self.radius)),
+            settled: self.is_settled(state),
         }
     }
 
     fn popup_surfaces_contain(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> bool {
         let state: &MorphState = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
-        (state.current + origin).contains(point)
+        (state.morph.current() + origin).contains(point)
             || self
                 .renderings
                 .iter()
@@ -352,8 +353,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
     fn state(&self) -> tree::State {
         tree::State::new(MorphState {
             shown: ShownTarget::Nothing,
-            origin: Rectangle::default(),
-            current: Rectangle::default(),
+            morph: RectangleMorph::default(),
             connector: ConnectorTriangle::between(
                 self.anchor,
                 0.0,
@@ -438,15 +438,10 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         let state: &mut MorphState = tree.state.downcast_mut();
         if state.shown != self.morph.shown {
             state.shown = self.morph.shown.clone();
-            state.origin = if state.current.width > 0.0 {
-                state.current
-            } else {
-                at_anchor
-            };
+            state.morph.begin(at_anchor);
         }
         let target = arriving.map_or(at_anchor, |size| self.resting(size, surface));
-        state.current = interpolated(state.origin, target, self.morph.progress);
-        let popup = state.current;
+        let popup = state.morph.follow(target);
         state.connector = ConnectorTriangle::between(
             self.anchor,
             self.panel_edge(surface),
@@ -481,7 +476,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         let state: &MorphState = tree.state.downcast_ref();
         let bounds = layout.bounds();
         let origin = Vector::new(bounds.x, bounds.y);
-        let box_bounds = state.current + origin;
+        let box_bounds = state.morph.current() + origin;
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
@@ -495,7 +490,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
                 shadow: self.shadow,
             },
         );
-        let content_clip = if self.frames_one_child() && self.is_settled() {
+        let content_clip = if self.frames_one_child() && self.is_settled(state) {
             *viewport
         } else {
             box_bounds
@@ -533,7 +528,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
             corner_radius: Radius::default(),
         };
         roles.report(&frame.surface_rows, layout.bounds(), operation);
-        if self.morph.progress >= 1.0
+        if state.morph.is_settled()
             && let OutsidePress::Dismisses {
                 reachable_below, ..
             } = &self.outside_press
@@ -574,6 +569,18 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         shell: &mut Shell<'_, Message>,
         viewport: &Rectangle,
     ) {
+        if let Event::Window(window::Event::RedrawRequested(now)) = event {
+            let state: &mut MorphState = tree.state.downcast_mut();
+            let was_morphing = !state.morph.is_settled();
+            state.morph.tick(*now, self.morph.duration);
+            let is_morphing = !state.morph.is_settled();
+            if was_morphing {
+                shell.invalidate_layout();
+            }
+            if is_morphing {
+                shell.request_redraw();
+            }
+        }
         if let Some(rendering) = self.live_view(tree, layout) {
             rendering.widget.as_widget_mut().update(
                 rendering.state,
@@ -588,7 +595,7 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         }
         if matches!(event, Event::Mouse(mouse::Event::ButtonPressed(_)))
             && !shell.is_event_captured()
-            && self.morph.progress >= 1.0
+            && tree.state.downcast_ref::<MorphState>().morph.is_settled()
             && let OutsidePress::Dismisses {
                 dismissal,
                 reachable_below,
@@ -633,7 +640,9 @@ mod tests {
     use iced::{
         Element, Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
+        time::{Duration, Instant},
         widget::text,
+        window,
     };
     use iced_test::Simulator;
     use sottomano_config::{Config, screen_edges::Position};
@@ -642,6 +651,7 @@ mod tests {
         OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
     };
     use crate::{
+        clock::Clock,
         group_menus::cascading_layout::{
             cascade_row::{CascadeDirection, CascadeOrientation, cascade_row},
             cascade_satellite_panels::CascadeSatellitePanels,
@@ -660,11 +670,24 @@ mod tests {
         growth: PanelGrowth::Downward,
     };
 
+    fn redraw_at(now: Instant) -> iced::Event {
+        iced::Event::Window(window::Event::RedrawRequested(now))
+    }
+
+    fn settle_morph(simulator: &mut Simulator<'_, PressedOutside>) {
+        let started = Clock::real().instant;
+        let _settled = simulator.simulate([
+            redraw_at(started),
+            redraw_at(started + Duration::from_secs(1)),
+        ]);
+    }
+
     fn messages_after_pressing(
         popup: Element<'_, PressedOutside>,
         pressed_at: impl FnOnce(&mut Simulator<'_, PressedOutside>) -> Point,
     ) -> Vec<PressedOutside> {
         let mut simulator = Simulator::with_size(Settings::default(), CANVAS_SIZE, popup);
+        settle_morph(&mut simulator);
         let pointer = pressed_at(&mut simulator);
         simulator.point_at(pointer);
         let _pressed =
@@ -681,9 +704,9 @@ mod tests {
             .center()
     }
 
-    fn settled_morph() -> PopupMorph {
+    fn workspace_morph() -> PopupMorph {
         PopupMorph {
-            progress: 1.0,
+            duration: Duration::from_millis(10),
             shown: ShownTarget::Target(HoverTarget::Workspace(7)),
         }
     }
@@ -707,7 +730,7 @@ mod tests {
             ],
             Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
             Position::Top,
-            settled_morph(),
+            workspace_morph(),
             OutsidePress::Dismisses {
                 dismissal: PressedOutside,
                 reachable_below: vec![HANDLE_BELOW_POPUP],
@@ -748,6 +771,36 @@ mod tests {
     }
 
     #[test]
+    fn a_press_outside_before_the_first_frame_keeps_the_popup() {
+        let config = Config::default();
+        let mut simulator =
+            Simulator::with_size(Settings::default(), CANVAS_SIZE, cascading_popup(&config));
+        simulator.point_at(Point::new(
+            CANVAS_SIZE.width - 1.0,
+            CANVAS_SIZE.height - 1.0,
+        ));
+        let _pressed =
+            simulator.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+        assert_eq!(simulator.into_messages().collect::<Vec<_>>(), []);
+    }
+
+    #[test]
+    fn the_morph_clock_starts_at_the_first_frame() {
+        let config = Config::default();
+        let mut simulator =
+            Simulator::with_size(Settings::default(), CANVAS_SIZE, cascading_popup(&config));
+        let first_frame = Clock::real().instant + Duration::from_secs(60);
+        let _first_frame = simulator.simulate([redraw_at(first_frame)]);
+        simulator.point_at(Point::new(
+            CANVAS_SIZE.width - 1.0,
+            CANVAS_SIZE.height - 1.0,
+        ));
+        let _pressed =
+            simulator.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+        assert_eq!(simulator.into_messages().collect::<Vec<_>>(), []);
+    }
+
+    #[test]
     fn a_press_on_a_reachable_handle_leaves_it_to_the_handle() {
         let config = Config::default();
         let messages =
@@ -777,7 +830,7 @@ mod tests {
             Rectangle::default(),
             Position::Top,
             PopupMorph {
-                progress: 1.0,
+                duration: Duration::from_millis(10),
                 shown: ShownTarget::Nothing,
             },
             OutsidePress::Dismisses {
@@ -802,7 +855,7 @@ mod tests {
             vec![Rendering::incoming(text("card").into())],
             Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
             Position::Top,
-            settled_morph(),
+            workspace_morph(),
             OutsidePress::PassesThrough,
             &config,
             PopupAppearances {
