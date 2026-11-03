@@ -27,6 +27,7 @@ kdl.workspace = true
 iced.workspace = true
 unicode-segmentation.workspace = true
 iced_controller_diagram.workspace = true
+exwlshellev.workspace = true
 iced_exwlshell.workspace = true
 image.workspace = true
 nalgebra.workspace = true

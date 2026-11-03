@@ -6,7 +6,7 @@ use crate::{
     },
     group_menus::{
         group_menu_presentation::{
-            GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
+            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
             OpenGroupLimit,
         },
         group_menu_state::{GroupMenuMessage, GroupMenuState},
@@ -47,12 +47,13 @@ fn accordion_layout_toggle(presentation: GroupMenuPresentation) -> IconToggle {
 
 fn press_to_reveal_toggle(presentation: GroupMenuPresentation) -> IconToggle {
     IconToggle::new(
-        "Press to open groups",
+        "Press to open menus",
         Phosphor::CursorClick(Weight::Regular),
-        presentation.cascading_reveal_trigger == GroupRevealTrigger::Press,
+        presentation.open_trigger == GroupMenuOpenTrigger::Press,
         SwitchPresses {
-            turning_on: "open a group by pressing its row",
-            turning_off: "open a group by hovering its row",
+            turning_on: "open menus and cascading groups by pressing them, until pressed away",
+            turning_off: "open menus and cascading groups by hovering them, until the pointer \
+                          leaves",
         },
     )
 }
@@ -85,18 +86,13 @@ impl GroupMenuState {
     #[must_use]
     pub fn settings_content(&self) -> WidgetGroupContent<'_, GroupMenuMessage> {
         let presentation = self.presentation();
-        let dependent_item = match presentation.layout {
-            GroupMenuLayout::Cascading => GroupItem::toggle(
-                press_to_reveal_toggle(presentation),
-                GroupMenuSettingsTarget::PressToReveal,
-                GroupMenuMessage::SwitchPresentation(presentation.with_reveal_trigger_toggled()),
-            ),
-            GroupMenuLayout::Accordion => GroupItem::toggle(
+        let accordion_only_item = (presentation.layout == GroupMenuLayout::Accordion).then(|| {
+            GroupItem::toggle(
                 keep_one_group_open_toggle(presentation),
                 GroupMenuSettingsTarget::KeepOneGroupOpen,
                 GroupMenuMessage::SwitchPresentation(presentation.with_open_limit_toggled()),
-            ),
-        };
+            )
+        });
         WidgetGroupContent::expandable(
             WidgetGroupFamily::GroupMenuSettings,
             self.settings_expansion(),
@@ -107,15 +103,19 @@ impl GroupMenuState {
                     GroupMenuSettingsTarget::AccordionLayout,
                     GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
                 ),
-                dependent_item,
                 GroupItem::toggle(
-                    inline_cards_toggle(presentation),
-                    GroupMenuSettingsTarget::InlineCards,
-                    GroupMenuMessage::SwitchPresentation(
-                        presentation.with_card_placement_toggled(),
-                    ),
+                    press_to_reveal_toggle(presentation),
+                    GroupMenuSettingsTarget::PressToReveal,
+                    GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
                 ),
-            ],
+            ]
+            .into_iter()
+            .chain(accordion_only_item)
+            .chain([GroupItem::toggle(
+                inline_cards_toggle(presentation),
+                GroupMenuSettingsTarget::InlineCards,
+                GroupMenuMessage::SwitchPresentation(presentation.with_card_placement_toggled()),
+            )]),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),

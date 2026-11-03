@@ -182,6 +182,12 @@ impl<'session> DemoRecorder<'session> {
         self.capture_during(REST_HOLD)
     }
 
+    fn press_away(&mut self) -> Vec<CapturedFrame> {
+        self.point_at(REST_POINTER);
+        self.click();
+        self.capture_during(REST_HOLD)
+    }
+
     fn perform(&mut self, step: &Step) -> Vec<CapturedFrame> {
         match step {
             Step::Hover(target) => {
@@ -544,7 +550,7 @@ impl RecordingSession {
             .iter()
             .flat_map(|step| recorder.perform(step))
             .collect();
-        let closing = recorder.rest();
+        let closing = recorder.press_away();
         let frames: Vec<CapturedFrame> =
             opening.into_iter().chain(scripted).chain(closing).collect();
         let crop = ContentCrop::around_content(

@@ -307,6 +307,17 @@ impl DesktopShell {
                 self.pointer_drag = ShellDrag::Idle;
                 self.leave_hover_card()
             }
+            Message::SurfacePressed(surface) => {
+                let on_toast = self
+                    .surfaces
+                    .get(&surface)
+                    .is_some_and(|host| matches!(host.role, SurfaceRole::NotificationToasts));
+                if on_toast && self.hover_card.is_held_open() {
+                    self.dismiss_hover_card()
+                } else {
+                    Task::none()
+                }
+            }
             Message::PointerDrag(msg) => self.update_pointer_drag(msg),
             Message::NiriActionFailed(failure) => self.show_niri_failure(&failure),
             Message::DesktopBus(Ok(DesktopBusEvent::Connected(buses))) => {

@@ -16,10 +16,17 @@ pub struct Placement {
     pub output: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CardRetention {
+    UntilPointerLeaves,
+    UntilDismissed,
+}
+
 pub struct Occupant {
     pub target: HoverTarget,
     pub announcement: HoverAnnouncement,
     pub placement: Placement,
+    pub retention: CardRetention,
 }
 
 pub enum DepartedContent {
@@ -117,9 +124,19 @@ impl HoverCardTransition {
     }
 
     pub fn request_leave(&mut self) {
-        if let Stage::Showing { leaving, .. } = &mut self.stage {
+        if let Stage::Showing {
+            current, leaving, ..
+        } = &mut self.stage
+            && current.retention == CardRetention::UntilPointerLeaves
+        {
             *leaving = true;
         }
+    }
+
+    #[must_use]
+    pub fn is_held_open(&self) -> bool {
+        self.current()
+            .is_some_and(|current| current.retention == CardRetention::UntilDismissed)
     }
 
     pub fn cancel_leave(&mut self) {

@@ -1,7 +1,8 @@
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 use crate::group_menus::group_menu_presentation::{
-    GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement, OpenGroupLimit,
+    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
+    OpenGroupLimit,
 };
 
 pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS group_menu_presentation (
@@ -20,10 +21,10 @@ const fn layout_name(layout: GroupMenuLayout) -> &'static str {
     }
 }
 
-const fn reveal_trigger_name(trigger: GroupRevealTrigger) -> &'static str {
+const fn open_trigger_name(trigger: GroupMenuOpenTrigger) -> &'static str {
     match trigger {
-        GroupRevealTrigger::Hover => "hover",
-        GroupRevealTrigger::Press => "press",
+        GroupMenuOpenTrigger::Hover => "hover",
+        GroupMenuOpenTrigger::Press => "press",
     }
 }
 
@@ -80,9 +81,9 @@ async fn read_presentation(
             "accordion" => GroupMenuLayout::Accordion,
             _ => GroupMenuLayout::Cascading,
         },
-        cascading_reveal_trigger: match columns.text(&row, "cascading_reveal_trigger")?.as_str() {
-            "press" => GroupRevealTrigger::Press,
-            _ => GroupRevealTrigger::Hover,
+        open_trigger: match columns.text(&row, "cascading_reveal_trigger")?.as_str() {
+            "press" => GroupMenuOpenTrigger::Press,
+            _ => GroupMenuOpenTrigger::Hover,
         },
         accordion_open_limit: match columns.text(&row, "accordion_open_limit")?.as_str() {
             "one" => OpenGroupLimit::One,
@@ -108,7 +109,7 @@ async fn write_presentation(
                  accordion_open_limit = ?3, hover_card_placement = ?4",
             (
                 layout_name(presentation.layout),
-                reveal_trigger_name(presentation.cascading_reveal_trigger),
+                open_trigger_name(presentation.open_trigger),
                 open_limit_name(presentation.accordion_open_limit),
                 card_placement_name(presentation.hover_card_placement),
             ),
@@ -123,7 +124,7 @@ mod tests {
 
     use super::{CREATE_TABLE, read_presentation, write_presentation};
     use crate::group_menus::group_menu_presentation::{
-        GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
+        GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
         OpenGroupLimit,
     };
 
@@ -141,7 +142,7 @@ mod tests {
         let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let chosen = GroupMenuPresentation {
             layout: GroupMenuLayout::Accordion,
-            cascading_reveal_trigger: GroupRevealTrigger::Press,
+            open_trigger: GroupMenuOpenTrigger::Press,
             accordion_open_limit: OpenGroupLimit::One,
             hover_card_placement: HoverCardPlacement::InlineWithRow,
         };

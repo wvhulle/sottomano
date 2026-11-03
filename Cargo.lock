@@ -6889,6 +6889,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "club-kdl",
+ "exwlshellev",
  "fixed_decimal",
  "form_urlencoded",
  "iced",
