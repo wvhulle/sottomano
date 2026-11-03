@@ -6,7 +6,7 @@ Conditions where you are, from the location fix to rain and pollen.
 
 Rain in the coming hours on one timeline, split by hour: radar every five minutes where Buienradar covers, the forecast model's precipitation type every quarter-hour everywhere.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_precipitation.webp" width="907" alt="Hovering the rain item in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_precipitation.webp" width="895" alt="Hovering the rain item in the weather group">
 
 ## Weather: Other readings
 
