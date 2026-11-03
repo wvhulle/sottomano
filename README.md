@@ -29,26 +29,26 @@ Previous work:
 
 Hovering the temperature opens the forecast for the coming hours.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="884" alt="Hovering the temperature in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="872" alt="Hovering the temperature in the weather group">
 
 ### VPN: Tailscale
 
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1043" alt="Opening the VPN group from the Network menu and hovering Tailscale">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1031" alt="Opening the VPN group from the Network menu and hovering Tailscale">
 
 ### Dictation: Speech model
 
 The speech model the dictation daemon loaded and the device it runs on.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1172" alt="Opening the dictation group from the Media menu and hovering the speech model and compute device">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1174" alt="Opening the dictation group from the Media menu and hovering the speech model and compute device">
 
 ### Toast: Next to its window
 
 When the sending window is visible, the toast sits in its top corner.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_window_anchored.webp" width="690" alt="A build toast placed in the corner of the terminal that sent it">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_window_anchored.webp" width="688" alt="A build toast placed in the corner of the terminal that sent it">
 
 The other groups, each in its menu next to pinned in the bar, are in the
 [guide](docs/guide/README.md). The recordings use fixtures, so the numbers are
