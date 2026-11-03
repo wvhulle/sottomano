@@ -11,7 +11,7 @@ use crate::{
     group_items::group_item::MenuParts,
     widget_groups::widget_group_content::GroupEvent,
     widgets::{
-        configured_theme::{background_weak_color, primary_weak_color, text_color},
+        configured_theme::{background_strong_color, primary_weak_color, text_color},
         text::panel_text,
     },
 };
@@ -125,7 +125,7 @@ fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> b
                 Some(Background::Color(primary_weak_color(theme)))
             }
             (MenuRowEmphasis::OpenGroup, false) => {
-                Some(Background::Color(background_weak_color(theme)))
+                Some(Background::Color(background_strong_color(theme)))
             }
             (MenuRowEmphasis::Plain, false) => None,
         },

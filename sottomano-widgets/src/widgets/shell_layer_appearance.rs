@@ -7,6 +7,7 @@ pub enum ShellLayer {
     Panels,
     Sidebar,
     Overlays,
+    Menus,
 }
 
 impl ShellLayer {
@@ -28,12 +29,24 @@ impl ShellLayer {
                 },
                 ..LayerAppearance::default()
             },
+            Self::Menus => LayerAppearance {
+                background: LayerBackground::Weak,
+                ..Self::Overlays.default_appearance()
+            },
         }
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LayerBackground {
+    #[default]
+    Base,
+    Weak,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerAppearance {
+    pub background: LayerBackground,
     pub opacity: f32,
     pub corner_radius_px: f32,
     pub blurred: bool,
@@ -44,6 +57,7 @@ pub struct LayerAppearance {
 impl Default for LayerAppearance {
     fn default() -> Self {
         Self {
+            background: LayerBackground::Base,
             opacity: 0.8,
             corner_radius_px: 8.0,
             blurred: true,

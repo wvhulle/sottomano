@@ -1,5 +1,6 @@
 pub mod app_launch_history;
 pub mod clipboard_copy;
+pub mod desktop_entry_app_catalog;
 pub mod desktop_entry_app_icons;
 pub mod desktop_entry_changes;
 pub mod firefox_favicon_lookup;

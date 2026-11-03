@@ -12,6 +12,7 @@ use sottomano_sources::{
 use sottomano_widgets::{
     background_work::niri_action,
     widget_groups::{
+        app_launcher_group::{self, AppLauncherMessage},
         gamepad_group::GamepadMessage,
         media_group::{self, MediaMessage},
         overlay_settings_group::{self, OverlaySettingsMessage},
@@ -47,13 +48,34 @@ impl DesktopShell {
 
     pub(super) fn load_launch_tracker(&mut self, launches: Vec<Launch>) -> Task<Message> {
         self.launch_tracker.load_from(launches);
-        self.refresh_quick_launch()
+        self.refresh_app_launcher()
     }
 
     pub(super) fn load_desktop_entries(&mut self, entries: Arc<DesktopEntries>) -> Task<Message> {
-        self.desktop_entries.set(entries.clone());
-        self.widget_groups.window_group.set_desktop_entries(entries);
-        self.refresh_quick_launch()
+        let launcher = &mut self.widget_groups.app_launcher_group;
+        launcher.adopt_catalog(entries.launchable_apps());
+        self.desktop_entries.set(entries);
+        let catalog_icons = self
+            .desktop_entries
+            .resolve_catalog_icons(launcher.catalog_app_ids())
+            .map(Message::IconsResolved);
+        Task::batch([self.refresh_app_launcher(), catalog_icons])
+    }
+
+    pub(super) fn update_app_launcher(
+        &mut self,
+        launcher_message: AppLauncherMessage,
+    ) -> Task<Message> {
+        match self
+            .widget_groups
+            .app_launcher_group
+            .update(launcher_message, &self.config)
+        {
+            app_launcher_group::Action::Run(task) => task.map(Message::AppLauncher),
+            app_launcher_group::Action::RunAndDismissMenu(task) => {
+                Task::batch([self.dismiss_hover_card(), task.map(Message::AppLauncher)])
+            }
+        }
     }
 
     pub(super) fn adopt_outputs(
@@ -93,7 +115,6 @@ impl DesktopShell {
             .window_group
             .update(window_message, self.clock)
         {
-            window_group::Action::Run(task) => task.map(Message::WindowGroup),
             window_group::Action::WindowList(window_list::Action::ToggleAudio(pid)) => self
                 .widget_groups
                 .audio_group

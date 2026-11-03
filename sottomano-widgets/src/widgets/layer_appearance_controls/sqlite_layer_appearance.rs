@@ -64,6 +64,7 @@ impl ShellLayer {
             Self::Panels => "panels",
             Self::Sidebar => "sidebar",
             Self::Overlays => "overlays",
+            Self::Menus => "menus",
         }
     }
 }
@@ -203,6 +204,7 @@ async fn read_layer_appearance(
         Ok(columns.integer(&row, setting.column())? != 0)
     };
     Ok(LayerAppearance {
+        background: defaults.background,
         opacity: real(AppearanceSetting::Opacity)?,
         corner_radius_px: real(AppearanceSetting::CornerRadius)?,
         blurred: flag(AppearanceSetting::Blurred)?,

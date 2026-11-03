@@ -34,9 +34,9 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        appearance_presets, audio, caldav, claude_usage, compute, gamepad, group_menu_members,
-        idle_lock, login_session, media, memory_board, niri_session, notification_toasts,
-        shell_settings, unchanging, voice_dictation, vpn, wallpaper, weather,
+        app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
+        group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
+        notification_toasts, shell_settings, unchanging, voice_dictation, vpn, wallpaper, weather,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -75,6 +75,42 @@ pub enum Step {
 }
 
 pub const DEMOS: &[Demo] = &[
+    Demo {
+        name: "app_launcher_frequent",
+        group: app_launcher::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Applications),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
+            Step::PressText("Frequently launched on this workspace"),
+            Step::HoverText("Firefox"),
+        ],
+    },
+    Demo {
+        name: "app_launcher_overflow",
+        group: app_launcher::group,
+        live: app_launcher::scrolled_item_list,
+        shown: GroupShown::InMenu(GroupMenuTopic::Applications),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
+            Step::PressText("Utilities"),
+            Step::HoverText("Utilities"),
+            Step::HoverText("Utilities"),
+            Step::HoverText("Utilities"),
+        ],
+    },
+    Demo {
+        name: "app_launcher_categories",
+        group: app_launcher::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Applications),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
+            Step::PressText("Development"),
+            Step::PressText("Internet"),
+            Step::HoverText("Firefox"),
+        ],
+    },
     Demo {
         name: "compute_cpu",
         group: compute::group,

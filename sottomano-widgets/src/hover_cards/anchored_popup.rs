@@ -91,6 +91,12 @@ pub enum OutsidePress<Message> {
     },
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PopupAppearances {
+    pub overlay: LayerAppearance,
+    pub menu: LayerAppearance,
+}
+
 #[must_use]
 pub fn anchored_popup<'a, Message: Clone + 'a>(
     renderings: Vec<Rendering<'a, Message>>,
@@ -99,9 +105,17 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     morph: PopupMorph,
     outside_press: OutsidePress<Message>,
     config: &Config,
-    overlay_appearance: LayerAppearance,
+    appearances: PopupAppearances,
 ) -> Element<'a, Message> {
-    let overlay_frame = LayerFrameStyle::new(&overlay_appearance);
+    let shows_menu = renderings.iter().any(|rendering| {
+        rendering.incoming && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
+    });
+    let shown_appearance = if shows_menu {
+        appearances.menu
+    } else {
+        appearances.overlay
+    };
+    let shown_frame = LayerFrameStyle::new(&shown_appearance);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
@@ -113,10 +127,10 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         position,
         morph,
         outside_press,
-        frame: overlay_frame,
-        radius: overlay_appearance.corner_radius_px,
-        blurred: overlay_appearance.blurred,
-        shadow: overlay_frame.lifted_drop_shadow(),
+        frame: shown_frame,
+        radius: shown_appearance.corner_radius_px,
+        blurred: shown_appearance.blurred,
+        shadow: shown_frame.lifted_drop_shadow(),
     })
 }
 
@@ -624,7 +638,9 @@ mod tests {
     use iced_test::Simulator;
     use sottomano_config::{Config, screen_edges::Position};
 
-    use super::{OutsidePress, PopupFraming, PopupMorph, Rendering, anchored_popup};
+    use super::{
+        OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
+    };
     use crate::{
         group_menus::cascading_layout::{
             cascade_row::{CascadeDirection, CascadeOrientation, cascade_row},
@@ -677,7 +693,8 @@ mod tests {
 
     fn cascading_popup(config: &Config) -> Element<'_, PressedOutside> {
         let appearance = ShellLayer::Overlays.default_appearance();
-        let satellite_panels = CascadeSatellitePanels::new(&appearance, config, ORIENTATION);
+        let satellite_panels =
+            CascadeSatellitePanels::new(&appearance, &appearance, config, ORIENTATION);
         let satellite = satellite_panels.beside_row(config, text("satellite").into(), 0.0);
         anchored_popup(
             vec![
@@ -696,7 +713,10 @@ mod tests {
                 reachable_below: vec![HANDLE_BELOW_POPUP],
             },
             config,
-            appearance,
+            PopupAppearances {
+                overlay: appearance,
+                menu: appearance,
+            },
         )
     }
 
@@ -765,7 +785,10 @@ mod tests {
                 reachable_below: Vec::new(),
             },
             &config,
-            ShellLayer::Overlays.default_appearance(),
+            PopupAppearances {
+                overlay: ShellLayer::Overlays.default_appearance(),
+                menu: ShellLayer::Overlays.default_appearance(),
+            },
         );
         let messages = messages_after_pressing(popup, |_| Point::new(500.0, 500.0));
         assert_eq!(messages, [PressedOutside]);
@@ -782,7 +805,10 @@ mod tests {
             settled_morph(),
             OutsidePress::PassesThrough,
             &config,
-            appearance,
+            PopupAppearances {
+                overlay: appearance,
+                menu: appearance,
+            },
         );
         let messages = messages_after_pressing(popup, |_| {
             Point::new(CANVAS_SIZE.width - 1.0, CANVAS_SIZE.height - 1.0)

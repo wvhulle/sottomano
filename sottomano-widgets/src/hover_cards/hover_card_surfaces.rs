@@ -17,7 +17,9 @@ use crate::{
     group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleGesture, PopupMessage,
-        anchored_popup::{OutsidePress, PopupFraming, PopupMorph, Rendering, anchored_popup},
+        anchored_popup::{
+            OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
+        },
         hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent,
         hover_card_transition::{
@@ -511,7 +513,10 @@ impl HoverCardHost {
                 },
                 self.outside_press_on(surface),
                 config,
-                surface_style.overlay_appearance,
+                PopupAppearances {
+                    overlay: surface_style.overlay_appearance,
+                    menu: surface_style.menu_appearance,
+                },
             ));
         };
 
@@ -545,7 +550,10 @@ impl HoverCardHost {
                 },
                 self.outside_press_on(surface),
                 config,
-                surface_style.overlay_appearance,
+                PopupAppearances {
+                    overlay: surface_style.overlay_appearance,
+                    menu: surface_style.menu_appearance,
+                },
             ))
             .padding(surface_style.float_offset_px)
             .into(),
@@ -609,6 +617,7 @@ impl<Message> HoverContent<'_, Message> {
 #[derive(Debug, Clone, Copy)]
 pub struct HoverCardSurfaceStyle {
     pub overlay_appearance: LayerAppearance,
+    pub menu_appearance: LayerAppearance,
     pub float_offset_px: f32,
 }
 

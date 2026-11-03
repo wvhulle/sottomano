@@ -1,22 +1,20 @@
 mod flat_window_rows;
 mod location_grouped_window_rows;
 pub mod process_tree;
-pub mod quick_launch;
 mod window_hover_card;
 pub mod window_list;
 pub mod window_list_viewport;
 mod window_row_presentation;
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use iced::{Alignment, Element, Subscription, Task, widget::Row};
+use iced::{Element, Subscription, Task};
 use niri_ipc::state::EventStreamState;
-use quick_launch::{QuickLaunch, QuickLaunchMessage};
 use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
     desktop_windows_apps::{
-        desktop_entry_app_icons::DesktopEntries, kitty_terminal_windows::WindowProcesses,
-        niri_window_snapshot, process_tree_inspection::Watched,
+        kitty_terminal_windows::WindowProcesses, niri_window_snapshot,
+        process_tree_inspection::Watched,
     },
     media_playback_audio::pipewire_audio::WindowAudio,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -36,18 +34,15 @@ use crate::{
 
 #[derive(Default)]
 pub struct WindowGroup {
-    pub quick_launch: QuickLaunch,
     pub window_list: WindowList,
 }
 
 #[derive(Debug, Clone)]
 pub enum WindowGroupMessage {
-    QuickLaunch(QuickLaunchMessage),
     WindowList(WindowListMessage),
 }
 
 pub enum Action {
-    Run(Task<WindowGroupMessage>),
     WindowList(window_list::Action),
 }
 
@@ -72,10 +67,6 @@ impl From<WindowTarget> for HoverTarget {
 }
 
 impl WindowGroup {
-    pub fn collapse(&mut self) {
-        self.quick_launch.expansion.collapse();
-    }
-
     pub fn subscription(agents: &WindowAgentsConfig) -> Subscription<WindowGroupMessage> {
         WindowList::subscription(agents).map(WindowGroupMessage::WindowList)
     }
@@ -121,11 +112,6 @@ impl WindowGroup {
 
     pub fn update(&mut self, msg: WindowGroupMessage, clock: Clock) -> Action {
         match msg {
-            WindowGroupMessage::QuickLaunch(quick_launch_message) => Action::Run(
-                self.quick_launch
-                    .update(quick_launch_message)
-                    .map(WindowGroupMessage::QuickLaunch),
-            ),
             WindowGroupMessage::WindowList(window_list_message) => {
                 Action::WindowList(self.window_list.update(window_list_message, clock))
             }
@@ -137,19 +123,7 @@ impl WindowGroup {
         self.window_list.window_processes()
     }
 
-    pub fn set_ranked(&mut self, ranked: HashMap<String, Vec<String>>) {
-        self.quick_launch.set_ranked(ranked);
-    }
-
-    pub fn set_desktop_entries(&mut self, entries: Arc<DesktopEntries>) {
-        self.quick_launch.set_desktop_entries(entries);
-    }
-
     #[must_use]
-    pub fn icon_keys(&self) -> Vec<String> {
-        self.quick_launch.icon_keys()
-    }
-
     pub fn view<'a>(
         &'a self,
         niri: &niri_window_snapshot::Snapshot,
@@ -158,32 +132,14 @@ impl WindowGroup {
         output: &str,
         slot_context: PanelSlotContext<'a>,
     ) -> Option<Element<'a, GroupEvent<WindowGroupMessage>>> {
-        let config = slot_context.config;
-        let quick_launch = self
-            .quick_launch
-            .group_content(icons.entries, output)
-            .map(WindowGroupMessage::QuickLaunch)
-            .view_events(config, slot_context.edge, slot_context.clock);
-        let window_list = self
-            .window_list
+        self.window_list
             .view(niri, icons, audio, output, slot_context)
             .map(|element| {
                 element.map(|message| match message {
                     WindowListMessage::HoverCard(hover_card) => GroupEvent::HoverCard(hover_card),
                     message => GroupEvent::Group(WindowGroupMessage::WindowList(message)),
                 })
-            });
-        if quick_launch.is_none() && window_list.is_none() {
-            return None;
-        }
-        Some(
-            Row::new()
-                .extend(quick_launch)
-                .extend(window_list)
-                .spacing(config.theme.spacing.group_gap)
-                .align_y(Alignment::Center)
-                .into(),
-        )
+            })
     }
 }
 

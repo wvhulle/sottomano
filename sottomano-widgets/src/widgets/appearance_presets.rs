@@ -11,6 +11,7 @@ pub struct ShellAppearance {
     pub panels: LayerAppearance,
     pub sidebar: LayerAppearance,
     pub overlays: LayerAppearance,
+    pub menus: LayerAppearance,
 }
 
 impl Default for ShellAppearance {
@@ -20,6 +21,7 @@ impl Default for ShellAppearance {
             panels: ShellLayer::Panels.default_appearance(),
             sidebar: ShellLayer::Sidebar.default_appearance(),
             overlays: ShellLayer::Overlays.default_appearance(),
+            menus: ShellLayer::Menus.default_appearance(),
         }
     }
 }
@@ -31,6 +33,7 @@ impl ShellAppearance {
             && self.panels.looks_like(&other.panels)
             && self.sidebar.looks_like(&other.sidebar)
             && self.overlays.looks_like(&other.overlays)
+            && self.menus.looks_like(&other.menus)
     }
 }
 
@@ -84,6 +87,10 @@ impl AppearancePreset {
                 blurred: true,
                 ..shaped.overlays
             },
+            menus: LayerAppearance {
+                blurred: true,
+                ..shaped.menus
+            },
             ..shaped
         }
     }
@@ -134,6 +141,7 @@ impl AppearancePreset {
                     panels: solid(current.panels),
                     sidebar: solid(current.sidebar),
                     overlays: solid(current.overlays),
+                    menus: solid(current.menus),
                 }
             }
             Self::FrostedDark => {
@@ -147,6 +155,7 @@ impl AppearancePreset {
                     panels: frosted(current.panels, 0.8),
                     sidebar: frosted(current.sidebar, 0.8),
                     overlays: frosted(current.overlays, 0.85),
+                    menus: frosted(current.menus, 0.85),
                 }
             }
         }

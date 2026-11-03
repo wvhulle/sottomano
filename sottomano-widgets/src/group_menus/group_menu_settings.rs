@@ -1,3 +1,5 @@
+use sottomano_config::Config;
+
 use crate::{
     clock::Clock,
     group_items::{
@@ -16,7 +18,10 @@ use crate::{
         widget_group_content::{WidgetGroupContent, WidgetGroupFace},
         widget_group_identity::WidgetGroupFamily,
     },
-    widgets::phosphor::{Phosphor, Weight},
+    widgets::{
+        layer_appearance_controls::AppearanceTarget,
+        phosphor::{Phosphor, Weight},
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,6 +30,7 @@ pub enum GroupMenuSettingsTarget {
     PressToReveal,
     KeepOneGroupOpen,
     InlineCards,
+    Appearance(AppearanceTarget),
 }
 
 impl From<GroupMenuSettingsTarget> for HoverTarget {
@@ -84,7 +90,10 @@ fn inline_cards_toggle(presentation: GroupMenuPresentation) -> IconToggle {
 
 impl GroupMenuState {
     #[must_use]
-    pub fn settings_content(&self) -> WidgetGroupContent<'_, GroupMenuMessage> {
+    pub fn settings_content<'a>(
+        &'a self,
+        config: &'a Config,
+    ) -> WidgetGroupContent<'a, GroupMenuMessage> {
         let presentation = self.presentation();
         let accordion_only_item = (presentation.layout == GroupMenuLayout::Accordion).then(|| {
             GroupItem::toggle(
@@ -115,7 +124,11 @@ impl GroupMenuState {
                 inline_cards_toggle(presentation),
                 GroupMenuSettingsTarget::InlineCards,
                 GroupMenuMessage::SwitchPresentation(presentation.with_card_placement_toggled()),
-            )]),
+            )])
+            .chain(
+                self.menu_appearance_controls()
+                    .items(config, GroupMenuMessage::Appearance),
+            ),
         )
         .face(WidgetGroupFace::Icon {
             glyph: Phosphor::ListDashes(Weight::Regular).into(),
@@ -126,12 +139,22 @@ impl GroupMenuState {
     pub fn settings_hover_card(&self, target: GroupMenuSettingsTarget, clock: Clock) -> HoverCard {
         let presentation = self.presentation();
         match target {
-            GroupMenuSettingsTarget::AccordionLayout => accordion_layout_toggle(presentation),
-            GroupMenuSettingsTarget::PressToReveal => press_to_reveal_toggle(presentation),
-            GroupMenuSettingsTarget::KeepOneGroupOpen => keep_one_group_open_toggle(presentation),
-            GroupMenuSettingsTarget::InlineCards => inline_cards_toggle(presentation),
+            GroupMenuSettingsTarget::AccordionLayout => {
+                accordion_layout_toggle(presentation).switch_hover_card(clock)
+            }
+            GroupMenuSettingsTarget::PressToReveal => {
+                press_to_reveal_toggle(presentation).switch_hover_card(clock)
+            }
+            GroupMenuSettingsTarget::KeepOneGroupOpen => {
+                keep_one_group_open_toggle(presentation).switch_hover_card(clock)
+            }
+            GroupMenuSettingsTarget::InlineCards => {
+                inline_cards_toggle(presentation).switch_hover_card(clock)
+            }
+            GroupMenuSettingsTarget::Appearance(target) => self
+                .menu_appearance_controls()
+                .hover_card_for(target, clock),
         }
-        .switch_hover_card(clock)
     }
 }
 

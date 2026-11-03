@@ -158,6 +158,7 @@ impl LayerAppearanceControls {
     #[must_use]
     pub fn appearance(&self) -> LayerAppearance {
         LayerAppearance {
+            background: self.layer.default_appearance().background,
             opacity: self.opacity.settled_value() / 100.0,
             corner_radius_px: self.corner_radius.settled_value(),
             blurred: self.blurred,
@@ -386,7 +387,9 @@ mod tests {
         group_items::slider_control::ControlMessage,
         hover_cards::HoverTarget,
         widget_groups::panel_settings_group::PanelSettingsTarget,
-        widgets::shell_layer_appearance::{LayerAppearance, OutlineStyle, ShadowStyle, ShellLayer},
+        widgets::shell_layer_appearance::{
+            LayerAppearance, LayerBackground, OutlineStyle, ShadowStyle, ShellLayer,
+        },
     };
 
     fn panel_controls() -> LayerAppearanceControls {
@@ -407,8 +410,20 @@ mod tests {
     }
 
     #[test]
+    fn a_menu_layer_keeps_its_own_background_through_a_load() {
+        let mut menus = LayerAppearanceControls::new(ShellLayer::Menus, |target| {
+            HoverTarget::from(PanelSettingsTarget::Appearance(target))
+        });
+        let _ = menus.update(AppearanceMessage::Loaded(
+            ShellLayer::Overlays.default_appearance(),
+        ));
+        assert_eq!(menus.appearance().background, LayerBackground::Weak);
+    }
+
+    #[test]
     fn a_loaded_appearance_reads_back_unchanged() {
         let loaded = LayerAppearance {
+            background: LayerBackground::Base,
             opacity: 0.5,
             corner_radius_px: 3.0,
             blurred: false,

@@ -21,8 +21,10 @@ use sottomano_widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides},
         panel_slot_drag::PanelSlotContext,
     },
+    group_menus::group_menu_state::GroupMenuState,
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
+        app_launcher_group::AppLauncherGroup,
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
@@ -106,6 +108,7 @@ pub enum ShowcasedGroup {
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
     IdleTimeouts(Box<IdleTimeoutsGroup>),
+    AppLauncher(Box<ShowcasedAppLauncher>),
     AppearancePresets(AppearancePresetsGroup),
     Wallpaper(Box<WallpaperGroup>),
     Audio(Box<AudioGroup>),
@@ -125,6 +128,7 @@ pub struct ShowcasedShellSettings {
     pub panels: PanelSettingsGroup,
     pub sidebar: SidebarSettingsGroup,
     pub overlays: OverlaySettingsGroup,
+    pub menus: GroupMenuState,
     pub niri_window: NiriWindowGroup,
     pub shown_items: ShownSettingItems,
 }
@@ -153,6 +157,9 @@ impl ShowcasedShellSettings {
             self.niri_window
                 .group_content(config)
                 .map(|_| ShowcaseMessage::OutsideShowcase),
+            self.menus
+                .settings_content(config)
+                .map(|_| ShowcaseMessage::OutsideShowcase),
         ];
         match self.shown_items {
             ShownSettingItems::SharingAUnit => inert_settings
@@ -176,9 +183,17 @@ impl ShowcasedShellSettings {
             HoverTarget::NiriWindow(target) => {
                 Some(self.niri_window.hover_card_for(*target, clock))
             }
+            HoverTarget::GroupMenuSettings(target) => {
+                Some(self.menus.settings_hover_card(*target, clock))
+            }
             _ => None,
         }
     }
+}
+
+pub struct ShowcasedAppLauncher {
+    pub group: AppLauncherGroup,
+    pub desktop_entries: DesktopIndex,
 }
 
 pub struct ShowcasedGamepad {
@@ -357,6 +372,7 @@ impl ShowcasedGroup {
     pub fn position(&self) -> Position {
         match self {
             ShowcasedGroup::BottomPanel(_)
+            | ShowcasedGroup::AppLauncher(_)
             | ShowcasedGroup::ClaudeUsage(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::AppearancePresets(_)
@@ -386,6 +402,12 @@ impl ShowcasedGroup {
         clock: Clock,
     ) -> Vec<WidgetGroupContent<'a, ShowcaseMessage>> {
         match self {
+            ShowcasedGroup::AppLauncher(launcher) => launcher
+                .group
+                .group_contents(&launcher.desktop_entries, config, SHOWCASE_OUTPUT)
+                .into_iter()
+                .map(|group| group.map(|_| ShowcaseMessage::OutsideShowcase))
+                .collect(),
             ShowcasedGroup::Compute(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Compute)]
             }
@@ -548,7 +570,8 @@ impl ShowcasedGroup {
                     member.update(message.clone(), clock);
                 }
             }
-            ShowcasedGroup::AppearancePresets(_)
+            ShowcasedGroup::AppLauncher(_)
+            | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::Toasts(_)
             | ShowcasedGroup::ShellSettings(_) => {}
         }
@@ -634,7 +657,8 @@ impl ShowcasedGroup {
                 .iter_mut()
                 .flat_map(|member| member.hover(target, config, clock))
                 .collect(),
-            ShowcasedGroup::Weather(_)
+            ShowcasedGroup::AppLauncher(_)
+            | ShowcasedGroup::Weather(_)
             | ShowcasedGroup::Media(_)
             | ShowcasedGroup::IdleTimeouts(_)
             | ShowcasedGroup::Wallpaper(_)
@@ -647,6 +671,7 @@ impl ShowcasedGroup {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     pub fn hover_card_for(
         &self,
         target: &HoverTarget,
@@ -697,6 +722,12 @@ impl ShowcasedGroup {
                     return None;
                 };
                 group.hover_card_for(*target, clock)
+            }
+            ShowcasedGroup::AppLauncher(launcher) => {
+                let HoverTarget::AppLauncher(target) = target else {
+                    return None;
+                };
+                Some(launcher.group.hover_card_for(target, clock))
             }
             ShowcasedGroup::Audio(group) => {
                 let HoverTarget::Audio(kind) = target else {
@@ -781,7 +812,8 @@ impl ShowcasedGroup {
                 Some(&session.niri)
             }
             ShowcasedGroup::Toasts(toasts) => Some(&toasts.niri),
-            ShowcasedGroup::Compute(_)
+            ShowcasedGroup::AppLauncher(_)
+            | ShowcasedGroup::Compute(_)
             | ShowcasedGroup::MemoryBoard(_)
             | ShowcasedGroup::Weather(_)
             | ShowcasedGroup::ClaudeUsage(_)

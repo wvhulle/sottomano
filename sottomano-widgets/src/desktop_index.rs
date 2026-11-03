@@ -91,6 +91,16 @@ impl DesktopIndex {
         task
     }
 
+    pub fn resolve_catalog_icons(&self, app_ids: Vec<String>) -> Task<ResolvedIcons> {
+        let Some(entries) = self.entries.clone() else {
+            return Task::none();
+        };
+        Task::future(blocking("app catalog icons", move || ResolvedIcons {
+            app: desktop_entry_app_icons::resolve_app_icons(&entries, app_ids),
+            theme: HashMap::new(),
+        }))
+    }
+
     pub fn merge(&mut self, resolved: ResolvedIcons) {
         self.app_icons.extend(resolved.app);
         self.theme_icons.extend(resolved.theme);

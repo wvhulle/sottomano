@@ -7,6 +7,8 @@ pub enum SingletonFlag {
     WorkspacesInSidebar,
     AutoCollapseWorkspaces,
     WindowsGroupedByLocation,
+    FrequentAppsHideOpen,
+    CategoryAppsSortedByUsage,
 }
 
 impl SingletonFlag {
@@ -42,6 +44,18 @@ impl SingletonFlag {
                     enabled INTEGER NOT NULL
                 )"
             }
+            Self::FrequentAppsHideOpen => {
+                "CREATE TABLE IF NOT EXISTS frequent_apps_hide_open (
+                    id INTEGER PRIMARY KEY CHECK (id = 0),
+                    enabled INTEGER NOT NULL
+                )"
+            }
+            Self::CategoryAppsSortedByUsage => {
+                "CREATE TABLE IF NOT EXISTS category_apps_sorted_by_usage (
+                    id INTEGER PRIMARY KEY CHECK (id = 0),
+                    enabled INTEGER NOT NULL
+                )"
+            }
         }
     }
 
@@ -52,6 +66,8 @@ impl SingletonFlag {
             Self::WorkspacesInSidebar => "workspaces_in_sidebar",
             Self::AutoCollapseWorkspaces => "auto_collapse_workspaces",
             Self::WindowsGroupedByLocation => "windows_grouped_by_location",
+            Self::FrequentAppsHideOpen => "frequent_apps_hide_open",
+            Self::CategoryAppsSortedByUsage => "category_apps_sorted_by_usage",
         }
     }
 }

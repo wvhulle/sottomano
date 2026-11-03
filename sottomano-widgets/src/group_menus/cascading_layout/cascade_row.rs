@@ -13,7 +13,8 @@ use iced::{
 use sottomano_config::screen_edges::Position;
 
 use crate::{
-    group_menus::cascading_layout::notched_panel::PanelGrowth, widgets::fair_widths::fair_widths,
+    group_menus::cascading_layout::notched_panel::{PanelGrowth, ScreenRoom},
+    widgets::fair_widths::fair_widths,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,11 +91,17 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for CascadeRow<'_, Me
                 .as_widget_mut()
                 .layout(&mut primary_tree[0], renderer, limits);
         let room_width = available.width - primary.size().width;
-        let room_height = match self.orientation.growth {
-            PanelGrowth::Downward => available.height,
-            PanelGrowth::Upward => available.height - primary.size().height,
+        let screen_room = match self.orientation.growth {
+            PanelGrowth::Downward => ScreenRoom {
+                above_primary_top: 0.0,
+                below_primary_top: available.height,
+            },
+            PanelGrowth::Upward => ScreenRoom {
+                above_primary_top: available.height - primary.size().height,
+                below_primary_top: primary.size().height,
+            },
         };
-        let within = |width: f32| Limits::new(Size::ZERO, Size::new(width.max(0.0), room_height));
+        let within = |width: f32| screen_room.limits_within(width.max(0.0));
         let natural_widths: Vec<f32> = satellite_slots
             .iter_mut()
             .zip(satellite_trees.iter_mut())

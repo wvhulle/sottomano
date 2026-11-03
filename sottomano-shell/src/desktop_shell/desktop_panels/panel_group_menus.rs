@@ -19,8 +19,17 @@ impl DesktopShell {
     pub(in crate::desktop_shell) fn group_menu_of(
         &self,
         topic: GroupMenuTopic,
+        output: &str,
     ) -> GroupMenuView<'_, Message> {
         match topic {
+            GroupMenuTopic::Applications => self.group_menu(
+                GroupMenuTopic::Applications,
+                self.widget_groups
+                    .app_launcher_group
+                    .group_contents(&self.desktop_entries, &self.config, output)
+                    .into_iter()
+                    .map(|group| group.map(Message::AppLauncher)),
+            ),
             GroupMenuTopic::Hardware => self.hardware_group_menu(),
             GroupMenuTopic::Network => self.network_group_menu(),
             GroupMenuTopic::Agenda => self.agenda_group_menu(),
@@ -261,7 +270,7 @@ impl DesktopShell {
                 .map(Message::NiriWindow),
             self.widget_groups
                 .group_menus
-                .settings_content()
+                .settings_content(config)
                 .map(Message::GroupMenuState),
         ]
     }

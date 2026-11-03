@@ -198,9 +198,10 @@ impl DesktopShell {
             toast_requests,
             promoted_groups,
         } = self.scan_group_alerts();
-        let open_menu = self
-            .open_group_menu()
-            .map(|topic| self.group_menu_of(topic).open_group_menu());
+        let open_menu = self.open_group_menu().map(|topic| {
+            self.group_menu_of(topic, self.hovered_output())
+                .open_group_menu()
+        });
         self.widget_groups.group_menus.track_source_demand(
             open_menu,
             promoted_groups,
@@ -230,6 +231,7 @@ impl DesktopShell {
         match message {
             Message::Output(change) => self.apply_output_change(change),
             Message::WindowGroup(msg) => self.update_window_group(msg),
+            Message::AppLauncher(launcher_message) => self.update_app_launcher(launcher_message),
             Message::TrackerLoaded(launches) => self.load_launch_tracker(launches),
             Message::DesktopEntriesLoaded(entries) => self.load_desktop_entries(entries),
             Message::ReloadDesktopEntries => {
@@ -459,6 +461,12 @@ impl DesktopShell {
         CascadeOrientation::toward_room(placement.anchor, placement.position, output_width)
     }
 
+    pub(super) fn hovered_output(&self) -> &str {
+        self.hover_card
+            .placement()
+            .map_or("", |placement| placement.output.as_str())
+    }
+
     fn open_group_menu(&self) -> Option<GroupMenuTopic> {
         match self.hover_card.target() {
             Some(HoverTarget::GroupMenu(topic)) => Some(*topic),
@@ -473,7 +481,7 @@ impl DesktopShell {
         let HoverTarget::GroupMenu(topic) = target else {
             return None;
         };
-        let group_menu = self.group_menu_of(*topic);
+        let group_menu = self.group_menu_of(*topic, self.hovered_output());
         let inspected_hover_card = self
             .widget_groups
             .group_menus
@@ -487,12 +495,13 @@ impl DesktopShell {
             .unwrap_or_else(HoverCard::empty);
         group_menu.surfaces(
             &self.config,
-            &self
-                .widget_groups
-                .overlay_settings_group
-                .overlay_appearance(),
+            &self.widget_groups.group_menus.menu_appearance(),
             &InspectionCard {
                 hover_card: &inspected_hover_card,
+                card_appearance: self
+                    .widget_groups
+                    .overlay_settings_group
+                    .overlay_appearance(),
                 assets: self.window_assets(),
                 clock: self.clock,
             },

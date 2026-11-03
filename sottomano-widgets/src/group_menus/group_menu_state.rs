@@ -9,15 +9,20 @@ use iced::Task;
 use crate::{
     group_menus::{
         group_menu_inspection::GroupMenuInspection, group_menu_presentation::GroupMenuPresentation,
-        group_source_demand::GroupSourceDemand, sqlite_group_menu_pins,
-        sqlite_group_menu_pins::StoredGroupMenuPin, sqlite_group_menu_presentation,
+        group_menu_settings::GroupMenuSettingsTarget, group_source_demand::GroupSourceDemand,
+        sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
+        sqlite_group_menu_presentation,
     },
     hover_cards::HoverTarget,
     widget_groups::{
         widget_group_content::{WidgetGroupExpansion, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
     },
-    widgets::phosphor::{Phosphor, Weight},
+    widgets::{
+        layer_appearance_controls::{AppearanceMessage, LayerAppearanceControls},
+        phosphor::{Phosphor, Weight},
+        shell_layer_appearance::{LayerAppearance, ShellLayer},
+    },
 };
 
 const MENU_SOURCE_LINGER: Duration = Duration::from_secs(30);
@@ -33,10 +38,11 @@ pub enum GroupMenuTopic {
     Session,
     Appearance,
     Behaviour,
+    Applications,
 }
 
 impl GroupMenuTopic {
-    pub const ALL: [GroupMenuTopic; 9] = [
+    pub const ALL: [GroupMenuTopic; 10] = [
         GroupMenuTopic::Hardware,
         GroupMenuTopic::Network,
         GroupMenuTopic::Agenda,
@@ -46,6 +52,7 @@ impl GroupMenuTopic {
         GroupMenuTopic::Session,
         GroupMenuTopic::Appearance,
         GroupMenuTopic::Behaviour,
+        GroupMenuTopic::Applications,
     ];
 
     #[must_use]
@@ -60,6 +67,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Session => "Session",
             GroupMenuTopic::Appearance => "Appearance",
             GroupMenuTopic::Behaviour => "Behaviour",
+            GroupMenuTopic::Applications => "Applications",
         }
     }
 
@@ -75,6 +83,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Session => Phosphor::UserCircle(Weight::Regular),
             GroupMenuTopic::Appearance => Phosphor::SlidersHorizontal(Weight::Regular),
             GroupMenuTopic::Behaviour => Phosphor::ToggleRight(Weight::Regular),
+            GroupMenuTopic::Applications => Phosphor::Rocket(Weight::Regular),
         }
     }
 
@@ -89,6 +98,7 @@ impl GroupMenuTopic {
             GroupMenuTopic::Session => "session",
             GroupMenuTopic::Appearance => "appearance",
             GroupMenuTopic::Behaviour => "behaviour",
+            GroupMenuTopic::Applications => "applications",
         }
     }
 }
@@ -149,7 +159,12 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         scrolled_px: f32,
     },
+    ItemListScrolled {
+        menu: GroupMenuTopic,
+        scrolled_px: f32,
+    },
     SettingsExpansion(WidgetGroupExpansionMessage),
+    Appearance(AppearanceMessage),
     PresentationLoaded(GroupMenuPresentation),
     SwitchPresentation(GroupMenuPresentation),
     Closed,
@@ -173,8 +188,8 @@ struct RecentlyOpenMenu {
     last_open_at: Instant,
 }
 
-#[derive(Default)]
 pub struct GroupMenuState {
+    menu_appearance: LayerAppearanceControls,
     settings_expansion: WidgetGroupExpansion,
     presentation: GroupMenuPresentation,
     pinned: BTreeSet<StoredGroupMenuPin>,
@@ -183,9 +198,26 @@ pub struct GroupMenuState {
     promoted_groups: Vec<AlertPromotedGroup>,
 }
 
+impl Default for GroupMenuState {
+    fn default() -> Self {
+        Self {
+            menu_appearance: LayerAppearanceControls::new(ShellLayer::Menus, |target| {
+                GroupMenuSettingsTarget::Appearance(target).into()
+            }),
+            settings_expansion: WidgetGroupExpansion::default(),
+            presentation: GroupMenuPresentation::default(),
+            pinned: BTreeSet::new(),
+            inspection: GroupMenuInspection::default(),
+            recently_open_menus: Vec::new(),
+            promoted_groups: Vec::new(),
+        }
+    }
+}
+
 impl GroupMenuState {
     pub fn load() -> Task<GroupMenuMessage> {
         Task::batch([
+            LayerAppearanceControls::load(ShellLayer::Menus).map(GroupMenuMessage::Appearance),
             Task::perform(sqlite_group_menu_pins::load(), GroupMenuMessage::PinsLoaded),
             Task::perform(
                 sqlite_group_menu_presentation::load(),
@@ -247,7 +279,19 @@ impl GroupMenuState {
     }
 
     pub fn collapse_settings(&mut self) {
-        let _collapsed = self.settings_expansion.collapse();
+        if self.settings_expansion.collapse() {
+            self.menu_appearance.close();
+        }
+    }
+
+    #[must_use]
+    pub fn menu_appearance(&self) -> LayerAppearance {
+        self.menu_appearance.appearance()
+    }
+
+    #[must_use]
+    pub(crate) const fn menu_appearance_controls(&self) -> &LayerAppearanceControls {
+        &self.menu_appearance
     }
 
     #[must_use]
@@ -258,6 +302,11 @@ impl GroupMenuState {
     #[must_use]
     pub fn scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
         self.inspection.scrolled_px(menu)
+    }
+
+    #[must_use]
+    pub fn item_list_scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
+        self.inspection.item_list_scrolled_px(menu)
     }
 
     #[must_use]
@@ -325,10 +374,21 @@ impl GroupMenuState {
                 self.inspection = take(&mut self.inspection).scrolled_to(menu, scrolled_px);
                 Task::none()
             }
-            GroupMenuMessage::SettingsExpansion(expansion) => {
-                let _collapsed = self.settings_expansion.update(expansion);
+            GroupMenuMessage::ItemListScrolled { menu, scrolled_px } => {
+                self.inspection =
+                    take(&mut self.inspection).item_list_scrolled_to(menu, scrolled_px);
                 Task::none()
             }
+            GroupMenuMessage::SettingsExpansion(expansion) => {
+                if self.settings_expansion.update(expansion) {
+                    self.menu_appearance.close();
+                }
+                Task::none()
+            }
+            GroupMenuMessage::Appearance(appearance) => self
+                .menu_appearance
+                .update(appearance)
+                .map(GroupMenuMessage::Appearance),
             GroupMenuMessage::PresentationLoaded(presentation) => {
                 self.adopt_presentation(presentation);
                 Task::none()

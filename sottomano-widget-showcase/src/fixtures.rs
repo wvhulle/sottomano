@@ -1,3 +1,4 @@
+pub mod app_launcher;
 pub mod appearance_presets;
 pub mod audio;
 pub mod caldav;

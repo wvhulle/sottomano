@@ -415,6 +415,11 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
     }
 
     #[cfg(test)]
+    pub(crate) fn has_items(&self) -> bool {
+        !self.items.is_empty()
+    }
+
+    #[cfg(test)]
     pub(crate) fn group_title(&self) -> WidgetGroupTitle {
         self.group_title.clone()
     }

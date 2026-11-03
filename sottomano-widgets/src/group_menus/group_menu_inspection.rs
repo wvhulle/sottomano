@@ -17,6 +17,7 @@ pub(crate) struct OpenGroupMenuRows {
     open_groups: Vec<WidgetGroupIdentity>,
     row: RowInspection,
     scrolled_px: f32,
+    item_list_scrolled_px: f32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -33,17 +34,17 @@ impl GroupMenuInspection {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
     ) -> Self {
-        let (row, scrolled_px) = match self {
+        let (row, scrolled_px, item_list_scrolled_px) = match self {
             GroupMenuInspection::Open(open)
                 if open.menu == menu && open.open_groups.contains(&group_identity) =>
             {
-                (open.row, open.scrolled_px)
+                (open.row, open.scrolled_px, open.item_list_scrolled_px)
             }
             GroupMenuInspection::Open(open) if open.menu == menu => {
-                (RowInspection::Nothing, open.scrolled_px)
+                (RowInspection::Nothing, open.scrolled_px, 0.0)
             }
             GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => {
-                (RowInspection::Nothing, 0.0)
+                (RowInspection::Nothing, 0.0, 0.0)
             }
         };
         GroupMenuInspection::Open(Box::new(OpenGroupMenuRows {
@@ -51,6 +52,7 @@ impl GroupMenuInspection {
             open_groups: vec![group_identity],
             row,
             scrolled_px,
+            item_list_scrolled_px,
         }))
     }
 
@@ -76,6 +78,7 @@ impl GroupMenuInspection {
                 open_groups,
                 row: RowInspection::Nothing,
                 scrolled_px,
+                item_list_scrolled_px: 0.0,
             }));
         }
         match open_limit {
@@ -86,6 +89,7 @@ impl GroupMenuInspection {
                     open_groups,
                     row: RowInspection::Nothing,
                     scrolled_px,
+                    item_list_scrolled_px: 0.0,
                 }))
             }
             OpenGroupLimit::Several => {
@@ -95,6 +99,7 @@ impl GroupMenuInspection {
                     open_groups,
                     row,
                     scrolled_px,
+                    item_list_scrolled_px: 0.0,
                 }))
             }
         }
@@ -154,8 +159,30 @@ impl GroupMenuInspection {
                 open_groups: Vec::new(),
                 row: RowInspection::Nothing,
                 scrolled_px,
+                item_list_scrolled_px: 0.0,
             })),
             unrelated @ GroupMenuInspection::Open(_) => unrelated,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn item_list_scrolled_to(self, menu: GroupMenuTopic, scrolled_px: f32) -> Self {
+        match self {
+            GroupMenuInspection::Open(open) if open.menu == menu => {
+                GroupMenuInspection::Open(Box::new(OpenGroupMenuRows {
+                    row: RowInspection::Nothing,
+                    item_list_scrolled_px: scrolled_px,
+                    ..*open
+                }))
+            }
+            unrelated => unrelated,
+        }
+    }
+
+    pub(crate) fn item_list_scrolled_px(&self, menu: GroupMenuTopic) -> f32 {
+        match self {
+            GroupMenuInspection::Open(open) if open.menu == menu => open.item_list_scrolled_px,
+            GroupMenuInspection::Open(_) | GroupMenuInspection::Closed => 0.0,
         }
     }
 
@@ -289,6 +316,34 @@ mod tests {
         assert_eq!(
             inspection.open_groups(GroupMenuTopic::Hardware),
             [GPU_GROUP]
+        );
+    }
+
+    #[test]
+    fn opening_another_group_resets_the_item_list_scroll() {
+        let scrolled = GroupMenuInspection::Closed
+            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP)
+            .inspecting_row(GroupMenuTopic::Hardware, inspected_workspace_row())
+            .item_list_scrolled_to(GroupMenuTopic::Hardware, 40.0);
+        assert_eq!(scrolled.inspected_target(GroupMenuTopic::Hardware), None);
+        assert!(
+            (scrolled.item_list_scrolled_px(GroupMenuTopic::Hardware) - 40.0).abs() < f32::EPSILON
+        );
+
+        let same_group = scrolled
+            .clone()
+            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP);
+        assert!(
+            (same_group.item_list_scrolled_px(GroupMenuTopic::Hardware) - 40.0).abs()
+                < f32::EPSILON
+        );
+
+        let other_group = scrolled.revealing_group(GroupMenuTopic::Hardware, COMPUTE_GROUP);
+        assert!(
+            other_group
+                .item_list_scrolled_px(GroupMenuTopic::Hardware)
+                .abs()
+                < f32::EPSILON
         );
     }
 
