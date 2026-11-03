@@ -139,7 +139,6 @@ impl HoverCardHost {
         target: HoverTarget,
         anchor: Rectangle,
         announcement: HoverAnnouncement,
-        now: Instant,
     ) {
         self.occupy(
             parent,
@@ -147,7 +146,6 @@ impl HoverCardHost {
             anchor,
             announcement,
             CardRetention::UntilPointerLeaves,
-            now,
         );
     }
 
@@ -157,7 +155,6 @@ impl HoverCardHost {
         target: HoverTarget,
         anchor: Rectangle,
         announcement: HoverAnnouncement,
-        now: Instant,
     ) {
         self.occupy(
             parent,
@@ -165,7 +162,6 @@ impl HoverCardHost {
             anchor,
             announcement,
             CardRetention::UntilDismissed,
-            now,
         );
     }
 
@@ -213,7 +209,6 @@ impl HoverCardHost {
         anchor: Rectangle,
         announcement: HoverAnnouncement,
         retention: CardRetention,
-        now: Instant,
     ) {
         self.pending_switch = None;
         self.pointer_over_hover_card = false;
@@ -225,19 +220,16 @@ impl HoverCardHost {
         {
             return;
         }
-        self.transition.show(
-            Occupant {
-                target,
-                announcement,
-                placement: Placement {
-                    anchor,
-                    position: parent.position,
-                    output: parent.output.clone(),
-                },
-                retention,
+        self.transition.show(Occupant {
+            target,
+            announcement,
+            placement: Placement {
+                anchor,
+                position: parent.position,
+                output: parent.output.clone(),
             },
-            now,
-        );
+            retention,
+        });
     }
 
     fn exit(&mut self, target: &HoverTarget, now: Instant) -> Option<Instant> {
@@ -306,16 +298,16 @@ impl HoverCardHost {
     }
 
     #[must_use]
-    pub fn is_morphing(&self, now: Instant, morph: Duration) -> bool {
-        self.transition.morph_progress(now, morph) < 1.0
-    }
-
-    #[must_use]
     pub fn is_hiding(&self) -> bool {
         self.transition.hiding_since().is_some()
     }
 
-    pub fn reconcile_surfaces(&mut self, now: Instant, fade: Duration) -> Task<SurfaceRequest> {
+    pub fn reconcile_surfaces(
+        &mut self,
+        panel_outputs: &BTreeSet<String>,
+        now: Instant,
+        fade: Duration,
+    ) -> Task<SurfaceRequest> {
         if self
             .transition
             .hiding_since()
@@ -323,22 +315,10 @@ impl HoverCardHost {
         {
             self.transition.reset();
         }
-        let catching_outputs = self
-            .menu_handles
-            .iter()
-            .filter(|_| self.transition.is_held_open())
-            .map(|handle| handle.output.clone());
-        let wanted_outputs: BTreeSet<String> = self
-            .transition
-            .placement()
-            .map(|placement| placement.output.clone())
-            .into_iter()
-            .chain(catching_outputs)
-            .collect();
         let stale_surfaces: Vec<(String, Id)> = self
             .surfaces
             .iter()
-            .filter(|(output, _)| !wanted_outputs.contains(*output))
+            .filter(|(output, _)| !panel_outputs.contains(*output))
             .map(|(output, surface)| (output.clone(), *surface))
             .collect();
         let closes: Vec<Task<SurfaceRequest>> = stale_surfaces
@@ -348,7 +328,7 @@ impl HoverCardHost {
                 Task::done(SurfaceRequest::Close { surface })
             })
             .collect();
-        let opens: Vec<Task<SurfaceRequest>> = wanted_outputs
+        let opens: Vec<Task<SurfaceRequest>> = panel_outputs
             .iter()
             .map(|output| self.open_surface(output))
             .collect();
@@ -499,7 +479,7 @@ impl HoverCardHost {
                 Rectangle::default(),
                 Position::Top,
                 PopupMorph {
-                    progress: 1.0,
+                    duration: config.overlay_surfaces.surface_morph_duration,
                     shown: ShownTarget::Nothing,
                 },
                 self.outside_press_on(surface),
@@ -533,10 +513,7 @@ impl HoverCardHost {
                 placement.anchor,
                 placement.position,
                 PopupMorph {
-                    progress: self.transition.morph_progress(
-                        clock.instant,
-                        config.overlay_surfaces.surface_morph_duration,
-                    ),
+                    duration: config.overlay_surfaces.surface_morph_duration,
                     shown: self.transition.shown_target(),
                 },
                 self.outside_press_on(surface),
@@ -637,6 +614,8 @@ fn hover_card_settings(output: &str) -> NewLayerShellSettings {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use iced::{
         Point, Rectangle, Size,
         time::{Duration, Instant},
@@ -683,7 +662,6 @@ mod tests {
             workspace_card(),
             Rectangle::default(),
             HoverAnnouncement::default(),
-            now,
         );
         let _due = leave_every_way(&mut host, now);
         assert_eq!(host.target(), Some(&workspace_card()));
@@ -700,7 +678,6 @@ mod tests {
             workspace_card(),
             Rectangle::default(),
             HoverAnnouncement::default(),
-            now,
         );
         assert!(!host.is_held_open());
         let _due = leave_every_way(&mut host, now);
@@ -732,7 +709,6 @@ mod tests {
             workspace_card(),
             Rectangle::default(),
             HoverAnnouncement::default(),
-            Clock::real().instant,
         );
         host
     }
@@ -764,36 +740,35 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_held_open_menu_catches_presses_on_every_output_until_dismissed() {
-        let now = Clock::real().instant;
-        let fade = Duration::from_millis(1);
-        let anchor = Rectangle::default();
-        let mut host = host_holding_a_menu_open();
-        host.remember_menu_handle("DP-1", workspace_card(), anchor);
-        host.remember_menu_handle("DP-2", workspace_card(), anchor);
-        let _opened = host.reconcile_surfaces(now, fade);
-        assert!(host.surface_on("DP-1").is_some());
-        assert!(host.surface_on("DP-2").is_some());
-        host.dismiss(None, now);
-        let _closed = host.reconcile_surfaces(now, fade);
-        assert!(host.surface_on("DP-1").is_none());
-        assert!(host.surface_on("DP-2").is_none());
+    fn panel_outputs(outputs: &[&str]) -> BTreeSet<String> {
+        outputs.iter().map(|output| (*output).to_owned()).collect()
     }
 
     #[test]
-    fn a_hovered_card_stays_on_its_own_output() {
+    fn every_panel_output_keeps_its_surface_after_a_dismissal() {
         let now = Clock::real().instant;
-        let mut host = HoverCardHost::default();
-        host.remember_menu_handle("DP-2", other_menu_handle(), Rectangle::default());
-        host.open(
-            &top_edge(),
-            workspace_card(),
-            Rectangle::default(),
-            HoverAnnouncement::default(),
-            now,
+        let fade = Duration::from_millis(1);
+        let outputs = panel_outputs(&["DP-1", "DP-2"]);
+        let mut host = host_holding_a_menu_open();
+        let _opened = host.reconcile_surfaces(&outputs, now, fade);
+        let surface_on_each = (host.surface_on("DP-1"), host.surface_on("DP-2"));
+        assert!(surface_on_each.0.is_some() && surface_on_each.1.is_some());
+        host.dismiss(None, now);
+        let _idle = host.reconcile_surfaces(&outputs, now + fade, fade);
+        assert_eq!(host.target(), None);
+        assert_eq!(
+            (host.surface_on("DP-1"), host.surface_on("DP-2")),
+            surface_on_each
         );
-        let _opened = host.reconcile_surfaces(now, Duration::from_millis(1));
+    }
+
+    #[test]
+    fn an_output_without_a_panel_loses_its_surface() {
+        let now = Clock::real().instant;
+        let fade = Duration::from_millis(1);
+        let mut host = HoverCardHost::default();
+        let _opened = host.reconcile_surfaces(&panel_outputs(&["DP-1", "DP-2"]), now, fade);
+        let _closed = host.reconcile_surfaces(&panel_outputs(&["DP-1"]), now, fade);
         assert!(host.surface_on("DP-1").is_some());
         assert!(host.surface_on("DP-2").is_none());
     }
@@ -807,7 +782,6 @@ mod tests {
             workspace_card(),
             Rectangle::default(),
             HoverAnnouncement::default(),
-            now,
         );
         host.dismiss(None, now);
         assert_eq!(host.target(), None);

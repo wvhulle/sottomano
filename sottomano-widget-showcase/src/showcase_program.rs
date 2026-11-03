@@ -268,13 +268,8 @@ impl ShowcaseState {
         }
         self.schedule_hover_replies(&target);
         let panel_edge = self.panel_edge();
-        self.hover_card.open(
-            &panel_edge,
-            target,
-            anchor,
-            announcement,
-            self.clock.instant,
-        );
+        self.hover_card
+            .open(&panel_edge, target, anchor, announcement);
     }
 
     fn open_hover_card_until_dismissed(
@@ -288,13 +283,8 @@ impl ShowcaseState {
         }
         self.schedule_hover_replies(&target);
         let panel_edge = self.panel_edge();
-        self.hover_card.open_until_dismissed(
-            &panel_edge,
-            target,
-            anchor,
-            announcement,
-            self.clock.instant,
-        );
+        self.hover_card
+            .open_until_dismissed(&panel_edge, target, anchor, announcement);
     }
 
     fn close_held_open_card(&mut self) {

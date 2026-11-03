@@ -57,8 +57,7 @@ impl DesktopShell {
                 {
                     return intent_elapsed.map(Message::HoverCard);
                 }
-                self.hover_card
-                    .open(&parent, target, anchor, announcement, self.clock.instant);
+                self.hover_card.open(&parent, target, anchor, announcement);
                 Task::none()
             }
             HoverCardMessage::MenuHandle {
@@ -89,7 +88,6 @@ impl DesktopShell {
                                 target,
                                 anchor,
                                 announcement,
-                                self.clock.instant,
                             );
                         }
                         Task::none()
@@ -111,7 +109,6 @@ impl DesktopShell {
                         pending.target,
                         pending.anchor,
                         pending.announcement,
-                        self.clock.instant,
                     );
                 }
                 Task::none()

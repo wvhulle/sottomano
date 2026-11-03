@@ -259,9 +259,12 @@ impl DesktopShell {
     }
 
     pub fn reconcile_overlay_surfaces(&mut self) -> Task<Message> {
+        let panel_outputs: BTreeSet<String> =
+            self.panels().map(|(_, output)| output.to_owned()).collect();
         let hover_card_surfaces = self
             .hover_card
             .reconcile_surfaces(
+                &panel_outputs,
                 self.clock.instant,
                 self.config.overlay_surfaces.surface_morph_duration,
             )

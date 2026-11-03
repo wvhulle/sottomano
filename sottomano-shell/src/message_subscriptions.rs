@@ -45,11 +45,7 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.notifications.is_transitioning(state.clock.instant)
-        || state.hover_card.is_morphing(
-            state.clock.instant,
-            state.config.overlay_surfaces.surface_morph_duration,
-        ) {
+    let animation = if state.notifications.is_transitioning(state.clock.instant) {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
