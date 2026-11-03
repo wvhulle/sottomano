@@ -68,9 +68,10 @@ width in logical pixels, so all demos show at the same scale. After rendering,
 `recordings/`; it fails with the expected tag only when a recording is embedded
 nowhere. CI runs it right after the render.
 
-A guide page about a group that lives in a menu opens with a two-column table:
-the group's menu demo next to its `<name>_pinned` demo, whose `shown` is
-`GroupShown::PinnedFrom`, which boots with that group pinned. Both images carry
-`alt` before `width="100%"`, so the width rewrite leaves them alone and each
-fills half the page. The canvas is transparent, so clear and translucent panels
+Rendering every widget takes long, so each visually distinct kind of widget has
+one demo, and widgets that look alike are listed in a table on the guide page
+below it. The compute page opens with a two-column table: the group's menu demo
+next to its `<name>_pinned` demo, whose `shown` is `GroupShown::PinnedFrom`, which
+boots with that group pinned. Both images carry `alt` before `width="100%"`, so
+the width rewrite leaves them alone and each fills half the page. The canvas is transparent, so clear and translucent panels
 show the page behind them.

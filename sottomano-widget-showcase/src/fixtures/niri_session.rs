@@ -260,21 +260,8 @@ pub fn bottom_bar(_clock: Clock) -> ShowcasedGroup {
     )))
 }
 
-pub fn workspace_sidebar(_clock: Clock) -> ShowcasedGroup {
-    ShowcasedGroup::WorkspaceSidebar(Box::new(session(
-        NAMED_WORKSPACES,
-        PLACED_WINDOWS,
-        &WindowProcesses::default(),
-        WindowRowLayout::default(),
-    )))
-}
-
 pub fn terminals_grouped_by_directory(_clock: Clock) -> ShowcasedGroup {
     terminals_in_layout(WindowRowLayout::GroupedByLocation)
-}
-
-pub fn terminals_in_flat_rows(_clock: Clock) -> ShowcasedGroup {
-    terminals_in_layout(WindowRowLayout::Flat)
 }
 
 fn terminals_in_layout(window_row_layout: WindowRowLayout) -> ShowcasedGroup {

@@ -22,20 +22,17 @@ The CPU model with its vendor logo, microarchitecture and caches.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_model.webp" width="1053" alt="Hovering the CPU model in the compute group">
 
-## Compute: Temperature
-
-The hottest sensor, and the chip it is read from.
-
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_temperature.webp" width="1235" alt="Hovering temperature in the compute group">
-
 ## Compute: Clock
 
 Each thread's clock per chiplet, with the chiplet the scheduler prefers starred.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_clock.webp" width="1221" alt="Hovering the CPU clock in the compute group">
 
-## Compute: Cache preference
+## Compute: Other readings
 
-On dual-chiplet X3D parts, which chiplet the scheduler fills first; a click flips it.
+These open from the same row and look like the readings above.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cache_preference.webp" width="1206" alt="Hovering the X3D cache preference in the compute group">
+| Reading | What it shows |
+|---|---|
+| Temperature | The hottest sensor, and the chip it is read from. |
+| Cache preference | On dual-chiplet X3D parts, which chiplet the scheduler fills first; a click flips it. |
