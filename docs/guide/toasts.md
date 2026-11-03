@@ -1,6 +1,6 @@
 # Notification toasts
 
-The shell is the notification daemon, so there is nothing else to run.
+The shell is the notification daemon.
 
 ## Toast: Arrival
 
@@ -10,7 +10,7 @@ A toast arrives, holds while hovered and expires on its own.
 
 ## Toast: Progress
 
-A download that reports progress draws a bar instead of repeating itself.
+A download that reports progress draws a progress bar.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/toast_progress.webp" width="492" alt="A download toast with a rising progress bar">
 

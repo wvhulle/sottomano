@@ -6,7 +6,7 @@ A page about a group that lives in a menu opens with that group in its menu next
 
 ## Group menus
 
-Most groups live in menus behind a single icon on a panel, so the panels stay short. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open toward the side of the screen with more room, downward from the top panel and upward from the bottom panel.
+Most groups live in menus behind a single icon on a panel. Hovering the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, and hovering an item there shows its card. Menus open downward from the top panel and upward from the bottom panel.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="895" alt="Opening the Media menu, hovering its rows and then the microphone">
 
@@ -42,7 +42,7 @@ The Menus group in the Behaviour menu changes how every menu opens. In an accord
 
 ## Top panel
 
-The panel I look at most: the Hardware and Network menus on the left; the clock, Agenda menu and notifications in the middle; the Media menu and the power menu on the right.
+The Hardware and Network menus on the left; the clock, Agenda menu and notifications in the middle; the Media menu and the power menu on the right.
 
 - [Compute](compute.md): load, clock, temperature and caches.
 - [Memory and board](memory-and-board.md): memory use, modules and firmware.
@@ -52,7 +52,7 @@ The panel I look at most: the Hardware and Network menus on the left; the clock,
 
 ## Bottom panel
 
-Where the windows live: the Appearance, Behaviour and Display menus, the looks and the workspaces on the left; the windows in the middle; the Services and Session menus and the system tray on the right.
+The Appearance, Behaviour and Display menus, the looks and the workspaces on the left; the windows in the middle; the Services and Session menus and the system tray on the right.
 
 - [Windows and workspaces](windows-and-workspaces.md): previews, the window list and the process inspector.
 - [Wallpaper](wallpaper.md): the place in the wallpaper and its article.

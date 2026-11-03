@@ -22,6 +22,6 @@ Rain in the coming hours on one timeline, split by hour: radar every five minute
 
 ## Weather: Pollen
 
-Today's pollen per allergen, so hay fever has a forecast too.
+Today's pollen per allergen.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_pollen.webp" width="840" alt="Hovering the pollen in the weather group">
