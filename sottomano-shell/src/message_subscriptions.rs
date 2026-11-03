@@ -2,6 +2,7 @@ use iced::{
     Subscription,
     event::listen_with,
     futures::Stream,
+    keyboard::{Event as KeyboardEvent, Key, key::Named},
     mouse::Event,
     time::every,
     window::{close_events, frames},
@@ -18,7 +19,7 @@ use sottomano_sources::{
         inotify_directory_changes::{WatchTarget, changes},
     },
 };
-use sottomano_widgets::toast_messages::NotificationMessage;
+use sottomano_widgets::{hover_cards::HoverCardMessage, toast_messages::NotificationMessage};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use wayland_client::Connection;
@@ -83,8 +84,13 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
                     .desktop_bus_subscription(&state.config, buses)
             }),
         close_events().map(Message::WindowClosed),
-        listen_with(|event, _status, _window| match event {
+        listen_with(|event, _status, window| match event {
             iced::Event::Mouse(Event::CursorLeft) => Some(Message::PointerLeft),
+            iced::Event::Mouse(Event::ButtonPressed(_)) => Some(Message::SurfacePressed(window)),
+            iced::Event::Keyboard(KeyboardEvent::KeyPressed {
+                key: Key::Named(Named::Escape),
+                ..
+            }) => Some(Message::HoverCard(HoverCardMessage::DismissHeldOpen)),
             _ => None,
         }),
         Subscription::run(desktop_entry_changes::application_changes)

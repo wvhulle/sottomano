@@ -12,7 +12,10 @@ use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
 pub use crate::hover_cards::{
-    hover_area::{announcing_hoverable, hoverable, marked_by_hover_target, marked_by_menu_pin},
+    hover_area::{
+        announcing_hoverable, hoverable, marked_by_hover_target, marked_by_menu_pin,
+        press_toggled_hoverable,
+    },
     hover_card_surfaces::HoverCardHost,
 };
 use crate::{
@@ -272,6 +275,13 @@ impl HoverAnnouncement {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MenuHandleGesture {
+    LaidOut,
+    Hovered,
+    Pressed,
+}
+
 #[derive(Debug, Clone)]
 pub enum HoverCardMessage {
     EnterAnchor {
@@ -280,6 +290,20 @@ pub enum HoverCardMessage {
         announcement: HoverAnnouncement,
     },
     Enter {
+        surface: Id,
+        position: Position,
+        target: HoverTarget,
+        anchor: Rectangle,
+        announcement: HoverAnnouncement,
+    },
+    MenuHandleAnchor {
+        gesture: MenuHandleGesture,
+        target: HoverTarget,
+        anchor: Rectangle,
+        announcement: HoverAnnouncement,
+    },
+    MenuHandle {
+        gesture: MenuHandleGesture,
         surface: Id,
         position: Position,
         target: HoverTarget,
@@ -295,6 +319,7 @@ pub enum HoverCardMessage {
     },
     EnterHoverCard,
     ExitHoverCard,
+    DismissHeldOpen,
     SwitchIntentElapsed,
 }
 

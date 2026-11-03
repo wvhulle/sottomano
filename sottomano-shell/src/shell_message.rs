@@ -121,6 +121,7 @@ pub enum Message {
     Redraw,
     WindowClosed(Id),
     PointerLeft,
+    SurfacePressed(Id),
     CopyText(String),
     OpenUrl(String),
     RefreshHoveredReading,

@@ -14,7 +14,7 @@ use sottomano_config::screen_edges::Position;
 
 use crate::desktop_panels::panel_frame::LayerFrameStyle;
 
-const BASE_HALF_WIDTH_PX: f32 = 6.0;
+const BASE_HALF_WIDTH_PX: f32 = 4.0;
 const SHOULDER_PX: f32 = BASE_HALF_WIDTH_PX;
 const HALF_SPAN_PX: f32 = BASE_HALF_WIDTH_PX + SHOULDER_PX;
 const ARC_SAMPLE_STEP_PX: f32 = 0.5;

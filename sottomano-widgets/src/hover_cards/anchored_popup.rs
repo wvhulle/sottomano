@@ -12,7 +12,10 @@ use iced::{
 use sottomano_config::{Config, screen_edges::Position};
 
 use crate::{
-    desktop_panels::{panel_frame::LayerFrameStyle, region_reporter::RegionRoles},
+    desktop_panels::{
+        panel_frame::LayerFrameStyle,
+        region_reporter::{RegionRoles, report_input_except},
+    },
     group_menus::cascading_layout::{
         cascade_row::{CascadeDirection, CascadeOrientation},
         notched_panel::PanelGrowth,
@@ -80,12 +83,21 @@ impl<'a, Message> Rendering<'a, Message> {
     }
 }
 
+pub enum OutsidePress<Message> {
+    PassesThrough,
+    Dismisses {
+        dismissal: Message,
+        reachable_below: Vec<Rectangle>,
+    },
+}
+
 #[must_use]
-pub fn anchored_popup<'a, Message: 'a>(
+pub fn anchored_popup<'a, Message: Clone + 'a>(
     renderings: Vec<Rendering<'a, Message>>,
     anchor: Rectangle,
     position: Position,
     morph: PopupMorph,
+    outside_press: OutsidePress<Message>,
     config: &Config,
     overlay_appearance: LayerAppearance,
 ) -> Element<'a, Message> {
@@ -100,6 +112,7 @@ pub fn anchored_popup<'a, Message: 'a>(
             + config.theme.font.icon_size_px / 2.0,
         position,
         morph,
+        outside_press,
         frame: overlay_frame,
         radius: overlay_appearance.corner_radius_px,
         blurred: overlay_appearance.blurred,
@@ -116,6 +129,7 @@ struct AnchoredPopup<'a, Message> {
     leading_icon_center: f32,
     position: Position,
     morph: PopupMorph,
+    outside_press: OutsidePress<Message>,
     frame: LayerFrameStyle,
     radius: f32,
     blurred: bool,
@@ -272,6 +286,32 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         }
     }
 
+    fn popup_surfaces_contain(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> bool {
+        let state: &MorphState = tree.state.downcast_ref();
+        let origin = Vector::new(layout.bounds().x, layout.bounds().y);
+        (state.current + origin).contains(point)
+            || self
+                .renderings
+                .iter()
+                .zip(layout.children())
+                .filter(|(rendering, _)| {
+                    rendering.incoming
+                        && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
+                })
+                .flat_map(|(_, cascade)| cascade.children().skip(1))
+                .any(|satellite| {
+                    let node = satellite.bounds();
+                    satellite.children().any(|surface| {
+                        let surface_bounds = surface.bounds();
+                        Rectangle::new(
+                            Point::new(node.x, surface_bounds.y),
+                            Size::new(node.width, surface_bounds.height),
+                        )
+                        .contains(point)
+                    })
+                })
+    }
+
     fn live_view<'t>(
         &'t mut self,
         tree: &'t mut Tree,
@@ -290,7 +330,7 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
     }
 }
 
-impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_, Message> {
+impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_, Message> {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<MorphState>()
     }
@@ -479,6 +519,26 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             corner_radius: Radius::default(),
         };
         roles.report(&frame.surface_rows, layout.bounds(), operation);
+        if self.morph.progress >= 1.0
+            && let OutsidePress::Dismisses {
+                reachable_below, ..
+            } = &self.outside_press
+        {
+            let bounds = layout.bounds();
+            let origin = Vector::new(bounds.x, bounds.y);
+            let whole_surface = Rectangle::new(
+                Point::ORIGIN,
+                Size::new(
+                    2.0f32.mul_add(bounds.x, bounds.width),
+                    2.0f32.mul_add(bounds.y, bounds.height),
+                ),
+            );
+            let reachable_on_surface: Vec<Rectangle> = reachable_below
+                .iter()
+                .map(|reachable| *reachable + origin)
+                .collect();
+            report_input_except(whole_surface, &reachable_on_surface, operation);
+        }
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(
                 rendering.state,
@@ -512,6 +572,23 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
                 viewport,
             );
         }
+        if matches!(event, Event::Mouse(mouse::Event::ButtonPressed(_)))
+            && !shell.is_event_captured()
+            && self.morph.progress >= 1.0
+            && let OutsidePress::Dismisses {
+                dismissal,
+                reachable_below,
+            } = &self.outside_press
+            && let Some(pressed_at) = cursor.position()
+            && !self.popup_surfaces_contain(tree, layout, pressed_at)
+            && !reachable_below.iter().any(|reachable| {
+                (*reachable + Vector::new(layout.bounds().x, layout.bounds().y))
+                    .contains(pressed_at)
+            })
+        {
+            shell.publish(dismissal.clone());
+            shell.capture_event();
+        }
     }
 
     fn mouse_interaction(
@@ -534,5 +611,182 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_,
             })
             .find(|interaction| *interaction != mouse::Interaction::None)
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Element, Point, Rectangle, Settings, Size,
+        mouse::{Button, Event as MouseEvent},
+        widget::text,
+    };
+    use iced_test::Simulator;
+    use sottomano_config::{Config, screen_edges::Position};
+
+    use super::{OutsidePress, PopupFraming, PopupMorph, Rendering, anchored_popup};
+    use crate::{
+        group_menus::cascading_layout::{
+            cascade_row::{CascadeDirection, CascadeOrientation, cascade_row},
+            cascade_satellite_panels::CascadeSatellitePanels,
+            notched_panel::PanelGrowth,
+        },
+        hover_cards::{HoverTarget, hover_card_transition::ShownTarget},
+        widgets::shell_layer_appearance::ShellLayer,
+    };
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct PressedOutside;
+
+    const CANVAS_SIZE: Size = Size::new(1200.0, 800.0);
+    const ORIENTATION: CascadeOrientation = CascadeOrientation {
+        direction: CascadeDirection::Rightward,
+        growth: PanelGrowth::Downward,
+    };
+
+    fn messages_after_pressing(
+        popup: Element<'_, PressedOutside>,
+        pressed_at: impl FnOnce(&mut Simulator<'_, PressedOutside>) -> Point,
+    ) -> Vec<PressedOutside> {
+        let mut simulator = Simulator::with_size(Settings::default(), CANVAS_SIZE, popup);
+        let pointer = pressed_at(&mut simulator);
+        simulator.point_at(pointer);
+        let _pressed =
+            simulator.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+        simulator.into_messages().collect()
+    }
+
+    fn center_of_text(simulator: &mut Simulator<'_, PressedOutside>, shown: &str) -> Point {
+        simulator
+            .find(shown)
+            .expect("the text is on screen")
+            .visible_bounds()
+            .expect("the text is visible")
+            .center()
+    }
+
+    fn settled_morph() -> PopupMorph {
+        PopupMorph {
+            progress: 1.0,
+            shown: ShownTarget::Target(HoverTarget::Workspace(7)),
+        }
+    }
+
+    const HANDLE_BELOW_POPUP: Rectangle =
+        Rectangle::new(Point::new(1000.0, 700.0), Size::new(40.0, 40.0));
+
+    fn cascading_popup(config: &Config) -> Element<'_, PressedOutside> {
+        let appearance = ShellLayer::Overlays.default_appearance();
+        let satellite_panels = CascadeSatellitePanels::new(&appearance, config, ORIENTATION);
+        let satellite = satellite_panels.beside_row(config, text("satellite").into(), 0.0);
+        anchored_popup(
+            vec![
+                Rendering::incoming(cascade_row(
+                    text("primary").into(),
+                    [satellite],
+                    ORIENTATION,
+                ))
+                .framing(PopupFraming::LeadingSurface(ORIENTATION)),
+            ],
+            Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
+            Position::Top,
+            settled_morph(),
+            OutsidePress::Dismisses {
+                dismissal: PressedOutside,
+                reachable_below: vec![HANDLE_BELOW_POPUP],
+            },
+            config,
+            appearance,
+        )
+    }
+
+    #[test]
+    fn a_press_on_the_primary_surface_keeps_the_popup() {
+        let config = Config::default();
+        let messages = messages_after_pressing(cascading_popup(&config), |simulator| {
+            center_of_text(simulator, "primary")
+        });
+        assert_eq!(messages, []);
+    }
+
+    #[test]
+    fn a_press_on_a_satellite_keeps_the_popup() {
+        let config = Config::default();
+        let messages = messages_after_pressing(cascading_popup(&config), |simulator| {
+            center_of_text(simulator, "satellite")
+        });
+        assert_eq!(messages, []);
+    }
+
+    #[test]
+    fn a_press_outside_every_surface_dismisses_the_popup() {
+        let config = Config::default();
+        let messages = messages_after_pressing(cascading_popup(&config), |_| {
+            Point::new(CANVAS_SIZE.width - 1.0, CANVAS_SIZE.height - 1.0)
+        });
+        assert_eq!(messages, [PressedOutside]);
+    }
+
+    #[test]
+    fn a_press_on_a_reachable_handle_leaves_it_to_the_handle() {
+        let config = Config::default();
+        let messages =
+            messages_after_pressing(cascading_popup(&config), |_| HANDLE_BELOW_POPUP.center());
+        assert_eq!(messages, []);
+    }
+
+    #[test]
+    fn a_press_in_the_gap_before_a_satellite_keeps_the_popup() {
+        let config = Config::default();
+        let messages = messages_after_pressing(cascading_popup(&config), |simulator| {
+            let satellite_text = simulator
+                .find("satellite")
+                .expect("the text is on screen")
+                .visible_bounds()
+                .expect("the text is visible");
+            Point::new(satellite_text.x - 1.0, satellite_text.center_y())
+        });
+        assert_eq!(messages, []);
+    }
+
+    #[test]
+    fn a_press_on_a_surface_with_nothing_shown_dismisses_the_menu_elsewhere() {
+        let config = Config::default();
+        let popup = anchored_popup(
+            Vec::new(),
+            Rectangle::default(),
+            Position::Top,
+            PopupMorph {
+                progress: 1.0,
+                shown: ShownTarget::Nothing,
+            },
+            OutsidePress::Dismisses {
+                dismissal: PressedOutside,
+                reachable_below: Vec::new(),
+            },
+            &config,
+            ShellLayer::Overlays.default_appearance(),
+        );
+        let messages = messages_after_pressing(popup, |_| Point::new(500.0, 500.0));
+        assert_eq!(messages, [PressedOutside]);
+    }
+
+    #[test]
+    fn a_hovered_popup_ignores_a_press_outside() {
+        let config = Config::default();
+        let appearance = ShellLayer::Overlays.default_appearance();
+        let popup = anchored_popup(
+            vec![Rendering::incoming(text("card").into())],
+            Rectangle::new(Point::new(20.0, 0.0), Size::new(20.0, 20.0)),
+            Position::Top,
+            settled_morph(),
+            OutsidePress::PassesThrough,
+            &config,
+            appearance,
+        );
+        let messages = messages_after_pressing(popup, |_| {
+            Point::new(CANVAS_SIZE.width - 1.0, CANVAS_SIZE.height - 1.0)
+        });
+        assert_eq!(messages, []);
     }
 }

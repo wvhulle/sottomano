@@ -12,7 +12,7 @@ The machine's processor: load, clock, temperature, power and the cache layout of
 
 ## Compute: CPU
 
-Hovering the compute row in the Hardware menu opens load, temperature, power and model.
+Pressing the compute row in the Hardware menu opens load, temperature, power and model.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu.webp" width="1227" alt="Opening the compute group from the Hardware menu from the CPU reading">
 

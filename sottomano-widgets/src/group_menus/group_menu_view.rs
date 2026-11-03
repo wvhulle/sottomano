@@ -13,7 +13,7 @@ use crate::{
             cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
             cascading_columns::cascading_columns,
         },
-        group_menu_presentation::GroupMenuLayout,
+        group_menu_presentation::{GroupMenuLayout, GroupMenuOpenTrigger},
         group_menu_state::{
             AlertPromotedGroup, GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic,
             OpenGroupMenu,
@@ -26,7 +26,7 @@ use crate::{
     hover_cards::{
         HoverAnnouncement, HoverTarget, PopupMessage, PressHints, announcing_hoverable,
         hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_content::HoverCardContent,
+        hover_card_content::HoverCardContent, press_toggled_hoverable,
     },
     widget_groups::{
         widget_group_content::{
@@ -236,16 +236,21 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             .map(|member| member.highest_alert_severity(clock))
             .max()
             .unwrap_or_default();
-        let handle = announcing_hoverable(
-            IconGlyph::from(self.messenger.topic.glyph())
-                .view(config.theme.font.icon_size_px, text_color),
-            HoverTarget::GroupMenu(self.messenger.topic),
-            HoverAnnouncement::from_group_handle(
-                WidgetGroupTitle::fixed(self.messenger.topic.title()),
-                PressHints::default(),
-            ),
-            GroupEvent::HoverCard,
+        let glyph = IconGlyph::from(self.messenger.topic.glyph())
+            .view(config.theme.font.icon_size_px, text_color);
+        let target = HoverTarget::GroupMenu(self.messenger.topic);
+        let announcement = HoverAnnouncement::from_group_handle(
+            WidgetGroupTitle::fixed(self.messenger.topic.title()),
+            PressHints::default(),
         );
+        let handle = match self.group_menus.presentation().open_trigger {
+            GroupMenuOpenTrigger::Hover => {
+                announcing_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
+            }
+            GroupMenuOpenTrigger::Press => {
+                press_toggled_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
+            }
+        };
         let indicator = EdgeIndicator {
             highest_alert_severity,
             cursor_hovering: false,
@@ -373,7 +378,7 @@ mod tests {
                 notched_panel::PanelGrowth,
             },
             group_menu_presentation::{
-                GroupMenuLayout, GroupMenuPresentation, GroupRevealTrigger, HoverCardPlacement,
+                GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
                 OpenGroupLimit,
             },
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
@@ -428,7 +433,7 @@ mod tests {
 
     fn every_presentation() -> Vec<GroupMenuPresentation> {
         let layouts = [GroupMenuLayout::Cascading, GroupMenuLayout::Accordion];
-        let triggers = [GroupRevealTrigger::Hover, GroupRevealTrigger::Press];
+        let triggers = [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press];
         let limits = [OpenGroupLimit::One, OpenGroupLimit::Several];
         let placements = [
             HoverCardPlacement::BesideRow,
@@ -437,20 +442,18 @@ mod tests {
         layouts
             .into_iter()
             .flat_map(|layout| {
-                triggers
-                    .into_iter()
-                    .flat_map(move |cascading_reveal_trigger| {
-                        limits.into_iter().flat_map(move |accordion_open_limit| {
-                            placements.into_iter().map(move |hover_card_placement| {
-                                GroupMenuPresentation {
-                                    layout,
-                                    cascading_reveal_trigger,
-                                    accordion_open_limit,
-                                    hover_card_placement,
-                                }
-                            })
+                triggers.into_iter().flat_map(move |open_trigger| {
+                    limits.into_iter().flat_map(move |accordion_open_limit| {
+                        placements.into_iter().map(move |hover_card_placement| {
+                            GroupMenuPresentation {
+                                layout,
+                                open_trigger,
+                                accordion_open_limit,
+                                hover_card_placement,
+                            }
                         })
                     })
+                })
             })
             .collect()
     }

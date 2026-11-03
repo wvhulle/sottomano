@@ -39,6 +39,19 @@ fn anchor_hover_cards_on_surface(
             anchor: anchor + origin_in_overlay,
             announcement,
         }),
+        Message::HoverCard(HoverCardMessage::MenuHandleAnchor {
+            gesture,
+            target,
+            anchor,
+            announcement,
+        }) => Message::HoverCard(HoverCardMessage::MenuHandle {
+            gesture,
+            surface,
+            position,
+            target,
+            anchor: anchor + origin_in_overlay,
+            announcement,
+        }),
         unanchored => unanchored,
     })
 }

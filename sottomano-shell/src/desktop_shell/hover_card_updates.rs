@@ -1,13 +1,15 @@
 use std::time::Instant;
 
-use iced::Task;
+use iced::{Task, window::Id};
+use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
-        HoverCardMessage, HoverTarget,
+        HoverAnnouncement, HoverCardMessage, HoverTarget,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
+        hover_card_surfaces::MenuHandleResponse,
         hover_card_transition::Departed,
     },
     layer_surfaces::PanelEdge,
@@ -41,18 +43,13 @@ impl DesktopShell {
                 anchor,
                 announcement,
             } => {
-                if self.is_dragging() {
+                if self.hover_card.is_held_open() {
                     return Task::none();
                 }
-                let Some(host) = self.surfaces.get(&surface).filter(|_| {
-                    self.hover_content(&target)
-                        .is_some_and(|content| content.shows_anything(&announcement))
-                }) else {
+                let Some(parent) =
+                    self.hover_card_parent(surface, position, &target, &announcement)
+                else {
                     return Task::none();
-                };
-                let parent = PanelEdge {
-                    output: host.output.clone(),
-                    position,
                 };
                 if let Some(intent_elapsed) =
                     self.hover_card
@@ -63,6 +60,52 @@ impl DesktopShell {
                 self.hover_card
                     .open(&parent, target, anchor, announcement, self.clock.instant);
                 Task::none()
+            }
+            HoverCardMessage::MenuHandle {
+                gesture,
+                surface,
+                position,
+                target,
+                anchor,
+                announcement,
+            } => {
+                let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone())
+                else {
+                    return Task::none();
+                };
+                match self
+                    .hover_card
+                    .response_to_menu_handle(gesture, &target, &output)
+                {
+                    MenuHandleResponse::RememberAnchor => {
+                        self.hover_card
+                            .remember_menu_handle(&output, target, anchor);
+                        Task::none()
+                    }
+                    MenuHandleResponse::CloseMenu => self.dismiss_hover_card(),
+                    MenuHandleResponse::OpenMenu => {
+                        if let Some(parent) =
+                            self.hover_card_parent(surface, position, &target, &announcement)
+                        {
+                            self.hover_card.open_until_dismissed(
+                                &parent,
+                                target,
+                                anchor,
+                                announcement,
+                                self.clock.instant,
+                            );
+                        }
+                        Task::none()
+                    }
+                    MenuHandleResponse::Nothing => Task::none(),
+                }
+            }
+            HoverCardMessage::DismissHeldOpen => {
+                if self.hover_card.is_held_open() {
+                    self.dismiss_hover_card()
+                } else {
+                    Task::none()
+                }
             }
             HoverCardMessage::SwitchIntentElapsed => {
                 if let Some(pending) = self.hover_card.take_pending_switch() {
@@ -81,6 +124,26 @@ impl DesktopShell {
                 .update(other, self.clock.instant)
                 .map_or_else(Task::none, hide_hover_card_at),
         }
+    }
+
+    fn hover_card_parent(
+        &self,
+        surface: Id,
+        position: Position,
+        target: &HoverTarget,
+        announcement: &HoverAnnouncement,
+    ) -> Option<PanelEdge> {
+        if self.is_dragging() {
+            return None;
+        }
+        let host = self.surfaces.get(&surface).filter(|_| {
+            self.hover_content(target)
+                .is_some_and(|content| content.shows_anything(announcement))
+        })?;
+        Some(PanelEdge {
+            output: host.output.clone(),
+            position,
+        })
     }
 
     pub fn leave_hover_card(&mut self) -> Task<Message> {

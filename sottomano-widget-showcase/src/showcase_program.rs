@@ -27,9 +27,9 @@ use sottomano_widgets::{
         group_menu_view::{GroupMenuCascadeSurfaces, GroupMenuView, InspectionCard},
     },
     hover_cards::{
-        HoverCardHost, HoverCardMessage, HoverTarget,
+        HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
         hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
+        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, MenuHandleResponse},
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
@@ -191,18 +191,37 @@ impl ShowcaseState {
                 anchor,
                 announcement,
             }) => {
-                if self.hover_card.target() != Some(&target) {
-                    let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
+                if !self.hover_card.is_held_open() {
+                    self.open_hover_card(target, anchor, announcement);
                 }
-                self.schedule_hover_replies(&target);
-                let panel_edge = self.panel_edge();
-                self.hover_card.open(
-                    &panel_edge,
-                    target,
-                    anchor,
-                    announcement,
-                    self.clock.instant,
-                );
+                Task::none()
+            }
+            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandleAnchor {
+                gesture,
+                target,
+                anchor,
+                announcement,
+            }) => {
+                match self
+                    .hover_card
+                    .response_to_menu_handle(gesture, &target, SHOWCASE_OUTPUT)
+                {
+                    MenuHandleResponse::RememberAnchor => {
+                        self.hover_card
+                            .remember_menu_handle(SHOWCASE_OUTPUT, target, anchor);
+                    }
+                    MenuHandleResponse::CloseMenu => self.close_held_open_card(),
+                    MenuHandleResponse::OpenMenu => {
+                        self.open_hover_card_until_dismissed(target, anchor, announcement);
+                    }
+                    MenuHandleResponse::Nothing => {}
+                }
+                Task::none()
+            }
+            ShowcaseMessage::HoverCard(HoverCardMessage::DismissHeldOpen) => {
+                if self.hover_card.is_held_open() {
+                    self.close_held_open_card();
+                }
                 Task::none()
             }
             ShowcaseMessage::HoverCard(message) => {
@@ -231,11 +250,7 @@ impl ShowcaseState {
                 self.appearance = preset.applied_to(self.appearance);
                 self.theme =
                     configured_theme(&scheme_palette(&self.config, self.appearance.scheme));
-                let departing = self.shown_hover_card().and_then(|content| {
-                    self.hover_card
-                        .departure::<ShowcaseMessage>(HoverContent::Described(content))
-                });
-                self.hover_card.dismiss(departing, self.clock.instant);
+                self.dismiss_hover_card();
                 Task::none()
             }
             other => {
@@ -243,6 +258,59 @@ impl ShowcaseState {
                 Task::none()
             }
         }
+    }
+
+    fn open_hover_card(
+        &mut self,
+        target: HoverTarget,
+        anchor: Rectangle,
+        announcement: HoverAnnouncement,
+    ) {
+        if self.hover_card.target() != Some(&target) {
+            let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
+        }
+        self.schedule_hover_replies(&target);
+        let panel_edge = self.panel_edge();
+        self.hover_card.open(
+            &panel_edge,
+            target,
+            anchor,
+            announcement,
+            self.clock.instant,
+        );
+    }
+
+    fn open_hover_card_until_dismissed(
+        &mut self,
+        target: HoverTarget,
+        anchor: Rectangle,
+        announcement: HoverAnnouncement,
+    ) {
+        if self.hover_card.target() != Some(&target) {
+            let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
+        }
+        self.schedule_hover_replies(&target);
+        let panel_edge = self.panel_edge();
+        self.hover_card.open_until_dismissed(
+            &panel_edge,
+            target,
+            anchor,
+            announcement,
+            self.clock.instant,
+        );
+    }
+
+    fn close_held_open_card(&mut self) {
+        let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
+        self.dismiss_hover_card();
+    }
+
+    fn dismiss_hover_card(&mut self) {
+        let departing = self.shown_hover_card().and_then(|content| {
+            self.hover_card
+                .departure::<ShowcaseMessage>(HoverContent::Described(content))
+        });
+        self.hover_card.dismiss(departing, self.clock.instant);
     }
 
     fn schedule_hover_replies(&mut self, target: &HoverTarget) {
