@@ -174,21 +174,12 @@ impl HoverCardHost {
         &self,
         gesture: MenuHandleGesture,
         target: &HoverTarget,
-        output: &str,
     ) -> MenuHandleResponse {
         let is_open_menu = self.target() == Some(target);
-        let held_on_same_output = self.is_held_open()
-            && self
-                .placement()
-                .is_some_and(|placement| placement.output == output);
         match gesture {
             MenuHandleGesture::LaidOut => MenuHandleResponse::RememberAnchor,
             MenuHandleGesture::Pressed if is_open_menu => MenuHandleResponse::CloseMenu,
             MenuHandleGesture::Pressed => MenuHandleResponse::OpenMenu,
-            MenuHandleGesture::Hovered if held_on_same_output && !is_open_menu => {
-                MenuHandleResponse::OpenMenu
-            }
-            MenuHandleGesture::Hovered => MenuHandleResponse::Nothing,
         }
     }
 
@@ -747,48 +738,29 @@ mod tests {
     }
 
     #[test]
-    fn with_no_menu_open_only_a_press_opens_one() {
+    fn with_no_menu_open_a_press_opens_one() {
         let host = HoverCardHost::default();
         assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Hovered, &workspace_card(), "DP-1"),
-            MenuHandleResponse::Nothing
-        );
-        assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card(), "DP-1"),
+            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card()),
             MenuHandleResponse::OpenMenu
         );
     }
 
     #[test]
-    fn an_open_menu_switches_on_the_first_hover_or_press_of_another_handle() {
+    fn an_open_menu_switches_only_on_a_press_of_another_handle() {
         let host = host_holding_a_menu_open();
-        for gesture in [MenuHandleGesture::Hovered, MenuHandleGesture::Pressed] {
-            assert_eq!(
-                host.response_to_menu_handle(gesture, &other_menu_handle(), "DP-1"),
-                MenuHandleResponse::OpenMenu
-            );
-        }
+        assert_eq!(
+            host.response_to_menu_handle(MenuHandleGesture::Pressed, &other_menu_handle()),
+            MenuHandleResponse::OpenMenu
+        );
     }
 
     #[test]
-    fn the_handle_of_the_open_menu_closes_it_on_press_and_ignores_hover() {
+    fn the_handle_of_the_open_menu_closes_it_on_press() {
         let host = host_holding_a_menu_open();
         assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card(), "DP-1"),
+            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card()),
             MenuHandleResponse::CloseMenu
-        );
-        assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Hovered, &workspace_card(), "DP-1"),
-            MenuHandleResponse::Nothing
-        );
-    }
-
-    #[test]
-    fn hovering_a_handle_on_another_output_leaves_the_open_menu() {
-        let host = host_holding_a_menu_open();
-        assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Hovered, &other_menu_handle(), "DP-2"),
-            MenuHandleResponse::Nothing
         );
     }
 

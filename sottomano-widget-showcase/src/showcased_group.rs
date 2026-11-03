@@ -21,7 +21,9 @@ use sottomano_widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides},
         panel_slot_drag::PanelSlotContext,
     },
-    group_menus::group_menu_state::GroupMenuState,
+    group_menus::{
+        group_menu_presentation::GroupMenuOpenTrigger, group_menu_state::GroupMenuState,
+    },
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         app_launcher_group::AppLauncherGroup,
@@ -481,7 +483,7 @@ impl ShowcasedGroup {
             ShowcasedGroup::AppearancePresets(menu) => menu
                 .group_content()
                 .map(ShowcaseMessage::AppearancePresets)
-                .view(config, position, clock)
+                .view(config, position, GroupMenuOpenTrigger::Hover, clock)
                 .into_iter()
                 .collect(),
             ShowcasedGroup::WorkspaceSidebar(session) => session.sidebar_groups(config, clock),

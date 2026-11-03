@@ -130,10 +130,9 @@ impl<M> HoverArea<'_, M> {
         state.hovered = hovered;
         match (hovered, self.opening) {
             (true, CardOpening::OnHover) => Some(self.enter(state, anchor)),
-            (true, CardOpening::OnPress) => {
-                Some(self.menu_handle(MenuHandleGesture::Hovered, anchor))
-            }
-            (false, _) => Some(self.exit()),
+            (true, CardOpening::OnPress) => None,
+            (false, CardOpening::OnHover) => Some(self.exit()),
+            (false, CardOpening::OnPress) => None,
         }
     }
 }
@@ -494,13 +493,10 @@ mod tests {
     }
 
     #[test]
-    fn hovering_a_menu_handle_reports_it_without_entering() {
+    fn hovering_a_menu_handle_only_reports_its_layout() {
         let messages = messages_from_pointing_inside(press_toggled_area(), false);
-        assert_eq!(
-            handle_gestures(&messages),
-            [MenuHandleGesture::LaidOut, MenuHandleGesture::Hovered]
-        );
-        assert_eq!(messages.len(), 2, "{messages:?}");
+        assert_eq!(handle_gestures(&messages), [MenuHandleGesture::LaidOut]);
+        assert_eq!(messages.len(), 1, "{messages:?}");
     }
 
     #[test]
@@ -508,11 +504,7 @@ mod tests {
         let messages = messages_from_pointing_inside(press_toggled_area(), true);
         assert_eq!(
             handle_gestures(&messages),
-            [
-                MenuHandleGesture::LaidOut,
-                MenuHandleGesture::Hovered,
-                MenuHandleGesture::Pressed
-            ]
+            [MenuHandleGesture::LaidOut, MenuHandleGesture::Pressed]
         );
     }
 

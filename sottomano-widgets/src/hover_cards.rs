@@ -279,7 +279,6 @@ impl HoverAnnouncement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuHandleGesture {
     LaidOut,
-    Hovered,
     Pressed,
 }
 

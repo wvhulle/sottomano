@@ -18,8 +18,13 @@ use crate::{
         source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
     },
-    group_menus::group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
-    hover_cards::{HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable},
+    group_menus::{
+        group_menu_presentation::GroupMenuOpenTrigger,
+        group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
+    },
+    hover_cards::{
+        HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable, press_toggled_hoverable,
+    },
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
     widgets::{
         announced_level::LevelReading,
@@ -217,6 +222,7 @@ pub struct GroupItem<'a, M> {
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
     ongoing_toasts: Vec<OngoingToast<M>>,
     alignment: ItemAlignment,
+    card_opening_trigger: GroupMenuOpenTrigger,
 }
 
 impl<'a, M: 'a> GroupItem<'a, M> {
@@ -229,6 +235,15 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             ongoing_toast_action_buttons: Vec::new(),
             ongoing_toasts: Vec::new(),
             alignment: ItemAlignment::Unaligned,
+            card_opening_trigger: GroupMenuOpenTrigger::Hover,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn opening_card_on(self, card_opening_trigger: GroupMenuOpenTrigger) -> Self {
+        Self {
+            card_opening_trigger,
+            ..self
         }
     }
 
@@ -369,6 +384,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             gestures: self.gestures.map(lift),
             handle_announcement: self.handle_announcement,
             previewed_on_handle: self.previewed_on_handle,
+            card_opening_trigger: self.card_opening_trigger,
             ongoing_toast_action_buttons: self
                 .ongoing_toast_action_buttons
                 .into_iter()
@@ -577,12 +593,20 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     {
         let explained = |element: Element<'a, GroupEvent<M>>, target: &HoverTarget| match placement
         {
-            DrawnItemPlacement::Panel => announcing_hoverable(
-                element,
-                target.clone(),
-                self.announcement(),
-                GroupEvent::HoverCard,
-            ),
+            DrawnItemPlacement::Panel => match self.card_opening_trigger {
+                GroupMenuOpenTrigger::Hover => announcing_hoverable(
+                    element,
+                    target.clone(),
+                    self.announcement(),
+                    GroupEvent::HoverCard,
+                ),
+                GroupMenuOpenTrigger::Press => press_toggled_hoverable(
+                    element,
+                    target.clone(),
+                    self.announcement(),
+                    GroupEvent::HoverCard,
+                ),
+            },
             DrawnItemPlacement::Table => element,
         };
         let mut element = match &self.kind {

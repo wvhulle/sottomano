@@ -6,6 +6,7 @@ use sottomano_config::{screen_edges::Position, severity::Severity};
 use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
+    group_menus::group_menu_presentation::GroupMenuOpenTrigger,
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
 
@@ -31,12 +32,14 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
         self,
         config: &'a sottomano_config::Config,
         panel_position: Position,
+        open_trigger: GroupMenuOpenTrigger,
         clock: Clock,
     ) -> Option<Element<'a, M>>
     where
         M: From<GroupEvent<M>>,
     {
         self.item.map(|item| {
+            let item = item.opening_card_on(open_trigger);
             fixed_view(
                 slice::from_ref(&item),
                 Severity::default(),
