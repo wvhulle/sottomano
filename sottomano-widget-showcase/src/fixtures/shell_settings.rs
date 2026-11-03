@@ -31,7 +31,3 @@ fn settings_showing(shown_items: ShownSettingItems) -> ShowcasedGroup {
 pub fn sharing_a_unit(_clock: Clock) -> ShowcasedGroup {
     settings_showing(ShownSettingItems::SharingAUnit)
 }
-
-pub fn remaining(_clock: Clock) -> ShowcasedGroup {
-    settings_showing(ShownSettingItems::Remaining)
-}

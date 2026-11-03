@@ -1,8 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use sottomano_sources::{
-    login_session_presence::idle_session_actions::IdleAction, weather::open_meteo_pollen::Allergen,
-};
+use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::{
@@ -100,18 +98,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "app_launcher_categories",
-        group: app_launcher::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Applications),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
-            Step::PressText("Development"),
-            Step::PressText("Internet"),
-            Step::HoverText("Firefox"),
-        ],
-    },
-    Demo {
         name: "compute_cpu",
         group: compute::group,
         live: compute::live,
@@ -145,17 +131,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "compute_cache_preference",
-        group: compute::group,
-        live: compute::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::X3dCachePreference)),
-        ],
-    },
-    Demo {
         name: "memory_board_memory",
         group: memory_board::group,
         live: memory_board::live,
@@ -164,28 +139,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Memory"),
             Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
-        ],
-    },
-    Demo {
-        name: "memory_board_board",
-        group: memory_board::group,
-        live: memory_board::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Memory"),
-            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Board)),
-        ],
-    },
-    Demo {
-        name: "compute_temperature",
-        group: compute::group,
-        live: compute::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
         ],
     },
     Demo {
@@ -200,22 +153,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "vpn_wireguard",
-        group: vpn::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Network),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Network)),
-            Step::PressText("VPN"),
-            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
-                vpn::LAB_TUNNEL_NAME,
-            )))),
-            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
-                vpn::HOME_SERVER_TUNNEL_NAME,
-            )))),
-        ],
-    },
-    Demo {
         name: "weather_conditions",
         group: weather::group,
         live: unchanging,
@@ -227,28 +164,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "weather_location",
-        group: weather::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
-            Step::PressText("Weather"),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Location)),
-        ],
-    },
-    Demo {
-        name: "weather_wind",
-        group: weather::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
-            Step::PressText("Weather"),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Wind)),
-        ],
-    },
-    Demo {
         name: "weather_precipitation",
         group: weather::group,
         live: unchanging,
@@ -257,19 +172,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
-        ],
-    },
-    Demo {
-        name: "weather_pollen",
-        group: weather::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Agenda),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
-            Step::PressText("Weather"),
-            Step::Hover(HoverTarget::Weather(WeatherTarget::Allergen(
-                Allergen::Grass,
-            ))),
         ],
     },
     Demo {
@@ -293,28 +195,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
             Step::PressText("Claude usage"),
             Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
-        ],
-    },
-    Demo {
-        name: "ai_usage_block",
-        group: claude_usage::group,
-        live: claude_usage::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Services),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
-            Step::PressText("Claude usage"),
-            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusageBlock)),
-        ],
-    },
-    Demo {
-        name: "ai_usage_periods",
-        group: claude_usage::group,
-        live: claude_usage::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Services),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
-            Step::PressText("Claude usage"),
-            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusagePeriods)),
         ],
     },
     Demo {
@@ -361,17 +241,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "idle_lock",
-        group: idle_lock::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Session),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
-            Step::PressText("Idle timeouts"),
-            Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
-        ],
-    },
-    Demo {
         name: "gamepad_controller",
         group: gamepad::group,
         live: unchanging,
@@ -399,19 +268,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "audio_microphone",
-        group: audio::group,
-        live: audio::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Media),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
-            Step::PressText("Audio"),
-            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
-                ControlKind::Source,
-            ))),
-        ],
-    },
-    Demo {
         name: "voice_dictation_model",
         group: voice_dictation::group,
         live: unchanging,
@@ -432,17 +288,6 @@ pub const DEMOS: &[Demo] = &[
         ],
     },
     Demo {
-        name: "voice_dictation_pipeline",
-        group: voice_dictation::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Media),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
-            Step::PressText("Voice dictation"),
-            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Pipeline)),
-        ],
-    },
-    Demo {
         name: "login_session_kernel",
         group: login_session::group,
         live: unchanging,
@@ -452,17 +297,6 @@ pub const DEMOS: &[Demo] = &[
             Step::PressText("Login session"),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Kernel)),
             Step::Hover(HoverTarget::LoginSession(LoginSessionTarget::Compositor)),
-        ],
-    },
-    Demo {
-        name: "wallpaper_place",
-        group: wallpaper::group,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Display),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Display)),
-            Step::PressText("Wallpaper"),
-            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
         ],
     },
     Demo {
@@ -485,22 +319,8 @@ pub const DEMOS: &[Demo] = &[
         script: &[Step::Hover(HoverTarget::Workspace(2))],
     },
     Demo {
-        name: "bottom_window",
-        group: niri_session::bottom_bar,
-        live: unchanging,
-        shown: GroupShown::OnPanel,
-        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
-    },
-    Demo {
         name: "bottom_window_directory_groups",
         group: niri_session::terminals_grouped_by_directory,
-        live: unchanging,
-        shown: GroupShown::OnPanel,
-        script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
-    },
-    Demo {
-        name: "bottom_window_flat_rows",
-        group: niri_session::terminals_in_flat_rows,
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Pick(2)))],
@@ -511,18 +331,6 @@ pub const DEMOS: &[Demo] = &[
         live: unchanging,
         shown: GroupShown::OnPanel,
         script: &[Step::Hover(HoverTarget::Window(WindowTarget::Inspect(2)))],
-    },
-    Demo {
-        name: "sidebar_workspaces",
-        group: niri_session::workspace_sidebar,
-        live: unchanging,
-        shown: GroupShown::OnPanel,
-        script: &[
-            Step::Hover(HoverTarget::Workspace(1)),
-            Step::Hover(HoverTarget::Workspace(4)),
-            Step::Hover(HoverTarget::Workspace(6)),
-            Step::Hover(HoverTarget::Workspace(9)),
-        ],
     },
     Demo {
         name: "toast_arrival",
@@ -560,25 +368,6 @@ pub const DEMOS: &[Demo] = &[
         script: &[Step::HoverText(notification_toasts::WINDOW_SUMMARY)],
     },
     Demo {
-        name: "group_menu_cascading_hover",
-        group: group_menu_members::hardware_group_menu,
-        live: group_menu_members::hardware_menu_live,
-        shown: GroupShown::InMenuPresented {
-            menu: GroupMenuTopic::Hardware,
-            presentation: GroupMenuPresentation {
-                layout: GroupMenuLayout::Cascading,
-                open_trigger: GroupMenuOpenTrigger::Hover,
-                accordion_open_limit: OpenGroupLimit::Several,
-                hover_card_placement: HoverCardPlacement::BesideRow,
-            },
-        },
-        script: &[
-            Step::Hover(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::HoverText("Compute"),
-            Step::HoverText("CPU load"),
-        ],
-    },
-    Demo {
         name: "group_menu_accordion_several",
         group: group_menu_members::hardware_group_menu,
         live: group_menu_members::hardware_menu_live,
@@ -596,25 +385,6 @@ pub const DEMOS: &[Demo] = &[
             Step::PressText("Compute"),
             Step::PressText("Memory"),
             Step::HoverText("CPU load"),
-        ],
-    },
-    Demo {
-        name: "group_menu_accordion_one",
-        group: group_menu_members::hardware_group_menu,
-        live: group_menu_members::hardware_menu_live,
-        shown: GroupShown::InMenuPresented {
-            menu: GroupMenuTopic::Hardware,
-            presentation: GroupMenuPresentation {
-                layout: GroupMenuLayout::Accordion,
-                open_trigger: GroupMenuOpenTrigger::Press,
-                accordion_open_limit: OpenGroupLimit::One,
-                hover_card_placement: HoverCardPlacement::BesideRow,
-            },
-        },
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::PressText("Memory"),
         ],
     },
     Demo {
@@ -673,16 +443,6 @@ pub const DEMOS: &[Demo] = &[
         ))],
     },
     Demo {
-        name: "group_menu_behaviour",
-        group: shell_settings::remaining,
-        live: unchanging,
-        shown: GroupShown::InMenu(GroupMenuTopic::Behaviour),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Behaviour)),
-            Step::PressText("Panels"),
-        ],
-    },
-    Demo {
         name: "compute_cpu_pinned",
         group: compute::group,
         live: compute::live,
@@ -694,98 +454,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
             Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
-        ],
-    },
-    Demo {
-        name: "memory_board_memory_pinned",
-        group: memory_board::group,
-        live: memory_board::live,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Hardware,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::MemoryBoard),
-        },
-        script: &[
-            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
-            Step::Press(HoverTarget::MemoryBoard(MemoryBoardTarget::Memory)),
-            Step::Hover(HoverTarget::MemoryBoard(MemoryBoardTarget::Board)),
-        ],
-    },
-    Demo {
-        name: "vpn_wireguard_pinned",
-        group: vpn::group,
-        live: unchanging,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Network,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Vpn),
-        },
-        script: &[
-            Step::Hover(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
-                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
-            ))),
-            Step::Press(HoverTarget::Vpn(VpnTarget::NetworkManagerVpn(
-                Cow::Borrowed(vpn::COMPANY_VPN_NAME),
-            ))),
-            Step::Hover(HoverTarget::Vpn(VpnTarget::Wireguard(Cow::Borrowed(
-                vpn::LAB_TUNNEL_NAME,
-            )))),
-        ],
-    },
-    Demo {
-        name: "wallpaper_place_pinned",
-        group: wallpaper::group,
-        live: unchanging,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Display,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Wallpaper),
-        },
-        script: &[
-            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
-            Step::Press(HoverTarget::Wallpaper(WallpaperTarget::Lookup)),
-            Step::Hover(HoverTarget::Wallpaper(WallpaperTarget::Article)),
-        ],
-    },
-    Demo {
-        name: "idle_screen_off_pinned",
-        group: idle_lock::group,
-        live: unchanging,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Session,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::IdleTimeouts),
-        },
-        script: &[
-            Step::Hover(HoverTarget::IdleTimeout(IdleAction::Lock)),
-            Step::Press(HoverTarget::IdleTimeout(IdleAction::Lock)),
-            Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
-        ],
-    },
-    Demo {
-        name: "ai_usage_windows_pinned",
-        group: claude_usage::group,
-        live: claude_usage::live,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Services,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::ClaudeUsage),
-        },
-        script: &[
-            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
-            Step::Press(HoverTarget::ClaudeUsage(ClaudeUsageTarget::UsageWindows)),
-            Step::Hover(HoverTarget::ClaudeUsage(ClaudeUsageTarget::CcusageBlock)),
-        ],
-    },
-    Demo {
-        name: "audio_microphone_pinned",
-        group: audio::group,
-        live: audio::live,
-        shown: GroupShown::PinnedFrom {
-            menu: GroupMenuTopic::Media,
-            group: WidgetGroupIdentity::sole(WidgetGroupFamily::Audio),
-        },
-        script: &[
-            Step::Hover(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
-            Step::Press(HoverTarget::Audio(AudioTarget::Control(ControlKind::Sink))),
-            Step::Hover(HoverTarget::Audio(AudioTarget::Control(
-                ControlKind::Source,
-            ))),
         ],
     },
 ];
