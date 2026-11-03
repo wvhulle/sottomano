@@ -86,7 +86,7 @@ pub(in crate::desktop_shell) const BOTTOM_PANEL: PanelBarComposition = PanelBarC
         Fixed(AppearancePresets),
         InlineWorkspaces,
     ],
-    center: &[OutputWindows],
+    center: &[Menu(GroupMenuTopic::Applications), OutputWindows],
     end: &[
         Menu(GroupMenuTopic::Services),
         Menu(GroupMenuTopic::Session),

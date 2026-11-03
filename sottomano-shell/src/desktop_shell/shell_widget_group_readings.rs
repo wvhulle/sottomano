@@ -106,7 +106,7 @@ impl ShellWidgetGroups {
             | HoverTarget::Gamepad(_)
             | HoverTarget::LlamaServer(_)
             | HoverTarget::SessionFocus(_)
-            | HoverTarget::QuickLaunch(_)
+            | HoverTarget::AppLauncher(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::GroupFace(_)
             | HoverTarget::GroupMenuSettings(_)

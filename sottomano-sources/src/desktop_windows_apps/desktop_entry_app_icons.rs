@@ -1,10 +1,15 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+};
 
 use freedesktop_desktop_entry::{DesktopEntry, Iter, default_paths};
 use freedesktop_icons::lookup;
 
 use super::niri_window_snapshot;
-use crate::desktop_windows_apps::window_title_labels::IconCandidate;
+use crate::desktop_windows_apps::{
+    desktop_entry_app_catalog::LaunchableApp, window_title_labels::IconCandidate,
+};
 
 #[derive(Debug)]
 pub struct DesktopEntries {
@@ -24,6 +29,14 @@ impl DesktopEntries {
         Self {
             entries: Vec::new(),
             theme: freedesktop_icons::default_theme_gtk(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_entries(entries: Vec<DesktopEntry>) -> Self {
+        Self {
+            entries,
+            theme: None,
         }
     }
 
@@ -73,9 +86,25 @@ impl DesktopEntries {
     }
 
     #[must_use]
-    pub fn is_launchable(&self, app_id: &str) -> bool {
-        self.find(app_id)
-            .is_some_and(|entry| !entry.no_display() && !entry.hidden())
+    pub fn launchable_app(&self, app_id: &str) -> Option<LaunchableApp> {
+        LaunchableApp::from_shown_entry(
+            self.find(app_id)?,
+            &freedesktop_desktop_entry::current_desktop().unwrap_or_default(),
+        )
+    }
+
+    #[must_use]
+    pub fn launchable_apps(&self) -> Vec<LaunchableApp> {
+        let current_desktops = freedesktop_desktop_entry::current_desktop().unwrap_or_default();
+        let mut listed_app_ids = HashSet::new();
+        let mut launchable_apps: Vec<LaunchableApp> = self
+            .entries
+            .iter()
+            .filter(|entry| listed_app_ids.insert(entry.id()))
+            .filter_map(|entry| LaunchableApp::from_shown_entry(entry, &current_desktops))
+            .collect();
+        launchable_apps.sort_by_cached_key(|app| (app.name.to_lowercase(), app.app_id.clone()));
+        launchable_apps
     }
 
     #[must_use]
@@ -89,14 +118,6 @@ impl DesktopEntries {
                     .mime_type()
                     .is_some_and(|mime_types| mime_types.contains(&handler.as_str()))
             })
-    }
-
-    #[must_use]
-    pub fn exec_command(&self, app_id: &str) -> Option<Vec<String>> {
-        self.find(app_id)?
-            .parse_exec()
-            .ok()
-            .filter(|c| !c.is_empty())
     }
 
     #[must_use]

@@ -8,7 +8,9 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     group_menus::{
-        accordion_layout::accordion_sections::accordion_sections,
+        accordion_layout::{
+            accordion_sections::accordion_sections, menu_rows_viewport::menu_rows_viewport,
+        },
         cascading_layout::{
             cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
             cascading_columns::cascading_columns,
@@ -53,6 +55,7 @@ pub struct GroupMenuCascadeSurfaces<'a, Message> {
 
 pub struct InspectionCard<'c, 'a> {
     pub hover_card: &'c HoverCard,
+    pub card_appearance: LayerAppearance,
     pub assets: WindowAssets<'a>,
     pub clock: Clock,
 }
@@ -100,6 +103,17 @@ impl<M> GroupMenuMessenger<M> {
         let menu = self.topic;
         move |scrolled_px| {
             GroupEvent::Group(on_message(GroupMenuMessage::MenuScrolled {
+                menu,
+                scrolled_px,
+            }))
+        }
+    }
+
+    pub(crate) fn item_list_scroll_message(&self) -> impl Fn(f32) -> GroupEvent<M> + use<M> {
+        let on_message = self.on_message;
+        let menu = self.topic;
+        move |scrolled_px| {
+            GroupEvent::Group(on_message(GroupMenuMessage::ItemListScrolled {
                 menu,
                 scrolled_px,
             }))
@@ -325,7 +339,9 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             })
             .fold(MenuSections::empty(), MenuSections::with_member);
         let table = quantity_table(table_columns, config).map(|table| table.map(M::from));
-        let cascade_satellite_panels = CascadeSatellitePanels::new(appearance, config, orientation);
+        let cascade_satellite_panels =
+            CascadeSatellitePanels::new(appearance, &card.card_appearance, config, orientation);
+        let table_edge_fade = cascade_satellite_panels.rows_edge_fade(config);
         let row_context = GroupMenuRowContext {
             config,
             direction: orientation.direction,
@@ -335,6 +351,8 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
             cascade_satellite_panels: &cascade_satellite_panels,
         };
         let group_rows = one_row_per_identity(group_rows);
+        let scrolled_px = group_menus.scrolled_px(messenger.topic);
+        let scroll_message = messenger.scroll_message();
         let cascade = match row_context.presentation.layout {
             GroupMenuLayout::Cascading => cascading_columns(group_rows, &row_context, card),
             GroupMenuLayout::Accordion => accordion_sections(group_rows, &row_context, card),
@@ -342,7 +360,12 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         match (table, cascade) {
             (None, None) => None,
             (Some(table), None) => Some(GroupMenuCascadeSurfaces {
-                primary: table,
+                primary: menu_rows_viewport(
+                    table,
+                    scrolled_px,
+                    move |scrolled_px| M::from(scroll_message(scrolled_px)),
+                    table_edge_fade,
+                ),
                 satellites: Vec::new(),
             }),
             (None, Some(cascade)) => Some(cascade),
@@ -369,7 +392,9 @@ mod tests {
         clock::Clock,
         desktop_index::DesktopIndex,
         group_items::{
-            group_item::{ComposedGroupItemFace, GroupItem, GroupItemIcon, GroupItemValue},
+            group_item::{
+                ComposedGroupItemFace, GroupItem, GroupItemHoverArea, GroupItemIcon, GroupItemValue,
+            },
             group_item_reading::GroupItemReading,
         },
         group_menus::{
@@ -382,6 +407,7 @@ mod tests {
                 OpenGroupLimit,
             },
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
+            menu_rows::menu_row::menu_row_height,
         },
         hover_cards::{
             HoverTarget, PopupMessage,
@@ -498,6 +524,7 @@ mod tests {
             &ShellLayer::Overlays.default_appearance(),
             &InspectionCard {
                 hover_card: &hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
                 assets: WindowAssets {
                     entries: &entries,
                     favicons: &favicons,
@@ -550,6 +577,109 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn long_item_list_row_top(
+        screen_height: f32,
+        item_list_scrolled_px: f32,
+        row_name: &str,
+    ) -> f32 {
+        let config = Config::default();
+        let expansion = WidgetGroupExpansion::default();
+        let long_list = (0..40).map(|position| {
+            GroupItem::composed(
+                ComposedGroupItemFace {
+                    name: format!("Row {position}").into(),
+                    icon: GroupItemIcon::Absent,
+                },
+                GroupItemHoverArea::WholeItem(HoverTarget::Workspace(position)),
+                GroupItemValue::Nothing,
+            )
+        });
+        let group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Media,
+            &expansion,
+            |_| SmokeMessage,
+            long_list,
+        );
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::PresentationLoaded(
+            GroupMenuPresentation {
+                layout: GroupMenuLayout::Cascading,
+                ..GroupMenuPresentation::default()
+            },
+        ));
+        let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
+            menu: GroupMenuTopic::Media,
+            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Media),
+        });
+        let _ = group_menus.update(GroupMenuMessage::ItemListScrolled {
+            menu: GroupMenuTopic::Media,
+            scrolled_px: item_list_scrolled_px,
+        });
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        let hover_card = HoverCard::empty();
+        let surfaces = GroupMenuView::new(
+            GroupMenuTopic::Media,
+            &group_menus,
+            |_| SmokeMessage,
+            [group],
+        )
+        .surfaces(
+            &config,
+            &ShellLayer::Overlays.default_appearance(),
+            &InspectionCard {
+                hover_card: &hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
+                assets: WindowAssets {
+                    entries: &entries,
+                    favicons: &favicons,
+                    controller_artwork: &controller_artwork,
+                },
+                clock: Clock::real(),
+            },
+            CascadeOrientation {
+                direction: CascadeDirection::Rightward,
+                growth: PanelGrowth::Downward,
+            },
+        )
+        .expect("an opened menu has a surface");
+        let item_list = surfaces
+            .satellites
+            .into_iter()
+            .next()
+            .expect("the open group has an item list");
+        Simulator::with_size(
+            Settings::default(),
+            Size::new(600.0, screen_height),
+            item_list,
+        )
+        .find(row_name)
+        .expect("the row is laid out")
+        .bounds()
+        .y
+    }
+
+    #[test]
+    fn an_item_list_that_fits_the_screen_never_scrolls() {
+        let row_pitch = menu_row_height(&Config::default());
+        let screen_height = row_pitch * 40.0;
+        let unscrolled = long_item_list_row_top(screen_height, 0.0, "Row 0");
+        let scrolled_past_the_end = long_item_list_row_top(screen_height, f32::MAX, "Row 0");
+        assert!((scrolled_past_the_end - unscrolled).abs() < 1.0);
+    }
+
+    #[test]
+    fn an_item_list_taller_than_the_screen_scrolls_to_its_last_rows() {
+        let row_pitch = menu_row_height(&Config::default());
+        let screen_height = row_pitch * 10.0;
+        let first_row_top = long_item_list_row_top(screen_height, 0.0, "Row 0");
+        let first_row_of_the_last_page = long_item_list_row_top(screen_height, f32::MAX, "Row 30");
+        assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
     }
 
     #[test]

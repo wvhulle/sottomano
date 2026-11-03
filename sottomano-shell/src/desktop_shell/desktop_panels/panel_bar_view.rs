@@ -57,7 +57,7 @@ impl DesktopShell {
         let config = &self.config;
         match entry {
             PanelZoneEntry::Menu(topic) => self
-                .group_menu_of(topic)
+                .group_menu_of(topic, output)
                 .panel_views(config, position, self.clock)
                 .collect(),
             PanelZoneEntry::Standalone(group) => self

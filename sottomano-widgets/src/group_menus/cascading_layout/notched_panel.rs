@@ -1,4 +1,4 @@
-use std::slice;
+use std::{cell::Cell, rc::Rc, slice};
 
 use iced::{
     Element, Event, Length, Point, Rectangle, Size, Vector,
@@ -32,19 +32,67 @@ pub enum PanelGrowth {
     Upward,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Default)]
+pub struct ResolvedPanelTop(Rc<Cell<f32>>);
+
+#[derive(Debug, Clone)]
+pub enum NotchRowAnchor {
+    FromPrimaryTop(f32),
+    WithinPanel {
+        panel_top: ResolvedPanelTop,
+        row_offset: f32,
+    },
+}
+
+impl NotchRowAnchor {
+    fn row_top(&self) -> f32 {
+        match self {
+            NotchRowAnchor::FromPrimaryTop(row_top) => *row_top,
+            NotchRowAnchor::WithinPanel {
+                panel_top,
+                row_offset,
+            } => panel_top.0.get() + row_offset,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ScreenRoom {
+    pub above_primary_top: f32,
+    pub below_primary_top: f32,
+}
+
+impl ScreenRoom {
+    pub(crate) fn limits_within(self, width: f32) -> Limits {
+        Limits::new(
+            Size::new(0.0, self.below_primary_top),
+            Size::new(width, self.above_primary_top + self.below_primary_top),
+        )
+    }
+
+    fn from_limits(limits: &Limits) -> Self {
+        let below_primary_top = limits.min().height;
+        Self {
+            above_primary_top: limits.max().height - below_primary_top,
+            below_primary_top,
+        }
+    }
+
+    fn panel_top_on_screen(self, wanted_top: f32, panel_height: f32) -> f32 {
+        let highest_top = -self.above_primary_top;
+        let lowest_top = (self.below_primary_top - panel_height).max(highest_top);
+        wanted_top.clamp(highest_top, lowest_top)
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct NotchPlacement {
     pub side: NotchSide,
     pub growth: PanelGrowth,
-    pub row_top: f32,
+    pub row: NotchRowAnchor,
+    pub panel_top: ResolvedPanelTop,
     pub row_height: f32,
     pub notch_depth: f32,
-}
-
-impl NotchPlacement {
-    fn row_center(self) -> f32 {
-        self.row_top + self.row_height / 2.0
-    }
 }
 
 pub struct NotchedPanel<'a, Message> {
@@ -53,6 +101,7 @@ pub struct NotchedPanel<'a, Message> {
     corner_radius: f32,
     blurred: bool,
     placement: NotchPlacement,
+    row_top: f32,
     morph: Duration,
 }
 
@@ -69,6 +118,7 @@ pub fn notched_panel<'a, Message: 'a>(
         corner_radius: frame.corner_radius().top_left,
         frame,
         blurred,
+        row_top: placement.row.row_top(),
         placement,
         morph,
     })
@@ -83,17 +133,20 @@ struct PanelMorph {
 }
 
 impl<Message> NotchedPanel<'_, Message> {
-    fn panel_target(&self, content_size: Size) -> Rectangle {
+    fn row_center(&self) -> f32 {
+        self.row_top + self.placement.row_height / 2.0
+    }
+
+    fn panel_target(&self, content_size: Size, screen_room: ScreenRoom) -> Rectangle {
         let panel_x = match self.placement.side {
             NotchSide::Left => self.placement.notch_depth,
             NotchSide::Right => 0.0,
         };
-        let panel_y = match self.placement.growth {
-            PanelGrowth::Downward => self.placement.row_top,
-            PanelGrowth::Upward => {
-                self.placement.row_top + self.placement.row_height - content_size.height
-            }
+        let wanted_top = match self.placement.growth {
+            PanelGrowth::Downward => self.row_top,
+            PanelGrowth::Upward => self.row_top + self.placement.row_height - content_size.height,
         };
+        let panel_y = screen_room.panel_top_on_screen(wanted_top, content_size.height);
         Rectangle::new(Point::new(panel_x, panel_y), content_size)
     }
 
@@ -103,10 +156,7 @@ impl<Message> NotchedPanel<'_, Message> {
             NotchSide::Right => target.x + target.width,
         };
         Rectangle::new(
-            Point::new(
-                notch_edge_x,
-                self.placement.row_center() - self.corner_radius,
-            ),
+            Point::new(notch_edge_x, self.row_center() - self.corner_radius),
             Size::new(0.0, 2.0 * self.corner_radius),
         )
     }
@@ -140,7 +190,7 @@ impl<Message> NotchedPanel<'_, Message> {
     }
 
     fn connector(&self, panel: Rectangle, origin: Vector) -> ConnectorTriangle {
-        let notch_y = origin.y + self.placement.row_center();
+        let notch_y = origin.y + self.row_center();
         let apex_x = match self.placement.side {
             NotchSide::Left => panel.x - self.placement.notch_depth,
             NotchSide::Right => panel.x + panel.width + self.placement.notch_depth,
@@ -182,22 +232,21 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let room = limits.max();
-        let content_height = match self.placement.growth {
-            PanelGrowth::Downward => room.height - self.placement.row_top,
-            PanelGrowth::Upward => room.height + self.placement.row_top + self.placement.row_height,
-        };
+        let screen_room = ScreenRoom::from_limits(limits);
+        self.row_top = self.placement.row.row_top();
         let content_limits = Limits::new(
             Size::ZERO,
             Size::new(
                 (room.width - self.placement.notch_depth).max(0.0),
-                content_height.max(self.placement.row_height),
+                room.height.max(self.placement.row_height),
             ),
         );
         let content =
             self.content
                 .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, &content_limits);
-        let target = self.panel_target(content.size());
+        let target = self.panel_target(content.size(), screen_room);
+        self.placement.panel_top.0.set(target.y);
         let node_size = Size::new(
             target.width + self.placement.notch_depth,
             target.y + target.height,
@@ -345,5 +394,40 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for NotchedPanel<'_, 
             viewport,
             renderer,
         )
+    }
+}
+
+#[cfg(test)]
+mod screen_room_tests {
+    use super::ScreenRoom;
+
+    const ROOM_OVER_BOTTOM_PANEL: ScreenRoom = ScreenRoom {
+        above_primary_top: 300.0,
+        below_primary_top: 100.0,
+    };
+
+    #[test]
+    fn a_panel_that_fits_stays_at_its_row() {
+        assert!(
+            (ROOM_OVER_BOTTOM_PANEL.panel_top_on_screen(-40.0, 100.0) + 40.0).abs() < f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn a_panel_past_either_screen_edge_slides_just_back_on_screen() {
+        assert!(
+            (ROOM_OVER_BOTTOM_PANEL.panel_top_on_screen(-350.0, 350.0) + 300.0).abs()
+                < f32::EPSILON
+        );
+        assert!(
+            (ROOM_OVER_BOTTOM_PANEL.panel_top_on_screen(40.0, 350.0) + 250.0).abs() < f32::EPSILON
+        );
+    }
+
+    #[test]
+    fn a_panel_taller_than_the_screen_starts_at_the_screen_top() {
+        assert!(
+            (ROOM_OVER_BOTTOM_PANEL.panel_top_on_screen(40.0, 400.0) + 300.0).abs() < f32::EPSILON
+        );
     }
 }

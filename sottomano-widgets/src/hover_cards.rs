@@ -24,6 +24,7 @@ use crate::{
         group_menu_state::{GroupMenuPin, GroupMenuTopic},
     },
     widget_groups::{
+        app_launcher_group::AppLauncherTarget,
         appearance_presets_group::AppearancePresetsTarget,
         audio_group::AudioTarget,
         bluetooth_adapters_group::BluetoothTarget,
@@ -103,7 +104,7 @@ pub enum HoverTarget {
     Caldav(CaldavTarget),
     Media(PlayerTarget),
     Gamepad(GamepadTarget),
-    QuickLaunch(String),
+    AppLauncher(AppLauncherTarget),
     ClaudeUsage(ClaudeUsageTarget),
     CopilotUsage(CopilotUsageTarget),
     OpenRouterCredit(OpenRouterCreditTarget),

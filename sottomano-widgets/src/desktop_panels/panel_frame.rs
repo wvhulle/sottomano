@@ -18,9 +18,11 @@ use sottomano_config::screen_edges::Position;
 use crate::{
     desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows},
     widgets::{
-        configured_theme::{background_color, background_strong_color, text_color},
+        configured_theme::{
+            background_color, background_strong_color, background_weak_color, text_color,
+        },
         shared_metrics::OUTLINE_WIDTH_PX,
-        shell_layer_appearance::LayerAppearance,
+        shell_layer_appearance::{LayerAppearance, LayerBackground},
     },
 };
 
@@ -71,7 +73,11 @@ impl LayerFrameStyle {
 
     #[must_use]
     pub fn fill_color(self, theme: &Theme) -> Color {
-        background_color(theme).scale_alpha(self.appearance.opacity)
+        let background = match self.appearance.background {
+            LayerBackground::Base => background_color(theme),
+            LayerBackground::Weak => background_weak_color(theme),
+        };
+        background.scale_alpha(self.appearance.opacity)
     }
 
     #[must_use]

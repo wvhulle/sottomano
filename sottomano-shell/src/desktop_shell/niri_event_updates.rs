@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use iced::Task;
 use niri_ipc::{
@@ -6,12 +6,17 @@ use niri_ipc::{
     state::{EventStreamState, EventStreamStatePart},
 };
 use sottomano_sources::desktop_windows_apps::{
+    app_launch_history::LaunchScope,
+    desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
     desktop_entry_app_icons::{self},
     niri_action_requests,
     niri_output_facts::OutputInfo,
     niri_window_snapshot,
 };
-use sottomano_widgets::widget_groups::gamepad_group::GamepadWindowClaim;
+use sottomano_widgets::widget_groups::{
+    app_launcher_group::{AppLaunchUsage, FrequentApp, FrequentAppScope, OutputFrequentApps},
+    gamepad_group::GamepadWindowClaim,
+};
 
 use crate::{
     desktop_shell::{DesktopShell, sqlite_app_launches},
@@ -60,7 +65,11 @@ impl DesktopShell {
                 niri_ipc::Event::WorkspacesChanged { .. }
                     | niri_ipc::Event::WorkspaceActivated { .. }
             );
-            focus_change |= matches!(event, niri_ipc::Event::WindowFocusChanged { .. });
+            focus_change |= matches!(
+                event,
+                niri_ipc::Event::WindowFocusChanged { .. }
+                    | niri_ipc::Event::WindowFocusTimestampChanged { .. }
+            );
             if matches!(event, niri_ipc::Event::ConfigLoaded { failed: false }) {
                 tasks.push(Task::perform(
                     self.niri_config.read_workspaces(),
@@ -92,8 +101,8 @@ impl DesktopShell {
                     .map(Message::SidebarSettings),
             );
         }
-        if window_change || workspace_change {
-            tasks.push(self.refresh_quick_launch());
+        if window_change || workspace_change || focus_change {
+            tasks.push(self.refresh_app_launcher());
         }
         if self.notifications.is_active() {
             tasks.push(self.reflow_toasts());
@@ -101,30 +110,61 @@ impl DesktopShell {
         Task::batch(tasks)
     }
 
-    pub(super) fn refresh_quick_launch(&mut self) -> Task<Message> {
+    pub(super) fn refresh_app_launcher(&mut self) -> Task<Message> {
         let Some(entries) = self.desktop_entries.arc() else {
             return Task::none();
         };
         let snapshot = &self.niri_snapshot;
         let now = self.clock.utc();
-        let ranked = snapshot
+        let launchable_ranked = |scope: LaunchScope<'_>| -> Vec<LaunchableApp> {
+            let mut listed_app_ids = HashSet::new();
+            self.launch_tracker
+                .rank(scope, now)
+                .iter()
+                .filter_map(|app_id| entries.launchable_app(app_id))
+                .filter(|app| listed_app_ids.insert(app.app_id.clone()))
+                .collect()
+        };
+        let frequent_by_output = snapshot
             .active_workspaces()
-            .filter_map(|active| {
-                let workspace = active.name?;
-                let open = snapshot.open_app_ids(active.output);
-                let apps = self.launch_tracker.rank(workspace, &open, now, |app_id| {
-                    entries.is_launchable(app_id)
-                });
-                (!apps.is_empty()).then(|| (active.output.to_owned(), apps))
+            .map(|active| {
+                let (scope, launch_scope) = match active.name {
+                    Some(workspace) => (
+                        FrequentAppScope::ThisWorkspace,
+                        LaunchScope::NamedWorkspace(workspace),
+                    ),
+                    None => (FrequentAppScope::AllWorkspaces, LaunchScope::EveryWorkspace),
+                };
+                let open_app_ids: HashSet<String> = snapshot
+                    .open_app_ids(active.output)
+                    .iter()
+                    .filter_map(|app_id| entries.launchable_app(app_id))
+                    .map(|app| app.app_id)
+                    .collect();
+                let apps = launchable_ranked(launch_scope)
+                    .into_iter()
+                    .map(|app| FrequentApp {
+                        open_on_workspace: open_app_ids.contains(&app.app_id),
+                        app,
+                    })
+                    .collect();
+                (active.output.to_owned(), OutputFrequentApps { scope, apps })
             })
             .collect();
-        self.widget_groups.window_group.set_ranked(ranked);
+        let usage = AppLaunchUsage {
+            frequent_by_output,
+            most_used_app_ids: launchable_ranked(LaunchScope::EveryWorkspace)
+                .into_iter()
+                .map(|app| app.app_id)
+                .collect(),
+            open_windows: open_windows_by_app(self.niri.windows.windows.values(), &entries),
+        };
+        self.widget_groups.app_launcher_group.adopt_usage(usage);
         self.resolve_icons()
     }
 
     pub(super) fn resolve_icons(&mut self) -> Task<Message> {
-        let mut app_keys = desktop_entry_app_icons::app_icon_keys(&self.niri_snapshot);
-        app_keys.extend(self.widget_groups.window_group.icon_keys());
+        let app_keys = desktop_entry_app_icons::app_icon_keys(&self.niri_snapshot);
         let theme_keys = desktop_entry_app_icons::theme_icon_keys(&self.niri_snapshot);
         self.desktop_entries
             .resolve_missing(app_keys, theme_keys)

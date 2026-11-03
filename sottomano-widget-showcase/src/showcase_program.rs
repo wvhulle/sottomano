@@ -367,9 +367,10 @@ impl ShowcaseState {
             CascadeOrientation::toward_room(anchor, self.group.position(), CANVAS.width);
         let surfaces = group_menu.surfaces(
             &self.config,
-            &self.appearance.overlays,
+            &self.appearance.menus,
             &InspectionCard {
                 hover_card: &inspected_hover_card,
+                card_appearance: self.appearance.overlays,
                 assets: self.window_assets(),
                 clock: self.clock,
             },
@@ -515,6 +516,7 @@ impl ShowcaseState {
             &self.config,
             HoverCardSurfaceStyle {
                 overlay_appearance: self.appearance.overlays,
+                menu_appearance: self.appearance.menus,
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
             self.window_assets(),

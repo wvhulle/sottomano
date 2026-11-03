@@ -4,10 +4,11 @@ use sottomano_config::{Config, SecretPaths};
 use sottomano_sources::desktop_windows_apps::desktop_entry_app_icons::DesktopEntries;
 use sottomano_widgets::{
     clock::Clock,
-    group_menus::group_menu_state::GroupMenuState,
+    group_menus::group_menu_state::{GroupMenuMessage, GroupMenuState},
     hover_cards::hover_card_surfaces::HoverCardSurfaceStyle,
     notification_toasts::{NotificationSettings, ToastContext},
     widget_groups::{
+        app_launcher_group::AppLauncherGroup,
         appearance_presets_group::AppearancePresetsGroup,
         audio_group::AudioGroup,
         bluetooth_adapters_group::BluetoothAdaptersGroup,
@@ -105,6 +106,7 @@ pub struct ShellWidgetGroups {
     pub login_session_group: LoginSessionGroup,
     pub tray_group: TrayGroup,
     pub window_group: WindowGroup,
+    pub app_launcher_group: AppLauncherGroup,
 }
 
 impl ShellWidgetGroups {
@@ -167,6 +169,7 @@ impl ShellWidgetGroups {
             login_session_group: LoginSessionGroup::default(),
             tray_group: TrayGroup::default(),
             window_group: WindowGroup::default(),
+            app_launcher_group: AppLauncherGroup::default(),
         }
     }
 
@@ -176,6 +179,7 @@ impl ShellWidgetGroups {
             SessionPowerGroup::load().map(Message::Session),
             IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
             GroupMenuState::load().map(Message::GroupMenuState),
+            AppLauncherGroup::load().map(Message::AppLauncher),
             PanelSettingsGroup::load().map(Message::PanelSettings),
             SidebarSettingsGroup::load().map(Message::SidebarSettings),
             OverlaySettingsGroup::load().map(Message::OverlaySettings),
@@ -323,6 +327,7 @@ impl ShellWidgetGroups {
             panels: self.panel_settings_group.panel_appearance(),
             sidebar: self.sidebar_settings_group.sidebar_appearance(),
             overlays: self.overlay_settings_group.overlay_appearance(),
+            menus: self.group_menus.menu_appearance(),
         }
     }
 
@@ -345,6 +350,9 @@ impl ShellWidgetGroups {
                 Task::done(Message::OverlaySettings(
                     OverlaySettingsMessage::Appearance(AppearanceMessage::Adopted(next.overlays)),
                 )),
+                Task::done(Message::GroupMenuState(GroupMenuMessage::Appearance(
+                    AppearanceMessage::Adopted(next.menus),
+                ))),
             ]
             .into_iter()
             .chain(scheme_switch),
@@ -370,6 +378,7 @@ impl ShellWidgetGroups {
     pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
             overlay_appearance: self.overlay_settings_group.overlay_appearance(),
+            menu_appearance: self.group_menus.menu_appearance(),
             float_offset_px: self.panel_settings_group.float_offset_px(),
         }
     }
@@ -424,7 +433,7 @@ impl ShellWidgetGroups {
         self.mobile_modems_group.collapse();
         self.ethernet_ports_group.collapse();
         self.bluetooth_adapters_group.collapse();
-        self.window_group.collapse();
+        self.app_launcher_group.collapse();
         self.tray_group.collapse();
         self.claude_usage_group.collapse();
         self.copilot_usage_group.collapse();

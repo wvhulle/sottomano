@@ -1,3 +1,4 @@
+pub mod app_launcher_group;
 pub mod appearance_presets_group;
 pub mod audio_group;
 pub mod bluetooth_adapters_group;

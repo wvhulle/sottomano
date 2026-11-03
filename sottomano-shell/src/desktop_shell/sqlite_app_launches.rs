@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use sottomano_sources::{
-    desktop_windows_apps::app_launch_history::Launch,
+    desktop_windows_apps::app_launch_history::{Launch, LaunchWorkspace},
     sqlite_state_store::{Columns, StoreError, with_table},
 };
 
@@ -48,7 +48,7 @@ async fn read_launches(connection: &turso::Connection) -> Result<Vec<Launch>, St
             continue;
         };
         launches.push(Launch {
-            workspace: columns.text(&row, "workspace")?,
+            workspace: LaunchWorkspace::from_stored_name(columns.text(&row, "workspace")?),
             app_id: columns.text(&row, "app_id")?,
             launched_at: launched_at.with_timezone(&Utc),
         });
@@ -62,7 +62,7 @@ async fn write_launch(connection: &turso::Connection, launch: &Launch) -> Result
             "INSERT INTO launch_events (workspace, app_id, launched_at) VALUES (?1, ?2, ?3) ON \
              CONFLICT DO NOTHING",
             (
-                launch.workspace.clone(),
+                launch.workspace.stored_name().to_owned(),
                 launch.app_id.clone(),
                 launch.launched_at.to_rfc3339(),
             ),
@@ -76,11 +76,11 @@ mod tests {
     use chrono::{Duration, Utc};
     use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{Launch, SCHEMA, read_launches, write_launch};
+    use super::{Launch, LaunchWorkspace, SCHEMA, read_launches, write_launch};
 
     fn firefox_on_web(minutes_ago: i64) -> Launch {
         Launch {
-            workspace: "web".to_owned(),
+            workspace: LaunchWorkspace::Named("web".to_owned()),
             app_id: "firefox".to_owned(),
             launched_at: Utc::now() - Duration::minutes(minutes_ago),
         }
@@ -90,6 +90,18 @@ mod tests {
     async fn a_launch_survives_a_round_trip() {
         let connection = in_memory_connection(&SCHEMA).await;
         let launch = firefox_on_web(0);
+        write_launch(&connection, &launch).await.unwrap();
+
+        assert_eq!(read_launches(&connection).await.unwrap(), vec![launch]);
+    }
+
+    #[tokio::test]
+    async fn a_launch_on_an_unnamed_workspace_survives_a_round_trip() {
+        let connection = in_memory_connection(&SCHEMA).await;
+        let launch = Launch {
+            workspace: LaunchWorkspace::Unnamed,
+            ..firefox_on_web(0)
+        };
         write_launch(&connection, &launch).await.unwrap();
 
         assert_eq!(read_launches(&connection).await.unwrap(), vec![launch]);

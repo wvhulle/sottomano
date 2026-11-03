@@ -15,7 +15,7 @@ use sottomano_widgets::{
     layer_surfaces::PanelEdge,
     widget_groups::{
         bluetooth_adapters_group::BluetoothTarget,
-        window_group::{WindowGroup, WindowTarget, quick_launch::QuickLaunch},
+        window_group::{WindowGroup, WindowTarget},
         workspaces_group::workspace_hover_card,
     },
 };
@@ -200,7 +200,11 @@ impl DesktopShell {
                     self.clock,
                 ))
             }
-            HoverTarget::QuickLaunch(app_id) => Some(QuickLaunch::hover_card_for(app_id)),
+            HoverTarget::AppLauncher(target) => Some(
+                self.widget_groups
+                    .app_launcher_group
+                    .hover_card_for(target, self.clock),
+            ),
             HoverTarget::GroupMenuSettings(target) => Some(
                 self.widget_groups
                     .group_menus
@@ -408,7 +412,7 @@ impl DesktopShell {
             | HoverTarget::AppearancePresets(_)
             | HoverTarget::OverlaySettings(_)
             | HoverTarget::Notification(_)
-            | HoverTarget::QuickLaunch(_)
+            | HoverTarget::AppLauncher(_)
             | HoverTarget::GroupMenu(_)
             | HoverTarget::GroupFace(_)
             | HoverTarget::GroupMenuSettings(_)
