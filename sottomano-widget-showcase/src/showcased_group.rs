@@ -99,6 +99,7 @@ fn undragged_slot_context(
         },
         clock,
         panel_corner_radius_px: panel_appearance.corner_radius_px,
+        panel_frame_style: LayerFrameStyle::new(&panel_appearance),
         window_row_layout,
     }
 }

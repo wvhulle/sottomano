@@ -38,7 +38,7 @@ use crate::{
         flat_window_rows::arranged_flat_rows,
         location_grouped_window_rows::arranged_location_groups,
         process_tree::Folding,
-        window_list_viewport::{Metrics, window_list_viewport},
+        window_list_viewport::{WindowListEdgeFade, WindowListMetrics, window_list_viewport},
         window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
     },
     widgets::{
@@ -60,12 +60,14 @@ use crate::{
     },
 };
 
+const EDGE_FADE_WIDTH_IN_PANEL_HEIGHTS: f32 = 3.0;
+
 #[derive(Default)]
 pub struct WindowList {
     launcher: LauncherEntries,
     jobs: JobProgress,
     scroll: f32,
-    metrics: Metrics,
+    metrics: WindowListMetrics,
     window_processes: WindowProcesses,
     folding: Folding,
     hovered_window: Option<u64>,
@@ -86,7 +88,7 @@ pub enum WindowListMessage {
     ProcessInspected(Box<SnapshotDelivery<Inspection>>),
     PackageFactsRead(Box<SnapshotDelivery<NixPackageFacts>>),
     Scrolled(f32),
-    MetricsChanged(Metrics),
+    MetricsChanged(WindowListMetrics),
     Drag(DragMessage),
 }
 
@@ -264,9 +266,7 @@ impl WindowList {
         } = match slot_context.window_row_layout {
             WindowRowLayout::Flat => arranged_flat_rows(order.len()),
             WindowRowLayout::GroupedByLocation => {
-                arranged_location_groups(&order, icons, slot_context, |position| {
-                    self.metrics.item_opacity(self.scroll, position)
-                })
+                arranged_location_groups(&order, icons, slot_context)
             }
         };
         let slots = order
@@ -274,7 +274,7 @@ impl WindowList {
             .enumerate()
             .map(|(position_in_panel, window_entry)| {
                 let item = window_slot_key(window_entry, workspace);
-                let dimming = if drag.is_dragging(item) {
+                let opacity = if drag.is_dragging(item) {
                     DISABLED_ALPHA
                 } else {
                     1.0
@@ -284,7 +284,7 @@ impl WindowList {
                     item,
                     extras: self.extras(window_entry, audio, config),
                     position_in_panel,
-                    opacity: self.metrics.item_opacity(self.scroll, position_in_panel) * dimming,
+                    opacity,
                     presentation: presentations
                         .get(position_in_panel)
                         .copied()
@@ -293,23 +293,22 @@ impl WindowList {
                 };
                 (item, window_slot.view(icons))
             });
-        let focus_opacity = focused_position.map_or(1.0, |focused_position| {
-            self.metrics.item_opacity(self.scroll, focused_position)
-        });
         let focused_key = order
             .iter()
             .find(|window_entry| window_entry.is_focused)
             .map(|window_entry| window_slot_key(window_entry, workspace));
         let pager = slot_pager(slots, edge, config)
-            .highlight(focused_key, move |theme| {
-                primary_color(theme).scale_alpha(focus_opacity)
-            })
+            .highlight(focused_key, primary_color)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
         Some(window_list_viewport(
             pager,
             self.scroll,
             focused_position,
+            WindowListEdgeFade {
+                frame: slot_context.panel_frame_style,
+                width_px: config.desktop_panels.height * EDGE_FADE_WIDTH_IN_PANEL_HEIGHTS,
+            },
             WindowListMessage::Scrolled,
             WindowListMessage::MetricsChanged,
         ))
@@ -680,17 +679,21 @@ mod tests {
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
-        desktop_panels::panel_slot_drag::{
-            DragMessage, PanelSlotContext,
-            pager_drag_simulation::{
-                SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
-                dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
+        desktop_panels::{
+            panel_frame::LayerFrameStyle,
+            panel_slot_drag::{
+                DragMessage, PanelSlotContext,
+                pager_drag_simulation::{
+                    SIMULATED_OUTPUT, SIMULATED_WINDOW_IDS, SIMULATED_WORKSPACE_IDS,
+                    dragging_from_start, sweep_across_panel, three_workspaces_three_windows,
+                },
             },
         },
         widget_groups::window_group::WindowRowLayout,
         widgets::{
             favicon::Favicons,
             pointer_drag::{DragEvent, DraggedPanelSlot, PanelSlotList},
+            shell_layer_appearance::ShellLayer,
             window_icon::WindowAssets,
         },
     };
@@ -719,6 +722,7 @@ mod tests {
             drag: drag_view,
             clock: Clock::real(),
             panel_corner_radius_px: 0.0,
+            panel_frame_style: LayerFrameStyle::new(&ShellLayer::Panels.default_appearance()),
             window_row_layout: WindowRowLayout::default(),
         };
         let pager_element = window_list

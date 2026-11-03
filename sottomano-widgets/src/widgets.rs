@@ -7,6 +7,7 @@ pub mod child_view;
 pub mod configured_theme;
 pub mod content_sized_table;
 pub mod context_menu;
+pub mod edge_alpha_fade;
 pub mod ellipsis_rule;
 pub mod fair_widths;
 pub mod favicon;

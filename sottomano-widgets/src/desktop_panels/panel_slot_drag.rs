@@ -2,6 +2,7 @@ use sottomano_config::{Config, screen_edges::Position};
 
 use crate::{
     clock::Clock,
+    desktop_panels::panel_frame::LayerFrameStyle,
     widget_groups::window_group::WindowRowLayout,
     widgets::pointer_drag::{self, DragEvent, DragView, DraggedPanelSlot, ForeignHover},
 };
@@ -23,6 +24,7 @@ pub struct PanelSlotContext<'a> {
     pub drag: DragView,
     pub clock: Clock,
     pub panel_corner_radius_px: f32,
+    pub panel_frame_style: LayerFrameStyle,
     pub window_row_layout: WindowRowLayout,
 }
 

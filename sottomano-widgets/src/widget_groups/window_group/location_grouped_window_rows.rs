@@ -80,12 +80,11 @@ fn location_group_heading<'a>(
     window_entry: &niri_window_snapshot::WinEntry,
     icons: WindowAssets<'a>,
     config: &Config,
-    opacity: f32,
 ) -> Option<Element<'a, WindowListMessage>> {
     let location = window_entry.label.as_ref()?.location_text()?;
     let tint = ReadingStateTint {
         state: ReadingDisplayState::Idle,
-        opacity,
+        opacity: 1.0,
     };
     let icon_path = icons.path_for(window_entry);
     let icon = window_icon(
@@ -93,7 +92,7 @@ fn location_group_heading<'a>(
         window_entry.favicon_key(),
         icon_path.as_deref(),
         config.theme.font.icon_size_px,
-        opacity,
+        1.0,
     );
     Some(
         Row::new()
@@ -116,7 +115,6 @@ pub(super) fn arranged_location_groups<'a>(
     order: &[&niri_window_snapshot::WinEntry],
     icons: WindowAssets<'a>,
     slot_context: PanelSlotContext<'_>,
-    opacity_at_position: impl Fn(usize) -> f32,
 ) -> ArrangedWindowRows<'a> {
     let group_identities: Vec<_> = order
         .iter()
@@ -130,23 +128,16 @@ pub(super) fn arranged_location_groups<'a>(
     let groups = group_positions
         .iter()
         .filter_map(|positions| {
-            let opacity = positions
-                .clone()
-                .map(&opacity_at_position)
-                .fold(0.0, f32::max);
             Some(SlotGroup {
                 positions: positions.clone(),
                 heading: location_group_heading(
                     order.get(positions.start)?,
                     icons,
                     slot_context.config,
-                    opacity,
                 )?,
-                enclosure_color: Box::new(move |theme| {
-                    background_weak_color(theme).scale_alpha(opacity)
-                }),
+                enclosure_color: Box::new(background_weak_color),
                 inner_color: Box::new(background_color),
-                highlight_color: Box::new(move |theme| primary_color(theme).scale_alpha(opacity)),
+                highlight_color: Box::new(primary_color),
                 enclosure_thickness: slot_context.config.theme.spacing.item_gap,
                 enclosure_radius: slot_context.panel_corner_radius_px,
             })
