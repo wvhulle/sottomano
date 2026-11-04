@@ -1,6 +1,7 @@
 pub mod markup_body;
 pub mod toast_anchor_geometry;
 pub mod toast_card;
+pub mod toast_card_backdrop;
 pub mod toast_lifecycle;
 pub mod toast_placement;
 pub mod toast_reply;
@@ -41,7 +42,7 @@ use crate::{
     toast_messages::NotificationMessage,
     widgets::{
         announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
-        shell_layer_appearance::LayerAppearance,
+        shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -60,6 +61,13 @@ impl Default for NotificationSettings {
             toast_spatial_layout: true,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ToastSurfaceStyle {
+    pub overlay_appearance: LayerAppearance,
+    pub panel_clearance: Padding,
+    pub background_fade: CardBackgroundFade,
 }
 
 pub struct ToastContext<'a> {
@@ -160,8 +168,11 @@ impl<Routed: Clone> NotificationLayer<Routed> {
         output: &str,
         config: &'a Config,
         theme: &'a Theme,
-        overlay_appearance: LayerAppearance,
-        panel_clearance: Padding,
+        ToastSurfaceStyle {
+            overlay_appearance,
+            panel_clearance,
+            background_fade,
+        }: ToastSurfaceStyle,
         clock: Clock,
     ) -> WindowAnchoredToasts<'a> {
         let now = clock.instant;
@@ -179,6 +190,7 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 card: reveal_y(
                     ToastCard::new(notif, config, theme, overlay_appearance, clock.wall)
                         .hovered(self.hovered == Some(notif.data.id))
+                        .background_fade(background_fade)
                         .reveal(notif.opacity(now)),
                     notif.slot(now),
                     notif.scale(now),
@@ -186,7 +198,13 @@ impl<Routed: Clone> NotificationLayer<Routed> {
                 animating: notif.is_animating(now),
             })
             .collect();
-        WindowAnchoredToasts::new(toasts, panel_clearance, &overlay_appearance, config)
+        WindowAnchoredToasts::new(
+            toasts,
+            panel_clearance,
+            &overlay_appearance,
+            background_fade,
+            config,
+        )
     }
 
     #[must_use]

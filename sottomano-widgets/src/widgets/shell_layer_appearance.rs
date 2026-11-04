@@ -69,6 +69,20 @@ impl Default for LayerAppearance {
 
 impl LayerAppearance {
     #[must_use]
+    pub fn with_background_faded(self, fade_level: f32) -> Self {
+        let remaining = 1.0 - fade_level;
+        Self {
+            opacity: self.opacity * remaining,
+            blurred: self.blurred && fade_level <= 0.0,
+            shadow: ShadowStyle {
+                opacity: self.shadow.opacity * remaining,
+                ..self.shadow
+            },
+            ..self
+        }
+    }
+
+    #[must_use]
     pub fn frame_corner_inset(&self) -> f32 {
         self.corner_radius_px * (1.0 - FRAC_1_SQRT_2)
     }
@@ -116,5 +130,32 @@ impl Default for OutlineStyle {
             drawn: true,
             opacity: 1.0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ShellLayer;
+
+    #[test]
+    fn a_fully_faded_background_keeps_only_its_outline() {
+        let resting = ShellLayer::Overlays.default_appearance();
+        let faded = resting.with_background_faded(1.0);
+        assert!(faded.opacity <= 0.0);
+        assert!(faded.shadow.opacity <= 0.0);
+        assert!(!faded.blurred);
+        assert_eq!(faded.outline, resting.outline);
+    }
+
+    #[test]
+    fn a_resting_background_keeps_its_appearance() {
+        let resting = ShellLayer::Overlays.default_appearance();
+        assert_eq!(resting.with_background_faded(0.0), resting);
+    }
+
+    #[test]
+    fn blur_drops_as_soon_as_fading_starts() {
+        let resting = ShellLayer::Overlays.default_appearance();
+        assert!(!resting.with_background_faded(0.01).blurred);
     }
 }

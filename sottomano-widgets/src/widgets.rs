@@ -45,6 +45,7 @@ pub mod steady_label_width;
 pub mod svg_icon;
 pub mod text;
 pub mod transitioning_text;
+pub mod typing_under_cards;
 pub mod uniform_width_column;
 pub mod value_cells;
 pub mod vendor_logo;

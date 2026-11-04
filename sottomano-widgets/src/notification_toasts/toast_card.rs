@@ -19,7 +19,7 @@ use sottomano_sources::{
 };
 use uom::si::{f64::Ratio, ratio::ratio};
 
-use super::{Notification, toast_lifecycle::ToastKind};
+use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};
 use crate::{
     desktop_panels::panel_frame::LayerFrameStyle,
     notification_toasts::markup_body::MarkupBody,
@@ -31,6 +31,7 @@ use crate::{
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,
         text::{FontFaces, panel_text},
+        typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -186,6 +187,7 @@ pub struct ToastCard<'a, Routed> {
     now: SystemTime,
     hovered: bool,
     reveal: f32,
+    background_fade: CardBackgroundFade,
 }
 
 impl<'a, Routed> ToastCard<'a, Routed> {
@@ -204,12 +206,19 @@ impl<'a, Routed> ToastCard<'a, Routed> {
             now,
             hovered: false,
             reveal: 1.0,
+            background_fade: CardBackgroundFade::Resting,
         }
     }
 
     #[must_use]
     pub fn hovered(mut self, hovered: bool) -> Self {
         self.hovered = hovered;
+        self
+    }
+
+    #[must_use]
+    pub fn background_fade(mut self, background_fade: CardBackgroundFade) -> Self {
+        self.background_fade = background_fade;
         self
     }
 
@@ -236,9 +245,13 @@ impl<Routed> From<ToastCard<'_, Routed>> for Element<'_, NotificationMessage> {
         let framed_card = container(body_row)
             .width(Length::Fixed(TOAST_CARD_WIDTH_PX))
             .padding(card.config.theme.spacing.surface_inset)
-            .style(move |_| style);
+            .style(move |_| container::Style {
+                text_color: style.text_color,
+                ..container::Style::default()
+            });
+        let backdropped_card = ToastCardBackdrop::new(framed_card, style, card.background_fade);
 
-        mouse_area(framed_card)
+        mouse_area(backdropped_card)
             .on_enter(NotificationMessage::HoverChanged { id, hovered: true })
             .on_exit(NotificationMessage::HoverChanged { id, hovered: false })
             .on_press(NotificationMessage::BodyClicked(id))

@@ -56,6 +56,7 @@ use sottomano_widgets::{
     widgets::{
         appearance_presets::{AppearancePreset, ShellAppearance},
         layer_appearance_controls::AppearanceMessage,
+        typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -375,10 +376,14 @@ impl ShellWidgetGroups {
     }
 
     #[must_use]
-    pub fn hover_card_surface_style(&self) -> HoverCardSurfaceStyle {
+    pub fn hover_card_surface_style(
+        &self,
+        background_fade: CardBackgroundFade,
+    ) -> HoverCardSurfaceStyle {
         HoverCardSurfaceStyle {
             overlay_appearance: self.overlay_settings_group.overlay_appearance(),
             menu_appearance: self.group_menus.menu_appearance(),
+            background_fade,
             float_offset_px: self.panel_settings_group.float_offset_px(),
         }
     }

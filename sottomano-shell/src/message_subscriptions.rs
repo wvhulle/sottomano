@@ -45,7 +45,9 @@ fn outputs(wayland: Option<&Connection>) -> Subscription<Message> {
 }
 
 pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
-    let animation = if state.notifications.is_transitioning(state.clock.instant) {
+    let animation = if state.notifications.is_transitioning(state.clock.instant)
+        || state.typing_under_cards.is_animating(state.clock.instant)
+    {
         frames().map(|_| Message::Redraw)
     } else {
         Subscription::none()
@@ -95,6 +97,13 @@ pub fn subscription(state: &DesktopShell) -> Subscription<Message> {
             .map(|()| Message::FirefoxProfileChanged),
         niri_subscription(),
         notifications_subscription(),
+        state
+            .typing_under_cards
+            .subscription(
+                state.notifications.is_active() || state.hover_card.placement().is_some(),
+                &state.config.overlay_surfaces,
+            )
+            .map(Message::TypingUnderCards),
         animation,
         hover_card_fade,
         state.pointer_drag_subscription(),

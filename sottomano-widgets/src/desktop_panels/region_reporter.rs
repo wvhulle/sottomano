@@ -23,7 +23,17 @@ pub struct RegionRoles {
 
 impl RegionRoles {
     pub fn report(self, rects: &[Rectangle], bounds: Rectangle, operation: &mut dyn Operation) {
-        operation.custom(None, bounds, &mut self.blur_rows(rects));
+        self.report_with_blurred_subset(rects, rects, bounds, operation);
+    }
+
+    pub fn report_with_blurred_subset(
+        self,
+        rects: &[Rectangle],
+        blurred_rects: &[Rectangle],
+        bounds: Rectangle,
+        operation: &mut dyn Operation,
+    ) {
+        operation.custom(None, bounds, &mut self.blur_rows(blurred_rects));
         operation.custom(None, bounds, &mut self.input_region_actions(rects));
     }
 

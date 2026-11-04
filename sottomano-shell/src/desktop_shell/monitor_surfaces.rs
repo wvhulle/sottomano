@@ -244,7 +244,7 @@ impl DesktopShell {
         )
     }
 
-    fn hover_card_output(&self) -> Option<&str> {
+    pub(super) fn hover_card_output(&self) -> Option<&str> {
         self.hover_card
             .placement()
             .map(|placement| placement.output.as_str())
