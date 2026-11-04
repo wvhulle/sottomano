@@ -151,10 +151,6 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         target: HoverTarget,
     },
-    ToggleRowCard {
-        menu: GroupMenuTopic,
-        target: HoverTarget,
-    },
     MenuScrolled {
         menu: GroupMenuTopic,
         scrolled_px: f32,
@@ -364,10 +360,6 @@ impl GroupMenuState {
                     group_identity,
                     self.presentation.open_group_limit(),
                 );
-                Task::none()
-            }
-            GroupMenuMessage::ToggleRowCard { menu, target } => {
-                self.inspection = take(&mut self.inspection).toggling_row_card(menu, target);
                 Task::none()
             }
             GroupMenuMessage::MenuScrolled { menu, scrolled_px } => {

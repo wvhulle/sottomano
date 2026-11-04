@@ -1,17 +1,16 @@
 use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 use crate::group_menus::group_menu_presentation::{
-    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-    OpenGroupLimit,
+    GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
 };
 
-pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS group_menu_presentation (
+const DROP_SUPERSEDED_TABLE: &str = "DROP TABLE IF EXISTS group_menu_presentation";
+
+pub const CREATE_TABLE: &str = "CREATE TABLE IF NOT EXISTS group_menu_opening_choices (
     id INTEGER PRIMARY KEY CHECK (id = 0),
     layout TEXT NOT NULL CHECK (layout IN ('cascading', 'accordion')),
     cascading_reveal_trigger TEXT NOT NULL CHECK (cascading_reveal_trigger IN ('hover', 'press')),
-    accordion_open_limit TEXT NOT NULL CHECK (accordion_open_limit IN ('one', 'several')),
-    hover_card_placement TEXT NOT NULL CHECK (hover_card_placement IN ('beside_row', \
-                                'inline_with_row'))
+    accordion_open_limit TEXT NOT NULL CHECK (accordion_open_limit IN ('one', 'several'))
 )";
 
 const fn layout_name(layout: GroupMenuLayout) -> &'static str {
@@ -35,17 +34,10 @@ const fn open_limit_name(limit: OpenGroupLimit) -> &'static str {
     }
 }
 
-const fn card_placement_name(placement: HoverCardPlacement) -> &'static str {
-    match placement {
-        HoverCardPlacement::BesideRow => "beside_row",
-        HoverCardPlacement::InlineWithRow => "inline_with_row",
-    }
-}
-
 pub async fn load() -> GroupMenuPresentation {
     with_table(
         "group menu presentation: load failed",
-        &[CREATE_TABLE],
+        &[DROP_SUPERSEDED_TABLE, CREATE_TABLE],
         read_presentation,
     )
     .await
@@ -55,7 +47,7 @@ pub async fn load() -> GroupMenuPresentation {
 pub async fn save(presentation: GroupMenuPresentation) -> bool {
     with_table(
         "group menu presentation: save failed",
-        &[CREATE_TABLE],
+        &[DROP_SUPERSEDED_TABLE, CREATE_TABLE],
         async |connection| write_presentation(connection, presentation).await,
     )
     .await
@@ -67,8 +59,8 @@ async fn read_presentation(
 ) -> Result<GroupMenuPresentation, StoreError> {
     let mut rows = connection
         .query(
-            "SELECT layout, cascading_reveal_trigger, accordion_open_limit, hover_card_placement
-             FROM group_menu_presentation WHERE id = 0",
+            "SELECT layout, cascading_reveal_trigger, accordion_open_limit
+             FROM group_menu_opening_choices WHERE id = 0",
             (),
         )
         .await?;
@@ -89,10 +81,6 @@ async fn read_presentation(
             "one" => OpenGroupLimit::One,
             _ => OpenGroupLimit::Several,
         },
-        hover_card_placement: match columns.text(&row, "hover_card_placement")?.as_str() {
-            "inline_with_row" => HoverCardPlacement::InlineWithRow,
-            _ => HoverCardPlacement::BesideRow,
-        },
     })
 }
 
@@ -102,16 +90,15 @@ async fn write_presentation(
 ) -> Result<(), StoreError> {
     connection
         .execute(
-            "INSERT INTO group_menu_presentation
-                 (id, layout, cascading_reveal_trigger, accordion_open_limit, hover_card_placement)
-             VALUES (0, ?1, ?2, ?3, ?4)
+            "INSERT INTO group_menu_opening_choices
+                 (id, layout, cascading_reveal_trigger, accordion_open_limit)
+             VALUES (0, ?1, ?2, ?3)
              ON CONFLICT(id) DO UPDATE SET layout = ?1, cascading_reveal_trigger = ?2,
-                 accordion_open_limit = ?3, hover_card_placement = ?4",
+                 accordion_open_limit = ?3",
             (
                 layout_name(presentation.layout),
                 open_trigger_name(presentation.open_trigger),
                 open_limit_name(presentation.accordion_open_limit),
-                card_placement_name(presentation.hover_card_placement),
             ),
         )
         .await?;
@@ -122,10 +109,9 @@ async fn write_presentation(
 mod tests {
     use sottomano_sources::sqlite_state_store::in_memory_connection;
 
-    use super::{CREATE_TABLE, read_presentation, write_presentation};
+    use super::{CREATE_TABLE, DROP_SUPERSEDED_TABLE, read_presentation, write_presentation};
     use crate::group_menus::group_menu_presentation::{
-        GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-        OpenGroupLimit,
+        GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
     };
 
     #[tokio::test]
@@ -144,7 +130,6 @@ mod tests {
             layout: GroupMenuLayout::Accordion,
             open_trigger: GroupMenuOpenTrigger::Press,
             accordion_open_limit: OpenGroupLimit::One,
-            hover_card_placement: HoverCardPlacement::InlineWithRow,
         };
         write_presentation(&connection, chosen).await.unwrap();
         assert_eq!(read_presentation(&connection).await.unwrap(), chosen);
@@ -162,12 +147,27 @@ mod tests {
         let connection = in_memory_connection(&[CREATE_TABLE]).await;
         let refused = connection
             .execute(
-                "INSERT INTO group_menu_presentation (id, layout, cascading_reveal_trigger, \
-                 accordion_open_limit, hover_card_placement) VALUES (0, 'fan', 'hover', 'one', \
-                 'beside_row')",
+                "INSERT INTO group_menu_opening_choices (id, layout, cascading_reveal_trigger, \
+                 accordion_open_limit) VALUES (0, 'fan', 'hover', 'one')",
                 (),
             )
             .await;
         assert!(refused.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_store_holding_the_superseded_table_still_saves() {
+        let superseded_table = "CREATE TABLE group_menu_presentation (
+            id INTEGER PRIMARY KEY CHECK (id = 0),
+            hover_card_placement TEXT NOT NULL
+        )";
+        let connection =
+            in_memory_connection(&[superseded_table, DROP_SUPERSEDED_TABLE, CREATE_TABLE]).await;
+        let chosen = GroupMenuPresentation {
+            layout: GroupMenuLayout::Accordion,
+            ..GroupMenuPresentation::default()
+        };
+        write_presentation(&connection, chosen).await.unwrap();
+        assert_eq!(read_presentation(&connection).await.unwrap(), chosen);
     }
 }

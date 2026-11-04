@@ -62,7 +62,7 @@ pub struct InspectionCard<'c, 'a> {
 
 impl InspectionCard<'_, '_> {
     pub(crate) fn view(&self, config: &Config) -> Option<Element<'static, PopupMessage>> {
-        (!self.hover_card.is_empty())
+        (!self.hover_card.is_empty() || !self.hover_card.announcement.is_empty())
             .then(|| HoverCardContent::new(self.hover_card, config, self.assets, self.clock).view())
     }
 }
@@ -118,13 +118,6 @@ impl<M> GroupMenuMessenger<M> {
                 scrolled_px,
             }))
         }
-    }
-
-    pub(crate) fn toggle_row_card(&self, target: HoverTarget) -> GroupEvent<M> {
-        self.sent(GroupMenuMessage::ToggleRowCard {
-            menu: self.topic,
-            target,
-        })
     }
 
     pub(crate) fn inspect_row(&self, target: HoverTarget) -> GroupEvent<M> {
@@ -380,11 +373,15 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
 #[cfg(test)]
 mod tests {
     use iced::{
-        Settings, Size,
+        Event, Point, Rectangle, Settings, Size, mouse,
         widget::{Row, text},
     };
     use iced_controller_diagram::ControllerArtwork;
-    use iced_test::Simulator;
+    use iced_test::{
+        Simulator,
+        selector::{Candidate, Selector},
+        simulator::click,
+    };
     use sottomano_config::{Config, screen_edges::Position};
 
     use super::{GroupEvent, GroupMenuView, InspectionCard};
@@ -403,14 +400,13 @@ mod tests {
                 notched_panel::PanelGrowth,
             },
             group_menu_presentation::{
-                GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-                OpenGroupLimit,
+                GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
             },
             group_menu_state::{GroupMenuMessage, GroupMenuPin, GroupMenuState, GroupMenuTopic},
             menu_rows::menu_row::menu_row_height,
         },
         hover_cards::{
-            HoverTarget, PopupMessage,
+            HoverAnnouncement, HoverTarget, PopupMessage, PressHints,
             hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         },
         widget_groups::{
@@ -461,24 +457,17 @@ mod tests {
         let layouts = [GroupMenuLayout::Cascading, GroupMenuLayout::Accordion];
         let triggers = [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press];
         let limits = [OpenGroupLimit::One, OpenGroupLimit::Several];
-        let placements = [
-            HoverCardPlacement::BesideRow,
-            HoverCardPlacement::InlineWithRow,
-        ];
         layouts
             .into_iter()
             .flat_map(|layout| {
                 triggers.into_iter().flat_map(move |open_trigger| {
-                    limits.into_iter().flat_map(move |accordion_open_limit| {
-                        placements.into_iter().map(move |hover_card_placement| {
-                            GroupMenuPresentation {
-                                layout,
-                                open_trigger,
-                                accordion_open_limit,
-                                hover_card_placement,
-                            }
+                    limits
+                        .into_iter()
+                        .map(move |accordion_open_limit| GroupMenuPresentation {
+                            layout,
+                            open_trigger,
+                            accordion_open_limit,
                         })
-                    })
                 })
             })
             .collect()
@@ -680,6 +669,198 @@ mod tests {
         let first_row_top = long_item_list_row_top(screen_height, 0.0, "Row 0");
         let first_row_of_the_last_page = long_item_list_row_top(screen_height, f32::MAX, "Row 30");
         assert!((first_row_of_the_last_page - first_row_top).abs() < 1.0);
+    }
+
+    fn inspection_card_shown(hover_card: &HoverCard) -> bool {
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        InspectionCard {
+            hover_card,
+            card_appearance: ShellLayer::Overlays.default_appearance(),
+            assets: WindowAssets {
+                entries: &entries,
+                favicons: &favicons,
+                controller_artwork: &controller_artwork,
+            },
+            clock: Clock::real(),
+        }
+        .view(&Config::default())
+        .is_some()
+    }
+
+    #[test]
+    fn an_announcement_only_card_is_shown_in_a_menu() {
+        let announced =
+            HoverCard::empty().with_announcement(HoverAnnouncement::from_reading(PressHints {
+                left: Some("switch something"),
+                ..PressHints::default()
+            }));
+        assert!(inspection_card_shown(&announced));
+    }
+
+    #[test]
+    fn a_card_without_sections_or_announcement_stays_hidden() {
+        assert!(!inspection_card_shown(&HoverCard::empty()));
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum RowPointerMessage {
+        RowInspected(HoverTarget),
+        RowAction,
+        Unrelated,
+    }
+
+    impl From<GroupEvent<RowPointerMessage>> for RowPointerMessage {
+        fn from(event: GroupEvent<RowPointerMessage>) -> Self {
+            match event {
+                GroupEvent::Group(message) => message,
+                GroupEvent::HoverCard(_) => RowPointerMessage::Unrelated,
+            }
+        }
+    }
+
+    impl From<PopupMessage> for RowPointerMessage {
+        fn from(_: PopupMessage) -> Self {
+            RowPointerMessage::Unrelated
+        }
+    }
+
+    struct InfoIconMark(HoverTarget);
+
+    impl Selector for InfoIconMark {
+        type Output = Rectangle;
+
+        fn select(&mut self, candidate: Candidate<'_>) -> Option<Rectangle> {
+            let Candidate::Custom { bounds, state, .. } = candidate else {
+                return None;
+            };
+            (state.downcast_ref::<HoverTarget>() == Some(&self.0)).then_some(bounds)
+        }
+
+        fn description(&self) -> String {
+            format!("the info icon of {:?}", self.0)
+        }
+    }
+
+    const POINTED_ROW: HoverTarget = HoverTarget::Workspace(7);
+
+    fn messages_after_pointing(
+        pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
+        pressed: bool,
+    ) -> Vec<RowPointerMessage> {
+        let config = Config::default();
+        let expansion = WidgetGroupExpansion::default();
+        let group_menus = opened_menu_state(GroupMenuPresentation::default());
+        let hover_card = HoverCard::empty();
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        let group = WidgetGroupContent::expandable(
+            WidgetGroupFamily::Gpu,
+            &expansion,
+            |_| RowPointerMessage::Unrelated,
+            [GroupItem::reading(SmokeReading, POINTED_ROW)
+                .on_press("act", RowPointerMessage::RowAction)],
+        );
+        let surfaces = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |message| match message {
+                GroupMenuMessage::InspectRow { target, .. } => {
+                    RowPointerMessage::RowInspected(target)
+                }
+                _ => RowPointerMessage::Unrelated,
+            },
+            [group],
+        )
+        .surfaces(
+            &config,
+            &ShellLayer::Overlays.default_appearance(),
+            &InspectionCard {
+                hover_card: &hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
+                assets: WindowAssets {
+                    entries: &entries,
+                    favicons: &favicons,
+                    controller_artwork: &controller_artwork,
+                },
+                clock: Clock::real(),
+            },
+            CascadeOrientation {
+                direction: CascadeDirection::Rightward,
+                growth: PanelGrowth::Downward,
+            },
+        )
+        .expect("an opened menu has a surface");
+        let item_list = surfaces
+            .satellites
+            .into_iter()
+            .next()
+            .expect("the open group has an item list");
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(1200.0, 800.0), item_list);
+        let pointer = pointer_target(&mut simulator);
+        simulator.point_at(pointer);
+        let moved_events = [Event::Mouse(mouse::Event::CursorMoved {
+            position: pointer,
+        })];
+        let _statuses = simulator.simulate(moved_events);
+        if pressed {
+            let _statuses = simulator.simulate(click());
+        }
+        simulator.into_messages().collect()
+    }
+
+    fn info_icon_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
+        simulator
+            .find(InfoIconMark(POINTED_ROW))
+            .expect("every item row has an info icon")
+            .center()
+    }
+
+    fn row_name_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
+        simulator
+            .find("Smoke item")
+            .expect("the row is laid out")
+            .visible_bounds()
+            .expect("the row name is visible")
+            .center()
+    }
+
+    #[test]
+    fn hovering_the_info_icon_inspects_the_row() {
+        assert!(
+            messages_after_pointing(info_icon_center, false)
+                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
+        );
+    }
+
+    #[test]
+    fn hovering_the_row_name_inspects_nothing() {
+        assert!(
+            !messages_after_pointing(row_name_center, false)
+                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
+        );
+    }
+
+    #[test]
+    fn pressing_the_info_icon_skips_the_row_action() {
+        assert!(
+            !messages_after_pointing(info_icon_center, true)
+                .contains(&RowPointerMessage::RowAction)
+        );
+    }
+
+    #[test]
+    fn pressing_the_row_name_performs_the_row_action() {
+        assert!(
+            messages_after_pointing(row_name_center, true).contains(&RowPointerMessage::RowAction)
+        );
     }
 
     #[test]
