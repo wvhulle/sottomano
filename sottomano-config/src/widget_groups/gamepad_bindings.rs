@@ -277,7 +277,7 @@ impl Default for PointerSteeringConfig {
             stick: Some(GamepadStick::Right),
             pixels_per_second: 1600,
             left_button: Some(GamepadButton::RightTrigger),
-            right_button: None,
+            right_button: Some(GamepadButton::RightStick),
             middle_button: None,
         }
     }
@@ -450,7 +450,10 @@ impl Default for GamepadBindingsConfig {
                 (GamepadButton::DpadUp, "Up".to_owned()),
                 (GamepadButton::DpadDown, "Down".to_owned()),
                 (GamepadButton::South, "Return".to_owned()),
-                (GamepadButton::East, "Escape".to_owned()),
+                (GamepadButton::East, "BackSpace".to_owned()),
+                (GamepadButton::North, "shift+Tab".to_owned()),
+                (GamepadButton::West, "Escape".to_owned()),
+                (GamepadButton::Back, "Tab".to_owned()),
             ]),
             compositor_actions: BTreeMap::from([
                 (
@@ -461,7 +464,11 @@ impl Default for GamepadBindingsConfig {
                     GamepadButton::RightShoulder,
                     CompositorAction::MoveColumnRight,
                 ),
-                (GamepadButton::North, CompositorAction::MaximizeColumn),
+                (GamepadButton::Start, CompositorAction::MaximizeColumn),
+                (
+                    GamepadButton::LeftStick,
+                    CompositorAction::FocusWindowPrevious,
+                ),
                 (GamepadButton::Guide, CompositorAction::ToggleOverview),
             ]),
             commands: BTreeMap::new(),
@@ -521,8 +528,8 @@ mod tests {
     #[test]
     fn each_section_claims_buttons_for_its_purpose() {
         let config: GamepadBindingsConfig = toml::from_str(
-            "[compositor_actions]\nwest = \"close_window\"\n[commands]\nright_stick = \
-             [\"notify-send\", \"hi\"]\n",
+            "[compositor_actions]\nwest = \"close_window\"\n[commands]\nstart = [\"notify-send\", \
+             \"hi\"]\n",
         )
         .unwrap();
         assert_eq!(
@@ -530,7 +537,7 @@ mod tests {
             Some(ButtonRole::Compositor(CompositorAction::CloseWindow))
         );
         assert_eq!(
-            config.role_of(GamepadButton::RightStick),
+            config.role_of(GamepadButton::Start),
             Some(ButtonRole::Command(&[
                 "notify-send".to_owned(),
                 "hi".to_owned()
@@ -575,6 +582,15 @@ mod tests {
         assert_eq!(
             steering.stick.map(|stick| stick.stick),
             Some(GamepadStick::Right)
+        );
+    }
+
+    #[test]
+    fn the_right_stick_press_holds_the_right_mouse_button() {
+        let steering = GamepadBindingsConfig::default().pointer_steering();
+        assert_eq!(
+            steering.buttons.get(&GamepadButton::RightStick),
+            Some(&PointerButton::Right)
         );
     }
 

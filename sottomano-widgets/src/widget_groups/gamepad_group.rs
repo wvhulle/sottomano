@@ -5,7 +5,10 @@ mod controller_link_reading;
 mod diagram_anchor_mapping;
 mod usb_cable_reading;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    iter::once,
+};
 
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
@@ -782,6 +785,27 @@ fn spawned(command: impl IntoIterator<Item = impl Into<String>>) -> niri_ipc::Ac
     }
 }
 
+fn typed_key_command(key_chord: &str) -> Vec<String> {
+    let (modifier_names, key_name) = key_chord.rsplit_once('+').unwrap_or(("", key_chord));
+    let held_modifiers: Vec<&str> = modifier_names
+        .split('+')
+        .filter(|modifier_name| !modifier_name.is_empty())
+        .collect();
+    let pressed_modifiers = held_modifiers
+        .iter()
+        .flat_map(|modifier_name| ["-M", modifier_name]);
+    let released_modifiers = held_modifiers
+        .iter()
+        .rev()
+        .flat_map(|modifier_name| ["-m", modifier_name]);
+    once("wtype")
+        .chain(pressed_modifiers)
+        .chain(["-k", key_name])
+        .chain(released_modifiers)
+        .map(str::to_owned)
+        .collect()
+}
+
 fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
     match (role, edge) {
         (ButtonRole::PushToTalk, ButtonEdge::Pressed) => {
@@ -791,7 +815,7 @@ fn role_request(role: ButtonRole<'_>, edge: ButtonEdge) -> Option<Action> {
             Some(Action::Dictation(DictationCommand::Stop))
         }
         (ButtonRole::TypedKey(key), ButtonEdge::Pressed) => {
-            Some(Action::Compositor(spawned(["wtype", "-k", key])))
+            Some(Action::Compositor(spawned(typed_key_command(key))))
         }
         (ButtonRole::Compositor(action), ButtonEdge::Pressed) => {
             Some(Action::Compositor(niri_request(action)))
@@ -876,6 +900,29 @@ mod tests {
             GamepadButton::DpadLeft,
         );
         assert_eq!(spawned_command(action), ["wtype", "-k", "Left"]);
+    }
+
+    #[test]
+    fn triangle_types_shift_tab_by_default() {
+        let action = press(
+            &mut GamepadGroup::default(),
+            DUALSENSE,
+            GamepadButton::North,
+        );
+        assert_eq!(
+            spawned_command(action),
+            ["wtype", "-M", "shift", "-k", "Tab", "-m", "shift"]
+        );
+    }
+
+    #[test]
+    fn two_modifiers_are_released_in_reverse_order() {
+        assert_eq!(
+            typed_key_command("ctrl+shift+Tab"),
+            [
+                "wtype", "-M", "ctrl", "-M", "shift", "-k", "Tab", "-m", "shift", "-m", "ctrl"
+            ]
+        );
     }
 
     #[test]
