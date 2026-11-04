@@ -36,7 +36,7 @@ Hovering the info icon of the temperature opens the forecast for the coming hour
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1064" alt="Opening the VPN group from the Network menu and hovering Tailscale">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1099" alt="Opening the VPN group from the Network menu and hovering Tailscale">
 
 ### Dictation: Speech model
 
