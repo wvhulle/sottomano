@@ -554,10 +554,9 @@ impl DesktopShell {
         }
     }
 
-    pub fn view(&self, window: Id) -> Element<'_, Message> {
-        let _span = tracing::trace_span!("view", ?window).entered();
-        if let Some(hover_card) = self.hover_card.view(
-            window,
+    fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, Message> {
+        self.hover_card.view(
+            output,
             &self.config,
             self.widget_groups.hover_card_surface_style(),
             self.window_assets(),
@@ -566,9 +565,11 @@ impl DesktopShell {
                     .unwrap_or_else(|| HoverContent::Described(HoverCard::empty()))
             },
             self.clock,
-        ) {
-            return hover_card;
-        }
+        )
+    }
+
+    pub fn view(&self, window: Id) -> Element<'_, Message> {
+        let _span = tracing::trace_span!("view", ?window).entered();
         let blank = || Space::new().width(Length::Fill).height(Length::Fill);
         if self.backdrops.contains_key(&window) {
             return container(blank())

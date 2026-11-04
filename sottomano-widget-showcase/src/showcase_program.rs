@@ -140,8 +140,7 @@ impl ShowcaseState {
     fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
         let appearance = ShellAppearance::default();
         FontFaces::point_generic_families_at(&config.theme);
-        let mut hover_card = HoverCardHost::default();
-        let _ = hover_card.open_surface(SHOWCASE_OUTPUT);
+        let hover_card = HoverCardHost::default();
         let notification_settings = NotificationSettings {
             sound: false,
             ..NotificationSettings::default()
@@ -485,10 +484,9 @@ impl ShowcaseState {
         }
     }
 
-    fn hover_card_layer(&self) -> Option<Element<'_, ShowcaseMessage>> {
-        let surface = self.hover_card.surface_on(SHOWCASE_OUTPUT)?;
+    fn hover_card_layer(&self) -> Element<'_, ShowcaseMessage> {
         self.hover_card.view(
-            surface,
+            SHOWCASE_OUTPUT,
             &self.config,
             HoverCardSurfaceStyle {
                 overlay_appearance: self.appearance.overlays,
@@ -581,7 +579,7 @@ impl Program for ShowcaseProgram {
                 .backdrop()
                 .into_iter()
                 .chain([strip, state.toast_layer()])
-                .chain(state.hover_card_layer()),
+                .chain([state.hover_card_layer()]),
         )
         .width(Length::Fill)
         .height(Length::Fill);

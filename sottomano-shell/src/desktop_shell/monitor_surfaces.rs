@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
@@ -142,7 +142,6 @@ impl DesktopShell {
     pub fn forget_window(&mut self, window: Id) -> Task<Message> {
         self.surfaces.remove(&window);
         self.backdrops.remove(&window);
-        self.hover_card.forget(window);
         self.sidebar_widths.remove(&window);
         Task::none()
     }
@@ -259,12 +258,14 @@ impl DesktopShell {
     }
 
     pub fn reconcile_overlay_surfaces(&mut self) -> Task<Message> {
-        let panel_outputs: BTreeSet<String> =
-            self.panels().map(|(_, output)| output.to_owned()).collect();
+        let panel_surfaces: BTreeMap<String, Id> = self
+            .panels()
+            .map(|(surface, output)| (output.to_owned(), surface))
+            .collect();
         let hover_card_surfaces = self
             .hover_card
-            .reconcile_surfaces(
-                &panel_outputs,
+            .reconcile_with_panels(
+                &panel_surfaces,
                 self.clock.instant,
                 self.config.overlay_surfaces.surface_morph_duration,
             )
