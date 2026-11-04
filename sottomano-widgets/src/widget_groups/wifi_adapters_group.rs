@@ -328,7 +328,8 @@ impl WifiAdaptersGroup {
                     adapter_device: adapter.device.clone(),
                 },
             )
-            .on_press(
+            .on_switch_press(
+                adapter.connected,
                 connection_press_does,
                 WifiAdaptersMessage::ToggleAdapter(adapter.device.clone()),
             )
@@ -356,7 +357,11 @@ impl WifiAdaptersGroup {
         let radios_switch = AllWifiRadiosSwitch { radio_enabled };
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, WifiAdapterTarget::AllRadios)
-            .on_press(radios_press_does, WifiAdaptersMessage::ToggleAllRadios);
+            .on_switch_press(
+                radio_enabled,
+                radios_press_does,
+                WifiAdaptersMessage::ToggleAllRadios,
+            );
         let adapter_device = adapter.device.clone();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::WifiAdapters, adapter.device.clone()),

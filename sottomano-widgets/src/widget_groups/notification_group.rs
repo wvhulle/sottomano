@@ -157,7 +157,8 @@ impl NotificationGroup {
                     DoNotDisturbStatus { quiet },
                     QuietScheduleTarget::DoNotDisturb,
                 )
-                .on_press(
+                .on_switch_press(
+                    quiet,
                     if quiet {
                         "end do not disturb now"
                     } else {

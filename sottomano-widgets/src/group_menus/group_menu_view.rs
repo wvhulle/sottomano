@@ -952,7 +952,7 @@ mod tests {
     }
 
     #[test]
-    fn pressing_the_chipped_icon_performs_the_row_action() {
+    fn pressing_the_row_icon_performs_the_row_action() {
         assert!(
             messages_after_pointing(row_icon_center, true).contains(&RowPointerMessage::RowAction)
         );

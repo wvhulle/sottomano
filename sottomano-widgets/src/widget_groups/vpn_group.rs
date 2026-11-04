@@ -235,11 +235,13 @@ impl VpnGroup {
         )
         .previewed_on_handle_if(previewed);
         match tunnel.switch() {
-            Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_press(
+            Some(wireguard_switch @ WireguardSwitch::Connect(_)) => item.on_switch_press(
+                false,
                 "connect the tunnel",
                 VpnMessage::SwitchWireguard(wireguard_switch),
             ),
-            Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_press(
+            Some(wireguard_switch @ WireguardSwitch::Disconnect(_)) => item.on_switch_press(
+                true,
                 "disconnect the tunnel",
                 VpnMessage::SwitchWireguard(wireguard_switch),
             ),
@@ -280,7 +282,8 @@ impl VpnGroup {
                         vpn_connection,
                         VpnTarget::NetworkManagerVpn(Cow::Owned(vpn_connection.name.clone())),
                     )
-                    .on_press(
+                    .on_switch_press(
+                        matches!(vpn_connection.switch(), VpnSwitch::Disconnect(_)),
                         match vpn_connection.switch() {
                             VpnSwitch::Connect(_) => "connect the VPN",
                             VpnSwitch::Disconnect(_) => "disconnect the VPN",
@@ -304,7 +307,8 @@ impl VpnGroup {
                             VpnMessage::OpenTailscale,
                         );
                     if let Some(tailscale_switch) = self.tailscale.get().map(Tailscale::switch) {
-                        item = item.on_press(
+                        item = item.on_switch_press(
+                            matches!(tailscale_switch, TailscaleSwitch::Down),
                             match tailscale_switch {
                                 TailscaleSwitch::Up => "turn Tailscale on",
                                 TailscaleSwitch::Down => "turn Tailscale off",

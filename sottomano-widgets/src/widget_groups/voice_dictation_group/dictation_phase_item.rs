@@ -38,6 +38,14 @@ pub fn press_does(dictation: &NotulistDictation) -> &'static str {
 }
 
 #[must_use]
+pub fn dictation_switched_on(dictation: &NotulistDictation) -> bool {
+    matches!(
+        dictation.phase,
+        DictationPhase::Listening | DictationPhase::LoadingModel
+    )
+}
+
+#[must_use]
 pub fn shows_pipeline(dictation: &NotulistDictation) -> bool {
     matches!(
         dictation.phase,

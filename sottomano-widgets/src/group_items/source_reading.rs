@@ -9,7 +9,6 @@ use crate::{
     group_items::{
         gauge::Gauge,
         group_item_reading::{GroupItemReading, state_weighted_icon},
-        press_icon_chip::press_icon_chip,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
     },
     widgets::{
@@ -31,23 +30,6 @@ pub fn source_reading<'a, Message: 'a>(
         config,
         widget,
         reading_icon(config, widget, tint, clock),
-        tint,
-        clock,
-        reading_value,
-    )
-}
-
-pub fn pressable_source_reading<'a, Message: 'a>(
-    config: &Config,
-    widget: &dyn GroupItemReading,
-    opacity: f32,
-    clock: Clock,
-) -> Element<'a, Message> {
-    let tint = reading_tint(widget, opacity, clock);
-    composed_reading(
-        config,
-        widget,
-        chipped_reading_icon(config, widget, tint, clock),
         tint,
         clock,
         reading_value,
@@ -111,37 +93,11 @@ pub fn reading_icon<'a, Message: 'a>(
     tint: ReadingStateTint,
     clock: Clock,
 ) -> Element<'a, Message> {
-    with_identity_ordinal(
-        config,
-        widget,
-        bare_reading_icon(config, widget, tint, clock),
-        tint,
-    )
-}
-
-pub fn chipped_reading_icon<'a, Message: 'a>(
-    config: &Config,
-    widget: &dyn GroupItemReading,
-    tint: ReadingStateTint,
-    clock: Clock,
-) -> Element<'a, Message> {
-    with_identity_ordinal(
-        config,
-        widget,
-        press_icon_chip(bare_reading_icon(config, widget, tint, clock), tint.opacity),
-        tint,
-    )
-}
-
-fn bare_reading_icon<'a, Message: 'a>(
-    config: &Config,
-    widget: &dyn GroupItemReading,
-    tint: ReadingStateTint,
-    clock: Clock,
-) -> Element<'a, Message> {
-    state_weighted_icon(widget, clock).view(config.theme.font.icon_size_px, move |theme| {
-        tint.color(theme)
-    })
+    let icon = state_weighted_icon(widget, clock)
+        .view(config.theme.font.icon_size_px, move |theme| {
+            tint.color(theme)
+        });
+    with_identity_ordinal(config, widget, icon, tint)
 }
 
 fn with_identity_ordinal<'a, Message: 'a>(

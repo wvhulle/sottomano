@@ -3,7 +3,7 @@ use std::{borrow::Cow, rc::Rc};
 use chrono::Locale;
 use iced::{
     Alignment, Element,
-    widget::{Row, Space, button, mouse_area},
+    widget::{Row, Space, button, mouse_area, row},
 };
 use sottomano_config::{Config, severity::Severity};
 
@@ -13,13 +13,10 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
         group_item_reading::{GroupItemReading, state_weighted_icon},
-        press_icon_chip::press_icon_chip,
+        item_toggle_switch::item_toggle_switch,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
-        source_reading::{
-            chipped_reading_icon, pressable_source_reading, reading_icon, reading_value,
-            source_reading,
-        },
+        source_reading::{reading_icon, reading_value, source_reading},
         toggle_control::IconToggle,
     },
     group_menus::{
@@ -104,15 +101,12 @@ impl GroupItemIcon {
             GroupItemIcon::Absent => None,
         }
     }
+}
 
-    fn chipped_view<'a, Message: 'a>(
-        &self,
-        config: &Config,
-        opacity: f32,
-    ) -> Option<Element<'a, Message>> {
-        self.view(config, opacity)
-            .map(|icon| press_icon_chip(icon, opacity))
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ItemSwitchIndicator {
+    Absent,
+    Shown { switched_on: bool },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -232,6 +226,7 @@ pub(crate) struct HandlePreview<'p> {
 pub struct GroupItem<'a, M> {
     kind: GroupItemContent<'a, M>,
     gestures: GroupItemGestures<M>,
+    switch_indicator: ItemSwitchIndicator,
     handle_announcement: HoverAnnouncement,
     previewed_on_handle: bool,
     ongoing_toast_action_buttons: Vec<OngoingToastActionButton<M>>,
@@ -245,6 +240,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self {
             kind,
             gestures: GroupItemGestures::inert(),
+            switch_indicator: ItemSwitchIndicator::Absent,
             handle_announcement: HoverAnnouncement::default(),
             previewed_on_handle: false,
             ongoing_toast_action_buttons: Vec::new(),
@@ -340,7 +336,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     pub fn toggle(toggle: IconToggle, target: impl Into<HoverTarget>, message: M) -> Self {
-        Self::reading(toggle, target).on_press(toggle.press_does(), message)
+        Self::reading(toggle, target).on_switch_press(toggle.enabled, toggle.press_does(), message)
+    }
+
+    #[must_use]
+    pub fn on_switch_press(
+        mut self,
+        switched_on: bool,
+        description: &'static str,
+        message: M,
+    ) -> Self {
+        self.switch_indicator = ItemSwitchIndicator::Shown { switched_on };
+        self.on_press(description, message)
     }
 
     #[must_use]
@@ -409,6 +416,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         GroupItem {
             kind: self.kind.map(lift),
             gestures: self.gestures.map(lift),
+            switch_indicator: self.switch_indicator,
             handle_announcement: self.handle_announcement,
             previewed_on_handle: self.previewed_on_handle,
             card_opening_trigger: self.card_opening_trigger,
@@ -571,15 +579,22 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
-    fn shows_press_chip(&self) -> bool {
-        matches!(self.gestures.left, GroupItemGesture::Performs { .. })
-            && match &self.kind {
-                GroupItemContent::Reading { .. } => true,
-                GroupItemContent::Composed { identity, .. } => {
-                    !matches!(identity.icon, GroupItemIcon::Absent)
-                }
-                GroupItemContent::Slider { .. } => false,
-            }
+    fn with_switch_indicator(
+        &self,
+        config: &Config,
+        switched_content: Element<'a, GroupEvent<M>>,
+        opacity: f32,
+    ) -> Element<'a, GroupEvent<M>> {
+        match self.switch_indicator {
+            ItemSwitchIndicator::Absent => switched_content,
+            ItemSwitchIndicator::Shown { switched_on } => row![
+                switched_content,
+                item_toggle_switch(config, switched_on, opacity)
+            ]
+            .spacing(config.theme.spacing.item_gap)
+            .align_y(Alignment::Center)
+            .into(),
+        }
     }
 
     pub(crate) fn item_row_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
@@ -587,22 +602,9 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         M: Clone,
     {
         let parts = self.menu_parts(config, clock);
-        if !self.shows_press_chip() {
-            return parts;
-        }
-        let chipped_icon = match &self.kind {
-            GroupItemContent::Reading { widget, .. } => Some(chipped_reading_icon(
-                config,
-                widget.as_ref(),
-                ReadingStateTint::opaque(widget.state(clock)),
-                clock,
-            )),
-            GroupItemContent::Composed { identity, .. } => identity.icon.chipped_view(config, 1.0),
-            GroupItemContent::Slider { .. } => None,
-        };
         MenuParts {
-            icon: chipped_icon.unwrap_or(parts.icon),
-            value: parts.value,
+            icon: parts.icon,
+            value: self.with_switch_indicator(config, parts.value, 1.0),
         }
     }
 
@@ -672,14 +674,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             },
             DrawnItemPlacement::Table => element,
         };
-        let shows_press_chip = self.shows_press_chip();
         let mut element = match &self.kind {
             GroupItemContent::Reading { widget, target } => explained(
-                if shows_press_chip {
-                    pressable_source_reading(config, widget.as_ref(), reveal, clock)
-                } else {
-                    source_reading(config, widget.as_ref(), reveal, clock)
-                },
+                self.with_switch_indicator(
+                    config,
+                    source_reading(config, widget.as_ref(), reveal, clock),
+                    reveal,
+                ),
                 target,
             ),
             GroupItemContent::Slider { draw, .. } => draw(
@@ -694,16 +695,17 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 value,
                 ..
             } => {
-                let composed_icon = if shows_press_chip {
-                    identity.icon.chipped_view(config, reveal)
-                } else {
-                    identity.icon.view(config, reveal)
-                };
-                let composed_row =
-                    Row::with_children(composed_icon.into_iter().chain(value.view(reveal)))
-                        .spacing(config.theme.spacing.item_gap)
-                        .align_y(Alignment::Center)
-                        .into();
+                let composed_row = Row::with_children(
+                    identity
+                        .icon
+                        .view(config, reveal)
+                        .into_iter()
+                        .chain(value.view(reveal)),
+                )
+                .spacing(config.theme.spacing.item_gap)
+                .align_y(Alignment::Center)
+                .into();
+                let composed_row = self.with_switch_indicator(config, composed_row, reveal);
                 match hover {
                     GroupItemHoverArea::WholeItem(target) => explained(composed_row, target),
                     GroupItemHoverArea::ByChildren { .. } => composed_row,
@@ -858,28 +860,32 @@ mod tests {
     }
 
     #[test]
-    fn an_item_without_a_left_press_shows_no_chip() {
-        let read_only: GroupItem<'static, ()> =
-            GroupItem::reading(toggle_in_state(true), SessionTarget::Menu)
-                .on_right_press("act", ());
-        assert!(!read_only.shows_press_chip());
+    fn an_item_with_only_a_press_action_shows_no_switch() {
+        let launcher_row = composed_with(whole_item_hover()).on_press("launch", ());
+        assert_eq!(launcher_row.switch_indicator, ItemSwitchIndicator::Absent);
     }
 
     #[test]
-    fn a_toggle_shows_a_chip_whether_on_or_off() {
-        let chip_shown = |enabled| {
+    fn a_toggle_shows_a_switch_in_its_current_position() {
+        let indicator_of = |enabled| {
             let item: GroupItem<'static, ()> =
                 GroupItem::toggle(toggle_in_state(enabled), SessionTarget::Menu, ());
-            item.shows_press_chip()
+            item.switch_indicator
         };
-        assert!(chip_shown(true));
-        assert!(chip_shown(false));
+        assert_eq!(
+            indicator_of(true),
+            ItemSwitchIndicator::Shown { switched_on: true }
+        );
+        assert_eq!(
+            indicator_of(false),
+            ItemSwitchIndicator::Shown { switched_on: false }
+        );
     }
 
     #[test]
-    fn a_pressable_composed_item_without_an_icon_shows_no_chip() {
-        let item = composed_with(whole_item_hover()).on_press("act", ());
-        assert!(!item.shows_press_chip());
+    fn a_switch_press_announces_the_same_gesture_as_a_plain_press() {
+        let item = composed_with(whole_item_hover()).on_switch_press(true, "turn off", ());
+        assert_eq!(item.announcement().press_hints.left, Some("turn off"));
     }
 
     fn offset_slider_for(target: DarkModeTarget) -> SliderControl {

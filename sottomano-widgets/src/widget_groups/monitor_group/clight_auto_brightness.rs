@@ -47,6 +47,10 @@ impl ToggleableSource for AutoBrightness {
         clight_auto_brightness::flip()
     }
 
+    fn switched_on(&self) -> bool {
+        self.auto
+    }
+
     fn press_action_text(&self) -> &'static str {
         if self.auto {
             "stop setting brightness from webcam light; keep the current level"

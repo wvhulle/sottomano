@@ -48,6 +48,10 @@ impl UnitSwitchReading {
             UnitChange::Stop => self.face.presses.turning_off,
         }
     }
+
+    fn switched_on(self) -> bool {
+        self.activity.press_change() == UnitChange::Stop
+    }
 }
 
 impl GroupItemReading for UnitSwitchReading {
@@ -216,6 +220,10 @@ impl UnitSwitch {
             shown_glyph,
             ..self.reading(serving)?
         };
-        Some(GroupItem::reading(reading, target).on_press(reading.press_does(), pressed))
+        Some(GroupItem::reading(reading, target).on_switch_press(
+            reading.switched_on(),
+            reading.press_does(),
+            pressed,
+        ))
     }
 }
