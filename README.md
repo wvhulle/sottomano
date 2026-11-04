@@ -29,20 +29,20 @@ Previous work:
 
 Hovering the info icon of the temperature opens the forecast for the coming hours.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="872" alt="Hovering the temperature in the weather group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="905" alt="Hovering the temperature in the weather group">
 
 ### VPN: Tailscale
 
 The tailnet: how each peer is reached, the exit node and when the key expires,
 next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1031" alt="Opening the VPN group from the Network menu and hovering Tailscale">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/vpn_tailscale.webp" width="1064" alt="Opening the VPN group from the Network menu and hovering Tailscale">
 
 ### Dictation: Speech model
 
 The speech model the dictation daemon loaded.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1174" alt="Opening the dictation group from the Media menu and hovering the speech model">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1207" alt="Opening the dictation group from the Media menu and hovering the speech model">
 
 ### Toast: Next to its window
 
