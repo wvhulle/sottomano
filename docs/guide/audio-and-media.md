@@ -6,7 +6,7 @@ What is playing, and the speaker and microphone it plays through.
 
 The playing track from any MPRIS player, with where to find it.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/media_track.webp" width="953" alt="Hovering the playing track">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/media_track.webp" width="986" alt="Hovering the playing track">
 
 ## Audio: Volume
 
