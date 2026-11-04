@@ -20,27 +20,16 @@ pub enum OpenGroupLimit {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum HoverCardPlacement {
-    #[default]
-    BesideRow,
-    InlineWithRow,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GroupMenuPresentation {
     pub layout: GroupMenuLayout,
     pub open_trigger: GroupMenuOpenTrigger,
     pub accordion_open_limit: OpenGroupLimit,
-    pub hover_card_placement: HoverCardPlacement,
 }
 
 impl GroupMenuPresentation {
     #[must_use]
     pub const fn reveals_on_hover(self) -> bool {
-        matches!(
-            (self.layout, self.open_trigger),
-            (GroupMenuLayout::Cascading, GroupMenuOpenTrigger::Hover)
-        )
+        matches!(self.layout, GroupMenuLayout::Cascading)
     }
 
     #[must_use]
@@ -83,17 +72,6 @@ impl GroupMenuPresentation {
             ..self
         }
     }
-
-    #[must_use]
-    pub const fn with_card_placement_toggled(self) -> Self {
-        Self {
-            hover_card_placement: match self.hover_card_placement {
-                HoverCardPlacement::BesideRow => HoverCardPlacement::InlineWithRow,
-                HoverCardPlacement::InlineWithRow => HoverCardPlacement::BesideRow,
-            },
-            ..self
-        }
-    }
 }
 
 #[cfg(test)]
@@ -101,18 +79,20 @@ mod tests {
     use super::{GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit};
 
     #[test]
-    fn an_accordion_never_reveals_on_hover() {
-        let accordion = GroupMenuPresentation {
-            layout: GroupMenuLayout::Accordion,
-            open_trigger: GroupMenuOpenTrigger::Hover,
-            ..GroupMenuPresentation::default()
-        };
-        assert!(!accordion.reveals_on_hover());
-        let cascading_on_hover = GroupMenuPresentation {
-            open_trigger: GroupMenuOpenTrigger::Hover,
-            ..GroupMenuPresentation::default()
-        };
-        assert!(cascading_on_hover.reveals_on_hover());
+    fn only_a_cascading_menu_reveals_on_hover_whatever_the_open_trigger() {
+        for open_trigger in [GroupMenuOpenTrigger::Hover, GroupMenuOpenTrigger::Press] {
+            let cascading = GroupMenuPresentation {
+                open_trigger,
+                ..GroupMenuPresentation::default()
+            };
+            assert!(cascading.reveals_on_hover());
+            let accordion = GroupMenuPresentation {
+                layout: GroupMenuLayout::Accordion,
+                open_trigger,
+                ..GroupMenuPresentation::default()
+            };
+            assert!(!accordion.reveals_on_hover());
+        }
     }
 
     #[test]
@@ -121,7 +101,6 @@ mod tests {
             GroupMenuPresentation::default().open_trigger,
             GroupMenuOpenTrigger::Press
         );
-        assert!(!GroupMenuPresentation::default().reveals_on_hover());
     }
 
     #[test]

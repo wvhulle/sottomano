@@ -6,7 +6,6 @@ use crate::{
     group_menus::{
         accordion_layout::pointer_held_height::pointer_held_height,
         cascading_layout::notched_panel::PanelGrowth,
-        group_menu_presentation::HoverCardPlacement,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_row},
@@ -94,8 +93,6 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
     let total_rows = sections.iter().map(|section| section.shown_rows()).sum();
     let corners = ListEndCorners::new(total_rows, layout.cascade_satellite_panels.frame_corners);
     let inspected_target = layout.group_menus.inspected_target(topic);
-    let inline_cards =
-        layout.presentation.hover_card_placement == HoverCardPlacement::InlineWithRow;
     let scrolled_px = layout.group_menus.scrolled_px(topic);
     let mut beside_card = None;
     let section_views: Vec<Element<'a, M>> = entries
@@ -114,7 +111,7 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 corners: corners.radius_at(rows_above_header(&sections, section, growth)),
             };
             let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
-            let item_views = items.into_iter().enumerate().flat_map(|(item, row)| {
+            let item_views = items.into_iter().enumerate().map(|(item, row)| {
                 let rows_above = rows_above_item(&sections, section, item, growth);
                 let inspected =
                     inspected_target.is_some_and(|target| row.inspected_target == *target);
@@ -123,24 +120,13 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                     corners: corners.radius_at(rows_above),
                 };
                 let row_view: Element<'a, M> = item_row(layout, &group, row, look).map(M::from);
-                let card_view = inspected.then(|| card.view(layout.config)).flatten();
-                match (card_view, inline_cards) {
-                    (Some(card_view), true) => {
-                        let card_view: Element<'a, M> = card_view.map(M::from);
-                        match growth {
-                            PanelGrowth::Downward => vec![row_view, card_view],
-                            PanelGrowth::Upward => vec![card_view, row_view],
-                        }
-                    }
-                    (Some(card_view), false) => {
-                        beside_card = Some(InspectedAccordionRow {
-                            rows_above,
-                            card_view,
-                        });
-                        vec![row_view]
-                    }
-                    (None, _) => vec![row_view],
+                if let Some(card_view) = inspected.then(|| card.view(layout.config)).flatten() {
+                    beside_card = Some(InspectedAccordionRow {
+                        rows_above,
+                        card_view,
+                    });
                 }
+                row_view
             });
             let rows: Vec<Element<'a, M>> = match growth {
                 PanelGrowth::Downward => once(header).chain(item_views).collect(),

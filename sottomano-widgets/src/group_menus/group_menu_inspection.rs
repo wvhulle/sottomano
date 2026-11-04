@@ -119,21 +119,6 @@ impl GroupMenuInspection {
     }
 
     #[must_use]
-    pub(crate) fn toggling_row_card(self, menu: GroupMenuTopic, inspected: HoverTarget) -> Self {
-        match self {
-            GroupMenuInspection::Open(open) if open.menu == menu => {
-                let row = if open.row == RowInspection::Row(inspected.clone()) {
-                    RowInspection::Nothing
-                } else {
-                    RowInspection::Row(inspected)
-                };
-                GroupMenuInspection::Open(Box::new(OpenGroupMenuRows { row, ..*open }))
-            }
-            unrelated => unrelated,
-        }
-    }
-
-    #[must_use]
     pub(crate) fn adopting_open_limit(self, open_limit: OpenGroupLimit) -> Self {
         match (self, open_limit) {
             (GroupMenuInspection::Open(mut open), OpenGroupLimit::One) => {
@@ -345,20 +330,5 @@ mod tests {
                 .abs()
                 < f32::EPSILON
         );
-    }
-
-    #[test]
-    fn pressing_a_row_twice_closes_its_card() {
-        let inspection = GroupMenuInspection::Closed
-            .revealing_group(GroupMenuTopic::Hardware, GPU_GROUP)
-            .toggling_row_card(GroupMenuTopic::Hardware, inspected_workspace_row());
-        assert!(
-            inspection
-                .inspected_target(GroupMenuTopic::Hardware)
-                .is_some()
-        );
-        let closed =
-            inspection.toggling_row_card(GroupMenuTopic::Hardware, inspected_workspace_row());
-        assert_eq!(closed.inspected_target(GroupMenuTopic::Hardware), None);
     }
 }

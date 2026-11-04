@@ -240,6 +240,18 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     }
 
     #[must_use]
+    pub(crate) fn whole_item_target(&self) -> Option<&HoverTarget> {
+        match &self.kind {
+            GroupItemContent::Reading { target, .. }
+            | GroupItemContent::Composed {
+                hover: GroupItemHoverArea::WholeItem(target),
+                ..
+            } => Some(target),
+            GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
+        }
+    }
+
+    #[must_use]
     pub(crate) fn opening_card_on(self, card_opening_trigger: GroupMenuOpenTrigger) -> Self {
         Self {
             card_opening_trigger,

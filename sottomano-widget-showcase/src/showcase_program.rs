@@ -202,10 +202,28 @@ impl ShowcaseState {
                 }
                 Task::none()
             }
+            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
+                target,
+                pointed_at,
+                announcement,
+            }) => {
+                self.hover_card
+                    .set_handle_pointed_at(SHOWCASE_OUTPUT, &target, pointed_at);
+                if pointed_at
+                    && self
+                        .hover_card
+                        .hover_switches_menu(&target, SHOWCASE_OUTPUT)
+                {
+                    self.open_hover_card_until_dismissed(target, announcement);
+                }
+                Task::none()
+            }
             ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
                 target,
                 announcement,
             }) => {
+                self.hover_card
+                    .set_handle_pointed_at(SHOWCASE_OUTPUT, &target, true);
                 if self.hover_card.target() == Some(&target) {
                     self.close_held_open_card();
                 } else {
@@ -233,9 +251,7 @@ impl ShowcaseState {
                 Task::none()
             }
             ShowcaseMessage::GroupMenuState(message) => {
-                if let GroupMenuMessage::InspectRow { target, .. }
-                | GroupMenuMessage::ToggleRowCard { target, .. } = &message
-                {
+                if let GroupMenuMessage::InspectRow { target, .. } = &message {
                     self.schedule_hover_replies(target);
                 }
                 let _menu_task = self.group_menus.update(message);
@@ -325,7 +341,13 @@ impl ShowcaseState {
             | GroupShown::InMenuPresented { menu: kind, .. }
             | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
-                .panel_views(&self.config, self.group.position(), self.clock)
+                .panel_views(
+                    &self.config,
+                    self.group.position(),
+                    self.hover_card
+                        .handle_indicator(&HoverTarget::GroupMenu(kind), SHOWCASE_OUTPUT),
+                    self.clock,
+                )
                 .collect(),
             GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
         }

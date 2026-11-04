@@ -38,6 +38,7 @@ impl WidgetAnchor {
 struct AnchorOnOutput {
     output: String,
     widget_anchor: WidgetAnchor,
+    pointed_at: bool,
 }
 
 #[derive(Default)]
@@ -47,13 +48,32 @@ pub struct LaidOutAnchors {
 
 impl LaidOutAnchors {
     pub fn remember(&mut self, output: &str, widget_anchor: WidgetAnchor) {
+        let pointed_at = self.is_pointed_at(output, &widget_anchor.target);
         self.anchors.retain(|known| {
             known.output != output || known.widget_anchor.target != widget_anchor.target
         });
         self.anchors.push(AnchorOnOutput {
             output: output.to_owned(),
             widget_anchor,
+            pointed_at,
         });
+    }
+
+    pub fn set_pointed_at(&mut self, output: &str, target: &HoverTarget, pointed_at: bool) {
+        self.anchors
+            .iter_mut()
+            .filter(|known| known.output == output && known.widget_anchor.target == *target)
+            .for_each(|known| known.pointed_at = pointed_at);
+    }
+
+    #[must_use]
+    pub fn is_pointed_at(&self, output: &str, target: &HoverTarget) -> bool {
+        self.anchors.iter().any(|known| {
+            known.pointed_at
+                && known.output == output
+                && known.widget_anchor.target == *target
+                && known.widget_anchor.widget_still_exists()
+        })
     }
 
     fn widget_of(&self, output: &str, target: &HoverTarget) -> Option<&WidgetAnchor> {
@@ -208,6 +228,24 @@ mod tests {
     #[test]
     fn a_watch_with_nothing_to_watch_stays_silent() {
         assert!(messages_from_a_redraw(None).is_empty());
+    }
+
+    #[test]
+    fn pointing_at_a_handle_survives_a_new_layout_but_not_a_dropped_widget() {
+        let widget = Arc::new(());
+        let live_handle = || WidgetAnchor {
+            presence: Arc::downgrade(&widget),
+            ..handle_at(1.0)
+        };
+        let mut anchors = LaidOutAnchors::default();
+        anchors.remember("DP-1", live_handle());
+        anchors.set_pointed_at("DP-1", &workspace_card(), true);
+        assert!(anchors.is_pointed_at("DP-1", &workspace_card()));
+        assert!(!anchors.is_pointed_at("DP-2", &workspace_card()));
+        anchors.remember("DP-1", live_handle());
+        assert!(anchors.is_pointed_at("DP-1", &workspace_card()));
+        drop(widget);
+        assert!(!anchors.is_pointed_at("DP-1", &workspace_card()));
     }
 
     #[test]

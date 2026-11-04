@@ -435,4 +435,16 @@ mod tests {
             GpuNames::Chip("Navi 31".to_owned())
         );
     }
+
+    #[test]
+    fn preferred_name_is_the_product_when_known() {
+        assert_eq!(
+            GpuNames::from_hardware_database("AD102 [GeForce RTX 4090]").preferred_name(),
+            "GeForce RTX 4090"
+        );
+        assert_eq!(
+            GpuNames::from_hardware_database("Navi 31").preferred_name(),
+            "Navi 31"
+        );
+    }
 }

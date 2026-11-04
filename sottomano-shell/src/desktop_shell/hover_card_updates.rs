@@ -70,23 +70,21 @@ impl DesktopShell {
                 self.hover_card.open(&parent, target, announcement);
                 Task::none()
             }
+            HoverCardMessage::MenuHandlePointed {
+                surface,
+                position,
+                target,
+                pointed_at,
+                announcement,
+            } => {
+                self.follow_menu_handle_pointer(surface, position, target, pointed_at, announcement)
+            }
             HoverCardMessage::MenuHandlePressed {
                 surface,
                 position,
                 target,
                 announcement,
-            } => {
-                if self.hover_card.target() == Some(&target) {
-                    return self.dismiss_hover_card();
-                }
-                if let Some(parent) =
-                    self.hover_card_parent(surface, position, &target, &announcement)
-                {
-                    self.hover_card
-                        .open_until_dismissed(&parent, target, announcement);
-                }
-                Task::none()
-            }
+            } => self.toggle_menu_of_handle(surface, position, target, announcement),
             HoverCardMessage::ShownWidgetDropped => Task::done(Message::HoverCard(
                 HoverCardMessage::ConfirmShownWidgetDropped,
             )),
@@ -116,6 +114,51 @@ impl DesktopShell {
                 .update(other, self.clock.instant)
                 .map_or_else(Task::none, hide_hover_card_at),
         }
+    }
+
+    fn follow_menu_handle_pointer(
+        &mut self,
+        surface: Id,
+        position: Position,
+        target: HoverTarget,
+        pointed_at: bool,
+        announcement: HoverAnnouncement,
+    ) -> Task<Message> {
+        let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone()) else {
+            return Task::none();
+        };
+        self.hover_card
+            .set_handle_pointed_at(&output, &target, pointed_at);
+        if pointed_at
+            && self.hover_card.hover_switches_menu(&target, &output)
+            && let Some(parent) = self.hover_card_parent(surface, position, &target, &announcement)
+        {
+            self.hover_card
+                .open_until_dismissed(&parent, target, announcement);
+        }
+        Task::none()
+    }
+
+    fn toggle_menu_of_handle(
+        &mut self,
+        surface: Id,
+        position: Position,
+        target: HoverTarget,
+        announcement: HoverAnnouncement,
+    ) -> Task<Message> {
+        let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone()) else {
+            return Task::none();
+        };
+        self.hover_card
+            .set_handle_pointed_at(&output, &target, true);
+        if self.hover_card.target() == Some(&target) {
+            return self.dismiss_hover_card();
+        }
+        if let Some(parent) = self.hover_card_parent(surface, position, &target, &announcement) {
+            self.hover_card
+                .open_until_dismissed(&parent, target, announcement);
+        }
+        Task::none()
     }
 
     fn hover_card_parent(

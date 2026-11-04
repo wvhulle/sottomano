@@ -24,8 +24,8 @@ use crate::{
     },
     group_menus::group_menu_state::{GroupMenuState, GroupMenuTopic},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, PanelPinOrigin, PressHints,
-        announcing_hoverable,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
+        PressHints, announcing_hoverable,
     },
     widget_groups::{
         expand_animation::expand_animation,
@@ -473,6 +473,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     fixed_view(
                         slice::from_ref(&item),
                         item.ongoing_alert_severity(clock).unwrap_or_default(),
+                        MenuHandleIndicator::default(),
                         config,
                         panel_position,
                         clock,
@@ -650,6 +651,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
 pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     items: &[GroupItem<'a, M>],
     highest_alert_severity: Severity,
+    handle_indicator: MenuHandleIndicator,
     config: &'a Config,
     panel_position: Position,
     clock: Clock,
@@ -657,12 +659,7 @@ pub(crate) fn fixed_view<'a, M: Clone + 'a>(
     let row = Row::with_children(items.iter().map(|item| item.view(config, 1.0, clock)))
         .spacing(config.theme.spacing.item_gap)
         .align_y(Alignment::Center);
-    let indicator = EdgeIndicator {
-        highest_alert_severity,
-        cursor_hovering: false,
-        expanded: false,
-    }
-    .view(0.0);
+    let indicator = EdgeIndicator::of_menu_handle(highest_alert_severity, handle_indicator);
     PanelSlot::new(row.into(), indicator).view(panel_position)
 }
 
@@ -674,6 +671,19 @@ pub(crate) struct EdgeIndicator {
 }
 
 impl EdgeIndicator {
+    pub(crate) fn of_menu_handle<'a, M: 'a>(
+        highest_alert_severity: Severity,
+        handle_indicator: MenuHandleIndicator,
+    ) -> Element<'a, M> {
+        let reveal = if handle_indicator.open { 1.0 } else { 0.0 };
+        Self {
+            highest_alert_severity,
+            cursor_hovering: handle_indicator.hovering,
+            expanded: handle_indicator.open,
+        }
+        .view(reveal)
+    }
+
     pub(crate) fn view<'a, M: 'a>(self, reveal: f32) -> Element<'a, M> {
         let thickness = ACCENT_STROKE_PX;
         let base = if self.cursor_hovering { 0.5 } else { 0.2 };
