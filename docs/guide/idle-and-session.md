@@ -6,7 +6,7 @@ When the screen turns off and locks, and what the session runs on.
 
 Dragging a timeout changes it; the card says when it fires and through which mechanism.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/idle_screen_off.webp" width="927" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/idle_screen_off.webp" width="960" alt="Opening the idle timeouts from the Session menu and hovering the screen-off timer">
 
 ## Idle timeouts: Other timers
 

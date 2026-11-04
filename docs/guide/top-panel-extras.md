@@ -12,7 +12,7 @@ Upcoming events and open tasks over CalDAV, overdue tasks in red.
 
 The controller drawn with every bound button labelled in place.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/gamepad_controller.webp" width="1269" alt="Hovering the game controller to see its bindings drawn on the controller">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/gamepad_controller.webp" width="1272" alt="Hovering the game controller to see its bindings drawn on the controller">
 
 ## Other readings
 

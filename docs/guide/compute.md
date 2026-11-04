@@ -14,13 +14,13 @@ The machine's processor: load, clock, temperature, power and the cache layout of
 
 Pressing the compute row in the Hardware menu opens load, temperature, power and model.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu.webp" width="1261" alt="Opening the compute group from the Hardware menu from the CPU reading">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_cpu.webp" width="1260" alt="Opening the compute group from the Hardware menu from the CPU reading">
 
 ## Compute: Model
 
 The CPU model with its vendor logo, microarchitecture and caches.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_model.webp" width="1073" alt="Hovering the CPU model in the compute group">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_model.webp" width="1108" alt="Hovering the CPU model in the compute group">
 
 ## Compute: Other readings
 
