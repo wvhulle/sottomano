@@ -173,20 +173,25 @@ right = "focus_column_right"
 stick = "right"
 pixels_per_second = 1600
 left_button = "right_trigger"
+right_button = "right_stick"
 
 [widget_groups.gamepad.typed_keys]
 south = "Return"
-east = "Escape"
+east = "BackSpace"
+north = "shift+Tab"
+west = "Escape"
 dpad_up = "Up"
 dpad_down = "Down"
 dpad_left = "Left"
 dpad_right = "Right"
+back = "Tab"
 
 [widget_groups.gamepad.compositor_actions]
-north = "maximize_column"
 left_shoulder = "move_column_left"
 right_shoulder = "move_column_right"
+start = "maximize_column"
 guide = "toggle_overview"
+left_stick = "focus_window_previous"
 
 [widget_groups.gamepad.commands]
 
