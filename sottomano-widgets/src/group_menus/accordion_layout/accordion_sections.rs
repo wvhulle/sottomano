@@ -107,14 +107,13 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
                 Vec::new()
             };
             let header_look = MenuRowLook {
-                emphasis: MenuRowEmphasis::open_group_when(open),
+                emphasis: MenuRowEmphasis::selected_when(open),
                 corners: corners.radius_at(rows_above_header(&sections, section, growth)),
             };
             let header: Element<'a, M> = group_row(layout, entry, header_look).map(M::from);
             let item_views = items.into_iter().enumerate().map(|(item, row)| {
                 let rows_above = rows_above_item(&sections, section, item, growth);
-                let inspected =
-                    inspected_target.is_some_and(|target| row.inspected_target == *target);
+                let inspected = row.is_inspected(inspected_target);
                 let look = MenuRowLook {
                     emphasis: MenuRowEmphasis::selected_when(inspected),
                     corners: corners.radius_at(rows_above),

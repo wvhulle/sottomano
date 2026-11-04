@@ -18,8 +18,7 @@ use crate::{
         group_menu_state::{GroupMenuPin, GroupMenuState},
         group_menu_view::GroupMenuMessenger,
         menu_rows::menu_row::{
-            MenuRowContent, MenuRowEmphasis, MenuRowLook, hovered_menu_row, inert_menu_row,
-            pressable_menu_row,
+            MenuRowContent, MenuRowEmphasis, MenuRowLook, MenuRowPress, hovered_menu_row, menu_row,
         },
     },
     hover_cards::{HoverTarget, marked_by_hover_target, marked_by_menu_pin},
@@ -96,39 +95,39 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
     );
     let caret_color = match look.emphasis {
         MenuRowEmphasis::Plain => secondary_text_color,
-        MenuRowEmphasis::OpenGroup | MenuRowEmphasis::Selected => text_color,
+        MenuRowEmphasis::Selected => text_color,
     };
-    let content = match (layout.presentation.layout, layout.direction) {
-        (GroupMenuLayout::Accordion, _) => MenuRowContent {
-            leading: Vec::new(),
-            parts: entry.face,
-            name: group_title.to_string().into(),
-            trailing: vec![
+    let (leading, trailing) = match (layout.presentation.layout, layout.direction) {
+        (GroupMenuLayout::Accordion, _) => (
+            Vec::new(),
+            vec![
                 pin,
                 IconGlyph::from(accordion_caret(
-                    look.emphasis == MenuRowEmphasis::OpenGroup,
+                    look.emphasis == MenuRowEmphasis::Selected,
                     layout.cascade_satellite_panels.growth,
                 ))
                 .view(icon_size, caret_color),
             ],
-        },
-        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => MenuRowContent {
-            leading: Vec::new(),
-            parts: entry.face,
-            name: group_title.to_string().into(),
-            trailing: vec![
+        ),
+        (GroupMenuLayout::Cascading, CascadeDirection::Rightward) => (
+            Vec::new(),
+            vec![
                 pin,
                 IconGlyph::from(Phosphor::CaretRight(Weight::Regular)).view(icon_size, caret_color),
             ],
-        },
-        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => MenuRowContent {
-            leading: vec![
+        ),
+        (GroupMenuLayout::Cascading, CascadeDirection::Leftward) => (
+            vec![
                 IconGlyph::from(Phosphor::CaretLeft(Weight::Regular)).view(icon_size, caret_color),
             ],
-            parts: entry.face,
-            name: group_title.to_string().into(),
-            trailing: vec![pin],
-        },
+            vec![pin],
+        ),
+    };
+    let content = MenuRowContent {
+        leading,
+        parts: entry.face,
+        name: group_title.to_string().into(),
+        trailing,
     };
     if layout.presentation.reveals_on_hover() {
         hovered_menu_row(
@@ -142,11 +141,11 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
             layout.menu.cancel_group_reveal(entry.group_identity),
         )
     } else {
-        pressable_menu_row(
+        menu_row(
             layout.config,
             content,
             look,
-            layout.menu.toggle_group(entry.group_identity),
+            MenuRowPress::Performs(layout.menu.toggle_group(entry.group_identity)),
         )
     }
 }
@@ -155,7 +154,7 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
     layout: &GroupMenuRowContext<'_, 'a, M>,
     group: &WidgetGroupIdentity,
     items: Vec<GroupMenuItemRow<'a, M>>,
-    is_inspected: &dyn Fn(&GroupMenuItemRow<'a, M>) -> bool,
+    inspected_target: Option<&HoverTarget>,
     panel_corners: Radius,
 ) -> Element<'a, M> {
     let end_corners = ListEndCorners::new(items.len(), panel_corners);
@@ -164,7 +163,7 @@ pub(crate) fn item_menu<'a, M: Clone + From<GroupEvent<M>> + 'a>(
         .enumerate()
         .map(|(position, item)| {
             let look = MenuRowLook {
-                emphasis: MenuRowEmphasis::selected_when(is_inspected(&item)),
+                emphasis: MenuRowEmphasis::selected_when(item.is_inspected(inspected_target)),
                 corners: end_corners.radius_at(position),
             };
             item_row(layout, group, item, look).map(M::from)
@@ -224,12 +223,13 @@ pub(crate) fn item_row<'a, M: Clone + 'a>(
             .chain(once(card_info_icon(layout, item.inspected_target)))
             .collect(),
     };
-    let row = match item.gestures.left {
+    let press = match item.gestures.left {
         GroupItemGesture::Performs { message, .. } => {
-            pressable_menu_row(layout.config, content, look, GroupEvent::Group(message))
+            MenuRowPress::Performs(GroupEvent::Group(message))
         }
-        GroupItemGesture::Inert => inert_menu_row(layout.config, content, look),
+        GroupItemGesture::Inert => MenuRowPress::Inert,
     };
+    let row = menu_row(layout.config, content, look, press);
     match item.gestures.right {
         GroupItemGesture::Performs { message, .. } => mouse_area(row)
             .on_right_press(GroupEvent::Group(message))

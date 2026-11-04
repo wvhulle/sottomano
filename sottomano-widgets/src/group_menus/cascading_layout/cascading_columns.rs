@@ -92,16 +92,17 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
         items,
     } = open;
     let inspected_target = layout.group_menus.inspected_target(layout.menu.topic);
-    let card_position = inspected_target.and_then(|target| {
-        items
-            .iter()
-            .position(|item| item.inspected_target == *target)
-    });
+    let card_position = items
+        .iter()
+        .position(|item| item.is_inspected(inspected_target));
     let item_corners = layout.cascade_satellite_panels.frame_corners;
-    let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
-        inspected_target.is_some_and(|target| item.inspected_target == *target)
-    };
-    let item_list = item_menu(layout, &group_identity, items, &is_inspected, item_corners);
+    let item_list = item_menu(
+        layout,
+        &group_identity,
+        items,
+        inspected_target,
+        item_corners,
+    );
     let item_list_scrolled_px = layout.group_menus.item_list_scrolled_px(layout.menu.topic);
     let item_list_scroll_message = layout.menu.item_list_scroll_message();
     let item_list_viewport = selection_scroller(

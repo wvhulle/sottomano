@@ -757,7 +757,21 @@ mod tests {
 
     const POINTED_ROW: HoverTarget = HoverTarget::Workspace(7);
 
+    #[derive(Clone, Copy)]
+    enum PointedRowPress {
+        PerformsAction,
+        ReadOnly,
+    }
+
     fn messages_after_pointing(
+        pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
+        pressed: bool,
+    ) -> Vec<RowPointerMessage> {
+        messages_after_pointing_at_row(PointedRowPress::PerformsAction, pointer_target, pressed)
+    }
+
+    fn messages_after_pointing_at_row(
+        row_press: PointedRowPress,
         pointer_target: impl Fn(&mut Simulator<'_, RowPointerMessage>) -> Point,
         pressed: bool,
     ) -> Vec<RowPointerMessage> {
@@ -774,8 +788,11 @@ mod tests {
             WidgetGroupFamily::Gpu,
             &expansion,
             |_| RowPointerMessage::Unrelated,
-            [GroupItem::reading(SmokeReading, POINTED_ROW)
-                .on_press("act", RowPointerMessage::RowAction)],
+            [match row_press {
+                PointedRowPress::PerformsAction => GroupItem::reading(SmokeReading, POINTED_ROW)
+                    .on_press("act", RowPointerMessage::RowAction),
+                PointedRowPress::ReadOnly => GroupItem::reading(SmokeReading, POINTED_ROW),
+            }],
         );
         let surfaces = GroupMenuView::new(
             GroupMenuTopic::Hardware,
@@ -953,6 +970,22 @@ mod tests {
     fn pressing_the_row_name_performs_the_row_action() {
         assert!(
             messages_after_pointing(row_name_center, true).contains(&RowPointerMessage::RowAction)
+        );
+    }
+
+    #[test]
+    fn pressing_a_read_only_row_name_sends_no_row_message() {
+        let messages =
+            messages_after_pointing_at_row(PointedRowPress::ReadOnly, row_name_center, true);
+        assert!(!messages.contains(&RowPointerMessage::RowAction));
+        assert!(!messages.contains(&RowPointerMessage::RowInspected(POINTED_ROW)));
+    }
+
+    #[test]
+    fn hovering_the_info_icon_of_a_read_only_row_inspects_it() {
+        assert!(
+            messages_after_pointing_at_row(PointedRowPress::ReadOnly, info_icon_center, false)
+                .contains(&RowPointerMessage::RowInspected(POINTED_ROW))
         );
     }
 
