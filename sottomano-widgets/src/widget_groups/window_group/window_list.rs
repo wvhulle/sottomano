@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use iced::{
     Alignment, Element, Subscription, Task,
-    widget::{Row, container, progress_bar, right, stack, text},
+    widget::{Row, container, progress_bar, right, stack, text, text::Wrapping},
 };
 use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_sources::{
@@ -38,7 +38,7 @@ use crate::{
         flat_window_rows::arranged_flat_rows,
         location_grouped_window_rows::arranged_location_groups,
         process_tree::Folding,
-        window_list_viewport::{WindowListEdgeFade, WindowListMetrics, window_list_viewport},
+        window_list_viewport::{WindowListMetrics, window_list_viewport},
         window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
     },
     widgets::{
@@ -47,6 +47,7 @@ use crate::{
         configured_theme::{
             background_color, background_strong_color, danger_color, primary_color, warning_color,
         },
+        edge_alpha_fade::ScrollEdgeFade,
         hover_fetched_snapshot::HoverFetchedSnapshot,
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
@@ -62,7 +63,22 @@ use crate::{
     },
 };
 
-const EDGE_FADE_WIDTH_IN_PANEL_HEIGHTS: f32 = 3.0;
+fn maximum_window_title_width_px(config: &Config) -> f32 {
+    config
+        .widget_groups
+        .window
+        .resolved_maximum_window_title_width(config.theme.font.text_size_px)
+}
+
+fn capped_window_title<'a, Message: 'a>(
+    title: impl Into<Element<'a, Message>>,
+    config: &Config,
+) -> Element<'a, Message> {
+    container(title)
+        .max_width(maximum_window_title_width_px(config))
+        .clip(true)
+        .into()
+}
 
 #[derive(Default)]
 pub struct WindowList {
@@ -321,10 +337,10 @@ impl WindowList {
             pager,
             self.scroll,
             focused_position,
-            WindowListEdgeFade {
-                frame: slot_context.panel_frame_style,
-                width_px: config.desktop_panels.height * EDGE_FADE_WIDTH_IN_PANEL_HEIGHTS,
-            },
+            ScrollEdgeFade::away_from_frame(
+                slot_context.panel_frame_style,
+                maximum_window_title_width_px(config),
+            ),
             WindowListMessage::Scrolled,
             WindowListMessage::MetricsChanged,
         ))
@@ -587,13 +603,15 @@ impl WindowSlot<'_> {
         let config = self.slot_context.config;
         let title = self.window_entry.label.as_ref().map(|label| {
             self.presentation.styled_title(
-                WindowTitle::new(label, config).opacity(self.opacity),
+                WindowTitle::new(label, config)
+                    .opacity(self.opacity)
+                    .wrapping(Wrapping::None),
                 self.is_marked_by_tile(),
             )
         });
         Row::new()
             .extend(self.badged_icon(icons))
-            .extend(title.map(Element::from))
+            .extend(title.map(|title| capped_window_title(title, config)))
             .extend(self.audio_glyph())
             .spacing(config.theme.spacing.item_gap)
             .align_y(Alignment::Center)
@@ -700,10 +718,17 @@ impl WindowSlot<'_> {
 
 #[cfg(test)]
 mod tests {
+    use iced::{
+        Element, Settings, Size,
+        widget::{text, text::Wrapping},
+    };
     use iced_controller_diagram::ControllerArtwork;
+    use iced_test::Simulator;
     use sottomano_config::{Config, screen_edges::Position};
 
-    use super::{WindowList, WindowListMessage};
+    use super::{
+        WindowList, WindowListMessage, capped_window_title, maximum_window_title_width_px,
+    };
     use crate::{
         clock::Clock,
         desktop_index::DesktopIndex,
@@ -725,6 +750,23 @@ mod tests {
             window_icon::WindowAssets,
         },
     };
+
+    #[test]
+    fn a_very_long_title_is_no_wider_than_the_configured_maximum() {
+        let config = Config::default();
+        let long_title = "a very long window title ".repeat(12);
+        let title_element: Element<'_, ()> =
+            text(long_title.clone()).wrapping(Wrapping::None).into();
+        let capped = capped_window_title(title_element, &config);
+        let mut simulated_panel =
+            Simulator::with_size(Settings::default(), Size::new(1600.0, 40.0), capped);
+        let title_target = simulated_panel
+            .find(long_title.as_str())
+            .expect("the capped title is laid out");
+        assert!(title_target.visible_bounds().is_some_and(|bounds| {
+            bounds.width <= maximum_window_title_width_px(&config) + f32::EPSILON
+        }));
+    }
 
     #[test]
     fn dragging_a_window_across_the_list_enters_each_slot_then_leaves() {

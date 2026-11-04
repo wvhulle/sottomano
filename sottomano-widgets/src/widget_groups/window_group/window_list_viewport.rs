@@ -12,16 +12,11 @@ use iced::{
     window,
 };
 
-use crate::{
-    desktop_panels::panel_frame::LayerFrameStyle,
-    widgets::{
-        edge_alpha_fade::{FadedEdge, draw_edge_alpha_fade},
-        reveal::clip_cursor,
-        shared_metrics::SCROLL_LINE_STEP_PX,
-    },
+use crate::widgets::{
+    edge_alpha_fade::{FadedEdge, HiddenScrollEdges, ScrollEdgeFade},
+    reveal::clip_cursor,
+    shared_metrics::SCROLL_LINE_STEP_PX,
 };
-
-const OVERFLOW_TOLERANCE_PX: f32 = 0.5;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct WindowListMetrics {
@@ -33,44 +28,6 @@ impl WindowListMetrics {
     #[must_use]
     pub fn max_scroll(&self) -> f32 {
         (self.content_width - self.viewport_width).max(0.0)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct WindowListEdgeFade {
-    pub frame: LayerFrameStyle,
-    pub width_px: f32,
-}
-
-impl WindowListEdgeFade {
-    fn band_width(self, viewport_width: f32) -> f32 {
-        self.width_px.min(viewport_width / 2.0)
-    }
-
-    fn draw_at_left(self, renderer: &mut iced::Renderer, theme: &iced::Theme, bounds: Rectangle) {
-        draw_edge_alpha_fade(
-            renderer,
-            Rectangle {
-                width: self.band_width(bounds.width),
-                ..bounds
-            },
-            FadedEdge::Left,
-            self.frame.fill_color(theme),
-        );
-    }
-
-    fn draw_at_right(self, renderer: &mut iced::Renderer, theme: &iced::Theme, bounds: Rectangle) {
-        let band_width = self.band_width(bounds.width);
-        draw_edge_alpha_fade(
-            renderer,
-            Rectangle {
-                x: bounds.x + bounds.width - band_width,
-                width: band_width,
-                ..bounds
-            },
-            FadedEdge::Right,
-            self.frame.fill_color(theme),
-        );
     }
 }
 
@@ -92,28 +49,11 @@ impl FocusedWindowSpan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct HiddenWindowEdges {
-    left: bool,
-    right: bool,
-}
-
-impl HiddenWindowEdges {
-    fn of(offset: f32, content_width: f32, viewport_width: f32) -> Self {
-        let max_offset = (content_width - viewport_width).max(0.0);
-        let scrolled = offset.clamp(0.0, max_offset);
-        Self {
-            left: scrolled > OVERFLOW_TOLERANCE_PX,
-            right: max_offset - scrolled > OVERFLOW_TOLERANCE_PX,
-        }
-    }
-}
-
 pub fn window_list_viewport<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     offset: f32,
     focused_index: Option<usize>,
-    edge_fade: WindowListEdgeFade,
+    edge_fade: ScrollEdgeFade,
     on_scroll: impl Fn(f32) -> Message + 'a,
     on_metrics: impl Fn(WindowListMetrics) -> Message + 'a,
 ) -> Element<'a, Message> {
@@ -131,7 +71,7 @@ struct WindowListViewport<'a, Message> {
     content: Element<'a, Message>,
     offset: f32,
     focused_index: Option<usize>,
-    edge_fade: WindowListEdgeFade,
+    edge_fade: ScrollEdgeFade,
     on_scroll: Box<dyn Fn(f32) -> Message + 'a>,
     on_metrics: Box<dyn Fn(WindowListMetrics) -> Message + 'a>,
 }
@@ -224,13 +164,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for WindowListViewpor
                 &content_clip,
             );
         });
-        let hidden_edges = HiddenWindowEdges::of(self.offset, natural_width(layout), bounds.width);
+        let hidden_edges = HiddenScrollEdges::of(self.offset, natural_width(layout), bounds.width);
         renderer.with_layer(content_clip, |renderer| {
-            if hidden_edges.left {
-                self.edge_fade.draw_at_left(renderer, theme, bounds);
+            if hidden_edges.start {
+                self.edge_fade
+                    .draw_on(FadedEdge::Left, renderer, theme, bounds);
             }
-            if hidden_edges.right {
-                self.edge_fade.draw_at_right(renderer, theme, bounds);
+            if hidden_edges.end {
+                self.edge_fade
+                    .draw_on(FadedEdge::Right, renderer, theme, bounds);
             }
         });
     }
@@ -382,7 +324,7 @@ impl<Message> WindowListViewport<'_, Message> {
                 .offset_clear_of_fades(
                     self.offset,
                     viewport_width,
-                    self.edge_fade.band_width(viewport_width),
+                    self.edge_fade.extent_within(viewport_width),
                 )
                 .clamp(0.0, max_offset);
             state.last_focus = Some(focused_position);
@@ -397,7 +339,7 @@ impl<Message> WindowListViewport<'_, Message> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FocusedWindowSpan, HiddenWindowEdges};
+    use super::FocusedWindowSpan;
 
     #[test]
     fn focused_window_is_scrolled_clear_of_the_fades() {
@@ -408,23 +350,5 @@ mod tests {
         assert!(close_to(offset_for(120.0, 180.0, 0.0), 0.0));
         assert!(close_to(offset_for(120.0, 180.0, 100.0), 70.0));
         assert!(close_to(offset_for(240.0, 290.0, 0.0), 40.0));
-    }
-
-    #[test]
-    fn only_edges_with_hidden_windows_are_faded() {
-        let hidden = |offset, content_width, viewport_width| {
-            let edges = HiddenWindowEdges::of(offset, content_width, viewport_width);
-            [edges.left, edges.right]
-        };
-        assert_eq!(hidden(0.0, 80.0, 100.0), [false, false]);
-        assert_eq!(hidden(0.0, 300.0, 100.0), [false, true]);
-        assert_eq!(hidden(50.0, 300.0, 100.0), [true, true]);
-        assert_eq!(hidden(500.0, 300.0, 100.0), [true, false]);
-    }
-
-    #[test]
-    fn subpixel_overflow_draws_no_fade() {
-        let edges = HiddenWindowEdges::of(0.0, 100.25, 100.0);
-        assert_eq!([edges.left, edges.right], [false, false]);
     }
 }

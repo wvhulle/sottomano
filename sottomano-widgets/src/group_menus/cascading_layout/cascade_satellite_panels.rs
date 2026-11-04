@@ -4,7 +4,6 @@ use sottomano_config::Config;
 use crate::{
     desktop_panels::panel_frame::LayerFrameStyle,
     group_menus::{
-        accordion_layout::menu_rows_viewport::RowsEdgeFade,
         cascading_layout::{
             cascade_row::{CascadeDirection, CascadeOrientation},
             notched_panel::{
@@ -14,7 +13,7 @@ use crate::{
         },
         menu_rows::menu_row::menu_row_height,
     },
-    widgets::shell_layer_appearance::LayerAppearance,
+    widgets::{edge_alpha_fade::ScrollEdgeFade, shell_layer_appearance::LayerAppearance},
 };
 
 #[derive(Clone, Copy)]
@@ -58,11 +57,8 @@ impl CascadeSatellitePanels {
         }
     }
 
-    pub(crate) fn rows_edge_fade(&self, config: &Config) -> RowsEdgeFade {
-        RowsEdgeFade {
-            frame: self.list_frame,
-            height_px: menu_row_height(config),
-        }
+    pub(crate) fn rows_edge_fade(&self, config: &Config) -> ScrollEdgeFade {
+        ScrollEdgeFade::within_frame(self.list_frame, menu_row_height(config))
     }
 
     pub(crate) fn beside_row<'a, Message: 'a>(
