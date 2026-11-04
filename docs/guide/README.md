@@ -18,7 +18,7 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 
 The Menus group in the Behaviour menu changes how every menu opens. Menus can open from their icon on hover instead of on press, and such a menu closes when the pointer leaves it. In an accordion, pressing a row opens the group's items below it, and several groups can stay open.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1113" alt="Opening two groups of the Hardware menu as an accordion and hovering CPU load">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1113" alt="Opening two groups of the Hardware menu as an accordion">
 
 | Menu | Panel | Groups |
 |---|---|---|

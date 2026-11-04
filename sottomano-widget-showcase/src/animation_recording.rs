@@ -42,10 +42,10 @@ use crate::{
 pub(crate) const CANVAS: Size = Size::new(1280.0, 1080.0);
 const SCALE_FACTOR: f32 = 2.0;
 const REST_POINTER: Point = Point::new(CANVAS.width - 1.0, CANVAS.height / 2.0);
-const REST_HOLD: Duration = Duration::from_millis(1000);
-const HOVER_HOLD: Duration = Duration::from_millis(2500);
-const PRESS_LEAD: Duration = Duration::from_millis(1000);
-const PRESS_HOLD: Duration = Duration::from_millis(1500);
+const REST_HOLD: Duration = Duration::from_millis(500);
+const HOVER_HOLD: Duration = Duration::from_millis(2000);
+const PRESS_LEAD: Duration = Duration::from_millis(300);
+const PRESS_HOLD: Duration = Duration::from_millis(900);
 const DRAG_MOVES: u16 = 16;
 const DRAG_MOVE_HOLD: Duration = Duration::from_millis(60);
 pub(crate) const FRAME_INTERVAL: Duration = Duration::from_millis(20);
@@ -61,6 +61,7 @@ struct CapturedFrame {
 
 struct DemoRecorder<'session> {
     demo: &'static Demo,
+    config: &'session Config,
     program: ShowcaseProgram,
     emulator: Emulator<ShowcaseProgram>,
     events: Receiver<Event<ShowcaseProgram>>,
@@ -73,7 +74,7 @@ struct DemoRecorder<'session> {
 impl<'session> DemoRecorder<'session> {
     fn start(
         demo: &'static Demo,
-        config: &Config,
+        config: &'session Config,
         clock: Clock,
         layout_renderer: &'session mut iced::Renderer,
     ) -> Self {
@@ -88,6 +89,7 @@ impl<'session> DemoRecorder<'session> {
         );
         let mut recorder = DemoRecorder {
             demo,
+            config,
             program,
             emulator,
             events,
@@ -204,7 +206,7 @@ impl<'session> DemoRecorder<'session> {
             Step::Hover(target) => {
                 let pointer = self.locate(HoveredWidget(target.clone()));
                 self.point_at(pointer);
-                self.capture_during(HOVER_FETCH_LATENCY + HOVER_HOLD)
+                self.capture_during(self.hover_hold_for(target))
             }
             Step::Press(target) => {
                 let pointer = self.locate(HoveredWidget(target.clone()));
@@ -260,6 +262,15 @@ impl<'session> DemoRecorder<'session> {
                     .chain(self.capture_during(HOVER_HOLD))
                     .collect()
             }
+        }
+    }
+
+    fn hover_hold_for(&self, target: &HoverTarget) -> Duration {
+        let fetch_replies = (self.demo.group)(self.clock).hover(target, self.config, self.clock);
+        if fetch_replies.is_empty() {
+            HOVER_HOLD
+        } else {
+            HOVER_FETCH_LATENCY + HOVER_HOLD
         }
     }
 

@@ -22,17 +22,12 @@ The CPU model with its vendor logo, microarchitecture and caches.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_model.webp" width="1040" alt="Hovering the CPU model in the compute group">
 
-## Compute: Clock
-
-Each thread's clock per chiplet, with the chiplet the scheduler prefers starred.
-
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/compute_clock.webp" width="1222" alt="Hovering the CPU clock in the compute group">
-
 ## Compute: Other readings
 
 These open from the same row and look like the readings above.
 
 | Reading | What it shows |
 |---|---|
+| Clock | Each thread's clock per chiplet, with the chiplet the scheduler prefers starred. |
 | Temperature | The hottest sensor, and the chip it is read from. |
 | Cache preference | On dual-chiplet X3D parts, which chiplet the scheduler fills first; a click flips it. |

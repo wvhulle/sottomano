@@ -93,8 +93,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
             Step::PressText("Utilities"),
             Step::HoverText("Utilities"),
-            Step::HoverText("Utilities"),
-            Step::HoverText("Utilities"),
         ],
     },
     Demo {
@@ -117,17 +115,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuModel)),
-        ],
-    },
-    Demo {
-        name: "compute_clock",
-        group: compute::group,
-        live: compute::live,
-        shown: GroupShown::InMenu(GroupMenuTopic::Hardware),
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuClock)),
         ],
     },
     Demo {
@@ -233,11 +220,6 @@ pub const DEMOS: &[Demo] = &[
             )),
             Step::PressText("Clear dark"),
             Step::RestFor(Duration::from_millis(1200)),
-            Step::Hover(HoverTarget::AppearancePresets(
-                AppearancePresetsTarget::Menu,
-            )),
-            Step::PressText("Bright office"),
-            Step::RestFor(Duration::from_millis(1200)),
         ],
     },
     Demo {
@@ -275,15 +257,8 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Media)),
             Step::PressText("Voice dictation"),
-            Step::Hover(HoverTarget::VoiceDictation(VoiceDictationTarget::Runtime)),
             Step::Hover(HoverTarget::VoiceDictation(
                 VoiceDictationTarget::SpeechModel,
-            )),
-            Step::Hover(HoverTarget::VoiceDictation(
-                VoiceDictationTarget::RuntimeConfiguration,
-            )),
-            Step::Hover(HoverTarget::VoiceDictation(
-                VoiceDictationTarget::InferenceHardware,
             )),
         ],
     },
@@ -339,7 +314,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::OnPanel,
         script: &[
             Step::HoverText(notification_toasts::ARRIVAL_SUMMARY),
-            Step::RestFor(Duration::from_secs(5)),
+            Step::RestFor(Duration::from_millis(3500)),
         ],
     },
     Demo {
@@ -347,7 +322,7 @@ pub const DEMOS: &[Demo] = &[
         group: notification_toasts::progress,
         live: notification_toasts::downloading,
         shown: GroupShown::OnPanel,
-        script: &[Step::RestFor(Duration::from_secs(10))],
+        script: &[Step::RestFor(Duration::from_secs(5))],
     },
     Demo {
         name: "toast_actions",
@@ -383,7 +358,6 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
             Step::PressText("Memory"),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
         ],
     },
     Demo {
@@ -433,7 +407,6 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
             Step::Press(HoverTarget::Compute(ComputeTarget::CpuLoad)),
-            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuTemperature)),
         ],
     },
 ];

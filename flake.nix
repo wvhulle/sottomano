@@ -84,7 +84,19 @@
 
       showcaseAppIcons = "${pkgs.papirus-icon-theme}/share/icons/Papirus/64x64/apps";
 
+      sourcesAffectingRecordings = pkgs.lib.fileset.toSource {
+        root = ./.;
+        fileset = pkgs.lib.fileset.difference ./. (
+          pkgs.lib.fileset.unions [
+            ./docs
+            ./README.md
+            ./.woodpecker
+          ]
+        );
+      };
+
       showcaseArgs = commonArgs // {
+        src = sourcesAffectingRecordings;
         SHOWCASE_APP_ICONS = showcaseAppIcons;
         pname = "sottomano-widget-showcase";
         cargoExtraArgs = "--locked -p sottomano-widget-showcase";
