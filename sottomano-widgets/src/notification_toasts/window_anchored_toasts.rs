@@ -273,8 +273,12 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
             .collect();
         let sizes: Vec<Size> = nodes.iter().map(Node::size).collect();
         let free_area = Rectangle::with_size(surface).shrink(self.panel_clearance);
-        let targets =
-            toast_anchor_geometry::origins(&self.anchors, &sizes, free_area, &self.anchor_spacing);
+        let targets = toast_anchor_geometry::card_origins(
+            &self.anchors,
+            &sizes,
+            free_area,
+            &self.anchor_spacing,
+        );
         let positions =
             tree.state
                 .downcast_mut::<FieldState>()
