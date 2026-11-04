@@ -7,7 +7,6 @@ use crate::{
     group_menus::{
         accordion_layout::menu_rows_viewport::menu_rows_viewport,
         cascading_layout::notched_panel::ResolvedPanelTop,
-        group_menu_presentation::HoverCardPlacement,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
         menu_rows::{
             group_menu_group_rows::{GroupMenuGroupRow, GroupMenuRowContext, group_row, item_menu},
@@ -96,20 +95,7 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
     let is_inspected = |item: &GroupMenuItemRow<'a, M>| {
         inspected_target.is_some_and(|target| item.inspected_target == *target)
     };
-    let inline_cards =
-        layout.presentation.hover_card_placement == HoverCardPlacement::InlineWithRow;
-    let inline_card = inline_cards
-        .then(|| card_position.and_then(|_| card.view(layout.config)))
-        .flatten()
-        .map(|card_view| card_view.map(M::from));
-    let item_list = item_menu(
-        layout,
-        &group_identity,
-        items,
-        &is_inspected,
-        item_corners,
-        inline_card,
-    );
+    let item_list = item_menu(layout, &group_identity, items, &is_inspected, item_corners);
     let item_list_scrolled_px = layout.group_menus.item_list_scrolled_px(layout.menu.topic);
     let item_list_scroll_message = layout.menu.item_list_scroll_message();
     let item_list_viewport = menu_rows_viewport(
@@ -127,18 +113,16 @@ fn open_group_satellites<'a, M: Clone + From<GroupEvent<M>> + From<PopupMessage>
         cascade_offset(layout.config, open_position) - scrolled_px,
         item_list_top.clone(),
     );
-    let card_satellite = card_position
-        .filter(|_| !inline_cards)
-        .and_then(|position| {
-            card.view(layout.config).map(|card_view| {
-                layout.cascade_satellite_panels.card_beside_item_row(
-                    layout.config,
-                    card_view.map(M::from),
-                    item_list_top,
-                    cascade_offset(layout.config, position) - item_list_scrolled_px,
-                )
-            })
-        });
+    let card_satellite = card_position.and_then(|position| {
+        card.view(layout.config).map(|card_view| {
+            layout.cascade_satellite_panels.card_beside_item_row(
+                layout.config,
+                card_view.map(M::from),
+                item_list_top,
+                cascade_offset(layout.config, position) - item_list_scrolled_px,
+            )
+        })
+    });
     [item_satellite].into_iter().chain(card_satellite).collect()
 }
 

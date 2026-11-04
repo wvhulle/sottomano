@@ -69,6 +69,19 @@ pub(crate) fn pressable_menu_row<'a, M: Clone + 'a>(
         .into()
 }
 
+pub(crate) fn inert_menu_row<'a, M: Clone + 'a>(
+    config: &'a Config,
+    content: MenuRowContent<'a, M>,
+    look: MenuRowLook,
+) -> Element<'a, GroupEvent<M>> {
+    button(menu_line(config, content))
+        .width(Length::Fill)
+        .height(menu_row_height(config))
+        .padding(menu_row_padding(config))
+        .style(move |theme, status| menu_row_style(theme, status, look))
+        .into()
+}
+
 pub(crate) fn hovered_menu_row<'a, M: Clone + 'a>(
     config: &'a Config,
     content: MenuRowContent<'a, M>,

@@ -8,8 +8,7 @@ use crate::{
     },
     group_menus::{
         group_menu_presentation::{
-            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-            OpenGroupLimit,
+            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
         },
         group_menu_state::{GroupMenuMessage, GroupMenuState},
     },
@@ -29,7 +28,6 @@ pub enum GroupMenuSettingsTarget {
     AccordionLayout,
     PressToReveal,
     KeepOneGroupOpen,
-    InlineCards,
     Appearance(AppearanceTarget),
 }
 
@@ -76,18 +74,6 @@ fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle
     )
 }
 
-fn inline_cards_toggle(presentation: GroupMenuPresentation) -> IconToggle {
-    IconToggle::new(
-        "Inline cards",
-        Phosphor::Cards(Weight::Regular),
-        presentation.hover_card_placement == HoverCardPlacement::InlineWithRow,
-        SwitchPresses {
-            turning_on: "open an item's card below its row on press",
-            turning_off: "open an item's card beside its row on hover",
-        },
-    )
-}
-
 impl GroupMenuState {
     #[must_use]
     pub fn settings_content<'a>(
@@ -120,11 +106,6 @@ impl GroupMenuState {
             ]
             .into_iter()
             .chain(accordion_only_item)
-            .chain([GroupItem::toggle(
-                inline_cards_toggle(presentation),
-                GroupMenuSettingsTarget::InlineCards,
-                GroupMenuMessage::SwitchPresentation(presentation.with_card_placement_toggled()),
-            )])
             .chain(
                 self.menu_appearance_controls()
                     .items(config, GroupMenuMessage::Appearance),
@@ -147,9 +128,6 @@ impl GroupMenuState {
             }
             GroupMenuSettingsTarget::KeepOneGroupOpen => {
                 keep_one_group_open_toggle(presentation).switch_hover_card(clock)
-            }
-            GroupMenuSettingsTarget::InlineCards => {
-                inline_cards_toggle(presentation).switch_hover_card(clock)
             }
             GroupMenuSettingsTarget::Appearance(target) => self
                 .menu_appearance_controls()

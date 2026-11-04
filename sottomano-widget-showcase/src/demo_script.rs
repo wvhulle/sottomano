@@ -5,8 +5,7 @@ use sottomano_widgets::{
     clock::Clock,
     group_menus::{
         group_menu_presentation::{
-            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-            OpenGroupLimit,
+            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
         },
         group_menu_state::{GroupMenuPin, GroupMenuTopic},
     },
@@ -68,6 +67,7 @@ pub enum Step {
     PressPin(GroupMenuPin),
     Drag { target: HoverTarget, by: f32 },
     HoverText(&'static str),
+    HoverApp(&'static str),
     PressText(&'static str),
     RestFor(Duration),
 }
@@ -81,7 +81,7 @@ pub const DEMOS: &[Demo] = &[
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Applications)),
             Step::PressText("Frequently launched on this workspace"),
-            Step::HoverText("Firefox"),
+            Step::HoverApp("firefox"),
         ],
     },
     Demo {
@@ -377,33 +377,13 @@ pub const DEMOS: &[Demo] = &[
                 layout: GroupMenuLayout::Accordion,
                 open_trigger: GroupMenuOpenTrigger::Press,
                 accordion_open_limit: OpenGroupLimit::Several,
-                hover_card_placement: HoverCardPlacement::BesideRow,
             },
         },
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
             Step::PressText("Compute"),
             Step::PressText("Memory"),
-            Step::HoverText("CPU load"),
-        ],
-    },
-    Demo {
-        name: "group_menu_inline_card",
-        group: group_menu_members::hardware_group_menu,
-        live: group_menu_members::hardware_menu_live,
-        shown: GroupShown::InMenuPresented {
-            menu: GroupMenuTopic::Hardware,
-            presentation: GroupMenuPresentation {
-                layout: GroupMenuLayout::Accordion,
-                open_trigger: GroupMenuOpenTrigger::Press,
-                accordion_open_limit: OpenGroupLimit::Several,
-                hover_card_placement: HoverCardPlacement::InlineWithRow,
-            },
-        },
-        script: &[
-            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Hardware)),
-            Step::PressText("Compute"),
-            Step::PressText("CPU load"),
+            Step::Hover(HoverTarget::Compute(ComputeTarget::CpuLoad)),
         ],
     },
     Demo {

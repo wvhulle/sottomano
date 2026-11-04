@@ -20,18 +20,10 @@ pub enum OpenGroupLimit {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub enum HoverCardPlacement {
-    #[default]
-    BesideRow,
-    InlineWithRow,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GroupMenuPresentation {
     pub layout: GroupMenuLayout,
     pub open_trigger: GroupMenuOpenTrigger,
     pub accordion_open_limit: OpenGroupLimit,
-    pub hover_card_placement: HoverCardPlacement,
 }
 
 impl GroupMenuPresentation {
@@ -79,17 +71,6 @@ impl GroupMenuPresentation {
             accordion_open_limit: match self.accordion_open_limit {
                 OpenGroupLimit::One => OpenGroupLimit::Several,
                 OpenGroupLimit::Several => OpenGroupLimit::One,
-            },
-            ..self
-        }
-    }
-
-    #[must_use]
-    pub const fn with_card_placement_toggled(self) -> Self {
-        Self {
-            hover_card_placement: match self.hover_card_placement {
-                HoverCardPlacement::BesideRow => HoverCardPlacement::InlineWithRow,
-                HoverCardPlacement::InlineWithRow => HoverCardPlacement::BesideRow,
             },
             ..self
         }
