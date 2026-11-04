@@ -323,6 +323,8 @@ pub enum HoverCardMessage {
     ExitHoverCard,
     DismissHeldOpen,
     SwitchIntentElapsed,
+    ShownWidgetDropped,
+    ConfirmShownWidgetDropped,
 }
 
 #[derive(Debug, Clone)]

@@ -1,4 +1,4 @@
-use std::{mem::replace, slice::from_ref};
+use std::{mem::replace, slice::from_ref, sync::Arc};
 
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
@@ -75,6 +75,7 @@ struct HoverState {
     announced: HoverAnnouncement,
     reported_anchor: Option<Rectangle>,
     reported_visible: bool,
+    presence: Arc<()>,
 }
 
 impl HoverState {
@@ -85,6 +86,7 @@ impl HoverState {
             announced: HoverAnnouncement::default(),
             reported_anchor: None,
             reported_visible: false,
+            presence: Arc::new(()),
         }
     }
 }
@@ -123,6 +125,7 @@ impl<M> HoverArea<'_, M> {
             opening: self.opening,
             anchor,
             visible,
+            presence: Arc::downgrade(&state.presence),
         })))
     }
 
@@ -654,6 +657,34 @@ mod tests {
         ));
         assert!(!hovered.hovered);
         assert!(second.exit_of_replaced_target(&mut hovered).is_none());
+    }
+
+    #[test]
+    fn dropping_the_state_shows_in_the_reported_presence() {
+        let area = area_opening_on(CardOpening::OnHover);
+        let mut state = fresh_state();
+        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) =
+            report_of(&area, &mut state, true, anchor_at(0.0))
+        else {
+            panic!("a hovered area reports");
+        };
+        assert!(widget_anchor.widget_still_exists());
+        drop(state);
+        assert!(!widget_anchor.widget_still_exists());
+    }
+
+    #[test]
+    fn a_replaced_target_no_longer_counts_as_the_old_widget() {
+        let area = area_opening_on(CardOpening::OnHover);
+        let mut state = fresh_state();
+        let Some(HoverCardMessage::AnchorLaidOut(widget_anchor)) =
+            report_of(&area, &mut state, true, anchor_at(0.0))
+        else {
+            panic!("a hovered area reports");
+        };
+        let replacement = area_of(HoverTarget::Workspace(8), CardOpening::OnHover);
+        let _exit = replacement.exit_of_replaced_target(&mut state);
+        assert!(!widget_anchor.widget_still_exists());
     }
 
     #[test]

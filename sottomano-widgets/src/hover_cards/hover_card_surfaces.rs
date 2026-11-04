@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use iced::{
     Element, Rectangle, Task, task,
     time::{Duration, Instant},
-    widget::{container, mouse_area},
+    widget::{container, mouse_area, stack},
     window::Id,
 };
 use iced_exwlshell::reexport::KeyboardInteractivity;
@@ -24,7 +24,7 @@ use crate::{
             CardRetention, Departed, DepartedContent, HoverCardTransition, Occupant, Placement,
             ShownTarget,
         },
-        laid_out_anchors::LaidOutAnchors,
+        laid_out_anchors::{LaidOutAnchors, dropped_widget_watch},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
     widgets::{shell_layer_appearance::LayerAppearance, window_icon::WindowAssets},
@@ -77,6 +77,8 @@ impl HoverCardHost {
             | HoverCardMessage::AnchorLaidOut(..)
             | HoverCardMessage::LaidOut { .. }
             | HoverCardMessage::DismissHeldOpen
+            | HoverCardMessage::ShownWidgetDropped
+            | HoverCardMessage::ConfirmShownWidgetDropped
             | HoverCardMessage::MenuHandlePressed { .. }
             | HoverCardMessage::MenuHandlePressedAnchor { .. }
             | HoverCardMessage::SwitchIntentElapsed => None,
@@ -112,7 +114,10 @@ impl HoverCardHost {
     }
 
     pub fn take_pending_switch(&mut self) -> Option<PendingSwitch> {
-        self.pending_switch.take()
+        let pending = self.pending_switch.take()?;
+        self.laid_out_anchors
+            .widget_exists(&pending.parent.output, &pending.target)
+            .then_some(pending)
     }
 
     pub fn open(
@@ -159,6 +164,15 @@ impl HoverCardHost {
     pub fn shown_anchor(&self) -> Option<Rectangle> {
         let (target, output) = self.transition.shown_target_on_output()?;
         self.laid_out_anchors.anchor_of(output, target)
+    }
+
+    #[must_use]
+    pub fn shown_widget_was_dropped(&self) -> bool {
+        self.transition.current().is_some_and(|current| {
+            !self
+                .laid_out_anchors
+                .widget_exists(&current.placement.output, &current.target)
+        })
     }
 
     #[must_use]
@@ -415,7 +429,11 @@ impl HoverCardHost {
                 render(content_of(&current.target).with_announcement(current.announcement.clone()));
             renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
         }
-        container(anchored_popup(
+        let shown_presence = self.transition.current().and_then(|current| {
+            self.laid_out_anchors
+                .presence_of(&current.placement.output, &current.target)
+        });
+        let card = container(anchored_popup(
             renderings,
             anchor,
             placement.position,
@@ -430,7 +448,16 @@ impl HoverCardHost {
                 menu: surface_style.menu_appearance,
             },
         ))
-        .padding(surface_style.float_offset_px)
+        .padding(surface_style.float_offset_px);
+        stack![
+            card,
+            dropped_widget_watch(
+                shown_presence,
+                Message::from(PopupMessage::HoverCard(
+                    HoverCardMessage::ShownWidgetDropped
+                )),
+            ),
+        ]
         .into()
     }
 }
@@ -510,7 +537,10 @@ fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        sync::{Arc, LazyLock},
+    };
 
     use iced::{
         Point, Rectangle, Size,
@@ -527,6 +557,8 @@ mod tests {
         },
         layer_surfaces::PanelEdge,
     };
+
+    static LIVE_WIDGET: LazyLock<Arc<()>> = LazyLock::new(|| Arc::new(()));
 
     fn top_edge() -> PanelEdge {
         PanelEdge {
@@ -583,7 +615,63 @@ mod tests {
             opening,
             anchor: anchor_at(horizontal_position),
             visible: true,
+            presence: Arc::downgrade(&LIVE_WIDGET),
         }
+    }
+
+    #[test]
+    fn a_card_notices_when_its_widget_was_dropped() {
+        let widget = Arc::new(());
+        let mut host = HoverCardHost::default();
+        remember(
+            &mut host,
+            "DP-1",
+            WidgetAnchor {
+                presence: Arc::downgrade(&widget),
+                ..widget_at(1.0, CardOpening::OnHover)
+            },
+        );
+        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        assert!(!host.shown_widget_was_dropped());
+        drop(widget);
+        assert!(host.shown_widget_was_dropped());
+    }
+
+    #[test]
+    fn a_widget_reported_again_after_a_rebuild_keeps_its_card() {
+        let rebuilt = Arc::new(());
+        let mut host = HoverCardHost::default();
+        {
+            let original = Arc::new(());
+            remember(
+                &mut host,
+                "DP-1",
+                WidgetAnchor {
+                    presence: Arc::downgrade(&original),
+                    ..widget_at(1.0, CardOpening::OnHover)
+                },
+            );
+            host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        }
+        assert!(host.shown_widget_was_dropped());
+        remember(
+            &mut host,
+            "DP-1",
+            WidgetAnchor {
+                presence: Arc::downgrade(&rebuilt),
+                ..widget_at(1.0, CardOpening::OnHover)
+            },
+        );
+        assert!(!host.shown_widget_was_dropped());
+    }
+
+    #[test]
+    fn a_hiding_card_does_not_count_as_dropped() {
+        let now = Clock::real().instant;
+        let mut host = HoverCardHost::default();
+        host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
+        host.dismiss(None, now);
+        assert!(!host.shown_widget_was_dropped());
     }
 
     fn remember(host: &mut HoverCardHost, output: &str, widget_anchor: WidgetAnchor) {

@@ -87,6 +87,16 @@ impl DesktopShell {
                 }
                 Task::none()
             }
+            HoverCardMessage::ShownWidgetDropped => Task::done(Message::HoverCard(
+                HoverCardMessage::ConfirmShownWidgetDropped,
+            )),
+            HoverCardMessage::ConfirmShownWidgetDropped => {
+                if self.hover_card.shown_widget_was_dropped() {
+                    self.dismiss_hover_card()
+                } else {
+                    Task::none()
+                }
+            }
             HoverCardMessage::DismissHeldOpen => {
                 if self.hover_card.is_held_open() {
                     self.dismiss_hover_card()

@@ -213,6 +213,15 @@ impl ShowcaseState {
                 }
                 Task::none()
             }
+            ShowcaseMessage::HoverCard(HoverCardMessage::ShownWidgetDropped) => Task::done(
+                ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped),
+            ),
+            ShowcaseMessage::HoverCard(HoverCardMessage::ConfirmShownWidgetDropped) => {
+                if self.hover_card.shown_widget_was_dropped() {
+                    self.dismiss_hover_card();
+                }
+                Task::none()
+            }
             ShowcaseMessage::HoverCard(HoverCardMessage::DismissHeldOpen) => {
                 if self.hover_card.is_held_open() {
                     self.close_held_open_card();
