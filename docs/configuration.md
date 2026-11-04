@@ -87,6 +87,7 @@ audio_indicator = true
 progress = true
 count_badge = true
 nixpkgs_branch = "nixpkgs-unstable"
+maximum_window_title_width = "160px"
 
 [widget_groups.window.agents]
 kitty = true
