@@ -245,6 +245,7 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlertPromotion {
     OntoPanel,
+    OntoPanelNow,
     StaysInMenu,
 }
 
@@ -304,9 +305,22 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
         }
     }
 
+    #[must_use]
+    pub fn on_panel_while(self, condition_holds: bool) -> Self {
+        if condition_holds {
+            Self {
+                alert_promotion: AlertPromotion::OntoPanelNow,
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
     pub(crate) fn promoted_by_alert(&self, promotion_severity: Severity, clock: Clock) -> bool {
         match self.alert_promotion {
             AlertPromotion::OntoPanel => self.highest_alert_severity(clock) >= promotion_severity,
+            AlertPromotion::OntoPanelNow => true,
             AlertPromotion::StaysInMenu => false,
         }
     }

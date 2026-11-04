@@ -15,7 +15,7 @@ pub mod expand_animation;
 pub mod fixed_panel_group;
 pub mod gamepad_group;
 pub mod gpu_group;
-pub mod idle_timeouts_group;
+pub mod idle_pause_groups;
 mod interface_address_sections;
 mod interface_group_titles;
 pub mod journal_events_group;

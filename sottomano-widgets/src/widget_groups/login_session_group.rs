@@ -3,7 +3,6 @@ mod compositor_face;
 mod desktop_services_face;
 mod kernel_face;
 mod login_face;
-mod power_policy_face;
 mod seat_face;
 mod service_manager_face;
 
@@ -12,7 +11,7 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
-    login_session_presence::logind_session_facts::{PowerPolicy, SessionIdentity, SessionInfo},
+    login_session_presence::logind_session_facts::{SessionIdentity, SessionInfo},
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{
         graphical_session_target::{GraphicalSession, GraphicalSessionTarget},
@@ -29,8 +28,7 @@ use crate::{
         login_session_group::{
             account_face::AccountFace, compositor_face::CompositorFace,
             desktop_services_face::DesktopServicesFace, kernel_face::KernelFace,
-            login_face::LoginFace, power_policy_face::PowerPolicyFace, seat_face::SeatFace,
-            service_manager_face::ServiceManagerFace,
+            login_face::LoginFace, seat_face::SeatFace, service_manager_face::ServiceManagerFace,
         },
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
@@ -53,7 +51,6 @@ pub enum LoginSessionTarget {
     ServiceManager,
     Compositor,
     DesktopServices,
-    PowerPolicy,
 }
 
 impl From<LoginSessionTarget> for HoverTarget {
@@ -70,7 +67,6 @@ pub struct LoginSessionGroup {
     service_manager: HoverFetchedSnapshot<UserServiceManager>,
     graphical: HoverFetchedSnapshot<GraphicalSession>,
     graphical_target: HoverFetchedSnapshot<GraphicalSessionTarget>,
-    power: HoverFetchedSnapshot<PowerPolicy>,
     expansion: WidgetGroupExpansion,
 }
 
@@ -82,7 +78,6 @@ pub enum LoginSessionMessage {
     ServiceManagerFetched(SnapshotDelivery<UserServiceManager>),
     GraphicalFetched(SnapshotDelivery<GraphicalSession>),
     GraphicalTargetFetched(SnapshotDelivery<GraphicalSessionTarget>),
-    PowerFetched(Box<SnapshotDelivery<PowerPolicy>>),
     Expansion(WidgetGroupExpansionMessage),
 }
 
@@ -111,7 +106,6 @@ impl LoginSessionGroup {
         self.service_manager.stop();
         self.graphical.stop();
         self.graphical_target.stop();
-        self.power.stop();
         let Some(HoverTarget::LoginSession(target)) = hovered else {
             return Task::none();
         };
@@ -142,12 +136,6 @@ impl LoginSessionGroup {
             LoginSessionTarget::DesktopServices => self.graphical_target.start_hover_fetch(
                 buses.clone(),
                 LoginSessionMessage::GraphicalTargetFetched,
-                config,
-                clock,
-            ),
-            LoginSessionTarget::PowerPolicy => self.power.start_hover_fetch(
-                buses.clone(),
-                |delivery| LoginSessionMessage::PowerFetched(Box::new(delivery)),
                 config,
                 clock,
             ),
@@ -182,9 +170,6 @@ impl LoginSessionGroup {
             LoginSessionMessage::GraphicalTargetFetched(delivery) => {
                 self.graphical_target.receive(delivery, clock);
             }
-            LoginSessionMessage::PowerFetched(delivery) => {
-                self.power.receive(*delivery, clock);
-            }
             LoginSessionMessage::Expansion(expansion) => {
                 self.expansion.update(expansion);
             }
@@ -207,7 +192,6 @@ impl LoginSessionGroup {
                 GroupItem::reading(ServiceManagerFace, LoginSessionTarget::ServiceManager),
                 GroupItem::reading(CompositorFace { identity }, LoginSessionTarget::Compositor),
                 GroupItem::reading(DesktopServicesFace, LoginSessionTarget::DesktopServices),
-                GroupItem::reading(PowerPolicyFace, LoginSessionTarget::PowerPolicy),
             ]
         });
         let kernel = self
@@ -234,9 +218,10 @@ impl LoginSessionGroup {
             | LoginSessionTarget::Account
             | LoginSessionTarget::ServiceManager
             | LoginSessionTarget::Compositor
-            | LoginSessionTarget::DesktopServices
-            | LoginSessionTarget::PowerPolicy => first_delivery::<SessionIdentity>(buses.clone())
-                .map(LoginSessionMessage::IdentityFetched),
+            | LoginSessionTarget::DesktopServices => {
+                first_delivery::<SessionIdentity>(buses.clone())
+                    .map(LoginSessionMessage::IdentityFetched)
+            }
         }
     }
 
@@ -274,8 +259,6 @@ impl LoginSessionGroup {
                 .map(|hover_card| hover_card.with_groups(self.service_manager.sections(clock))),
             LoginSessionTarget::DesktopServices => session_face(&DesktopServicesFace)
                 .map(|hover_card| hover_card.with_groups(self.graphical_target.sections(clock))),
-            LoginSessionTarget::PowerPolicy => session_face(&PowerPolicyFace)
-                .map(|hover_card| hover_card.with_groups(self.power.sections(clock))),
         }
     }
 }

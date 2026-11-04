@@ -1,3 +1,4 @@
+{ self }:
 {
   config,
   lib,
@@ -6,6 +7,7 @@
 }:
 let
   cfg = config.programs.sottomano;
+  sottomanoPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
 in
 {
   options.programs.sottomano = {
@@ -63,6 +65,20 @@ in
         default = true;
       };
 
+    secretMemoryInspection.enable =
+      lib.mkEnableOption ''
+        naming the apps that stop hibernation by holding secret memory: installs
+        a small helper with `cap_sys_ptrace` that reads `/proc/*/maps` and prints
+        the PIDs mapping `memfd_secret` memory, so the Hibernate group can name
+        them. The capability is on that one helper rather than the bar, and it
+        takes no arguments. Any local user can run it and learn which PIDs hold
+        secret memory, though never the contents. Without it the group only
+        reports that the kernel disabled hibernation
+      ''
+      // {
+        default = true;
+      };
+
     journalReaders = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -90,6 +106,15 @@ in
           extraGroups = [ "systemd-journal" ];
         });
       }
+
+      (lib.mkIf cfg.secretMemoryInspection.enable {
+        security.wrappers.sottomano-secret-memory-holders = {
+          source = "${sottomanoPackage}/bin/sottomano-secret-memory-holders";
+          owner = "root";
+          group = "root";
+          capabilities = "cap_sys_ptrace+ep";
+        };
+      })
 
       (lib.mkIf cfg.cpuPowerReading.enable {
         services.udev.extraRules = ''

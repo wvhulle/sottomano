@@ -97,6 +97,7 @@ pub enum HoverTarget {
     DarkMode(DarkModeTarget),
     VoiceDictation(VoiceDictationTarget),
     IdleTimeout(IdleAction),
+    PauseBlocker(PauseBlockerTarget),
     Reachability(ReachabilityTarget),
     Vpn(VpnTarget),
     Weather(WeatherTarget),
@@ -149,6 +150,12 @@ impl HoverTarget {
             durable_target => format!("{durable_target:?}"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PauseBlockerTarget {
+    pub pause: IdleAction,
+    pub holder: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -10,13 +10,13 @@ use sottomano_widgets::{
     widget_groups::{
         audio_group::AudioGroup, bluetooth_adapters_group::BluetoothAdaptersGroup,
         copilot_usage_group::CopilotUsageGroup, dark_mode_group::DarkModeGroup,
-        gamepad_group::GamepadWindowClaim, journal_events_group::JournalEventsGroup,
-        login_session_group::LoginSessionGroup, memory_board_group::MemoryBoardGroup,
-        mobile_modems_group::MobileModemsGroup, monitor_group::MonitorGroup,
-        pending_upgrades_group::PendingUpgradesGroup, power_group::PowerGroup,
-        quiet_schedule_group::QuietScheduleGroup, session_focus_group::SessionFocusGroup,
-        systemd_manager_group::SystemdManagerGroup, tray_group::TrayGroup,
-        widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
+        gamepad_group::GamepadWindowClaim, idle_pause_groups::IdlePauseGroups,
+        journal_events_group::JournalEventsGroup, login_session_group::LoginSessionGroup,
+        memory_board_group::MemoryBoardGroup, mobile_modems_group::MobileModemsGroup,
+        monitor_group::MonitorGroup, pending_upgrades_group::PendingUpgradesGroup,
+        power_group::PowerGroup, quiet_schedule_group::QuietScheduleGroup,
+        session_focus_group::SessionFocusGroup, systemd_manager_group::SystemdManagerGroup,
+        tray_group::TrayGroup, widget_group_identity::WidgetGroupFamily, window_group::WindowGroup,
     },
 };
 
@@ -93,6 +93,7 @@ impl ShellWidgetGroups {
         Subscription::batch([
             PowerGroup::subscription(buses).map(Message::Power),
             LoginSessionGroup::subscription(buses).map(Message::LoginSession),
+            IdlePauseGroups::subscription(buses).map(Message::IdleTimeouts),
             SystemdManagerGroup::subscription(&config.widget_groups.systemd_manager, buses)
                 .map(Message::SystemdManager),
             PendingUpgradesGroup::subscription(buses).map(Message::PendingUpgrades),

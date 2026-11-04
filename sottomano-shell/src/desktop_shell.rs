@@ -59,7 +59,7 @@ use sottomano_widgets::{
     notification_toasts::NotificationLayer,
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
-        idle_timeouts_group::IdleTimeoutsMessage,
+        idle_pause_groups::IdlePauseMessage,
         niri_window_group::niri_kdl_rules::NiriRulesFile,
         session_power_group,
     },
@@ -261,20 +261,15 @@ impl DesktopShell {
             ]),
             Message::Media(msg) => self.update_media(msg),
             Message::Tray(msg) => self.update_tray(msg),
-            Message::IdleTimeouts(IdleTimeoutsMessage::ScreenPowerChangedByIdleAction(edge)) => {
-                self.widget_groups
-                    .session_focus_group
-                    .screen_power_changed(
-                        edge,
-                        &self.config.widget_groups.session_focus,
-                        self.clock,
-                    )
-                    .map(Message::SessionFocus)
-            }
+            Message::IdleTimeouts(IdlePauseMessage::ScreenPowerChangedByIdleAction(edge)) => self
+                .widget_groups
+                .session_focus_group
+                .screen_power_changed(edge, &self.config.widget_groups.session_focus, self.clock)
+                .map(Message::SessionFocus),
             Message::IdleTimeouts(msg) => self
                 .widget_groups
-                .idle_timeouts_group
-                .update(msg)
+                .idle_pause_groups
+                .update(msg, self.clock)
                 .map(Message::IdleTimeouts),
             Message::GroupMenuState(msg) => self
                 .widget_groups
@@ -538,7 +533,7 @@ impl DesktopShell {
                     .menu_panel(
                         &self.config,
                         popup_corners,
-                        self.widget_groups.idle_timeouts_group.timeouts(),
+                        self.widget_groups.idle_pause_groups.timeouts(),
                     )
                     .map(Message::Session),
             ),

@@ -330,9 +330,13 @@ impl DesktopShell {
                 .hover_card_for(*target, self.clock),
             HoverTarget::IdleTimeout(kind) => Some(
                 self.widget_groups
-                    .idle_timeouts_group
+                    .idle_pause_groups
                     .hover_card_for(*kind, self.clock),
             ),
+            HoverTarget::PauseBlocker(target) => self
+                .widget_groups
+                .idle_pause_groups
+                .blocker_hover_card_for(target),
             HoverTarget::Reachability(target) => self
                 .widget_groups
                 .reachability_group

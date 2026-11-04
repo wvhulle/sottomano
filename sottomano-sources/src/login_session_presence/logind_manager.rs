@@ -22,7 +22,7 @@ pub struct InhibitorRow {
     pub why: String,
     pub mode: String,
     uid: u32,
-    pid: u32,
+    pub pid: u32,
 }
 
 #[proxy(
@@ -58,46 +58,13 @@ pub(super) trait Manager {
     fn can_power_off(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn scheduled_shutdown(&self) -> zbus::Result<(String, u64)>;
-    #[zbus(property)]
-    fn docked(&self) -> zbus::Result<bool>;
-    #[zbus(property)]
-    fn lid_closed(&self) -> zbus::Result<bool>;
-    #[zbus(property)]
-    fn on_external_power(&self) -> zbus::Result<bool>;
-    #[zbus(property)]
-    fn n_current_sessions(&self) -> zbus::Result<u64>;
     fn list_inhibitors(&self) -> zbus::Result<Vec<InhibitorRow>>;
     #[zbus(property)]
-    fn handle_power_key(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn handle_suspend_key(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn handle_hibernate_key(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn handle_reboot_key(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn handle_lid_switch(&self) -> zbus::Result<String>;
-    #[zbus(property)]
     fn idle_action(&self) -> zbus::Result<String>;
-    #[zbus(property, name = "IdleActionUSec")]
-    fn idle_action_usec(&self) -> zbus::Result<u64>;
     #[zbus(property)]
     fn sleep_operation(&self) -> zbus::Result<Vec<String>>;
-    #[zbus(property)]
-    fn preparing_for_shutdown(&self) -> zbus::Result<bool>;
-    #[zbus(property)]
-    fn block_inhibited(&self) -> zbus::Result<String>;
-    #[zbus(property)]
-    fn delay_inhibited(&self) -> zbus::Result<String>;
     #[zbus(signal)]
     fn prepare_for_sleep(&self, start: bool) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn prepare_for_shutdown(&self, start: bool) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn session_new(&self, session_id: String, object_path: OwnedObjectPath) -> zbus::Result<()>;
-    #[zbus(signal)]
-    fn session_removed(&self, session_id: String, object_path: OwnedObjectPath)
-    -> zbus::Result<()>;
 }
 
 pub(super) fn manager() -> Option<ManagerProxyBlocking<'static>> {

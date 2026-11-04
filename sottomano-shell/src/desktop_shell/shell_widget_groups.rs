@@ -22,7 +22,7 @@ use sottomano_widgets::{
         ethernet_ports_group::EthernetPortsGroup,
         gamepad_group::GamepadGroup,
         gpu_group::GpuGroup,
-        idle_timeouts_group::IdleTimeoutsGroup,
+        idle_pause_groups::IdlePauseGroups,
         journal_events_group::JournalEventsGroup,
         llama_server_group::LlamaServerGroup,
         login_session_group::LoginSessionGroup,
@@ -93,7 +93,7 @@ pub struct ShellWidgetGroups {
     pub color_temperature_group: ColorTemperatureGroup,
     pub dark_mode_group: DarkModeGroup,
     pub voice_dictation_group: VoiceDictationGroup,
-    pub idle_timeouts_group: IdleTimeoutsGroup,
+    pub idle_pause_groups: IdlePauseGroups,
     pub group_menus: GroupMenuState,
     pub media_group: MediaGroup,
     pub gamepad_group: GamepadGroup,
@@ -150,7 +150,7 @@ impl ShellWidgetGroups {
             ),
             dark_mode_group: DarkModeGroup::new(clock),
             voice_dictation_group: VoiceDictationGroup::new(),
-            idle_timeouts_group: IdleTimeoutsGroup::default(),
+            idle_pause_groups: IdlePauseGroups::default(),
             group_menus: GroupMenuState::default(),
             media_group: MediaGroup::default(),
             gamepad_group: GamepadGroup::default(),
@@ -177,7 +177,7 @@ impl ShellWidgetGroups {
         Task::batch([
             SessionFocusGroup::load(clock).map(Message::SessionFocus),
             SessionPowerGroup::load().map(Message::Session),
-            IdleTimeoutsGroup::load().map(Message::IdleTimeouts),
+            IdlePauseGroups::load().map(Message::IdleTimeouts),
             GroupMenuState::load().map(Message::GroupMenuState),
             AppLauncherGroup::load().map(Message::AppLauncher),
             PanelSettingsGroup::load().map(Message::PanelSettings),
@@ -414,7 +414,7 @@ impl ShellWidgetGroups {
         self.dark_mode_group.collapse();
         self.voice_dictation_group.collapse();
         self.power_group.collapse();
-        self.idle_timeouts_group.collapse();
+        self.idle_pause_groups.collapse();
         self.audio_group.collapse();
         self.wallpaper_group.collapse();
         self.caldav_group.collapse();

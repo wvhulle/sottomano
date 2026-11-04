@@ -33,7 +33,7 @@ use sottomano_widgets::{
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
         gamepad_group::{GamepadGroup, GamepadWindowClaim::Unclaimed},
-        idle_timeouts_group::IdleTimeoutsGroup,
+        idle_pause_groups::IdlePauseGroups,
         login_session_group::LoginSessionGroup,
         media_group::MediaGroup,
         memory_board_group::MemoryBoardGroup,
@@ -110,7 +110,7 @@ pub enum ShowcasedGroup {
     Weather(Box<WeatherGroup>),
     ClaudeUsage(Box<ClaudeUsageGroup>),
     Media(Box<ShowcasedMedia>),
-    IdleTimeouts(Box<IdleTimeoutsGroup>),
+    IdleTimeouts(Box<IdlePauseGroups>),
     AppLauncher(Box<ShowcasedAppLauncher>),
     AppearancePresets(AppearancePresetsGroup),
     Wallpaper(Box<WallpaperGroup>),
@@ -428,13 +428,11 @@ impl ShowcasedGroup {
                 .group_contents(config, clock)
                 .map(|group| group.map(ShowcaseMessage::Media))
                 .collect(),
-            ShowcasedGroup::IdleTimeouts(group) => {
-                vec![
-                    group
-                        .group_content(config)
-                        .map(ShowcaseMessage::IdleTimeouts),
-                ]
-            }
+            ShowcasedGroup::IdleTimeouts(group) => group
+                .pause_groups(config)
+                .into_iter()
+                .map(|pause_group| pause_group.map(ShowcaseMessage::IdleTimeouts))
+                .collect(),
             ShowcasedGroup::Wallpaper(group) => {
                 vec![group.group_content().map(ShowcaseMessage::Wallpaper)]
             }
@@ -525,7 +523,7 @@ impl ShowcasedGroup {
             }
             ShowcasedGroup::IdleTimeouts(group) => {
                 if let ShowcaseMessage::IdleTimeouts(message) = message {
-                    let _ = group.update(message);
+                    let _ = group.update(message, clock);
                 }
             }
             ShowcasedGroup::Wallpaper(group) => {
@@ -714,12 +712,11 @@ impl ShowcasedGroup {
                     .group
                     .hover_card_for(target, &media.desktop_entries, clock)
             }
-            ShowcasedGroup::IdleTimeouts(group) => {
-                let HoverTarget::IdleTimeout(kind) = target else {
-                    return None;
-                };
-                Some(group.hover_card_for(*kind, clock))
-            }
+            ShowcasedGroup::IdleTimeouts(group) => match target {
+                HoverTarget::IdleTimeout(kind) => Some(group.hover_card_for(*kind, clock)),
+                HoverTarget::PauseBlocker(blocker) => group.blocker_hover_card_for(blocker),
+                _ => None,
+            },
             ShowcasedGroup::Wallpaper(group) => {
                 let HoverTarget::Wallpaper(target) = target else {
                     return None;
