@@ -111,6 +111,17 @@ fn pci_database_names(bus: &PciBusId) -> Option<GpuNames> {
     Some(GpuNames::from_hardware_database(&database_name))
 }
 
+fn combined_gpu_names(database_names: Option<GpuNames>, nvml_product: String) -> GpuNames {
+    match database_names {
+        Some(names @ GpuNames::ChipWithProduct { .. }) => names,
+        Some(GpuNames::Chip(chip)) => GpuNames::ChipWithProduct {
+            chip,
+            product: nvml_product,
+        },
+        Some(GpuNames::Product(_)) | None => GpuNames::Product(nvml_product),
+    }
+}
+
 fn unmanaged_model(bus: &PciBusId) -> GpuModel {
     GpuModel {
         vendor: GpuVendor::Nvidia,
@@ -127,12 +138,7 @@ fn read_model(nvml: &Nvml, bus: &PciBusId) -> Result<GpuModel, NvmlError> {
     let product = device.name()?;
     Ok(GpuModel {
         vendor: GpuVendor::Nvidia,
-        names: match pci_database_names(bus) {
-            Some(GpuNames::Chip(chip) | GpuNames::ChipWithProduct { chip, .. }) => {
-                GpuNames::ChipWithProduct { chip, product }
-            }
-            Some(GpuNames::Product(_)) | None => GpuNames::Product(product),
-        },
+        names: combined_gpu_names(pci_database_names(bus), product),
         driver: nvml.sys_driver_version()?,
         temperature_limits: GpuTemperatureLimits {
             target_max: device
@@ -277,4 +283,46 @@ fn gpu_processes(device: &Device) -> Vec<GpuProcess> {
     processes.dedup_by_key(|process| process.pid);
     processes.sort_by_key(|process| Reverse(process.resident_memory));
     processes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{GpuNames, combined_gpu_names};
+
+    const NVML_PRODUCT: &str = "NVIDIA GeForce RTX 4090";
+
+    fn combined_with_nvml_product(database_names: Option<GpuNames>) -> GpuNames {
+        combined_gpu_names(database_names, NVML_PRODUCT.to_owned())
+    }
+
+    #[test]
+    fn database_product_is_kept_over_the_branded_nvml_name() {
+        let database_names = GpuNames::ChipWithProduct {
+            chip: "AD102".to_owned(),
+            product: "GeForce RTX 4090".to_owned(),
+        };
+        assert_eq!(
+            combined_with_nvml_product(Some(database_names.clone())),
+            database_names
+        );
+    }
+
+    #[test]
+    fn database_chip_without_single_product_takes_the_nvml_name() {
+        assert_eq!(
+            combined_with_nvml_product(Some(GpuNames::Chip("AD102".to_owned()))),
+            GpuNames::ChipWithProduct {
+                chip: "AD102".to_owned(),
+                product: NVML_PRODUCT.to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn missing_database_entry_takes_the_nvml_name() {
+        assert_eq!(
+            combined_with_nvml_product(None),
+            GpuNames::Product(NVML_PRODUCT.to_owned())
+        );
+    }
 }

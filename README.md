@@ -27,7 +27,7 @@ Previous work:
 
 ### Weather: Conditions
 
-Hovering the temperature opens the forecast for the coming hours.
+Hovering the info icon of the temperature opens the forecast for the coming hours.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/weather_conditions.webp" width="872" alt="Hovering the temperature in the weather group">
 

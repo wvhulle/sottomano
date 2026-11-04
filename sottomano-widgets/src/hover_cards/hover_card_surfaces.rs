@@ -14,7 +14,8 @@ use crate::{
     clock::Clock,
     group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, PopupMessage, WidgetAnchor,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PopupMessage,
+        WidgetAnchor,
         anchored_popup::{
             OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
         },
@@ -31,7 +32,7 @@ use crate::{
 };
 
 pub const HIDE_GRACE: Duration = Duration::from_millis(250);
-const SWITCH_INTENT: Duration = Duration::from_millis(180);
+pub(crate) const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {
     pub parent: PanelEdge,
@@ -79,6 +80,8 @@ impl HoverCardHost {
             | HoverCardMessage::DismissHeldOpen
             | HoverCardMessage::ShownWidgetDropped
             | HoverCardMessage::ConfirmShownWidgetDropped
+            | HoverCardMessage::MenuHandlePointed { .. }
+            | HoverCardMessage::MenuHandlePointedAnchor { .. }
             | HoverCardMessage::MenuHandlePressed { .. }
             | HoverCardMessage::MenuHandlePressedAnchor { .. }
             | HoverCardMessage::SwitchIntentElapsed => None,
@@ -158,6 +161,29 @@ impl HoverCardHost {
                 });
         self.laid_out_anchors.remember(output, widget_anchor);
         hid_the_shown_card.then(|| self.leave_after_grace(now))
+    }
+
+    pub fn set_handle_pointed_at(&mut self, output: &str, target: &HoverTarget, pointed_at: bool) {
+        self.laid_out_anchors
+            .set_pointed_at(output, target, pointed_at);
+    }
+
+    fn shows_on_output(&self, output: &str) -> bool {
+        self.placement()
+            .is_some_and(|placement| placement.output == output)
+    }
+
+    #[must_use]
+    pub fn hover_switches_menu(&self, target: &HoverTarget, output: &str) -> bool {
+        self.is_held_open() && self.shows_on_output(output) && self.target() != Some(target)
+    }
+
+    #[must_use]
+    pub fn handle_indicator(&self, target: &HoverTarget, output: &str) -> MenuHandleIndicator {
+        MenuHandleIndicator {
+            hovering: self.laid_out_anchors.is_pointed_at(output, target),
+            open: self.target() == Some(target) && self.shows_on_output(output),
+        }
     }
 
     #[must_use]
@@ -774,6 +800,45 @@ mod tests {
         let mut host = HoverCardHost::default();
         host.open_until_dismissed(&top_edge(), workspace_card(), HoverAnnouncement::default());
         host
+    }
+
+    fn other_menu_handle() -> HoverTarget {
+        HoverTarget::Workspace(8)
+    }
+
+    #[test]
+    fn with_no_menu_open_hovering_a_handle_opens_nothing() {
+        let host = HoverCardHost::default();
+        assert!(!host.hover_switches_menu(&workspace_card(), "DP-1"));
+    }
+
+    #[test]
+    fn an_open_menu_switches_on_hovering_another_handle_on_its_output_only() {
+        let host = host_holding_a_menu_open();
+        assert!(host.hover_switches_menu(&other_menu_handle(), "DP-1"));
+        assert!(!host.hover_switches_menu(&workspace_card(), "DP-1"));
+        assert!(!host.hover_switches_menu(&other_menu_handle(), "DP-2"));
+    }
+
+    #[test]
+    fn a_handle_indicator_shows_open_only_on_the_output_of_the_card() {
+        let host = host_holding_a_menu_open();
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").open);
+        assert!(!host.handle_indicator(&workspace_card(), "DP-2").open);
+        assert!(!host.handle_indicator(&other_menu_handle(), "DP-1").open);
+    }
+
+    #[test]
+    fn a_handle_indicator_follows_the_pointer_and_survives_a_new_layout() {
+        let mut host = HoverCardHost::default();
+        remember(&mut host, "DP-1", widget_at(0.0, CardOpening::OnPress));
+        host.set_handle_pointed_at("DP-1", &workspace_card(), true);
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
+        assert!(!host.handle_indicator(&workspace_card(), "DP-2").hovering);
+        remember(&mut host, "DP-1", widget_at(5.0, CardOpening::OnPress));
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
+        host.set_handle_pointed_at("DP-1", &workspace_card(), false);
+        assert!(!host.handle_indicator(&workspace_card(), "DP-1").hovering);
     }
 
     fn panels_on(outputs: &[&str]) -> BTreeMap<String, Id> {

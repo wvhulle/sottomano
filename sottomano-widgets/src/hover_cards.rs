@@ -285,6 +285,12 @@ impl HoverAnnouncement {
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MenuHandleIndicator {
+    pub hovering: bool,
+    pub open: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum HoverCardMessage {
     AnchorLaidOut(WidgetAnchor),
@@ -300,6 +306,18 @@ pub enum HoverCardMessage {
         surface: Id,
         position: Position,
         target: HoverTarget,
+        announcement: HoverAnnouncement,
+    },
+    MenuHandlePointedAnchor {
+        target: HoverTarget,
+        pointed_at: bool,
+        announcement: HoverAnnouncement,
+    },
+    MenuHandlePointed {
+        surface: Id,
+        position: Position,
+        target: HoverTarget,
+        pointed_at: bool,
         announcement: HoverAnnouncement,
     },
     MenuHandlePressedAnchor {

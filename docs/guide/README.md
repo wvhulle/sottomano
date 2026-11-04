@@ -6,7 +6,7 @@ Widgets that look alike share one recording, with the others listed in a table b
 
 ## Group menus
 
-Most groups live in menus behind a single icon on a panel. Pressing the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Pressing a row opens the group's items in a panel beside it, and hovering an item there shows its card. A menu stays open until a press anywhere outside it, on any monitor, a press on its icon or Escape; while it is open, hovering or pressing another menu icon switches to that menu. Menus open downward from the top panel and upward from the bottom panel.
+Most groups live in menus behind a single icon on a panel. Pressing the icon opens the menu: one row per group, with settings that share a unit lined up in a table above them. Hovering a row opens the group's items in a panel beside it, pressing it opens them at once, and hovering an item's info icon there shows its card. A menu stays open until a press anywhere outside it, on any monitor, a press on its icon or Escape; while it is open, hovering or pressing another menu icon switches to that menu. Menus open downward from the top panel and upward from the bottom panel.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_media.webp" width="876" alt="Opening the Media menu, pressing its rows and hovering the microphone">
 
@@ -16,11 +16,9 @@ The pin on a row puts that group back on the panel, next to its menu icon; a pin
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_pin.webp" width="229" alt="Pinning the memory group from the Hardware menu, which moves it onto the panel">
 
-The Menus group in the Behaviour menu changes how every menu opens. Menus and cascading groups can open on hover instead of on press, and such a menu closes when the pointer leaves it. In an accordion, pressing a row opens the group's items below it, and several groups can stay open. Cards can open below their row instead of beside it.
+The Menus group in the Behaviour menu changes how every menu opens. Menus can open from their icon on hover instead of on press, and such a menu closes when the pointer leaves it. In an accordion, pressing a row opens the group's items below it, and several groups can stay open.
 
 <img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_accordion_several.webp" width="1113" alt="Opening two groups of the Hardware menu as an accordion and hovering CPU load">
-
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/group_menu_inline_card.webp" width="671" alt="Pressing CPU load in an accordion opens its card below the row">
 
 | Menu | Panel | Groups |
 |---|---|---|

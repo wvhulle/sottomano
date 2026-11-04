@@ -8,8 +8,7 @@ use crate::{
     },
     group_menus::{
         group_menu_presentation::{
-            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, HoverCardPlacement,
-            OpenGroupLimit,
+            GroupMenuLayout, GroupMenuOpenTrigger, GroupMenuPresentation, OpenGroupLimit,
         },
         group_menu_state::{GroupMenuMessage, GroupMenuState},
     },
@@ -27,9 +26,8 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GroupMenuSettingsTarget {
     AccordionLayout,
-    PressToReveal,
+    ClickToOpenMenus,
     KeepOneGroupOpen,
-    InlineCards,
     Appearance(AppearanceTarget),
 }
 
@@ -51,15 +49,14 @@ fn accordion_layout_toggle(presentation: GroupMenuPresentation) -> IconToggle {
     )
 }
 
-fn press_to_reveal_toggle(presentation: GroupMenuPresentation) -> IconToggle {
+fn click_to_open_menus_toggle(presentation: GroupMenuPresentation) -> IconToggle {
     IconToggle::new(
-        "Press to open menus",
+        "Click to open menus",
         Phosphor::CursorClick(Weight::Regular),
         presentation.open_trigger == GroupMenuOpenTrigger::Press,
         SwitchPresses {
-            turning_on: "open menus and cascading groups by pressing them, until pressed away",
-            turning_off: "open menus and cascading groups by hovering them, until the pointer \
-                          leaves",
+            turning_on: "open a menu by clicking its panel icon, until clicked away",
+            turning_off: "open a menu by hovering its panel icon, until the pointer leaves",
         },
     )
 }
@@ -72,18 +69,6 @@ fn keep_one_group_open_toggle(presentation: GroupMenuPresentation) -> IconToggle
         SwitchPresses {
             turning_on: "close the open group when another opens",
             turning_off: "keep groups open until pressed again",
-        },
-    )
-}
-
-fn inline_cards_toggle(presentation: GroupMenuPresentation) -> IconToggle {
-    IconToggle::new(
-        "Inline cards",
-        Phosphor::Cards(Weight::Regular),
-        presentation.hover_card_placement == HoverCardPlacement::InlineWithRow,
-        SwitchPresses {
-            turning_on: "open an item's card below its row on press",
-            turning_off: "open an item's card beside its row on hover",
         },
     )
 }
@@ -113,18 +98,13 @@ impl GroupMenuState {
                     GroupMenuMessage::SwitchPresentation(presentation.with_layout_toggled()),
                 ),
                 GroupItem::toggle(
-                    press_to_reveal_toggle(presentation),
-                    GroupMenuSettingsTarget::PressToReveal,
+                    click_to_open_menus_toggle(presentation),
+                    GroupMenuSettingsTarget::ClickToOpenMenus,
                     GroupMenuMessage::SwitchPresentation(presentation.with_open_trigger_toggled()),
                 ),
             ]
             .into_iter()
             .chain(accordion_only_item)
-            .chain([GroupItem::toggle(
-                inline_cards_toggle(presentation),
-                GroupMenuSettingsTarget::InlineCards,
-                GroupMenuMessage::SwitchPresentation(presentation.with_card_placement_toggled()),
-            )])
             .chain(
                 self.menu_appearance_controls()
                     .items(config, GroupMenuMessage::Appearance),
@@ -142,14 +122,11 @@ impl GroupMenuState {
             GroupMenuSettingsTarget::AccordionLayout => {
                 accordion_layout_toggle(presentation).switch_hover_card(clock)
             }
-            GroupMenuSettingsTarget::PressToReveal => {
-                press_to_reveal_toggle(presentation).switch_hover_card(clock)
+            GroupMenuSettingsTarget::ClickToOpenMenus => {
+                click_to_open_menus_toggle(presentation).switch_hover_card(clock)
             }
             GroupMenuSettingsTarget::KeepOneGroupOpen => {
                 keep_one_group_open_toggle(presentation).switch_hover_card(clock)
-            }
-            GroupMenuSettingsTarget::InlineCards => {
-                inline_cards_toggle(presentation).switch_hover_card(clock)
             }
             GroupMenuSettingsTarget::Appearance(target) => self
                 .menu_appearance_controls()

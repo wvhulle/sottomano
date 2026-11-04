@@ -13,8 +13,8 @@ use sottomano_config::Config;
 use sottomano_sources::{
     SnapshotDelivery,
     cpu_memory_compute::pci_gpu_readings::{
-        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuPowerDraw, GpuProcesses,
-        GpuRuntimePower, GpuSnapshot, PciBusId,
+        self, GpuClocks, GpuDiscovery, GpuHandle, GpuMemory, GpuModel, GpuNames, GpuPowerDraw,
+        GpuProcesses, GpuRuntimePower, GpuSnapshot, PciBusId,
     },
 };
 
@@ -131,6 +131,21 @@ impl GpuDevice {
 
 fn gpu_group_identity(bus: &PciBusId) -> WidgetGroupIdentity {
     WidgetGroupIdentity::durable(WidgetGroupFamily::Gpu, bus.0.clone())
+}
+
+fn gpu_group_titles<'names>(
+    discovered_names: impl Iterator<Item = &'names GpuNames>,
+) -> impl Iterator<Item = WidgetGroupTitle> {
+    discovered_names.scan(
+        BTreeMap::<&str, usize>::new(),
+        |namesake_counts, gpu_names| {
+            let name = gpu_names.preferred_name();
+            let namesake_count = namesake_counts.entry(name).or_default();
+            let title = WidgetGroupTitle::numbered_from_second(name.to_owned(), *namesake_count);
+            *namesake_count += 1;
+            Some(title)
+        },
+    )
 }
 
 #[derive(Default)]
@@ -300,9 +315,11 @@ impl GpuGroup {
     pub fn group_contents(&self) -> impl Iterator<Item = WidgetGroupContent<'_, GpuMessage>> {
         self.devices
             .iter()
-            .filter(|(_, device)| device.is_awake())
-            .enumerate()
-            .map(|(position, (bus, device))| {
+            .zip(gpu_group_titles(
+                self.devices.values().map(|device| &device.model.names),
+            ))
+            .filter(|((_, device), _)| device.is_awake())
+            .map(|((bus, device), group_title)| {
                 let expanded_bus = bus.clone();
                 let target = |reading| GpuTarget {
                     bus: bus.clone(),
@@ -332,10 +349,7 @@ impl GpuGroup {
                 ];
                 WidgetGroupContent::expandable_instance(
                     gpu_group_identity(bus),
-                    WidgetGroupTitle::numbered_from_second(
-                        WidgetGroupFamily::Gpu.title(),
-                        position,
-                    ),
+                    group_title,
                     &device.expansion,
                     move |expansion| GpuMessage::Expansion(expanded_bus.clone(), expansion),
                     items.into_iter().flatten(),
@@ -402,7 +416,17 @@ impl GpuGroup {
 
 #[cfg(test)]
 mod tests {
-    use super::{PciBusId, WidgetGroupFamily, WidgetGroupTitle, gpu_group_identity};
+    use super::{GpuNames, PciBusId, gpu_group_identity, gpu_group_titles};
+
+    fn titles_of(product_names: &[&str]) -> Vec<String> {
+        let discovered_names: Vec<GpuNames> = product_names
+            .iter()
+            .map(|product_name| GpuNames::Product((*product_name).to_owned()))
+            .collect();
+        gpu_group_titles(discovered_names.iter())
+            .map(|group_title| group_title.to_string())
+            .collect()
+    }
 
     #[test]
     fn each_gpu_has_its_own_identity() {
@@ -411,12 +435,23 @@ mod tests {
     }
 
     #[test]
-    fn only_later_gpus_are_numbered() {
-        let title_at = |position| {
-            WidgetGroupTitle::numbered_from_second(WidgetGroupFamily::Gpu.title(), position)
-                .to_string()
-        };
-        assert_eq!(title_at(0), "GPU");
-        assert_eq!(title_at(1), "GPU 2");
+    fn a_gpu_is_titled_by_its_name() {
+        assert_eq!(titles_of(&["GeForce RTX 4090"]), ["GeForce RTX 4090"]);
+    }
+
+    #[test]
+    fn different_gpus_are_not_numbered() {
+        assert_eq!(
+            titles_of(&["GeForce RTX 4090", "Arc A770"]),
+            ["GeForce RTX 4090", "Arc A770"]
+        );
+    }
+
+    #[test]
+    fn only_later_namesakes_are_numbered() {
+        assert_eq!(
+            titles_of(&["GeForce RTX 4090", "Arc A770", "GeForce RTX 4090"]),
+            ["GeForce RTX 4090", "Arc A770", "GeForce RTX 4090 2"]
+        );
     }
 }

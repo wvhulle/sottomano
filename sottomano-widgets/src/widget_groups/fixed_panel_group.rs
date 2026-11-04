@@ -7,6 +7,7 @@ use crate::{
     clock::Clock,
     group_items::group_item::GroupItem,
     group_menus::group_menu_presentation::GroupMenuOpenTrigger,
+    hover_cards::{HoverTarget, MenuHandleIndicator},
     widget_groups::widget_group_content::{GroupEvent, fixed_view},
 };
 
@@ -28,11 +29,17 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
     }
 
     #[must_use]
+    pub fn handle_target(&self) -> Option<&HoverTarget> {
+        self.item.as_ref().and_then(GroupItem::whole_item_target)
+    }
+
+    #[must_use]
     pub fn view(
         self,
         config: &'a sottomano_config::Config,
         panel_position: Position,
         open_trigger: GroupMenuOpenTrigger,
+        handle_indicator: MenuHandleIndicator,
         clock: Clock,
     ) -> Option<Element<'a, M>>
     where
@@ -43,6 +50,7 @@ impl<'a, M: Clone + 'a> FixedPanelGroup<'a, M> {
             fixed_view(
                 slice::from_ref(&item),
                 Severity::default(),
+                handle_indicator,
                 config,
                 panel_position,
                 clock,

@@ -26,7 +26,9 @@ use iced_test::{
     runtime::{UserInterface, user_interface::Cache},
 };
 use sottomano_config::Config;
-use sottomano_widgets::clock::Clock;
+use sottomano_widgets::{
+    clock::Clock, hover_cards::HoverTarget, widget_groups::app_launcher_group::AppLauncherTarget,
+};
 use webp_animation::{Encoder, EncoderOptions, EncodingConfig, EncodingType};
 
 use crate::{
@@ -203,6 +205,9 @@ impl<'session> DemoRecorder<'session> {
                 let pointer = self.locate(MenuPinWidget(entry.clone()));
                 self.press_at(pointer)
             }
+            Step::HoverApp(app_id) => self.perform(&Step::Hover(HoverTarget::AppLauncher(
+                AppLauncherTarget::App((*app_id).to_owned()),
+            ))),
             Step::HoverText(shown) => {
                 self.interact(Mouse::Move(Target::Text((*shown).to_owned())));
                 self.capture_during(HOVER_HOLD)

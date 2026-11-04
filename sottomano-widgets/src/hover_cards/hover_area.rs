@@ -98,8 +98,15 @@ impl<M> HoverArea<'_, M> {
         }
         let replaced = replace(state, HoverState::of(self.target.clone()));
         replaced.hovered.then(|| {
-            (self.wrap)(HoverCardMessage::Exit {
-                target: replaced.target,
+            (self.wrap)(match self.opening {
+                CardOpening::OnHover => HoverCardMessage::Exit {
+                    target: replaced.target,
+                },
+                CardOpening::OnPress => HoverCardMessage::MenuHandlePointedAnchor {
+                    target: replaced.target,
+                    pointed_at: false,
+                    announcement: replaced.announced,
+                },
             })
         })
     }
@@ -137,6 +144,14 @@ impl<M> HoverArea<'_, M> {
         })
     }
 
+    fn menu_handle_pointed(&self, pointed_at: bool) -> M {
+        (self.wrap)(HoverCardMessage::MenuHandlePointedAnchor {
+            target: self.target.clone(),
+            pointed_at,
+            announcement: self.announcement.clone(),
+        })
+    }
+
     fn menu_handle_pressed(&self) -> M {
         (self.wrap)(HoverCardMessage::MenuHandlePressedAnchor {
             target: self.target.clone(),
@@ -168,9 +183,9 @@ impl<M> HoverArea<'_, M> {
         state.hovered = hovered;
         match (hovered, self.opening) {
             (true, CardOpening::OnHover) => Some(self.enter(state)),
-            (true, CardOpening::OnPress) => None,
+            (true, CardOpening::OnPress) => Some(self.menu_handle_pointed(true)),
             (false, CardOpening::OnHover) => Some(self.exit()),
-            (false, CardOpening::OnPress) => None,
+            (false, CardOpening::OnPress) => Some(self.menu_handle_pointed(false)),
         }
     }
 }
@@ -525,10 +540,19 @@ mod tests {
     }
 
     #[test]
-    fn hovering_a_menu_handle_only_reports_its_layout() {
+    fn hovering_a_menu_handle_reports_it_without_entering() {
         let messages = messages_from_pointing_inside(press_toggled_area(), false);
         assert!(
-            matches!(messages.as_slice(), [HoverCardMessage::AnchorLaidOut(..)]),
+            matches!(
+                messages.as_slice(),
+                [
+                    HoverCardMessage::AnchorLaidOut(..),
+                    HoverCardMessage::MenuHandlePointedAnchor {
+                        pointed_at: true,
+                        ..
+                    }
+                ]
+            ),
             "{messages:?}"
         );
     }
@@ -541,6 +565,7 @@ mod tests {
                 messages.as_slice(),
                 [
                     HoverCardMessage::AnchorLaidOut(..),
+                    HoverCardMessage::MenuHandlePointedAnchor { .. },
                     HoverCardMessage::MenuHandlePressedAnchor { .. }
                 ]
             ),
@@ -657,6 +682,23 @@ mod tests {
         ));
         assert!(!hovered.hovered);
         assert!(second.exit_of_replaced_target(&mut hovered).is_none());
+    }
+
+    #[test]
+    fn a_replaced_menu_handle_stops_being_pointed_at() {
+        let second = area_of(HoverTarget::Workspace(8), CardOpening::OnPress);
+        let mut hovered = HoverState {
+            hovered: true,
+            ..fresh_state()
+        };
+        assert!(matches!(
+            second.exit_of_replaced_target(&mut hovered),
+            Some(HoverCardMessage::MenuHandlePointedAnchor {
+                target: HoverTarget::Workspace(7),
+                pointed_at: false,
+                ..
+            })
+        ));
     }
 
     #[test]

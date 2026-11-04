@@ -46,6 +46,17 @@ fn anchor_hover_cards_on_surface(
             target,
             announcement,
         }),
+        Message::HoverCard(HoverCardMessage::MenuHandlePointedAnchor {
+            target,
+            pointed_at,
+            announcement,
+        }) => Message::HoverCard(HoverCardMessage::MenuHandlePointed {
+            surface,
+            position,
+            target,
+            pointed_at,
+            announcement,
+        }),
         Message::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
             target,
             announcement,
