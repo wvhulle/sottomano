@@ -91,6 +91,7 @@
             ./docs
             ./README.md
             ./.woodpecker
+            ./ci
           ]
         );
       };
@@ -214,16 +215,98 @@
       );
 
       homeModule = import ./nix/hm-module.nix { inherit self; };
+
+      flakeAppFromTool = tool_derivation: {
+        type = "app";
+        program = pkgs.lib.getExe tool_derivation;
+      };
+
+      nuScriptTool =
+        {
+          script,
+          name,
+          runtimeInputs ? [ ],
+          wrapperArguments ? [ ],
+        }:
+        pkgs.runCommand name
+          {
+            nativeBuildInputs = [ pkgs.makeBinaryWrapper ];
+            meta.mainProgram = name;
+          }
+          ''
+            makeWrapper ${pkgs.lib.getExe pkgs.nushell} $out/bin/${name} \
+              --add-flags ${script} \
+              --add-flags ${name} \
+              ${
+                pkgs.lib.optionalString (
+                  runtimeInputs != [ ]
+                ) "--prefix PATH : ${pkgs.lib.makeBinPath runtimeInputs}"
+              } \
+              ${pkgs.lib.escapeShellArgs wrapperArguments}
+          '';
+
+      nixBuiltPathsTool =
+        toolArguments: nuScriptTool (toolArguments // { script = ./ci/nix-built-paths.nu; });
+
+      workflowTaskApp =
+        toolArguments:
+        flakeAppFromTool (nuScriptTool (toolArguments // { script = ./ci/workflow-tasks.nu; }));
+
+      exportBuiltPathsHook = nixBuiltPathsTool { name = "export-built-paths-hook"; };
+
+      exportingBuildTool =
+        toolArguments:
+        nixBuiltPathsTool (
+          toolArguments
+          // {
+            wrapperArguments = [
+              "--set"
+              "EXPORT_HOOK_PROGRAM"
+              (pkgs.lib.getExe exportBuiltPathsHook)
+            ];
+          }
+        );
+
+      ciTaskTests = pkgs.runCommand "sottomano-ci-task-tests" { nativeBuildInputs = [ pkgs.nushell ]; } ''
+        nu ${./ci}/test-ci-tasks.nu
+        touch $out
+      '';
     in
     {
       packages.${system} = {
         default = sottomano;
         sottomano = sottomano;
-        deps = showcaseArtifacts;
+        workspace-dependencies = workspaceArtifacts;
+        showcase-dependencies = showcaseArtifacts;
         readme-recordings = readmeRecordings;
       };
 
+      apps.${system} = {
+        build-and-export-paths = flakeAppFromTool (exportingBuildTool {
+          name = "build-and-export-paths";
+        });
+        build-unless-cached = flakeAppFromTool (exportingBuildTool {
+          name = "build-unless-cached";
+        });
+        import-exported-paths = flakeAppFromTool (nixBuiltPathsTool {
+          name = "import-exported-paths";
+        });
+        upload-exported-paths = flakeAppFromTool (nixBuiltPathsTool {
+          name = "upload-exported-paths";
+          runtimeInputs = [ pkgs.cachix ];
+        });
+        check-commits = workflowTaskApp {
+          name = "check-commits";
+          runtimeInputs = [
+            pkgs.convco
+            pkgs.gitMinimal
+          ];
+        };
+        collect-rendered-recordings = workflowTaskApp { name = "collect-rendered-recordings"; };
+      };
+
       checks.${system} = {
+        ci-task-tests = ciTaskTests;
         tests = craneLib.cargoTest (
           workspaceArgs
           // showcaseFonts

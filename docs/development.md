@@ -115,11 +115,15 @@ it can rewind the shell to an earlier message.
 
 ## CI
 
-Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy and
-format) on pull requests and on `main`. It also checks pull request commits
-against Conventional Commits
-(locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
-checks pass on `main`, the recordings pipeline re-renders the tour, force-pushes
+Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy, format
+and the CI task tests) on pull requests and on `main`. A first step builds the
+Rust dependencies unless they are already in the binary cache and hands them to
+the later steps, which run even when it fails so that test output stays visible.
+On `main`, a last step holding the Cachix token uploads whatever was newly built.
+It also checks pull request commits against Conventional Commits
+(locally: `nix run .#check-commits -- main..HEAD`). CI tasks that are not product
+tasks are Nushell scripts in `ci/`, run as flake apps, so workflows hold no shell
+logic. After checks pass on `main`, the recordings pipeline re-renders the tour, force-pushes
 it as the single commit of the orphan `recordings` branch and opens a pull
 request when the embed widths changed. The config docs pipeline does the same
 for the full default config in `docs/configuration.md` when the config crate
@@ -131,14 +135,21 @@ flowchart LR
   main_push_event(["push or manual on main"])
 
   subgraph checks_pipeline ["checks pipeline"]
-    pull_request_checks["tests, clippy"]
-    main_checks["tests, clippy,<br>then push to the binary cache"]
-    format_check["format<br>treefmt: rustfmt, nixfmt"]
+    build_dependencies["build Rust dependencies<br>unless already cached"]
+    test_and_lint["tests, clippy,<br>format: rustfmt, nixfmt"]
+    ci_task_tests["CI task tests"]
+    upload_cache["push to the binary cache<br>on main only"]
+    build_dependencies --> test_and_lint
+    test_and_lint --> upload_cache
     conventional_commits["conventional commits<br>convco check"]
   end
 
   subgraph recordings_pipeline ["recordings pipeline"]
-    render_recordings["render the tour<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
+    build_showcase_dependencies["build showcase dependencies<br>unless already cached"]
+    render_recordings["render the tour<br>.#readme-recordings<br>cargo xtask update-recording-embeds"]
+    upload_recordings["push to the binary cache"]
+    build_showcase_dependencies --> render_recordings
+    render_recordings --> upload_recordings
     push_orphan_recordings["replace the single commit<br>of the recordings branch"]
     push_recordings_branch["force-push resized embeds<br>to Codeberg"]
     open_recordings_pull_request["open, update or close<br>the pull request"]
@@ -157,8 +168,8 @@ flowchart LR
 
   main_branch[("main")]
 
-  pull_request_event --> pull_request_checks & format_check & conventional_commits
-  main_push_event --> main_checks & format_check
+  pull_request_event --> build_dependencies & ci_task_tests & conventional_commits
+  main_push_event --> build_dependencies & ci_task_tests
   checks_pipeline -->|"after checks"| recordings_pipeline
   checks_pipeline -->|"after checks"| config_docs_pipeline
   open_recordings_pull_request -->|recordings PR| main_branch

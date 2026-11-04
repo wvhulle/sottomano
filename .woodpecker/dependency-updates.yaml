@@ -22,8 +22,8 @@ steps:
         extra-substituters = https://wvhulle.cachix.org
         extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
     commands:
-      - nix flake update
-      - nix develop --command cargo update
+      - nix flake update --quiet
+      - nix develop --quiet --command cargo --quiet update
 
   - name: push-dependency-updates-branch
     image: appleboy/drone-git-push

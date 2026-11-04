@@ -11,39 +11,59 @@ depends_on:
   - checks
 
 variables:
+  - &nix_config
+    NIX_CONFIG: |
+      experimental-features = nix-command flakes
+      extra-substituters = https://wvhulle.cachix.org
+      extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
   - &recordings_branch readme-recordings
   - &recordings_title "docs: update README recordings"
 
 steps:
+  - name: build-showcase-dependencies
+    image: nixos/nix:latest
+    depends_on: []
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#build-unless-cached -- .#packages.x86_64-linux.showcase-dependencies
+
   - name: render-readme-recordings
     image: nixos/nix:latest
+    depends_on: [build-showcase-dependencies]
+    when:
+      - status: [success, failure]
+    environment: *nix_config
+    commands:
+      - nix run --quiet .#import-exported-paths
+      - nix run --quiet .#build-and-export-paths -- .#packages.x86_64-linux.readme-recordings
+      - nix run --quiet .#collect-rendered-recordings -- result .
+      - nix develop --quiet --command cargo --quiet xtask update-recording-embeds
+
+  - name: upload-exported-paths
+    image: nixos/nix:latest
+    depends_on: [render-readme-recordings]
+    when:
+      - status: [success, failure]
     environment:
-      NIX_CONFIG: |
-        experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+      <<: *nix_config
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix build --quiet .#readme-recordings
-      - nix-store --query --requisites --include-outputs $(nix path-info --derivation .#readme-recordings) | grep -v '\.drv' | nix run --inputs-from . nixpkgs#cachix -- push wvhulle > /dev/null
-      - cp -r --no-preserve=mode result/. .
-      - nix develop --command cargo xtask update-recording-embeds
+      - nix run --quiet .#upload-exported-paths
 
   - name: push-recordings-orphan-branch
     image: nixos/nix:latest
+    depends_on: [upload-exported-paths]
     environment:
-      NIX_CONFIG: |
-        experimental-features = nix-command flakes
-        extra-substituters = https://wvhulle.cachix.org
-        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+      <<: *nix_config
       CODEBERG_TOKEN:
         from_secret: codeberg_token
     commands:
-      - nix develop --command cargo xtask publish-recordings
+      - nix develop --quiet --command cargo --quiet xtask publish-recordings
 
   - name: push-readme-recordings-branch
     image: appleboy/drone-git-push
+    depends_on: [push-recordings-orphan-branch]
     settings:
       remote: https://codeberg.org/${CI_REPO}.git
       netrc_machine: codeberg.org
@@ -59,6 +79,7 @@ steps:
 
   - name: open-readme-recordings-pr
     image: woodpeckercommunity/gitea-pull-request-create-plugin:latest
+    depends_on: [push-readme-recordings-branch]
     settings:
       gitea_address: https://codeberg.org
       gitea_token:

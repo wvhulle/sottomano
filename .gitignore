@@ -3,3 +3,4 @@
 /result*
 rustc-ice-*
 recordings/
+/.nix-built-paths/
