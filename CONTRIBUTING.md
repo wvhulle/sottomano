@@ -7,53 +7,41 @@ recordings are in [docs/development.md](docs/development.md).
 
 The shell is one hierarchy: a panel has zones, a zone holds group menus and
 widget groups, a menu holds groups, a group holds items, and an item explains
-itself with a hover card. Each level has one module in `sottomano-widgets/src/`
-and one type prefix, so a name says where it sits:
+itself with a hover card. Each level has one module in the widgets crate and one
+type prefix, named after the level (panel, group menu, widget group, group item,
+hover card), so a name says where it sits.
 
-| Level | Module | Prefix |
-|---|---|---|
-| Panel, zone | `desktop_panels/` | `Panel` |
-| Menu | `group_menus/` | `GroupMenu` |
-| Group | `widget_groups/` | `WidgetGroup` |
-| Item | `group_items/` | `GroupItem` |
-| Card | `hover_cards/` | `HoverCard` |
-
-`widgets/` holds only iced primitives and helpers that belong to no level. A
-module used by one group lives in that group. Pins and layouts describe things
-in the hierarchy rather than adding levels, and panels declare what they contain:
-a menu or group never says where it sits. Side surfaces of a cascading menu are
-satellites, and "panel" always means the bar along a screen edge.
+One further module holds only iced primitives and helpers that belong to no
+level. A module used by one group lives in that group. Pins and layouts describe
+things in the hierarchy rather than adding levels, and panels declare what they
+contain: a menu or group never says where it sits. Side surfaces of a cascading
+menu are satellites, and "panel" always means the bar along a screen edge.
 
 ## Conventions
 
 - No comments, doc-comments or docstrings. Intent lives in names and call flow;
   code that cannot be made self-evident that way is restructured, not annotated.
-- `sottomano-sources/src/` is grouped by domain. Each directory covers what one
-  widget domain reads and carries two or more keywords
-  (`cpu_memory_compute/`, `login_session_presence/`); each file is named after
-  its subject and the mechanism behind it (`journal_oom_kills`,
-  `gammarelay_color_temperature`, `upower_battery_state`).
-  `system_protocol_clients/` holds the D-Bus, HTTP, shell, inotify, sysfs and
-  journal access that names no daemon and implements no `SnapshotSource`.
-  Consumers spell out the new module path rather than aliasing it back to a
-  short name.
+- The sources crate is grouped by domain. Each directory covers what one widget
+  domain reads and carries two or more keywords; each file is named after its
+  subject and the mechanism behind it. One directory holds the D-Bus, HTTP,
+  shell, inotify, sysfs and journal access that names no daemon and implements
+  no snapshot source. Consumers spell out the full module path rather than
+  aliasing it back to a short name.
 - A source that only works with one vendor's driver carries that vendor in its
-  file name (`amd_l3_pmu_cache_traffic`, `intel_thermal_throttle_counters`,
-  `arm_cpuinfo_core_parts`). Generic sources read the kernel's shared
-  frameworks (cpufreq, hwmon, thermal, powercap) and compose the vendor files
-  rather than branching on vendor inline. No per-model constants: a limit or
-  cause is shown only when the kernel publishes it.
-- Strict config/state separation: no field appears in both the TOML config
-  (`sottomano-config/src/`) and the runtime state that widget groups persist
-  through `sqlite_state_store` (the `sqlite_*` modules next to each group in
-  `sottomano-widgets/src/`). Like sources, those modules are named after their
-  mechanism and subject (`sqlite_idle_timeouts`, `sqlite_focus_spans`).
+  file name. Generic sources read the kernel's shared frameworks (cpufreq,
+  hwmon, thermal, powercap) and compose the vendor files rather than branching
+  on vendor inline. No per-model constants: a limit or cause is shown only when
+  the kernel publishes it.
+- Strict config/state separation: no field appears in both the TOML config and
+  the runtime state that widget groups persist to SQLite. The modules persisting
+  that state sit next to each group and, like sources, are named after their
+  mechanism and subject.
 - No `macro_rules!` deduplication. Use traits, methods and marker types.
 - No global config statics. Config is threaded through as instance data.
 - Widgets over free helper functions: style functions, builder widgets and
   methods on the owning type.
-- Widget state lives in its widget and routes through its group's `Action` —
-  no `App`-level carve-outs, no shadow copies of a cell's state.
+- Widget state lives in its widget and routes through its group's action type —
+  no application-level carve-outs, no shadow copies of a cell's state.
 - Names describe structure, not appearance.
 - `README.md` holds the pitch, a short tour linking to `docs/guide/` and
   pointers into `docs/`. Installation, configuration, development and the full
@@ -61,6 +49,11 @@ satellites, and "panel" always means the bar along a screen edge.
   intuitive. Where help or explanation is needed, keep it next to the widget in
   question, as descriptive labels, hover cards and visual indicators, rather
   than as prose in the docs.
+- Docs name no variables, types, functions or modules, because those go out of
+  date quickly. Describe the behaviour, and name only what a reader types or
+  configures, such as commands, flags and config keys.
+- This file and `docs/development.md` are the only contributor docs. Sub-crates
+  have no `CONTRIBUTING.md`.
 - No config keys, defaults or TOML snippets in `README.md`. Users get a
   complete default config from `sottomano default-config` and start from there,
   so every option must show up in that output with its default. The "Full

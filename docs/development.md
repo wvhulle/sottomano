@@ -15,17 +15,17 @@ workspace:
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
   Each widget group restores and persists its own state.
 - `sottomano-shell/` composes them into the running shell (binary `sottomano`)
-  and defines the `Message` they produce.
+  and defines the message type they produce.
 - `sottomano-widget-showcase/` plays widget fixtures for the tour recordings,
   the `.ice` scenarios and the windowed tester.
 
 ## Runtime
 
-`run_shell` loads the config and starts the `DesktopShell` daemon. A data source
-becomes a subscription that yields a `Message` while a reading it backs is on
-screen or can alert; `GroupSourceDemand` decides this the same way for pinned
-groups and groups in a menu. `update` applies each message, persisting state
-where needed, and `view` renders the layer-shell surfaces.
+The shell loads the config and starts its daemon. A data source becomes a
+subscription that yields a message while a reading it backs is on screen or can
+alert, decided the same way for pinned groups and groups in a menu. The update
+step applies each message, persisting state where needed, and the view renders
+the layer-shell surfaces.
 
 ```mermaid
 flowchart TB
@@ -35,49 +35,49 @@ flowchart TB
     niri_event_thread["niri IPC<br>event thread"]
     wayland_outputs["Wayland outputs"]
     file_watches["inotify<br>config file, desktop entries"]
-    snapshot_sources["SnapshotSource::delivery_stream"]
+    snapshot_sources["snapshot sources"]
   end
 
   subgraph config_crate [sottomano-config]
     config_file[("$XDG_CONFIG_HOME/sottomano.toml")]
-    config_loading["ConfigFile::load"]
+    config_loading["config loading"]
     config_file --> config_loading
   end
 
   subgraph widgets_crate [sottomano-widgets]
-    snapshot_subscription["background_work::snapshot_subscription"]
+    snapshot_subscription["snapshot subscription"]
     widget_groups["widget groups<br>update, view"]
-    group_stores["group sqlite_* modules<br>sqlite_dark_mode_schedule, sqlite_idle_timeouts,<br>sqlite_focus_spans, sqlite_shell_settings_row, …"]
-    niri_kdl_rules["niri_window_group::niri_kdl_rules"]
+    group_stores["per-group SQLite state<br>dark mode schedule, idle timeouts,<br>focus spans, shell settings, …"]
+    niri_kdl_rules["niri window rules"]
     widget_groups <-->|restore / persist| group_stores
     widget_groups <--> niri_kdl_rules
   end
 
   subgraph shell_crate [sottomano-shell]
-    run_shell["run_shell"]
-    shell_message["Message (shell_message.rs)"]
-    message_subscriptions["message_subscriptions::subscription"]
-    shell_update["DesktopShell::update"]
-    shell_view["DesktopShell::view"]
-    sqlite_app_launches["desktop_shell::sqlite_app_launches"]
+    shell_startup["shell startup"]
+    shell_message["shell messages"]
+    message_subscriptions["message subscriptions"]
+    shell_update["shell update"]
+    shell_view["shell view"]
+    app_launch_store["app launch history"]
     layer_surfaces["layer-shell surfaces<br>bars, panel, sidebar, toasts, hover cards"]
-    run_shell -->|startup load tasks| shell_update
+    shell_startup -->|startup load tasks| shell_update
     shell_message --> message_subscriptions
     message_subscriptions --> shell_update
     shell_update -->|state| shell_view
     shell_view --> layer_surfaces
-    shell_update <-->|restore / persist| sqlite_app_launches
+    shell_update <-->|restore / persist| app_launch_store
   end
 
-  sqlite_state_store[("$XDG_STATE_HOME/sottomano/state.db<br>via sqlite_state_store")]
+  state_database[("$XDG_STATE_HOME/sottomano/state.db")]
   niri_kdl_file[("$XDG_CONFIG_HOME/sottomano/niri.kdl<br>niri layer, layout and window rules")]
 
-  config_loading --> run_shell
+  config_loading --> shell_startup
   desktop_bus & notification_server & niri_event_thread & wayland_outputs & file_watches --> message_subscriptions
-  snapshot_sources -->|SnapshotDelivery| snapshot_subscription
+  snapshot_sources -->|snapshots| snapshot_subscription
   snapshot_subscription --> shell_message
   shell_update <-->|group messages and tasks| widget_groups
-  group_stores & sqlite_app_launches <--> sqlite_state_store
+  group_stores & app_launch_store <--> state_database
   niri_kdl_rules <-->|read / rewrite| niri_kdl_file
 ```
 
@@ -93,8 +93,25 @@ flowchart TB
 
 Version control is jj, not the `git` CLI.
 
-Debugging the running shell with iced's devtools and comet is described in
-[sottomano-shell/CONTRIBUTING.md](../sottomano-shell/CONTRIBUTING.md).
+## Debugging with comet
+
+`cargo r --features devtools` attaches iced's devtools to the running shell, and
+`--features time-travel` adds rewinding. The metrics show in comet, iced's
+debugger window. The bar is a layer surface that never takes keyboard focus, so
+devtools' F12 shortcut does not reach it. Start comet yourself:
+
+```bash
+cargo install --locked --git https://github.com/iced-rs/comet.git \
+  --rev 3f75f3240edc1719df584810337bc7df010327d8
+iced_comet &
+cargo r --features devtools
+```
+
+The revision is the one the iced fork's devtools pins; bump it when the fork
+moves. The shell's beacon keeps retrying its connection, so comet and the shell
+can start in either order. Comet then shows each message with its update, view,
+layout and draw timings, plus task and subscription counts; under `time-travel`
+it can rewind the shell to an earlier message.
 
 ## CI
 
@@ -102,73 +119,83 @@ Woodpecker CI (`.woodpecker/`) builds the flake `checks` (tests, clippy and
 format) on pull requests and on `main`. It also checks pull request commits
 against Conventional Commits
 (locally: `nix run --inputs-from . nixpkgs#convco -- check main..HEAD`). After
-checks pass on `main`, the `readme-recordings` pipeline re-renders the tour,
-force-pushes it as the single commit of the orphan `recordings` branch and opens
-a pull request when the embed widths changed. The `config-docs` pipeline
-does the same for the full default config in `docs/configuration.md` when the
-config crate changes.
+checks pass on `main`, the recordings pipeline re-renders the tour, force-pushes
+it as the single commit of the orphan `recordings` branch and opens a pull
+request when the embed widths changed. The config docs pipeline does the same
+for the full default config in `docs/configuration.md` when the config crate
+changes.
 
 ```mermaid
 flowchart LR
   pull_request_event(["pull request"])
   main_push_event(["push or manual on main"])
 
-  subgraph checks_pipeline [".woodpecker/checks.yaml"]
-    cargo_checks_pr["cargo-checks-pr<br>tests, clippy"]
-    cargo_checks["cargo-checks<br>tests, clippy, then cachix push"]
+  subgraph checks_pipeline ["checks pipeline"]
+    pull_request_checks["tests, clippy"]
+    main_checks["tests, clippy,<br>then push to the binary cache"]
     format_check["format<br>treefmt: rustfmt, nixfmt"]
-    conventional_commits["conventional-commits<br>convco check FETCH_HEAD..HEAD"]
+    conventional_commits["conventional commits<br>convco check"]
   end
 
-  subgraph recordings_pipeline [".woodpecker/readme-recordings.yaml"]
-    render_recordings["render-readme-recordings<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
-    push_orphan_recordings["push-recordings-orphan-branch<br>replace the single commit of recordings"]
-    push_recordings_branch["push-readme-recordings-branch<br>force-push to Codeberg"]
-    open_recordings_pull_request["open-readme-recordings-pr<br>open, update or close"]
+  subgraph recordings_pipeline ["recordings pipeline"]
+    render_recordings["render the tour<br>nix build .#readme-recordings<br>cargo xtask update-recording-embeds"]
+    push_orphan_recordings["replace the single commit<br>of the recordings branch"]
+    push_recordings_branch["force-push resized embeds<br>to Codeberg"]
+    open_recordings_pull_request["open, update or close<br>the pull request"]
     render_recordings -->|"recordings/*.webp"| push_orphan_recordings
     render_recordings -->|resized embeds| push_recordings_branch
     push_recordings_branch --> open_recordings_pull_request
   end
 
-  subgraph config_docs_pipeline [".woodpecker/config-docs.yaml"]
-    update_config_docs["update-config-docs<br>cargo xtask update-config-docs"]
-    push_config_docs_branch["push-config-docs-branch<br>force-push to Codeberg"]
-    open_config_docs_pull_request["open-config-docs-pr<br>open, update or close"]
+  subgraph config_docs_pipeline ["config docs pipeline"]
+    update_config_docs["regenerate the default config<br>cargo xtask update-config-docs"]
+    push_config_docs_branch["force-push to Codeberg"]
+    open_config_docs_pull_request["open, update or close<br>the pull request"]
     update_config_docs --> push_config_docs_branch
     push_config_docs_branch --> open_config_docs_pull_request
   end
 
   main_branch[("main")]
 
-  pull_request_event --> cargo_checks_pr & format_check & conventional_commits
-  main_push_event --> cargo_checks & format_check
-  checks_pipeline -->|"depends_on: checks"| recordings_pipeline
-  checks_pipeline -->|"depends_on: checks"| config_docs_pipeline
-  open_recordings_pull_request -->|readme-recordings PR| main_branch
-  open_config_docs_pull_request -->|config-docs PR| main_branch
+  pull_request_event --> pull_request_checks & format_check & conventional_commits
+  main_push_event --> main_checks & format_check
+  checks_pipeline -->|"after checks"| recordings_pipeline
+  checks_pipeline -->|"after checks"| config_docs_pipeline
+  open_recordings_pull_request -->|recordings PR| main_branch
+  open_config_docs_pull_request -->|config docs PR| main_branch
 ```
 
-The `readme-recordings` pipeline skips its own commits. The `config-docs` pipeline only runs when
-`sottomano-config/`, `xtask/` or `docs/configuration.md` change, and skips its
+The recordings pipeline skips its own commits. The config docs pipeline only runs
+when the config crate, `xtask/` or `docs/configuration.md` change, and skips its
 own commits.
 
 ## Tour recordings
 
-The recordings in the [guide](guide/README.md) and the README are rendered by
-`sottomano-widget-showcase`.
-[sottomano-widget-showcase/CONTRIBUTING.md](../sottomano-widget-showcase/CONTRIBUTING.md)
-describes how they are scripted, added and checked.
+The recordings in the [guide](guide/README.md) and the README are rendered
+offscreen by `sottomano-widget-showcase` into the untracked root `recordings/`.
+`nix build .#readme-recordings` renders them all the way CI does.
+
+```bash
+cargo run -p sottomano-widget-showcase
+cargo run -p sottomano-widget-showcase -- --jobs 2
+cargo run -p sottomano-widget-showcase -- <demo-name>
+cargo run -p sottomano-widget-showcase -- --window
+```
+
+Rendering every demo runs one child process per demo, `--jobs` at a time (4 by
+default). A demo buffers its frames until it encodes them, so lower `--jobs` when
+memory is short.
 
 ```mermaid
 flowchart LR
   subgraph widget_showcase [sottomano-widget-showcase]
-    group_fixtures["fixtures/*.rs<br>group(Clock), live(Clock)<br>fixed showcase_epoch"]
-    demo_script["demo_script::DEMOS<br>Hover, Press, Drag, RestFor, …"]
-    showcase_program["ShowcaseProgram::scripted"]
-    animation_recording["animation_recording::record<br>iced_test emulator, frame clock,<br>ContentCrop, lavapipe"]
-    interactive_tester["ShowcaseProgram::interactive<br>--window"]
-    ice_scenarios["tests/ice_scenarios.rs<br>.ice scenarios"]
-    group_fixtures --> demo_script --> showcase_program --> animation_recording
+    group_fixtures["group fixtures<br>on a fixed scripted clock"]
+    demo_scripts["demo scripts<br>hover, press, drag, rest, …"]
+    scripted_program["scripted program"]
+    animation_recorder["recorder<br>iced_test emulator, frame clock,<br>content crop, lavapipe"]
+    interactive_tester["interactive tester<br>--window"]
+    ice_scenarios[".ice scenarios"]
+    group_fixtures --> demo_scripts --> scripted_program --> animation_recorder
     group_fixtures --> interactive_tester
     group_fixtures --> ice_scenarios
   end
@@ -179,11 +206,80 @@ flowchart LR
   showcase_document["docs/guide/*.md<br>embeds the rest, widths rewritten"]
   readme_document["README.md<br>widths rewritten for the recordings it embeds"]
 
-  animation_recording -->|lossless animated webp| recorded_webp
+  animation_recorder -->|lossless animated webp| recorded_webp
   recorded_webp -->|pixel width / 2| embedding_update
   embedding_update -->|"&lt;img src width&gt;"| showcase_document
   embedding_update -->|"&lt;img src width&gt;"| readme_document
 ```
+
+### Scripting a demo
+
+Each demo shows one widget, is named `<group>_<widget>` and sits under its
+heading on a page of `docs/guide/`, unless the README shows it. The name also
+selects the iced preset that boots its fixture for the recorder, the `.ice`
+scenarios and the windowed tester alike.
+
+A demo names a fixture and a script of steps: hovering, pressing or dragging
+named targets for panel widgets, and hovering or pressing visible text for
+toasts, which a toast fixture serves when the demo starts. The recorder finds
+each target on screen, plays the steps through `iced_test`'s emulator and writes
+`recordings/<name>.webp`, a lossless animated WebP cropped in both directions to
+what the demo shows, plus the panel gap as a margin. A group whose handle
+previews one of its items is opened by pressing that item's target. A handle
+without a preview is opened through the target for the group's face.
+
+To add a demo, write a fixture for the group (fed its readings through its own
+messages), add the group to the showcase's groups if it is not there yet, and
+add the demo to the list of demos. A target that is not on screen fails the run
+and lists the targets that are.
+
+A demo can put several fixtures in one menu. The settings groups are shown with
+their messages dropped, because those groups save to SQLite on update. Pressing
+the pin of a menu row only changes the showcase's in-memory state.
+
+### Reproducibility
+
+Rendering twice gives identical files, which
+`nix build .#readme-recordings --rebuild` verifies after a first build. Time is
+data: every preset boots with a clock whose wall time is the fixed showcase
+epoch, and the recorder advances that clock one frame interval per captured frame
+and sends it as a message. The frame also rewrites the redraw instant iced hands
+to widgets, so animations run from the same scripted time. Live readings, toast
+expiry and the hover card hide timer fire when their deadline passes on that
+clock, and the scripted program has no subscriptions.
+
+Keep that property when writing fixtures and widgets: take the clock as an
+argument, never read the system time (the widgets crate's clippy config forbids
+it, also inside macros such as `vec!`), derive a fixture's sample index from the
+clock, and return deadlines instead of starting timers. iced's own text input
+blinks its cursor from the real clock, so no demo types into one.
+
+### Windowed tester
+
+`--window` opens the presets in a real window with the iced tester attached,
+which switches between presets and records interactions as `.ice` scenarios.
+Scenarios saved in the showcase crate's tests run with `cargo test` (and so in
+CI); `expect` sees plain text widgets, not rich text such as toast bodies.
+
+### Embedding recordings
+
+The recordings are not part of `main`: CI publishes them as the single commit of
+the orphan `recordings` branch, so the history of `main` stays free of media.
+Each recording appears either in the root `README.md` (a few highlights) or on
+a page of `docs/guide/` (the rest), as
+`<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/<name>.webp" width="<w>">`.
+`<w>` is the recording's cropped width in logical pixels, so all demos show at
+the same scale. After rendering, `cargo xtask update-recording-embeds` rewrites
+`<w>` from the files in `recordings/`; it fails with the expected tag only when a
+recording is embedded nowhere. CI runs it right after the render.
+
+Rendering every widget takes long, so each visually distinct kind of widget has
+one demo, and widgets that look alike are listed in a table on the guide page
+below it. The compute page opens with a two-column table: the group's menu demo
+next to its pinned demo, which boots with that group pinned. Both images carry
+`alt` before `width="100%"`, so the width rewrite leaves them alone and each fills
+half the page. The canvas is transparent, so clear and translucent panels show
+the page behind them.
 
 ## Upstream docs
 
