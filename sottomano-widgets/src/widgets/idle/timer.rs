@@ -19,7 +19,7 @@ use crate::{
         idle::{ActionTrigger, MAX_POSITION, position, timeout_at},
         localized_durations::duration_text,
         localized_time::LocalizedTimeFormat,
-        phosphor::Phosphor,
+        phosphor::{Phosphor, Weight},
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -40,17 +40,20 @@ pub struct IdleTimer {
 
 impl IdleTimer {
     #[must_use]
-    pub fn new(name: &'static str, icon: Phosphor, action: IdleAction) -> Self {
+    pub fn new(name: &'static str, action: IdleAction) -> Self {
         let target = HoverTarget::IdleTimeout(action);
         Self {
-            control: SliderControl::new(name, 0.0..=MAX_POSITION, target.clone(), icon)
-                .readout(|value, locale| {
-                    timeout_at(value)
-                        .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
-                })
-                .label(|value, locale| {
-                    timeout_at(value).map(|timeout| duration_text(timeout, locale))
-                }),
+            control: SliderControl::new(
+                name,
+                0.0..=MAX_POSITION,
+                target.clone(),
+                Phosphor::Timer(Weight::Regular),
+            )
+            .readout(|value, locale| {
+                timeout_at(value)
+                    .map_or_else(|| "∞".to_owned(), |timeout| duration_text(timeout, locale))
+            })
+            .label(|value, locale| timeout_at(value).map(|timeout| duration_text(timeout, locale))),
             target,
             timeout: None,
             action,

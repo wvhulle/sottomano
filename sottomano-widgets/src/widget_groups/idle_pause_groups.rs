@@ -56,9 +56,9 @@ struct IdlePause {
 }
 
 impl IdlePause {
-    fn new(name: &'static str, icon: Phosphor, action: IdleAction) -> Self {
+    fn new(name: &'static str, action: IdleAction) -> Self {
         Self {
-            timer: IdleTimer::new(name, icon, action),
+            timer: IdleTimer::new(name, action),
             expansion: WidgetGroupExpansion::default(),
         }
     }
@@ -90,31 +90,11 @@ pub enum IdlePauseMessage {
 impl Default for IdlePauseGroups {
     fn default() -> Self {
         Self {
-            lock: IdlePause::new(
-                "Lock timeout",
-                Phosphor::Lock(Weight::Regular),
-                IdleAction::Lock,
-            ),
-            screen_off: IdlePause::new(
-                "Screen-off timeout",
-                Phosphor::Monitor(Weight::Regular),
-                IdleAction::ScreenOff,
-            ),
-            sleep: IdlePause::new(
-                "Standby timeout",
-                Phosphor::Bed(Weight::Regular),
-                IdleAction::Sleep,
-            ),
-            hibernate: IdlePause::new(
-                "Hibernate timeout",
-                Phosphor::Snowflake(Weight::Regular),
-                IdleAction::Hibernate,
-            ),
-            power_down: IdlePause::new(
-                "Power-down timeout",
-                Phosphor::Power(Weight::Regular),
-                IdleAction::PowerOff,
-            ),
+            lock: IdlePause::new("Lock timeout", IdleAction::Lock),
+            screen_off: IdlePause::new("Screen-off timeout", IdleAction::ScreenOff),
+            sleep: IdlePause::new("Standby timeout", IdleAction::Sleep),
+            hibernate: IdlePause::new("Hibernate timeout", IdleAction::Hibernate),
+            power_down: IdlePause::new("Power-down timeout", IdleAction::PowerOff),
             quiet_screen_off: None,
             idle_watcher: None,
             sleep_obstacles: LatestSnapshot::default(),
