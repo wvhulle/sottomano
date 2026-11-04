@@ -1,8 +1,11 @@
+pub mod cgroup_inhibitor_app_names;
 pub mod focus_time_ledger;
 pub mod greetd_greeter_program;
 pub mod idle_session_actions;
+pub mod kernel_sleep_obstacles;
 pub mod logind_action_permissions;
 pub mod logind_manager;
 pub mod logind_session_facts;
+pub mod screensaver_bus_idle_inhibitors;
 pub mod session_power_actions;
 pub mod wayland_idle_notify;

@@ -26,7 +26,7 @@ use crate::{
     },
     widget_groups::{
         fixed_panel_group::FixedPanelGroup,
-        idle_timeouts_group::{ScheduledAfterIdle, Timeouts},
+        idle_pause_groups::{ScheduledAfterIdle, Timeouts},
     },
     widgets::{
         configured_theme::text_color,

@@ -5,11 +5,18 @@ pub enum IdleAction {
     Lock,
     ScreenOff,
     Sleep,
+    Hibernate,
     PowerOff,
 }
 
 impl IdleAction {
-    pub const ALL: [IdleAction; 4] = [Self::Lock, Self::ScreenOff, Self::Sleep, Self::PowerOff];
+    pub const ALL: [IdleAction; 5] = [
+        Self::Lock,
+        Self::ScreenOff,
+        Self::Sleep,
+        Self::Hibernate,
+        Self::PowerOff,
+    ];
 
     #[must_use]
     pub fn session_action(self) -> SessionAction {
@@ -17,6 +24,7 @@ impl IdleAction {
             IdleAction::Lock => SessionAction::Lock,
             IdleAction::ScreenOff => SessionAction::ScreenOff,
             IdleAction::Sleep => SessionAction::Sleep,
+            IdleAction::Hibernate => SessionAction::Hibernate,
             IdleAction::PowerOff => SessionAction::PowerOff,
         }
     }
@@ -40,10 +48,17 @@ mod tests {
     }
 
     #[test]
-    fn no_idle_action_names_a_specific_sleep_state() {
+    fn idle_hibernate_asks_logind_for_hibernation_by_name() {
+        assert_eq!(
+            IdleAction::Hibernate.session_action(),
+            SessionAction::Hibernate
+        );
+    }
+
+    #[test]
+    fn hibernate_is_the_only_idle_action_naming_a_specific_sleep_state() {
         let specific_sleep_states = [
             SessionAction::Suspend,
-            SessionAction::Hibernate,
             SessionAction::HybridSleep,
             SessionAction::SuspendThenHibernate,
         ];

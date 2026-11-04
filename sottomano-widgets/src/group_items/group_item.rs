@@ -575,7 +575,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
     pub(crate) fn menu_name(&self) -> Cow<'static, str> {
         match &self.kind {
-            GroupItemContent::Reading { widget, .. } => widget.name().into(),
+            GroupItemContent::Reading { widget, .. } => widget.menu_row_name(),
             GroupItemContent::Slider { widget, .. } => widget.name().into(),
             GroupItemContent::Composed { identity, .. } => identity.name.clone(),
         }

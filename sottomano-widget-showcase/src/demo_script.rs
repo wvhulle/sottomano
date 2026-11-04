@@ -218,7 +218,7 @@ pub const DEMOS: &[Demo] = &[
         shown: GroupShown::InMenu(GroupMenuTopic::Session),
         script: &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Session)),
-            Step::PressText("Idle timeouts"),
+            Step::PressText("Screen off"),
             Step::Hover(HoverTarget::IdleTimeout(IdleAction::ScreenOff)),
         ],
     },

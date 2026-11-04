@@ -1,22 +1,18 @@
-use std::{num::NonZeroU32, str::FromStr, time::Duration};
+use std::num::NonZeroU32;
 
 use chrono::{DateTime, Utc};
-use futures::{
-    Stream, StreamExt,
-    stream::{BoxStream, select_all},
-};
+use futures::{Stream, StreamExt, stream::select_all};
 use procfs::process::Process as Proc;
-use zbus::{proxy, proxy::CacheProperties, zvariant::OwnedObjectPath};
+use zbus::{proxy, zvariant::OwnedObjectPath};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     host_machine_identity::hostname1_os_identity::at_micros,
     login_session_presence::{
         greetd_greeter_program::greeter_program,
-        logind_manager::{InhibitorRow, ManagerProxy, session_id},
+        logind_manager::{ManagerProxy, session_id},
     },
     non_empty_text::non_empty,
-    stream_operators::read_once_then_per_burst,
     system_protocol_clients::dbus_desktop_buses::{self, DesktopBuses},
 };
 
@@ -128,80 +124,6 @@ pub struct SessionInfo {
     pub idle_since: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PowerPolicy {
-    pub power_key: String,
-    pub suspend_key: String,
-    pub hibernate_key: String,
-    pub reboot_key: String,
-    pub lid_switch: String,
-    pub chassis: Chassis,
-    pub idle_action: String,
-    pub idle_action_after: Option<Duration>,
-    pub sleep_order: Vec<String>,
-    pub inhibitor_locks: Vec<InhibitorLock>,
-    pub sessions: u64,
-    pub scheduled_shutdown: Option<ScheduledShutdown>,
-    pub preparing_for_shutdown: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InhibitMode {
-    Block,
-    Delay,
-}
-
-impl FromStr for InhibitMode {
-    type Err = String;
-
-    fn from_str(mode: &str) -> Result<Self, String> {
-        match mode {
-            "block" | "block-weak" => Ok(Self::Block),
-            "delay" => Ok(Self::Delay),
-            unknown => Err(format!("unknown inhibit mode {unknown}")),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InhibitorLock {
-    pub who: String,
-    pub operation: String,
-    pub why: Option<String>,
-    pub mode: InhibitMode,
-}
-
-impl InhibitorLock {
-    fn per_operation(row: InhibitorRow) -> Vec<Self> {
-        let Ok(mode) = row.mode.parse() else {
-            return Vec::new();
-        };
-        let why = non_empty(row.why);
-        row.what
-            .split(':')
-            .map(|operation| Self {
-                who: row.who.clone(),
-                operation: operation.to_owned(),
-                why: why.clone(),
-                mode,
-            })
-            .collect()
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Chassis {
-    pub docked: bool,
-    pub lid_closed: bool,
-    pub on_external_power: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ScheduledShutdown {
-    pub kind: String,
-    pub at: Option<DateTime<Utc>>,
-}
-
 impl SnapshotSource for SessionInfo {
     type Error = dbus_desktop_buses::Error;
     type StreamInputs = DesktopBuses;
@@ -256,125 +178,7 @@ async fn session_changes(
     }))
 }
 
-impl SnapshotSource for PowerPolicy {
-    type Error = dbus_desktop_buses::Error;
-    type StreamInputs = DesktopBuses;
-
-    const NAME: &'static str = "Power policy";
-
-    fn delivery_stream(buses: DesktopBuses) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        SnapshotDelivery::live_push_deliveries(power_changes(buses))
-    }
-}
-
-async fn power_changes(
-    buses: DesktopBuses,
-) -> Result<
-    impl Stream<Item = Result<PowerPolicy, dbus_desktop_buses::Error>> + Send,
-    dbus_desktop_buses::Error,
-> {
-    let signalled = ManagerProxy::new(&buses.system).await?;
-    let uncached = ManagerProxy::builder(&buses.system)
-        .cache_properties(CacheProperties::No)
-        .build()
-        .await?;
-    let configured = ConfiguredPowerPolicy {
-        power_key: uncached.handle_power_key().await?,
-        suspend_key: uncached.handle_suspend_key().await?,
-        hibernate_key: uncached.handle_hibernate_key().await?,
-        reboot_key: uncached.handle_reboot_key().await?,
-        lid_switch: uncached.handle_lid_switch().await?,
-        idle_action: uncached.idle_action().await?,
-        idle_action_after: Some(uncached.idle_action_usec().await?)
-            .filter(|usec| *usec > 0 && *usec < u64::MAX)
-            .map(Duration::from_micros),
-        sleep_order: uncached.sleep_operation().await?,
-    };
-    let changes = select_all(power_triggers(&signalled).await?);
-    Ok(read_once_then_per_burst(changes, move || {
-        let manager = uncached.clone();
-        let configured = configured.clone();
-        async move { read_power(&manager, configured).await }
-    }))
-}
-
-#[derive(Clone)]
-struct ConfiguredPowerPolicy {
-    power_key: String,
-    suspend_key: String,
-    hibernate_key: String,
-    reboot_key: String,
-    lid_switch: String,
-    idle_action: String,
-    idle_action_after: Option<Duration>,
-    sleep_order: Vec<String>,
-}
-
-async fn power_triggers(
-    manager: &ManagerProxy<'static>,
-) -> zbus::Result<[BoxStream<'static, ()>; 7]> {
-    Ok([
-        manager.receive_lid_closed_changed().await.map(drop).boxed(),
-        manager
-            .receive_scheduled_shutdown_changed()
-            .await
-            .map(drop)
-            .boxed(),
-        manager
-            .receive_block_inhibited_changed()
-            .await
-            .map(drop)
-            .boxed(),
-        manager
-            .receive_delay_inhibited_changed()
-            .await
-            .map(drop)
-            .boxed(),
-        manager
-            .receive_prepare_for_shutdown()
-            .await?
-            .map(drop)
-            .boxed(),
-        manager.receive_session_new().await?.map(drop).boxed(),
-        manager.receive_session_removed().await?.map(drop).boxed(),
-    ])
-}
-
 fn process_name(pid: u32) -> Option<String> {
     let process = Proc::new(i32::try_from(pid).ok()?).ok()?;
     non_empty(process.stat().ok()?.comm)
-}
-
-async fn read_power(
-    manager: &ManagerProxy<'_>,
-    configured: ConfiguredPowerPolicy,
-) -> Result<PowerPolicy, dbus_desktop_buses::Error> {
-    let (kind, usec) = manager.scheduled_shutdown().await?;
-    Ok(PowerPolicy {
-        power_key: configured.power_key,
-        suspend_key: configured.suspend_key,
-        hibernate_key: configured.hibernate_key,
-        reboot_key: configured.reboot_key,
-        lid_switch: configured.lid_switch,
-        idle_action: configured.idle_action,
-        idle_action_after: configured.idle_action_after,
-        sleep_order: configured.sleep_order,
-        chassis: Chassis {
-            docked: manager.docked().await?,
-            lid_closed: manager.lid_closed().await?,
-            on_external_power: manager.on_external_power().await?,
-        },
-        inhibitor_locks: manager
-            .list_inhibitors()
-            .await?
-            .into_iter()
-            .flat_map(InhibitorLock::per_operation)
-            .collect(),
-        sessions: manager.n_current_sessions().await?,
-        scheduled_shutdown: non_empty(kind).map(|kind| ScheduledShutdown {
-            kind,
-            at: at_micros(usec),
-        }),
-        preparing_for_shutdown: manager.preparing_for_shutdown().await?,
-    })
 }

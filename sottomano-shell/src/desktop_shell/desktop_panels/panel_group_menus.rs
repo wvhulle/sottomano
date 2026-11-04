@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
@@ -301,18 +303,20 @@ impl DesktopShell {
     }
 
     fn session_group_menu(&self) -> GroupMenuView<'_, Message> {
+        let pause_groups = self
+            .widget_groups
+            .idle_pause_groups
+            .pause_groups(&self.config)
+            .into_iter()
+            .map(|group| group.map(Message::IdleTimeouts));
+        let login_session = self
+            .widget_groups
+            .login_session_group
+            .group_content()
+            .map(Message::LoginSession);
         self.group_menu(
             GroupMenuTopic::Session,
-            [
-                self.widget_groups
-                    .idle_timeouts_group
-                    .group_content(&self.config)
-                    .map(Message::IdleTimeouts),
-                self.widget_groups
-                    .login_session_group
-                    .group_content()
-                    .map(Message::LoginSession),
-            ],
+            pause_groups.chain(once(login_session)),
         )
     }
 

@@ -250,7 +250,7 @@
         ];
       };
 
-      nixosModules.default = ./nix/nixos-module.nix;
+      nixosModules.default = import ./nix/nixos-module.nix { inherit self; };
 
       devShells.${system}.default = craneLib.devShell {
         packages =

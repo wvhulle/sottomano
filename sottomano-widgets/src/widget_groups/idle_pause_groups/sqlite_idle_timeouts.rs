@@ -17,6 +17,7 @@ pub struct Timeouts {
     pub lock_user: Option<Duration>,
     pub screen_off: Option<Duration>,
     pub sleep: Option<Duration>,
+    pub hibernate: Option<Duration>,
     pub power_down: Option<Duration>,
 }
 
@@ -34,6 +35,7 @@ impl Timeouts {
             IdleAction::Lock => self.lock_user,
             IdleAction::ScreenOff => self.screen_off,
             IdleAction::Sleep => self.sleep,
+            IdleAction::Hibernate => self.hibernate,
             IdleAction::PowerOff => self.power_down,
         }
     }
@@ -80,6 +82,7 @@ async fn read_timeouts(connection: &turso::Connection) -> Result<Timeouts, Store
             "lock_user" => timeouts.lock_user = after,
             "screen_off" => timeouts.screen_off = after,
             "sleep" => timeouts.sleep = after,
+            "hibernate" => timeouts.hibernate = after,
             "power_down" => timeouts.power_down = after,
             _ => {}
         }
@@ -98,6 +101,7 @@ async fn write_timeouts(
         ("lock_user", timeouts.lock_user),
         ("screen_off", timeouts.screen_off),
         ("sleep", timeouts.sleep),
+        ("hibernate", timeouts.hibernate),
         ("power_down", timeouts.power_down),
     ];
     for (idle_action, timeout) in enabled_actions {
@@ -134,11 +138,25 @@ mod tests {
             lock_user: Some(Duration::from_secs(60)),
             screen_off: None,
             sleep: Some(Duration::from_secs(600)),
+            hibernate: Some(Duration::from_mins(30)),
             power_down: Some(Duration::from_secs(3600)),
         };
         write_timeouts(&connection, timeouts).await.unwrap();
 
         assert_eq!(read_timeouts(&connection).await.unwrap(), timeouts);
+    }
+
+    #[test]
+    fn the_hibernate_timeout_schedules_logind_hibernate() {
+        let timeouts = Timeouts {
+            hibernate: Some(Duration::from_mins(30)),
+            ..Timeouts::default()
+        };
+
+        assert_eq!(
+            timeouts.scheduled(SessionAction::Hibernate),
+            ScheduledAfterIdle::After(Duration::from_mins(30))
+        );
     }
 
     #[test]

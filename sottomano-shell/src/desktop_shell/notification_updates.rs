@@ -98,12 +98,12 @@ impl DesktopShell {
             QuietChange::Unchanged => Task::none(),
             QuietChange::ScreenOffAfter(timeout) => self
                 .widget_groups
-                .idle_timeouts_group
+                .idle_pause_groups
                 .override_screen_off(Some(timeout))
                 .map(Message::IdleTimeouts),
             QuietChange::ScreenOffFollowsIdleTimer => self
                 .widget_groups
-                .idle_timeouts_group
+                .idle_pause_groups
                 .override_screen_off(None)
                 .map(Message::IdleTimeouts),
             QuietChange::Ended => {
@@ -118,7 +118,7 @@ impl DesktopShell {
                 Task::batch([
                     released,
                     self.widget_groups
-                        .idle_timeouts_group
+                        .idle_pause_groups
                         .override_screen_off(None)
                         .map(Message::IdleTimeouts),
                 ])

@@ -35,6 +35,7 @@ pub struct IdleTimer {
     timeout: Option<Duration>,
     control: SliderControl,
     action: IdleAction,
+    unavailable: bool,
 }
 
 impl IdleTimer {
@@ -53,6 +54,7 @@ impl IdleTimer {
             target,
             timeout: None,
             action,
+            unavailable: false,
         }
     }
 
@@ -68,18 +70,32 @@ impl IdleTimer {
 
     #[must_use]
     pub fn trigger(&self) -> Option<ActionTrigger> {
-        self.timeout.map(|after| ActionTrigger {
-            after,
-            tag: self.action,
-        })
+        self.timeout
+            .filter(|_| !self.unavailable)
+            .map(|after| ActionTrigger {
+                after,
+                tag: self.action,
+            })
+    }
+
+    pub fn set_unavailable(&mut self, unavailable: bool) -> bool {
+        let changed = self.unavailable != unavailable;
+        self.unavailable = unavailable;
+        self.show_as_off_when_inactive();
+        changed
+    }
+
+    fn show_as_off_when_inactive(&mut self) {
+        self.control.update(ControlMessage::Disabled(
+            self.timeout.is_none() || self.unavailable,
+        ));
     }
 
     pub fn set_timeout(&mut self, timeout: Option<Duration>) {
         self.timeout = timeout;
         self.control
             .update(ControlMessage::Reading(position(timeout)));
-        self.control
-            .update(ControlMessage::Disabled(timeout.is_none()));
+        self.show_as_off_when_inactive();
     }
 
     #[must_use]
@@ -96,8 +112,7 @@ impl IdleTimer {
             Action::Opened => TimerChange::Opened,
             Action::Commit(value) => {
                 self.timeout = timeout_at(value);
-                self.control
-                    .update(ControlMessage::Disabled(self.timeout.is_none()));
+                self.show_as_off_when_inactive();
                 TimerChange::Persist(value)
             }
             Action::None | Action::Right | Action::Adjust(_) => TimerChange::None,
@@ -125,7 +140,8 @@ impl IdleTimer {
         overrider: Option<&'static str>,
         clock: Clock,
     ) -> HoverCard {
-        let when = match timeout {
+        let when = match timeout.filter(|_| !self.unavailable) {
+            None if self.unavailable => LabeledValue::new("State", "unavailable"),
             None => LabeledValue::new("State", "disabled"),
             Some(timeout) => LabeledValue::new(
                 format!("{} at", self.action.session_action().verb()),

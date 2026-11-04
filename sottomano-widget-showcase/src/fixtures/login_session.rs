@@ -58,8 +58,7 @@ pub fn on_hover(target: LoginSessionTarget, _clock: Clock) -> Vec<LoginSessionMe
         | LoginSessionTarget::Login
         | LoginSessionTarget::Account
         | LoginSessionTarget::ServiceManager
-        | LoginSessionTarget::DesktopServices
-        | LoginSessionTarget::PowerPolicy => Vec::new(),
+        | LoginSessionTarget::DesktopServices => Vec::new(),
     }
 }
 
