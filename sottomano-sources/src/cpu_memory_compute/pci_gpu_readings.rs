@@ -73,6 +73,14 @@ impl GpuNames {
             _ => GpuNames::Chip(chip),
         }
     }
+
+    #[must_use]
+    pub fn preferred_name(&self) -> &str {
+        match self {
+            GpuNames::Chip(chip) => chip,
+            GpuNames::Product(product) | GpuNames::ChipWithProduct { product, .. } => product,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
