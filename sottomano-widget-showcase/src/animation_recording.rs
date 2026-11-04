@@ -20,7 +20,7 @@ use iced_test::{
     Emulator, Instruction, Selector,
     core::renderer::Headless,
     emulator::{Event, Mode},
-    instruction::{Interaction, Mouse, Target},
+    instruction::{Interaction, Key, Keyboard, Mouse, Target},
     program::Program,
     renderer::graphics::text::font_system,
     runtime::{UserInterface, user_interface::Cache},
@@ -79,21 +79,13 @@ impl<'session> DemoRecorder<'session> {
     ) -> Self {
         let program = ShowcaseProgram::scripted(config, clock);
         let (sender, events) = mpsc::channel(EMULATOR_EVENT_CAPACITY);
-        let mut emulator = Emulator::with_preset(
+        let emulator = Emulator::with_preset(
             sender,
             &program,
             Mode::Zen,
             CANVAS,
             Some(program.preset(demo)),
         );
-        let theme = emulator
-            .theme(&program)
-            .expect("the showcase program always sets a theme");
-        let top_right = (usize::from(FrameSize::of_canvas().width) - 1) * 4;
-        let background = emulator.screenshot(&program, &theme, SCALE_FACTOR).rgba
-            [top_right..top_right + 4]
-            .try_into()
-            .expect("a pixel has four channels");
         let mut recorder = DemoRecorder {
             demo,
             program,
@@ -101,11 +93,28 @@ impl<'session> DemoRecorder<'session> {
             events,
             layout_renderer,
             pointer: REST_POINTER,
-            background,
+            background: [0; 4],
             clock,
         };
         recorder.settle();
+        recorder.deliver_layout_reports();
+        recorder.background = recorder.top_right_pixel();
         recorder
+    }
+
+    fn top_right_pixel(&mut self) -> [u8; 4] {
+        let top_right = (usize::from(FrameSize::of_canvas().width) - 1) * 4;
+        self.screenshot()[top_right..top_right + 4]
+            .try_into()
+            .expect("a pixel has four channels")
+    }
+
+    fn deliver_layout_reports(&mut self) {
+        self.emulator.run(
+            &self.program,
+            Instruction::Interact(Interaction::Keyboard(Keyboard::Release(Key::Tab))),
+        );
+        self.settle();
     }
 
     fn settle(&mut self) {
@@ -285,6 +294,7 @@ impl<'session> DemoRecorder<'session> {
         self.clock = self.clock.advanced(FRAME_INTERVAL);
         self.emulator
             .update(&self.program, ShowcaseMessage::Frame(self.clock));
+        self.deliver_layout_reports();
         let rgba = self.screenshot();
         CapturedFrame {
             content: ContentRows::differing_from(self.background, &rgba, FrameSize::of_canvas()),
