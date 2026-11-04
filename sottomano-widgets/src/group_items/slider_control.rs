@@ -20,12 +20,12 @@ use crate::{
         source_reading::{labeled_reading, source_reading},
     },
     hover_cards::{
-        HoverCardMessage, HoverTarget, PressHints,
+        HoverAnnouncement, HoverCardMessage, HoverOrigin, HoverTarget, PressHints,
+        announcing_hoverable,
         hover_card_body::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
-        hoverable,
     },
     widget_groups::expand_animation::expand_animation,
     widgets::{
@@ -397,13 +397,15 @@ impl SliderControl {
         config: &'a Config,
         reveal: f32,
         clock: Clock,
+        hover_origin: &HoverOrigin,
     ) -> Element<'a, ControlMessage> {
         let expansion = config.group_items.slider_expansion_duration;
+        let hover_origin = hover_origin.clone();
         expand_animation(self.open, expansion, move |expand| {
             if expand > 0.0 {
-                self.expanded_view(config, expand, clock)
+                self.expanded_view(config, expand, clock, hover_origin.clone())
             } else {
-                self.collapsed_view(config, reveal, clock)
+                self.collapsed_view(config, reveal, clock, hover_origin.clone())
             }
         })
     }
@@ -442,6 +444,7 @@ impl SliderControl {
         config: &Config,
         expand: f32,
         clock: Clock,
+        hover_origin: HoverOrigin,
     ) -> Element<'a, ControlMessage> {
         let closing_button = |content: Element<'a, ControlMessage>| -> Element<'a, ControlMessage> {
             button(content)
@@ -468,7 +471,13 @@ impl SliderControl {
             scroll: Some("adjust"),
             ..PressHints::default()
         };
-        self.scrollable_hover_area(opened.into(), press_hints)
+        self.scrollable_hover_area(
+            opened.into(),
+            HoverAnnouncement {
+                press_hints,
+                origin: hover_origin,
+            },
+        )
     }
 
     fn state_glyph<'a>(&self, config: &Config, clock: Clock) -> Element<'a, ControlMessage> {
@@ -519,12 +528,12 @@ impl SliderControl {
     fn scrollable_hover_area<'a>(
         &self,
         content: Element<'a, ControlMessage>,
-        press_hints: PressHints,
+        announcement: HoverAnnouncement,
     ) -> Element<'a, ControlMessage> {
-        let hover = hoverable(
+        let hover = announcing_hoverable(
             content,
             self.target.clone(),
-            press_hints,
+            announcement,
             ControlMessage::HoverCard,
         );
         let mut area = mouse_area(hover).on_scroll(ControlMessage::Scroll);
@@ -539,6 +548,7 @@ impl SliderControl {
         config: &Config,
         reveal: f32,
         clock: Clock,
+        hover_origin: HoverOrigin,
     ) -> Element<'a, ControlMessage> {
         let reading = match self.label {
             Some(_) => labeled_reading(config, self, reveal, clock),
@@ -550,10 +560,13 @@ impl SliderControl {
             scroll: Some("adjust"),
             ..PressHints::default()
         };
-        let hover = hoverable(
+        let hover = announcing_hoverable(
             reading,
             self.target.clone(),
-            press_hints,
+            HoverAnnouncement {
+                press_hints,
+                origin: hover_origin,
+            },
             ControlMessage::HoverCard,
         );
         let mut area = mouse_area(hover)

@@ -27,7 +27,8 @@ use crate::{
         group_menu_state::{GroupMenuPin, GroupMenuState, GroupMenuTopic},
     },
     hover_cards::{
-        HoverAnnouncement, HoverTarget, PressHints, announcing_hoverable, press_toggled_hoverable,
+        HoverAnnouncement, HoverOrigin, HoverTarget, PressHints, announcing_hoverable,
+        press_toggled_hoverable,
     },
     widget_groups::{widget_group_content::GroupEvent, widget_group_identity::WidgetGroupIdentity},
     widgets::{
@@ -44,7 +45,8 @@ use crate::{
 };
 
 type DrawItem<'a, M> = Box<dyn Fn(f32) -> Element<'a, GroupEvent<M>> + 'a>;
-type DrawControl<'a, M> = Box<dyn Fn(f32, Clock, ItemPlacement) -> Element<'a, GroupEvent<M>> + 'a>;
+type DrawControl<'a, M> =
+    Box<dyn Fn(f32, Clock, ItemPlacement, &HoverOrigin) -> Element<'a, GroupEvent<M>> + 'a>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ItemPlacement {
@@ -187,8 +189,8 @@ impl<'a, M: 'a> GroupItemContent<'a, M> {
             Box::new(move |reveal| draw(reveal).map(move |event| event.map(lift)))
         };
         let lift_control = |draw: DrawControl<'a, M>| -> DrawControl<'a, Outer> {
-            Box::new(move |reveal, clock, placement| {
-                draw(reveal, clock, placement).map(move |event| event.map(lift))
+            Box::new(move |reveal, clock, placement, hover_origin| {
+                draw(reveal, clock, placement, hover_origin).map(move |event| event.map(lift))
             })
         };
         match self {
@@ -288,10 +290,10 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         Self::of_kind(GroupItemContent::Slider {
             widget: slider,
             target: slider.target().clone(),
-            draw: Box::new(move |reveal, clock, placement| {
+            draw: Box::new(move |reveal, clock, placement, hover_origin| {
                 let on_control = Rc::clone(&on_control);
                 let slider_view = match placement {
-                    ItemPlacement::Panel => slider.view(config, reveal, clock),
+                    ItemPlacement::Panel => slider.view(config, reveal, clock, hover_origin),
                     ItemPlacement::Table => slider.always_open_view(config, clock),
                     ItemPlacement::Menu => slider.menu_view(config),
                 };
@@ -558,7 +560,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             },
             GroupItemContent::Slider { widget, draw, .. } => MenuParts {
                 icon: reading_icon(config, *widget, tint_of(*widget), clock),
-                value: draw(1.0, clock, ItemPlacement::Menu),
+                value: draw(1.0, clock, ItemPlacement::Menu, &HoverOrigin::Reading),
             },
             GroupItemContent::Composed {
                 identity, value, ..
@@ -607,12 +609,13 @@ impl<'a, M: 'a> GroupItem<'a, M> {
     pub(crate) fn pinnable_key(&self) -> Option<String> {
         match &self.kind {
             GroupItemContent::Reading { target, .. }
+            | GroupItemContent::Slider { target, .. }
             | GroupItemContent::Composed {
                 hover: GroupItemHoverArea::WholeItem(target),
                 pinning: ComposedItemPinning::PinnableByTarget,
                 ..
             } => Some(target.stable_item_key()),
-            GroupItemContent::Slider { .. } | GroupItemContent::Composed { .. } => None,
+            GroupItemContent::Composed { .. } => None,
         }
     }
 
@@ -679,7 +682,12 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 },
                 target,
             ),
-            GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement.into()),
+            GroupItemContent::Slider { draw, .. } => draw(
+                reveal,
+                clock,
+                placement.into(),
+                &self.handle_announcement.origin,
+            ),
             GroupItemContent::Composed {
                 identity,
                 hover,
@@ -720,11 +728,21 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 
 #[cfg(test)]
 mod tests {
+    use iced::{
+        Point, Settings, Size,
+        mouse::{Button, Event as MouseEvent},
+    };
+    use iced_test::Simulator;
+
     use super::*;
     use crate::{
         group_items::toggle_control::SwitchPresses,
-        hover_cards::hover_card_body::HoverCardBody,
-        widget_groups::session_power_group::SessionTarget,
+        hover_cards::{HoverCardMessage, PanelPinOrigin, hover_card_body::HoverCardBody},
+        widget_groups::{
+            dark_mode_group::DarkModeTarget,
+            session_power_group::SessionTarget,
+            widget_group_identity::{WidgetGroupFamily, WidgetGroupTitle},
+        },
         widgets::phosphor::{Phosphor, Weight},
     };
 
@@ -864,10 +882,113 @@ mod tests {
         assert!(!item.shows_press_chip());
     }
 
+    fn offset_slider_for(target: DarkModeTarget) -> SliderControl {
+        SliderControl::new(
+            "Offset",
+            -60.0..=60.0,
+            target,
+            Phosphor::Question(Weight::Regular),
+        )
+    }
+
+    fn slider_pin_key(slider: &SliderControl, config: &Config) -> Option<String> {
+        GroupItem::slider(slider, config, |_| ()).pinnable_key()
+    }
+
     #[test]
-    fn only_readings_are_pinnable() {
+    fn readings_and_sliders_are_pinnable_but_plain_composed_rows_are_not() {
+        let config = Config::default();
+        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
         let reading: GroupItem<'static, ()> = GroupItem::reading(NamedReading, SessionTarget::Menu);
         assert!(reading.pinnable_key().is_some());
+        assert!(slider_pin_key(&slider, &config).is_some());
         assert_eq!(composed_with(whole_item_hover()).pinnable_key(), None);
+    }
+
+    #[test]
+    fn a_slider_pin_key_comes_from_its_hover_target() {
+        let config = Config::default();
+        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
+        assert_eq!(
+            slider_pin_key(&slider, &config),
+            Some(slider.target().stable_item_key())
+        );
+    }
+
+    fn pinned_slider_origin() -> HoverOrigin {
+        HoverAnnouncement::from_group_handle(
+            WidgetGroupTitle::Named("Dark mode".into()),
+            PressHints::default(),
+        )
+        .pinned_by(PanelPinOrigin::ItemPinnedFrom {
+            menu: GroupMenuTopic::Media,
+            group: Box::new(WidgetGroupIdentity::sole(WidgetGroupFamily::Media)),
+            item_key: "pinned slider".into(),
+        })
+        .origin
+    }
+
+    fn events_from_pointing_at_pinned_slider(pressed: bool) -> Vec<GroupEvent<ControlMessage>> {
+        let config = Config::default();
+        let slider = offset_slider_for(DarkModeTarget::SunriseOffset);
+        let item = GroupItem::slider(&slider, &config, |message| message).acting_as_handle(
+            HoverAnnouncement {
+                press_hints: PressHints::default(),
+                origin: pinned_slider_origin(),
+            },
+        );
+        let mut panel = Simulator::with_size(
+            Settings::default(),
+            Size::new(200.0, 100.0),
+            item.view(&config, 1.0, Clock::real()),
+        );
+        let inside_slider = Point::new(5.0, 5.0);
+        panel.point_at(inside_slider);
+        let _moved_inside = panel.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
+            position: inside_slider,
+        })]);
+        if pressed {
+            let _pressed =
+                panel.simulate([iced::Event::Mouse(MouseEvent::ButtonPressed(Button::Left))]);
+        }
+        panel.into_messages().collect()
+    }
+
+    #[test]
+    fn hovering_a_pinned_slider_announces_its_pin_and_keeps_its_press_hints() {
+        let entered_announcement = events_from_pointing_at_pinned_slider(false)
+            .into_iter()
+            .find_map(|event| match event {
+                GroupEvent::HoverCard(HoverCardMessage::EnterAnchor { announcement, .. }) => {
+                    Some(announcement)
+                }
+                _ => None,
+            })
+            .expect("hovering opens the hover card");
+        assert_eq!(entered_announcement.origin, pinned_slider_origin());
+        assert_eq!(
+            entered_announcement.press_hints.left,
+            Some("open the slider")
+        );
+    }
+
+    #[test]
+    fn pressing_a_pinned_slider_toggles_it() {
+        assert!(
+            events_from_pointing_at_pinned_slider(true)
+                .iter()
+                .any(|event| matches!(event, GroupEvent::Group(ControlMessage::Press)))
+        );
+    }
+
+    #[test]
+    fn sliders_with_different_targets_have_different_pin_keys() {
+        let config = Config::default();
+        let sunrise_slider = offset_slider_for(DarkModeTarget::SunriseOffset);
+        let sunset_slider = offset_slider_for(DarkModeTarget::SunsetOffset);
+        assert_ne!(
+            slider_pin_key(&sunrise_slider, &config),
+            slider_pin_key(&sunset_slider, &config)
+        );
     }
 }
