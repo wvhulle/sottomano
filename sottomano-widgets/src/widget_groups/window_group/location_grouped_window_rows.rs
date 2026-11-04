@@ -18,7 +18,10 @@ use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     widgets::{
         configured_theme::{background_color, background_weak_color, primary_color},
-        pointer_drag::slot_group::SlotGroup,
+        pointer_drag::{
+            slot_group::{SlotGroup, SlotTileInset},
+            slot_pager::UngroupedHighlightLook,
+        },
         text::{FontFaces, LINE_HEIGHT},
         window_icon::{WindowAssets, window_icon},
     },
@@ -70,7 +73,7 @@ fn slot_presentations(
             {
                 WindowSlotPresentation::InLocationGroup
             } else {
-                WindowSlotPresentation::Flat
+                WindowSlotPresentation::OutsideLocationGroups
             }
         })
         .collect()
@@ -146,6 +149,10 @@ pub(super) fn arranged_location_groups<'a>(
     ArrangedWindowRows {
         groups,
         presentations: slot_presentations(&group_positions, order.len()),
+        ungrouped_highlight_look: UngroupedHighlightLook::AccentTile(SlotTileInset {
+            thickness: slot_context.config.theme.spacing.item_gap,
+            enclosure_radius: slot_context.panel_corner_radius_px,
+        }),
     }
 }
 
@@ -215,15 +222,15 @@ mod tests {
 
     #[test]
     fn only_windows_inside_a_group_are_presented_as_grouped() {
-        use WindowSlotPresentation::{Flat, InLocationGroup};
+        use WindowSlotPresentation::{InLocationGroup, OutsideLocationGroups};
         assert_eq!(
             slot_presentations(&[0..2, 3..4], 5),
             [
                 InLocationGroup,
                 InLocationGroup,
-                Flat,
+                OutsideLocationGroups,
                 InLocationGroup,
-                Flat
+                OutsideLocationGroups
             ]
         );
     }

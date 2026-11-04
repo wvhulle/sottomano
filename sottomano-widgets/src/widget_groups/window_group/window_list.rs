@@ -51,7 +51,9 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         pointer_drag::{
-            DraggedPanelSlot, PanelSlotList, draggable_slot::draggable_slot, slot_pager::slot_pager,
+            DraggedPanelSlot, PanelSlotList,
+            draggable_slot::draggable_slot,
+            slot_pager::{SlotAlarm, slot_pager},
         },
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::FontFaces,
@@ -263,13 +265,14 @@ impl WindowList {
         let ArrangedWindowRows {
             groups,
             presentations,
+            ungrouped_highlight_look,
         } = match slot_context.window_row_layout {
             WindowRowLayout::Flat => arranged_flat_rows(order.len()),
             WindowRowLayout::GroupedByLocation => {
                 arranged_location_groups(&order, icons, slot_context)
             }
         };
-        let slots = order
+        let window_slots: Vec<_> = order
             .iter()
             .enumerate()
             .map(|(position_in_panel, window_entry)| {
@@ -279,7 +282,7 @@ impl WindowList {
                 } else {
                     1.0
                 };
-                let window_slot = WindowSlot {
+                WindowSlot {
                     window_entry,
                     item,
                     extras: self.extras(window_entry, audio, config),
@@ -290,15 +293,28 @@ impl WindowList {
                         .copied()
                         .unwrap_or(WindowSlotPresentation::Flat),
                     slot_context,
-                };
-                (item, window_slot.view(icons))
-            });
+                }
+            })
+            .collect();
+        let alarms = window_slots
+            .iter()
+            .filter(|window_slot| window_slot.shows_urgency_tile())
+            .map(|window_slot| SlotAlarm {
+                position: window_slot.position_in_panel,
+                color: Box::new(danger_color),
+            })
+            .collect();
+        let slots = window_slots
+            .iter()
+            .map(|window_slot| (window_slot.item, window_slot.view(icons)));
         let focused_key = order
             .iter()
             .find(|window_entry| window_entry.is_focused)
             .map(|window_entry| window_slot_key(window_entry, workspace));
         let pager = slot_pager(slots, edge, config)
             .highlight(focused_key, primary_color)
+            .ungrouped_highlight_look(ungrouped_highlight_look)
+            .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
         Some(window_list_viewport(
@@ -449,6 +465,18 @@ fn glyph_color(
 }
 
 impl WindowSlot<'_> {
+    fn is_urgent(&self) -> bool {
+        self.window_entry.is_urgent || self.extras.is_urgent()
+    }
+
+    fn shows_urgency_tile(&self) -> bool {
+        self.is_urgent() && self.presentation.marks_urgency_with_tile()
+    }
+
+    fn is_marked_by_tile(&self) -> bool {
+        self.window_entry.is_focused || self.is_urgent()
+    }
+
     fn maximize_toggles(&self) -> bool {
         self.window_entry.is_focused && !self.window_entry.layout.is_floating
     }
@@ -546,13 +574,13 @@ impl WindowSlot<'_> {
         };
         IconGlyph::from(icon(tint.state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
-            glyph_color(tint, self.sits_on_accent_tile()),
+            glyph_color(tint, self.sits_on_opaque_tile()),
         )
     }
 
-    fn sits_on_accent_tile(&self) -> bool {
+    fn sits_on_opaque_tile(&self) -> bool {
         self.presentation
-            .sits_on_accent_tile(self.window_entry.is_focused)
+            .sits_on_opaque_tile(self.is_marked_by_tile())
     }
 
     fn button_content<'a>(&self, icons: WindowAssets<'a>) -> Element<'a, WindowListMessage> {
@@ -560,7 +588,7 @@ impl WindowSlot<'_> {
         let title = self.window_entry.label.as_ref().map(|label| {
             self.presentation.styled_title(
                 WindowTitle::new(label, config).opacity(self.opacity),
-                self.window_entry.is_focused,
+                self.is_marked_by_tile(),
             )
         });
         Row::new()
@@ -589,12 +617,12 @@ impl WindowSlot<'_> {
         };
         Some(IconGlyph::from(icon.with_weight(state.weight())).view(
             self.slot_context.config.theme.font.icon_size_px,
-            glyph_color(tint, self.sits_on_accent_tile()),
+            glyph_color(tint, self.sits_on_opaque_tile()),
         ))
     }
 
     fn indicator_line<'a>(&self) -> Element<'a, WindowListMessage> {
-        let severity = if self.window_entry.is_urgent || self.extras.is_urgent() {
+        let severity = if self.is_urgent() && !self.shows_urgency_tile() {
             1.0
         } else {
             0.0
