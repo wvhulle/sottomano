@@ -9,6 +9,7 @@ use sottomano_widgets::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},
         region_reporter::{RegionRoles, region_reporter},
     },
+    hover_cards::HoverTarget,
     widget_groups::{sidebar_settings_group::WorkspacesPlacement, workspaces_group::inline_strip},
 };
 
@@ -58,23 +59,36 @@ impl DesktopShell {
         match entry {
             PanelZoneEntry::Menu(topic) => self
                 .group_menu_of(topic, output)
-                .panel_views(config, position, self.clock)
+                .panel_views(
+                    config,
+                    position,
+                    self.hover_card
+                        .handle_indicator(&HoverTarget::GroupMenu(topic), output),
+                    self.clock,
+                )
                 .collect(),
             PanelZoneEntry::Standalone(group) => self
                 .standalone_group(group)
                 .view(config, position, self.clock)
                 .into_iter()
                 .collect(),
-            PanelZoneEntry::Fixed(entry) => self
-                .fixed_panel_group(entry)
-                .view(
-                    config,
-                    position,
-                    self.widget_groups.group_menus.presentation().open_trigger,
-                    self.clock,
-                )
-                .into_iter()
-                .collect(),
+            PanelZoneEntry::Fixed(entry) => {
+                let fixed_group = self.fixed_panel_group(entry);
+                let handle_indicator = fixed_group
+                    .handle_target()
+                    .map(|target| self.hover_card.handle_indicator(target, output))
+                    .unwrap_or_default();
+                fixed_group
+                    .view(
+                        config,
+                        position,
+                        self.widget_groups.group_menus.presentation().open_trigger,
+                        handle_indicator,
+                        self.clock,
+                    )
+                    .into_iter()
+                    .collect()
+            }
             PanelZoneEntry::InlineWorkspaces => self
                 .inline_workspaces(position, output)
                 .into_iter()

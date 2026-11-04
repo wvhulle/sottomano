@@ -26,8 +26,8 @@ use crate::{
         },
     },
     hover_cards::{
-        HoverAnnouncement, HoverTarget, PopupMessage, PressHints, announcing_hoverable,
-        hover_card_body::hover_card_source_delivery::HoverCard,
+        HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
+        announcing_hoverable, hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_content::HoverCardContent, press_toggled_hoverable,
     },
     widget_groups::{
@@ -89,6 +89,17 @@ impl<M> GroupMenuMessenger<M> {
             menu: self.topic,
             group_identity,
         })
+    }
+
+    pub(crate) fn intend_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::IntendRevealMenuGroup {
+            menu: self.topic,
+            group_identity,
+        })
+    }
+
+    pub(crate) fn cancel_group_reveal(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
+        self.sent(GroupMenuMessage::CancelRevealIntent { group_identity })
     }
 
     pub(crate) fn toggle_group(&self, group_identity: WidgetGroupIdentity) -> GroupEvent<M> {
@@ -232,6 +243,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         &self,
         config: &'a Config,
         panel_position: Position,
+        handle_indicator: MenuHandleIndicator,
         clock: Clock,
     ) -> Element<'a, M>
     where
@@ -258,12 +270,7 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
                 press_toggled_hoverable(glyph, target, announcement, GroupEvent::HoverCard)
             }
         };
-        let indicator = EdgeIndicator {
-            highest_alert_severity,
-            cursor_hovering: false,
-            expanded: false,
-        }
-        .view(0.0);
+        let indicator = EdgeIndicator::of_menu_handle(highest_alert_severity, handle_indicator);
         PanelSlot::new(handle, indicator)
             .view(panel_position)
             .map(M::from)
@@ -273,12 +280,13 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         self,
         config: &'a Config,
         panel_position: Position,
+        handle_indicator: MenuHandleIndicator,
         clock: Clock,
     ) -> impl Iterator<Item = Element<'a, M>> + 'a
     where
         M: From<GroupEvent<M>>,
     {
-        let handle_slot = self.handle_view(config, panel_position, clock);
+        let handle_slot = self.handle_view(config, panel_position, handle_indicator, clock);
         let promotion_severity = config.group_menus.alert_promotion_severity;
         let topic = self.messenger.topic;
         let group_menus = self.group_menus;
@@ -406,7 +414,7 @@ mod tests {
             menu_rows::menu_row::menu_row_height,
         },
         hover_cards::{
-            HoverAnnouncement, HoverTarget, PopupMessage, PressHints,
+            HoverAnnouncement, HoverTarget, MenuHandleIndicator, PopupMessage, PressHints,
             hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
         },
         widget_groups::{
@@ -710,6 +718,8 @@ mod tests {
     enum RowPointerMessage {
         RowInspected(HoverTarget),
         RowAction,
+        RevealIntended(WidgetGroupIdentity),
+        RevealCancelled(WidgetGroupIdentity),
         Unrelated,
     }
 
@@ -833,6 +843,89 @@ mod tests {
     }
 
     #[test]
+    fn pointing_across_a_cascading_group_row_intends_its_reveal_then_cancels_it() {
+        let config = Config::default();
+        let expansion = WidgetGroupExpansion::default();
+        let group_menus = opened_menu_state(GroupMenuPresentation::default());
+        let hover_card = HoverCard::empty();
+        let (entries, favicons, controller_artwork) = (
+            DesktopIndex::default(),
+            Favicons::default(),
+            ControllerArtwork::decoded(),
+        );
+        let groups = [WidgetGroupFamily::Gpu, WidgetGroupFamily::Compute].map(|family| {
+            WidgetGroupContent::expandable(
+                family,
+                &expansion,
+                |_| RowPointerMessage::Unrelated,
+                [GroupItem::reading(SmokeReading, POINTED_ROW)],
+            )
+        });
+        let surfaces = GroupMenuView::new(
+            GroupMenuTopic::Hardware,
+            &group_menus,
+            |message| match message {
+                GroupMenuMessage::IntendRevealMenuGroup { group_identity, .. } => {
+                    RowPointerMessage::RevealIntended(group_identity)
+                }
+                GroupMenuMessage::CancelRevealIntent { group_identity } => {
+                    RowPointerMessage::RevealCancelled(group_identity)
+                }
+                _ => RowPointerMessage::Unrelated,
+            },
+            groups,
+        )
+        .surfaces(
+            &config,
+            &ShellLayer::Overlays.default_appearance(),
+            &InspectionCard {
+                hover_card: &hover_card,
+                card_appearance: ShellLayer::Overlays.default_appearance(),
+                assets: WindowAssets {
+                    entries: &entries,
+                    favicons: &favicons,
+                    controller_artwork: &controller_artwork,
+                },
+                clock: Clock::real(),
+            },
+            CascadeOrientation {
+                direction: CascadeDirection::Rightward,
+                growth: PanelGrowth::Downward,
+            },
+        )
+        .expect("an opened menu has a surface");
+        let mut simulator = Simulator::with_size(
+            Settings::default(),
+            Size::new(1200.0, 800.0),
+            surfaces.primary,
+        );
+        let row_center = simulator
+            .find("Compute")
+            .expect("the group row is laid out")
+            .visible_bounds()
+            .expect("the group row is visible")
+            .center();
+        for pointer in [row_center, Point::new(1190.0, 790.0)] {
+            simulator.point_at(pointer);
+            let _statuses = simulator.simulate([Event::Mouse(mouse::Event::CursorMoved {
+                position: pointer,
+            })]);
+        }
+        let compute = WidgetGroupIdentity::sole(WidgetGroupFamily::Compute);
+        let reveal_messages: Vec<RowPointerMessage> = simulator
+            .into_messages()
+            .filter(|message| *message != RowPointerMessage::Unrelated)
+            .collect();
+        assert_eq!(
+            reveal_messages,
+            [
+                RowPointerMessage::RevealIntended(compute.clone()),
+                RowPointerMessage::RevealCancelled(compute)
+            ]
+        );
+    }
+
+    #[test]
     fn hovering_the_info_icon_inspects_the_row() {
         assert!(
             messages_after_pointing(info_icon_center, false)
@@ -896,7 +989,12 @@ mod tests {
             |_| SmokeMessage,
             [group],
         )
-        .panel_views(&config, Position::Top, clock)
+        .panel_views(
+            &config,
+            Position::Top,
+            MenuHandleIndicator::default(),
+            clock,
+        )
         .collect();
         assert_eq!(panel_views.len(), 2);
         let mut panel = Simulator::with_size(

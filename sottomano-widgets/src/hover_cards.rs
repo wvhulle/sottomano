@@ -279,7 +279,15 @@ impl HoverAnnouncement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuHandleGesture {
     LaidOut,
+    Hovered,
+    Unhovered,
     Pressed,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MenuHandleIndicator {
+    pub hovering: bool,
+    pub open: bool,
 }
 
 #[derive(Debug, Clone)]

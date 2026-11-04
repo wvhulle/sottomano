@@ -131,13 +131,15 @@ pub(crate) fn group_row<'a, M: Clone + 'a>(
         },
     };
     if layout.presentation.reveals_on_hover() {
-        let reveal_group = layout.menu.reveal_group(entry.group_identity);
         hovered_menu_row(
             layout.config,
             content,
             look,
-            reveal_group.clone(),
-            reveal_group,
+            layout.menu.reveal_group(entry.group_identity.clone()),
+            layout
+                .menu
+                .intend_group_reveal(entry.group_identity.clone()),
+            layout.menu.cancel_group_reveal(entry.group_identity),
         )
     } else {
         pressable_menu_row(
