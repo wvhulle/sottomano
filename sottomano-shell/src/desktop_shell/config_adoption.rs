@@ -18,6 +18,8 @@ impl DesktopShell {
     }
 
     pub(super) fn adopt_config(&mut self, config: Config) -> Task<Message> {
+        self.typing_under_cards
+            .adopt_config(&config.overlay_surfaces);
         let previous = mem::replace(&mut self.config, config);
         self.widget_groups.adopt_config(&previous, &self.config);
         self.theme = configured_theme(&self.config.theme.palette);

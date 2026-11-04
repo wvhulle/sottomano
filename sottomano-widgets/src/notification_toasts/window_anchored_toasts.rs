@@ -28,6 +28,7 @@ use crate::{
     widgets::{
         child_view::{ChildView, ChildViewMut},
         shell_layer_appearance::LayerAppearance,
+        typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -37,6 +38,7 @@ impl<'a> WindowAnchoredToasts<'a> {
         toasts: Vec<AnchoredToast<'a>>,
         panel_clearance: Padding,
         overlays: &LayerAppearance,
+        background_fade: CardBackgroundFade,
         config: &Config,
     ) -> Self {
         let card = &config.notification_toasts.card;
@@ -51,6 +53,7 @@ impl<'a> WindowAnchoredToasts<'a> {
                 ids: Vec::new(),
                 anchors: Vec::new(),
                 cards: Vec::new(),
+                background_fade,
                 motion: card.motion,
                 anchor_spacing: ToastAnchorSpacing::from_config(config),
                 revealing: false,
@@ -78,6 +81,7 @@ pub struct WindowAnchoredToasts<'a> {
     ids: Vec<u32>,
     anchors: Vec<ToastAnchor>,
     cards: Vec<Element<'a, NotificationMessage>>,
+    background_fade: CardBackgroundFade,
     motion: Duration,
     anchor_spacing: ToastAnchorSpacing,
     revealing: bool,
@@ -319,7 +323,17 @@ impl Widget<NotificationMessage, iced::Theme, iced::Renderer> for WindowAnchored
         operation: &mut dyn Operation,
     ) {
         let rects: Vec<Rectangle> = card_rects(layout).collect();
-        self.card_roles.report(&rects, layout.bounds(), operation);
+        let blurred_rects: Vec<Rectangle> = rects
+            .iter()
+            .copied()
+            .filter(|rect| self.background_fade.fade_level_over(*rect) <= 0.0)
+            .collect();
+        self.card_roles.report_with_blurred_subset(
+            &rects,
+            &blurred_rects,
+            layout.bounds(),
+            operation,
+        );
         self.views_mut(tree, layout).for_each(|card| {
             card.widget
                 .as_widget_mut()

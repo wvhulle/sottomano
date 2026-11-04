@@ -28,7 +28,10 @@ use crate::{
         laid_out_anchors::{LaidOutAnchors, dropped_widget_watch},
     },
     layer_surfaces::{PanelEdge, SurfaceRequest},
-    widgets::{shell_layer_appearance::LayerAppearance, window_icon::WindowAssets},
+    widgets::{
+        shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
+        window_icon::WindowAssets,
+    },
 };
 
 pub const HIDE_GRACE: Duration = Duration::from_millis(250);
@@ -435,6 +438,7 @@ impl HoverCardHost {
                 PopupAppearances {
                     overlay: surface_style.overlay_appearance,
                     menu: surface_style.menu_appearance,
+                    background_fade: surface_style.background_fade,
                 },
             );
         };
@@ -472,6 +476,7 @@ impl HoverCardHost {
             PopupAppearances {
                 overlay: surface_style.overlay_appearance,
                 menu: surface_style.menu_appearance,
+                background_fade: surface_style.background_fade,
             },
         ))
         .padding(surface_style.float_offset_px);
@@ -545,6 +550,7 @@ impl<Message> HoverContent<'_, Message> {
 pub struct HoverCardSurfaceStyle {
     pub overlay_appearance: LayerAppearance,
     pub menu_appearance: LayerAppearance,
+    pub background_fade: CardBackgroundFade,
     pub float_offset_px: f32,
 }
 

@@ -81,6 +81,8 @@ glyph_change = "55ms"
 
 [overlay_surfaces]
 surface_morph_duration = "160ms"
+typing_idle_delay = "750ms"
+typing_background_opacity = 0.3
 
 [widget_groups.window]
 audio_indicator = true

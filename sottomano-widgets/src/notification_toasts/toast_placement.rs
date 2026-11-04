@@ -9,7 +9,10 @@ use sottomano_sources::{
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };
 
-use crate::{notification_toasts::NotificationSettings, toast_messages::NotificationMessage};
+use crate::{
+    notification_toasts::NotificationSettings, toast_messages::NotificationMessage,
+    widgets::typing_under_cards::viewed_window_bounds,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ToastAnchor {
@@ -119,18 +122,7 @@ pub fn placement_for(
 
     let edge = placement.window_edge(id);
     let output = edge.output.or_else(|| fallback_output(placement));
-    let viewed_bounds = placement.viewed_window_layout(id).and_then(|layout| {
-        let (tile_x, tile_y) = layout.tile_pos_in_workspace_view?;
-        let (offset_x, offset_y) = layout.window_offset_in_tile;
-        let (width, height) = layout.window_size;
-        Some(Rectangle {
-            x: (tile_x + offset_x) as f32,
-            y: (tile_y + offset_y) as f32,
-            width: width as f32,
-            height: height as f32,
-        })
-    });
-    let anchor = match viewed_bounds {
+    let anchor = match viewed_window_bounds(placement, id) {
         Some(bounds) => ToastAnchor::Window { id, bounds },
         None => ToastAnchor::Edge {
             vertical: edge.vertical,

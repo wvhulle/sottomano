@@ -56,7 +56,7 @@ use sottomano_widgets::{
         HoverCardHost, HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard,
         hover_card_surfaces::HoverContent,
     },
-    notification_toasts::NotificationLayer,
+    notification_toasts::{NotificationLayer, ToastSurfaceStyle},
     widget_groups::{
         appearance_presets_group::{AppearancePresetsMessage, AppearancePresetsTarget},
         idle_pause_groups::IdlePauseMessage,
@@ -67,6 +67,7 @@ use sottomano_widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
         text::FontFaces,
+        typing_under_cards::{CardBackgroundFade, TypingUnderCards},
         window_icon::WindowAssets,
     },
 };
@@ -104,6 +105,7 @@ pub struct DesktopShell {
     pub favicons: Favicons,
     pub controller_artwork: ControllerArtwork,
     pub pointer_drag: ShellDrag,
+    pub typing_under_cards: TypingUnderCards,
     pub spring_load: Option<Handle>,
     pub niri_config: NiriConfigFile,
     pub configured_workspaces: Option<ConfiguredWorkspaces>,
@@ -137,6 +139,7 @@ impl DesktopShell {
             favicons: Favicons::default(),
             controller_artwork: ControllerArtwork::decoded(),
             pointer_drag: ShellDrag::Idle,
+            typing_under_cards: TypingUnderCards::new(clock.instant, &config.overlay_surfaces),
             spring_load: None,
             niri_config,
             configured_workspaces: None,
@@ -358,6 +361,14 @@ impl DesktopShell {
                 niri_action(niri_ipc::Action::FocusWindow { id: window }),
             ]),
             Message::HoverCardHideElapsed => self.leave_hover_card_after_grace(),
+            Message::TypingUnderCards(signal) => {
+                self.typing_under_cards.update(
+                    signal,
+                    self.clock.instant,
+                    &self.config.overlay_surfaces,
+                );
+                Task::none()
+            }
             Message::OutputsResolved(outputs) => self.adopt_outputs(outputs),
             Message::Redraw => {
                 self.notifications.prune(self.clock.instant);
@@ -492,15 +503,23 @@ impl DesktopShell {
                 })
             })
             .unwrap_or_else(HoverCard::empty);
+        let satellite_fade_level = self.hover_card_output().map_or(0.0, |output| {
+            self.card_background_fade(output).fade_level_anywhere()
+        });
         group_menu.surfaces(
             &self.config,
-            &self.widget_groups.group_menus.menu_appearance(),
+            &self
+                .widget_groups
+                .group_menus
+                .menu_appearance()
+                .with_background_faded(satellite_fade_level),
             &InspectionCard {
                 hover_card: &inspected_hover_card,
                 card_appearance: self
                     .widget_groups
                     .overlay_settings_group
-                    .overlay_appearance(),
+                    .overlay_appearance()
+                    .with_background_faded(satellite_fade_level),
                 assets: self.window_assets(),
                 clock: self.clock,
             },
@@ -554,11 +573,21 @@ impl DesktopShell {
         }
     }
 
+    fn card_background_fade(&self, output: &str) -> CardBackgroundFade {
+        self.typing_under_cards.background_fade_on(
+            output,
+            &self.niri,
+            self.clock.instant,
+            &self.config.overlay_surfaces,
+        )
+    }
+
     fn hover_card_layer<'a>(&'a self, output: &str) -> Element<'a, Message> {
         self.hover_card.view(
             output,
             &self.config,
-            self.widget_groups.hover_card_surface_style(),
+            self.widget_groups
+                .hover_card_surface_style(self.card_background_fade(output)),
             self.window_assets(),
             |target: &HoverTarget| {
                 self.hover_content(target)
@@ -591,10 +620,14 @@ impl DesktopShell {
                     output,
                     &self.config,
                     &self.theme,
-                    self.widget_groups
-                        .overlay_settings_group
-                        .overlay_appearance(),
-                    self.panel_clearance(output),
+                    ToastSurfaceStyle {
+                        overlay_appearance: self
+                            .widget_groups
+                            .overlay_settings_group
+                            .overlay_appearance(),
+                        panel_clearance: self.panel_clearance(output),
+                        background_fade: self.card_background_fade(output),
+                    },
                     self.clock,
                 ),
             )

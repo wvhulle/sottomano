@@ -1,5 +1,5 @@
 use iced::{
-    Element, Event, Length, Point, Rectangle, Shadow, Size, Vector,
+    Element, Event, Length, Point, Rectangle, Size, Vector,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -30,6 +30,7 @@ use crate::{
         child_view::{ChildView, ChildViewMut},
         rectangle_morph::RectangleMorph,
         shell_layer_appearance::LayerAppearance,
+        typing_under_cards::CardBackgroundFade,
     },
 };
 
@@ -97,6 +98,7 @@ pub enum OutsidePress<Message> {
 pub struct PopupAppearances {
     pub overlay: LayerAppearance,
     pub menu: LayerAppearance,
+    pub background_fade: CardBackgroundFade,
 }
 
 #[must_use]
@@ -117,7 +119,6 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     } else {
         appearances.overlay
     };
-    let shown_frame = LayerFrameStyle::new(&shown_appearance);
     Element::new(AnchoredPopup {
         renderings,
         anchor,
@@ -129,10 +130,9 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
         position,
         morph,
         outside_press,
-        frame: shown_frame,
+        appearance: shown_appearance,
+        background_fade: appearances.background_fade,
         radius: shown_appearance.corner_radius_px,
-        blurred: shown_appearance.blurred,
-        shadow: shown_frame.lifted_drop_shadow(),
     })
 }
 
@@ -146,10 +146,9 @@ struct AnchoredPopup<'a, Message> {
     position: Position,
     morph: PopupMorph,
     outside_press: OutsidePress<Message>,
-    frame: LayerFrameStyle,
+    appearance: LayerAppearance,
+    background_fade: CardBackgroundFade,
     radius: f32,
-    blurred: bool,
-    shadow: Shadow,
 }
 
 #[derive(Debug, Clone)]
@@ -280,6 +279,11 @@ impl<'a, Message> AnchoredPopup<'a, Message> {
         self.renderings.iter().any(|rendering| {
             rendering.incoming && matches!(rendering.framing, PopupFraming::LeadingSurface(_))
         })
+    }
+
+    fn appearance_over(&self, popup: Rectangle) -> LayerAppearance {
+        self.appearance
+            .with_background_faded(self.background_fade.fade_level_over(popup))
     }
 
     fn is_live(&self) -> bool {
@@ -480,14 +484,15 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
         if box_bounds.width <= 0.0 || box_bounds.height <= 0.0 {
             return;
         }
+        let frame = LayerFrameStyle::new(&self.appearance_over(box_bounds));
         state.connector.translated(origin).draw_framed_surface(
             renderer,
             theme,
             FramedSurface {
-                frame: self.frame,
+                frame,
                 bounds: box_bounds,
                 corners: Radius::from(self.radius),
-                shadow: self.shadow,
+                shadow: frame.lifted_drop_shadow(),
             },
         );
         let content_clip = if self.frames_one_child() && self.is_settled(state) {
@@ -522,9 +527,10 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
     ) {
         let state: &MorphState = tree.state.downcast_ref();
         let frame = self.frame(state, layout);
+        let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         let roles = RegionRoles {
             takes_input: frame.settled,
-            blurred: self.blurred,
+            blurred: self.appearance_over(state.morph.current() + origin).blurred,
             corner_radius: Radius::default(),
         };
         roles.report(&frame.surface_rows, layout.bounds(), operation);
@@ -647,7 +653,8 @@ mod tests {
     use sottomano_config::{Config, screen_edges::Position};
 
     use super::{
-        OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
+        CardBackgroundFade, OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering,
+        anchored_popup,
     };
     use crate::{
         clock::Clock,
@@ -738,6 +745,7 @@ mod tests {
             PopupAppearances {
                 overlay: appearance,
                 menu: appearance,
+                background_fade: CardBackgroundFade::Resting,
             },
         )
     }
@@ -873,6 +881,7 @@ mod tests {
             PopupAppearances {
                 overlay: ShellLayer::Overlays.default_appearance(),
                 menu: ShellLayer::Overlays.default_appearance(),
+                background_fade: CardBackgroundFade::Resting,
             },
         );
         let messages = messages_after_pressing(popup, |_| Point::new(500.0, 500.0));
@@ -893,6 +902,7 @@ mod tests {
             PopupAppearances {
                 overlay: appearance,
                 menu: appearance,
+                background_fade: CardBackgroundFade::Resting,
             },
         );
         let messages = messages_after_pressing(popup, |_| {

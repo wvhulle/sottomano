@@ -32,7 +32,9 @@ use sottomano_widgets::{
         hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
     layer_surfaces::PanelEdge,
-    notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
+    notification_toasts::{
+        NotificationLayer, NotificationSettings, ToastContext, ToastSurfaceStyle,
+    },
     toast_messages::NotificationMessage,
     widget_groups::appearance_presets_group::AppearancePresetsMessage,
     widgets::{
@@ -40,6 +42,7 @@ use sottomano_widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
         text::FontFaces,
+        typing_under_cards::CardBackgroundFade,
         window_icon::WindowAssets,
     },
 };
@@ -448,8 +451,11 @@ impl ShowcaseState {
             SHOWCASE_OUTPUT,
             &self.config,
             &self.theme,
-            self.appearance.overlays,
-            Padding::ZERO,
+            ToastSurfaceStyle {
+                overlay_appearance: self.appearance.overlays,
+                panel_clearance: Padding::ZERO,
+                background_fade: CardBackgroundFade::Resting,
+            },
             self.clock,
         ))
         .map(ShowcaseMessage::Notification)
@@ -522,6 +528,7 @@ impl ShowcaseState {
             HoverCardSurfaceStyle {
                 overlay_appearance: self.appearance.overlays,
                 menu_appearance: self.appearance.menus,
+                background_fade: CardBackgroundFade::Resting,
                 float_offset_px: SHOWCASE_FLOAT_OFFSET_PX,
             },
             self.window_assets(),

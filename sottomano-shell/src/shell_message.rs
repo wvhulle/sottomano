@@ -46,6 +46,7 @@ use sottomano_widgets::{
         widget_group_content::GroupEvent, wifi_adapters_group::WifiAdaptersMessage,
         window_group::WindowGroupMessage, workspaces_group::WorkspacesMessage,
     },
+    widgets::typing_under_cards::TypingSignal,
 };
 
 #[derive(Debug, Clone)]
@@ -129,6 +130,7 @@ pub enum Message {
     FocusWindow(u64),
     HoverCardHideElapsed,
     HoverCardFadeElapsed,
+    TypingUnderCards(TypingSignal),
     HoverCard(HoverCardMessage),
     Notification(NotificationMessage),
     OutputsResolved(HashMap<String, niri_output_facts::OutputInfo>),
