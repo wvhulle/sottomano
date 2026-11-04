@@ -39,38 +39,77 @@ pub enum SurfaceRole {
     Reservation(Position),
 }
 
+impl SurfaceRole {
+    fn layer(self, output_shows_hover_card: bool) -> Layer {
+        match (self, output_shows_hover_card) {
+            (Self::Panel, false) | (Self::NotificationToasts, true) => Layer::Top,
+            (Self::Panel, true) | (Self::NotificationToasts, false) => Layer::Overlay,
+            (Self::Reservation(_), _) => Layer::Bottom,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Surface {
     pub output: String,
     pub role: SurfaceRole,
+    pub layer: Layer,
 }
 
-fn panel_settings(output: &str) -> NewLayerShellSettings {
+struct TrackedSurface {
+    id: Id,
+    layer: Layer,
+}
+
+fn restack_around_hover_card(
+    surfaces: &mut BTreeMap<Id, Surface>,
+    hover_card_output: Option<&str>,
+) -> Vec<Message> {
+    surfaces
+        .iter_mut()
+        .filter_map(|(&id, surface)| {
+            let layer = surface
+                .role
+                .layer(hover_card_output == Some(surface.output.as_str()));
+            (surface.layer != layer).then(|| {
+                surface.layer = layer;
+                Message::LayerChange { id, layer }
+            })
+        })
+        .collect()
+}
+
+fn panel_settings(output: &str, layer: Layer) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-        layer: Layer::Top,
+        layer,
         ..base_settings(Some(output), StyledSurface::Panel.namespace())
     }
 }
 
-fn notification_toasts_settings(output: &str) -> NewLayerShellSettings {
+fn notification_toasts_settings(output: &str, layer: Layer) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: LayerSize::FILL,
         exclusive_zone: Some(-1),
         anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-        layer: Layer::Overlay,
+        layer,
         ..base_settings(Some(output), StyledSurface::NotificationToasts.namespace())
     }
 }
 
-fn reservation_settings(output: &str, position: Position, zone: i32) -> NewLayerShellSettings {
+fn reservation_settings(
+    output: &str,
+    position: Position,
+    zone: i32,
+    layer: Layer,
+) -> NewLayerShellSettings {
     NewLayerShellSettings {
         size: panel_edge_strip_size(position, 1),
         exclusive_zone: Some(zone),
         anchor: panel_edge_anchor(position),
-        layer: Layer::Bottom,
+        layer,
         events_transparent: true,
         ..base_settings(Some(output), "sottomano-reservation")
     }
@@ -205,52 +244,52 @@ impl DesktopShell {
         )
     }
 
-    fn open_panel_and_reservations(&mut self, output: &str) -> Task<Message> {
-        let panel = Id::unique();
+    fn hover_card_output(&self) -> Option<&str> {
+        self.hover_card
+            .placement()
+            .map(|placement| placement.output.as_str())
+    }
+
+    fn track_new_surface(&mut self, output: &str, role: SurfaceRole) -> TrackedSurface {
+        let id = Id::unique();
+        let layer = role.layer(self.hover_card_output() == Some(output));
         self.surfaces.insert(
-            panel,
+            id,
             Surface {
                 output: output.to_string(),
-                role: SurfaceRole::Panel,
+                role,
+                layer,
             },
         );
+        TrackedSurface { id, layer }
+    }
+
+    fn open_panel_and_reservations(&mut self, output: &str) -> Task<Message> {
+        let panel = self.track_new_surface(output, SurfaceRole::Panel);
         let mut opens = vec![
             Task::done(Message::NewLayerShell {
-                settings: panel_settings(output),
-                id: panel,
+                settings: panel_settings(output, panel.layer),
+                id: panel.id,
             }),
-            Task::done(input_regions(panel, Vec::new()).into()),
+            Task::done(input_regions(panel.id, Vec::new()).into()),
         ];
         for position in Position::ALL {
-            let id = Id::unique();
             let zone = self.reserved_zone(output, position);
-            self.surfaces.insert(
-                id,
-                Surface {
-                    output: output.to_string(),
-                    role: SurfaceRole::Reservation(position),
-                },
-            );
+            let reservation = self.track_new_surface(output, SurfaceRole::Reservation(position));
             opens.push(Task::done(Message::NewLayerShell {
-                settings: reservation_settings(output, position, zone),
-                id,
+                settings: reservation_settings(output, position, zone, reservation.layer),
+                id: reservation.id,
             }));
         }
         Task::batch(opens)
     }
 
     fn open_notification_toasts_surface(&mut self, output: &str) -> Task<Message> {
-        let id = Id::unique();
-        self.surfaces.insert(
-            id,
-            Surface {
-                output: output.to_string(),
-                role: SurfaceRole::NotificationToasts,
-            },
-        );
+        let TrackedSurface { id, layer } =
+            self.track_new_surface(output, SurfaceRole::NotificationToasts);
         Task::batch([
             Task::done(Message::NewLayerShell {
-                settings: notification_toasts_settings(output),
+                settings: notification_toasts_settings(output, layer),
                 id,
             }),
             Task::done(input_regions(id, Vec::new()).into()),
@@ -270,10 +309,14 @@ impl DesktopShell {
                 self.config.overlay_surfaces.surface_morph_duration,
             )
             .map(Message::from);
-        Task::batch([
-            hover_card_surfaces,
-            self.reconcile_notification_toasts_surfaces(),
-        ])
+        let toast_surfaces = self.reconcile_notification_toasts_surfaces();
+        let hover_card_output = self.hover_card_output().map(str::to_owned);
+        let restacked = restack_around_hover_card(&mut self.surfaces, hover_card_output.as_deref());
+        Task::batch(
+            [hover_card_surfaces, toast_surfaces]
+                .into_iter()
+                .chain(restacked.into_iter().map(Task::done)),
+        )
     }
 
     fn reconcile_notification_toasts_surfaces(&mut self) -> Task<Message> {
@@ -360,4 +403,85 @@ pub fn query_outputs() -> Task<Message> {
         blocking("niri outputs", niri_output_facts::output_info),
         Message::OutputsResolved,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use iced::window::Id;
+    use iced_exwlshell::reexport::Layer;
+    use sottomano_config::screen_edges::Position;
+
+    use super::{Surface, SurfaceRole, restack_around_hover_card};
+
+    fn resting_surface(output: &str, role: SurfaceRole) -> Surface {
+        Surface {
+            output: output.to_owned(),
+            role,
+            layer: role.layer(false),
+        }
+    }
+
+    fn surfaces_on_two_outputs() -> BTreeMap<Id, Surface> {
+        ["DP-1", "DP-2"]
+            .into_iter()
+            .flat_map(|output| {
+                [
+                    SurfaceRole::Panel,
+                    SurfaceRole::NotificationToasts,
+                    SurfaceRole::Reservation(Position::Top),
+                ]
+                .map(|role| (Id::unique(), resting_surface(output, role)))
+            })
+            .collect()
+    }
+
+    fn layer_of(surfaces: &BTreeMap<Id, Surface>, output: &str, role: SurfaceRole) -> Layer {
+        surfaces
+            .values()
+            .find(|surface| surface.output == output && surface.role == role)
+            .expect("the surface exists")
+            .layer
+    }
+
+    #[test]
+    fn a_hover_card_lifts_its_panel_above_the_toasts_of_its_output_only() {
+        let mut surfaces = surfaces_on_two_outputs();
+        let changes = restack_around_hover_card(&mut surfaces, Some("DP-1"));
+        assert_eq!(changes.len(), 2);
+        assert_eq!(
+            layer_of(&surfaces, "DP-1", SurfaceRole::Panel),
+            Layer::Overlay
+        );
+        assert_eq!(
+            layer_of(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
+            Layer::Top
+        );
+        assert_eq!(layer_of(&surfaces, "DP-2", SurfaceRole::Panel), Layer::Top);
+        assert_eq!(
+            layer_of(&surfaces, "DP-2", SurfaceRole::NotificationToasts),
+            Layer::Overlay
+        );
+    }
+
+    #[test]
+    fn an_unchanged_hover_card_requests_no_further_layer_changes() {
+        let mut surfaces = surfaces_on_two_outputs();
+        let _lifted = restack_around_hover_card(&mut surfaces, Some("DP-1"));
+        assert!(restack_around_hover_card(&mut surfaces, Some("DP-1")).is_empty());
+    }
+
+    #[test]
+    fn closing_the_hover_card_restores_the_resting_layers() {
+        let mut surfaces = surfaces_on_two_outputs();
+        let _lifted = restack_around_hover_card(&mut surfaces, Some("DP-1"));
+        let restored = restack_around_hover_card(&mut surfaces, None);
+        assert_eq!(restored.len(), 2);
+        assert_eq!(layer_of(&surfaces, "DP-1", SurfaceRole::Panel), Layer::Top);
+        assert_eq!(
+            layer_of(&surfaces, "DP-1", SurfaceRole::NotificationToasts),
+            Layer::Overlay
+        );
+    }
 }

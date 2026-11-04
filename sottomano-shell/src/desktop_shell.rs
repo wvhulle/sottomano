@@ -580,10 +580,12 @@ impl DesktopShell {
             Some(Surface {
                 output,
                 role: SurfaceRole::Panel,
+                ..
             }) => self.monitor_layout(window, output),
             Some(Surface {
                 output,
                 role: SurfaceRole::NotificationToasts,
+                ..
             }) => Element::from(
                 self.notifications.anchored_toasts(
                     output,
