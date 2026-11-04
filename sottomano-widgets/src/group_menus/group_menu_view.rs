@@ -942,6 +942,22 @@ mod tests {
         );
     }
 
+    fn row_icon_center(simulator: &mut Simulator<'_, RowPointerMessage>) -> Point {
+        let row_name_bounds = simulator
+            .find("Smoke item")
+            .expect("the row is laid out")
+            .visible_bounds()
+            .expect("the row name is visible");
+        Point::new(row_name_bounds.x - 24.0, row_name_bounds.center_y())
+    }
+
+    #[test]
+    fn pressing_the_chipped_icon_performs_the_row_action() {
+        assert!(
+            messages_after_pointing(row_icon_center, true).contains(&RowPointerMessage::RowAction)
+        );
+    }
+
     #[test]
     fn hovering_the_info_icon_inspects_the_row() {
         assert!(

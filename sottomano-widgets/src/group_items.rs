@@ -5,6 +5,7 @@ pub mod group_item;
 pub mod group_item_gestures;
 pub mod group_item_reading;
 pub mod offline_internet_reading;
+pub mod press_icon_chip;
 pub mod reading_display_state;
 pub mod slider_control;
 pub mod source_reading;

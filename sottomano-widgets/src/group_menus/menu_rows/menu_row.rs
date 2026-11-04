@@ -128,7 +128,9 @@ fn leading_icon_slot<'a, M: 'a>(
     config: &Config,
     icon: Element<'a, GroupEvent<M>>,
 ) -> Element<'a, GroupEvent<M>> {
-    container(icon).width(config.desktop_panels.height).into()
+    container(icon)
+        .center_x(config.desktop_panels.height)
+        .into()
 }
 
 fn menu_row_padding(config: &Config) -> Padding {
