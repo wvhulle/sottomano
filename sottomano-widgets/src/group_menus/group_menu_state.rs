@@ -4,7 +4,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iced::Task;
+use iced::{Task, task};
+use tokio::time::sleep;
 
 use crate::{
     group_menus::{
@@ -13,7 +14,7 @@ use crate::{
         sqlite_group_menu_pins, sqlite_group_menu_pins::StoredGroupMenuPin,
         sqlite_group_menu_presentation,
     },
-    hover_cards::HoverTarget,
+    hover_cards::{HoverTarget, hover_card_surfaces::SWITCH_INTENT},
     widget_groups::{
         widget_group_content::{WidgetGroupExpansion, WidgetGroupExpansionMessage},
         widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity},
@@ -143,6 +144,14 @@ pub enum GroupMenuMessage {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
     },
+    IntendRevealMenuGroup {
+        menu: GroupMenuTopic,
+        group_identity: WidgetGroupIdentity,
+    },
+    CancelRevealIntent {
+        group_identity: WidgetGroupIdentity,
+    },
+    RevealIntentElapsed,
     ToggleMenuGroup {
         menu: GroupMenuTopic,
         group_identity: WidgetGroupIdentity,
@@ -184,7 +193,19 @@ struct RecentlyOpenMenu {
     last_open_at: Instant,
 }
 
+#[derive(Default)]
+enum GroupRevealIntent {
+    #[default]
+    Idle,
+    Pending {
+        menu: GroupMenuTopic,
+        group_identity: WidgetGroupIdentity,
+        _intent_timer: task::Handle,
+    },
+}
+
 pub struct GroupMenuState {
+    reveal_intent: GroupRevealIntent,
     menu_appearance: LayerAppearanceControls,
     settings_expansion: WidgetGroupExpansion,
     presentation: GroupMenuPresentation,
@@ -197,6 +218,7 @@ pub struct GroupMenuState {
 impl Default for GroupMenuState {
     fn default() -> Self {
         Self {
+            reveal_intent: GroupRevealIntent::Idle,
             menu_appearance: LayerAppearanceControls::new(ShellLayer::Menus, |target| {
                 GroupMenuSettingsTarget::Appearance(target).into()
             }),
@@ -321,6 +343,47 @@ impl GroupMenuState {
             take(&mut self.inspection).adopting_open_limit(presentation.open_group_limit());
     }
 
+    fn intend_group_reveal(
+        &mut self,
+        menu: GroupMenuTopic,
+        group_identity: WidgetGroupIdentity,
+    ) -> Task<GroupMenuMessage> {
+        if self.open_groups(menu).contains(&group_identity) {
+            self.reveal_intent = GroupRevealIntent::Idle;
+            return Task::none();
+        }
+        let (intent_elapsed, handle) = Task::future(async { sleep(SWITCH_INTENT).await })
+            .map(|()| GroupMenuMessage::RevealIntentElapsed)
+            .abortable();
+        self.reveal_intent = GroupRevealIntent::Pending {
+            menu,
+            group_identity,
+            _intent_timer: handle.abort_on_drop(),
+        };
+        intent_elapsed
+    }
+
+    fn cancel_group_reveal(&mut self, group_identity: &WidgetGroupIdentity) {
+        if matches!(
+            &self.reveal_intent,
+            GroupRevealIntent::Pending { group_identity: pending_identity, .. }
+                if pending_identity == group_identity
+        ) {
+            self.reveal_intent = GroupRevealIntent::Idle;
+        }
+    }
+
+    fn reveal_intended_group(&mut self) {
+        if let GroupRevealIntent::Pending {
+            menu,
+            group_identity,
+            ..
+        } = take(&mut self.reveal_intent)
+        {
+            self.inspection = take(&mut self.inspection).revealing_group(menu, group_identity);
+        }
+    }
+
     pub fn update(&mut self, message: GroupMenuMessage) -> Task<GroupMenuMessage> {
         match message {
             GroupMenuMessage::PinsLoaded(pinned) => {
@@ -348,7 +411,20 @@ impl GroupMenuState {
                 menu,
                 group_identity,
             } => {
+                self.reveal_intent = GroupRevealIntent::Idle;
                 self.inspection = take(&mut self.inspection).revealing_group(menu, group_identity);
+                Task::none()
+            }
+            GroupMenuMessage::IntendRevealMenuGroup {
+                menu,
+                group_identity,
+            } => self.intend_group_reveal(menu, group_identity),
+            GroupMenuMessage::CancelRevealIntent { group_identity } => {
+                self.cancel_group_reveal(&group_identity);
+                Task::none()
+            }
+            GroupMenuMessage::RevealIntentElapsed => {
+                self.reveal_intended_group();
                 Task::none()
             }
             GroupMenuMessage::ToggleMenuGroup {
@@ -394,6 +470,7 @@ impl GroupMenuState {
                 Task::none()
             }
             GroupMenuMessage::Closed => {
+                self.reveal_intent = GroupRevealIntent::Idle;
                 self.inspection = GroupMenuInspection::Closed;
                 Task::none()
             }
@@ -600,6 +677,70 @@ mod tests {
         );
         let _ = group_menus.update(GroupMenuMessage::Closed);
         assert!(group_menus.open_groups(GroupMenuTopic::Hardware).is_empty());
+    }
+
+    fn state_intending_gpu_reveal() -> GroupMenuState {
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::IntendRevealMenuGroup {
+            menu: GroupMenuTopic::Hardware,
+            group_identity: GPU_GROUP,
+        });
+        group_menus
+    }
+
+    #[test]
+    fn an_intended_reveal_opens_the_group_only_once_its_timer_elapses() {
+        let mut group_menus = state_intending_gpu_reveal();
+        assert!(group_menus.open_groups(GroupMenuTopic::Hardware).is_empty());
+        let _ = group_menus.update(GroupMenuMessage::RevealIntentElapsed);
+        assert_eq!(
+            group_menus.open_groups(GroupMenuTopic::Hardware),
+            [GPU_GROUP]
+        );
+    }
+
+    #[test]
+    fn leaving_the_intended_row_cancels_its_reveal() {
+        let mut group_menus = state_intending_gpu_reveal();
+        let _ = group_menus.update(GroupMenuMessage::CancelRevealIntent {
+            group_identity: GPU_GROUP,
+        });
+        let _ = group_menus.update(GroupMenuMessage::RevealIntentElapsed);
+        assert!(group_menus.open_groups(GroupMenuTopic::Hardware).is_empty());
+    }
+
+    #[test]
+    fn leaving_another_row_keeps_the_intended_reveal() {
+        let mut group_menus = state_intending_gpu_reveal();
+        let _ = group_menus.update(GroupMenuMessage::CancelRevealIntent {
+            group_identity: WidgetGroupIdentity::sole(WidgetGroupFamily::Compute),
+        });
+        let _ = group_menus.update(GroupMenuMessage::RevealIntentElapsed);
+        assert_eq!(
+            group_menus.open_groups(GroupMenuTopic::Hardware),
+            [GPU_GROUP]
+        );
+    }
+
+    #[test]
+    fn a_press_reveals_at_once_and_closing_drops_an_intended_reveal() {
+        let mut group_menus = GroupMenuState::default();
+        let _ = group_menus.update(GroupMenuMessage::RevealMenuGroup {
+            menu: GroupMenuTopic::Hardware,
+            group_identity: GPU_GROUP,
+        });
+        assert_eq!(
+            group_menus.open_groups(GroupMenuTopic::Hardware),
+            [GPU_GROUP]
+        );
+        let mut closed_menus = state_intending_gpu_reveal();
+        let _ = closed_menus.update(GroupMenuMessage::Closed);
+        let _ = closed_menus.update(GroupMenuMessage::RevealIntentElapsed);
+        assert!(
+            closed_menus
+                .open_groups(GroupMenuTopic::Hardware)
+                .is_empty()
+        );
     }
 
     #[test]

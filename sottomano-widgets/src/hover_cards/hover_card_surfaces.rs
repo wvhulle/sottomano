@@ -16,7 +16,8 @@ use crate::{
     clock::Clock,
     group_menus::cascading_layout::cascade_row::{CascadeOrientation, cascade_row},
     hover_cards::{
-        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleGesture, PopupMessage,
+        HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleGesture, MenuHandleIndicator,
+        PopupMessage,
         anchored_popup::{
             OutsidePress, PopupAppearances, PopupFraming, PopupMorph, Rendering, anchored_popup,
         },
@@ -33,7 +34,7 @@ use crate::{
 };
 
 pub const HIDE_GRACE: Duration = Duration::from_millis(250);
-const SWITCH_INTENT: Duration = Duration::from_millis(180);
+pub(crate) const SWITCH_INTENT: Duration = Duration::from_millis(180);
 
 pub struct PendingSwitch {
     pub parent: PanelEdge,
@@ -66,6 +67,7 @@ struct PanelMenuHandle {
     output: String,
     target: HoverTarget,
     anchor: Rectangle,
+    pointed_at: bool,
 }
 
 impl HoverCardHost {
@@ -170,22 +172,65 @@ impl HoverCardHost {
         &self,
         gesture: MenuHandleGesture,
         target: &HoverTarget,
+        output: &str,
     ) -> MenuHandleResponse {
         let is_open_menu = self.target() == Some(target);
+        let held_on_same_output = self.is_held_open()
+            && self
+                .placement()
+                .is_some_and(|placement| placement.output == output);
         match gesture {
             MenuHandleGesture::LaidOut => MenuHandleResponse::RememberAnchor,
             MenuHandleGesture::Pressed if is_open_menu => MenuHandleResponse::CloseMenu,
             MenuHandleGesture::Pressed => MenuHandleResponse::OpenMenu,
+            MenuHandleGesture::Hovered if held_on_same_output && !is_open_menu => {
+                MenuHandleResponse::OpenMenu
+            }
+            MenuHandleGesture::Hovered | MenuHandleGesture::Unhovered => {
+                MenuHandleResponse::Nothing
+            }
+        }
+    }
+
+    pub fn track_menu_handle_pointer(
+        &mut self,
+        gesture: MenuHandleGesture,
+        target: &HoverTarget,
+        output: &str,
+    ) {
+        let pointed_at = match gesture {
+            MenuHandleGesture::LaidOut => return,
+            MenuHandleGesture::Hovered | MenuHandleGesture::Pressed => true,
+            MenuHandleGesture::Unhovered => false,
+        };
+        self.menu_handles
+            .iter_mut()
+            .filter(|handle| handle.output == output && handle.target == *target)
+            .for_each(|handle| handle.pointed_at = pointed_at);
+    }
+
+    #[must_use]
+    pub fn handle_indicator(&self, target: &HoverTarget, output: &str) -> MenuHandleIndicator {
+        MenuHandleIndicator {
+            hovering: self.menu_handles.iter().any(|handle| {
+                handle.pointed_at && handle.output == output && handle.target == *target
+            }),
+            open: self.target() == Some(target)
+                && self
+                    .placement()
+                    .is_some_and(|placement| placement.output == output),
         }
     }
 
     pub fn remember_menu_handle(&mut self, output: &str, target: HoverTarget, anchor: Rectangle) {
+        let pointed_at = self.handle_indicator(&target, output).hovering;
         self.menu_handles
             .retain(|handle| handle.output != output || handle.target != target);
         self.menu_handles.push(PanelMenuHandle {
             output: output.to_owned(),
             target,
             anchor,
+            pointed_at,
         });
     }
 
@@ -717,26 +762,71 @@ mod tests {
     fn with_no_menu_open_a_press_opens_one() {
         let host = HoverCardHost::default();
         assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card()),
+            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card(), "DP-1"),
             MenuHandleResponse::OpenMenu
         );
     }
 
     #[test]
-    fn an_open_menu_switches_only_on_a_press_of_another_handle() {
+    fn an_open_menu_switches_on_the_first_hover_or_press_of_another_handle() {
         let host = host_holding_a_menu_open();
+        for gesture in [MenuHandleGesture::Hovered, MenuHandleGesture::Pressed] {
+            assert_eq!(
+                host.response_to_menu_handle(gesture, &other_menu_handle(), "DP-1"),
+                MenuHandleResponse::OpenMenu
+            );
+        }
+    }
+
+    #[test]
+    fn with_no_menu_open_hovering_a_handle_opens_nothing() {
+        let host = HoverCardHost::default();
         assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Pressed, &other_menu_handle()),
-            MenuHandleResponse::OpenMenu
+            host.response_to_menu_handle(MenuHandleGesture::Hovered, &workspace_card(), "DP-1"),
+            MenuHandleResponse::Nothing
         );
     }
 
     #[test]
-    fn the_handle_of_the_open_menu_closes_it_on_press() {
+    fn hovering_a_handle_on_another_output_leaves_the_open_menu() {
         let host = host_holding_a_menu_open();
         assert_eq!(
-            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card()),
+            host.response_to_menu_handle(MenuHandleGesture::Hovered, &other_menu_handle(), "DP-2"),
+            MenuHandleResponse::Nothing
+        );
+    }
+
+    #[test]
+    fn a_handle_indicator_shows_open_only_on_the_output_of_the_card() {
+        let host = host_holding_a_menu_open();
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").open);
+        assert!(!host.handle_indicator(&workspace_card(), "DP-2").open);
+        assert!(!host.handle_indicator(&other_menu_handle(), "DP-1").open);
+    }
+
+    #[test]
+    fn a_handle_indicator_follows_the_pointer_and_survives_a_new_layout() {
+        let mut host = HoverCardHost::default();
+        host.remember_menu_handle("DP-1", workspace_card(), Rectangle::default());
+        host.track_menu_handle_pointer(MenuHandleGesture::Hovered, &workspace_card(), "DP-1");
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
+        assert!(!host.handle_indicator(&workspace_card(), "DP-2").hovering);
+        host.remember_menu_handle("DP-1", workspace_card(), Rectangle::default());
+        assert!(host.handle_indicator(&workspace_card(), "DP-1").hovering);
+        host.track_menu_handle_pointer(MenuHandleGesture::Unhovered, &workspace_card(), "DP-1");
+        assert!(!host.handle_indicator(&workspace_card(), "DP-1").hovering);
+    }
+
+    #[test]
+    fn the_handle_of_the_open_menu_closes_it_on_press_and_ignores_hover() {
+        let host = host_holding_a_menu_open();
+        assert_eq!(
+            host.response_to_menu_handle(MenuHandleGesture::Pressed, &workspace_card(), "DP-1"),
             MenuHandleResponse::CloseMenu
+        );
+        assert_eq!(
+            host.response_to_menu_handle(MenuHandleGesture::Hovered, &workspace_card(), "DP-1"),
+            MenuHandleResponse::Nothing
         );
     }
 

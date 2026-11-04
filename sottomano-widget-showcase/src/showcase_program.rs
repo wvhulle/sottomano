@@ -202,7 +202,12 @@ impl ShowcaseState {
                 anchor,
                 announcement,
             }) => {
-                match self.hover_card.response_to_menu_handle(gesture, &target) {
+                self.hover_card
+                    .track_menu_handle_pointer(gesture, &target, SHOWCASE_OUTPUT);
+                match self
+                    .hover_card
+                    .response_to_menu_handle(gesture, &target, SHOWCASE_OUTPUT)
+                {
                     MenuHandleResponse::RememberAnchor => {
                         self.hover_card
                             .remember_menu_handle(SHOWCASE_OUTPUT, target, anchor);
@@ -323,7 +328,13 @@ impl ShowcaseState {
             | GroupShown::InMenuPresented { menu: kind, .. }
             | GroupShown::PinnedFrom { menu: kind, .. } => self
                 .group_menu(kind)
-                .panel_views(&self.config, self.group.position(), self.clock)
+                .panel_views(
+                    &self.config,
+                    self.group.position(),
+                    self.hover_card
+                        .handle_indicator(&HoverTarget::GroupMenu(kind), SHOWCASE_OUTPUT),
+                    self.clock,
+                )
                 .collect(),
             GroupShown::OnPanel => self.group.panel_groups(&self.config, self.clock),
         }

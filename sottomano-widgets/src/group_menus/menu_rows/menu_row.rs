@@ -87,10 +87,12 @@ pub(crate) fn hovered_menu_row<'a, M: Clone + 'a>(
     content: MenuRowContent<'a, M>,
     look: MenuRowLook,
     press: GroupEvent<M>,
-    hover: GroupEvent<M>,
+    pointer_entered: GroupEvent<M>,
+    pointer_left: GroupEvent<M>,
 ) -> Element<'a, GroupEvent<M>> {
     mouse_area(pressable_menu_row(config, content, look, press))
-        .on_enter(hover)
+        .on_enter(pointer_entered)
+        .on_exit(pointer_left)
         .into()
 }
 
