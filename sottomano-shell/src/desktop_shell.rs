@@ -443,7 +443,11 @@ impl DesktopShell {
     }
 
     fn group_menu_orientation(&self) -> CascadeOrientation {
-        let Some(placement) = self.hover_card.placement() else {
+        let Some((placement, anchor)) = self
+            .hover_card
+            .placement()
+            .zip(self.hover_card.shown_anchor())
+        else {
             return CascadeOrientation {
                 direction: CascadeDirection::Rightward,
                 growth: PanelGrowth::Downward,
@@ -453,7 +457,7 @@ impl DesktopShell {
             .outputs
             .get(&placement.output)
             .map_or(0.0, |output| output.logical_width as f32);
-        CascadeOrientation::toward_room(placement.anchor, placement.position, output_width)
+        CascadeOrientation::toward_room(anchor, placement.position, output_width)
     }
 
     pub(super) fn hovered_output(&self) -> &str {

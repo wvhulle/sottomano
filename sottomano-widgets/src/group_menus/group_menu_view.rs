@@ -8,9 +8,7 @@ use crate::{
     clock::Clock,
     desktop_panels::panel_slot::PanelSlot,
     group_menus::{
-        accordion_layout::{
-            accordion_sections::accordion_sections, menu_rows_viewport::menu_rows_viewport,
-        },
+        accordion_layout::accordion_sections::accordion_sections,
         cascading_layout::{
             cascade_row::CascadeOrientation, cascade_satellite_panels::CascadeSatellitePanels,
             cascading_columns::cascading_columns,
@@ -37,8 +35,11 @@ use crate::{
         widget_group_identity::{WidgetGroupIdentity, WidgetGroupTitle},
     },
     widgets::{
-        configured_theme::text_color, icon_glyph::IconGlyph,
-        shell_layer_appearance::LayerAppearance, window_icon::WindowAssets,
+        configured_theme::text_color,
+        icon_glyph::IconGlyph,
+        selection_scroller::{ScrollAxis, selection_scroller},
+        shell_layer_appearance::LayerAppearance,
+        window_icon::WindowAssets,
     },
 };
 
@@ -360,12 +361,11 @@ impl<'a, M: Clone + 'a> GroupMenuView<'a, M> {
         match (table, cascade) {
             (None, None) => None,
             (Some(table), None) => Some(GroupMenuCascadeSurfaces {
-                primary: menu_rows_viewport(
-                    table,
-                    scrolled_px,
-                    move |scrolled_px| M::from(scroll_message(scrolled_px)),
-                    table_edge_fade,
-                ),
+                primary: selection_scroller(table, ScrollAxis::Vertical, table_edge_fade)
+                    .controlled(scrolled_px, move |scrolled_px| {
+                        M::from(scroll_message(scrolled_px))
+                    })
+                    .into(),
                 satellites: Vec::new(),
             }),
             (None, Some(cascade)) => Some(cascade),

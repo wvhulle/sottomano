@@ -3,7 +3,6 @@ mod location_grouped_window_rows;
 pub mod process_tree;
 mod window_hover_card;
 pub mod window_list;
-pub mod window_list_viewport;
 mod window_row_presentation;
 
 use std::collections::HashMap;

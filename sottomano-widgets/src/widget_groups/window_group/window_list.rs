@@ -38,7 +38,6 @@ use crate::{
         flat_window_rows::arranged_flat_rows,
         location_grouped_window_rows::arranged_location_groups,
         process_tree::Folding,
-        window_list_viewport::{WindowListMetrics, window_list_viewport},
         window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation},
     },
     widgets::{
@@ -56,6 +55,7 @@ use crate::{
             draggable_slot::draggable_slot,
             slot_pager::{SlotAlarm, slot_pager},
         },
+        selection_scroller::{ScrollAxis, ScrollPacing, selection_scroller},
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
         text::FontFaces,
         window_icon::{WindowAssets, window_icon},
@@ -84,8 +84,6 @@ fn capped_window_title<'a, Message: 'a>(
 pub struct WindowList {
     launcher: LauncherEntries,
     jobs: JobProgress,
-    scroll: f32,
-    metrics: WindowListMetrics,
     window_processes: WindowProcesses,
     folding: Folding,
     hovered_window: Option<u64>,
@@ -105,8 +103,6 @@ pub enum WindowListMessage {
     ProcessFoldToggled(i32),
     ProcessInspected(Box<SnapshotDelivery<Inspection>>),
     PackageFactsRead(Box<SnapshotDelivery<NixPackageFacts>>),
-    Scrolled(f32),
-    MetricsChanged(WindowListMetrics),
     Drag(DragMessage),
 }
 
@@ -236,15 +232,6 @@ impl WindowList {
                 self.package_facts.receive(*fetched, clock);
                 Action::None
             }
-            WindowListMessage::Scrolled(offset) => {
-                self.scroll = offset.clamp(0.0, self.metrics.max_scroll());
-                Action::None
-            }
-            WindowListMessage::MetricsChanged(metrics) => {
-                self.metrics = metrics;
-                self.scroll = self.scroll.clamp(0.0, self.metrics.max_scroll());
-                Action::None
-            }
             WindowListMessage::Drag(drag) => Action::Drag(drag),
         }
     }
@@ -333,17 +320,22 @@ impl WindowList {
             .alarms(alarms)
             .groups(groups)
             .draggable(PanelSlotList::Windows, &drag, dragged);
-        Some(window_list_viewport(
-            pager,
-            self.scroll,
-            focused_position,
-            ScrollEdgeFade::away_from_frame(
-                slot_context.panel_frame_style,
-                maximum_window_title_width_px(config),
-            ),
-            WindowListMessage::Scrolled,
-            WindowListMessage::MetricsChanged,
-        ))
+        Some(
+            selection_scroller(
+                pager,
+                ScrollAxis::Horizontal,
+                ScrollEdgeFade::away_from_frame(
+                    slot_context.panel_frame_style,
+                    maximum_window_title_width_px(config),
+                ),
+            )
+            .paced(ScrollPacing::Eased(
+                config.desktop_panels.slot_drag.focus_indicator_duration,
+            ))
+            .selected(focused_position)
+            .showing(workspace)
+            .into(),
+        )
     }
 
     #[must_use]

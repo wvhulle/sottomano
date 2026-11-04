@@ -5,9 +5,10 @@ pub mod hover_card_body;
 pub mod hover_card_content;
 pub mod hover_card_surfaces;
 pub mod hover_card_transition;
+pub mod laid_out_anchors;
 pub mod popup_connector;
 
-use iced::{Rectangle, window::Id};
+use iced::window::Id;
 use sottomano_config::screen_edges::Position;
 use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
 
@@ -17,6 +18,7 @@ pub use crate::hover_cards::{
         press_toggled_hoverable,
     },
     hover_card_surfaces::HoverCardHost,
+    laid_out_anchors::{CardOpening, WidgetAnchor},
 };
 use crate::{
     group_menus::{
@@ -283,38 +285,31 @@ impl HoverAnnouncement {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuHandleGesture {
-    LaidOut,
-    Pressed,
-}
-
 #[derive(Debug, Clone)]
 pub enum HoverCardMessage {
+    AnchorLaidOut(WidgetAnchor),
+    LaidOut {
+        surface: Id,
+        widget_anchor: WidgetAnchor,
+    },
     EnterAnchor {
         target: HoverTarget,
-        anchor: Rectangle,
         announcement: HoverAnnouncement,
     },
     Enter {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        anchor: Rectangle,
         announcement: HoverAnnouncement,
     },
-    MenuHandleAnchor {
-        gesture: MenuHandleGesture,
+    MenuHandlePressedAnchor {
         target: HoverTarget,
-        anchor: Rectangle,
         announcement: HoverAnnouncement,
     },
-    MenuHandle {
-        gesture: MenuHandleGesture,
+    MenuHandlePressed {
         surface: Id,
         position: Position,
         target: HoverTarget,
-        anchor: Rectangle,
         announcement: HoverAnnouncement,
     },
     Exit {
