@@ -49,9 +49,14 @@ the pin of a menu row, which only changes the showcase's in-memory state.
 
 ```bash
 cargo run -p sottomano-widget-showcase
+cargo run -p sottomano-widget-showcase -- --jobs 2
 cargo run -p sottomano-widget-showcase -- weather_location
 cargo run -p sottomano-widget-showcase -- --window
 ```
+
+Rendering every demo runs one child process per demo, `--jobs` at a time (4 by
+default). A demo buffers its frames until it encodes them, so lower `--jobs` when
+memory is short.
 
 `--window` opens the presets in a real window with the iced tester attached,
 which switches between presets and records interactions as `.ice` scenarios.

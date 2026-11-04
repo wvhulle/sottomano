@@ -40,9 +40,9 @@ next to the NetworkManager VPNs and WireGuard client and server tunnels.
 
 ### Dictation: Speech model
 
-The speech model the dictation daemon loaded and the device it runs on.
+The speech model the dictation daemon loaded.
 
-<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1174" alt="Opening the dictation group from the Media menu and hovering the speech model and compute device">
+<img src="https://codeberg.org/wvhulle/sottomano/raw/branch/recordings/voice_dictation_model.webp" width="1174" alt="Opening the dictation group from the Media menu and hovering the speech model">
 
 ### Toast: Next to its window
 
