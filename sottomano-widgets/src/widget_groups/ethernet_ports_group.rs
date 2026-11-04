@@ -334,7 +334,8 @@ impl EthernetPortsGroup {
                 port_name: port_state.name.clone(),
             },
         )
-        .on_press(
+        .on_switch_press(
+            port_state.connected,
             connection_press_does,
             EthernetPortsMessage::TogglePort(port_state.name.clone()),
         );

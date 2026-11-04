@@ -34,7 +34,7 @@ use crate::{
     hover_cards::{HoverTarget, hover_card_body::hover_card_source_delivery::HoverCard},
     widget_groups::{
         voice_dictation_group::{
-            dictation_phase_item::{press_does, shows_pipeline},
+            dictation_phase_item::{dictation_switched_on, press_does, shows_pipeline},
             inference_hardware_item::InferenceHardware,
             runtime_configuration_item::RuntimeConfiguration,
             speech_runtime_sections::{SpeechRuntime, idle_runtime_glyph},
@@ -292,7 +292,8 @@ impl VoiceDictationGroup {
                 self.dictation
                     .group_item(VoiceDictationTarget::Dictation)
                     .map(|item| {
-                        item.on_press(
+                        item.on_switch_press(
+                            dictation.is_some_and(dictation_switched_on),
                             dictation.map_or("start dictating at the cursor", press_does),
                             VoiceDictationMessage::ToggleRecording,
                         )

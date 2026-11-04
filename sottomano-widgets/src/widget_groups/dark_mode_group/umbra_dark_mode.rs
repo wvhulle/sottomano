@@ -40,6 +40,10 @@ impl ToggleableSource for DarkMode {
         umbra_dark_mode::toggle_mode()
     }
 
+    fn switched_on(&self) -> bool {
+        self.dark
+    }
+
     fn press_action_text(&self) -> &'static str {
         if self.dark {
             "switch apps and the desktop to the light theme"

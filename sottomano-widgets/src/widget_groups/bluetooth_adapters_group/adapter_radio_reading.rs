@@ -132,6 +132,14 @@ impl AdapterPowerSwitch<'_> {
             AdapterPower::Off | AdapterPower::SwitchingOff => "turn this Bluetooth adapter on",
         }
     }
+
+    #[must_use]
+    pub fn switched_on(&self) -> bool {
+        matches!(
+            self.adapter.power,
+            AdapterPower::On(_) | AdapterPower::SwitchingOn
+        )
+    }
 }
 
 impl GroupItemReading for AdapterPowerSwitch<'_> {

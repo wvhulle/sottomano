@@ -105,6 +105,10 @@ impl ToggleableSource for X3dCachePreference {
         self.other().write()
     }
 
+    fn switched_on(&self) -> bool {
+        matches!(self, X3dCachePreference::Cache)
+    }
+
     fn press_action_text(&self) -> &'static str {
         match self {
             X3dCachePreference::Cache => "favour the high-clock cores instead",

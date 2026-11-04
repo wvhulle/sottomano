@@ -216,7 +216,8 @@ impl MobileModemsGroup {
                     modem_path: modem_path(),
                 },
             )
-            .on_press(
+            .on_switch_press(
+                modem_connected(modem),
                 connection_press_does,
                 MobileModemsMessage::ToggleModem(modem_path()),
             )
@@ -243,12 +244,17 @@ impl MobileModemsGroup {
                 },
             )
         });
+        let any_radio_on = self.any_radio_on();
         let radios_switch = AllMobileRadiosSwitch {
-            radio_on: self.any_radio_on(),
+            radio_on: any_radio_on,
         };
         let radios_press_does = radios_switch.press_does();
         let radios_item = GroupItem::reading(radios_switch, MobileModemTarget::AllRadios)
-            .on_press(radios_press_does, MobileModemsMessage::ToggleAllRadios);
+            .on_switch_press(
+                any_radio_on,
+                radios_press_does,
+                MobileModemsMessage::ToggleAllRadios,
+            );
         let expanded_modem_path = modem_path();
         Some(WidgetGroupContent::expandable_instance(
             WidgetGroupIdentity::durable(WidgetGroupFamily::MobileModems, modem_path()),

@@ -287,13 +287,15 @@ impl BluetoothAdaptersGroup {
         );
         let power_switch = AdapterPowerSwitch { adapter };
         let power_press_does = power_switch.press_does();
+        let power_switched_on = power_switch.switched_on();
         let power_item = GroupItem::reading(
             power_switch,
             BluetoothTarget::PowerSwitch {
                 controller_name: adapter.controller_name.clone(),
             },
         )
-        .on_press(
+        .on_switch_press(
+            power_switched_on,
             power_press_does,
             BluetoothMessage::ToggleAdapterPower(adapter.object_path.clone()),
         );

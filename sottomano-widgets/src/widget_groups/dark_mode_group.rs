@@ -352,7 +352,8 @@ impl DarkModeGroup {
                         &self.auto_switch_toggle as &dyn GroupItemReading,
                         DarkModeTarget::Schedule,
                     )
-                    .on_press(
+                    .on_switch_press(
+                        self.auto_switch_toggle.saved_schedule.auto_switch_armed,
                         self.auto_switch_toggle.press_does(),
                         DarkModeMessage::ToggleAutoSwitch,
                     )

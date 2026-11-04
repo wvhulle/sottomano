@@ -85,6 +85,7 @@ pub trait ToggleableSource: SnapshotSource<Error: Into<Section>> + GroupItemRead
     fn toggled_value(&self) -> Self;
     fn apply_toggle(&self) -> Result<(), Self::Error>;
     fn press_action_text(&self) -> &'static str;
+    fn switched_on(&self) -> bool;
 }
 
 pub struct ToggleControl<S: ToggleableSource> {
@@ -170,9 +171,11 @@ impl<S: ToggleableSource> ToggleControl<S> {
     ) -> Option<GroupItem<'_, M>> {
         let shown = self.reading.group_item(target)?;
         Some(match self.reading.get() {
-            Some(current) => {
-                shown.on_press(current.press_action_text(), on_toggle(ToggleMessage::Press))
-            }
+            Some(current) => shown.on_switch_press(
+                current.switched_on(),
+                current.press_action_text(),
+                on_toggle(ToggleMessage::Press),
+            ),
             None => shown,
         })
     }
