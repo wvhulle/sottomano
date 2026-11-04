@@ -1,15 +1,17 @@
 use super::window_row_presentation::{ArrangedWindowRows, WindowSlotPresentation};
+use crate::widgets::pointer_drag::slot_pager::UngroupedHighlightLook;
 
 pub(super) fn arranged_flat_rows<'a>(window_count: usize) -> ArrangedWindowRows<'a> {
     ArrangedWindowRows {
         groups: Vec::new(),
         presentations: vec![WindowSlotPresentation::Flat; window_count],
+        ungrouped_highlight_look: UngroupedHighlightLook::EdgeBand,
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{WindowSlotPresentation, arranged_flat_rows};
+    use super::{UngroupedHighlightLook, WindowSlotPresentation, arranged_flat_rows};
 
     #[test]
     fn flat_rows_have_no_groups_and_present_every_window_alone() {
@@ -18,6 +20,10 @@ mod tests {
         assert_eq!(
             arranged_rows.presentations,
             [WindowSlotPresentation::Flat; 3]
+        );
+        assert_eq!(
+            arranged_rows.ungrouped_highlight_look,
+            UngroupedHighlightLook::EdgeBand
         );
     }
 }

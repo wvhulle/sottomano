@@ -21,12 +21,18 @@ use crate::widgets::{
     list_end_corners::ListEndCorners,
     pointer_drag::{
         DragEvent, DragView, PanelSlotList,
-        slot_group::{SlotGroup, SlotGroupFrame},
+        slot_group::{SlotGroup, SlotGroupFrame, SlotTileInset},
     },
     shared_metrics::{ACCENT_STROKE_PX, pill_corners},
 };
 
 const BACKDROP_TINT_ALPHA: f32 = 0.3;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UngroupedHighlightLook {
+    EdgeBand,
+    AccentTile(SlotTileInset),
+}
 
 pub fn slot_pager<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
     slots: impl IntoIterator<Item = (Key, Element<'a, Message>)>,
@@ -42,11 +48,18 @@ pub fn slot_pager<'a, Message: 'a, Key: Copy + Eq + Hash + 'static>(
         motion: config.desktop_panels.slot_drag.focus_indicator_duration,
         indicator_thickness: ACCENT_STROKE_PX,
         highlight: None,
+        ungrouped_highlight_look: UngroupedHighlightLook::EdgeBand,
+        alarms: Vec::new(),
         groups: Vec::new(),
         group_gap: config.theme.spacing.item_gap,
         frame_corners: Radius::default(),
         left_list_message: None,
     }
+}
+
+pub struct SlotAlarm<'a> {
+    pub position: usize,
+    pub color: ThemedColor<'a>,
 }
 
 struct SlotHighlight<'a, Key> {
@@ -62,6 +75,8 @@ pub struct SlotPager<'a, Message, Key> {
     motion: Duration,
     indicator_thickness: f32,
     highlight: Option<SlotHighlight<'a, Key>>,
+    ungrouped_highlight_look: UngroupedHighlightLook,
+    alarms: Vec<SlotAlarm<'a>>,
     groups: Vec<SlotGroup<'a, Message>>,
     group_gap: f32,
     frame_corners: Radius,
@@ -85,6 +100,18 @@ impl<'a, Message, Key> SlotPager<'a, Message, Key> {
             key,
             color: Box::new(color),
         });
+        self
+    }
+
+    #[must_use]
+    pub fn ungrouped_highlight_look(mut self, look: UngroupedHighlightLook) -> Self {
+        self.ungrouped_highlight_look = look;
+        self
+    }
+
+    #[must_use]
+    pub fn alarms(mut self, alarms: Vec<SlotAlarm<'a>>) -> Self {
+        self.alarms = alarms;
         self
     }
 
@@ -420,16 +447,37 @@ impl<Message, Key: Copy + Eq + Hash + 'static> SlotPager<'_, Message, Key> {
             self.along_vertical_edge(),
             heading.bounds(),
             slots,
-            group.enclosure_thickness,
-            group.enclosure_radius,
+            SlotTileInset {
+                thickness: group.enclosure_thickness,
+                enclosure_radius: group.enclosure_radius,
+            },
         ))
     }
 
-    fn highlighted_group_index(&self) -> Option<usize> {
-        let highlighted_position = self.highlighted_position()?;
+    fn group_index_at(&self, slot_position: usize) -> Option<usize> {
         self.groups
             .iter()
-            .position(|group| group.positions.contains(&highlighted_position))
+            .position(|group| group.positions.contains(&slot_position))
+    }
+
+    fn highlighted_group_index(&self) -> Option<usize> {
+        self.group_index_at(self.highlighted_position()?)
+    }
+
+    fn alarm_tile(&self, alarm: &SlotAlarm<'_>, layout: Layout<'_>) -> Option<renderer::Quad> {
+        let slot = layout.children().nth(alarm.position)?.bounds();
+        match self.group_index_at(alarm.position) {
+            Some(group_index) => Some(
+                self.group_frame(group_index, layout)?
+                    .highlight_inside(slot),
+            ),
+            None => match self.ungrouped_highlight_look {
+                UngroupedHighlightLook::EdgeBand => None,
+                UngroupedHighlightLook::AccentTile(tile_inset) => {
+                    Some(tile_inset.tile_on_slot(self.along_vertical_edge(), slot))
+                }
+            },
+        }
     }
 
     fn ungrouped_highlight(&self, slots_bounds: Rectangle, slot: Rectangle) -> renderer::Quad {
@@ -639,20 +687,33 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
                 self.group_frame(group_index, layout)
                     .zip(self.groups.get(group_index))
             });
+            let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
             match enclosing_group {
                 Some((frame, group)) => {
-                    let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
                     renderer.fill_quad(
                         frame.highlight_inside(resting_slot),
                         (group.highlight_color)(theme),
                     );
                 }
-                None => {
-                    renderer.fill_quad(
-                        self.ungrouped_highlight(slots_bounds, slot),
-                        (highlight.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
-                    );
-                }
+                None => match self.ungrouped_highlight_look {
+                    UngroupedHighlightLook::EdgeBand => {
+                        renderer.fill_quad(
+                            self.ungrouped_highlight(slots_bounds, slot),
+                            (highlight.color)(theme).scale_alpha(BACKDROP_TINT_ALPHA),
+                        );
+                    }
+                    UngroupedHighlightLook::AccentTile(tile_inset) => {
+                        renderer.fill_quad(
+                            tile_inset.tile_on_slot(self.along_vertical_edge(), resting_slot),
+                            (highlight.color)(theme),
+                        );
+                    }
+                },
+            }
+        }
+        for alarm in &self.alarms {
+            if let Some(alarm_tile) = self.alarm_tile(alarm, layout) {
+                renderer.fill_quad(alarm_tile, (alarm.color)(theme));
             }
         }
         for ((slot, tree), layout) in self.slots.iter().zip(&tree.children).zip(layout.children()) {
@@ -677,7 +738,9 @@ impl<Message: Clone, Key: Copy + Eq + Hash + 'static> Widget<Message, Theme, ice
         let Some((highlight, slot)) = highlighted else {
             return;
         };
-        if highlighted_group_index.is_some() {
+        if highlighted_group_index.is_some()
+            || self.ungrouped_highlight_look != UngroupedHighlightLook::EdgeBand
+        {
             return;
         }
         renderer.fill_quad(
