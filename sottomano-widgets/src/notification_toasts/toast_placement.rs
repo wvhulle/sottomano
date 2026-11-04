@@ -20,30 +20,10 @@ pub enum ToastAnchor {
     Window { id: u64, bounds: Rectangle },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum AnchorGroup {
-    Edge { vertical: VEdge, horizontal: HEdge },
-    Window(u64),
-}
-
 impl ToastAnchor {
     #[must_use]
     pub fn is_window_bound(self) -> bool {
         matches!(self, Self::Window { .. })
-    }
-
-    #[must_use]
-    pub fn group(self) -> AnchorGroup {
-        match self {
-            Self::Edge {
-                vertical,
-                horizontal,
-            } => AnchorGroup::Edge {
-                vertical,
-                horizontal,
-            },
-            Self::Window { id, .. } => AnchorGroup::Window(id),
-        }
     }
 }
 

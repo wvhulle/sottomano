@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::iter::successors;
 
 use iced::{Point, Rectangle, Size};
 use sottomano_config::{
@@ -6,7 +6,7 @@ use sottomano_config::{
     screen_edges::{HEdge, VEdge},
 };
 
-use super::toast_placement::{AnchorGroup, ToastAnchor};
+use super::toast_placement::ToastAnchor;
 
 #[derive(Debug, Clone)]
 pub struct ToastAnchorSpacing {
@@ -25,175 +25,131 @@ impl ToastAnchorSpacing {
 }
 
 #[must_use]
-pub fn origins(
+pub fn card_origins(
     anchors: &[ToastAnchor],
-    sizes: &[Size],
-    area: Rectangle,
+    card_sizes: &[Size],
+    free_area: Rectangle,
     spacing: &ToastAnchorSpacing,
 ) -> Vec<Point> {
-    let slots = share_displaced_top(
-        anchors
-            .iter()
-            .zip(sizes)
-            .map(|(&anchor, &size)| Slot::resolve(anchor, size, area, spacing))
-            .collect(),
-    );
-    let mut placed: Vec<Placed> = grouped(&slots)
-        .into_values()
-        .flat_map(|members| {
-            let heights: Vec<f32> = members.iter().map(|&index| sizes[index].height).collect();
-            let leading = leading_offsets(&heights, spacing.card_gap);
-            let extent = group_extent(&heights, &leading);
-            members
-                .iter()
-                .zip(leading)
-                .map(|(&index, leading)| Placed {
-                    index,
-                    origin: clamped(
-                        slots[index].origin(sizes[index], leading, extent, area, spacing),
-                        sizes[index],
-                        area,
-                        spacing,
-                    ),
+    let settled_cards = anchors.iter().zip(card_sizes).fold(
+        Vec::with_capacity(anchors.len()),
+        |mut settled_cards: Vec<Rectangle>, (&anchor, &card_size)| {
+            let wanted_card = Rectangle::new(
+                wanted_origin(anchor, card_size, free_area, spacing),
+                card_size,
+            );
+            let stacking = StackingDirection::of_anchor(anchor);
+            let free_card = [stacking, stacking.opposite()]
+                .into_iter()
+                .map(|direction| {
+                    slid_clear_of_cards(wanted_card, direction, &settled_cards, spacing.card_gap)
                 })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    placed.sort_unstable_by_key(|slot| slot.index);
-    placed.into_iter().map(|slot| slot.origin).collect()
-}
-
-struct Placed {
-    index: usize,
-    origin: Point,
+                .find(|slid_card| fits_free_area(*slid_card, free_area, spacing))
+                .unwrap_or(wanted_card);
+            settled_cards.push(free_card);
+            settled_cards
+        },
+    );
+    settled_cards.iter().map(Rectangle::position).collect()
 }
 
 #[derive(Clone, Copy)]
-enum Slot {
-    Anchored(ToastAnchor),
-    Displaced { horizontal: HEdge, top: f32 },
+enum StackingDirection {
+    Downward,
+    Upward,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-enum SlotGroup {
-    Anchored(AnchorGroup),
-    Displaced(HEdge),
-}
+impl StackingDirection {
+    fn of_anchor(anchor: ToastAnchor) -> Self {
+        match anchor {
+            ToastAnchor::Edge {
+                vertical: VEdge::Bottom,
+                ..
+            } => Self::Upward,
+            ToastAnchor::Edge { .. } | ToastAnchor::Window { .. } => Self::Downward,
+        }
+    }
 
-impl Slot {
-    fn resolve(
-        anchor: ToastAnchor,
-        size: Size,
-        area: Rectangle,
-        spacing: &ToastAnchorSpacing,
-    ) -> Self {
-        let ToastAnchor::Window { bounds, .. } = anchor else {
-            return Self::Anchored(anchor);
+    fn opposite(self) -> Self {
+        match self {
+            Self::Downward => Self::Upward,
+            Self::Upward => Self::Downward,
+        }
+    }
+
+    fn card_past_blocker(self, card: Rectangle, blocker: Rectangle, card_gap: f32) -> Rectangle {
+        let slid_top = match self {
+            Self::Downward => blocker.y + blocker.height + card_gap,
+            Self::Upward => blocker.y - card_gap - card.height,
         };
-        let origin = window_origin(bounds, size, spacing);
-        match overflowed_edge(origin.x, size, area, spacing) {
-            Some(horizontal) => Self::Displaced {
-                horizontal,
-                top: origin.y,
-            },
-            None => Self::Anchored(anchor),
-        }
-    }
-
-    fn group(self) -> SlotGroup {
-        match self {
-            Self::Anchored(anchor) => SlotGroup::Anchored(anchor.group()),
-            Self::Displaced { horizontal, .. } => SlotGroup::Displaced(horizontal),
-        }
-    }
-
-    fn origin(
-        self,
-        size: Size,
-        leading: f32,
-        extent: f32,
-        area: Rectangle,
-        spacing: &ToastAnchorSpacing,
-    ) -> Point {
-        match self {
-            Self::Anchored(anchor) => member_origin(anchor, size, leading, extent, area, spacing),
-            Self::Displaced { horizontal, top } => {
-                Point::new(edge_x(horizontal, size, area, spacing), top + leading)
-            }
+        Rectangle {
+            y: slid_top,
+            ..card
         }
     }
 }
 
-fn share_displaced_top(mut slots: Vec<Slot>) -> Vec<Slot> {
-    let highest: HashMap<HEdge, f32> = slots.iter().fold(HashMap::new(), |mut tops, slot| {
-        if let Slot::Displaced { horizontal, top } = slot {
-            tops.entry(*horizontal)
-                .and_modify(|shared| *shared = shared.min(*top))
-                .or_insert(*top);
-        }
-        tops
-    });
-    slots.iter_mut().for_each(|slot| {
-        if let Slot::Displaced { horizontal, top } = slot {
-            *top = highest[horizontal];
-        }
-    });
-    slots
+fn slid_clear_of_cards(
+    wanted_card: Rectangle,
+    direction: StackingDirection,
+    settled_cards: &[Rectangle],
+    card_gap: f32,
+) -> Rectangle {
+    successors(Some(wanted_card), |card| {
+        settled_cards
+            .iter()
+            .find(|settled_card| card.expand(card_gap).intersects(settled_card))
+            .map(|blocker| direction.card_past_blocker(*card, *blocker, card_gap))
+    })
+    .last()
+    .unwrap_or(wanted_card)
 }
 
-fn grouped(slots: &[Slot]) -> HashMap<SlotGroup, Vec<usize>> {
-    slots
-        .iter()
-        .enumerate()
-        .fold(HashMap::new(), |mut groups, (index, slot)| {
-            groups.entry(slot.group()).or_default().push(index);
-            groups
-        })
+fn fits_free_area(card: Rectangle, free_area: Rectangle, spacing: &ToastAnchorSpacing) -> bool {
+    let gap = spacing.edge_gap;
+    card.y >= free_area.y + gap && card.y + card.height <= free_area.y + free_area.height - gap
 }
 
-fn leading_offsets(heights: &[f32], card_gap: f32) -> Vec<f32> {
-    heights
-        .iter()
-        .scan(0.0, |running, height| {
-            let leading = *running;
-            *running += height + card_gap;
-            Some(leading)
-        })
-        .collect()
-}
-
-fn group_extent(heights: &[f32], leading: &[f32]) -> f32 {
-    heights
-        .last()
-        .zip(leading.last())
-        .map_or(0.0, |(height, leading)| leading + height)
-}
-
-fn member_origin(
+fn wanted_origin(
     anchor: ToastAnchor,
-    size: Size,
-    leading: f32,
-    extent: f32,
-    area: Rectangle,
+    card_size: Size,
+    free_area: Rectangle,
     spacing: &ToastAnchorSpacing,
 ) -> Point {
-    let gap = spacing.edge_gap;
-    match anchor {
+    let unclamped_origin = match anchor {
         ToastAnchor::Edge {
             vertical,
             horizontal,
-        } => {
-            let y = match vertical {
-                VEdge::Top => area.y + gap + leading,
-                VEdge::Bottom => area.y + area.height - gap - leading - size.height,
-                VEdge::Center => area.y + (area.height - extent) / 2.0 + leading,
-            };
-            Point::new(edge_x(horizontal, size, area, spacing), y)
-        }
+        } => Point::new(
+            edge_x(horizontal, card_size, free_area, spacing),
+            edge_y(vertical, card_size, free_area, spacing),
+        ),
         ToastAnchor::Window { bounds, .. } => {
-            let origin = window_origin(bounds, size, spacing);
-            Point::new(origin.x, origin.y + leading)
+            let window_card_origin = window_origin(bounds, card_size, spacing);
+            overflowed_edge(window_card_origin.x, card_size, free_area, spacing).map_or(
+                window_card_origin,
+                |horizontal| {
+                    Point::new(
+                        edge_x(horizontal, card_size, free_area, spacing),
+                        window_card_origin.y,
+                    )
+                },
+            )
         }
+    };
+    clamped(unclamped_origin, card_size, free_area, spacing)
+}
+
+fn edge_y(
+    vertical: VEdge,
+    card_size: Size,
+    free_area: Rectangle,
+    spacing: &ToastAnchorSpacing,
+) -> f32 {
+    match vertical {
+        VEdge::Top => free_area.y + spacing.edge_gap,
+        VEdge::Bottom => free_area.y + free_area.height - spacing.edge_gap - card_size.height,
+        VEdge::Center => free_area.y + (free_area.height - card_size.height) / 2.0,
     }
 }
 
@@ -267,7 +223,7 @@ mod tests {
 
     fn placed(anchors: &[ToastAnchor]) -> Vec<Point> {
         let sizes = vec![CARD; anchors.len()];
-        origins(
+        card_origins(
             anchors,
             &sizes,
             Rectangle::with_size(SURFACE),
@@ -303,5 +259,110 @@ mod tests {
                 WINDOW_TOP + CARD.height + DEFAULT_ANCHOR_SPACING.card_gap
             )
         );
+    }
+
+    fn window_with_bounds(id: u64, left: f32, top: f32, width: f32, height: f32) -> ToastAnchor {
+        ToastAnchor::Window {
+            id,
+            bounds: Rectangle::new(Point::new(left, top), Size::new(width, height)),
+        }
+    }
+
+    fn bottom_right_corner() -> ToastAnchor {
+        ToastAnchor::Edge {
+            vertical: VEdge::Bottom,
+            horizontal: HEdge::Right,
+        }
+    }
+
+    fn top_right_corner() -> ToastAnchor {
+        ToastAnchor::Edge {
+            vertical: VEdge::Top,
+            horizontal: HEdge::Right,
+        }
+    }
+
+    fn no_cards_overlap(card_positions: &[Point]) -> bool {
+        card_positions
+            .iter()
+            .enumerate()
+            .all(|(index, card_position)| {
+                card_positions[index + 1..]
+                    .iter()
+                    .all(|later_position| !overlap(*card_position, *later_position))
+            })
+    }
+
+    #[test]
+    fn a_stack_taller_than_its_window_clears_the_window_below() {
+        let upper_window = window_with_bounds(1, 600.0, 40.0, 800.0, 200.0);
+        let lower_window = window_with_bounds(2, 600.0, 240.0, 800.0, 800.0);
+        let card_positions = placed(&[upper_window, upper_window, upper_window, lower_window]);
+        assert!(no_cards_overlap(&card_positions));
+    }
+
+    #[test]
+    fn centred_cards_of_narrow_neighbouring_windows_do_not_overlap() {
+        let left_window = window_with_bounds(1, 600.0, 40.0, 200.0, 1000.0);
+        let right_window = window_with_bounds(2, 800.0, 40.0, 200.0, 1000.0);
+        assert!(no_cards_overlap(&placed(&[left_window, right_window])));
+    }
+
+    #[test]
+    fn a_fallback_corner_stack_clears_a_window_card_in_that_corner() {
+        let corner_window = window_with_bounds(1, 1100.0, 900.0, 800.0, 180.0);
+        let card_positions = placed(&[corner_window, bottom_right_corner(), bottom_right_corner()]);
+        assert!(no_cards_overlap(&card_positions));
+    }
+
+    #[test]
+    fn cards_with_one_anchor_stack_in_index_order() {
+        let card_positions = placed(&[top_right_corner(), top_right_corner()]);
+        let stacked_y = card_positions[0].y + CARD.height + DEFAULT_ANCHOR_SPACING.card_gap;
+        assert_eq!(
+            card_positions[1],
+            Point::new(card_positions[0].x, stacked_y)
+        );
+    }
+
+    #[test]
+    fn a_bottom_anchored_stack_grows_upward() {
+        let card_positions = placed(&[bottom_right_corner(), bottom_right_corner()]);
+        let stacked_y = card_positions[0].y - CARD.height - DEFAULT_ANCHOR_SPACING.card_gap;
+        assert_eq!(
+            card_positions[1],
+            Point::new(card_positions[0].x, stacked_y)
+        );
+    }
+
+    #[test]
+    fn a_stack_without_room_below_continues_above_its_anchor() {
+        let low_window = window_with_bounds(1, 600.0, 800.0, 800.0, 240.0);
+        let card_positions = placed(&[low_window, low_window, low_window]);
+        assert!(no_cards_overlap(&card_positions));
+        let above_first_card = card_positions[0].y - CARD.height - DEFAULT_ANCHOR_SPACING.card_gap;
+        assert_eq!(
+            card_positions[2],
+            Point::new(card_positions[0].x, above_first_card)
+        );
+    }
+
+    #[test]
+    fn a_card_without_a_collision_stays_at_its_wanted_position() {
+        let card_positions = placed(&[window(1, 0.0), window(2, 1000.0)]);
+        assert_eq!(
+            card_positions,
+            vec![
+                Point::new(406.0, WINDOW_TOP),
+                Point::new(1406.0, WINDOW_TOP)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_card_that_fits_nowhere_keeps_its_wanted_position() {
+        let crowded_window = window(1, 600.0);
+        let card_positions = placed(&[crowded_window; 9]);
+        assert_eq!(card_positions[8], card_positions[0]);
     }
 }
