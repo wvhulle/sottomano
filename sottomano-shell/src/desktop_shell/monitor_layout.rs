@@ -5,7 +5,7 @@ use iced::{
 };
 use sottomano_config::screen_edges::Position;
 use sottomano_widgets::{
-    hover_cards::HoverCardMessage,
+    hover_cards::{HoverCardMessage, WidgetAnchor},
     widget_groups::{window_group::WindowGroupMessage, workspaces_group},
     widgets::pointer_drag::{
         DraggedPanelSlot,
@@ -28,28 +28,31 @@ fn anchor_hover_cards_on_surface(
     content: Element<'_, Message>,
 ) -> Element<'_, Message> {
     content.map(move |message| match message {
+        Message::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
+            Message::HoverCard(HoverCardMessage::LaidOut {
+                surface,
+                widget_anchor: WidgetAnchor {
+                    anchor: widget_anchor.anchor + origin_in_overlay,
+                    ..widget_anchor
+                },
+            })
+        }
         Message::HoverCard(HoverCardMessage::EnterAnchor {
             target,
-            anchor,
             announcement,
         }) => Message::HoverCard(HoverCardMessage::Enter {
             surface,
             position,
             target,
-            anchor: anchor + origin_in_overlay,
             announcement,
         }),
-        Message::HoverCard(HoverCardMessage::MenuHandleAnchor {
-            gesture,
+        Message::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
             target,
-            anchor,
             announcement,
-        }) => Message::HoverCard(HoverCardMessage::MenuHandle {
-            gesture,
+        }) => Message::HoverCard(HoverCardMessage::MenuHandlePressed {
             surface,
             position,
             target,
-            anchor: anchor + origin_in_overlay,
             announcement,
         }),
         unanchored => unanchored,

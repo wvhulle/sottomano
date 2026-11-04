@@ -9,7 +9,6 @@ use sottomano_widgets::{
             HoverCardBody,
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
-        hover_card_surfaces::MenuHandleResponse,
         hover_card_transition::Departed,
     },
     layer_surfaces::PanelEdge,
@@ -36,11 +35,22 @@ fn hide_hover_card_at(due: Instant) -> Task<Message> {
 impl DesktopShell {
     pub fn update_hover_card(&mut self, msg: HoverCardMessage) -> Task<Message> {
         match msg {
+            HoverCardMessage::LaidOut {
+                surface,
+                widget_anchor,
+            } => {
+                let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone())
+                else {
+                    return Task::none();
+                };
+                self.hover_card
+                    .remember_anchor(&output, widget_anchor, self.clock.instant)
+                    .map_or_else(Task::none, hide_hover_card_at)
+            }
             HoverCardMessage::Enter {
                 surface,
                 position,
                 target,
-                anchor,
                 announcement,
             } => {
                 if self.hover_card.is_held_open() {
@@ -53,47 +63,29 @@ impl DesktopShell {
                 };
                 if let Some(intent_elapsed) =
                     self.hover_card
-                        .defer_switch(&parent, &target, anchor, announcement.clone())
+                        .defer_switch(&parent, &target, announcement.clone())
                 {
                     return intent_elapsed.map(Message::HoverCard);
                 }
-                self.hover_card.open(&parent, target, anchor, announcement);
+                self.hover_card.open(&parent, target, announcement);
                 Task::none()
             }
-            HoverCardMessage::MenuHandle {
-                gesture,
+            HoverCardMessage::MenuHandlePressed {
                 surface,
                 position,
                 target,
-                anchor,
                 announcement,
             } => {
-                let Some(output) = self.surfaces.get(&surface).map(|host| host.output.clone())
-                else {
-                    return Task::none();
-                };
-                match self.hover_card.response_to_menu_handle(gesture, &target) {
-                    MenuHandleResponse::RememberAnchor => {
-                        self.hover_card
-                            .remember_menu_handle(&output, target, anchor);
-                        Task::none()
-                    }
-                    MenuHandleResponse::CloseMenu => self.dismiss_hover_card(),
-                    MenuHandleResponse::OpenMenu => {
-                        if let Some(parent) =
-                            self.hover_card_parent(surface, position, &target, &announcement)
-                        {
-                            self.hover_card.open_until_dismissed(
-                                &parent,
-                                target,
-                                anchor,
-                                announcement,
-                            );
-                        }
-                        Task::none()
-                    }
-                    MenuHandleResponse::Nothing => Task::none(),
+                if self.hover_card.target() == Some(&target) {
+                    return self.dismiss_hover_card();
                 }
+                if let Some(parent) =
+                    self.hover_card_parent(surface, position, &target, &announcement)
+                {
+                    self.hover_card
+                        .open_until_dismissed(&parent, target, announcement);
+                }
+                Task::none()
             }
             HoverCardMessage::DismissHeldOpen => {
                 if self.hover_card.is_held_open() {
@@ -104,12 +96,8 @@ impl DesktopShell {
             }
             HoverCardMessage::SwitchIntentElapsed => {
                 if let Some(pending) = self.hover_card.take_pending_switch() {
-                    self.hover_card.open(
-                        &pending.parent,
-                        pending.target,
-                        pending.anchor,
-                        pending.announcement,
-                    );
+                    self.hover_card
+                        .open(&pending.parent, pending.target, pending.announcement);
                 }
                 Task::none()
             }

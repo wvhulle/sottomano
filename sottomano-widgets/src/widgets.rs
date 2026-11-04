@@ -35,6 +35,7 @@ pub mod rectangle_morph;
 pub mod refresh_dial;
 pub mod reveal;
 pub mod rounded_quads;
+pub mod selection_scroller;
 pub mod shared_metrics;
 pub mod shell_layer_appearance;
 pub mod simple_icons;

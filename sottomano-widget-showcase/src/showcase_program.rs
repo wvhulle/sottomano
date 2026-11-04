@@ -4,7 +4,7 @@ use std::{
 };
 
 use iced::{
-    Color, Element, Length, Padding, Rectangle, Settings, Subscription, Task, Theme,
+    Color, Element, Length, Padding, Settings, Subscription, Task, Theme,
     alignment::Vertical,
     executor,
     theme::Style,
@@ -29,7 +29,7 @@ use sottomano_widgets::{
     hover_cards::{
         HoverAnnouncement, HoverCardHost, HoverCardMessage, HoverTarget,
         hover_card_body::hover_card_source_delivery::HoverCard,
-        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent, MenuHandleResponse},
+        hover_card_surfaces::{HoverCardSurfaceStyle, HoverContent},
     },
     layer_surfaces::PanelEdge,
     notification_toasts::{NotificationLayer, NotificationSettings, ToastContext},
@@ -186,32 +186,31 @@ impl ShowcaseState {
 
     fn route_message(&mut self, message: ShowcaseMessage) -> Task<ShowcaseMessage> {
         match message {
+            ShowcaseMessage::HoverCard(HoverCardMessage::AnchorLaidOut(widget_anchor)) => {
+                let _hide_due = self.hover_card.remember_anchor(
+                    SHOWCASE_OUTPUT,
+                    widget_anchor,
+                    self.clock.instant,
+                );
+                Task::none()
+            }
             ShowcaseMessage::HoverCard(HoverCardMessage::EnterAnchor {
                 target,
-                anchor,
                 announcement,
             }) => {
                 if !self.hover_card.is_held_open() {
-                    self.open_hover_card(target, anchor, announcement);
+                    self.open_hover_card(target, announcement);
                 }
                 Task::none()
             }
-            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandleAnchor {
-                gesture,
+            ShowcaseMessage::HoverCard(HoverCardMessage::MenuHandlePressedAnchor {
                 target,
-                anchor,
                 announcement,
             }) => {
-                match self.hover_card.response_to_menu_handle(gesture, &target) {
-                    MenuHandleResponse::RememberAnchor => {
-                        self.hover_card
-                            .remember_menu_handle(SHOWCASE_OUTPUT, target, anchor);
-                    }
-                    MenuHandleResponse::CloseMenu => self.close_held_open_card(),
-                    MenuHandleResponse::OpenMenu => {
-                        self.open_hover_card_until_dismissed(target, anchor, announcement);
-                    }
-                    MenuHandleResponse::Nothing => {}
+                if self.hover_card.target() == Some(&target) {
+                    self.close_held_open_card();
+                } else {
+                    self.open_hover_card_until_dismissed(target, announcement);
                 }
                 Task::none()
             }
@@ -257,25 +256,18 @@ impl ShowcaseState {
         }
     }
 
-    fn open_hover_card(
-        &mut self,
-        target: HoverTarget,
-        anchor: Rectangle,
-        announcement: HoverAnnouncement,
-    ) {
+    fn open_hover_card(&mut self, target: HoverTarget, announcement: HoverAnnouncement) {
         if self.hover_card.target() != Some(&target) {
             let _closed_menu = self.group_menus.update(GroupMenuMessage::Closed);
         }
         self.schedule_hover_replies(&target);
         let panel_edge = self.panel_edge();
-        self.hover_card
-            .open(&panel_edge, target, anchor, announcement);
+        self.hover_card.open(&panel_edge, target, announcement);
     }
 
     fn open_hover_card_until_dismissed(
         &mut self,
         target: HoverTarget,
-        anchor: Rectangle,
         announcement: HoverAnnouncement,
     ) {
         if self.hover_card.target() != Some(&target) {
@@ -284,7 +276,7 @@ impl ShowcaseState {
         self.schedule_hover_replies(&target);
         let panel_edge = self.panel_edge();
         self.hover_card
-            .open_until_dismissed(&panel_edge, target, anchor, announcement);
+            .open_until_dismissed(&panel_edge, target, announcement);
     }
 
     fn close_held_open_card(&mut self) {
@@ -346,10 +338,7 @@ impl ShowcaseState {
                     })
             })
             .unwrap_or_else(HoverCard::empty);
-        let anchor = self
-            .hover_card
-            .placement()
-            .map_or_else(Rectangle::default, |placement| placement.anchor);
+        let anchor = self.hover_card.shown_anchor().unwrap_or_default();
         let orientation =
             CascadeOrientation::toward_room(anchor, self.group.position(), CANVAS.width);
         let surfaces = group_menu.surfaces(

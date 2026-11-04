@@ -1,4 +1,4 @@
-use iced::{Rectangle, time::Instant};
+use iced::time::Instant;
 use sottomano_config::screen_edges::Position;
 
 use crate::hover_cards::{
@@ -7,7 +7,6 @@ use crate::hover_cards::{
 
 #[derive(Debug, Clone)]
 pub struct Placement {
-    pub anchor: Rectangle,
     pub position: Position,
     pub output: String,
 }
@@ -155,6 +154,19 @@ impl HoverCardTransition {
         match &self.stage {
             Stage::Hiding { previous, .. } => Some(previous),
             Stage::Idle | Stage::Showing { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn shown_target_on_output(&self) -> Option<(&HoverTarget, &str)> {
+        match &self.stage {
+            Stage::Showing { current, .. } => {
+                Some((&current.target, current.placement.output.as_str()))
+            }
+            Stage::Hiding { previous, .. } => {
+                Some((&previous.target, previous.placement.output.as_str()))
+            }
+            Stage::Idle => None,
         }
     }
 

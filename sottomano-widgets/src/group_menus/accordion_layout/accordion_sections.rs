@@ -4,9 +4,7 @@ use iced::Element;
 
 use crate::{
     group_menus::{
-        accordion_layout::{
-            menu_rows_viewport::menu_rows_viewport, pointer_held_height::pointer_held_height,
-        },
+        accordion_layout::pointer_held_height::pointer_held_height,
         cascading_layout::notched_panel::PanelGrowth,
         group_menu_presentation::HoverCardPlacement,
         group_menu_view::{GroupMenuCascadeSurfaces, InspectionCard},
@@ -20,7 +18,11 @@ use crate::{
         widget_group_content::{GroupEvent, GroupMenuItemRow},
         widget_group_identity::WidgetGroupIdentity,
     },
-    widgets::{list_end_corners::ListEndCorners, uniform_width_column::uniform_width_column},
+    widgets::{
+        list_end_corners::ListEndCorners,
+        selection_scroller::{ScrollAxis, selection_scroller},
+        uniform_width_column::uniform_width_column,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,17 +150,17 @@ pub(crate) fn accordion_sections<'a, M: Clone + From<GroupEvent<M>> + From<Popup
         })
         .collect();
     let scroll_message = layout.menu.scroll_message();
-    let primary = pointer_held_height(
-        menu_rows_viewport(
-            uniform_width_column(section_views),
-            scrolled_px,
-            move |scrolled_px| M::from(scroll_message(scrolled_px)),
-            layout
-                .cascade_satellite_panels
-                .rows_edge_fade(layout.config),
-        ),
-        growth,
-    );
+    let rows_scroller = selection_scroller(
+        uniform_width_column(section_views),
+        ScrollAxis::Vertical,
+        layout
+            .cascade_satellite_panels
+            .rows_edge_fade(layout.config),
+    )
+    .controlled(scrolled_px, move |scrolled_px| {
+        M::from(scroll_message(scrolled_px))
+    });
+    let primary = pointer_held_height(rows_scroller.into(), growth);
     let satellites = beside_card
         .map(|inspected| {
             let row_top =
