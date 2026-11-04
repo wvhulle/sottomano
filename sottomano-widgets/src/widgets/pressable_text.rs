@@ -2,7 +2,7 @@ use core::slice;
 use std::time::{Duration, Instant};
 
 use iced::{
-    Border, Color, Element, Event, Length, Padding, Rectangle, Size, Theme,
+    Border, Color, Element, Event, Length, Rectangle, Size, Theme,
     advanced::{
         Clipboard, Layout, Renderer as _, Shell, Widget,
         layout::{Limits, Node},
@@ -17,14 +17,7 @@ use iced::{
 
 use crate::widgets::{
     configured_theme::AccentShades,
-    shared_metrics::{OUTLINE_WIDTH_PX, SMALL_CORNER_RADIUS_PX},
-};
-
-const PADDING: Padding = Padding {
-    top: 1.0,
-    right: 4.0,
-    bottom: 1.0,
-    left: 4.0,
+    shared_metrics::{OUTLINE_WIDTH_PX, PRESSABLE_OUTLINE_PADDING, SMALL_CORNER_RADIUS_PX},
 };
 
 pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
@@ -36,7 +29,7 @@ pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     interaction: Interaction,
 ) -> Element<'a, Message> {
     Element::new(PressableText {
-        content: container(content).padding(PADDING).into(),
+        content: container(content).padding(PRESSABLE_OUTLINE_PADDING).into(),
         payload,
         on_press: Box::new(on_press),
         accent,

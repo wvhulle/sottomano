@@ -13,9 +13,13 @@ use crate::{
         aligned_quantity::{AlignedQuantity, ItemAlignment},
         group_item_gestures::{GroupItemGesture, GroupItemGestures},
         group_item_reading::{GroupItemReading, state_weighted_icon},
+        press_icon_chip::press_icon_chip,
         reading_display_state::{ReadingDisplayState, ReadingStateTint},
         slider_control::{ControlMessage, SliderControl},
-        source_reading::{reading_icon, reading_value, source_reading},
+        source_reading::{
+            chipped_reading_icon, pressable_source_reading, reading_icon, reading_value,
+            source_reading,
+        },
         toggle_control::IconToggle,
     },
     group_menus::{
@@ -97,6 +101,15 @@ impl GroupItemIcon {
             GroupItemIcon::Image(handle) => Some(handle.view(side, opacity)),
             GroupItemIcon::Absent => None,
         }
+    }
+
+    fn chipped_view<'a, Message: 'a>(
+        &self,
+        config: &Config,
+        opacity: f32,
+    ) -> Option<Element<'a, Message>> {
+        self.view(config, opacity)
+            .map(|icon| press_icon_chip(icon, opacity))
     }
 }
 
@@ -556,6 +569,41 @@ impl<'a, M: 'a> GroupItem<'a, M> {
         }
     }
 
+    fn shows_press_chip(&self) -> bool {
+        matches!(self.gestures.left, GroupItemGesture::Performs { .. })
+            && match &self.kind {
+                GroupItemContent::Reading { .. } => true,
+                GroupItemContent::Composed { identity, .. } => {
+                    !matches!(identity.icon, GroupItemIcon::Absent)
+                }
+                GroupItemContent::Slider { .. } => false,
+            }
+    }
+
+    pub(crate) fn item_row_parts(&self, config: &Config, clock: Clock) -> MenuParts<'a, M>
+    where
+        M: Clone,
+    {
+        let parts = self.menu_parts(config, clock);
+        if !self.shows_press_chip() {
+            return parts;
+        }
+        let chipped_icon = match &self.kind {
+            GroupItemContent::Reading { widget, .. } => Some(chipped_reading_icon(
+                config,
+                widget.as_ref(),
+                ReadingStateTint::opaque(widget.state(clock)),
+                clock,
+            )),
+            GroupItemContent::Composed { identity, .. } => identity.icon.chipped_view(config, 1.0),
+            GroupItemContent::Slider { .. } => None,
+        };
+        MenuParts {
+            icon: chipped_icon.unwrap_or(parts.icon),
+            value: parts.value,
+        }
+    }
+
     pub(crate) fn pinnable_key(&self) -> Option<String> {
         match &self.kind {
             GroupItemContent::Reading { target, .. }
@@ -621,9 +669,14 @@ impl<'a, M: 'a> GroupItem<'a, M> {
             },
             DrawnItemPlacement::Table => element,
         };
+        let shows_press_chip = self.shows_press_chip();
         let mut element = match &self.kind {
             GroupItemContent::Reading { widget, target } => explained(
-                source_reading(config, widget.as_ref(), reveal, clock),
+                if shows_press_chip {
+                    pressable_source_reading(config, widget.as_ref(), reveal, clock)
+                } else {
+                    source_reading(config, widget.as_ref(), reveal, clock)
+                },
                 target,
             ),
             GroupItemContent::Slider { draw, .. } => draw(reveal, clock, placement.into()),
@@ -633,16 +686,16 @@ impl<'a, M: 'a> GroupItem<'a, M> {
                 value,
                 ..
             } => {
-                let composed_row = Row::with_children(
-                    identity
-                        .icon
-                        .view(config, reveal)
-                        .into_iter()
-                        .chain(value.view(reveal)),
-                )
-                .spacing(config.theme.spacing.item_gap)
-                .align_y(Alignment::Center)
-                .into();
+                let composed_icon = if shows_press_chip {
+                    identity.icon.chipped_view(config, reveal)
+                } else {
+                    identity.icon.view(config, reveal)
+                };
+                let composed_row =
+                    Row::with_children(composed_icon.into_iter().chain(value.view(reveal)))
+                        .spacing(config.theme.spacing.item_gap)
+                        .align_y(Alignment::Center)
+                        .into();
                 match hover {
                     GroupItemHoverArea::WholeItem(target) => explained(composed_row, target),
                     GroupItemHoverArea::ByChildren { .. } => composed_row,
@@ -669,6 +722,7 @@ impl<'a, M: 'a> GroupItem<'a, M> {
 mod tests {
     use super::*;
     use crate::{
+        group_items::toggle_control::SwitchPresses,
         hover_cards::hover_card_body::HoverCardBody,
         widget_groups::session_power_group::SessionTarget,
         widgets::phosphor::{Phosphor, Weight},
@@ -771,6 +825,43 @@ mod tests {
         );
         assert!(reading.pinnable_key().is_some());
         assert_eq!(reading.pinnable_key(), composed.pinnable_key());
+    }
+
+    fn toggle_in_state(enabled: bool) -> IconToggle {
+        IconToggle::new(
+            "Toggle",
+            Phosphor::Question(Weight::Regular),
+            enabled,
+            SwitchPresses {
+                turning_on: "turn on",
+                turning_off: "turn off",
+            },
+        )
+    }
+
+    #[test]
+    fn an_item_without_a_left_press_shows_no_chip() {
+        let read_only: GroupItem<'static, ()> =
+            GroupItem::reading(toggle_in_state(true), SessionTarget::Menu)
+                .on_right_press("act", ());
+        assert!(!read_only.shows_press_chip());
+    }
+
+    #[test]
+    fn a_toggle_shows_a_chip_whether_on_or_off() {
+        let chip_shown = |enabled| {
+            let item: GroupItem<'static, ()> =
+                GroupItem::toggle(toggle_in_state(enabled), SessionTarget::Menu, ());
+            item.shows_press_chip()
+        };
+        assert!(chip_shown(true));
+        assert!(chip_shown(false));
+    }
+
+    #[test]
+    fn a_pressable_composed_item_without_an_icon_shows_no_chip() {
+        let item = composed_with(whole_item_hover()).on_press("act", ());
+        assert!(!item.shows_press_chip());
     }
 
     #[test]

@@ -529,7 +529,7 @@ impl<'a, M: Clone + 'a> WidgetGroupContent<'a, M> {
                     .map_or(GroupItemPin::Unpinnable, GroupItemPin::Pinnable),
                 inspected_target: item.inspected_target().clone(),
                 gestures: item.gestures(),
-                parts: item.menu_parts(config, clock),
+                parts: item.item_row_parts(config, clock),
             })
             .collect();
         if aligned.is_empty() && item_rows.is_empty() {
