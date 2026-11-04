@@ -81,7 +81,8 @@ impl DesktopShell {
                 workspace_sidebar,
                 on_edge(Position::Bottom, self.panel_bar_view(&BOTTOM_PANEL, output)),
             ]
-            .padding(float)
+            .padding(float),
+            self.hover_card_layer(output),
         ]
         .extend(self.drag_ghost_layer(window, output))
         .into()

@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeMap;
 
 use iced::{
     Element, Rectangle, Task, task,
@@ -6,9 +6,7 @@ use iced::{
     widget::{container, mouse_area},
     window::Id,
 };
-use iced_exwlshell::reexport::{
-    Anchor, KeyboardInteractivity, Layer, LayerSize, NewLayerShellSettings,
-};
+use iced_exwlshell::reexport::KeyboardInteractivity;
 use sottomano_config::{Config, screen_edges::Position};
 use tokio::time::sleep;
 
@@ -28,8 +26,7 @@ use crate::{
         },
         laid_out_anchors::LaidOutAnchors,
     },
-    layer_surfaces::{PanelEdge, SurfaceRequest, base_settings, input_regions},
-    widget_groups::niri_window_group::niri_kdl_rules::StyledSurface,
+    layer_surfaces::{PanelEdge, SurfaceRequest},
     widgets::{shell_layer_appearance::LayerAppearance, window_icon::WindowAssets},
 };
 
@@ -45,7 +42,6 @@ pub struct PendingSwitch {
 
 #[derive(Default)]
 pub struct HoverCardHost {
-    surfaces: HashMap<String, Id>,
     transition: HoverCardTransition,
     pending_switch: Option<PendingSwitch>,
     hide_due: Option<Instant>,
@@ -243,21 +239,6 @@ impl HoverCardHost {
         }
     }
 
-    pub fn open_surface(&mut self, output: &str) -> Task<SurfaceRequest> {
-        if self.surfaces.contains_key(output) {
-            return Task::none();
-        }
-        let id = Id::unique();
-        self.surfaces.insert(output.to_string(), id);
-        Task::batch([
-            Task::done(SurfaceRequest::Open {
-                settings: hover_card_settings(output),
-                surface: id,
-            }),
-            Task::done(input_regions(id, Vec::new())),
-        ])
-    }
-
     #[must_use]
     pub fn placement(&self) -> Option<&Placement> {
         self.transition.placement()
@@ -268,52 +249,41 @@ impl HoverCardHost {
         self.transition.hiding_since().is_some()
     }
 
-    pub fn reconcile_surfaces(
+    pub fn reconcile_with_panels(
         &mut self,
-        panel_outputs: &BTreeSet<String>,
+        panel_surfaces: &BTreeMap<String, Id>,
         now: Instant,
         fade: Duration,
     ) -> Task<SurfaceRequest> {
-        if self
+        let finished_hiding = self
             .transition
             .hiding_since()
-            .is_some_and(|since| now >= since + fade)
-        {
+            .is_some_and(|since| now >= since + fade);
+        let lost_its_panel = self
+            .transition
+            .placement()
+            .is_some_and(|placement| !panel_surfaces.contains_key(&placement.output));
+        if finished_hiding || lost_its_panel {
             self.transition.reset();
         }
-        let stale_surfaces: Vec<(String, Id)> = self
-            .surfaces
-            .iter()
-            .filter(|(output, _)| !panel_outputs.contains(*output))
-            .map(|(output, surface)| (output.clone(), *surface))
-            .collect();
-        let closes: Vec<Task<SurfaceRequest>> = stale_surfaces
-            .into_iter()
-            .map(|(output, surface)| {
-                self.surfaces.remove(&output);
-                Task::done(SurfaceRequest::Close { surface })
-            })
-            .collect();
-        let opens: Vec<Task<SurfaceRequest>> = panel_outputs
-            .iter()
-            .map(|output| self.open_surface(output))
-            .collect();
-        let keyboard_grab = self.reconcile_keyboard_grab();
-        Task::batch(closes.into_iter().chain(opens).chain([keyboard_grab]))
+        self.reconcile_keyboard_grab(panel_surfaces)
     }
 
-    fn reconcile_keyboard_grab(&mut self) -> Task<SurfaceRequest> {
+    fn reconcile_keyboard_grab(
+        &mut self,
+        panel_surfaces: &BTreeMap<String, Id>,
+    ) -> Task<SurfaceRequest> {
         let wanted_grab = self
             .transition
             .current()
             .filter(|_| self.transition.is_held_open())
-            .and_then(|current| self.surface_on(&current.placement.output));
+            .and_then(|current| panel_surfaces.get(&current.placement.output).copied());
         if wanted_grab == self.keyboard_grab {
             return Task::none();
         }
         let released = self
             .keyboard_grab
-            .filter(|surface| self.hosts(*surface))
+            .filter(|surface| panel_surfaces.values().any(|panel| panel == surface))
             .map(|surface| {
                 Task::done(SurfaceRequest::KeyboardInteractivity {
                     surface,
@@ -330,20 +300,8 @@ impl HoverCardHost {
         Task::batch(released.into_iter().chain(grabbed))
     }
 
-    pub fn forget(&mut self, surface: Id) {
-        let Some(output) = self.output_of(surface) else {
-            return;
-        };
-        self.close_surface_on(&output);
-    }
-
     pub fn forget_output(&mut self, output: &str) {
-        self.close_surface_on(output);
         self.laid_out_anchors.forget_output(output);
-    }
-
-    fn close_surface_on(&mut self, output: &str) {
-        self.surfaces.remove(output);
         if self
             .transition
             .placement()
@@ -351,22 +309,6 @@ impl HoverCardHost {
         {
             self.transition.reset();
         }
-    }
-
-    fn output_of(&self, surface: Id) -> Option<String> {
-        self.surfaces
-            .iter()
-            .find(|(_, id)| **id == surface)
-            .map(|(output, _)| output.clone())
-    }
-
-    #[must_use]
-    pub fn surface_on(&self, output: &str) -> Option<Id> {
-        self.surfaces.get(output).copied()
-    }
-
-    fn hosts(&self, surface: Id) -> bool {
-        self.surfaces.values().any(|id| *id == surface)
     }
 
     #[must_use]
@@ -390,27 +332,25 @@ impl HoverCardHost {
         ))
     }
 
-    fn outside_press_on<Message: From<PopupMessage>>(&self, surface: Id) -> OutsidePress<Message> {
+    fn outside_press_on<Message: From<PopupMessage>>(&self, output: &str) -> OutsidePress<Message> {
         if !self.transition.is_held_open() {
             return OutsidePress::PassesThrough;
         }
         OutsidePress::Dismisses {
             dismissal: Message::from(PopupMessage::HoverCard(HoverCardMessage::DismissHeldOpen)),
-            reachable_below: self.output_of(surface).map_or_else(Vec::new, |output| {
-                self.laid_out_anchors.menu_handles_on(&output)
-            }),
+            reachable_below: self.laid_out_anchors.menu_handles_on(output),
         }
     }
 
     pub fn view<'a, Message: From<PopupMessage> + Clone + 'a>(
         &self,
-        surface: Id,
+        output: &str,
         config: &'a Config,
         surface_style: HoverCardSurfaceStyle,
         assets: WindowAssets<'a>,
         content_of: impl Fn(&HoverTarget) -> HoverContent<'a, Message>,
         clock: Clock,
-    ) -> Option<Element<'a, Message>> {
+    ) -> Element<'a, Message> {
         let describe = move |hover_card: &HoverCard| -> Element<'a, Message> {
             Element::from(HoverCardContent::new(hover_card, config, assets, clock).view())
                 .map(Message::from)
@@ -436,16 +376,13 @@ impl HoverCardHost {
                 framing: PopupFraming::LeadingSurface(orientation),
             },
         };
-        if !self.hosts(surface) {
-            return None;
-        }
         let Some((placement, anchor)) = self
             .transition
             .placement()
-            .filter(|placement| self.surfaces.get(&placement.output) == Some(&surface))
+            .filter(|placement| placement.output == output)
             .zip(self.shown_anchor())
         else {
-            return Some(anchored_popup(
+            return anchored_popup(
                 Vec::new(),
                 Rectangle::default(),
                 Position::Top,
@@ -453,13 +390,13 @@ impl HoverCardHost {
                     duration: config.overlay_surfaces.surface_morph_duration,
                     shown: ShownTarget::Nothing,
                 },
-                self.outside_press_on(surface),
+                self.outside_press_on(output),
                 config,
                 PopupAppearances {
                     overlay: surface_style.overlay_appearance,
                     menu: surface_style.menu_appearance,
                 },
-            ));
+            );
         };
 
         let mut renderings = Vec::new();
@@ -478,25 +415,23 @@ impl HoverCardHost {
                 render(content_of(&current.target).with_announcement(current.announcement.clone()));
             renderings.push(Rendering::incoming(hoverable_content(element)).framing(framing));
         }
-        Some(
-            container(anchored_popup(
-                renderings,
-                anchor,
-                placement.position,
-                PopupMorph {
-                    duration: config.overlay_surfaces.surface_morph_duration,
-                    shown: self.transition.shown_target(),
-                },
-                self.outside_press_on(surface),
-                config,
-                PopupAppearances {
-                    overlay: surface_style.overlay_appearance,
-                    menu: surface_style.menu_appearance,
-                },
-            ))
-            .padding(surface_style.float_offset_px)
-            .into(),
-        )
+        container(anchored_popup(
+            renderings,
+            anchor,
+            placement.position,
+            PopupMorph {
+                duration: config.overlay_surfaces.surface_morph_duration,
+                shown: self.transition.shown_target(),
+            },
+            self.outside_press_on(output),
+            config,
+            PopupAppearances {
+                overlay: surface_style.overlay_appearance,
+                menu: surface_style.menu_appearance,
+            },
+        ))
+        .padding(surface_style.float_offset_px)
+        .into()
     }
 }
 
@@ -573,23 +508,14 @@ fn hoverable_content<'a, Message: From<PopupMessage> + Clone + 'a>(
         .into()
 }
 
-fn hover_card_settings(output: &str) -> NewLayerShellSettings {
-    NewLayerShellSettings {
-        size: LayerSize::FILL,
-        exclusive_zone: Some(-1),
-        anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-        layer: Layer::Overlay,
-        ..base_settings(Some(output), StyledSurface::HoverCard.namespace())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::BTreeMap;
 
     use iced::{
         Point, Rectangle, Size,
         time::{Duration, Instant},
+        window::Id,
     };
     use sottomano_config::screen_edges::Position;
 
@@ -746,18 +672,12 @@ mod tests {
     }
 
     #[test]
-    fn closing_a_hover_surface_keeps_anchors_but_a_disconnect_removes_them() {
-        let now = Clock::real().instant;
-        let outputs = panel_outputs(&["DP-1"]);
+    fn a_disconnect_removes_anchors_and_the_shown_card() {
         let mut host = HoverCardHost::default();
-        let _opened = host.reconcile_surfaces(&outputs, now, Duration::from_millis(1));
         remember(&mut host, "DP-1", widget_at(1.0, CardOpening::OnHover));
-        let surface = host.surface_on("DP-1").expect("the output has a surface");
-        host.forget(surface);
-        assert_eq!(host.surface_on("DP-1"), None);
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
-        assert_eq!(host.shown_anchor(), Some(anchor_at(1.0)));
         host.forget_output("DP-1");
+        assert_eq!(host.target(), None);
         host.open(&top_edge(), workspace_card(), HoverAnnouncement::default());
         assert_eq!(host.shown_anchor(), None);
     }
@@ -768,37 +688,35 @@ mod tests {
         host
     }
 
-    fn panel_outputs(outputs: &[&str]) -> BTreeSet<String> {
-        outputs.iter().map(|output| (*output).to_owned()).collect()
+    fn panels_on(outputs: &[&str]) -> BTreeMap<String, Id> {
+        outputs
+            .iter()
+            .map(|output| ((*output).to_owned(), Id::unique()))
+            .collect()
     }
 
     #[test]
-    fn every_panel_output_keeps_its_surface_after_a_dismissal() {
+    fn a_card_closes_when_its_output_loses_the_panel() {
         let now = Clock::real().instant;
         let fade = Duration::from_millis(1);
-        let outputs = panel_outputs(&["DP-1", "DP-2"]);
         let mut host = host_holding_a_menu_open();
-        let _opened = host.reconcile_surfaces(&outputs, now, fade);
-        let surface_on_each = (host.surface_on("DP-1"), host.surface_on("DP-2"));
-        assert!(surface_on_each.0.is_some() && surface_on_each.1.is_some());
-        host.dismiss(None, now);
-        let _idle = host.reconcile_surfaces(&outputs, now + fade, fade);
+        let _kept = host.reconcile_with_panels(&panels_on(&["DP-1", "DP-2"]), now, fade);
+        assert_eq!(host.target(), Some(&workspace_card()));
+        let _lost = host.reconcile_with_panels(&panels_on(&["DP-2"]), now, fade);
         assert_eq!(host.target(), None);
-        assert_eq!(
-            (host.surface_on("DP-1"), host.surface_on("DP-2")),
-            surface_on_each
-        );
     }
 
     #[test]
-    fn an_output_without_a_panel_loses_its_surface() {
+    fn a_held_open_menu_grabs_the_keyboard_on_its_panel_surface() {
         let now = Clock::real().instant;
         let fade = Duration::from_millis(1);
-        let mut host = HoverCardHost::default();
-        let _opened = host.reconcile_surfaces(&panel_outputs(&["DP-1", "DP-2"]), now, fade);
-        let _closed = host.reconcile_surfaces(&panel_outputs(&["DP-1"]), now, fade);
-        assert!(host.surface_on("DP-1").is_some());
-        assert!(host.surface_on("DP-2").is_none());
+        let panels = panels_on(&["DP-1"]);
+        let mut host = host_holding_a_menu_open();
+        let _grabbed = host.reconcile_with_panels(&panels, now, fade);
+        assert_eq!(host.keyboard_grab, panels.get("DP-1").copied());
+        host.dismiss(None, now);
+        let _released = host.reconcile_with_panels(&panels, now, fade);
+        assert_eq!(host.keyboard_grab, None);
     }
 
     #[test]

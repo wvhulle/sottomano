@@ -1,6 +1,5 @@
-use core::{iter::once, slice};
+use core::slice;
 
-use exwlshellev::{InputRectangle, RegionAction};
 use iced::{
     Element, Event, Length, Rectangle, Size, Vector,
     advanced::{
@@ -54,35 +53,9 @@ impl RegionRoles {
     }
 }
 
-pub(crate) fn report_input_except(
-    bounds: Rectangle,
-    reachable_below: &[Rectangle],
-    operation: &mut dyn Operation,
-) {
-    operation.custom(
-        None,
-        bounds,
-        &mut input_except_actions(bounds, reachable_below),
-    );
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn input_except_actions(bounds: Rectangle, reachable_below: &[Rectangle]) -> InputRegionActions {
-    let as_input_rectangle = |rect: &Rectangle| InputRectangle {
-        x: rect.x as _,
-        y: rect.y as _,
-        width: rect.width.ceil() as _,
-        height: rect.height.ceil() as _,
-    };
-    InputRegionActions(
-        once(RegionAction::Add(as_input_rectangle(&bounds)))
-            .chain(
-                reachable_below
-                    .iter()
-                    .map(|rect| RegionAction::Subtract(as_input_rectangle(rect))),
-            )
-            .collect(),
-    )
+pub(crate) fn report_input_across(surface: Rectangle, operation: &mut dyn Operation) {
+    let whole_surface = surface.try_into_region_action().into_iter().collect();
+    operation.custom(None, surface, &mut InputRegionActions(whole_surface));
 }
 
 pub(crate) fn replacing_blur_regions(rows: Vec<BlurRegion>) -> BlurRegions {
@@ -344,20 +317,6 @@ mod tests {
             width: 60.0,
             height: 24.0,
         }
-    }
-
-    #[test]
-    fn a_catching_region_leaves_out_what_stays_reachable() {
-        use exwlshellev::RegionAction;
-        use iced::{Point, Size};
-
-        let bounds = Rectangle::new(Point::ORIGIN, Size::new(100.0, 100.0));
-        let handle = Rectangle::new(Point::new(10.0, 0.0), Size::new(20.0, 20.0));
-        let actions = super::input_except_actions(bounds, &[handle]).0;
-        assert!(matches!(
-            actions.as_slice(),
-            [RegionAction::Add(_), RegionAction::Subtract(_)]
-        ));
     }
 
     #[test]

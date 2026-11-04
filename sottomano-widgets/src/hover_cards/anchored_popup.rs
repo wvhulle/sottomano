@@ -16,7 +16,7 @@ use sottomano_config::{Config, screen_edges::Position};
 use crate::{
     desktop_panels::{
         panel_frame::LayerFrameStyle,
-        region_reporter::{RegionRoles, report_input_except},
+        region_reporter::{RegionRoles, report_input_across},
     },
     group_menus::cascading_layout::{
         cascade_row::{CascadeDirection, CascadeOrientation},
@@ -528,25 +528,19 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
             corner_radius: Radius::default(),
         };
         roles.report(&frame.surface_rows, layout.bounds(), operation);
-        if state.morph.is_settled()
-            && let OutsidePress::Dismisses {
-                reachable_below, ..
-            } = &self.outside_press
+        if state.morph.is_settled() && matches!(self.outside_press, OutsidePress::Dismisses { .. })
         {
             let bounds = layout.bounds();
-            let origin = Vector::new(bounds.x, bounds.y);
-            let whole_surface = Rectangle::new(
-                Point::ORIGIN,
-                Size::new(
-                    2.0f32.mul_add(bounds.x, bounds.width),
-                    2.0f32.mul_add(bounds.y, bounds.height),
+            report_input_across(
+                Rectangle::new(
+                    Point::ORIGIN,
+                    Size::new(
+                        2.0f32.mul_add(bounds.x, bounds.width),
+                        2.0f32.mul_add(bounds.y, bounds.height),
+                    ),
                 ),
+                operation,
             );
-            let reachable_on_surface: Vec<Rectangle> = reachable_below
-                .iter()
-                .map(|reachable| *reachable + origin)
-                .collect();
-            report_input_except(whole_surface, &reachable_on_surface, operation);
         }
         self.views_mut(tree, layout).for_each(|rendering| {
             rendering.widget.as_widget_mut().operate(
@@ -631,17 +625,22 @@ impl<Message: Clone> Widget<Message, iced::Theme, iced::Renderer> for AnchoredPo
                 )
             })
             .find(|interaction| *interaction != mouse::Interaction::None)
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                cursor
+                    .position()
+                    .filter(|pointer| self.popup_surfaces_contain(tree, layout, *pointer))
+                    .map_or_else(mouse::Interaction::default, |_| mouse::Interaction::Idle)
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use iced::{
-        Element, Point, Rectangle, Settings, Size,
+        Element, Length, Point, Rectangle, Settings, Size,
         mouse::{Button, Event as MouseEvent},
         time::{Duration, Instant},
-        widget::text,
+        widget::{Space, mouse_area, stack, text},
         window,
     };
     use iced_test::Simulator;
@@ -741,6 +740,39 @@ mod tests {
                 menu: appearance,
             },
         )
+    }
+
+    fn messages_from_pointing_at_layers_below(
+        pointed_at: impl FnOnce(&mut Simulator<'_, PressedOutside>) -> Point,
+    ) -> Vec<PressedOutside> {
+        let config = Config::default();
+        let panel_below = mouse_area(Space::new().width(Length::Fill).height(Length::Fill))
+            .on_enter(PressedOutside);
+        let layers: Element<'_, PressedOutside> =
+            stack![panel_below, cascading_popup(&config)].into();
+        let mut simulator =
+            Simulator::with_size(Settings::default(), Size::new(600.0, 400.0), layers);
+        settle_morph(&mut simulator);
+        let pointer = pointed_at(&mut simulator);
+        simulator.point_at(pointer);
+        let _moved = simulator.simulate([iced::Event::Mouse(MouseEvent::CursorMoved {
+            position: pointer,
+        })]);
+        simulator.into_messages().collect()
+    }
+
+    #[test]
+    fn a_pointer_on_the_card_does_not_reach_the_panel_below() {
+        let messages = messages_from_pointing_at_layers_below(|simulator| {
+            center_of_text(simulator, "primary")
+        });
+        assert_eq!(messages, []);
+    }
+
+    #[test]
+    fn a_pointer_beside_the_card_reaches_the_panel_below() {
+        let messages = messages_from_pointing_at_layers_below(|_| Point::new(590.0, 390.0));
+        assert_eq!(messages, [PressedOutside]);
     }
 
     #[test]
