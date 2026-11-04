@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use iced::{
-    Alignment, Background, Border, Element, Length, Padding, Theme,
+    Alignment, Color, Element, Length, Padding, Theme,
     border::Radius,
     widget::{Row, button, container, mouse_area, text::Wrapping},
 };
@@ -9,9 +9,11 @@ use sottomano_config::Config;
 
 use crate::{
     group_items::group_item::MenuParts,
+    group_menus::menu_rows::pointer_tracked_row::PointerTrackedRow,
     widget_groups::widget_group_content::GroupEvent,
     widgets::{
         configured_theme::{background_strong_color, primary_weak_color, text_color},
+        flat_button,
         text::panel_text,
     },
 };
@@ -26,7 +28,6 @@ pub(crate) struct MenuRowContent<'a, M> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum MenuRowEmphasis {
     Plain,
-    OpenGroup,
     Selected,
 }
 
@@ -37,10 +38,6 @@ impl MenuRowEmphasis {
         } else {
             Self::Plain
         }
-    }
-
-    pub(crate) const fn open_group_when(open: bool) -> Self {
-        if open { Self::OpenGroup } else { Self::Plain }
     }
 }
 
@@ -54,46 +51,52 @@ pub(crate) fn menu_row_height(config: &Config) -> f32 {
     config.desktop_panels.height + config.theme.spacing.item_gap
 }
 
-pub(crate) fn pressable_menu_row<'a, M: Clone + 'a>(
-    config: &'a Config,
-    content: MenuRowContent<'a, M>,
-    look: MenuRowLook,
-    press: GroupEvent<M>,
-) -> Element<'a, GroupEvent<M>> {
-    button(menu_line(config, content))
-        .width(Length::Fill)
-        .height(menu_row_height(config))
-        .padding(menu_row_padding(config))
-        .style(move |theme, status| menu_row_style(theme, status, look))
-        .on_press(press)
-        .into()
+pub(crate) enum MenuRowPress<Message> {
+    Inert,
+    Performs(GroupEvent<Message>),
 }
 
-pub(crate) fn inert_menu_row<'a, M: Clone + 'a>(
+pub(crate) fn menu_row<'a, Message: Clone + 'a>(
     config: &'a Config,
-    content: MenuRowContent<'a, M>,
+    content: MenuRowContent<'a, Message>,
     look: MenuRowLook,
-) -> Element<'a, GroupEvent<M>> {
-    button(menu_line(config, content))
-        .width(Length::Fill)
-        .height(menu_row_height(config))
-        .padding(menu_row_padding(config))
-        .style(move |theme, status| menu_row_style(theme, status, look))
-        .into()
+    press: MenuRowPress<Message>,
+) -> Element<'a, GroupEvent<Message>> {
+    let line = menu_line(config, content);
+    let body: Element<'a, GroupEvent<Message>> = match press {
+        MenuRowPress::Inert => container(line)
+            .width(Length::Fill)
+            .height(menu_row_height(config))
+            .padding(menu_row_padding(config))
+            .into(),
+        MenuRowPress::Performs(press_event) => button(line)
+            .width(Length::Fill)
+            .height(menu_row_height(config))
+            .padding(menu_row_padding(config))
+            .style(flat_button(text_color))
+            .on_press(press_event)
+            .into(),
+    };
+    PointerTrackedRow::new(body, look).into()
 }
 
-pub(crate) fn hovered_menu_row<'a, M: Clone + 'a>(
+pub(crate) fn hovered_menu_row<'a, Message: Clone + 'a>(
     config: &'a Config,
-    content: MenuRowContent<'a, M>,
+    content: MenuRowContent<'a, Message>,
     look: MenuRowLook,
-    press: GroupEvent<M>,
-    pointer_entered: GroupEvent<M>,
-    pointer_left: GroupEvent<M>,
-) -> Element<'a, GroupEvent<M>> {
-    mouse_area(pressable_menu_row(config, content, look, press))
-        .on_enter(pointer_entered)
-        .on_exit(pointer_left)
-        .into()
+    press_event: GroupEvent<Message>,
+    pointer_entered: GroupEvent<Message>,
+    pointer_left: GroupEvent<Message>,
+) -> Element<'a, GroupEvent<Message>> {
+    mouse_area(menu_row(
+        config,
+        content,
+        look,
+        MenuRowPress::Performs(press_event),
+    ))
+    .on_enter(pointer_entered)
+    .on_exit(pointer_left)
+    .into()
 }
 
 fn menu_line<'a, M: 'a>(
@@ -132,23 +135,51 @@ fn menu_row_padding(config: &Config) -> Padding {
     Padding::ZERO.horizontal(config.theme.spacing.surface_inset)
 }
 
-fn menu_row_style(theme: &Theme, status: button::Status, look: MenuRowLook) -> button::Style {
-    let hovered = matches!(status, button::Status::Hovered | button::Status::Pressed);
-    button::Style {
-        background: match (look.emphasis, hovered) {
-            (MenuRowEmphasis::Selected, _) | (_, true) => {
-                Some(Background::Color(primary_weak_color(theme)))
-            }
-            (MenuRowEmphasis::OpenGroup, false) => {
-                Some(Background::Color(background_strong_color(theme)))
-            }
-            (MenuRowEmphasis::Plain, false) => None,
-        },
-        text_color: text_color(theme),
-        border: Border {
-            radius: look.corners,
-            ..Border::default()
-        },
-        ..button::Style::default()
+pub(crate) fn menu_row_background(
+    theme: &Theme,
+    emphasis: MenuRowEmphasis,
+    pointer_over: bool,
+) -> Option<Color> {
+    match (emphasis, pointer_over) {
+        (MenuRowEmphasis::Selected, _) => Some(primary_weak_color(theme)),
+        (MenuRowEmphasis::Plain, true) => Some(background_strong_color(theme)),
+        (MenuRowEmphasis::Plain, false) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sottomano_config::theme::palette::Palette;
+
+    use super::{MenuRowEmphasis, menu_row_background};
+    use crate::widgets::configured_theme::{
+        background_strong_color, configured_theme, primary_weak_color,
+    };
+
+    #[test]
+    fn a_selected_row_keeps_its_background_whether_or_not_the_pointer_is_over_it() {
+        let theme = configured_theme(&Palette::default());
+        let selected_color = Some(primary_weak_color(&theme));
+        assert_eq!(
+            menu_row_background(&theme, MenuRowEmphasis::Selected, false),
+            selected_color
+        );
+        assert_eq!(
+            menu_row_background(&theme, MenuRowEmphasis::Selected, true),
+            selected_color
+        );
+    }
+
+    #[test]
+    fn a_plain_row_lights_up_only_under_the_pointer() {
+        let theme = configured_theme(&Palette::default());
+        assert_eq!(
+            menu_row_background(&theme, MenuRowEmphasis::Plain, true),
+            Some(background_strong_color(&theme))
+        );
+        assert_eq!(
+            menu_row_background(&theme, MenuRowEmphasis::Plain, false),
+            None
+        );
     }
 }

@@ -242,6 +242,12 @@ pub(crate) struct GroupMenuItemRow<'a, M> {
     pub parts: MenuParts<'a, M>,
 }
 
+impl<M> GroupMenuItemRow<'_, M> {
+    pub(crate) fn is_inspected(&self, inspected_target: Option<&HoverTarget>) -> bool {
+        inspected_target == Some(&self.inspected_target)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AlertPromotion {
     OntoPanel,
