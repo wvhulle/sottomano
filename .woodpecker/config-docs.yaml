@@ -25,21 +25,21 @@ steps:
         extra-substituters = https://wvhulle.cachix.org
         extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
     commands:
-      - nix develop --command cargo xtask update-config-docs
+      - nix develop --quiet --command cargo xtask update-config-docs
 
   - name: push-config-docs-branch
     image: appleboy/drone-git-push
     settings:
       remote: https://codeberg.org/${CI_REPO}.git
       netrc_machine: codeberg.org
-      username: wvhulle
+      username: wvhulle-bot
       password:
-        from_secret: codeberg_token
+        from_secret: bot_token
       branch: *config_docs_branch
       force: true
       commit: true
       commit_message: *config_docs_title
-      author_name: sottomano-ci
+      author_name: wvhulle-bot
       author_email: willemvanhulle@protonmail.com
 
   - name: open-config-docs-pr
@@ -47,7 +47,7 @@ steps:
     settings:
       gitea_address: https://codeberg.org
       gitea_token:
-        from_secret: codeberg_token
+        from_secret: bot_token
       owner: ${CI_REPO_OWNER}
       repo: ${CI_REPO_NAME}
       branch: *config_docs_branch

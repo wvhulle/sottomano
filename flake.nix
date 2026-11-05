@@ -220,7 +220,18 @@
         default = sottomano;
         sottomano = sottomano;
         deps = showcaseArtifacts;
+        workspace-dependencies = workspaceArtifacts;
         readme-recordings = readmeRecordings;
+      };
+
+      apps.${system} = import ./nix/ci-tasks.nix {
+        inherit pkgs;
+        mkApp = drv: {
+          type = "app";
+          program = pkgs.lib.getExe drv;
+        };
+        cargoToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        preCommitInputs = formatters;
       };
 
       checks.${system} = {
@@ -241,19 +252,6 @@
             cargoClippyExtraArgs = "--all-targets";
           }
         );
-        format =
-          pkgs.runCommand "sottomano-format"
-            {
-              nativeBuildInputs = formatters;
-            }
-            ''
-              export HOME=$TMPDIR
-              cp -r ${src} source
-              chmod -R u+w source
-              cd source
-              treefmt --ci --tree-root .
-              touch $out
-            '';
       };
 
       homeModules.default = {

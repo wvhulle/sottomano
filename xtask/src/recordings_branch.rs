@@ -10,7 +10,7 @@ const RECORDINGS_BRANCH_REFERENCE: &str = "refs/heads/recordings";
 const PUBLISHED_TRACKING_REFERENCE: &str = "refs/remotes/origin/recordings";
 const CI_AUTHOR_NAME: &str = "sottomano-ci";
 const CI_AUTHOR_EMAIL: &str = "willemvanhulle@protonmail.com";
-const CODEBERG_USER: &str = "wvhulle";
+const CODEBERG_USER: &str = "wvhulle-bot";
 
 fn required_environment(variable_name: &str) -> Result<String, Box<dyn Error>> {
     env::var(variable_name).map_err(|missing| format!("{variable_name}: {missing}").into())
