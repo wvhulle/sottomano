@@ -134,10 +134,10 @@ in
         description = ''
           Path to a file holding a free Artificial Analysis API key
           (https://artificialanalysis.ai) as plain text. The OpenRouter group
-          ranks the OpenRouter models fit for agentic coding (tool calls, at
-          least 128k context) that cost at most
+          ranks the OpenRouter models with tool calls and at least 128k context
+          that cost at most
           `settings.widget_groups.openrouter_credit.max_blended_usd_per_million`
-          by their Terminal-Bench 4.0 score from Artificial Analysis. Symlinked into
+          by their Engineering Index from Artificial Analysis. Symlinked into
           ~/.config/sottomano/. When unset, the ranking pill is hidden.
         '';
       };
