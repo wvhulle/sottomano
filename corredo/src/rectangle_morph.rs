@@ -92,10 +92,12 @@ pub fn interpolated(from: Rectangle, to: Rectangle, fraction: f32) -> Rectangle 
 
 #[cfg(test)]
 mod tests {
-    use iced::{Point, Rectangle, Size, time::Duration};
+    use iced::{
+        Point, Rectangle, Size,
+        time::{Duration, Instant},
+    };
 
     use super::RectangleMorph;
-    use crate::clock::Clock;
 
     #[test]
     fn a_fresh_morph_starts_from_the_collapsed_rectangle() {
@@ -108,11 +110,12 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_methods)]
     fn a_finished_morph_rests_on_the_target() {
         let target = Rectangle::new(Point::ORIGIN, Size::new(100.0, 50.0));
         let mut morph = RectangleMorph::default();
         morph.begin(Rectangle::default());
-        let started = Clock::real().instant;
+        let started = Instant::now();
         morph.tick(started, Duration::from_millis(10));
         morph.tick(started + Duration::from_secs(1), Duration::from_millis(10));
         assert_eq!(morph.follow(target), target);

@@ -1,0 +1,16 @@
+[package]
+name = "corredo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "High-level, ready-to-use widgets for the iced GUI library"
+repository = "https://github.com/wvhulle/sottomano"
+keywords = ["iced", "widget", "gui", "animation"]
+categories = ["gui"]
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+iced = { version = "0.14.0", default-features = false, features = ["advanced", "svg", "canvas"] }

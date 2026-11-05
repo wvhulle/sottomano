@@ -11,6 +11,7 @@ workspace:
 - `sottomano-toml-config/` holds the TOML config types and their loading.
 - `sottomano-desktop-sources/` holds the data sources and sinks the shell reads
   and writes.
+- `corredo/` holds generic iced widgets that know nothing about the shell.
 - `sottomano-widgets/` holds the panels, group menus, widget groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
   Each widget group restores and persists its own state.

@@ -10,7 +10,7 @@ use iced::{
     mouse::Cursor,
 };
 
-use crate::widgets::configured_theme::ThemedColor;
+use crate::theme_colors::ThemedColor;
 
 const DOT_DIAMETER_PER_LINE: f32 = 0.16;
 const DOT_PITCH_PER_LINE: f32 = 0.5;

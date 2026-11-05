@@ -14,7 +14,7 @@ use iced::{
     window,
 };
 
-use crate::widgets::configured_theme::{background_strong_color, secondary_text_color};
+use crate::theme_colors::{background_strong_color, secondary_text_color};
 
 const RING_THICKNESS_FRACTION: f32 = 0.12;
 
