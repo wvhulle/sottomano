@@ -5,7 +5,7 @@ use std::{collections::HashSet, sync::Arc};
 use iced::{
     Alignment, Element,
     border::Radius,
-    widget::{Column, mouse_area},
+    widget::{Column, container, mouse_area},
 };
 use sottomano_desktop_sources::{
     SnapshotDelivery,
@@ -293,7 +293,9 @@ fn item_view<'a>(
     let marked: Element<'a, GroupEvent<TrayMessage>> = if item.status == Status::NeedsAttention {
         Column::with_children([
             glyph,
-            activity_line(primary_color, reveal, ACCENT_STROKE_PX),
+            container(activity_line(primary_color, reveal, ACCENT_STROKE_PX))
+                .width(side)
+                .into(),
         ])
         .align_x(Alignment::Center)
         .into()
@@ -329,4 +331,57 @@ fn item_view<'a>(
         clickable = clickable.on_right_press(GroupEvent::Group(message));
     }
     clickable.into()
+}
+
+#[cfg(test)]
+mod tests {
+    use corredo::primitives::reveal_clip::reveal_x;
+    use iced::{
+        Settings, Size,
+        widget::{row, text},
+    };
+    use iced_test::Simulator;
+    use sottomano_desktop_sources::desktop_windows_apps::status_notifier_tray::{Status, TrayItem};
+    use sottomano_toml_config::Config;
+
+    use super::item_view;
+    use crate::widgets::icon_handle::PixmapHandles;
+
+    const PANEL_WIDTH: f32 = 800.0;
+    const MARKER_AFTER_ITEM: &str = "marker after the tray item";
+
+    fn item_needing_attention() -> TrayItem {
+        TrayItem {
+            address: ":1.4167".to_owned(),
+            id: "chat".to_owned(),
+            title: None,
+            status: Status::NeedsAttention,
+            tooltip: None,
+            menu_path: None,
+            icon: None,
+            menu: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn an_item_needing_attention_keeps_a_finite_width_while_revealed() {
+        let config = Config::default();
+        let pixmap_handles = PixmapHandles::default();
+        let item = item_needing_attention();
+        let revealed = reveal_x(item_view(&config, &pixmap_handles, &item, 1.0), 1.0);
+        let mut simulator = Simulator::with_size(
+            Settings::default(),
+            Size::new(PANEL_WIDTH, 40.0),
+            row![revealed, text(MARKER_AFTER_ITEM)],
+        );
+        let marker = simulator
+            .find(MARKER_AFTER_ITEM)
+            .expect("the marker is laid out")
+            .bounds();
+        assert!(
+            marker.x.is_finite() && marker.x < PANEL_WIDTH,
+            "the tray item pushed the marker to x = {}",
+            marker.x
+        );
+    }
 }

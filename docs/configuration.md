@@ -89,7 +89,7 @@ audio_indicator = true
 progress = true
 count_badge = true
 nixpkgs_branch = "nixpkgs-unstable"
-maximum_window_title_width = "180px"
+maximum_window_title_width = "200px"
 
 [widget_groups.window.agents]
 kitty = true
@@ -121,6 +121,18 @@ slow_boot_unit = "5s"
 slow_shutdown_stop = "5s"
 slower_boot_warning_percent = 25
 slower_boot_critical_percent = 60
+
+[[widget_groups.podman_engines.engines]]
+label = "Session"
+socket = "podman/podman.sock"
+
+[[widget_groups.podman_engines.engines]]
+label = "System"
+socket = "/run/podman/podman.sock"
+
+[widget_groups.ci_runners]
+woodpecker_agents = []
+forgejo_runners = []
 
 [widget_groups.claude_usage]
 monthly_budget_usd = 200

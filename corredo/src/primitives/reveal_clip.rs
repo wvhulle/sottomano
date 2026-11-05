@@ -86,6 +86,13 @@ impl<Message> Reveal<'_, Message> {
         }
     }
 
+    fn measures_finite(&self, natural: Size) -> bool {
+        match self.axis {
+            Axis::Horizontal => natural.width.is_finite(),
+            Axis::Vertical => natural.height.is_finite(),
+        }
+    }
+
     fn revealed(&self, natural: Size) -> Size {
         match self.axis {
             Axis::Horizontal => Size::new(natural.width * self.fraction, natural.height),
@@ -141,10 +148,15 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
         let natural_limits = self.natural_limits(limits);
-        let child = self
+        let unbounded_child = self
             .content
             .as_widget_mut()
             .layout(tree, renderer, &natural_limits);
+        let child = if self.measures_finite(unbounded_child.size()) {
+            unbounded_child
+        } else {
+            self.content.as_widget_mut().layout(tree, renderer, limits)
+        };
         let natural = child.size();
         Node::with_children(self.revealed(natural), vec![child])
     }
@@ -252,5 +264,38 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for Reveal<'_, Messag
             viewport,
             translation,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iced::{
+        Element, Settings, Size,
+        widget::{row, rule, text},
+    };
+    use iced_test::Simulator;
+
+    use super::reveal_x;
+
+    const ROW_WIDTH: f32 = 400.0;
+    const MARKER_AFTER_REVEAL: &str = "marker after the reveal";
+
+    #[test]
+    fn revealing_fill_width_content_keeps_a_finite_width() {
+        let revealed: Element<'_, ()> = reveal_x(rule::horizontal(2.0), 1.0);
+        let mut simulator = Simulator::with_size(
+            Settings::default(),
+            Size::new(ROW_WIDTH, 40.0),
+            row![revealed, text(MARKER_AFTER_REVEAL)],
+        );
+        let marker = simulator
+            .find(MARKER_AFTER_REVEAL)
+            .expect("the marker is laid out")
+            .bounds();
+        assert!(
+            marker.x.is_finite() && marker.x <= ROW_WIDTH,
+            "the reveal pushed the marker to x = {}",
+            marker.x
+        );
     }
 }
