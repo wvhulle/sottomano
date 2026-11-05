@@ -15,7 +15,9 @@ use iced::{
 use crate::{
     rounded_quads::{CircleQuad, HorizontalCapsuleQuad, QuadOutline},
     shared_metrics::ACCENT_STROKE_PX,
-    theme_colors::{ThemedColor, background_color, background_strong_color},
+    theme_colors::{
+        ThemedColor, background_color, background_strong_color, primary_color, text_color,
+    },
 };
 
 const SLIDER_WIDTH_PX: f32 = 60.0;
@@ -105,6 +107,15 @@ impl FaceGeometry {
 pub struct SliderAccents<'a> {
     pub resting: ThemedColor<'a>,
     pub engaged: ThemedColor<'a>,
+}
+
+impl Default for SliderAccents<'_> {
+    fn default() -> Self {
+        Self {
+            resting: Box::new(text_color),
+            engaged: Box::new(primary_color),
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]

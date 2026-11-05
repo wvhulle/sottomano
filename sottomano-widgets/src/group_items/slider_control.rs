@@ -2,6 +2,7 @@ use std::ops::RangeInclusive;
 
 use chrono::Locale;
 use corredo::expand_animation::expand_animation;
+pub use corredo::scroll_steps::scroll_direction;
 use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
@@ -36,36 +37,11 @@ use crate::{
         inline_slider::inline_slider,
         phosphor::Phosphor,
         reveal::reveal_x,
-        shared_metrics::SCROLL_LINE_STEP_PX,
         text::{panel_text, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},
     },
 };
-
-pub fn scroll_direction(accum: &mut f32, delta: ScrollDelta) -> Option<i64> {
-    match delta {
-        ScrollDelta::Lines { y, .. } => {
-            if y > 0.0 {
-                Some(1)
-            } else if y < 0.0 {
-                Some(-1)
-            } else {
-                None
-            }
-        }
-        ScrollDelta::Pixels { y, .. } => {
-            *accum += y;
-            if accum.abs() >= SCROLL_LINE_STEP_PX {
-                let step = if *accum > 0.0 { 1 } else { -1 };
-                *accum = 0.0;
-                Some(step)
-            } else {
-                None
-            }
-        }
-    }
-}
 
 #[allow(clippy::struct_excessive_bools)]
 pub struct SliderControl {
