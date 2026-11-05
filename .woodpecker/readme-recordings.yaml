@@ -22,13 +22,24 @@ steps:
         experimental-features = nix-command flakes
         extra-substituters = https://wvhulle.cachix.org
         extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
+    commands:
+      - nix run --quiet .#build-and-export-paths -- .#readme-recordings
+      - cp -r --no-preserve=mode result/. .
+      - nix develop --quiet --command cargo xtask update-recording-embeds
+
+  - name: upload-readme-recordings-to-cachix
+    image: nixos/nix:latest
+    when:
+      - status: [success, failure]
+    environment:
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        extra-substituters = https://wvhulle.cachix.org
+        extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
       CACHIX_AUTH_TOKEN:
         from_secret: cachix_auth_token
     commands:
-      - nix build --quiet .#readme-recordings
-      - nix-store --query --requisites --include-outputs $(nix path-info --derivation .#readme-recordings) | grep -v '\.drv' | nix run --inputs-from . nixpkgs#cachix -- push wvhulle > /dev/null
-      - cp -r --no-preserve=mode result/. .
-      - nix develop --command cargo xtask update-recording-embeds
+      - nix run --quiet .#upload-exported-paths
 
   - name: push-recordings-orphan-branch
     image: nixos/nix:latest
@@ -38,7 +49,7 @@ steps:
         extra-substituters = https://wvhulle.cachix.org
         extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
       CODEBERG_TOKEN:
-        from_secret: codeberg_token
+        from_secret: bot_token
     commands:
       - nix develop --command cargo xtask publish-recordings
 
@@ -47,14 +58,14 @@ steps:
     settings:
       remote: https://codeberg.org/${CI_REPO}.git
       netrc_machine: codeberg.org
-      username: wvhulle
+      username: wvhulle-bot
       password:
-        from_secret: codeberg_token
+        from_secret: bot_token
       branch: *recordings_branch
       force: true
       commit: true
       commit_message: *recordings_title
-      author_name: sottomano-ci
+      author_name: wvhulle-bot
       author_email: willemvanhulle@protonmail.com
 
   - name: open-readme-recordings-pr
@@ -62,7 +73,7 @@ steps:
     settings:
       gitea_address: https://codeberg.org
       gitea_token:
-        from_secret: codeberg_token
+        from_secret: bot_token
       owner: ${CI_REPO_OWNER}
       repo: ${CI_REPO_NAME}
       branch: *recordings_branch

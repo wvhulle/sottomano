@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: treefmt-formatting
+        name: treefmt formatting
+        entry: treefmt --ci --tree-root .
+        language: system
+        pass_filenames: false
