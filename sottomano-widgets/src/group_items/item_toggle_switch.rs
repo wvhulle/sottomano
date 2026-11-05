@@ -2,7 +2,7 @@ use iced::{
     Color, Element, Theme,
     widget::{toggler, toggler::Status},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::widgets::configured_theme::{background_color, primary_color, secondary_text_color};
 
@@ -47,7 +47,7 @@ mod tests {
         widget::button,
     };
     use iced_test::Simulator;
-    use sottomano_config::theme::palette::Palette;
+    use sottomano_toml_config::theme::palette::Palette;
 
     use super::*;
     use crate::widgets::configured_theme::configured_theme;

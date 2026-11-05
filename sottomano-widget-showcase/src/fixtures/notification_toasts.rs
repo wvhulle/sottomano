@@ -4,10 +4,10 @@ use niri_ipc::{
     Event, Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::desktop_notifications::notification_data::{
     ActionTint, ExpireTimeout, NotifAction, NotificationData,
 };
+use sottomano_toml_config::severity::Severity;
 use sottomano_widgets::{clock::Clock, toast_messages::NotificationMessage};
 use uom::si::{f64::Ratio, ratio::percent};
 

@@ -2,11 +2,11 @@ use std::time::Duration;
 
 use chrono::{DateTime, Locale, Utc};
 use quick_xml::escape::escape;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_temperature::{CoreTemperature, CpuCoreTemperatures, Temperature, cpu_thresholds},
     temperature_thresholds::celsius_text,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{Ratio, ThermodynamicTemperature},
     ratio::ratio,
@@ -188,10 +188,10 @@ impl ChipletLiveState<'_> {
 mod tests {
     use std::time::SystemTime;
 
-    use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
     use sottomano_desktop_sources::cpu_memory_compute::{
         cpu_temperature::TempReading, temperature_thresholds::celsius,
     };
+    use sottomano_toml_config::widget_groups::temperature_sensors::ThresholdOverrides;
 
     use super::*;
 

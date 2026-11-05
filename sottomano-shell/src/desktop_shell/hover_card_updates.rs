@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use iced::{Task, window::Id};
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     hover_cards::{
         HoverAnnouncement, HoverCardMessage, HoverTarget,

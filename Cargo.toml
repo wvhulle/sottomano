@@ -2,7 +2,7 @@
 default-members = ["sottomano-shell"]
 members = [
   "iced_controller_diagram",
-  "sottomano-config",
+  "sottomano-toml-config",
   "sottomano-icon-sets",
   "sottomano-desktop-sources",
   "sottomano-widgets",

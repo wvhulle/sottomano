@@ -2,7 +2,6 @@ use std::{borrow::Cow, iter::once};
 
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::login_session_presence::{
     idle_session_actions::IdleAction,
     kernel_sleep_obstacles::{
@@ -11,6 +10,7 @@ use sottomano_desktop_sources::login_session_presence::{
     },
     screensaver_bus_idle_inhibitors::IdleInhibitor,
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

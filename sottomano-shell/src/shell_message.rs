@@ -2,7 +2,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use iced::window::Id;
 use iced_exwlshell::{actions::RegionActionCB, to_layer_message};
-use sottomano_config::{Config, LoadError};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_notifications::alert_sound_player::SoundTheme,
@@ -14,6 +13,7 @@ use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBusEvent,
 };
+use sottomano_toml_config::{Config, LoadError};
 use sottomano_widgets::{
     desktop_index::ResolvedIcons,
     desktop_panels::panel_slot_drag::DragMessage,

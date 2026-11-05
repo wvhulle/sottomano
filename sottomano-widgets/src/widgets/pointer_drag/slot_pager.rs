@@ -14,7 +14,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use sottomano_config::{Config, screen_edges::Position};
+use sottomano_toml_config::{Config, screen_edges::Position};
 
 use crate::widgets::{
     configured_theme::ThemedColor,

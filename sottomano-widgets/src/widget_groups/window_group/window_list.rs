@@ -4,7 +4,6 @@ use iced::{
     Alignment, Element, Subscription, Task,
     widget::{Row, container, progress_bar, right, stack, text, text::Wrapping},
 };
-use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
@@ -19,6 +18,7 @@ use sottomano_desktop_sources::{
     stream_operators::restarting,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::{Config, widget_groups::WindowAgentsConfig};
 
 use crate::{
     clock::Clock,
@@ -716,7 +716,7 @@ mod tests {
     };
     use iced_controller_diagram::ControllerArtwork;
     use iced_test::Simulator;
-    use sottomano_config::{Config, screen_edges::Position};
+    use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{
         WindowList, WindowListMessage, capped_window_title, maximum_window_title_width_px,

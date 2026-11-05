@@ -13,11 +13,11 @@ use iced::{
     widget::text::{Shaping, Wrapping},
     window,
 };
-use sottomano_config::theme::font::ResolvedFont;
 use sottomano_desktop_sources::media_playback_audio::{
     lrclib_synced_lyrics::{LyricSweep, TimedLyricLine},
     mpris_players::{Progress, Status},
 };
+use sottomano_toml_config::theme::font::ResolvedFont;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::widgets::{

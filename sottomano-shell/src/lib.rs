@@ -12,8 +12,8 @@ use iced_exwlshell::{
     build_pattern::daemon,
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
-use sottomano_config::{Config, ConfigFile, SecretPaths};
 use sottomano_desktop_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
+use sottomano_toml_config::{Config, ConfigFile, SecretPaths};
 use sottomano_widgets::{
     widget_groups::niri_window_group::niri_kdl_rules::NiriRulesFile, widgets::text::FontFaces,
 };
@@ -26,7 +26,7 @@ const DEFAULT_LOG_DIRECTIVES: &str = "error,sottomano_shell=warn,sottomano_widge
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();
     if let Some(setup_command) = command_line.setup_command {
-        return setup_command.print(&sottomano_config::config_home());
+        return setup_command.print(&sottomano_toml_config::config_home());
     }
 
     tracing_subscriber::fmt()
@@ -37,7 +37,7 @@ pub fn run_shell() -> Result<(), Box<dyn Error>> {
         .with_span_events(FmtSpan::CLOSE)
         .init();
 
-    let config_home = sottomano_config::config_home();
+    let config_home = sottomano_toml_config::config_home();
     let config_file = ConfigFile::in_config_home(&config_home);
     let secrets = SecretPaths::discover(&config_home);
     let niri_rules = NiriRulesFile::in_config_home(&config_home);

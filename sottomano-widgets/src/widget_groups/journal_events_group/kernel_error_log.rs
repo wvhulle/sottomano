@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,

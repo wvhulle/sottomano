@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 strum.workspace = true
-sottomano-config = { path = "../sottomano-config" }
+sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-icon-sets = { path = "../sottomano-icon-sets" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 bytesize.workspace = true

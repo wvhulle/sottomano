@@ -3,7 +3,6 @@ mod adapter_signal_reading;
 use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
@@ -15,6 +14,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use self::adapter_signal_reading::{
     AdapterConnectionSwitch, AdapterSignalReading, AllWifiRadiosSwitch, adapter_identity_sections,

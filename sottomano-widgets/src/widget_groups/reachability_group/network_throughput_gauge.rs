@@ -1,7 +1,7 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::interface_throughput::{
     InterfaceThroughput, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{InformationRate, Ratio},
     information_rate::{kilobyte_per_second, megabyte_per_second},

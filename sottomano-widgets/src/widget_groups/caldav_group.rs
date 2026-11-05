@@ -4,7 +4,6 @@ mod upcoming_events_reading;
 use std::path::PathBuf;
 
 use iced::{Subscription, Task};
-use sottomano_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     caldav_tasks_events::{
@@ -16,6 +15,7 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
 
 use crate::{
     background_work::snapshot_subscription,

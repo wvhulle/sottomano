@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::Command};
 
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     blocking_background_work::blocking, desktop_notifications::notification_data::NotificationData,

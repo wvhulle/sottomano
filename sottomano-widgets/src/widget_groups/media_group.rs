@@ -6,7 +6,6 @@ use std::{
 };
 
 use iced::{Element, Subscription, Task, time::every, widget::Row};
-use sottomano_config::{Config, widget_groups::media_lyrics::MediaLyricsConfig};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
@@ -18,6 +17,7 @@ use sottomano_desktop_sources::{
     network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::{DesktopBuses, OwnerProcess},
 };
+use sottomano_toml_config::{Config, widget_groups::media_lyrics::MediaLyricsConfig};
 
 use crate::{
     background_work::snapshot_subscription,

@@ -1,7 +1,6 @@
 use std::{cmp::Reverse, collections::HashMap};
 
 use iced::{Element, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
@@ -9,6 +8,7 @@ use sottomano_desktop_sources::{
         niri_action_requests,
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     clock::Clock,
@@ -573,10 +573,10 @@ impl AppLauncherGroup {
 mod tests {
     use std::{collections::HashMap, iter::once};
 
-    use sottomano_config::Config;
     use sottomano_desktop_sources::desktop_windows_apps::desktop_entry_app_catalog::{
         AppCategory, LaunchableApp, OpenAppWindows,
     };
+    use sottomano_toml_config::Config;
 
     use super::{
         Action, AppLaunchUsage, AppLauncherGroup, AppLauncherMessage, FrequentApp,

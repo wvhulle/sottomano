@@ -4,10 +4,10 @@ use iced::{
     Alignment, Element,
     widget::{Row, text},
 };
-use sottomano_config::Config;
 use sottomano_desktop_sources::desktop_windows_apps::{
     niri_window_snapshot, window_title_labels::WindowLabel,
 };
+use sottomano_toml_config::Config;
 
 use super::{
     window_list::WindowListMessage,

@@ -1,7 +1,7 @@
 use std::{path::Path, time::Duration};
 
 use futures::Stream;
-use sottomano_config::{
+use sottomano_toml_config::{
     severity::Severity,
     widget_groups::temperature_sensors::{SensorChoice, SensorConfig, ThresholdOverrides},
 };

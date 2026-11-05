@@ -6744,20 +6744,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sottomano-config"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "chrono-tz",
- "color",
- "humantime-serde",
- "rust_decimal",
- "serde",
- "toml",
- "ttf-parser",
-]
-
-[[package]]
 name = "sottomano-desktop-sources"
 version = "0.0.1"
 dependencies = [
@@ -6803,7 +6789,7 @@ dependencies = [
  "sha2 0.11.1",
  "situo-client",
  "socket2",
- "sottomano-config",
+ "sottomano-toml-config",
  "sunrise",
  "sys-locale",
  "system-tray",
@@ -6840,8 +6826,8 @@ dependencies = [
  "iced_wayland_subscriber",
  "niri-ipc",
  "reqwest",
- "sottomano-config",
  "sottomano-desktop-sources",
+ "sottomano-toml-config",
  "sottomano-widgets",
  "tokio",
  "tokio-stream",
@@ -6851,6 +6837,20 @@ dependencies = [
  "uom",
  "wayland-client",
  "zbus",
+]
+
+[[package]]
+name = "sottomano-toml-config"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "chrono-tz",
+ "color",
+ "humantime-serde",
+ "rust_decimal",
+ "serde",
+ "toml",
+ "ttf-parser",
 ]
 
 [[package]]
@@ -6872,8 +6872,8 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
- "sottomano-config",
  "sottomano-desktop-sources",
+ "sottomano-toml-config",
  "sottomano-widgets",
  "tokio",
  "uom",
@@ -6912,9 +6912,9 @@ dependencies = [
  "rust_decimal",
  "rusty-money",
  "situo-client",
- "sottomano-config",
  "sottomano-desktop-sources",
  "sottomano-icon-sets",
+ "sottomano-toml-config",
  "strum",
  "system-tray",
  "tokio",
@@ -9333,7 +9333,7 @@ dependencies = [
  "clap",
  "git2",
  "image",
- "sottomano-config",
+ "sottomano-toml-config",
 ]
 
 [[package]]

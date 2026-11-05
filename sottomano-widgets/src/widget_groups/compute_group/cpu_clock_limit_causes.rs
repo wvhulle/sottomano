@@ -1,10 +1,10 @@
 use std::cmp::Reverse;
 
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_clock_frequency::CpuClock, kernel_frequency_limit_causes::FrequencyLimitCause,
 };
+use sottomano_toml_config::severity::Severity;
 
 use super::core_grid_sections::cpu_ranges;
 use crate::{

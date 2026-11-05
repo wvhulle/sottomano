@@ -12,9 +12,6 @@ use std::{
 
 use iced::{Subscription, Task};
 use notulist_client::DictationCommand;
-use sottomano_config::widget_groups::gamepad_bindings::{
-    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
-};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::niri_action_requests::ActionFailure,
@@ -37,6 +34,9 @@ use sottomano_desktop_sources::{
         DeviceKernelError, device_kernel_error_windows,
     },
     voice_dictation_input::notulist_dbus_dictation::send_logged_dictation_command,
+};
+use sottomano_toml_config::widget_groups::gamepad_bindings::{
+    ButtonRole, CompositorAction, GamepadBindingsConfig, GamepadButton,
 };
 use uom::si::f64::Frequency;
 
@@ -857,8 +857,8 @@ fn niri_request(action: CompositorAction) -> niri_ipc::Action {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
     use sottomano_desktop_sources::gamepad_controller_input::player_indicator_leds::LitPlayer;
+    use sottomano_toml_config::widget_groups::gamepad_bindings::{GamepadStick, StickDirection};
 
     use super::*;
 

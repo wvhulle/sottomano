@@ -4,8 +4,8 @@ use iced::{
     border::Radius,
     widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
 };
-use sottomano_config::Config;
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_toml_config::Config;
 
 use crate::{
     hover_cards::{

@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use image::RgbaImage;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use crate::system_protocol_clients::dbus_desktop_buses::OwnerProcess;

@@ -10,13 +10,13 @@ use iced::{
     widget::{Column, Row, button, container, mouse_area, progress_bar, space, text_input},
 };
 use reqwest::Url;
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
     },
     desktop_windows_apps::desktop_entry_app_icons::DesktopEntries,
 };
+use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use super::{Notification, toast_card_backdrop::ToastCardBackdrop, toast_lifecycle::ToastKind};

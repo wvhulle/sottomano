@@ -5,11 +5,11 @@ use iced::{
     futures::{StreamExt, stream},
     task::Handle,
 };
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
+use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use crate::{

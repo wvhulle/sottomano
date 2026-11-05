@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use iced::{Task, task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_toml_config::Config;
 use tokio::time::sleep;
 
 use crate::{

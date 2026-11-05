@@ -1,5 +1,5 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::modem_manager_mobile::{Mobile, ModemState};
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::Ratio;
 
 use crate::{

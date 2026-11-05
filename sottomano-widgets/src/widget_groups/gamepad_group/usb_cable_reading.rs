@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

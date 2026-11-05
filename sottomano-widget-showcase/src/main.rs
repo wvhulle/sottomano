@@ -11,7 +11,7 @@ use std::{
 };
 
 use clap::Parser;
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 use sottomano_widget_showcase::{
     WORKSPACE_ROOT,
     animation_recording::RecordingSession,

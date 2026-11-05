@@ -1,10 +1,10 @@
 use std::time::{Duration, Instant};
 
 use iced::{Element, mouse::ScrollDelta};
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{
     Command, Media, SeekMode, micros,
 };
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{group_items::slider_control::scroll_direction, widgets::inline_slider::inline_slider};
 

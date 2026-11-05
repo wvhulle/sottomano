@@ -1,10 +1,10 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::cpu_memory_compute::{
     cpu_clock_frequency::{CoreFreq, CpuClock},
     cpu_core_loads::CpuCoreLoads,
     cpu_topology::{CoreGroup, PhysicalCore},
     kernel_frequency_limit_causes::FrequencyLimitCause,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::{Frequency, Ratio};
 
 use super::cpu_clock_limit_causes::{cause_level, causes_text};

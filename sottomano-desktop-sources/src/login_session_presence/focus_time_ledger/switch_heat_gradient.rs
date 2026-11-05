@@ -1,6 +1,6 @@
 use chrono::{DateTime, TimeDelta, Utc};
 use color::{AlphaColor, Oklab, Srgb};
-use sottomano_config::theme::palette::Palette;
+use sottomano_toml_config::theme::palette::Palette;
 
 use super::{Accounting, time_intervals::TrailingPeriod};
 
@@ -62,7 +62,7 @@ mod tests {
     use std::time::Duration;
 
     use color::{AlphaColor, Oklab, Srgb};
-    use sottomano_config::{
+    use sottomano_toml_config::{
         theme::palette::Palette, widget_groups::session_focus::SessionFocusConfig,
     };
 

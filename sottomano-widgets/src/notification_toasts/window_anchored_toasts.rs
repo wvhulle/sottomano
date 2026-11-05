@@ -14,7 +14,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use super::{
     toast_anchor_geometry,

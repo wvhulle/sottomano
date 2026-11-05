@@ -65,7 +65,7 @@ pub fn inline_view<'a>(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::{Config, screen_edges::Position};
+    use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::inline_view;
     use crate::{

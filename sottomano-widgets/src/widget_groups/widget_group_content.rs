@@ -6,7 +6,7 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, Space, button, container, mouse_area},
 };
-use sottomano_config::{Config, screen_edges::Position, severity::Severity};
+use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
@@ -770,7 +770,7 @@ fn revealed_content<'a, Message: 'a>(
 #[cfg(test)]
 mod tests {
     use chrono::Locale;
-    use sottomano_config::severity::Severity;
+    use sottomano_toml_config::severity::Severity;
 
     use super::{WidgetGroupContent, WidgetGroupExpansion};
     use crate::{

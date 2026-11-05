@@ -17,7 +17,7 @@ path = "src/secret_memory_holders_main.rs"
 workspace = true
 
 [dependencies]
-sottomano-config = { path = "../sottomano-config" }
+sottomano-toml-config = { path = "../sottomano-toml-config" }
 sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 sottomano-widgets = { path = "../sottomano-widgets" }
 chrono.workspace = true

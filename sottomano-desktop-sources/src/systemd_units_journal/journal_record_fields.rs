@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde::Deserialize;
-use sottomano_config::severity::Severity;
+use sottomano_toml_config::severity::Severity;
 use systemd::journal::Journal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]

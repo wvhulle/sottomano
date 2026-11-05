@@ -1,10 +1,10 @@
 use std::net::IpAddr;
 
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::{
     icmp_gateway_latency::GatewayLatencies, network_manager_proxies::AddressBlock,
     sysfs_interface_faults::InterfaceFaultCounters,
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::f64::InformationRate;
 
 use crate::{

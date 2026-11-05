@@ -2,11 +2,11 @@ use std::time::{Duration, Instant};
 
 use chrono::Locale;
 use iced::Task;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::battery_power_profiles::{
     battery_time_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
     upower_battery_state::{Battery, IdleReason},
 };
+use sottomano_toml_config::severity::Severity;
 use uom::si::{
     f64::{Power, Ratio},
     power::watt,

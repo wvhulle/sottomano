@@ -1,17 +1,17 @@
 use std::{iter::once, path::Path};
 
 use chrono::Locale;
-use sottomano_config::{
-    severity::Severity,
-    widget_groups::gamepad_bindings::{
-        ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
-    },
-};
 use sottomano_desktop_sources::gamepad_controller_input::{
     evdev_gamepad_devices::{
         ConnectedGamepad, ControllerIdentity, GamepadOrigin, PhysicalGamepadLink,
     },
     player_indicator_leds::LitPlayer,
+};
+use sottomano_toml_config::{
+    severity::Severity,
+    widget_groups::gamepad_bindings::{
+        ButtonRole, ClaimedButton, CompositorAction, GamepadBindingsConfig, StickDirection,
+    },
 };
 
 use super::{

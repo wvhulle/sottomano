@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, widget::Row};
-use sottomano_config::Config;
 use sottomano_desktop_sources::media_playback_audio::mpris_players::{Command, Media, Status};
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},

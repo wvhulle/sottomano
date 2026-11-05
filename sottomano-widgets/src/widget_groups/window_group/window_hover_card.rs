@@ -1,12 +1,12 @@
 use std::time::{Duration, SystemTime};
 
 use niri_ipc::state::EventStreamState;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::desktop_windows_apps::{
     nix_package_facts::{self, Generation, NixPackageFacts, Origin, Upstream, UpstreamState},
     nix_store_provenance::StorePackage,
     process_tree_inspection::{self, Inspection, Launch},
 };
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

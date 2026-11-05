@@ -21,7 +21,7 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use sottomano_config::{
+use sottomano_toml_config::{
     hover_cards::{HoverCardLoading, IntroEffect, PlaceholderEffect, ReplaceEffect},
     theme::font::ResolvedFont,
 };

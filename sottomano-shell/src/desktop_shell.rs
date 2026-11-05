@@ -28,7 +28,6 @@ use iced::{
 };
 use iced_controller_diagram::ControllerArtwork;
 use niri_ipc::state::EventStreamState;
-use sottomano_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
 use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_notifications::alert_sound_player::SoundTheme,
@@ -40,6 +39,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::{DesktopBusEvent, DesktopBuses},
 };
+use sottomano_toml_config::{Config, ConfigFile, LoadError, SecretPaths, screen_edges::Position};
 use sottomano_widgets::{
     background_work::{copy_to_clipboard, niri_action},
     clock::Clock,

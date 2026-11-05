@@ -7,7 +7,7 @@ use iced::{
         text::{IntoFragment, Shaping},
     },
 };
-use sottomano_config::theme::{
+use sottomano_toml_config::theme::{
     Theme,
     font::{FontRole, ResolvedFont},
 };

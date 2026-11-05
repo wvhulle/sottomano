@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use sottomano_config::widget_groups::gamepad_bindings::{
+use sottomano_toml_config::widget_groups::gamepad_bindings::{
     GamepadButton, GamepadStick, PointerButton, PointerSteeringSettings, StickDirection,
 };
 
@@ -295,7 +295,7 @@ impl GamepadMachine {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
+    use sottomano_toml_config::widget_groups::gamepad_bindings::GamepadBindingsConfig;
 
     use super::*;
 

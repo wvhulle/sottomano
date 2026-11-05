@@ -10,7 +10,6 @@ mod running_job_reading;
 use boot_timeline_reading::StartupUnits;
 use failed_unit_log::failed_units_item;
 use running_job_reading::slow_jobs_item;
-use sottomano_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
@@ -22,6 +21,7 @@ use sottomano_desktop_sources::{
         slow_running_jobs::{SlowJobs, SlowJobsWatch},
     },
 };
+use sottomano_toml_config::{Config, widget_groups::systemd_manager::SystemdManagerConfig};
 
 use crate::{
     background_work::{copy_to_clipboard, snapshot_subscription},

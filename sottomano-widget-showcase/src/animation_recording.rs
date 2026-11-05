@@ -25,7 +25,7 @@ use iced_test::{
     renderer::graphics::text::font_system,
     runtime::{UserInterface, user_interface::Cache},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 use sottomano_widgets::{
     clock::Clock, hover_cards::HoverTarget, widget_groups::app_launcher_group::AppLauncherTarget,
 };

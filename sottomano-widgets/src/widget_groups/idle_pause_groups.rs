@@ -8,7 +8,6 @@ use iced::{
     futures::{StreamExt, future::ready},
     task,
 };
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     login_session_presence::{
@@ -20,6 +19,7 @@ use sottomano_desktop_sources::{
     },
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };
+use sottomano_toml_config::Config;
 
 use self::pause_blocker_rows::{
     NextSleepStateRow, PauseBlocker, PauseFacts, ScheduledShutdownRow, blocker_sections,

@@ -5,7 +5,7 @@ use iced::{
     Alignment, Element,
     widget::{Row, Space, button, mouse_area, row},
 };
-use sottomano_config::{Config, severity::Severity};
+use sottomano_toml_config::{Config, severity::Severity};
 
 use crate::{
     clock::Clock,

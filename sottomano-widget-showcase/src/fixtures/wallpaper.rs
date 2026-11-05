@@ -1,8 +1,8 @@
-use sottomano_config::SecretPaths;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     wallpaper_place_article::{Position, Wallpaper, WikipediaArticle},
 };
+use sottomano_toml_config::SecretPaths;
 use sottomano_widgets::{
     clock::Clock,
     widget_groups::wallpaper_group::{WallpaperGroup, WallpaperMessage, wallpaper_lookup::Lookup},

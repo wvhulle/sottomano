@@ -3,7 +3,7 @@ use iced::{
     alignment::Vertical,
     widget::{Row, column, container, mouse_area, row},
 };
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 use sottomano_widgets::{
     desktop_panels::{
         panel_frame::{LayerFrameStyle, OutlinedSides, panel_frame},

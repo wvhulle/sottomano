@@ -1,6 +1,6 @@
 use rust_decimal::Decimal;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::ai_usage_spend::spend_money::Money;
+use sottomano_toml_config::severity::Severity;
 use uom::si::{f64::Ratio, ratio::percent};
 
 #[must_use]

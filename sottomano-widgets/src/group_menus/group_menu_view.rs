@@ -2,7 +2,7 @@ use std::iter::once;
 
 use chrono::Locale;
 use iced::{Element, widget::Column};
-use sottomano_config::{Config, screen_edges::Position, severity::Severity};
+use sottomano_toml_config::{Config, screen_edges::Position, severity::Severity};
 
 use crate::{
     clock::Clock,
@@ -390,7 +390,7 @@ mod tests {
         selector::{Candidate, Selector},
         simulator::click,
     };
-    use sottomano_config::{Config, screen_edges::Position};
+    use sottomano_toml_config::{Config, screen_edges::Position};
 
     use super::{GroupEvent, GroupMenuView, InspectionCard};
     use crate::{

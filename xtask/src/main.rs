@@ -4,7 +4,7 @@ mod recordings_branch;
 use std::{error::Error, fmt, fs, path::Path, process::ExitCode};
 
 use clap::{Parser, Subcommand};
-use sottomano_config::default_config_toml;
+use sottomano_toml_config::default_config_toml;
 
 const WORKSPACE_ROOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
 const CONFIGURATION_DOCS: &str = "docs/configuration.md";

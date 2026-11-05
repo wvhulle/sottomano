@@ -5,13 +5,13 @@ use iced::{
     animation::Easing,
     time::{Duration, Instant},
 };
-use sottomano_config::{
+use sottomano_desktop_sources::desktop_notifications::notification_data::{
+    ExpireTimeout, NotificationData, close_reason,
+};
+use sottomano_toml_config::{
     Config,
     notification_toasts::{ToastCardConfig, ToastLifetimeConfig},
     severity::Severity,
-};
-use sottomano_desktop_sources::desktop_notifications::notification_data::{
-    ExpireTimeout, NotificationData, close_reason,
 };
 
 use super::{toast_card::CardIcons, toast_placement::ToastPlacement};

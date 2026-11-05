@@ -2,8 +2,8 @@ use iced::{
     Color, Element, Theme,
     widget::{Column, Row, Text, text, text::Wrapping},
 };
-use sottomano_config::Config;
 use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_toml_config::Config;
 
 use crate::widgets::{
     configured_theme::{secondary_text_color, text_color},

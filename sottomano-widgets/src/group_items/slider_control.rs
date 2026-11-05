@@ -7,8 +7,8 @@ use iced::{
     mouse::ScrollDelta,
     widget::{Row, button, container, mouse_area, text, text::Wrapping},
 };
-use sottomano_config::{Config, severity::Severity};
 use sottomano_desktop_sources::blocking_background_work::blocking;
+use sottomano_toml_config::{Config, severity::Severity};
 use uom::si::{f64::Ratio, ratio};
 
 use crate::{

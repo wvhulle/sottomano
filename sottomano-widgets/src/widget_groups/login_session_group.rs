@@ -7,7 +7,6 @@ mod seat_face;
 mod service_manager_face;
 
 use iced::{Subscription, Task};
-use sottomano_config::Config;
 use sottomano_desktop_sources::{
     SnapshotDelivery,
     host_machine_identity::hostname1_os_identity::OperatingSystemIdentity,
@@ -18,6 +17,7 @@ use sottomano_desktop_sources::{
         user_service_manager::UserServiceManager,
     },
 };
+use sottomano_toml_config::Config;
 
 use crate::{
     background_work::{first_delivery, snapshot_subscription},

@@ -1,8 +1,8 @@
 use std::{mem, sync::Arc};
 
 use iced::{Task, font};
-use sottomano_config::{Config, LoadError, theme::Theme};
 use sottomano_desktop_sources::blocking_background_work::blocking;
+use sottomano_toml_config::{Config, LoadError, theme::Theme};
 use sottomano_widgets::widgets::{configured_theme::configured_theme, text::FontFaces};
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};

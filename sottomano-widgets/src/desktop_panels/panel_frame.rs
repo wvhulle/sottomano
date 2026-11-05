@@ -13,7 +13,7 @@ use iced::{
     widget::container,
 };
 use iced_exwlshell::BlurRegions;
-use sottomano_config::screen_edges::Position;
+use sottomano_toml_config::screen_edges::Position;
 
 use crate::{
     desktop_panels::region_reporter::{replacing_blur_regions, rounded_blur_rows},
@@ -399,7 +399,7 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for PanelFrame<'_, Me
 #[cfg(test)]
 mod tests {
     use iced::{Rectangle, widget::space};
-    use sottomano_config::screen_edges::Position;
+    use sottomano_toml_config::screen_edges::Position;
 
     use super::{LayerFrameStyle, OutlinedSides, panel_frame};
     use crate::widgets::shell_layer_appearance::LayerAppearance;

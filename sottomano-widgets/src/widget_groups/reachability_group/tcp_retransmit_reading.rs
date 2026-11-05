@@ -1,5 +1,5 @@
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::network_connectivity::proc_tcp_retransmissions::TcpRetransmissions;
+use sottomano_toml_config::severity::Severity;
 use uom::si::ratio::percent;
 
 use crate::{

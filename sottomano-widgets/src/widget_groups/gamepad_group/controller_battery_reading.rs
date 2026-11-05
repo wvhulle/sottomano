@@ -1,6 +1,6 @@
 use chrono::Locale;
-use sottomano_config::severity::Severity;
 use sottomano_desktop_sources::gamepad_controller_input::evdev_gamepad_devices::GamepadPower;
+use sottomano_toml_config::severity::Severity;
 
 use crate::{
     clock::Clock,

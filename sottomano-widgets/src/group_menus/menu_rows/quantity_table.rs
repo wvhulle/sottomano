@@ -7,7 +7,7 @@ use iced::{
     Alignment, Element, Padding,
     widget::{Column, Row, Space, container},
 };
-use sottomano_config::Config;
+use sottomano_toml_config::Config;
 
 use crate::{
     group_items::aligned_quantity::AlignedQuantity,

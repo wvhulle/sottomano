@@ -202,7 +202,7 @@ impl BudgetStatus {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use sottomano_config::severity::Severity;
+    use sottomano_toml_config::severity::Severity;
 
     use super::*;
     use crate::login_session_presence::focus_time_ledger::test_steps::{
