@@ -8,7 +8,7 @@ repository = "https://github.com/wvhulle/sottomano"
 keywords = ["iced", "widget", "gui", "animation"]
 categories = ["gui"]
 readme = "README.md"
-publish = false
+include = ["src/", "examples/", "tests/", "README.md", "LICENSE"]
 
 [lints]
 workspace = true
