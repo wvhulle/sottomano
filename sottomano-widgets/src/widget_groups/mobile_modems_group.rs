@@ -19,7 +19,6 @@ use crate::{
     background_work::snapshot_subscription,
     clock::Clock,
     group_items::{group_item::GroupItem, group_item_reading::GroupItemReading},
-    group_menus::group_source_demand::GroupSourceDemand,
     hover_cards::{
         HoverTarget,
         hover_card_body::{HoverCardBody, hover_card_source_delivery::HoverCard},
@@ -90,13 +89,8 @@ impl MobileModemsGroup {
         });
     }
 
-    pub fn subscription(
-        buses: &DesktopBuses,
-        demand: &GroupSourceDemand,
-    ) -> Subscription<MobileModemsMessage> {
-        demand.while_any_reading_shown(
-            snapshot_subscription::<MobileModems>(buses.clone()).map(MobileModemsMessage::Snapshot),
-        )
+    pub fn subscription(buses: &DesktopBuses) -> Subscription<MobileModemsMessage> {
+        snapshot_subscription::<MobileModems>(buses.clone()).map(MobileModemsMessage::Snapshot)
     }
 
     pub fn update(

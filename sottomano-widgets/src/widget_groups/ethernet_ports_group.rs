@@ -128,10 +128,7 @@ impl EthernetPortsGroup {
             .any(|session| session.expansion.is_expanded());
         let demand = demand.expanded_when(any_port_expanded);
         Subscription::batch([
-            demand.while_any_reading_shown(
-                snapshot_subscription::<Ethernet>(buses.clone())
-                    .map(EthernetPortsMessage::Snapshot),
-            ),
+            snapshot_subscription::<Ethernet>(buses.clone()).map(EthernetPortsMessage::Snapshot),
             demand.while_rows_shown(
                 snapshot_subscription::<GatewayLatencies>(buses.clone())
                     .map(EthernetPortsMessage::GatewayLatencies),
