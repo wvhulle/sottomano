@@ -1,6 +1,6 @@
 use bytesize::ByteSize;
 use chrono::{TimeZone, Utc};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::cpu_topology::{Chiplet, CoreGroup, CoreRole, CpuTopology, PhysicalCore},
     host_machine_identity::{

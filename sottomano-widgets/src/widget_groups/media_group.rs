@@ -7,7 +7,7 @@ use std::{
 
 use iced::{Element, Subscription, Task, time::every, widget::Row};
 use sottomano_config::{Config, widget_groups::media_lyrics::MediaLyricsConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     blocking_background_work::blocking,
     desktop_windows_apps::niri_window_placement::WindowOwner,
@@ -667,7 +667,7 @@ fn dispatch(media: &Media, command: Command) -> Task<bool> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         media_playback_audio::mpris_players::{Capabilities, SeekMode},
         system_protocol_clients::http_json_client,
     };

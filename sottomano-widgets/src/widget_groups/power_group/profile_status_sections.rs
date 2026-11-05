@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::battery_power_profiles::power_profiles_daemon::{
+use sottomano_desktop_sources::battery_power_profiles::power_profiles_daemon::{
     ProfileHold, ProfileStatus,
 };
 

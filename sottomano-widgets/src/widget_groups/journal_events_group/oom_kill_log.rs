@@ -1,6 +1,8 @@
 use iced::alignment::Horizontal;
 use sottomano_config::Config;
-use sottomano_sources::systemd_units_journal::journal_oom_kills::{OomKillEntry, OomKiller};
+use sottomano_desktop_sources::systemd_units_journal::journal_oom_kills::{
+    OomKillEntry, OomKiller,
+};
 
 use crate::{
     clock::Clock,

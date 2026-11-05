@@ -1,5 +1,5 @@
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_sources::weather::open_meteo_precipitation_model::{
+use sottomano_desktop_sources::weather::open_meteo_precipitation_model::{
     ModelQuarterHour, PrecipitationModel,
 };
 
@@ -35,7 +35,7 @@ pub fn quarters_not_yet_over(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::weather::{
+    use sottomano_desktop_sources::weather::{
         buienradar_rain::precipitation::millimeter_per_hour,
         open_meteo_temperature::{Daylight, Intensity, WeatherCondition},
     };

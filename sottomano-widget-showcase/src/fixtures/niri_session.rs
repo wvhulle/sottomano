@@ -9,7 +9,7 @@ use niri_ipc::{
     Event, Window, WindowLayout, Workspace,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     desktop_windows_apps::{

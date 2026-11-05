@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
+use sottomano_desktop_sources::ai_usage_spend::claude_usage::ClaudeCcusageBlock;
 
 use crate::{
     clock::Clock,

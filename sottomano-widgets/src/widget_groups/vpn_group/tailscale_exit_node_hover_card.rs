@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::network_connectivity::tailscale_exit_nodes::{
+use sottomano_desktop_sources::network_connectivity::tailscale_exit_nodes::{
     ExitNodeChoices, ExitNodeControl, ExitNodeLanAccess, ExitNodeOption, ExitNodeReachability,
     TailscaleExitNodes,
 };

@@ -10,7 +10,7 @@ mod network_manager_vpn_hover_card;
 mod tailscale_exit_node_hover_card;
 
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         network_manager_vpn_connections::{NetworkManagerVpns, VpnSwitch, switch_vpn},
@@ -374,7 +374,7 @@ impl VpnGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::{
+    use sottomano_desktop_sources::network_connectivity::{
         tailscale_exit_nodes::ExitNodeReachability, tailscale_status::ExitNodeOffer,
     };
 

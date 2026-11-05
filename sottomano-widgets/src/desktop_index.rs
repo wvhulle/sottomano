@@ -5,7 +5,7 @@ use std::{
 };
 
 use iced::{Task, task::Handle};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::desktop_entry_app_icons::{self, DesktopEntries},
 };

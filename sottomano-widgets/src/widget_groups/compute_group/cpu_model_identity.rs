@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::host_machine_identity::udev_hardware_identity::CpuModel;
+use sottomano_desktop_sources::host_machine_identity::udev_hardware_identity::CpuModel;
 
 use crate::{
     clock::Clock,

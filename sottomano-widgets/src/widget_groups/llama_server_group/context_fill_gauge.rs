@@ -1,5 +1,5 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
+use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{LlamaSlot, SlotTask};
 use uom::si::{f64::Ratio, ratio::ratio};
 
 use crate::{

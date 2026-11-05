@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use iced::{Element, Subscription, Task};
 use niri_ipc::state::EventStreamState;
 use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_windows_apps::{
         kitty_terminal_windows::WindowProcesses, niri_window_snapshot,
         process_tree_inspection::Watched,

@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::network_connectivity::network_manager_vpn_connections::{
+use sottomano_desktop_sources::network_connectivity::network_manager_vpn_connections::{
     NetworkManagerVpns, VpnActivity, VpnConnection, VpnState,
 };
 

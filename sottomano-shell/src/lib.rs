@@ -13,14 +13,15 @@ use iced_exwlshell::{
     settings::{ExWlSettings, LayerShellSettings, StartMode},
 };
 use sottomano_config::{Config, ConfigFile, SecretPaths};
-use sottomano_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
+use sottomano_desktop_sources::desktop_windows_apps::niri_kdl_config::NiriConfigFile;
 use sottomano_widgets::{
     widget_groups::niri_window_group::niri_kdl_rules::NiriRulesFile, widgets::text::FontFaces,
 };
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const DEFAULT_LOG_DIRECTIVES: &str = "error,sottomano_shell=warn,sottomano_widgets=warn,\
-                                      sottomano_sources=warn,exwlshellev=warn,iced_exwlshell=warn";
+                                      sottomano_desktop_sources=warn,exwlshellev=warn,\
+                                      iced_exwlshell=warn";
 
 pub fn run_shell() -> Result<(), Box<dyn Error>> {
     let command_line = CommandLine::parse();

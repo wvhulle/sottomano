@@ -4,7 +4,7 @@ use notulist_client::{
     EngineState, FilterStageReport, GateStageReport, InferenceTickReport, LanguageStageReport,
     OutputProblem, PipelineActivity, PipelineStage, ReconcileStageReport,
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     systemd_units_journal::unit_active_state::{UnitActiveState, UnitActivity},
     voice_dictation_input::{

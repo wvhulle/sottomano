@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     login_session_presence::{
         idle_session_actions::IdleAction, session_power_actions::SessionAction,
     },
@@ -124,7 +124,7 @@ async fn write_timeouts(
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         login_session_presence::session_power_actions::SessionAction,
         sqlite_state_store::in_memory_connection,
     };

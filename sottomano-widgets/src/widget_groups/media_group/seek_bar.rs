@@ -2,7 +2,9 @@ use std::time::{Duration, Instant};
 
 use iced::{Element, mouse::ScrollDelta};
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::media_playback_audio::mpris_players::{Command, Media, SeekMode, micros};
+use sottomano_desktop_sources::media_playback_audio::mpris_players::{
+    Command, Media, SeekMode, micros,
+};
 
 use crate::{group_items::slider_control::scroll_direction, widgets::inline_slider::inline_slider};
 
@@ -179,7 +181,7 @@ fn seek_to(media: &Media, target: Duration, now: Instant) -> Option<Command> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::{
+    use sottomano_desktop_sources::{
         media_playback_audio::mpris_players::{Capabilities, Progress, Status},
         system_protocol_clients::dbus_desktop_buses::OwnerProcess,
     };

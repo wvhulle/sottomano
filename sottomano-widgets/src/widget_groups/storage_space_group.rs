@@ -7,7 +7,7 @@ use std::{
 };
 
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     disk_storage::{
         self,

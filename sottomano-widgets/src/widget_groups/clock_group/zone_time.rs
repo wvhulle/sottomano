@@ -3,7 +3,7 @@ use std::{cmp::Ordering, convert::Infallible};
 use chrono::{DateTime, Locale, Offset, TimeDelta};
 use chrono_tz::Tz;
 use iced::futures::Stream;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
 

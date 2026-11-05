@@ -351,7 +351,7 @@ impl PanelSettingsGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{
         PanelLayout, PanelSettingsGroup, PanelSettingsMessage,

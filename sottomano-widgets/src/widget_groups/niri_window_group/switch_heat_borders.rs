@@ -1,6 +1,8 @@
 use iced::Task;
 use sottomano_config::theme::palette::Palette;
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, upsert_column, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{
+    Columns, StoreError, flag, upsert_column, with_table,
+};
 
 use crate::{
     group_items::toggle_control::{IconToggle, SwitchPresses},
@@ -109,7 +111,9 @@ async fn read_shown(connection: &turso::Connection) -> Result<bool, StoreError> 
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::{flag, in_memory_connection, upsert_column};
+    use sottomano_desktop_sources::sqlite_state_store::{
+        flag, in_memory_connection, upsert_column,
+    };
 
     use super::{CREATE_TABLE, read_shown};
 

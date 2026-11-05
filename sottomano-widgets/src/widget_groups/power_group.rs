@@ -13,7 +13,7 @@ use iced::{Subscription, Task};
 use power_draw_gauge::PowerDraw;
 use power_profile_control::{PowerProfileControl, PowerProfileMessage};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
         cpu_tuning_platform_profile::CpuTuning,

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     login_session_presence::kernel_sleep_obstacles::{
         KernelHibernation, LogindCapability, SleepObstacles, SleepState, SleepStateSupport,

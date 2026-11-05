@@ -1,4 +1,4 @@
-use sottomano_sources::battery_power_profiles::upower_battery_state::Battery;
+use sottomano_desktop_sources::battery_power_profiles::upower_battery_state::Battery;
 use uom::si::{f64::Ratio, ratio::percent};
 
 use crate::{

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use chrono::Locale;
 use iced::Task;
 use sottomano_config::severity::Severity;
-use sottomano_sources::battery_power_profiles::{
+use sottomano_desktop_sources::battery_power_profiles::{
     battery_time_forecast::{ChargeCurve, Estimate, bin_of, time_until_full},
     upower_battery_state::{Battery, IdleReason},
 };

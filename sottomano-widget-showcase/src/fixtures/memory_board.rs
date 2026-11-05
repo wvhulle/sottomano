@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bytesize::ByteSize;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         memory_module_temperatures::{MemoryModuleTemperature, MemoryModuleTemperatures},

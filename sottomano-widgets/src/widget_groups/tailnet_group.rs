@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         internet_connectivity_gate::OnlineSourceInputs,
@@ -159,7 +159,7 @@ impl TailnetGroup {
     }
 
     pub fn update(&mut self, message: TailnetMessage, clock: Clock) -> Task<TailnetMessage> {
-        use sottomano_sources::blocking_background_work::blocking;
+        use sottomano_desktop_sources::blocking_background_work::blocking;
         match message {
             TailnetMessage::Tailscale(delivery) => self.tailscale.receive(delivery, clock),
             TailnetMessage::InboundAccessFetched(delivery) => {
@@ -332,7 +332,7 @@ impl TailnetGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::tailscale_status::{
+    use sottomano_desktop_sources::network_connectivity::tailscale_status::{
         ExitNodeOffer, KeyExpiry, Peer, PeerPath,
     };
 

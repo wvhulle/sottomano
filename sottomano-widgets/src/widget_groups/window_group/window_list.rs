@@ -5,7 +5,7 @@ use iced::{
     widget::{Row, container, progress_bar, right, stack, text, text::Wrapping},
 };
 use sottomano_config::{Config, widget_groups::WindowAgentsConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         kde_job_view_progress::{self, JobProgress},

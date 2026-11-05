@@ -3,7 +3,7 @@ use std::mem;
 use iced::{Subscription, Task, window::frames};
 use niri_ipc::{Action, WorkspaceReferenceArg};
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
 use sottomano_widgets::{
     background_work::niri_action,
     desktop_panels::{

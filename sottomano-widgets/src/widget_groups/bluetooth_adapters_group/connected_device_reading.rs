@@ -2,7 +2,7 @@ use std::iter::once;
 
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     network_connectivity::bluez_bluetooth::{
         ChargingState, ConnectedDevice, DeviceBattery, DeviceKind,
     },
@@ -216,7 +216,7 @@ impl GroupItemReading for ConnectedDeviceReading<'_> {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::bluez_bluetooth::DeviceBattery;
+    use sottomano_desktop_sources::network_connectivity::bluez_bluetooth::DeviceBattery;
     use zbus::zvariant::OwnedObjectPath;
 
     use super::*;

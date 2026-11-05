@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::{
         icmp_gateway_latency::GatewayLatencies,

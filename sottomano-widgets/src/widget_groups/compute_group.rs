@@ -13,7 +13,7 @@ use chiplet_live_state::ChipletLiveState;
 use cpu_clock_limit_causes::ClockLimitCauses;
 use iced::{Subscription, Task};
 use sottomano_config::{Config, widget_groups::temperature_sensors::SensorConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         amd_l3_pmu_cache_traffic::L3CacheTraffic,

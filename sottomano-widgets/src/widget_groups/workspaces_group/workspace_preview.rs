@@ -5,7 +5,7 @@ use iced::{
     widget::{Column, Row as RowWidget, button, button::Status, text::Wrapping},
 };
 use sottomano_config::Config;
-use sottomano_sources::desktop_windows_apps::window_title_labels::WindowLabel;
+use sottomano_desktop_sources::desktop_windows_apps::window_title_labels::WindowLabel;
 
 use crate::{
     hover_cards::{

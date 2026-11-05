@@ -1,6 +1,6 @@
 use iced::Task;
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking, desktop_windows_apps::niri_action_requests,
 };
 

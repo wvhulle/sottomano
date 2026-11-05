@@ -1,5 +1,5 @@
 use iced::{Color, Element, Theme};
-use sottomano_sources::weather::open_meteo_temperature::{
+use sottomano_desktop_sources::weather::open_meteo_temperature::{
     Daylight::{self, Day, Night},
     Intensity,
     WeatherCondition::{

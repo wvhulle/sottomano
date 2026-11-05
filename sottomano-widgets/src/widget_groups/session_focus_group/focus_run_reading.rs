@@ -1,5 +1,5 @@
 use chrono::{DateTime, Locale, Utc};
-use sottomano_sources::login_session_presence::focus_time_ledger::{
+use sottomano_desktop_sources::login_session_presence::focus_time_ledger::{
     Accounting, FocusUnit, LAST_DAY,
 };
 

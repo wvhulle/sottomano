@@ -11,7 +11,7 @@ use iced::{
 };
 use reqwest::Url;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::notification_data::{
         ActionTint, NotifAction, NotifImage, NotificationData, ReplyPrompt,
     },

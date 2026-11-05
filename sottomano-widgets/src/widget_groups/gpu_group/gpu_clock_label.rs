@@ -1,5 +1,7 @@
 use chrono::Locale;
-use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{GpuClocks, GpuThrottleReason};
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
+    GpuClocks, GpuThrottleReason,
+};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Frequency, frequency::megahertz},

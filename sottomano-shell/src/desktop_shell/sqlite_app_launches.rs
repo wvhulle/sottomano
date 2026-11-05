@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_windows_apps::app_launch_history::{Launch, LaunchWorkspace},
     sqlite_state_store::{Columns, StoreError, with_table},
 };
@@ -74,7 +74,7 @@ async fn write_launch(connection: &turso::Connection, launch: &Launch) -> Result
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, Utc};
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{Launch, LaunchWorkspace, SCHEMA, read_launches, write_launch};
 

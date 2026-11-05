@@ -10,7 +10,7 @@ workspace = true
 
 [dependencies]
 sottomano-config = { path = "../sottomano-config" }
-sottomano-sources = { path = "../sottomano-sources", features = ["test-support"] }
+sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 sottomano-widgets = { path = "../sottomano-widgets" }
 bytesize.workspace = true
 chrono.workspace = true

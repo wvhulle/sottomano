@@ -8,7 +8,7 @@ use iced::{
 };
 use niri_ipc::state::EventStreamState;
 use sottomano_config::overlay_surfaces::OverlaySurfacesConfig;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_windows_apps::niri_window_placement::Placement,
     login_session_presence::wayland_idle_notify::{IdleEdge, input_idle_edges},
 };
@@ -200,7 +200,7 @@ mod tests {
         time::{Duration, Instant},
     };
     use sottomano_config::overlay_surfaces::OverlaySurfacesConfig;
-    use sottomano_sources::login_session_presence::wayland_idle_notify::IdleEdge;
+    use sottomano_desktop_sources::login_session_presence::wayland_idle_notify::IdleEdge;
 
     use super::{CardBackgroundFade, TypingSignal, TypingUnderCards};
     use crate::clock::Clock;

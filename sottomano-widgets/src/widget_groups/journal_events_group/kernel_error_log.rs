@@ -1,6 +1,6 @@
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
+use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelOccurrence;
 
 use crate::{
     clock::Clock,
@@ -122,7 +122,7 @@ mod tests {
         time::{Duration, SystemTime},
     };
 
-    use sottomano_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
+    use sottomano_desktop_sources::systemd_units_journal::journal_kernel_errors::KernelEntry;
 
     use super::*;
     use crate::hover_cards::hover_card_body::SectionBody;

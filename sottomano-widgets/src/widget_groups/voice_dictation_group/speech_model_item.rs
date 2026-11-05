@@ -1,5 +1,5 @@
 use notulist_client::{DictationEngine, EngineState, ModelLoadError};
-use sottomano_sources::voice_dictation_input::notulist_dbus_engine::NotulistEngine;
+use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_engine::NotulistEngine;
 
 use crate::{
     clock::Clock,

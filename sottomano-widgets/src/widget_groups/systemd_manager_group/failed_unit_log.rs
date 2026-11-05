@@ -4,7 +4,7 @@ use chrono::{DateTime, Locale, Utc};
 use iced::alignment::Horizontal;
 use quick_xml::escape::escape;
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::notification_data::ActionTint,
     systemd_units_journal::{
         SystemdUnitScope,
@@ -248,7 +248,7 @@ impl IntoTableRecord<2> for &FailedUnitInfo {
 mod tests {
     use std::time::Duration;
 
-    use sottomano_sources::systemd_units_journal::SystemdUnitScope;
+    use sottomano_desktop_sources::systemd_units_journal::SystemdUnitScope;
 
     use super::*;
     use crate::hover_cards::hover_card_body::{Section, SectionBody};

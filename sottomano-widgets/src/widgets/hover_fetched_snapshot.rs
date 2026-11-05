@@ -6,7 +6,7 @@ use iced::{
     task::Handle,
 };
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     network_connectivity::internet_connectivity_gate::InternetUnreachable,
 };
@@ -316,7 +316,7 @@ mod tests {
     };
 
     use iced::futures::Stream;
-    use sottomano_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
+    use sottomano_desktop_sources::delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling};
 
     use super::*;
     use crate::hover_cards::hover_card_body::{

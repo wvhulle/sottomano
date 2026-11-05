@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::SecretPaths;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, network_connectivity::internet_connectivity_gate::OnlineSourceInputs,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

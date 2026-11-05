@@ -9,7 +9,7 @@ Work inside the Nix devshell (`nix develop`). The repository is a cargo
 workspace:
 
 - `sottomano-config/` holds the TOML config types and their loading.
-- `sottomano-sources/` holds the data sources and sinks the shell reads and
+- `sottomano-desktop-sources/` holds the data sources and sinks the shell reads and
   writes.
 - `sottomano-widgets/` holds the panels, group menus, widget groups, group items
   and hover cards, one module per level of the hierarchy in `CONTRIBUTING.md`.
@@ -29,7 +29,7 @@ the layer-shell surfaces.
 
 ```mermaid
 flowchart TB
-  subgraph sources_crate [sottomano-sources]
+  subgraph sources_crate [sottomano-desktop-sources]
     desktop_bus["D-Bus (zbus)<br>power, login session, media, …"]
     notification_server["freedesktop<br>notification server"]
     niri_event_thread["niri IPC<br>event thread"]

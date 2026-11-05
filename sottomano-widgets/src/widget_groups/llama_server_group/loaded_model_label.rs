@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::ai_usage_spend::llama_server_slots::{
+use sottomano_desktop_sources::ai_usage_spend::llama_server_slots::{
     LlamaModel, LlamaModelProps, LlamaModelStatus,
 };
 

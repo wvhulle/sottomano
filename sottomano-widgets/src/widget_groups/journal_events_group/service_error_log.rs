@@ -1,5 +1,7 @@
 use iced::alignment::Horizontal;
-use sottomano_sources::systemd_units_journal::journal_service_errors::{ServiceErrors, UnitErrors};
+use sottomano_desktop_sources::systemd_units_journal::journal_service_errors::{
+    ServiceErrors, UnitErrors,
+};
 
 use crate::{
     clock::Clock,

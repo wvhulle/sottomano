@@ -8,7 +8,7 @@ use iced::{
     window::{close_events, frames},
 };
 use iced_wayland_subscriber::output::{self, OutputEvent};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::{
         freedesktop_notification_server,
         notification_data::{Outbound, ServerEvent},

@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::cpu_memory_compute::cpu_power_draw::CpuPower;
+use sottomano_desktop_sources::cpu_memory_compute::cpu_power_draw::CpuPower;
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::Power, power::watt},

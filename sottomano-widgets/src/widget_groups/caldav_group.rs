@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use iced::{Subscription, Task};
 use sottomano_config::{SecretPaths, widget_groups::caldav_account::CaldavAccountConfig};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     caldav_tasks_events::{
         caldav_agenda::{self, CaldavAccount},

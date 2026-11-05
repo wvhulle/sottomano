@@ -1,7 +1,7 @@
 use std::convert::identity;
 
 use iced::{Subscription, Task, futures::StreamExt};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::blocking,
     desktop_windows_apps::{clipboard_copy, niri_action_requests},

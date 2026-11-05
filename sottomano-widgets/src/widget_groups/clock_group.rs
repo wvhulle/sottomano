@@ -7,7 +7,7 @@ use std::time::Duration;
 use chrono_tz::Tz;
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::SnapshotDelivery;
+use sottomano_desktop_sources::SnapshotDelivery;
 
 use self::{local_date::LocalDate, local_time::LocalTime, zone_time::ZoneTime};
 use crate::{

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iced::Task;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking,
     desktop_windows_apps::{
         app_launch_history::Launch, desktop_entry_app_icons::DesktopEntries, niri_output_facts,

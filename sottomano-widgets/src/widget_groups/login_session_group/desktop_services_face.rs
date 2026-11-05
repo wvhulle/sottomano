@@ -1,4 +1,4 @@
-use sottomano_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
+use sottomano_desktop_sources::systemd_units_journal::graphical_session_target::GraphicalSessionTarget;
 
 use crate::{
     clock::Clock,

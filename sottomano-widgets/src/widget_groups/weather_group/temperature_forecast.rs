@@ -1,6 +1,6 @@
 use chrono::Locale;
 use iced::alignment::Horizontal;
-use sottomano_sources::weather::open_meteo_temperature::{HourlyTemperature, Temperature};
+use sottomano_desktop_sources::weather::open_meteo_temperature::{HourlyTemperature, Temperature};
 use uom::{
     fmt::DisplayStyle::Abbreviation,
     si::{f64::ThermodynamicTemperature, thermodynamic_temperature::degree_celsius},

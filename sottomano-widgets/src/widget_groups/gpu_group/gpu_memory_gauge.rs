@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::cpu_memory_compute::pci_gpu_readings::{
+use sottomano_desktop_sources::cpu_memory_compute::pci_gpu_readings::{
     GpuMemory, GpuProcesses, SharedGpuMemory,
 };
 use uom::si::f64::Ratio;

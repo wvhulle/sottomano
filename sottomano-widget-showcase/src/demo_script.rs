@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
+use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 use sottomano_widgets::{
     clock::Clock,
     group_menus::{

@@ -1,4 +1,4 @@
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, flag, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, flag, with_table};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SingletonFlag {
@@ -130,7 +130,7 @@ async fn write_flag(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{SingletonFlag, read_flag, write_flag};
 

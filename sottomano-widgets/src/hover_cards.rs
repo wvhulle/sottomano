@@ -10,7 +10,7 @@ pub mod popup_connector;
 
 use iced::window::Id;
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::login_session_presence::idle_session_actions::IdleAction;
+use sottomano_desktop_sources::login_session_presence::idle_session_actions::IdleAction;
 
 pub use crate::hover_cards::{
     hover_area::{

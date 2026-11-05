@@ -14,7 +14,7 @@ use iced::{
     window,
 };
 use sottomano_config::theme::font::ResolvedFont;
-use sottomano_sources::media_playback_audio::{
+use sottomano_desktop_sources::media_playback_audio::{
     lrclib_synced_lyrics::{LyricSweep, TimedLyricLine},
     mpris_players::{Progress, Status},
 };

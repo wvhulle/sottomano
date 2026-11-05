@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use disk_space_gauge::{DiskMarking, MarkedDiskSpace};
 use iced::{Subscription, Task};
 use sottomano_config::widget_groups::temperature_sensors::SensorConfig;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     disk_storage::{
         block_filesystem_mounts::{BlockFilesystemDiscovery, KernelDevice},
@@ -327,7 +327,7 @@ impl PhysicalDriveGroup {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::disk_storage::block_filesystem_mounts::KernelDevice;
+    use sottomano_desktop_sources::disk_storage::block_filesystem_mounts::KernelDevice;
 
     use super::{WidgetGroupFamily, disk_group_title};
 

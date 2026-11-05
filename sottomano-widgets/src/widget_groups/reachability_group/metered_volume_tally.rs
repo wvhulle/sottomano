@@ -6,7 +6,7 @@ use std::{
 
 use bytesize::ByteSize;
 use chrono::NaiveDate;
-use sottomano_sources::network_connectivity::interface_throughput::{
+use sottomano_desktop_sources::network_connectivity::interface_throughput::{
     InterfaceByteCounters, InterfaceThroughput,
 };
 
@@ -125,7 +125,7 @@ impl MeteredVolumeTally {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::interface_throughput::{
+    use sottomano_desktop_sources::network_connectivity::interface_throughput::{
         NetworkTrafficDirection, Throughput,
     };
     use uom::si::f64::InformationRate;

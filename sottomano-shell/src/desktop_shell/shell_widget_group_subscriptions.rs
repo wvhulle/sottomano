@@ -1,6 +1,6 @@
 use iced::Subscription;
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     host_machine_identity::udev_hardware_identity::HostHardware,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
 };

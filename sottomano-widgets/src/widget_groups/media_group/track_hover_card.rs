@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 
 use reqwest::Url;
-use sottomano_sources::media_playback_audio::mpris_players::Media;
+use sottomano_desktop_sources::media_playback_audio::mpris_players::Media;
 
 use crate::{
     desktop_index::DesktopIndex,

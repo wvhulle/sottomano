@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::weather::open_meteo_wind::Wind;
+use sottomano_desktop_sources::weather::open_meteo_wind::Wind;
 
 use crate::{
     clock::Clock,

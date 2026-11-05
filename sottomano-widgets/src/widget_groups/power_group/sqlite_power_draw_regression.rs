@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use nalgebra::{Matrix3, Vector3};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     battery_power_profiles::{
         battery_time_forecast::RegressionState, power_profiles_daemon::Profile,
     },
@@ -178,7 +178,7 @@ async fn write_model(
 #[cfg(test)]
 mod tests {
     use nalgebra::{Matrix3, Vector3};
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{Profile, RegressionState, SCHEMA, read_models, write_model};
 

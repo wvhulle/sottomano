@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use chrono::{Datelike, Locale, Utc};
 use iced::futures::Stream;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::PeriodicPolling,
 };
 

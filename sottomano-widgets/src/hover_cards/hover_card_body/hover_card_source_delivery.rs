@@ -1,6 +1,6 @@
 use std::time::{Duration, SystemTime};
 
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery, SnapshotSource, delivery_cadence_drivers::DeliveryCadence,
 };
 
@@ -199,7 +199,7 @@ impl HoverCard {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses;
+    use sottomano_desktop_sources::cpu_memory_compute::cpu_busy_processes::CpuBusyProcesses;
 
     use super::*;
 

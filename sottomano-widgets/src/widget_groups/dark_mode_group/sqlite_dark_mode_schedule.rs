@@ -1,5 +1,5 @@
 use chrono::TimeDelta;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     screen_brightness_color::solar_switch_schedule::SunEventOffsets,
     sqlite_state_store::{Columns, StoreError, with_table},
 };

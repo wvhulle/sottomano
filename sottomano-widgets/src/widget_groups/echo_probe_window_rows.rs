@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_config::severity::Severity;
-use sottomano_sources::network_connectivity::icmp_echo_probes::{
+use sottomano_desktop_sources::network_connectivity::icmp_echo_probes::{
     LatencyProbeError, ProbeOutcome, ProbeWindow,
 };
 use uom::si::ratio::percent;

@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use bytesize::ByteSize;
 use chrono::{Datelike, Months, NaiveDate};
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 pub const SCHEMA: [&str; 1] = ["CREATE TABLE IF NOT EXISTS metered_volume (
         day TEXT PRIMARY KEY,
@@ -180,7 +180,7 @@ async fn read_totals(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::*;
 

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     copilot_usage::{CopilotMetered, USER_ENDPOINT},
     usage_quota::Quota,
 };

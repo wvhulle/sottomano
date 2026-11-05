@@ -1,5 +1,5 @@
 use iced::{Alignment, Element, Length, widget::Row};
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
 };
 

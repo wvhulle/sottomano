@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use iced::{Subscription, Task};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     network_connectivity::wireguard_tunnels::{
         Tunnel, TunnelAddress, TunnelOnBus, TunnelRole, Wireguard, WireguardSwitch,

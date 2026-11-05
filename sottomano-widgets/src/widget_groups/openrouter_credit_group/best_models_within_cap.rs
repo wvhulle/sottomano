@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::ai_usage_spend::openrouter_model_rankings::{
+use sottomano_desktop_sources::ai_usage_spend::openrouter_model_rankings::{
     OpenRouterModelRankings, ScoredModel,
 };
 use uom::si::{f64::Ratio, ratio::ratio};

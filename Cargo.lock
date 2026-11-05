@@ -6758,39 +6758,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sottomano-icon-sets"
-version = "0.0.1"
-dependencies = [
- "serde_json",
-]
-
-[[package]]
-name = "sottomano-shell"
-version = "0.0.1"
-dependencies = [
- "chrono",
- "clap",
- "iced",
- "iced_controller_diagram",
- "iced_exwlshell",
- "iced_wayland_subscriber",
- "niri-ipc",
- "reqwest",
- "sottomano-config",
- "sottomano-sources",
- "sottomano-widgets",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
- "turso",
- "uom",
- "wayland-client",
- "zbus",
-]
-
-[[package]]
-name = "sottomano-sources"
+name = "sottomano-desktop-sources"
 version = "0.0.1"
 dependencies = [
  "adskalman",
@@ -6854,6 +6822,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "sottomano-icon-sets"
+version = "0.0.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
+name = "sottomano-shell"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "clap",
+ "iced",
+ "iced_controller_diagram",
+ "iced_exwlshell",
+ "iced_wayland_subscriber",
+ "niri-ipc",
+ "reqwest",
+ "sottomano-config",
+ "sottomano-desktop-sources",
+ "sottomano-widgets",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+ "turso",
+ "uom",
+ "wayland-client",
+ "zbus",
+]
+
+[[package]]
 name = "sottomano-widget-showcase"
 version = "0.0.1"
 dependencies = [
@@ -6873,7 +6873,7 @@ dependencies = [
  "rusty-money",
  "situo-client",
  "sottomano-config",
- "sottomano-sources",
+ "sottomano-desktop-sources",
  "sottomano-widgets",
  "tokio",
  "uom",
@@ -6913,8 +6913,8 @@ dependencies = [
  "rusty-money",
  "situo-client",
  "sottomano-config",
+ "sottomano-desktop-sources",
  "sottomano-icon-sets",
- "sottomano-sources",
  "strum",
  "system-tray",
  "tokio",

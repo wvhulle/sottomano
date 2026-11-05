@@ -1,4 +1,4 @@
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     cpu_memory_compute::pci_gpu_readings::GpuVendor,
     host_machine_identity::udev_hardware_identity::{BusId, CpuVendor},
 };

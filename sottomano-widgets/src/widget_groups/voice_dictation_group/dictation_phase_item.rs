@@ -1,5 +1,5 @@
 use notulist_client::{DictationError, DictationPhase, MicrophoneOpenError, MicrophoneSilence};
-use sottomano_sources::voice_dictation_input::notulist_dbus_dictation::NotulistDictation;
+use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_dictation::NotulistDictation;
 
 use super::speech_model_item::model_load_error_rows;
 use crate::{

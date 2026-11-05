@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT};
+use sottomano_desktop_sources::ai_usage_spend::copilot_usage::{CopilotFree, USER_ENDPOINT};
 
 use crate::{
     clock::Clock,

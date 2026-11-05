@@ -11,7 +11,7 @@ workspace = true
 strum.workspace = true
 sottomano-config = { path = "../sottomano-config" }
 sottomano-icon-sets = { path = "../sottomano-icon-sets" }
-sottomano-sources = { path = "../sottomano-sources" }
+sottomano-desktop-sources = { path = "../sottomano-desktop-sources" }
 bytesize.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
@@ -48,5 +48,5 @@ usvg.workspace = true
 zbus.workspace = true
 
 [dev-dependencies]
-sottomano-sources = { path = "../sottomano-sources", features = ["test-support"] }
+sottomano-desktop-sources = { path = "../sottomano-desktop-sources", features = ["test-support"] }
 iced_test = "0.14.0"

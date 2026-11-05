@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::battery_power_profiles::battery_time_forecast::Estimate;
+use sottomano_desktop_sources::battery_power_profiles::battery_time_forecast::Estimate;
 
 use crate::widgets::{
     keyed_record_table::ColumnHeading, localized_durations::duration_text, value_cells::ValueCell,

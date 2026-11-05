@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, TimeDelta, Utc};
-use sottomano_sources::network_connectivity::bluez_bluetooth::Bluetooth;
+use sottomano_desktop_sources::network_connectivity::bluez_bluetooth::Bluetooth;
 
 pub const RECONNECT_HORIZON: TimeDelta = TimeDelta::minutes(10);
 
@@ -50,7 +50,7 @@ impl ReconnectHistory {
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::network_connectivity::bluez_bluetooth::{
+    use sottomano_desktop_sources::network_connectivity::bluez_bluetooth::{
         AdapterPlacement, AdapterPower, BluetoothAdapter, ConnectedDevice, DeviceBattery,
         DeviceKind, PoweredAdapter,
     };

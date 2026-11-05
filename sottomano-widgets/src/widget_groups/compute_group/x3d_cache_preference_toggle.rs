@@ -1,5 +1,5 @@
 use chrono::Locale;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     cpu_memory_compute::{
         amd_x3d_cache_preference::X3dCachePreference,
         cpu_topology::{CoreRole, CpuTopology},

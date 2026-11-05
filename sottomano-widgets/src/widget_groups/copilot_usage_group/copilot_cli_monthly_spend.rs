@@ -1,6 +1,6 @@
 use chrono::{DateTime, Locale, Utc};
 use rust_decimal::Decimal;
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     copilot_usage::CopilotCcusage, spend_money::usd, usage_quota::Quota,
 };
 

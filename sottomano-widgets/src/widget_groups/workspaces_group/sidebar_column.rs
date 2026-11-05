@@ -1,6 +1,6 @@
 use iced::{Alignment, Element, border::Radius, widget::Column};
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot,
 };
 

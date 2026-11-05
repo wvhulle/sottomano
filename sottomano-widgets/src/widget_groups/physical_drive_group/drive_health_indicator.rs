@@ -1,6 +1,6 @@
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     cpu_memory_compute::temperature_thresholds::celsius_text,
     disk_storage::{
         drive_temperature_health::{DriveHealth, DriveTemperature, MissingSensor},

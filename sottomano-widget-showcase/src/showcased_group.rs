@@ -10,7 +10,7 @@ use sottomano_config::{
     screen_edges::Position,
     widget_groups::{caldav_account::CaldavAccountConfig, gamepad_bindings::GamepadBindingsConfig},
 };
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     desktop_notifications::notification_data::NotificationData,
     desktop_windows_apps::{niri_kdl_config::ConfiguredWorkspaces, niri_window_snapshot::Snapshot},
 };

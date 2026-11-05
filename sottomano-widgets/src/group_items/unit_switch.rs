@@ -1,5 +1,5 @@
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     system_protocol_clients::dbus_desktop_buses::DesktopBuses,
     systemd_units_journal::{

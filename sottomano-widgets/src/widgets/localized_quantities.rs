@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use chrono::Locale;
 use fixed_decimal::{Decimal, FloatPrecision};
 use icu_decimal::{DecimalFormatter, options::DecimalFormatterOptions};
-use sottomano_sources::ai_usage_spend::spend_money::Money;
+use sottomano_desktop_sources::ai_usage_spend::spend_money::Money;
 use uom::si::{
     angle::degree,
     electric_current::ampere,

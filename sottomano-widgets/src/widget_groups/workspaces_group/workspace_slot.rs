@@ -4,7 +4,7 @@ use iced::{
     widget::{Text, column, container, progress_bar, row, text},
 };
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::desktop_windows_apps::niri_window_snapshot;
+use sottomano_desktop_sources::desktop_windows_apps::niri_window_snapshot;
 
 use super::{WorkspacesMessage, dragged};
 use crate::{

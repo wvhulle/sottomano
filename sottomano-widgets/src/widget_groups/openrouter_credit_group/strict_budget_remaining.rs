@@ -1,6 +1,6 @@
 use chrono::Locale;
 use sottomano_config::severity::Severity;
-use sottomano_sources::ai_usage_spend::{
+use sottomano_desktop_sources::ai_usage_spend::{
     openrouter_credits::{KeyLimit, LimitReset, OpenRouterStrictBudget},
     spend_money::Money,
 };

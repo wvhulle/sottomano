@@ -4,7 +4,7 @@ use iced::{Padding, Task, window::Id};
 pub use iced_exwlshell::reexport::Margin;
 use iced_exwlshell::reexport::{Anchor, Layer, LayerSize, NewLayerShellSettings};
 use sottomano_config::screen_edges::Position;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     blocking_background_work::blocking, desktop_windows_apps::niri_output_facts,
 };
 use sottomano_widgets::{

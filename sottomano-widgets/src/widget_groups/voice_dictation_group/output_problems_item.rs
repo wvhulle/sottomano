@@ -1,5 +1,5 @@
 use notulist_client::{OutputProblem, VirtualKeyboardError};
-use sottomano_sources::voice_dictation_input::notulist_dbus_output_problems::NotulistOutputProblems;
+use sottomano_desktop_sources::voice_dictation_input::notulist_dbus_output_problems::NotulistOutputProblems;
 
 use crate::{
     clock::Clock,

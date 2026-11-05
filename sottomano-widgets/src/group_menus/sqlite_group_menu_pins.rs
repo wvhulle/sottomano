@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use sottomano_sources::sqlite_state_store::{Columns, StoreError, with_table};
+use sottomano_desktop_sources::sqlite_state_store::{Columns, StoreError, with_table};
 
 pub const CREATE_GROUP_PINS_TABLE: &str = "CREATE TABLE IF NOT EXISTS pinned_widget_groups (
     menu_topic TEXT NOT NULL,
@@ -150,7 +150,7 @@ async fn write_pin(
 
 #[cfg(test)]
 mod tests {
-    use sottomano_sources::sqlite_state_store::in_memory_connection;
+    use sottomano_desktop_sources::sqlite_state_store::in_memory_connection;
 
     use super::{CREATE_PIN_TABLES, StoredGroupMenuPin, read_pins, write_pin};
 

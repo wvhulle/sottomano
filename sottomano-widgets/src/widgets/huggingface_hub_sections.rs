@@ -1,4 +1,4 @@
-use sottomano_sources::voice_dictation_input::huggingface_model_card::HuggingFaceModelCard;
+use sottomano_desktop_sources::voice_dictation_input::huggingface_model_card::HuggingFaceModelCard;
 
 use crate::{
     clock::Clock,

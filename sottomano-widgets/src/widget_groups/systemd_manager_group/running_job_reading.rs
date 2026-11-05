@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use chrono::{DateTime, Utc};
 use iced::alignment::Horizontal;
 use sottomano_config::{Config, severity::Severity};
-use sottomano_sources::systemd_units_journal::{
+use sottomano_desktop_sources::systemd_units_journal::{
     SystemdUnitScope,
     slow_running_jobs::{SlowJob, SlowJobs},
 };

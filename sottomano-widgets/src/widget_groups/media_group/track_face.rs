@@ -1,6 +1,6 @@
 use iced::widget::{rich_text, span, text::Span};
 use sottomano_config::Config;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     media_playback_audio::mpris_players::{Command, Media, Status},
     system_protocol_clients::dbus_desktop_buses::OwnerProcess,
 };

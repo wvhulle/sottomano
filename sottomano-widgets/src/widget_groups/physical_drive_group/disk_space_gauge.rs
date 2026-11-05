@@ -1,4 +1,4 @@
-use sottomano_sources::disk_storage::whole_disk_space_occupancy::DiskSpaceOccupancy;
+use sottomano_desktop_sources::disk_storage::whole_disk_space_occupancy::DiskSpaceOccupancy;
 use uom::si::f64::Ratio;
 
 use crate::{

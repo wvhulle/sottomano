@@ -8,7 +8,7 @@ use iced::{
     widget::{Column, mouse_area},
 };
 use sottomano_config::{Config, widget_groups::tray::ClickAction};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     desktop_windows_apps::{
         niri_window_placement::WindowOwner,

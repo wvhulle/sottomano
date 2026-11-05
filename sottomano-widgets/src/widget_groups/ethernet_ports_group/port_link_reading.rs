@@ -1,4 +1,4 @@
-use sottomano_sources::network_connectivity::{
+use sottomano_desktop_sources::network_connectivity::{
     ethernet_connection::{Link, Port, PortState},
     interface_bus_attachment::InterfaceAttachment,
 };

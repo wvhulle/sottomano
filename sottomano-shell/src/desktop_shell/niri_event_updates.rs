@@ -5,7 +5,7 @@ use niri_ipc::{
     Window,
     state::{EventStreamState, EventStreamStatePart},
 };
-use sottomano_sources::desktop_windows_apps::{
+use sottomano_desktop_sources::desktop_windows_apps::{
     app_launch_history::LaunchScope,
     desktop_entry_app_catalog::{LaunchableApp, open_windows_by_app},
     desktop_entry_app_icons::{self},

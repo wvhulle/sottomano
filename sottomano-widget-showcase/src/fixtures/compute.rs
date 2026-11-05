@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use sottomano_config::widget_groups::temperature_sensors::ThresholdOverrides;
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     cpu_memory_compute::{
         amd_l3_pmu_cache_traffic::{L3CacheTraffic, SharedCacheTraffic},

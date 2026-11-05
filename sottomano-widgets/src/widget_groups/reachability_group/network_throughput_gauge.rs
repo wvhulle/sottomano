@@ -1,5 +1,5 @@
 use sottomano_config::severity::Severity;
-use sottomano_sources::network_connectivity::interface_throughput::{
+use sottomano_desktop_sources::network_connectivity::interface_throughput::{
     InterfaceThroughput, NetworkTrafficDirection, SCALE_END_MB_PER_S, Throughput,
 };
 use uom::si::{

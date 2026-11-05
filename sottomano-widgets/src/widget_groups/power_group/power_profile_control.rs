@@ -5,7 +5,7 @@ use std::{
 };
 
 use iced::{Subscription, Task};
-use sottomano_sources::{
+use sottomano_desktop_sources::{
     SnapshotDelivery,
     battery_power_profiles::{
         battery_time_forecast::{Estimate, RegressionState, time_until_empty},
