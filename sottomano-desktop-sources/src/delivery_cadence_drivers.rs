@@ -147,6 +147,26 @@ impl StampedCadence {
         self.delivery_cadence
     }
 
+    pub(crate) fn pushed_with_recheck_while(rechecking: bool, recheck: PeriodicPolling) -> Self {
+        Self {
+            delivery_cadence: if rechecking {
+                DeliveryCadence::LivePushWithRecheck(recheck)
+            } else {
+                DeliveryCadence::LivePush
+            },
+        }
+    }
+
+    pub(crate) fn delivered<S: SnapshotSource>(
+        self,
+        snapshot_fetch: Result<S, S::Error>,
+    ) -> SnapshotDelivery<S> {
+        SnapshotDelivery::SnapshotDelivered {
+            snapshot_fetch,
+            stamped_cadence: self,
+        }
+    }
+
     fn recheck_deadline(self) -> Option<Instant> {
         match self.delivery_cadence {
             DeliveryCadence::PeriodicPolling(polling)

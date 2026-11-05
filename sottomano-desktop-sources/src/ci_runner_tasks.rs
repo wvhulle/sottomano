@@ -1,5 +1,7 @@
 pub mod forgejo_runner_container_names;
 pub mod forgejo_runner_journal_repos;
+pub mod forgejo_runner_tasks;
+pub mod woodpecker_agent_tasks;
 pub mod woodpecker_agent_varz;
 
 use std::time::SystemTime;
@@ -80,6 +82,12 @@ pub enum RunnerAccess {
 pub struct CiRunnerTasks {
     pub tasks: Vec<CiTask>,
     pub access: RunnerAccess,
+}
+
+impl CiRunnerTasks {
+    pub(crate) fn keeps_sampling(&self) -> bool {
+        !self.tasks.is_empty() || !matches!(self.access, RunnerAccess::Complete)
+    }
 }
 
 fn sorted_unique(values: impl Iterator<Item = String>) -> Vec<String> {

@@ -20,7 +20,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        container_usage_text::usage_text,
+        container_usage_text::{approximate_memory_text, cpu_load_text},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage,
         },
@@ -31,6 +31,7 @@ use crate::{
         latest_snapshot::{HidesFetchFailures, LatestSnapshot},
         localized_durations::duration_text,
         phosphor::{Phosphor, Weight},
+        simple_icons::SimpleIcon,
         value_cells::{LabeledValue, ValueCell},
     },
 };
@@ -46,6 +47,13 @@ impl CiRunnerKind {
         match self {
             CiRunnerKind::Woodpecker => WidgetGroupFamily::WoodpeckerTasks,
             CiRunnerKind::Forgejo => WidgetGroupFamily::ForgejoTasks,
+        }
+    }
+
+    const fn runner_icon(self) -> IconGlyph {
+        match self {
+            CiRunnerKind::Woodpecker => IconGlyph::Phosphor(Phosphor::Bird(Weight::Regular)),
+            CiRunnerKind::Forgejo => IconGlyph::SimpleIcon(SimpleIcon::Forgejo),
         }
     }
 }
@@ -100,6 +108,7 @@ fn access_failure_text(access: &RunnerAccess) -> Option<&'static str> {
 }
 
 struct CiRunnerSummaryRow<'a> {
+    kind: CiRunnerKind,
     runner_label: &'a str,
     runner: &'a CiRunnerTasks,
 }
@@ -114,20 +123,14 @@ impl GroupItemReading for CiRunnerSummaryRow<'_> {
     }
 
     fn icon(&self) -> IconGlyph {
-        Phosphor::GitBranch(Weight::Regular).into()
+        self.kind.runner_icon()
     }
 
     fn label(&self, _clock: Clock, _locale: Locale) -> Option<String> {
-        let running = format!("{} running", self.runner.tasks.len());
-        Some(
-            access_failure_text(&self.runner.access).map_or(running.clone(), |failure| {
-                if self.runner.tasks.is_empty() {
-                    failure.to_owned()
-                } else {
-                    format!("{running}, {failure}")
-                }
-            }),
-        )
+        Some(access_failure_text(&self.runner.access).map_or_else(
+            || format!("{} running", self.runner.tasks.len()),
+            str::to_owned,
+        ))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -140,16 +143,14 @@ impl GroupItemReading for CiRunnerSummaryRow<'_> {
     }
 
     fn hover_card(&self, _clock: Clock) -> HoverCardBody {
+        let running_note = Section::note(format!("{} running tasks", self.runner.tasks.len()));
         match &self.runner.access {
-            RunnerAccess::Complete => HoverCardBody::sections([Section::note(format!(
-                "{} running tasks",
-                self.runner.tasks.len()
-            ))]),
+            RunnerAccess::Complete => HoverCardBody::sections([running_note]),
             RunnerAccess::EngineUnreadable(failure) => {
-                HoverCardBody::sections([Section::error(failure)])
+                HoverCardBody::sections([Section::error(failure), running_note])
             }
             RunnerAccess::AgentUnreachable(failure) => {
-                HoverCardBody::sections([Section::error(failure)])
+                HoverCardBody::sections([Section::error(failure), running_note])
             }
         }
     }
@@ -194,14 +195,7 @@ impl GroupItemReading for CiTaskRow<'_> {
     }
 
     fn label(&self, clock: Clock, locale: Locale) -> Option<String> {
-        let elapsed = duration_text(elapsed_of(self.task, clock), locale);
-        Some(match self.task.usage {
-            TaskUsage::NoContainerNow => elapsed,
-            TaskUsage::Measured {
-                cpu_load,
-                resident_memory,
-            } => format!("{elapsed}  {}", usage_text(cpu_load, resident_memory)),
-        })
+        Some(duration_text(elapsed_of(self.task, clock), locale))
     }
 
     fn state(&self, _clock: Clock) -> ReadingDisplayState {
@@ -223,6 +217,20 @@ impl GroupItemReading for CiTaskRow<'_> {
                 ValueCell::RelativeMoment(DateTime::<Utc>::from(deadline)),
             )),
         };
+        let usage = match self.task.usage {
+            TaskUsage::NoContainerNow => Vec::new(),
+            TaskUsage::Measured {
+                cpu_load,
+                resident_memory,
+            } => cpu_load_text(cpu_load)
+                .map(|cpu_text| LabeledValue::new("CPU", cpu_text))
+                .into_iter()
+                .chain([LabeledValue::new(
+                    "Memory",
+                    approximate_memory_text(resident_memory),
+                )])
+                .collect(),
+        };
         HoverCardBody::sections([Section::dictionary(
             [
                 LabeledValue::new("Task", task_full_name(self.task)),
@@ -230,6 +238,7 @@ impl GroupItemReading for CiTaskRow<'_> {
                 LabeledValue::new("Image", joined_or_none(&self.task.images)),
             ]
             .into_iter()
+            .chain(usage)
             .chain(deadline),
         )])
     }
@@ -286,6 +295,7 @@ impl<S: CiRunnerSnapshot> CiTasksGroup<S> {
         let runner = reading.get()?.runner();
         let body = match &target.reading {
             CiRunnerReading::Summary => CiRunnerSummaryRow {
+                kind: target.kind,
                 runner_label: &target.runner_label,
                 runner,
             }
@@ -316,6 +326,7 @@ impl<S: CiRunnerSnapshot> CiTasksGroup<S> {
                 let target = move |reading| CiRunnerTarget::new(S::KIND, runner_label, reading);
                 once(GroupItem::reading(
                     CiRunnerSummaryRow {
+                        kind: S::KIND,
                         runner_label,
                         runner,
                     },
@@ -386,6 +397,18 @@ mod tests {
             ..Clock::real()
         };
         assert_eq!(elapsed_of(&future, clock), Duration::ZERO);
+    }
+
+    #[test]
+    fn each_runner_kind_shows_its_forge_icon() {
+        assert_eq!(
+            CiRunnerKind::Woodpecker.runner_icon(),
+            IconGlyph::Phosphor(Phosphor::Bird(Weight::Regular))
+        );
+        assert_eq!(
+            CiRunnerKind::Forgejo.runner_icon(),
+            IconGlyph::SimpleIcon(SimpleIcon::Forgejo)
+        );
     }
 
     #[test]
