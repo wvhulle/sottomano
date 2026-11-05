@@ -1,7 +1,7 @@
 use iced::Subscription;
 use sottomano_desktop_sources::ci_runner_tasks::{
     CiRunnerTasks,
-    forgejo_runner_journal_repos::{ForgejoRunnerTasks, ForgejoRunnerWatch},
+    forgejo_runner_tasks::{ForgejoRunnerTasks, ForgejoRunnerWatch},
 };
 use sottomano_toml_config::widget_groups::{
     ci_runners::CiRunnersConfig, podman_engines::resolved_runtime_path,

@@ -22,7 +22,7 @@ use crate::{
         hover_card_body::{HoverCardBody, Section, hover_card_source_delivery::HoverCard},
     },
     widget_groups::{
-        container_usage_text::{approximate_memory_text, cpu_load_text, usage_text},
+        container_usage_text::{approximate_memory_text, cpu_load_text},
         widget_group_content::{
             WidgetGroupContent, WidgetGroupExpansion, WidgetGroupExpansionMessage, WidgetGroupFace,
         },
@@ -75,14 +75,7 @@ struct PodmanEngineRow<'a> {
 }
 
 fn running_summary(engine: &EngineContainers) -> String {
-    let running = format!("{} running", engine.containers.len());
-    if engine.containers.is_empty() {
-        return running;
-    }
-    format!(
-        "{running}  {}",
-        usage_text(engine.total_cpu_load(), engine.total_resident_memory())
-    )
+    format!("{} running", engine.containers.len())
 }
 
 fn containers_section(engine: &EngineContainers) -> Section {

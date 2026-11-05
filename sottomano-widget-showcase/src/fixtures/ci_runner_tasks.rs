@@ -5,8 +5,7 @@ use sottomano_desktop_sources::{
     SnapshotDelivery,
     ci_runner_tasks::{
         CiRunnerTasks, CiTask, RunnerAccess, TaskDeadline, TaskRepository, TaskUsage,
-        forgejo_runner_journal_repos::ForgejoRunnerTasks,
-        woodpecker_agent_varz::WoodpeckerAgentTasks,
+        forgejo_runner_tasks::ForgejoRunnerTasks, woodpecker_agent_tasks::WoodpeckerAgentTasks,
     },
     delivery_cadence_drivers::{DeliveryCadence, PeriodicPolling},
     podman_container_engine::libpod_running_containers::ContainerCpuLoad,

@@ -1,7 +1,7 @@
 use iced::Subscription;
 use sottomano_desktop_sources::ci_runner_tasks::{
     CiRunnerTasks,
-    woodpecker_agent_varz::{WoodpeckerAgentTasks, WoodpeckerAgentWatch},
+    woodpecker_agent_tasks::{WoodpeckerAgentTasks, WoodpeckerAgentWatch},
 };
 use sottomano_toml_config::widget_groups::{
     ci_runners::CiRunnersConfig, podman_engines::resolved_runtime_path,

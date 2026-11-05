@@ -4,21 +4,22 @@ use std::{
     fmt::{Display, Formatter, Result as FmtResult},
     io::ErrorKind,
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use bytesize::ByteSize;
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt};
 use serde::Deserialize;
-use tokio::net::UnixStream;
+use tokio::{net::UnixStream, sync::Mutex};
 
 use crate::{
     SnapshotDelivery, SnapshotSource,
     blocking_background_work::{Panicked, blocking_poll},
-    delivery_cadence_drivers::{PeriodicPolling, PollTick},
     podman_container_engine::{
         container_process_usage::{ProcessTable, busy_cores},
         libpod_inspect_ci_identity::{WoodpeckerStepIdentity, fetch_woodpecker_step_identity},
+        running_set_changes::{ChangeTrackedSample, samples_on_running_set_changes},
     },
     stream_operators::StreamOperators,
     system_protocol_clients::http_json_client,
@@ -298,28 +299,26 @@ impl EngineSampler {
     }
 }
 
-pub(crate) struct PolledEngineSample {
-    pub poll_tick: PollTick,
-    pub engine_read: Result<EngineContainers, EngineReadError>,
+pub(crate) type EngineRead = Result<EngineContainers, EngineReadError>;
+
+fn engine_keeps_sampling(engine_read: &EngineRead) -> bool {
+    !matches!(engine_read, Ok(engine) if engine.containers.is_empty())
 }
 
-pub(crate) fn polled_engine_samples(
+pub(crate) fn shared_engine_sampler(socket_path: PathBuf) -> Arc<Mutex<EngineSampler>> {
+    Arc::new(Mutex::new(EngineSampler::new(socket_path)))
+}
+
+pub(crate) fn engine_samples_on_running_set_changes(
     socket_path: PathBuf,
-) -> impl Stream<Item = PolledEngineSample> + Send {
-    let poll_ticks = Box::pin(PeriodicPolling::every(ENGINE_POLL_PERIOD).poll_ticks());
-    stream::unfold(
-        (poll_ticks, EngineSampler::new(socket_path)),
-        |(mut poll_ticks, mut sampler)| async move {
-            let poll_tick = poll_ticks.next().await?;
-            let engine_read = sampler.sample().await;
-            Some((
-                PolledEngineSample {
-                    poll_tick,
-                    engine_read,
-                },
-                (poll_ticks, sampler),
-            ))
+) -> impl Stream<Item = ChangeTrackedSample<EngineRead>> + Send {
+    let sampler = shared_engine_sampler(socket_path);
+    samples_on_running_set_changes(
+        move || {
+            let sampler = sampler.clone();
+            async move { sampler.lock().await.sample().await }
         },
+        engine_keeps_sampling,
     )
 }
 
@@ -329,8 +328,8 @@ pub enum EngineReadout {
     Unreadable(EngineReadError),
 }
 
-impl From<Result<EngineContainers, EngineReadError>> for EngineReadout {
-    fn from(engine_read: Result<EngineContainers, EngineReadError>) -> Self {
+impl From<EngineRead> for EngineReadout {
+    fn from(engine_read: EngineRead) -> Self {
         match engine_read {
             Ok(engine) => EngineReadout::Containers(engine),
             Err(failure) => EngineReadout::Unreadable(failure),
@@ -345,8 +344,8 @@ impl SnapshotSource for EngineReadout {
     const NAME: &'static str = "Podman containers";
 
     fn delivery_stream(socket_path: PathBuf) -> impl Stream<Item = SnapshotDelivery<Self>> + Send {
-        polled_engine_samples(socket_path)
-            .map(|polled| polled.poll_tick.stamped(Ok(polled.engine_read.into())))
+        engine_samples_on_running_set_changes(socket_path)
+            .map(|tracked| tracked.stamped_cadence.delivered(Ok(tracked.sample.into())))
             .repeats_as_unchanged()
     }
 }
@@ -445,6 +444,15 @@ mod tests {
             shrunk.containers[0].cpu_load,
             ContainerCpuLoad::BusyCores(0.0)
         );
+    }
+
+    #[test]
+    fn only_a_readable_empty_engine_stops_usage_sampling() {
+        let empty: EngineRead = Ok(EngineContainers {
+            containers: Vec::new(),
+        });
+        assert!(!engine_keeps_sampling(&empty));
+        assert!(engine_keeps_sampling(&Err(EngineReadError::SocketMissing)));
     }
 
     #[test]
