@@ -1,7 +1,7 @@
 pub use corredo::{
     child_view, edge_alpha_fade, ellipsis_rule, list_end_corners, pressable_text, rectangle_morph,
     refresh_dial, reveal, rounded_quads, selection_scroller, shared_metrics, steady_label_width,
-    svg_icon, uniform_width_column,
+    svg_icon, transitioning_text, uniform_width_column,
 };
 
 pub mod activity_line;
@@ -37,7 +37,6 @@ pub mod simple_icons;
 pub mod spend_forecast_basis;
 pub mod spend_to_level;
 pub mod text;
-pub mod transitioning_text;
 pub mod typing_under_cards;
 pub mod value_cells;
 pub mod vendor_logo;

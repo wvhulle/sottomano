@@ -43,7 +43,7 @@ use crate::{
         phosphor::{Phosphor, Weight},
         pressable_text::pressable_text,
         refresh_dial::RefreshDial,
-        text::{FontFaces, LINE_HEIGHT, panel_text},
+        text::{LINE_HEIGHT, font_faces_of, panel_text, text_effects_of, text_face_of},
         transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
         uniform_width_column::uniform_width_column,
         value_cells::{ValueCellPressMessages, ValueCellView, wrapped_text},
@@ -90,7 +90,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn transition(&self, presence: TextPresence) -> TransitionStyle {
         TransitionStyle {
-            loading: self.config.hover_cards.loading,
+            effects: text_effects_of(self.config.hover_cards.loading),
             presence,
             highlight: success_color,
         }
@@ -426,7 +426,7 @@ impl<'a> HoverCardContent<'a> {
 
     fn bold_title(&self, title: &str) -> Text<'static> {
         panel_text(&self.config.theme.font, title.to_owned())
-            .font(FontFaces::from(&self.config.theme.font).bold)
+            .font(font_faces_of(&self.config.theme.font).bold)
             .style(text::base)
     }
 
@@ -461,7 +461,7 @@ impl<'a> HoverCardContent<'a> {
                 .height(line_height_px),
             String::new(),
             self.transition(TextPresence::Placeholder),
-            font,
+            text_face_of(font),
             secondary_text_color,
         )
         .into()

@@ -22,7 +22,7 @@ use crate::{
         icon_handle::IconHandle,
         phosphor::{Phosphor, Weight},
         simple_icons::SimpleIcon,
-        text::{FontFaces, LINE_HEIGHT},
+        text::{LINE_HEIGHT, font_faces_of},
     },
 };
 
@@ -106,5 +106,5 @@ pub(super) fn player_item<'a>(
 
 pub(super) fn label_spans<'a>(config: &Config, media: &Media) -> Vec<Span<'a>> {
     let title = media.title.as_ref().unwrap_or(&media.identity);
-    vec![span(title.clone()).font(FontFaces::from(&config.theme.font).regular)]
+    vec![span(title.clone()).font(font_faces_of(&config.theme.font).regular)]
 }

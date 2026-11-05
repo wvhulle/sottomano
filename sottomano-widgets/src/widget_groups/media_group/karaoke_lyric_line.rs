@@ -22,7 +22,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::widgets::{
     configured_theme::ThemedColor,
-    text::{FontFaces, LINE_HEIGHT},
+    text::{LINE_HEIGHT, font_faces_of},
 };
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
@@ -73,7 +73,7 @@ impl<'a> KaraokeLyricLine<'a> {
         Self {
             line,
             playback,
-            font: FontFaces::from(font).regular,
+            font: font_faces_of(font).regular,
             size: font.text_size_px,
             colors,
         }

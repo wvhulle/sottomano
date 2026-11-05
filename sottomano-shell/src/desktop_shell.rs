@@ -66,7 +66,7 @@ use sottomano_widgets::{
     widgets::{
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        text::FontFaces,
+        text::point_generic_font_families_at,
         typing_under_cards::{CardBackgroundFade, TypingUnderCards},
         window_icon::WindowAssets,
     },
@@ -122,7 +122,7 @@ impl DesktopShell {
         loaded: Result<Box<Config>, Arc<LoadError>>,
     ) -> (Self, Task<Message>) {
         let _span = tracing::debug_span!("desktop shell init").entered();
-        FontFaces::point_generic_families_at(&config.theme);
+        point_generic_font_families_at(&config.theme);
         let clock = Clock::real();
         let shell = Self {
             widget_groups: ShellWidgetGroups::new(&config, secrets, niri_rules, clock),

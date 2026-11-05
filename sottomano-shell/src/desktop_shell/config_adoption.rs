@@ -3,7 +3,9 @@ use std::{mem, sync::Arc};
 use iced::{Task, font};
 use sottomano_desktop_sources::blocking_background_work::blocking;
 use sottomano_toml_config::{Config, LoadError, theme::Theme};
-use sottomano_widgets::widgets::{configured_theme::configured_theme, text::FontFaces};
+use sottomano_widgets::widgets::{
+    configured_theme::configured_theme, text::point_generic_font_families_at,
+};
 
 use crate::{desktop_shell::DesktopShell, shell_message::Message};
 
@@ -38,7 +40,7 @@ impl DesktopShell {
         {
             return Task::none();
         }
-        FontFaces::point_generic_families_at(theme);
+        point_generic_font_families_at(theme);
         font::load(self.config.theme.font.data.to_vec()).map(|loaded| {
             if let Err(e) = loaded {
                 tracing::warn!("config reload: font not loaded: {e:?}");

@@ -7,7 +7,7 @@ use sottomano_toml_config::Config;
 
 use crate::widgets::{
     configured_theme::{secondary_text_color, text_color},
-    text::{FontFaces, LINE_HEIGHT},
+    text::{LINE_HEIGHT, font_faces_of},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,7 +80,7 @@ impl<'a> WindowTitle<'a> {
     fn styled_text<'b>(&self, content: &str, color: fn(&Theme) -> Color) -> Text<'b> {
         let opacity = self.opacity;
         text(content.to_owned())
-            .font(FontFaces::from(&self.config.theme.font).regular)
+            .font(font_faces_of(&self.config.theme.font).regular)
             .size(self.size)
             .line_height(LINE_HEIGHT)
             .wrapping(self.wrapping)

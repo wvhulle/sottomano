@@ -16,7 +16,7 @@ use iced::{
 };
 use sottomano_toml_config::theme::font::ResolvedFont;
 
-use crate::widgets::text::{FontFaces, LINE_HEIGHT};
+use crate::widgets::text::{LINE_HEIGHT, font_faces_of};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 
@@ -65,7 +65,7 @@ pub fn widest_readout_text<'a, Message, Owner>(
             range: labels.range,
             step: labels.step,
             locale: labels.locale,
-            font: FontFaces::from(font).regular,
+            font: font_faces_of(font).regular,
             text_size_px: font.text_size_px,
         },
         format: labels.format,

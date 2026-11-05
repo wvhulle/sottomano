@@ -21,14 +21,12 @@ use iced::{
     time::{Duration, Instant},
     window,
 };
-use sottomano_toml_config::{
-    hover_cards::{HoverCardLoading, IntroEffect, PlaceholderEffect, ReplaceEffect},
-    theme::font::ResolvedFont,
-};
 
-use crate::widgets::{
-    configured_theme::ThemedColor,
-    text::{FontFaces, LINE_HEIGHT},
+use crate::{
+    font_faces::TextFace,
+    shared_metrics::LINE_HEIGHT,
+    text_effects::{IntroEffect, PlaceholderEffect, ReplaceEffect, TextEffects},
+    theme_colors::ThemedColor,
 };
 
 const NOISE_GLYPHS: &[u8] =
@@ -51,7 +49,7 @@ pub enum TextPresence {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TransitionStyle {
-    pub loading: HoverCardLoading,
+    pub effects: TextEffects,
     pub presence: TextPresence,
     pub highlight: fn(&iced::Theme) -> Color,
 }
@@ -71,7 +69,7 @@ impl<'a, Message> TransitioningText<'a, Message> {
         settled: impl Into<Element<'a, Message>>,
         text: String,
         style: TransitionStyle,
-        font: &ResolvedFont,
+        face: TextFace,
         color: impl Fn(&iced::Theme) -> Color + 'a,
     ) -> Self {
         Self {
@@ -79,8 +77,8 @@ impl<'a, Message> TransitioningText<'a, Message> {
             text,
             identity: 0,
             style,
-            font: FontFaces::from(font).regular,
-            size: font.text_size_px,
+            font: face.font,
+            size: face.size_px,
             color: Box::new(color),
         }
     }
@@ -218,8 +216,8 @@ impl<Message> TransitioningText<'_, Message> {
     fn running<'s>(&self, state: &'s State) -> Option<Running<'s>> {
         let transition = state.transition.as_ref()?;
         let length = match &transition.kind {
-            TransitionKind::Intro => self.style.loading.intro.length(&self.text),
-            TransitionKind::Replace { .. } => self.style.loading.replace.length(),
+            TransitionKind::Intro => self.style.effects.intro.length(&self.text),
+            TransitionKind::Replace { .. } => self.style.effects.replace.length(),
         };
         let elapsed = state.now?.saturating_duration_since(transition.started);
         (elapsed < length).then_some(Running {
@@ -340,7 +338,7 @@ impl<Message> TransitioningText<'_, Message> {
         elapsed: Duration,
         color: Color,
     ) {
-        match self.style.loading.placeholder {
+        match self.style.effects.placeholder {
             PlaceholderEffect::Pulse { period } => {
                 let breath = 0.5 - (cycle_fraction(elapsed, period) * TAU).cos() * 0.5;
                 let alpha = PULSE_FLOOR_ALPHA + PULSE_SWING_ALPHA * breath;
@@ -371,7 +369,7 @@ impl<Message> TransitioningText<'_, Message> {
         running: &Running<'_>,
         color: Color,
     ) {
-        match self.style.loading.intro {
+        match self.style.effects.intro {
             IntroEffect::Fade { .. } => {
                 let eased = running.eased();
                 let skeleton = color.scale_alpha(SKELETON_ALPHA * (1.0 - eased));
@@ -419,7 +417,7 @@ impl<Message> TransitioningText<'_, Message> {
         running: &Running<'_>,
         text_colors: TextColors,
     ) {
-        match self.style.loading.replace {
+        match self.style.effects.replace {
             ReplaceEffect::Decode { glyph_change, .. } => {
                 let previous: Vec<char> = from.chars().collect();
                 let content = self.scrambled(running.elapsed, glyph_change, |position, target| {
@@ -678,13 +676,13 @@ impl<Message> Widget<Message, iced::Theme, iced::Renderer> for TransitioningText
 }
 
 #[cfg(test)]
+#[allow(clippy::disallowed_methods)]
 mod tests {
     use super::*;
-    use crate::clock::Clock;
 
     #[test]
     fn a_placeholder_shown_from_the_start_keeps_pulsing() {
-        let first_frame = Clock::real().instant;
+        let first_frame = Instant::now();
         let mut state = State::settled(ShownText::Placeholder);
         state.frame(first_frame);
         state.frame(first_frame + Duration::from_millis(700));

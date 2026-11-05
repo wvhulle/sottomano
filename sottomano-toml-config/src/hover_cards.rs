@@ -88,21 +88,6 @@ pub enum IntroEffect {
     Immediate,
 }
 
-impl IntroEffect {
-    #[must_use]
-    pub fn length(self, text: &str) -> Duration {
-        match self {
-            IntroEffect::Fade { duration }
-            | IntroEffect::Decode { duration, .. }
-            | IntroEffect::Wipe { duration } => duration,
-            IntroEffect::Typewriter { per_char } => {
-                per_char.saturating_mul(u32::try_from(text.chars().count()).unwrap_or(u32::MAX))
-            }
-            IntroEffect::Immediate => Duration::ZERO,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(tag = "effect", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ReplaceEffect {
@@ -125,17 +110,4 @@ pub enum ReplaceEffect {
         duration: Duration,
     },
     Immediate,
-}
-
-impl ReplaceEffect {
-    #[must_use]
-    pub const fn length(self) -> Duration {
-        match self {
-            ReplaceEffect::Decode { duration, .. }
-            | ReplaceEffect::Crossfade { duration }
-            | ReplaceEffect::Roll { duration }
-            | ReplaceEffect::Flash { duration } => duration,
-            ReplaceEffect::Immediate => Duration::ZERO,
-        }
-    }
 }

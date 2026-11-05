@@ -29,7 +29,7 @@ use crate::{
         localized_durations::relative_moment_text,
         shared_metrics::{ACCENT_STROKE_PX, OUTLINE_WIDTH_PX, pill_corners},
         shell_layer_appearance::LayerAppearance,
-        text::{FontFaces, panel_text},
+        text::{font_faces_of, panel_text},
         typing_under_cards::CardBackgroundFade,
     },
 };
@@ -327,7 +327,7 @@ impl<Routed> ToastCard<'_, Routed> {
             visible.then(|| {
                 panel_text(font, reltime.clone())
                     .size(font.small_text_size_px)
-                    .font(FontFaces::from(font).regular)
+                    .font(font_faces_of(font).regular)
                     .color(text)
             })
         };
@@ -338,14 +338,14 @@ impl<Routed> ToastCard<'_, Routed> {
             .push(
                 panel_text(font, data.summary.clone())
                     .color(text)
-                    .font(FontFaces::from(font).bold)
+                    .font(font_faces_of(font).bold)
                     .width(Length::Fill),
             );
         if let Some(app_name) = &data.app_name {
             title = title.push(
                 panel_text(font, app_name.clone())
                     .size(font.small_text_size_px)
-                    .font(FontFaces::from(font).regular)
+                    .font(font_faces_of(font).regular)
                     .color(text),
             );
         }
@@ -447,7 +447,7 @@ impl<Routed> ToastCard<'_, Routed> {
         let reply = move |message| NotificationMessage::Reply { id, message };
         let family = self.urgency_family();
         let field = text_input(placeholder, &self.notif.reply_draft)
-            .font(FontFaces::from(font).regular)
+            .font(font_faces_of(font).regular)
             .size(font.text_size_px)
             .padding([
                 self.config.theme.spacing.item_gap,

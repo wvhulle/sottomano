@@ -27,7 +27,7 @@ use crate::{
         localized_durations::duration_text,
         phosphor::{self, Phosphor},
         pressable_text::pressable_text,
-        text::{FontFaces, column_heading, panel_text},
+        text::{column_heading, font_faces_of, panel_text, text_face_of},
         transitioning_text::{TransitionStyle, TransitioningText},
     },
 };
@@ -160,7 +160,7 @@ impl<'a> ProcessTree<'a> {
 
         let font = self.config.theme.font.clone();
         let monospace = self.config.theme.monospace_font.clone();
-        let bold = FontFaces::from(&monospace).bold;
+        let bold = font_faces_of(&monospace).bold;
         let transition = self.transition;
         let copy_flash = self.copy_flash();
         let locale = self.config.calendar.locale;
@@ -183,7 +183,7 @@ impl<'a> ProcessTree<'a> {
                                 container(name).max_width(NAME_WIDTH_PX),
                                 listing.label(),
                                 transition,
-                                &monospace,
+                                text_face_of(&monospace),
                                 color,
                             )
                             .identified_by(&listing.pid);
@@ -248,7 +248,7 @@ impl<'a> ProcessTree<'a> {
                 panel_text(&font, text.clone()).style(styled_by(color)),
                 text.clone(),
                 transition,
-                &font,
+                text_face_of(&font),
                 color,
             )
             .identified_by(&listing.pid);
