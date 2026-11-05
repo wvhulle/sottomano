@@ -5,7 +5,7 @@ use sottomano_toml_config::Config;
 
 use crate::widgets::{
     configured_theme::text_color,
-    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, Trailing},
+    context_menu::{ContextMenuLine, ContextMenuRow, ContextMenuRowPress, ContextMenuTrailing},
     icon_glyph::IconGlyph,
     icon_handle::PixmapHandles,
     phosphor::{Phosphor, Weight},
@@ -49,7 +49,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
                 let head = self.row(
                     depth,
                     node,
-                    Trailing::Submenu { open },
+                    ContextMenuTrailing::Submenu { open },
                     (self.on_toggle)(node.id),
                 );
                 if open {
@@ -61,7 +61,12 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
                 }
             }
             MenuKind::Standard | MenuKind::Toggle(_) => {
-                vec![self.row(depth, node, Trailing::Nothing, (self.on_activate)(node.id))]
+                vec![self.row(
+                    depth,
+                    node,
+                    ContextMenuTrailing::Nothing,
+                    (self.on_activate)(node.id),
+                )]
             }
         }
     }
@@ -70,7 +75,7 @@ impl<'c, M: Clone + 'c> TrayMenuLines<'c, M> {
         &self,
         depth: usize,
         node: &MenuNode,
-        trailing: Trailing,
+        trailing: ContextMenuTrailing,
         on_press: M,
     ) -> ContextMenuLine<'a, M>
     where

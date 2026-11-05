@@ -38,7 +38,7 @@ use crate::{
         flat_button,
         icon_glyph::IconGlyph,
         ongoing_toast::OngoingToast,
-        reveal::reveal_x,
+        reveal_clip::reveal_x,
         shared_metrics::ACCENT_STROKE_PX,
     },
 };

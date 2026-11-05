@@ -36,7 +36,7 @@ use crate::{
         icon_glyph::IconGlyph,
         inline_slider::inline_slider,
         phosphor::Phosphor,
-        reveal::reveal_x,
+        reveal_clip::reveal_x,
         text::{panel_text, text_face_of},
         value_cells::{LabeledValue, SliderReadout, ValueCell},
         widest_readout_text::{ReadoutLabels, widest_readout_text},

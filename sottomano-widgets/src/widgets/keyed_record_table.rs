@@ -1,7 +1,7 @@
 use std::{num::NonZeroUsize, rc::Rc};
 
-pub use corredo::record_table::{ColumnHeading, TableColumns, separator_rule};
-use corredo::record_table::{Record, RecordTable, RecordTableStyle, TableRow};
+pub use corredo::record_table::separator_rule;
+use corredo::record_table::{self as generic_table, RecordTable, RecordTableStyle, TableRow};
 use iced::{Color, Element, Theme, alignment::Horizontal};
 use sottomano_toml_config::{severity::Severity, theme::font::ResolvedFont};
 
@@ -14,7 +14,9 @@ use crate::{
     },
 };
 
-pub type RecordCells = Record<ValueCell, Severity>;
+pub type ColumnHeading = generic_table::ColumnHeading<'static>;
+pub type TableColumns = generic_table::TableColumns<'static>;
+pub type RecordCells = generic_table::RecordCells<ValueCell, Severity>;
 pub type KeyedTableRow = TableRow<ValueCell, Severity>;
 
 pub trait IntoTableRecord<const COLUMNS: usize> {
@@ -57,7 +59,7 @@ impl<const COLUMNS: usize> TableRecord<COLUMNS> {
 
 impl<const COLUMNS: usize> From<TableRecord<COLUMNS>> for RecordCells {
     fn from(record: TableRecord<COLUMNS>) -> Self {
-        Record::new(record.key, record.cells, record.level)
+        RecordCells::new(record.key, record.cells, record.level)
     }
 }
 
@@ -71,7 +73,7 @@ fn record_cells<const COLUMNS: usize>(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyedRecordTable {
-    table: RecordTable<ValueCell, Severity>,
+    table: RecordTable<'static, ValueCell, Severity>,
 }
 
 impl KeyedRecordTable {
@@ -206,7 +208,7 @@ impl<Message: 'static> KeyedRecordTableStyle<Message> {
                     background_strong_color,
                 )
             }),
-            heading: Rc::new(move |label| column_heading(&heading_font, label).into()),
+            heading: Rc::new(move |label| column_heading(&heading_font, label.to_owned()).into()),
             text_size_px: self.heading_font.text_size_px,
             column_gap_px: self.column_gap,
             row_spacing_px: self.row_spacing,

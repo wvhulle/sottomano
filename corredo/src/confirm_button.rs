@@ -2,7 +2,7 @@ use iced::{Alignment, Element, widget::row};
 
 use crate::flat_button::flat_element_button;
 
-pub enum Press {
+pub enum ConfirmPress {
     Fire,
     Armed,
 }
@@ -27,13 +27,13 @@ impl ConfirmButton {
         }
     }
 
-    pub fn press(&mut self) -> Press {
+    pub fn press(&mut self) -> ConfirmPress {
         if self.confirms && !self.armed {
             self.armed = true;
-            Press::Armed
+            ConfirmPress::Armed
         } else {
             self.armed = false;
-            Press::Fire
+            ConfirmPress::Fire
         }
     }
 

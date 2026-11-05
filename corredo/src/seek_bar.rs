@@ -17,21 +17,21 @@ pub enum SeekMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlaybackTimeline<Session> {
+pub struct PlaybackTimeline<PlaybackSession> {
     pub played: Option<Duration>,
     pub length: Option<Duration>,
-    pub session: Session,
+    pub session: PlaybackSession,
     pub accepts_seek: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Arrival<Session> {
+struct Arrival<PlaybackSession> {
     position: Duration,
-    session: Session,
+    session: PlaybackSession,
 }
 
-impl<Session: PartialEq> Arrival<Session> {
-    fn settled_by(&self, timeline: &PlaybackTimeline<Session>) -> bool {
+impl<PlaybackSession: PartialEq> Arrival<PlaybackSession> {
+    fn settled_by(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> bool {
         self.session != timeline.session
             || timeline
                 .played
@@ -40,13 +40,13 @@ impl<Session: PartialEq> Arrival<Session> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum UserRequest<Session> {
+enum UserRequest<PlaybackSession> {
     FollowingPlayer,
     DraggingTo(Duration),
-    AwaitingArrival(Arrival<Session>),
+    AwaitingArrival(Arrival<PlaybackSession>),
 }
 
-impl<Session> UserRequest<Session> {
+impl<PlaybackSession> UserRequest<PlaybackSession> {
     fn requested_position(&self) -> Option<Duration> {
         match self {
             Self::FollowingPlayer => None,
@@ -58,12 +58,12 @@ impl<Session> UserRequest<Session> {
 }
 
 #[derive(Debug)]
-pub struct SeekBar<Session> {
-    request: UserRequest<Session>,
+pub struct SeekBar<PlaybackSession> {
+    request: UserRequest<PlaybackSession>,
     scroll_accumulated: f32,
 }
 
-impl<Session> Default for SeekBar<Session> {
+impl<PlaybackSession> Default for SeekBar<PlaybackSession> {
     fn default() -> Self {
         Self {
             request: UserRequest::FollowingPlayer,
@@ -72,11 +72,11 @@ impl<Session> Default for SeekBar<Session> {
     }
 }
 
-impl<Session: Clone + PartialEq> SeekBar<Session> {
+impl<PlaybackSession: Clone + PartialEq> SeekBar<PlaybackSession> {
     pub fn update(
         &mut self,
         message: SeekMessage,
-        timeline: &PlaybackTimeline<Session>,
+        timeline: &PlaybackTimeline<PlaybackSession>,
     ) -> Option<Duration> {
         match message {
             SeekMessage::Drag(seconds) => {
@@ -92,7 +92,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
         }
     }
 
-    pub fn player_reported(&mut self, timeline: &PlaybackTimeline<Session>) {
+    pub fn player_reported(&mut self, timeline: &PlaybackTimeline<PlaybackSession>) {
         if let UserRequest::AwaitingArrival(arrival) = &self.request
             && arrival.settled_by(timeline)
         {
@@ -100,7 +100,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
         }
     }
 
-    fn released(&mut self, timeline: &PlaybackTimeline<Session>) -> Option<Duration> {
+    fn released(&mut self, timeline: &PlaybackTimeline<PlaybackSession>) -> Option<Duration> {
         let UserRequest::DraggingTo(position) = self.request else {
             return None;
         };
@@ -110,7 +110,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
     fn scrolled(
         &mut self,
         delta: ScrollDelta,
-        timeline: &PlaybackTimeline<Session>,
+        timeline: &PlaybackTimeline<PlaybackSession>,
     ) -> Option<Duration> {
         let steps = scroll_direction(&mut self.scroll_accumulated, delta)?;
         let length = timeline.length?;
@@ -120,7 +120,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
 
     fn request_arrival(
         &mut self,
-        timeline: &PlaybackTimeline<Session>,
+        timeline: &PlaybackTimeline<PlaybackSession>,
         position: Duration,
     ) -> Option<Duration> {
         self.request = UserRequest::FollowingPlayer;
@@ -134,7 +134,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
         Some(position)
     }
 
-    fn shown_position(&self, timeline: &PlaybackTimeline<Session>) -> Option<Duration> {
+    fn shown_position(&self, timeline: &PlaybackTimeline<PlaybackSession>) -> Option<Duration> {
         self.request.requested_position().or(timeline.played)
     }
 
@@ -148,7 +148,7 @@ impl<Session: Clone + PartialEq> SeekBar<Session> {
     pub fn view<'a>(
         &self,
         icon_size_px: f32,
-        timeline: &PlaybackTimeline<Session>,
+        timeline: &PlaybackTimeline<PlaybackSession>,
     ) -> Option<Element<'a, SeekMessage>> {
         let length = timeline.length?;
         let played = timeline.played?;

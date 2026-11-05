@@ -2,7 +2,7 @@ pub use corredo::{
     content_sized_table, pressable_text,
     primitives::{
         child_view, edge_alpha_fade, ellipsis_rule, fair_widths, list_end_corners, rectangle_morph,
-        reveal, rounded_quads, shared_metrics, steady_label_width, svg_icon, uniform_width_column,
+        reveal_clip, rounded_quads, steady_label_width, svg_icon, uniform_width_column,
     },
     refresh_dial, selection_scroller, transitioning_text, widest_readout_text,
 };
@@ -33,6 +33,7 @@ pub mod most_used_model;
 pub mod ongoing_toast;
 pub mod phosphor;
 pub mod pointer_drag;
+pub mod shared_metrics;
 pub mod shell_layer_appearance;
 pub mod simple_icons;
 pub mod spend_forecast_basis;

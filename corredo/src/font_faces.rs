@@ -7,7 +7,7 @@ use iced::{
     },
 };
 
-use crate::shared_metrics::LINE_HEIGHT;
+pub use crate::shared_metrics::LINE_HEIGHT;
 
 const DEFAULT_TEXT_SIZE_PX: f32 = 14.0;
 

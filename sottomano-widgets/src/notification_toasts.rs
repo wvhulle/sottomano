@@ -41,7 +41,7 @@ use crate::{
     layer_surfaces::SurfaceRequest,
     toast_messages::NotificationMessage,
     widgets::{
-        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal::reveal_y,
+        announced_level::LevelReading, ongoing_toast::OngoingKey, reveal_clip::reveal_y,
         shell_layer_appearance::LayerAppearance, typing_under_cards::CardBackgroundFade,
     },
 };

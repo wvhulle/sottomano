@@ -12,6 +12,7 @@ pub struct FillGauge<'a> {
     fill_fraction: f32,
     live_fraction: f32,
     height: f32,
+    thickness_px: f32,
     live_color: ThemedColor<'a>,
 }
 
@@ -22,7 +23,16 @@ impl<'a> FillGauge<'a> {
             fill_fraction,
             live_fraction: fill_fraction,
             height,
+            thickness_px: ACCENT_STROKE_PX,
             live_color: Box::new(live_color),
+        }
+    }
+
+    #[must_use]
+    pub fn thickness(self, thickness_px: f32) -> Self {
+        Self {
+            thickness_px,
+            ..self
         }
     }
 
@@ -34,6 +44,7 @@ impl<'a> FillGauge<'a> {
 
     fn vertical_bar<Message: 'a>(
         height: f32,
+        thickness_px: f32,
         reach: f32,
         track_color: impl Fn(&Theme) -> Color + 'a,
         bar_color: impl Fn(&Theme) -> Color + 'a,
@@ -41,11 +52,11 @@ impl<'a> FillGauge<'a> {
         progress_bar(0.0..=1.0, reach)
             .vertical()
             .length(height)
-            .girth(ACCENT_STROKE_PX)
+            .girth(thickness_px)
             .style(move |theme: &Theme| progress_bar::Style {
                 background: track_color(theme).into(),
                 bar: bar_color(theme).into(),
-                border: pill_corners(ACCENT_STROKE_PX),
+                border: pill_corners(thickness_px),
             })
             .into()
     }
@@ -58,12 +69,14 @@ impl<'a, Message: 'a> From<FillGauge<'a>> for Element<'a, Message> {
         stack![
             FillGauge::vertical_bar(
                 gauge.height,
+                gauge.thickness_px,
                 gauge.fill_fraction,
                 background_strong_color,
                 secondary_text_color,
             ),
             FillGauge::vertical_bar(
                 gauge.height,
+                gauge.thickness_px,
                 live_reach,
                 |_: &Theme| Color::TRANSPARENT,
                 move |theme: &Theme| live_color(theme),

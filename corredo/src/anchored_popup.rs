@@ -72,13 +72,13 @@ impl PopupFraming {
     }
 }
 
-pub struct Rendering<'a, Message> {
+pub struct PopupRendering<'a, Message> {
     element: Element<'a, Message>,
     incoming: bool,
     framing: PopupFraming,
 }
 
-impl<'a, Message> Rendering<'a, Message> {
+impl<'a, Message> PopupRendering<'a, Message> {
     #[must_use]
     pub fn incoming(element: Element<'a, Message>) -> Self {
         Self {
@@ -118,23 +118,23 @@ pub enum OutsidePress<Message> {
 
 type RegionReporter<'a> = Box<dyn Fn(PopupRegions, &mut dyn Operation) + 'a>;
 
-pub struct AnchoredPopup<'a, Message, Shown = ()> {
-    renderings: Vec<Rendering<'a, Message>>,
+pub struct AnchoredPopup<'a, Message, ShownIdentity = ()> {
+    renderings: Vec<PopupRendering<'a, Message>>,
     anchor: Rectangle,
     side: PopupSide,
     docked_inset_px: Option<f32>,
     gap_px: f32,
     leading_alignment_px: f32,
     morph_duration: Duration,
-    shown: Option<Shown>,
+    shown: Option<ShownIdentity>,
     outside_press: OutsidePress<Message>,
     frame_over: Box<dyn Fn(Rectangle) -> FrameStyle + 'a>,
     corner_radius_px: f32,
     report_regions: RegionReporter<'a>,
 }
 
-struct MorphState<Shown> {
-    shown: Option<Shown>,
+struct MorphState<ShownIdentity> {
+    shown: Option<ShownIdentity>,
     morph: RectangleMorph,
     connector: ConnectorTriangle,
 }
@@ -144,12 +144,15 @@ pub fn anchored_popup<'a, Message: Clone + 'a>(
     content: impl Into<Element<'a, Message>>,
     anchor: Rectangle,
 ) -> AnchoredPopup<'a, Message> {
-    AnchoredPopup::with_renderings(vec![Rendering::incoming(content.into())], anchor)
+    AnchoredPopup::with_renderings(vec![PopupRendering::incoming(content.into())], anchor)
 }
 
 impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
     #[must_use]
-    pub fn with_renderings(renderings: Vec<Rendering<'a, Message>>, anchor: Rectangle) -> Self {
+    pub fn with_renderings(
+        renderings: Vec<PopupRendering<'a, Message>>,
+        anchor: Rectangle,
+    ) -> Self {
         let frame = FrameStyle::default();
         Self {
             renderings,
@@ -168,7 +171,7 @@ impl<'a, Message: 'a> AnchoredPopup<'a, Message> {
     }
 }
 
-impl<'a, Message: 'a, Shown> AnchoredPopup<'a, Message, Shown> {
+impl<'a, Message: 'a, ShownIdentity> AnchoredPopup<'a, Message, ShownIdentity> {
     #[must_use]
     pub fn side(self, side: PopupSide) -> Self {
         Self { side, ..self }
@@ -257,7 +260,10 @@ impl<'a, Message: 'a, Shown> AnchoredPopup<'a, Message, Shown> {
     }
 
     #[must_use]
-    pub fn identified_by<Other>(self, shown: Option<Other>) -> AnchoredPopup<'a, Message, Other> {
+    pub fn identified_by<OtherIdentity>(
+        self,
+        shown: Option<OtherIdentity>,
+    ) -> AnchoredPopup<'a, Message, OtherIdentity> {
         AnchoredPopup {
             renderings: self.renderings,
             anchor: self.anchor,
@@ -275,15 +281,15 @@ impl<'a, Message: 'a, Shown> AnchoredPopup<'a, Message, Shown> {
     }
 }
 
-impl<'a, Message: Clone + 'a, Shown: Clone + PartialEq + 'static>
-    From<AnchoredPopup<'a, Message, Shown>> for Element<'a, Message>
+impl<'a, Message: Clone + 'a, ShownIdentity: Clone + PartialEq + 'static>
+    From<AnchoredPopup<'a, Message, ShownIdentity>> for Element<'a, Message>
 {
-    fn from(popup: AnchoredPopup<'a, Message, Shown>) -> Self {
+    fn from(popup: AnchoredPopup<'a, Message, ShownIdentity>) -> Self {
         Element::new(popup)
     }
 }
 
-impl<'a, Message, Shown: 'static> AnchoredPopup<'a, Message, Shown> {
+impl<'a, Message, ShownIdentity: 'static> AnchoredPopup<'a, Message, ShownIdentity> {
     fn anchor_edge_x(&self) -> f32 {
         self.anchor.x + self.anchor.width
     }
@@ -416,11 +422,11 @@ impl<'a, Message, Shown: 'static> AnchoredPopup<'a, Message, Shown> {
         self.renderings.iter().any(|rendering| rendering.incoming)
     }
 
-    fn is_settled(&self, state: &MorphState<Shown>) -> bool {
+    fn is_settled(&self, state: &MorphState<ShownIdentity>) -> bool {
         state.morph.is_settled() && self.is_live()
     }
 
-    fn popup_frame(&self, state: &MorphState<Shown>, layout: Layout<'_>) -> PopupFrame {
+    fn popup_frame(&self, state: &MorphState<ShownIdentity>, layout: Layout<'_>) -> PopupFrame {
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         PopupFrame {
             surface_rows: state.connector.translated(origin).surface_rows(
@@ -432,7 +438,7 @@ impl<'a, Message, Shown: 'static> AnchoredPopup<'a, Message, Shown> {
     }
 
     fn popup_surfaces_contain(&self, tree: &Tree, layout: Layout<'_>, point: Point) -> bool {
-        let state: &MorphState<Shown> = tree.state.downcast_ref();
+        let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         (state.morph.current() + origin).contains(point)
             || self
@@ -475,15 +481,15 @@ impl<'a, Message, Shown: 'static> AnchoredPopup<'a, Message, Shown> {
     }
 }
 
-impl<Message: Clone, Shown: Clone + PartialEq + 'static>
-    Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_, Message, Shown>
+impl<Message: Clone, ShownIdentity: Clone + PartialEq + 'static>
+    Widget<Message, iced::Theme, iced::Renderer> for AnchoredPopup<'_, Message, ShownIdentity>
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<MorphState<Shown>>()
+        tree::Tag::of::<MorphState<ShownIdentity>>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(MorphState::<Shown> {
+        tree::State::new(MorphState::<ShownIdentity> {
             shown: None,
             morph: RectangleMorph::default(),
             connector: ConnectorTriangle::between(
@@ -501,7 +507,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
     }
 
     fn diff(&self, tree: &mut Tree) {
-        let switched = tree.state.downcast_ref::<MorphState<Shown>>().shown != self.shown;
+        let switched = tree.state.downcast_ref::<MorphState<ShownIdentity>>().shown != self.shown;
         tree.diff_children(&self.child_elements());
         if switched {
             self.renderings
@@ -567,7 +573,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
             .map(|(rendering, node)| rendering.framing.framed_bounds(node).size());
         let at_anchor = self.resting(Size::ZERO, surface);
 
-        let state: &mut MorphState<Shown> = tree.state.downcast_mut();
+        let state: &mut MorphState<ShownIdentity> = tree.state.downcast_mut();
         if state.shown != self.shown {
             state.shown.clone_from(&self.shown);
             state.morph.begin(at_anchor);
@@ -605,7 +611,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
         cursor: Cursor,
         viewport: &Rectangle,
     ) {
-        let state: &MorphState<Shown> = tree.state.downcast_ref();
+        let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let bounds = layout.bounds();
         let origin = Vector::new(bounds.x, bounds.y);
         let box_bounds = state.morph.current() + origin;
@@ -653,7 +659,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
         renderer: &iced::Renderer,
         operation: &mut dyn Operation,
     ) {
-        let state: &MorphState<Shown> = tree.state.downcast_ref();
+        let state: &MorphState<ShownIdentity> = tree.state.downcast_ref();
         let frame = self.popup_frame(state, layout);
         let origin = Vector::new(layout.bounds().x, layout.bounds().y);
         (self.report_regions)(
@@ -689,7 +695,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
         viewport: &Rectangle,
     ) {
         if let Event::Window(window::Event::RedrawRequested(now)) = event {
-            let state: &mut MorphState<Shown> = tree.state.downcast_mut();
+            let state: &mut MorphState<ShownIdentity> = tree.state.downcast_mut();
             let was_morphing = !state.morph.is_settled();
             state.morph.tick(*now, self.morph_duration);
             let is_morphing = !state.morph.is_settled();
@@ -716,7 +722,7 @@ impl<Message: Clone, Shown: Clone + PartialEq + 'static>
             && !shell.is_event_captured()
             && tree
                 .state
-                .downcast_ref::<MorphState<Shown>>()
+                .downcast_ref::<MorphState<ShownIdentity>>()
                 .morph
                 .is_settled()
             && let OutsidePress::Dismisses {

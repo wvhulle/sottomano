@@ -22,11 +22,11 @@ use crate::{
 
 const DEFAULT_HOLD: Duration = Duration::from_millis(700);
 
-pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
+pub fn pressable_text<'a, PressPayload: Clone + 'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
-    payload: Payload,
-    on_press: impl Fn(Payload) -> Message + 'a,
-) -> PressableText<'a, Payload, Message> {
+    payload: PressPayload,
+    on_press: impl Fn(PressPayload) -> Message + 'a,
+) -> PressableText<'a, PressPayload, Message> {
     PressableText {
         content: container(content).padding(PRESSABLE_OUTLINE_PADDING).into(),
         payload,
@@ -37,7 +37,7 @@ pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(
     }
 }
 
-impl<Payload, Message> PressableText<'_, Payload, Message> {
+impl<PressPayload, Message> PressableText<'_, PressPayload, Message> {
     #[must_use]
     pub fn accent(self, accent: fn(&Theme) -> AccentShades) -> Self {
         Self { accent, ..self }
@@ -57,18 +57,18 @@ impl<Payload, Message> PressableText<'_, Payload, Message> {
     }
 }
 
-impl<'a, Payload: Clone + 'a, Message: 'a> From<PressableText<'a, Payload, Message>>
+impl<'a, PressPayload: Clone + 'a, Message: 'a> From<PressableText<'a, PressPayload, Message>>
     for Element<'a, Message>
 {
-    fn from(pressable: PressableText<'a, Payload, Message>) -> Self {
+    fn from(pressable: PressableText<'a, PressPayload, Message>) -> Self {
         Element::new(pressable)
     }
 }
 
-pub struct PressableText<'a, Payload, Message> {
+pub struct PressableText<'a, PressPayload, Message> {
     content: Element<'a, Message>,
-    payload: Payload,
-    on_press: Box<dyn Fn(Payload) -> Message + 'a>,
+    payload: PressPayload,
+    on_press: Box<dyn Fn(PressPayload) -> Message + 'a>,
     accent: fn(&Theme) -> AccentShades,
     hold: Duration,
     interaction: Interaction,
@@ -100,8 +100,8 @@ impl CellState {
     }
 }
 
-impl<Payload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
-    for PressableText<'_, Payload, Message>
+impl<PressPayload: Clone, Message> Widget<Message, iced::Theme, iced::Renderer>
+    for PressableText<'_, PressPayload, Message>
 {
     fn tag(&self) -> tree::Tag {
         tree::Tag::of::<CellState>()

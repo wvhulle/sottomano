@@ -18,8 +18,8 @@ use crate::{font_faces::TextFace, shared_metrics::LINE_HEIGHT};
 
 type MeasuredParagraph = <iced::Renderer as advanced_text::Renderer>::Paragraph;
 
-pub struct ReadoutLabels<Owner, FormatContext> {
-    pub owner: Owner,
+pub struct ReadoutLabels<ReadoutOwner, FormatContext> {
+    pub owner: ReadoutOwner,
     pub range: RangeInclusive<f32>,
     pub step: f32,
     pub format: fn(f32, FormatContext) -> String,
@@ -27,8 +27,8 @@ pub struct ReadoutLabels<Owner, FormatContext> {
 }
 
 #[derive(Clone, PartialEq)]
-struct MeasuredLabels<Owner, FormatContext> {
-    owner: Owner,
+struct MeasuredLabels<ReadoutOwner, FormatContext> {
+    owner: ReadoutOwner,
     range: RangeInclusive<f32>,
     step: f32,
     context: FormatContext,
@@ -36,26 +36,26 @@ struct MeasuredLabels<Owner, FormatContext> {
     text_size_px: f32,
 }
 
-struct WidestLabel<Owner, FormatContext> {
-    measured: MeasuredLabels<Owner, FormatContext>,
+struct WidestLabel<ReadoutOwner, FormatContext> {
+    measured: MeasuredLabels<ReadoutOwner, FormatContext>,
     width: f32,
 }
 
-struct State<Owner, FormatContext> {
-    widest: Option<WidestLabel<Owner, FormatContext>>,
+struct State<ReadoutOwner, FormatContext> {
+    widest: Option<WidestLabel<ReadoutOwner, FormatContext>>,
 }
 
-pub struct WidestReadoutText<'a, Message, Owner, FormatContext> {
+pub struct WidestReadoutText<'a, Message, ReadoutOwner, FormatContext> {
     current: Element<'a, Message>,
-    measured: MeasuredLabels<Owner, FormatContext>,
+    measured: MeasuredLabels<ReadoutOwner, FormatContext>,
     format: fn(f32, FormatContext) -> String,
 }
 
-pub fn widest_readout_text<'a, Message, Owner, FormatContext>(
-    labels: ReadoutLabels<Owner, FormatContext>,
+pub fn widest_readout_text<'a, Message, ReadoutOwner, FormatContext>(
+    labels: ReadoutLabels<ReadoutOwner, FormatContext>,
     face: TextFace,
     current: impl Into<Element<'a, Message>>,
-) -> WidestReadoutText<'a, Message, Owner, FormatContext> {
+) -> WidestReadoutText<'a, Message, ReadoutOwner, FormatContext> {
     WidestReadoutText {
         current: current.into(),
         measured: MeasuredLabels {
@@ -70,15 +70,19 @@ pub fn widest_readout_text<'a, Message, Owner, FormatContext>(
     }
 }
 
-impl<'a, Message: 'a, Owner: Clone + PartialEq + 'static, FormatContext: Copy + PartialEq + 'static>
-    From<WidestReadoutText<'a, Message, Owner, FormatContext>> for Element<'a, Message>
+impl<
+    'a,
+    Message: 'a,
+    ReadoutOwner: Clone + PartialEq + 'static,
+    FormatContext: Copy + PartialEq + 'static,
+> From<WidestReadoutText<'a, Message, ReadoutOwner, FormatContext>> for Element<'a, Message>
 {
-    fn from(readout: WidestReadoutText<'a, Message, Owner, FormatContext>) -> Self {
+    fn from(readout: WidestReadoutText<'a, Message, ReadoutOwner, FormatContext>) -> Self {
         Element::new(readout)
     }
 }
 
-impl<Owner, FormatContext: Copy> MeasuredLabels<Owner, FormatContext> {
+impl<ReadoutOwner, FormatContext: Copy> MeasuredLabels<ReadoutOwner, FormatContext> {
     fn values(&self) -> impl Iterator<Item = f32> {
         let start = *self.range.start();
         let end = *self.range.end();
@@ -117,16 +121,16 @@ impl<Owner, FormatContext: Copy> MeasuredLabels<Owner, FormatContext> {
     }
 }
 
-impl<Message, Owner: Clone + PartialEq + 'static, FormatContext: Copy + PartialEq + 'static>
+impl<Message, ReadoutOwner: Clone + PartialEq + 'static, FormatContext: Copy + PartialEq + 'static>
     Widget<Message, iced::Theme, iced::Renderer>
-    for WidestReadoutText<'_, Message, Owner, FormatContext>
+    for WidestReadoutText<'_, Message, ReadoutOwner, FormatContext>
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State<Owner, FormatContext>>()
+        tree::Tag::of::<State<ReadoutOwner, FormatContext>>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::<Owner, FormatContext> { widest: None })
+        tree::State::new(State::<ReadoutOwner, FormatContext> { widest: None })
     }
 
     fn children(&self) -> Vec<Tree> {
@@ -142,7 +146,9 @@ impl<Message, Owner: Clone + PartialEq + 'static, FormatContext: Copy + PartialE
     }
 
     fn layout(&mut self, tree: &mut Tree, renderer: &iced::Renderer, limits: &Limits) -> Node {
-        let state = tree.state.downcast_mut::<State<Owner, FormatContext>>();
+        let state = tree
+            .state
+            .downcast_mut::<State<ReadoutOwner, FormatContext>>();
         let width = match &state.widest {
             Some(widest) if widest.measured == self.measured => widest.width,
             _ => {

@@ -32,6 +32,7 @@ pub struct InlineSlider<'a, Message> {
     value: f32,
     on_change: Box<dyn Fn(f32) -> Message + 'a>,
     icon_size_px: f32,
+    stroke_width_px: f32,
     lagging_value: Option<f32>,
     step: f32,
     accents: SliderAccents<'a>,
@@ -49,6 +50,7 @@ pub fn inline_slider<'a, Message: Clone + 'a>(
         value,
         on_change: Box::new(on_change),
         icon_size_px: DEFAULT_ICON_SIZE_PX,
+        stroke_width_px: ACCENT_STROKE_PX,
         lagging_value: None,
         step: DEFAULT_STEP,
         accents: SliderAccents::default(),
@@ -62,6 +64,14 @@ impl<'a, Message> InlineSlider<'a, Message> {
     pub fn icon_size(self, icon_size_px: f32) -> Self {
         Self {
             icon_size_px,
+            ..self
+        }
+    }
+
+    #[must_use]
+    pub fn stroke_width(self, stroke_width_px: f32) -> Self {
+        Self {
+            stroke_width_px,
             ..self
         }
     }
@@ -103,7 +113,7 @@ impl<'a, Message> InlineSlider<'a, Message> {
 
 impl<'a, Message: Clone + 'a> From<InlineSlider<'a, Message>> for Element<'a, Message> {
     fn from(inline: InlineSlider<'a, Message>) -> Self {
-        let geometry = FaceGeometry::from_sizes(inline.icon_size_px, ACCENT_STROKE_PX);
+        let geometry = FaceGeometry::from_sizes(inline.icon_size_px, inline.stroke_width_px);
         let face = SliderFace {
             range: inline.range.clone(),
             value: inline.value,
