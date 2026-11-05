@@ -26,7 +26,7 @@ use crate::widgets::{
     localized_quantities::Quantity,
     localized_time::LocalizedTimeFormat,
     pressable_text::pressable_text,
-    text::{FontFaces, LINE_HEIGHT, panel_text},
+    text::{LINE_HEIGHT, font_faces_of, panel_text, text_face_of},
     transitioning_text::{TextPresence, TransitionStyle, TransitioningText},
 };
 
@@ -297,7 +297,7 @@ impl<Message: 'static> ValueCellView<Message> {
     fn styled_face(&self, font: &ResolvedFont) -> Font {
         Font {
             style: self.font_style,
-            ..FontFaces::from(font).regular
+            ..font_faces_of(font).regular
         }
     }
 
@@ -328,7 +328,7 @@ impl<Message: 'static> ValueCellView<Message> {
             .max_width(self.max_width),
             text,
             self.transition,
-            font,
+            text_face_of(font),
             color,
         )
         .identified_by(row)
@@ -352,7 +352,7 @@ impl<Message: 'static> ValueCellView<Message> {
             unwrapped,
             text.clone(),
             self.transition,
-            &self.prose_font,
+            text_face_of(&self.prose_font),
             color,
         )
         .identified_by(row);
@@ -385,9 +385,15 @@ impl<Message: 'static> ValueCellView<Message> {
                 .wrapping(self.wrapping),
         )
         .max_width(self.max_width);
-        TransitioningText::new(underlined, label, self.transition, &self.prose_font, color)
-            .identified_by(link_cell)
-            .into()
+        TransitioningText::new(
+            underlined,
+            label,
+            self.transition,
+            text_face_of(&self.prose_font),
+            color,
+        )
+        .identified_by(link_cell)
+        .into()
     }
 
     fn openable(&self, label: Element<'static, Message>, url: String) -> Element<'static, Message> {

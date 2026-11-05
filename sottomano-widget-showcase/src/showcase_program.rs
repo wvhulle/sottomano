@@ -41,7 +41,7 @@ use sottomano_widgets::{
         appearance_presets::ShellAppearance,
         configured_theme::{configured_theme, text_color},
         favicon::Favicons,
-        text::FontFaces,
+        text::{font_faces_of, point_generic_font_families_at},
         typing_under_cards::CardBackgroundFade,
         window_icon::WindowAssets,
     },
@@ -142,7 +142,7 @@ struct PendingHoverReply {
 impl ShowcaseState {
     fn boot(demo: &'static Demo, config: &Config, clock: Clock) -> (Self, Task<ShowcaseMessage>) {
         let appearance = ShellAppearance::default();
-        FontFaces::point_generic_families_at(&config.theme);
+        point_generic_font_families_at(&config.theme);
         let hover_card = HoverCardHost::default();
         let notification_settings = NotificationSettings {
             sound: false,
@@ -566,7 +566,7 @@ impl Program for ShowcaseProgram {
 
     fn settings(&self) -> Settings {
         Settings {
-            default_font: FontFaces::from(&self.config.theme.font).regular,
+            default_font: font_faces_of(&self.config.theme.font).regular,
             fonts: vec![Cow::Owned(self.config.theme.font.data.to_vec())],
             antialiasing: true,
             ..Settings::default()

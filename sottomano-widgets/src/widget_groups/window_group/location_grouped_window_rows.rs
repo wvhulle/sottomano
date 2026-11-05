@@ -22,7 +22,7 @@ use crate::{
             slot_group::{SlotGroup, SlotTileInset},
             slot_pager::UngroupedHighlightLook,
         },
-        text::{FontFaces, LINE_HEIGHT},
+        text::{LINE_HEIGHT, font_faces_of},
         window_icon::{WindowAssets, window_icon},
     },
 };
@@ -104,7 +104,7 @@ fn location_group_heading<'a>(
                 text(location.to_owned())
                     .size(config.theme.font.text_size_px)
                     .line_height(LINE_HEIGHT)
-                    .font(FontFaces::from(&config.theme.font).regular)
+                    .font(font_faces_of(&config.theme.font).regular)
                     .style(tint.text_style()),
             )
             .spacing(config.theme.spacing.item_gap)

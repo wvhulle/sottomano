@@ -57,7 +57,7 @@ use crate::{
         },
         selection_scroller::{ScrollAxis, ScrollPacing, selection_scroller},
         shared_metrics::{ACCENT_STROKE_PX, pill_corners},
-        text::FontFaces,
+        text::font_faces_of,
         window_icon::{WindowAssets, window_icon},
         window_title::WindowTitle,
     },
@@ -670,7 +670,7 @@ impl WindowSlot<'_> {
         let badge = container(
             text(label)
                 .size(size)
-                .font(FontFaces::from(&config.theme.font).regular)
+                .font(font_faces_of(&config.theme.font).regular)
                 .style(move |theme| text::Style {
                     color: Some(background_color(theme).scale_alpha(opacity)),
                 }),

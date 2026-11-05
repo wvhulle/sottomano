@@ -13,7 +13,7 @@ use sottomano_toml_config::theme::font::ResolvedFont;
 
 use crate::widgets::{
     content_sized_table::content_sized_grid,
-    text::{FontFaces, LINE_HEIGHT},
+    text::{LINE_HEIGHT, font_faces_of},
 };
 
 pub struct MarkupBody<'a> {
@@ -109,7 +109,7 @@ impl<'a> MarkupBody<'a> {
     }
 
     fn rows_table<Message: 'static>(&self, rows: Vec<Row<'static>>) -> Element<'static, Message> {
-        let upright_face = FontFaces::from(self.font).regular;
+        let upright_face = font_faces_of(self.font).regular;
         content_sized_grid(
             vec![Horizontal::Right, Horizontal::Left],
             rows.into_iter().map(|row| {
@@ -245,7 +245,7 @@ fn parse_blocks<'a>(markup: &str, size: f32, font: &ResolvedFont, mono: Font) ->
     let mut stack: Vec<String> = Vec::new();
     let mut builder = BlockBuilder { blocks: Vec::new() };
     let styled = |text: String, stack: &[String]| {
-        let emphasis = Emphasis::from_stack(stack, FontFaces::from(font).regular, mono);
+        let emphasis = Emphasis::from_stack(stack, font_faces_of(font).regular, mono);
         span(text)
             .font(emphasis.font)
             .size(size)

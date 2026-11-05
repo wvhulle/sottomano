@@ -15,7 +15,7 @@ use crate::{
         icon_glyph::IconGlyph,
         phosphor::{Phosphor, Weight},
         steady_label_width::{LabelShape, steady_label_width},
-        text::{FontFaces, panel_text},
+        text::{font_faces_of, panel_text},
     },
 };
 
@@ -205,7 +205,7 @@ fn superscripted<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     let superscript = text(digits)
         .size(config.theme.font.small_text_size_px)
-        .font(FontFaces::from(&config.theme.font).regular)
+        .font(font_faces_of(&config.theme.font).regular)
         .style(tint.text_style());
     Row::with_children([marked, superscript.into()])
         .align_y(Alignment::Start)

@@ -13,7 +13,7 @@ use crate::{
     hover_cards::{HoverCardMessage, HoverTarget, PressHints, hoverable},
     widgets::{
         flat_button,
-        text::{FontFaces, panel_text},
+        text::{font_faces_of, panel_text},
     },
 };
 
@@ -60,7 +60,7 @@ impl<'c, Message: Clone> WeekdayPicker<'c, Message> {
             state: ReadingDisplayState::of_toggle(chosen),
             opacity: self.reveal,
         };
-        let faces = FontFaces::from(&self.config.theme.font);
+        let faces = font_faces_of(&self.config.theme.font);
         let initial = panel_text(
             &self.config.theme.font,
             weekday_initial(day, self.config.calendar.locale),
