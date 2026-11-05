@@ -19,7 +19,7 @@ use crate::{
     list_end_corners::ListEndCorners,
     pointer_drag::{
         DragEvent, DragView,
-        slot_group::{SlotGroup, SlotGroupFrame, SlotTileInset},
+        slot_group::{SlotGroup, SlotGroupFrame, SlotTileInset, TileNeighbours},
     },
     shared_metrics::{ACCENT_STROKE_PX, pill_corners},
     theme_colors::ThemedColor,
@@ -498,17 +498,47 @@ impl<Message, SlotKey: Copy + Eq + Hash + 'static> SlotPager<'_, Message, SlotKe
         self.group_index_at(self.highlighted_position()?)
     }
 
+    fn slot_draws_tile(&self, position: usize) -> bool {
+        let is_marked = self.highlighted_position() == Some(position)
+            || self.alarms.iter().any(|alarm| alarm.position == position);
+        is_marked
+            && (self.group_index_at(position).is_some()
+                || matches!(
+                    self.ungrouped_highlight_look,
+                    UngroupedHighlightLook::AccentTile(_)
+                ))
+    }
+
+    fn tile_neighbours(&self, position: usize) -> TileNeighbours {
+        let joins_tile = |neighbour_position: usize| {
+            self.slot_draws_tile(neighbour_position)
+                && self.group_index_at(neighbour_position) == self.group_index_at(position)
+        };
+        TileNeighbours {
+            leading: position.checked_sub(1).is_some_and(joins_tile),
+            trailing: joins_tile(position + 1),
+        }
+    }
+
+    fn highlighted_tile_neighbours(&self) -> TileNeighbours {
+        self.highlighted_position()
+            .map_or_else(TileNeighbours::default, |highlighted_position| {
+                self.tile_neighbours(highlighted_position)
+            })
+    }
+
     fn alarm_tile(&self, alarm: &SlotAlarm<'_>, layout: Layout<'_>) -> Option<renderer::Quad> {
         let slot = layout.children().nth(alarm.position)?.bounds();
+        let tile_neighbours = self.tile_neighbours(alarm.position);
         match self.group_index_at(alarm.position) {
             Some(group_index) => Some(
                 self.group_frame(group_index, layout)?
-                    .highlight_inside(slot),
+                    .highlight_inside(slot, tile_neighbours),
             ),
             None => match self.ungrouped_highlight_look {
                 UngroupedHighlightLook::EdgeBand => None,
                 UngroupedHighlightLook::AccentTile(tile_inset) => {
-                    Some(tile_inset.tile_on_slot(self.along_vertical_edge(), slot))
+                    Some(tile_inset.tile_on_slot(self.along_vertical_edge(), slot, tile_neighbours))
                 }
             },
         }
@@ -722,10 +752,11 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
                     .zip(self.groups.get(group_index))
             });
             let resting_slot = self.highlighted_slot(layout).unwrap_or(slot);
+            let tile_neighbours = self.highlighted_tile_neighbours();
             match enclosing_group {
                 Some((frame, group)) => {
                     renderer.fill_quad(
-                        frame.highlight_inside(resting_slot),
+                        frame.highlight_inside(resting_slot, tile_neighbours),
                         (group.highlight_color)(theme),
                     );
                 }
@@ -738,7 +769,11 @@ impl<Message: Clone, SlotKey: Copy + Eq + Hash + 'static> Widget<Message, Theme,
                     }
                     UngroupedHighlightLook::AccentTile(tile_inset) => {
                         renderer.fill_quad(
-                            tile_inset.tile_on_slot(self.along_vertical_edge(), resting_slot),
+                            tile_inset.tile_on_slot(
+                                self.along_vertical_edge(),
+                                resting_slot,
+                                tile_neighbours,
+                            ),
                             (highlight.color)(theme),
                         );
                     }
@@ -857,5 +892,131 @@ impl<'a, Message: Clone + 'a, SlotKey: Copy + Eq + Hash + 'static>
 {
     fn from(pager: SlotPager<'a, Message, SlotKey>) -> Self {
         Element::new(pager)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::Range;
+
+    use iced::{Color, Element, Theme, widget::text};
+
+    use super::{PagerEdge, SlotAlarm, SlotPager, UngroupedHighlightLook, slot_pager};
+    use crate::pointer_drag::slot_group::{SlotGroup, SlotTileInset, TileNeighbours};
+
+    const ACCENT_TILE_LOOK: UngroupedHighlightLook =
+        UngroupedHighlightLook::AccentTile(SlotTileInset {
+            thickness: 3.0,
+            enclosure_radius: 8.0,
+        });
+    const UNJOINED: TileNeighbours = TileNeighbours {
+        leading: false,
+        trailing: false,
+    };
+
+    fn plain_color(_theme: &Theme) -> Color {
+        Color::BLACK
+    }
+
+    fn pager_with_slots(slot_count: usize) -> SlotPager<'static, (), usize> {
+        let slots = (0..slot_count).map(|slot_key| {
+            let slot_element: Element<'static, ()> = text("slot").into();
+            (slot_key, slot_element)
+        });
+        slot_pager(slots, PagerEdge::Top)
+    }
+
+    fn alarm_at(position: usize) -> SlotAlarm<'static> {
+        SlotAlarm {
+            position,
+            color: Box::new(plain_color),
+        }
+    }
+
+    fn group_over(positions: Range<usize>) -> SlotGroup<'static, ()> {
+        SlotGroup {
+            positions,
+            heading: text("heading").into(),
+            enclosure_color: Box::new(plain_color),
+            inner_color: Box::new(plain_color),
+            highlight_color: Box::new(plain_color),
+            enclosure_thickness: 3.0,
+            enclosure_radius: 8.0,
+        }
+    }
+
+    #[test]
+    fn highlight_and_alarm_in_one_group_join_on_their_facing_sides_only() {
+        let pager = pager_with_slots(4)
+            .highlight(Some(1), plain_color)
+            .alarms(vec![alarm_at(2)])
+            .groups(vec![group_over(0..4)]);
+        assert_eq!(
+            pager.tile_neighbours(1),
+            TileNeighbours {
+                leading: false,
+                trailing: true,
+            }
+        );
+        assert_eq!(
+            pager.tile_neighbours(2),
+            TileNeighbours {
+                leading: true,
+                trailing: false,
+            }
+        );
+    }
+
+    #[test]
+    fn lone_highlight_has_no_joined_sides() {
+        let pager = pager_with_slots(3)
+            .highlight(Some(1), plain_color)
+            .groups(vec![group_over(0..3)]);
+        assert_eq!(pager.tile_neighbours(1), UNJOINED);
+    }
+
+    #[test]
+    fn neighbouring_ungrouped_accent_tiles_join() {
+        let pager = pager_with_slots(2)
+            .highlight(Some(0), plain_color)
+            .alarms(vec![alarm_at(1)])
+            .ungrouped_highlight_look(ACCENT_TILE_LOOK);
+        assert_eq!(
+            pager.tile_neighbours(0),
+            TileNeighbours {
+                leading: false,
+                trailing: true,
+            }
+        );
+    }
+
+    #[test]
+    fn tiles_in_neighbouring_groups_stay_apart() {
+        let pager = pager_with_slots(4)
+            .highlight(Some(1), plain_color)
+            .alarms(vec![alarm_at(2)])
+            .groups(vec![group_over(0..2), group_over(2..4)]);
+        assert_eq!(pager.tile_neighbours(1), UNJOINED);
+        assert_eq!(pager.tile_neighbours(2), UNJOINED);
+    }
+
+    #[test]
+    fn grouped_tile_stays_apart_from_ungrouped_tile() {
+        let pager = pager_with_slots(3)
+            .highlight(Some(1), plain_color)
+            .alarms(vec![alarm_at(2)])
+            .groups(vec![group_over(0..2)])
+            .ungrouped_highlight_look(ACCENT_TILE_LOOK);
+        assert_eq!(pager.tile_neighbours(1), UNJOINED);
+        assert_eq!(pager.tile_neighbours(2), UNJOINED);
+    }
+
+    #[test]
+    fn edge_band_look_never_joins() {
+        let pager = pager_with_slots(2)
+            .highlight(Some(0), plain_color)
+            .alarms(vec![alarm_at(1)]);
+        assert_eq!(pager.tile_neighbours(0), UNJOINED);
+        assert_eq!(pager.tile_neighbours(1), UNJOINED);
     }
 }
