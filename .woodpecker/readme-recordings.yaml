@@ -24,7 +24,7 @@ steps:
         extra-trusted-public-keys = wvhulle.cachix.org-1:heXx8DZMiRsKUx6l1TxNoF+Nmtmz66QEdsonQzc1ir0=
     commands:
       - nix run --quiet .#build-and-export-paths -- .#readme-recordings
-      - cp -r --no-preserve=mode result/. .
+      - nix run --quiet .#copy-build-output -- result .
       - nix develop --quiet --command cargo xtask update-recording-embeds
 
   - name: upload-readme-recordings-to-cachix
