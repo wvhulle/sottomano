@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap, rc::Rc, slice};
 
 use chrono::Locale;
+use corredo::expand_animation::expand_animation;
 use iced::{
     Alignment, Element, Length, Padding,
     mouse::ScrollDelta,
@@ -27,9 +28,8 @@ use crate::{
         HoverAnnouncement, HoverCardMessage, HoverTarget, MenuHandleIndicator, PanelPinOrigin,
         PressHints, announcing_hoverable,
     },
-    widget_groups::{
-        expand_animation::expand_animation,
-        widget_group_identity::{WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle},
+    widget_groups::widget_group_identity::{
+        WidgetGroupFamily, WidgetGroupIdentity, WidgetGroupTitle,
     },
     widgets::{
         activity_line::activity_line,

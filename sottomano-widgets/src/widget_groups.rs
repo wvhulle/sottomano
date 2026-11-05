@@ -11,7 +11,6 @@ pub mod copilot_usage_group;
 pub mod dark_mode_group;
 mod echo_probe_window_rows;
 pub mod ethernet_ports_group;
-pub mod expand_animation;
 pub mod fixed_panel_group;
 pub mod gamepad_group;
 pub mod gpu_group;

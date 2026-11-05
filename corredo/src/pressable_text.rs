@@ -15,9 +15,9 @@ use iced::{
     window,
 };
 
-use crate::widgets::{
-    configured_theme::AccentShades,
+use crate::{
     shared_metrics::{OUTLINE_WIDTH_PX, PRESSABLE_OUTLINE_PADDING, SMALL_CORNER_RADIUS_PX},
+    theme_colors::AccentShades,
 };
 
 pub fn pressable_text<'a, Payload: Clone + 'a, Message: 'a>(

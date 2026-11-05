@@ -1,6 +1,7 @@
 [workspace]
 default-members = ["sottomano-shell"]
 members = [
+  "corredo",
   "iced_controller_diagram",
   "sottomano-toml-config",
   "sottomano-phosphor-icons",

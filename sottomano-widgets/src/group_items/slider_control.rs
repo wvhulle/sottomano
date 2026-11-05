@@ -1,6 +1,7 @@
 use std::ops::RangeInclusive;
 
 use chrono::Locale;
+use corredo::expand_animation::expand_animation;
 use iced::{
     Alignment, Element, Length, Padding, Task,
     alignment::Horizontal,
@@ -27,7 +28,6 @@ use crate::{
             hover_card_source_delivery::{DeliveryTiming, HoverCard},
         },
     },
-    widget_groups::expand_animation::expand_animation,
     widgets::{
         announced_level::{AnnouncedLevel, LevelAnnouncement},
         configured_theme::text_color,

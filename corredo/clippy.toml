@@ -1,0 +1,6 @@
+disallowed-methods = [
+  { path = "iced_core::renderer::Renderer::with_translation", reason = "shifting content only while drawing leaves its layout bounds, and so anchors, at the unshifted position; move the child node in layout instead" },
+  { path = "iced_widget::helpers::scrollable", reason = "scrollable translates content only while drawing, so anchors inside it are off by the scroll offset" },
+  { path = "std::time::Instant::now", reason = "widgets receive the time as an argument from the program that renders them" },
+  { path = "std::time::SystemTime::now", reason = "widgets receive the time as an argument from the program that renders them" },
+]

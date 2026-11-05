@@ -1284,6 +1284,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "corredo"
+version = "0.1.0"
+dependencies = [
+ "iced",
+]
+
+[[package]]
 name = "cosmic-text"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6897,6 +6904,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "club-kdl",
+ "corredo",
  "exwlshellev",
  "fixed_decimal",
  "form_urlencoded",
