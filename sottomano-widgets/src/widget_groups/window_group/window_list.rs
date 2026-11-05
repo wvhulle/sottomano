@@ -25,7 +25,10 @@ use crate::{
     desktop_panels::{
         panel_frame::panel_frame,
         panel_slot::{PanelSlot, dragged_slot_content},
-        panel_slot_drag::{DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress},
+        panel_slot_drag::{
+            DragMessage, PanelSlotContext, SlotClick, SlotDragEvent, SlotPress,
+            window_source_workspace,
+        },
     },
     group_items::reading_display_state::{ReadingDisplayState, ReadingStateTint},
     hover_cards::{
@@ -247,8 +250,7 @@ impl WindowList {
         let PanelSlotContext {
             config, edge, drag, ..
         } = slot_context;
-        let workspace = drag
-            .window_source_workspace()
+        let workspace = window_source_workspace(&drag)
             .filter(|source| {
                 niri.workspaces_for_output(output)
                     .iter()
@@ -345,7 +347,7 @@ impl WindowList {
         slot_context: PanelSlotContext<'_>,
     ) -> Option<Element<'a, WindowListMessage>> {
         let PanelSlotContext { config, drag, .. } = slot_context;
-        let workspace = drag.window_source_workspace()?;
+        let workspace = window_source_workspace(&drag)?;
         let window_entry = niri
             .windows_on_workspace(workspace)
             .iter()

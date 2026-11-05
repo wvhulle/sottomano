@@ -34,22 +34,20 @@ pub enum DragMessage {
     HoverSpringLoaded(ForeignHover),
 }
 
-impl DragView {
-    #[must_use]
-    pub fn window_source_workspace(&self) -> Option<u64> {
-        match self.drag?.item {
-            DraggedPanelSlot::Window { workspace, .. } => Some(workspace),
-            DraggedPanelSlot::Workspace(_) => None,
-        }
+#[must_use]
+pub fn window_source_workspace(drag: &DragView) -> Option<u64> {
+    match drag.drag?.item {
+        DraggedPanelSlot::Window { workspace, .. } => Some(workspace),
+        DraggedPanelSlot::Workspace(_) => None,
     }
+}
 
-    #[must_use]
-    pub fn awaits_window_on(&self, workspace: u64) -> bool {
-        self.window_source_workspace().is_some()
-            && self
-                .hovers(DraggedPanelSlot::Workspace(workspace))
-                .is_some()
-    }
+#[must_use]
+pub fn awaits_window_on(drag: &DragView, workspace: u64) -> bool {
+    window_source_workspace(drag).is_some()
+        && drag
+            .hovers(DraggedPanelSlot::Workspace(workspace))
+            .is_some()
 }
 
 #[cfg(test)]

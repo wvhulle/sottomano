@@ -3,7 +3,7 @@ use iced::{
     widget::{float, pin},
 };
 
-use crate::widgets::pointer_drag::ActiveDrag;
+use crate::pointer_drag::ActiveDrag;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GhostPlacement {
@@ -21,9 +21,9 @@ impl GhostPlacement {
 }
 
 #[must_use]
-pub fn drag_ghost<'a, Message: 'a>(
+pub fn drag_ghost<'a, Message: 'a, Item>(
     card: Element<'a, Message>,
-    drag: &ActiveDrag,
+    drag: &ActiveDrag<Item>,
     placement: GhostPlacement,
     scale: f32,
 ) -> Element<'a, Message> {

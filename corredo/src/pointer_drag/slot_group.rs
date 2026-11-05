@@ -6,7 +6,7 @@ use iced::{
     border,
 };
 
-use crate::widgets::configured_theme::ThemedColor;
+use crate::theme_colors::ThemedColor;
 
 pub struct SlotGroup<'a, Message> {
     pub positions: Range<usize>,

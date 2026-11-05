@@ -11,7 +11,7 @@ use super::{WorkspacesMessage, dragged};
 use crate::{
     desktop_panels::{
         panel_slot::PanelSlot,
-        panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress},
+        panel_slot_drag::{PanelSlotContext, SlotClick, SlotPress, awaits_window_on},
     },
     hover_cards::{HoverTarget, PressHints, hoverable},
     widgets::{
@@ -170,7 +170,7 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn drop_tint(&self, highlight_radius: Radius) -> impl Fn(&Theme) -> container::Style + 'static {
-        let awaits_window = self.slot_context.drag.awaits_window_on(self.workspace.id);
+        let awaits_window = awaits_window_on(&self.slot_context.drag, self.workspace.id);
         move |theme| {
             if awaits_window {
                 container::background(primary_weak_color(theme)).border(Border {
@@ -224,10 +224,7 @@ impl<'s> WorkspaceSlot<'s> {
     }
 
     fn window_markers(&self, marker_edge: Position) -> MarkerTrack {
-        let incoming = self
-            .slot_context
-            .drag
-            .awaits_window_on(self.workspace.id)
+        let incoming = awaits_window_on(&self.slot_context.drag, self.workspace.id)
             .then(|| -> ThemedColor<'static> { Box::new(primary_color) });
         let tone = self.tone;
         let colors = self

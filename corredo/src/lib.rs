@@ -21,6 +21,7 @@ pub mod karaoke_line;
 pub mod marker_track;
 #[cfg(feature = "markup")]
 pub mod markup_body;
+pub mod pointer_drag;
 pub mod popup_trigger;
 pub mod pressable_text;
 pub mod record_table;
