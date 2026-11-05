@@ -231,6 +231,7 @@
             cargoArtifacts = workspaceArtifacts;
             doInstallCargoArtifacts = false;
             RUST_BACKTRACE = "1";
+            RUST_TEST_THREADS = "1";
           }
         );
         clippy = craneLib.cargoClippy (
