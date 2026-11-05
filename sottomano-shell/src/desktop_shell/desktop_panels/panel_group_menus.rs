@@ -3,8 +3,8 @@ use std::iter::once;
 use sottomano_widgets::{
     group_menus::{group_menu_state::GroupMenuTopic, group_menu_view::GroupMenuView},
     widget_groups::{
-        fixed_panel_group::FixedPanelGroup, notification_group::NotificationStatus,
-        widget_group_content::WidgetGroupContent,
+        ci_task_group_item::CiTasksMessage, fixed_panel_group::FixedPanelGroup,
+        notification_group::NotificationStatus, widget_group_content::WidgetGroupContent,
     },
 };
 
@@ -38,6 +38,7 @@ impl DesktopShell {
             GroupMenuTopic::Media => self.media_group_menu(),
             GroupMenuTopic::Display => self.display_group_menu(),
             GroupMenuTopic::Services => self.services_group_menu(),
+            GroupMenuTopic::ContinuousIntegration => self.continuous_integration_group_menu(),
             GroupMenuTopic::Session => self.session_group_menu(),
             GroupMenuTopic::Appearance => self.group_menu(
                 GroupMenuTopic::Appearance,
@@ -328,6 +329,29 @@ impl DesktopShell {
         )
     }
 
+    fn continuous_integration_group_menu(&self) -> GroupMenuView<'_, Message> {
+        let runners = &self.config.widget_groups.ci_runners;
+        self.group_menu(
+            GroupMenuTopic::ContinuousIntegration,
+            [
+                self.widget_groups.woodpecker_tasks_group.group_content(
+                    runners
+                        .woodpecker_agents
+                        .iter()
+                        .map(|agent| agent.label.as_str()),
+                    |message| Message::WoodpeckerTasks(CiTasksMessage::Expansion(message)),
+                ),
+                self.widget_groups.forgejo_tasks_group.group_content(
+                    runners
+                        .forgejo_runners
+                        .iter()
+                        .map(|runner| runner.label.as_str()),
+                    |message| Message::ForgejoTasks(CiTasksMessage::Expansion(message)),
+                ),
+            ],
+        )
+    }
+
     fn services_group_menu(&self) -> GroupMenuView<'_, Message> {
         let config = &self.config;
         self.group_menu(
@@ -337,6 +361,10 @@ impl DesktopShell {
                     .llama_server_group
                     .group_content()
                     .map(Message::LlamaServer),
+                self.widget_groups
+                    .podman_engines_group
+                    .group_content(&config.widget_groups.podman_engines)
+                    .map(Message::PodmanEngines),
                 self.widget_groups
                     .claude_usage_group
                     .group_content()

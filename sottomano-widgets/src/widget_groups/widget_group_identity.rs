@@ -24,6 +24,7 @@ pub enum WidgetGroupFamily {
     GroupMenuSettings,
     IdleTimeouts,
     JournalEvents,
+    ForgejoTasks,
     LlamaServer,
     LoginSession,
     Media,
@@ -37,6 +38,7 @@ pub enum WidgetGroupFamily {
     PanelSettings,
     PendingUpgrades,
     PhysicalDrive,
+    PodmanEngines,
     Power,
     QuietSchedule,
     Reachability,
@@ -52,6 +54,7 @@ pub enum WidgetGroupFamily {
     Weather,
     WifiAdapters,
     WireguardServer,
+    WoodpeckerTasks,
 }
 
 impl WidgetGroupFamily {
@@ -74,7 +77,10 @@ impl WidgetGroupFamily {
             WidgetGroupFamily::GroupMenuSettings => "Menus",
             WidgetGroupFamily::IdleTimeouts => "Idle timeouts",
             WidgetGroupFamily::JournalEvents => "Journal",
+            WidgetGroupFamily::ForgejoTasks => "Forgejo",
             WidgetGroupFamily::LlamaServer => "Llama server",
+            WidgetGroupFamily::PodmanEngines => "Podman",
+            WidgetGroupFamily::WoodpeckerTasks => "Woodpecker",
             WidgetGroupFamily::LoginSession => "Login session",
             WidgetGroupFamily::Media => "Media",
             WidgetGroupFamily::MemoryBoard => "Memory",

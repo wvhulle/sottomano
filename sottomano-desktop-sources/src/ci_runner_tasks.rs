@@ -1,0 +1,94 @@
+pub mod forgejo_runner_container_names;
+pub mod forgejo_runner_journal_repos;
+pub mod woodpecker_agent_varz;
+
+use std::time::SystemTime;
+
+use bytesize::ByteSize;
+
+use crate::{
+    podman_container_engine::libpod_running_containers::{
+        ContainerCpuLoad, EngineReadError, RunningContainer, total_cpu_load,
+    },
+    system_protocol_clients::http_json_client,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TaskRepository {
+    Named(String),
+    NotYetKnown,
+}
+
+impl TaskRepository {
+    #[must_use]
+    pub fn short_name(&self) -> Option<&str> {
+        match self {
+            TaskRepository::Named(full_name) => full_name.rsplit('/').next(),
+            TaskRepository::NotYetKnown => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskDeadline {
+    NotExposed,
+    At(SystemTime),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum TaskUsage {
+    NoContainerNow,
+    Measured {
+        cpu_load: ContainerCpuLoad,
+        resident_memory: ByteSize,
+    },
+}
+
+impl TaskUsage {
+    fn of_containers(containers: &[&RunningContainer]) -> Self {
+        if containers.is_empty() {
+            return TaskUsage::NoContainerNow;
+        }
+        TaskUsage::Measured {
+            cpu_load: total_cpu_load(containers.iter().map(|container| container.cpu_load)),
+            resident_memory: containers.iter().fold(ByteSize::b(0), |total, container| {
+                total + container.resident_memory
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CiTask {
+    pub repository: TaskRepository,
+    pub run_label: String,
+    pub started_at: SystemTime,
+    pub deadline: TaskDeadline,
+    pub activities: Vec<String>,
+    pub images: Vec<String>,
+    pub usage: TaskUsage,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RunnerAccess {
+    Complete,
+    EngineUnreadable(EngineReadError),
+    AgentUnreachable(http_json_client::Error),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CiRunnerTasks {
+    pub tasks: Vec<CiTask>,
+    pub access: RunnerAccess,
+}
+
+fn sorted_unique(values: impl Iterator<Item = String>) -> Vec<String> {
+    let mut values: Vec<String> = values.collect();
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn images_of(containers: &[&RunningContainer]) -> Vec<String> {
+    sorted_unique(containers.iter().map(|container| container.image.clone()))
+}

@@ -35,8 +35,8 @@ use crate::{
     fixtures::{
         app_launcher, appearance_presets, audio, caldav, claude_usage, compute, gamepad,
         group_menu_members, idle_lock, login_session, media, memory_board, niri_session,
-        notification_toasts, shell_settings, tailnet, unchanging, voice_dictation, vpn, wallpaper,
-        weather, wireguard_server,
+        notification_toasts, podman_engines, shell_settings, tailnet, unchanging, voice_dictation,
+        vpn, wallpaper, weather, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcased_group::ShowcasedGroup,
@@ -188,6 +188,28 @@ pub const DEMOS: &[Demo] = &[
             Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Agenda)),
             Step::PressText("Weather"),
             Step::Hover(HoverTarget::Weather(WeatherTarget::Rain)),
+        ],
+    },
+    Demo {
+        name: "podman_engines",
+        group: podman_engines::group,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::Services),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(GroupMenuTopic::Services)),
+            Step::PressText("Podman"),
+        ],
+    },
+    Demo {
+        name: "ci_runner_tasks",
+        group: group_menu_members::continuous_integration_group_menu,
+        live: unchanging,
+        shown: GroupShown::InMenu(GroupMenuTopic::ContinuousIntegration),
+        script: &[
+            Step::Press(HoverTarget::GroupMenu(
+                GroupMenuTopic::ContinuousIntegration,
+            )),
+            Step::PressText("Woodpecker"),
         ],
     },
     Demo {

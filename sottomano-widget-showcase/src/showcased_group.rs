@@ -29,8 +29,10 @@ use sottomano_widgets::{
         appearance_presets_group::{AppearancePresetsGroup, AppearancePresetsTarget},
         audio_group::AudioGroup,
         caldav_group::CaldavGroup,
+        ci_task_group_item::{CiRunnerKind, CiTasksMessage},
         claude_usage_group::ClaudeUsageGroup,
         compute_group::ComputeGroup,
+        forgejo_tasks_group::ForgejoTasksGroup,
         gamepad_group::{GamepadGroup, GamepadWindowClaim::Unclaimed},
         idle_pause_groups::IdlePauseGroups,
         login_session_group::LoginSessionGroup,
@@ -39,6 +41,7 @@ use sottomano_widgets::{
         niri_window_group::{NiriWindowGroup, niri_kdl_rules::NiriLayout},
         overlay_settings_group::OverlaySettingsGroup,
         panel_settings_group::PanelSettingsGroup,
+        podman_engines_group::PodmanEnginesGroup,
         sidebar_settings_group::SidebarSettingsGroup,
         tailnet_group::TailnetGroup,
         voice_dictation_group::VoiceDictationGroup,
@@ -48,6 +51,7 @@ use sottomano_widgets::{
         widget_group_content::WidgetGroupContent,
         window_group::{WindowGroup, WindowRowLayout, WindowTarget},
         wireguard_server_group::WireguardServerGroup,
+        woodpecker_tasks_group::WoodpeckerTasksGroup,
         workspaces_group::{
             EmptyWorkspaceFolding, EmptyWorkspaces, inline_strip, sidebar_column,
             workspace_hover_card,
@@ -65,8 +69,8 @@ use sottomano_widgets::{
 
 use crate::{
     fixtures::{
-        claude_usage, compute, login_session, memory_board, niri_session, tailnet, voice_dictation,
-        vpn, wireguard_server,
+        ci_runner_tasks, claude_usage, compute, login_session, memory_board, niri_session,
+        podman_engines, tailnet, voice_dictation, vpn, wireguard_server,
     },
     showcase_message::ShowcaseMessage,
     showcase_program::SHOWCASE_FLOAT_OFFSET_PX,
@@ -120,6 +124,9 @@ pub enum ShowcasedGroup {
     Gamepad(Box<ShowcasedGamepad>),
     VoiceDictation(Box<VoiceDictationGroup>),
     Caldav(Box<CaldavGroup>),
+    PodmanEngines(Box<PodmanEnginesGroup>),
+    WoodpeckerTasks(Box<WoodpeckerTasksGroup>),
+    ForgejoTasks(Box<ForgejoTasksGroup>),
     Tailnet(Box<TailnetGroup>),
     WireguardServer(Box<WireguardServerGroup>),
     Vpn(Box<VpnGroup>),
@@ -398,6 +405,9 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::WoodpeckerTasks(_)
+            | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardServer(_)
             | ShowcasedGroup::Vpn(_)
@@ -457,6 +467,27 @@ impl ShowcasedGroup {
             ShowcasedGroup::VoiceDictation(group) => {
                 vec![group.group_content().map(ShowcaseMessage::VoiceDictation)]
             }
+            ShowcasedGroup::PodmanEngines(group) => {
+                vec![
+                    group
+                        .group_content(&podman_engines::SHOWN_ENGINES)
+                        .map(ShowcaseMessage::PodmanEngines),
+                ]
+            }
+            ShowcasedGroup::WoodpeckerTasks(group) => {
+                vec![
+                    group.group_content([ci_runner_tasks::SHOWN_RUNNER], |message| {
+                        ShowcaseMessage::WoodpeckerTasks(CiTasksMessage::Expansion(message))
+                    }),
+                ]
+            }
+            ShowcasedGroup::ForgejoTasks(group) => {
+                vec![
+                    group.group_content([ci_runner_tasks::SHOWN_RUNNER], |message| {
+                        ShowcaseMessage::ForgejoTasks(CiTasksMessage::Expansion(message))
+                    }),
+                ]
+            }
             ShowcasedGroup::Caldav(group) => {
                 vec![
                     group
@@ -515,6 +546,21 @@ impl ShowcasedGroup {
         }
     }
 
+    fn update_container_groups(&mut self, message: ShowcaseMessage, clock: Clock) {
+        match (self, message) {
+            (ShowcasedGroup::PodmanEngines(group), ShowcaseMessage::PodmanEngines(message)) => {
+                group.update(message, clock);
+            }
+            (ShowcasedGroup::WoodpeckerTasks(group), ShowcaseMessage::WoodpeckerTasks(message)) => {
+                group.update(message, clock);
+            }
+            (ShowcasedGroup::ForgejoTasks(group), ShowcaseMessage::ForgejoTasks(message)) => {
+                group.update(message, clock);
+            }
+            _ => {}
+        }
+    }
+
     pub fn update(&mut self, message: ShowcaseMessage, clock: Clock) {
         match self {
             ShowcasedGroup::Compute(group) => {
@@ -567,6 +613,9 @@ impl ShowcasedGroup {
                     let _ = group.update(message, clock);
                 }
             }
+            ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::WoodpeckerTasks(_)
+            | ShowcasedGroup::ForgejoTasks(_) => self.update_container_groups(message, clock),
             ShowcasedGroup::Caldav(group) => {
                 if let ShowcaseMessage::Caldav(message) = message {
                     let _ = group.update(message, clock);
@@ -715,6 +764,9 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Audio(_)
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::WoodpeckerTasks(_)
+            | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::AppearancePresets(_)
             | ShowcasedGroup::ShellSettings(_)
             | ShowcasedGroup::Toasts(_) => Vec::new(),
@@ -798,6 +850,24 @@ impl ShowcasedGroup {
                 };
                 group.hover_card_for(*target, clock)
             }
+            ShowcasedGroup::PodmanEngines(group) => {
+                let HoverTarget::PodmanEngine(target) = target else {
+                    return None;
+                };
+                group.hover_card_for(target, clock)
+            }
+            ShowcasedGroup::WoodpeckerTasks(group) => match target {
+                HoverTarget::CiRunner(target) if target.kind() == CiRunnerKind::Woodpecker => {
+                    group.hover_card_for(target, clock)
+                }
+                _ => None,
+            },
+            ShowcasedGroup::ForgejoTasks(group) => match target {
+                HoverTarget::CiRunner(target) if target.kind() == CiRunnerKind::Forgejo => {
+                    group.hover_card_for(target, clock)
+                }
+                _ => None,
+            },
             ShowcasedGroup::Caldav(group) => {
                 let HoverTarget::Caldav(target) = target else {
                     return None;
@@ -885,6 +955,9 @@ impl ShowcasedGroup {
             | ShowcasedGroup::Gamepad(_)
             | ShowcasedGroup::VoiceDictation(_)
             | ShowcasedGroup::Caldav(_)
+            | ShowcasedGroup::PodmanEngines(_)
+            | ShowcasedGroup::WoodpeckerTasks(_)
+            | ShowcasedGroup::ForgejoTasks(_)
             | ShowcasedGroup::Tailnet(_)
             | ShowcasedGroup::WireguardServer(_)
             | ShowcasedGroup::Vpn(_)

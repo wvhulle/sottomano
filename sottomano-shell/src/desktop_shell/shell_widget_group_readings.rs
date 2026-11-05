@@ -112,6 +112,8 @@ impl ShellWidgetGroups {
             | HoverTarget::Media(_)
             | HoverTarget::Gamepad(_)
             | HoverTarget::LlamaServer(_)
+            | HoverTarget::PodmanEngine(_)
+            | HoverTarget::CiRunner(_)
             | HoverTarget::SessionFocus(_)
             | HoverTarget::AppLauncher(_)
             | HoverTarget::GroupMenu(_)
